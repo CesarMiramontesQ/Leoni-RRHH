@@ -36,11 +36,13 @@ async def authenticate_user(
 
 def create_tokens(empleado: Empleado) -> dict:
     rol_nombre = empleado.rol.nombre if empleado.rol else "empleado"
+    nombre_completo = f"{empleado.nombre} {empleado.apellido}".strip()
     payload = {
         "sub": str(empleado.id),
         "rol": rol_nombre,
         "dept": empleado.departamento or "",
         "num": empleado.num_empleado,
+        "nombre": nombre_completo,
     }
     return {
         "access_token": create_access_token(payload),
@@ -86,6 +88,7 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
         "rol": payload.get("rol", "empleado"),
         "dept": payload.get("dept", ""),
         "num": payload.get("num", ""),
+        "nombre": payload.get("nombre") or "",
     }
     return {
         "access_token": create_access_token(new_payload),

@@ -62,7 +62,7 @@ class TressGuiRobot:
 
     async def _run_sync(self, fn, *args, **kwargs):
         """Ejecuta funcion sincrona en thread pool."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             _executor,
             partial(fn, *args, **kwargs),

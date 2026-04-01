@@ -36,24 +36,24 @@ function renderKpis(kpi: KpiResponse): string {
 
   return `
     <div class="mb-6 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-      <h1 class="text-xl font-semibold tracking-tight text-text-primary">Resumen</h1>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-800">Resumen</h1>
       <p class="text-sm text-text-muted">Datos al ${escapeHtml(kpi.fecha)}</p>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="rounded-lg border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-xs">
+      <article class="rounded-xl border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-sm">
         <h2 class="text-sm font-medium text-text-muted">Empleados activos</h2>
-        <p class="mt-2 text-2xl font-semibold text-text-primary">${escapeHtml(String(kpi.empleados_activos))}</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(kpi.empleados_activos))}</p>
       </article>
-      <article class="rounded-lg border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-xs">
+      <article class="rounded-xl border border-border border-t-4 border-t-amber-400 bg-white p-5 shadow-sm">
         <h2 class="text-sm font-medium text-text-muted">Incidencias abiertas</h2>
-        <p class="mt-2 text-2xl font-semibold text-text-primary">${escapeHtml(String(kpi.incidencias_abiertas))}</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(kpi.incidencias_abiertas))}</p>
       </article>
-      <article class="rounded-lg border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-xs">
+      <article class="rounded-xl border border-border border-t-4 border-t-orange-400 bg-white p-5 shadow-sm">
         <h2 class="text-sm font-medium text-text-muted">Actas pendientes de firma</h2>
-        <p class="mt-2 text-2xl font-semibold text-text-primary">${escapeHtml(String(kpi.actas_pendientes_firma))}</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(kpi.actas_pendientes_firma))}</p>
       </article>
-      <article class="rounded-lg border border-border bg-white p-5 shadow-xs sm:col-span-2 xl:col-span-4">
+      <article class="rounded-xl border border-border border-t-4 border-t-leoni-blue bg-white p-5 shadow-sm sm:col-span-2 xl:col-span-4">
         <h2 class="text-sm font-medium text-text-muted">Solicitudes por estado</h2>
         <div class="mt-4">
           ${solicitudesBlock}
@@ -102,7 +102,13 @@ export function mountDashboardPlaceholder(container: HTMLElement): void {
     activeNav: "dashboard",
     mainHtml: `
       <div id="dashboard-kpis-root">
-        <p class="text-sm text-text-muted">Cargando indicadores…</p>
+        <div class="flex items-center gap-3 py-8 text-sm text-text-muted">
+          <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Cargando indicadores…
+        </div>
       </div>
     `,
   });

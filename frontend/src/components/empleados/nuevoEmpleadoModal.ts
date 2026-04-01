@@ -67,7 +67,14 @@ function shellHtml(): string {
 }
 
 function loadingBodyHtml(): string {
-  return `<p class="text-sm text-text-muted">Cargando formulario…</p>`;
+  return `
+    <div class="flex items-center gap-3 py-6 text-sm text-text-muted">
+      <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      Cargando formulario…
+    </div>`;
 }
 
 function formBodyHtml(
@@ -232,6 +239,9 @@ export function mountNuevoEmpleadoModal(
     overlayEl.classList.add("hidden");
     overlayEl.classList.remove("flex");
     document.body.style.overflow = "";
+    // Devolver foco al botón trigger al cerrar
+    const trigger = document.querySelector<HTMLElement>("#btn-nuevo-empleado");
+    trigger?.focus();
   }
 
   async function prepareForm(): Promise<void> {
@@ -365,6 +375,11 @@ export function mountNuevoEmpleadoModal(
         bodyEl.innerHTML = formBodyHtml(rolesCache, supervisoresCache, options.getCatalogo());
         bindFormSubmit();
       }
+      // Mover foco al primer campo interactivo del modal
+      const firstInput = host.querySelector<HTMLElement>(
+        "#nuevo-empleado-modal-body input, #nuevo-empleado-modal-body select, [data-close-modal]",
+      );
+      firstInput?.focus();
     },
     close,
     destroy: () => {

@@ -102,7 +102,7 @@ function renderKpis(r: UsuarioResumen, isRh: boolean): string {
           </span>
         </div>
         <p class="mt-3 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(r.practicantes))}</p>
-        <p class="mt-2 text-xs font-medium text-red-600">N/D · Sin integración</p>
+        <p class="mt-2 text-xs font-medium text-amber-600">N/D · Sin integración</p>
       </article>
     </div>`;
   }
@@ -119,7 +119,7 @@ function renderKpis(r: UsuarioResumen, isRh: boolean): string {
           </span>
         </div>
         <p class="mt-3 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(r.total_plantilla))}</p>
-        <p class="mt-2 flex items-center gap-1 text-xs font-medium text-leoni-green">
+        <p class="mt-2 flex items-center gap-1 text-xs font-medium text-emerald-700">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7-5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1-9a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM4 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1-5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" /></svg>
           Plantilla registrada
         </p>
@@ -164,7 +164,7 @@ function renderKpis(r: UsuarioResumen, isRh: boolean): string {
           </span>
         </div>
         <p class="mt-3 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(r.practicantes))}</p>
-        <p class="mt-2 text-xs font-medium text-red-600">N/D · Sin integración</p>
+        <p class="mt-2 text-xs font-medium text-amber-600">N/D · Sin integración</p>
       </article>
     </div>`;
 }
@@ -193,7 +193,7 @@ function rowHtml(u: UsuarioListItem): string {
   const area = u.departamento?.trim() || "—";
   const puesto = u.puesto?.trim() || "—";
   return `
-    <tr class="border-b border-slate-100 last:border-0">
+    <tr class="border-b border-slate-100 last:border-0 transition-colors hover:bg-surface">
       <td class="px-4 py-3">
         <div class="flex items-center gap-3">
           <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>
@@ -355,8 +355,18 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
           <h1 class="text-2xl font-bold tracking-tight text-slate-800">Empleados</h1>
           ${isRh ? renderNuevoEmpleadoButton() : ""}
         </div>
-        <div id="empleados-kpis"><p class="text-sm text-text-muted">Cargando indicadores…</p></div>
-        <div id="empleados-panel"><p class="text-sm text-text-muted">Cargando tabla…</p></div>
+        <div id="empleados-kpis">
+          <div class="flex items-center gap-3 py-4 text-sm text-text-muted">
+            <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Cargando indicadores…
+          </div>
+        </div>
+        <div id="empleados-panel">
+          <div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted">
+            <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Cargando tabla…
+          </div>
+        </div>
       </div>
       ${isRh ? `<div id="nuevo-empleado-modal-host"></div>` : ""}`,
   });
@@ -397,7 +407,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   async function loadPage(): Promise<void> {
     const panel = panelEl();
     if (!panel) return;
-    panel.innerHTML = `<p class="rounded-xl border border-border bg-white p-6 text-sm text-text-muted">Cargando tabla…</p>`;
+    panel.innerHTML = `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
     try {
       const pg = await getEmpleadosPage({
         page: state.page,

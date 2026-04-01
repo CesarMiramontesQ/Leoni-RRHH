@@ -28,7 +28,7 @@ export function mountLogin(container: HTMLElement): void {
         <form id="login-form" class="space-y-6">
 
           <div>
-            <label for="email" class="block text-sm/6 font-medium text-text-primary">
+            <label for="email" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
               Correo electrónico
             </label>
             <div class="mt-2">
@@ -39,17 +39,15 @@ export function mountLogin(container: HTMLElement): void {
                 required
                 autocomplete="email"
                 placeholder="usuario@leoni.com"
-                class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-text-primary
-                       outline-1 -outline-offset-1 outline-border
+                class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary
                        placeholder:text-text-muted
-                       focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue
-                       sm:text-sm/6"
+                       focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
               />
             </div>
           </div>
 
           <div>
-            <label for="password" class="block text-sm/6 font-medium text-text-primary">
+            <label for="password" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
               Contraseña
             </label>
             <div class="mt-2">
@@ -60,11 +58,9 @@ export function mountLogin(container: HTMLElement): void {
                 required
                 autocomplete="current-password"
                 placeholder="••••••••"
-                class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-text-primary
-                       outline-1 -outline-offset-1 outline-border
+                class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary
                        placeholder:text-text-muted
-                       focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue
-                       sm:text-sm/6"
+                       focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
               />
             </div>
           </div>
@@ -110,11 +106,10 @@ export function mountLogin(container: HTMLElement): void {
           <div>
             <button
               type="submit"
-              class="flex w-full cursor-pointer justify-center rounded-md bg-leoni-blue px-3 py-1.5
-                     text-sm/6 font-semibold text-white shadow-xs
-                     transition-colors hover:bg-leoni-blue-light
-                     focus-visible:outline-2 focus-visible:outline-offset-2
-                     focus-visible:outline-leoni-blue
+              class="flex w-full cursor-pointer justify-center rounded-lg bg-leoni-blue px-3 py-2
+                     text-sm font-semibold text-white shadow-xs
+                     transition-colors hover:bg-leoni-blue-light active:scale-[0.98] active:bg-leoni-blue
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2
                      disabled:cursor-not-allowed disabled:opacity-60"
             >
               Iniciar sesión

@@ -58,7 +58,7 @@ class TressSqlClient:
 
     async def query(self, sql: str, params: tuple = ()) -> list[dict]:
         """Ejecuta query en thread pool y retorna lista de dicts."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             return await loop.run_in_executor(
                 _executor,

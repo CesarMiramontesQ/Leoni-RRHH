@@ -27,6 +27,27 @@ export function getRolFromAccessToken(): string | null {
   return typeof r === "string" ? r : null;
 }
 
+/** Nombre para mostrar (viene en el JWT tras login). */
+export function getUserDisplayNameFromAccessToken(): string {
+  const p = getAccessTokenPayload();
+  const n = p?.nombre;
+  if (typeof n === "string" && n.trim()) return n.trim();
+  return "Usuario";
+}
+
+/** Iniciales para el avatar (2 caracteres). */
+export function getUserInitialsFromAccessToken(): string {
+  const name = getUserDisplayNameFromAccessToken();
+  if (name === "Usuario") return "US";
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const a = parts[0]![0] ?? "";
+    const b = parts[parts.length - 1]![0] ?? "";
+    return (a + b).toUpperCase();
+  }
+  return (parts[0] ?? "U").slice(0, 2).toUpperCase();
+}
+
 /** Panel administrativo /api/v1/usuarios (lista completa, inactivos, KPIs plantilla). */
 export function canAccessUsuariosAdmin(): boolean {
   return getRolFromAccessToken() === "rh";

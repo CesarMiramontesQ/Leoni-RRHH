@@ -11,18 +11,20 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         super().__init__(Empleado, db)
 
     async def get_by_email(self, email: str) -> Empleado | None:
+        # No filtra por activo — auth_service decide si rechazar empleados inactivos (403)
         result = await self.db.execute(
             select(Empleado)
             .options(selectinload(Empleado.rol))
-            .where(Empleado.email == email, Empleado.activo == True)
+            .where(Empleado.email == email)
         )
         return result.scalar_one_or_none()
 
     async def get_by_num_empleado(self, num_empleado: str) -> Empleado | None:
+        # No filtra por activo — TRESS sync necesita encontrar empleados inactivos para actualizar, no duplicar
         result = await self.db.execute(
             select(Empleado)
             .options(selectinload(Empleado.rol))
-            .where(Empleado.num_empleado == num_empleado, Empleado.activo == True)
+            .where(Empleado.num_empleado == num_empleado)
         )
         return result.scalar_one_or_none()
 

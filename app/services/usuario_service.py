@@ -62,11 +62,12 @@ class UsuarioService:
             raise ForbiddenError(detail="Solo el rol rh puede usar esta operacion")
 
     def _require_directorio(self, current_user: Empleado) -> None:
-        """Subconjunto del directorio: gerente, director o supervisor (solo activos)."""
+        """Subconjunto del directorio: gerente, director o supervisor (solo activos).
+        RH accede al directorio via la rama list_usuarios_page del router — si llega aqui es un error de llamada."""
         rol = self._get_rol(current_user)
         if rol not in ("gerente", "director", "supervisor"):
             raise ForbiddenError(
-                detail="Se requiere rol gerente, director o supervisor para el directorio"
+                detail="Se requiere rol gerente, director o supervisor para esta operacion"
             )
 
     async def _ensure_puede_ver_empleado(
@@ -201,11 +202,11 @@ class UsuarioService:
         id: int,
         current_user: Empleado,
     ) -> UsuarioResponse:
+        self._require_rh_only(current_user)
+
         usuario = await self.repo.get_with_rol(id)
         if not usuario:
             raise NotFoundError(entidad="Usuario", id=id)
-
-        await self._ensure_puede_ver_empleado(current_user, id)
 
         return UsuarioResponse.model_validate(usuario)
 
@@ -341,6 +342,7 @@ class UsuarioService:
         )
 
         await self.repo.update(id, {"activo": False})
+        await self.db.commit()
 
         audit_background(
             background_tasks=background_tasks,
