@@ -1,0 +1,111 @@
+import { getDashboardKpis, type KpiFetchError, type KpiResponse } from "../api/reportes.ts";
+import { clearAuth } from "../auth/session.ts";
+import { mountAppShell } from "../layouts/appShell.ts";
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function renderError(message: string): string {
+  return `
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+      ${escapeHtml(message)}
+    </div>`;
+}
+
+function renderKpis(kpi: KpiResponse): string {
+  const entries = Object.entries(kpi.solicitudes_por_estado);
+  const solicitudesBlock =
+    entries.length === 0
+      ? `<p class="text-sm text-text-muted">Sin solicitudes agrupadas por estado.</p>`
+      : `<dl class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          ${entries
+            .map(
+              ([estado, n]) => `
+            <div class="flex items-center justify-between gap-2 rounded-md bg-surface px-3 py-2">
+              <dt class="text-sm font-medium text-text-muted">${escapeHtml(estado)}</dt>
+              <dd class="text-lg font-semibold text-leoni-blue">${escapeHtml(String(n))}</dd>
+            </div>`,
+            )
+            .join("")}
+        </dl>`;
+
+  return `
+    <div class="mb-6 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+      <h1 class="text-xl font-semibold tracking-tight text-text-primary">Resumen</h1>
+      <p class="text-sm text-text-muted">Datos al ${escapeHtml(kpi.fecha)}</p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="rounded-lg border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-xs">
+        <h2 class="text-sm font-medium text-text-muted">Empleados activos</h2>
+        <p class="mt-2 text-2xl font-semibold text-text-primary">${escapeHtml(String(kpi.empleados_activos))}</p>
+      </article>
+      <article class="rounded-lg border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-xs">
+        <h2 class="text-sm font-medium text-text-muted">Incidencias abiertas</h2>
+        <p class="mt-2 text-2xl font-semibold text-text-primary">${escapeHtml(String(kpi.incidencias_abiertas))}</p>
+      </article>
+      <article class="rounded-lg border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-xs">
+        <h2 class="text-sm font-medium text-text-muted">Actas pendientes de firma</h2>
+        <p class="mt-2 text-2xl font-semibold text-text-primary">${escapeHtml(String(kpi.actas_pendientes_firma))}</p>
+      </article>
+      <article class="rounded-lg border border-border bg-white p-5 shadow-xs sm:col-span-2 xl:col-span-4">
+        <h2 class="text-sm font-medium text-text-muted">Solicitudes por estado</h2>
+        <div class="mt-4">
+          ${solicitudesBlock}
+        </div>
+      </article>
+    </div>`;
+}
+
+function isKpiFetchError(e: unknown): e is KpiFetchError {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "status" in e &&
+    "detail" in e &&
+    typeof (e as KpiFetchError).detail === "string"
+  );
+}
+
+async function loadDashboardKpis(container: HTMLElement): Promise<void> {
+  const root = container.querySelector<HTMLElement>("#dashboard-kpis-root");
+  if (!root) return;
+
+  try {
+    const kpi = await getDashboardKpis();
+    root.innerHTML = renderKpis(kpi);
+  } catch (e: unknown) {
+    if (isKpiFetchError(e) && e.status === 401) {
+      clearAuth();
+      void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+        abortAuthenticatedShell();
+        void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+      });
+      return;
+    }
+    if (isKpiFetchError(e)) {
+      root.innerHTML = renderError(e.detail);
+      return;
+    }
+    root.innerHTML = renderError("Error de conexión. Verifica que el servidor esté activo e intenta de nuevo.");
+  }
+}
+
+export function mountDashboardPlaceholder(container: HTMLElement): void {
+  mountAppShell(container, {
+    pageTitle: "Dashboard",
+    activeNav: "dashboard",
+    mainHtml: `
+      <div id="dashboard-kpis-root">
+        <p class="text-sm text-text-muted">Cargando indicadores…</p>
+      </div>
+    `,
+  });
+
+  void loadDashboardKpis(container);
+}

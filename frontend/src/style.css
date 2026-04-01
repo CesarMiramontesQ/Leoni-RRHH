@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* ── Design tokens marca Leoni (paleta logotipo LCS) ─────── */
+@theme {
+  --color-leoni-blue:       #002147;
+  --color-leoni-blue-light: #0D3D66;
+  --color-leoni-green:      #00C853;
+  --color-leoni-black:      #000000;
+  --color-leoni-dark:       #1A2433;
+  --color-surface:          #F4F6F9;
+  --color-text-primary:     #002147;
+  --color-text-muted:       #5A6880;
+  --color-border:           #D1DCE8;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tailwind Plus: dialog sidebar móvil sin márgenes por defecto del agente */
+#sidebar {
+  margin: 0;
+  max-height: 100%;
+}
