@@ -14,6 +14,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import ForbiddenError
 from app.models.actas import ActaAdministrativa
 from app.models.empleados import Empleado
@@ -38,9 +39,8 @@ class ReporteService:
         if rol not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver KPIs")
 
-        # Total empleados activos
         emp_result = await self.db.execute(
-            select(func.count()).where(Empleado.activo == True)  # noqa: E712
+            select(func.count()).where(Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS))
         )
         total_empleados = emp_result.scalar_one()
 

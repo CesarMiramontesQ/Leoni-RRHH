@@ -35,8 +35,7 @@ function renderKpis(kpi: KpiResponse): string {
         </dl>`;
 
   return `
-    <div class="mb-6 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-      <h1 class="text-2xl font-bold tracking-tight text-slate-800">Resumen</h1>
+    <div class="mb-6 flex justify-end">
       <p class="text-sm text-text-muted">Datos al ${escapeHtml(kpi.fecha)}</p>
     </div>
 

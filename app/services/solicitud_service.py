@@ -17,6 +17,7 @@ import logging
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.integrations.tress.queue import encolar_tress
 from app.models.empleados import Empleado
@@ -72,7 +73,9 @@ class SolicitudService:
             total = await self.repo.count()
 
         elif rol in ("supervisor", "gerente"):
-            subordinados = await self.empleado_repo.get_subordinados(current_user.id)
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
             ids = [e.id for e in subordinados] + [current_user.id]
             items, next_cursor = await self.repo.list_by_equipo(
                 empleado_ids=ids, cursor=cursor, limit=limit
@@ -111,7 +114,9 @@ class SolicitudService:
         if rol not in ("director", "rh"):
             if solicitud.empleado_id != current_user.id:
                 if rol in ("supervisor", "gerente"):
-                    subordinados = await self.empleado_repo.get_subordinados(current_user.id)
+                    subordinados = await self.empleado_repo.get_subordinados(
+                        current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                    )
                     ids = {e.id for e in subordinados}
                     if solicitud.empleado_id not in ids:
                         raise ForbiddenError(detail="No tienes acceso a esta solicitud")
@@ -161,10 +166,9 @@ class SolicitudService:
             datos_despues={"tipo": solicitud.tipo, "estado": solicitud.estado},
         )
 
-        # Notificar supervisor si existe
-        if current_user.supervisor_id:
-            supervisor_id = current_user.supervisor_id
-            nombre_empleado = f"{current_user.nombre} {current_user.apellido}"
+        if current_user.lider_id:
+            supervisor_id = current_user.lider_id
+            nombre_empleado = current_user.nombre
             tipo = data.tipo
 
             async def _notify_supervisor() -> None:
@@ -206,7 +210,7 @@ class SolicitudService:
         # Verificar relacion jerarquica
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         if rol not in ("director", "rh"):
-            if solicitud.empleado.supervisor_id != current_user.id:
+            if solicitud.empleado.lider_id != current_user.id:
                 raise ForbiddenError(
                     detail="Solo el supervisor directo puede aprobar en este nivel"
                 )
@@ -228,7 +232,7 @@ class SolicitudService:
             db=self.db,
             accion=accion_tress,
             payload={
-                "empleado_num": solicitud.empleado.num_empleado,
+                "empleado_num": solicitud.empleado.no_empleado,
                 "fecha_inicio": str(solicitud.fecha_inicio),
                 "fecha_fin": str(solicitud.fecha_fin),
                 "referencia_id": solicitud.id,

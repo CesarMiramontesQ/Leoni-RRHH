@@ -75,15 +75,17 @@ class ComedorRegistroRepository(BaseRepository[ComedorRegistro]):
 
     async def get_by_huella(self, num_empleado: str) -> Empleado | None:
         """
-        Stub: busca empleado por num_empleado.
+        Stub: busca empleado por no_empleado.
         En produccion el campo de huella biometrica se mapearia directamente.
         """
+        from app.core.config import settings
+
         result = await self.db.execute(
             select(Empleado)
             .options(selectinload(Empleado.rol))
             .where(
-                Empleado.num_empleado == num_empleado,
-                Empleado.activo == True,  # noqa: E712
+                Empleado.no_empleado == num_empleado,
+                Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
             )
         )
         return result.scalar_one_or_none()

@@ -36,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 # Forzar importacion de todos los modelos para poblar Base.metadata
+import app.models.catalogos  # noqa: F401
 import app.models.empleados  # noqa: F401
 import app.models.solicitudes  # noqa: F401
 import app.models.auditoria  # noqa: F401
@@ -170,12 +171,13 @@ async def make_empleado(
     *,
     rol: str = "empleado",
     email: str | None = None,
-    num_empleado: str | None = None,
-    nombre: str = "Test",
-    apellido: str = "Usuario",
+    usuario: str | None = None,
+    no_empleado: str | None = None,
+    empleado_id: int | None = None,
+    nombre: str = "Test Usuario",
     password: str = "Passw0rd!Seguro",
-    supervisor_id: int | None = None,
-    activo: bool = True,
+    lider_id: int | None = None,
+    estado_id: int = 1,
 ):
     """
     Factory para crear un Empleado con Rol asociado.
@@ -186,27 +188,25 @@ async def make_empleado(
 
     uid = str(uuid.uuid4())[:8]
     _email = email or f"emp_{uid}@leoni.test"
-    _num = num_empleado or f"EMP-{uid}"
+    _no_empleado = no_empleado or f"EMP-{uid}"
+    _empleado_id = empleado_id or abs(hash(uid)) % 100000
 
     rol_obj = await _get_or_create_rol(db, rol)
 
     empleado = Empleado(
-        num_empleado=_num,
+        empleado_id=_empleado_id,
+        no_empleado=_no_empleado,
         nombre=nombre,
-        apellido=apellido,
         email=_email,
+        usuario=usuario,
         password_hash=hash_password(password),
-        departamento="Produccion",
-        puesto="Operador",
         rol_id=rol_obj.id,
-        supervisor_id=supervisor_id,
-        activo=activo,
-        fecha_ingreso=date(2022, 3, 1),
+        lider_id=lider_id,
+        estado_id=estado_id,
     )
     db.add(empleado)
     await db.flush()
     await db.refresh(empleado)
-    # Asignar objeto rol en memoria para evitar lazy load en role_checker
     empleado.rol = rol_obj
     return empleado
 
@@ -293,24 +293,24 @@ async def auth_headers(
 
 @pytest_asyncio.fixture
 async def empleado_base(db):
-    return await make_empleado(db, rol="empleado", nombre="Carlos", apellido="Lopez")
+    return await make_empleado(db, rol="empleado", nombre="Carlos López")
 
 
 @pytest_asyncio.fixture
 async def empleado_supervisor(db):
-    return await make_empleado(db, rol="supervisor", nombre="Ana", apellido="Martinez")
+    return await make_empleado(db, rol="supervisor", nombre="Ana Martínez")
 
 
 @pytest_asyncio.fixture
 async def empleado_rh(db):
-    return await make_empleado(db, rol="rh", nombre="Lucia", apellido="Fernandez")
+    return await make_empleado(db, rol="rh", nombre="Lucía Fernández")
 
 
 @pytest_asyncio.fixture
 async def empleado_director(db):
-    return await make_empleado(db, rol="director", nombre="Roberto", apellido="Diaz")
+    return await make_empleado(db, rol="director", nombre="Roberto Díaz")
 
 
 @pytest_asyncio.fixture
 async def empleado_gerente(db):
-    return await make_empleado(db, rol="gerente", nombre="Sofia", apellido="Ruiz")
+    return await make_empleado(db, rol="gerente", nombre="Sofía Ruiz")

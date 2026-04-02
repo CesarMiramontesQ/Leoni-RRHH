@@ -26,7 +26,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
     request: Request = None,
 ):
-    """Login con credenciales. Retorna JWT access token y refresh token."""
+    """Login con credenciales (correo si contiene @, si no `empleados.usuario`)."""
     empleado = await authenticate_user(form_data.username, form_data.password, db)
     tokens = create_tokens(empleado)
     return tokens

@@ -17,6 +17,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.integrations.tress.queue import encolar_tress
 from app.models.empleados import Empleado
@@ -65,7 +66,9 @@ class IncidenciaService:
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
             total = await self.repo.count()
         elif rol in ("gerente", "supervisor"):
-            subordinados = await self.empleado_repo.get_subordinados(current_user.id)
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
             ids = [e.id for e in subordinados] + [current_user.id]
             items, next_cursor = await self.repo.list_paginated(
                 cursor=cursor,
@@ -217,7 +220,7 @@ class IncidenciaService:
                     db=self.db,
                     accion="REGISTRAR_INCIDENCIA",
                     payload={
-                        "empleado_num": empleado.num_empleado,
+                        "empleado_num": empleado.no_empleado,
                         "tipo": incidencia.tipo,
                         "descripcion": incidencia.descripcion,
                         "fecha": str(incidencia.created_at.date()),

@@ -17,7 +17,9 @@ from typing import Optional
 
 import httpx
 from fastapi import BackgroundTasks
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
@@ -103,7 +105,9 @@ class ActaService:
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
             total = await self.repo.count()
         elif rol == "gerente":
-            subordinados = await self.empleado_repo.get_subordinados(current_user.id)
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
             ids = [e.id for e in subordinados] + [current_user.id]
             items, next_cursor = await self.repo.list_paginated(
                 cursor=cursor,
@@ -165,14 +169,18 @@ class ActaService:
         if rol != "rh":
             raise ForbiddenError(detail="Solo RH puede generar actas")
 
-        empleado = await self.empleado_repo.get(data.empleado_id)
+        result_emp = await self.db.execute(
+            select(Empleado)
+            .options(selectinload(Empleado.area), selectinload(Empleado.puesto))
+            .where(Empleado.id == data.empleado_id)
+        )
+        empleado = result_emp.scalar_one_or_none()
         if not empleado:
             raise NotFoundError(entidad="Empleado", id=data.empleado_id)
 
         tipo_incidencia = "no especificado"
         if data.incidencia_id:
             from app.models.incidencias import Incidencia
-            from sqlalchemy import select
             result = await self.db.execute(
                 select(Incidencia).where(Incidencia.id == data.incidencia_id)
             )
@@ -182,10 +190,12 @@ class ActaService:
             tipo_incidencia = incidencia.tipo
 
         contexto = {
-            "empleado_nombre": f"{empleado.nombre} {empleado.apellido}",
-            "num_empleado": empleado.num_empleado,
-            "departamento": empleado.departamento or "",
-            "puesto": empleado.puesto or "",
+            "empleado_nombre": empleado.nombre,
+            "num_empleado": empleado.no_empleado,
+            "departamento": (
+                empleado.area.descripcion if empleado.area else ""
+            ),
+            "puesto": (empleado.puesto.descripcion if empleado.puesto else ""),
             "fecha": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "tipo_incidencia": tipo_incidencia,
         }

@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.models.auditoria import TokenBlacklist
@@ -50,7 +51,15 @@ async def get_current_user(
 
     result = await db.execute(
         select(Empleado)
-        .options(selectinload(Empleado.rol))
+        .options(
+            selectinload(Empleado.rol),
+            selectinload(Empleado.estado),
+            selectinload(Empleado.area),
+            selectinload(Empleado.puesto),
+            selectinload(Empleado.subarea),
+            selectinload(Empleado.categoria),
+            selectinload(Empleado.clasificacion),
+        )
         .where(Empleado.id == int(empleado_id))
     )
     empleado = result.scalar_one_or_none()
@@ -60,7 +69,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Empleado no encontrado",
         )
-    if not empleado.activo:
+    if empleado.estado_id is None or empleado.estado_id not in settings.ESTADOS_ACTIVOS_IDS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Empleado inactivo",

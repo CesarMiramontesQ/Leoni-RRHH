@@ -118,11 +118,28 @@ app.add_middleware(
 )
 
 # ── Exception Handlers ────────────────────────────────────────
+def _validation_errors_json_safe(errors: list) -> list:
+    """Normaliza ctx de Pydantic (puede contener excepciones) para JSONResponse."""
+    out: list = []
+    for err in errors:
+        e = dict(err)
+        ctx = e.get("ctx")
+        if isinstance(ctx, dict):
+            e["ctx"] = {k: str(v) for k, v in ctx.items()}
+        elif ctx is not None:
+            e["ctx"] = str(ctx)
+        out.append(e)
+    return out
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors(), "body": str(exc.body)},
+        content={
+            "detail": _validation_errors_json_safe(exc.errors()),
+            "body": str(exc.body),
+        },
     )
 
 

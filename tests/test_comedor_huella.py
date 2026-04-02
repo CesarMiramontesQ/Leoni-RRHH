@@ -14,7 +14,7 @@ El endpoint NO requiere JWT — es para lectores de huella fisicos en la red int
 
 import pytest
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient
 
 from tests.conftest import auth_headers, make_empleado
@@ -93,12 +93,17 @@ async def test_huella_ip_autorizada_procesa_request(db, monkeypatch):
     async def override_get_db():
         yield db
 
+    from app.core.dependencies import require_huella_ip
+
+    async def override_huella_ip():
+        return None
+
     fastapi_app.dependency_overrides[get_db] = override_get_db
+    fastapi_app.dependency_overrides[require_huella_ip] = override_huella_ip
 
     try:
         from httpx import ASGITransport, AsyncClient as HX
 
-        # Simular request desde 10.0.0.50
         transport = ASGITransport(app=fastapi_app)
 
         with patch(
@@ -107,11 +112,7 @@ async def test_huella_ip_autorizada_procesa_request(db, monkeypatch):
             return_value=MagicMock(acceso=True, empleado="Juan Garcia", tipo_platillo="normal"),
         ):
             async with HX(transport=transport, base_url="http://testserver") as c:
-                # Inyectar la IP correcta en el scope via monkeypatch de Request
-                with patch("app.core.dependencies.require_huella_ip") as mock_dep:
-                    mock_dep.return_value = None
-                    # Con la dependency mockeada como no-op, el endpoint procesa
-                    response = await c.post(HUELLA_ENDPOINT, json=HUELLA_PAYLOAD)
+                response = await c.post(HUELLA_ENDPOINT, json=HUELLA_PAYLOAD)
 
         assert response.status_code == 200
     finally:

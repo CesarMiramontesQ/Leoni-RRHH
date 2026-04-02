@@ -1,5 +1,6 @@
 import { getUserDisplayNameFromAccessToken, getUserInitialsFromAccessToken } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
+import { tituloDesdeHash } from "../navigation/pageTitles.ts";
 
 function escapeHtmlText(s: string): string {
   return s
@@ -136,7 +137,9 @@ export type AppShellOptions = {
 };
 
 export function mountAppShell(container: HTMLElement, options: AppShellOptions): void {
-  document.title = `${options.pageTitle ?? "Dashboard"} — Plataforma RH`;
+  const tituloPagina = options.pageTitle ?? tituloDesdeHash(window.location.hash);
+  document.title = `${tituloPagina} — Plataforma RH`;
+  const tituloNavbar = escapeHtmlText(tituloPagina);
   const body = sidebarBody(options.activeNav);
   const userName = escapeHtmlText(getUserDisplayNameFromAccessToken());
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
@@ -182,19 +185,14 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
 
     <div aria-hidden="true" class="h-6 w-px bg-text-primary/10 lg:hidden"></div>
 
-    <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-      <form id="app-shell-search-form" action="#" method="get" class="grid flex-1 grid-cols-1">
-        <input
-          name="search"
-          type="search"
-          placeholder="Buscar…"
-          aria-label="Buscar"
-          class="col-start-1 row-start-1 block size-full rounded-md border-0 bg-transparent pl-8 text-base text-text-primary outline-none placeholder:text-text-muted focus:ring-0 sm:text-sm/6"
-        />
-        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 size-5 self-center text-text-muted">
-          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
-        </svg>
-      </form>
+    <div class="flex min-w-0 flex-1 items-center gap-x-4 self-stretch lg:gap-x-6">
+      <p
+        id="app-shell-page-title"
+        class="min-w-0 flex-1 truncate text-lg font-semibold text-text-primary"
+        title="${tituloNavbar}"
+      >
+        ${tituloNavbar}
+      </p>
       <div class="flex items-center gap-x-4 lg:gap-x-6">
         <button type="button" id="app-shell-notifications" class="-m-2.5 p-2.5 text-text-muted hover:text-text-primary">
           <span class="sr-only">Ver notificaciones</span>
@@ -233,10 +231,6 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </main>
 </div>
 `;
-
-  container.querySelector<HTMLFormElement>("#app-shell-search-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-  });
 
   container.querySelector("#app-shell-sign-out")?.addEventListener("click", () => {
     if (options.onSignOut) {

@@ -1,4 +1,5 @@
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
+import { mountEmployeeVista360 } from "./pages/empleadoVista360.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
 
 let routeAbort: AbortController | null = null;
@@ -17,6 +18,14 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
   const go = (): void => {
     const h = window.location.hash || "#/";
+    const vistaMatch = h.match(/^#\/empleados\/(\d+)\/?/);
+    if (vistaMatch) {
+      const id = Number.parseInt(vistaMatch[1] ?? "", 10);
+      if (!Number.isNaN(id)) {
+        mountEmployeeVista360(container, id, signal);
+        return;
+      }
+    }
     if (h.startsWith("#/empleados")) {
       mountEmpleados(container, signal);
     } else {

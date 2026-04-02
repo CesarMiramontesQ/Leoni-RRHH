@@ -21,6 +21,14 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
+from app.models.catalogos import (
+    Area,
+    Categoria,
+    ClasificacionEmpleado,
+    EstadoEmpleado,
+    Puesto,
+    Subarea,
+)
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 
@@ -246,22 +254,104 @@ ROLES_SEED: list[dict] = [
 ]
 
 
+CATALOGOS_SEED: dict = {
+    "areas": [
+        {"area_id": 1, "descripcion": "Producción", "estatus_id": 1},
+        {"area_id": 2, "descripcion": "Administración", "estatus_id": 1},
+    ],
+    "categorias": [
+        {
+            "categoria_id": 1,
+            "descripcion": "Operativo",
+            "nivel": "N1",
+            "bono_cat": None,
+            "estatus_id": 1,
+        },
+        {
+            "categoria_id": 2,
+            "descripcion": "Administrativo",
+            "nivel": "N2",
+            "bono_cat": None,
+            "estatus_id": 1,
+        },
+    ],
+    "subareas": [
+        {"subarea_id": 1, "descripcion": "Línea A", "area_id": 1, "estatus_id": 1},
+        {"subarea_id": 2, "descripcion": "Contabilidad", "area_id": 2, "estatus_id": 1},
+    ],
+    "puestos": [
+        {"puesto_id": 1, "descripcion": "Operador", "estatus_id": 1, "area_id": 1},
+        {"puesto_id": 2, "descripcion": "Analista", "estatus_id": 1, "area_id": 2},
+    ],
+    "estados_empleados": [
+        {"estado_id": 1, "descripcion": "Activo", "estatus_id": 1},
+        {"estado_id": 2, "descripcion": "Baja", "estatus_id": 1},
+        {"estado_id": 3, "descripcion": "Suspendido", "estatus_id": 1},
+    ],
+    "clasificaciones": [
+        {
+            "clasificacion_id": 1,
+            "descripcion": "Directo",
+            "estatus_id": 1,
+            "significado": "Personal directo de producción",
+        },
+        {
+            "clasificacion_id": 2,
+            "descripcion": "Indirecto",
+            "estatus_id": 1,
+            "significado": "Personal de soporte",
+        },
+    ],
+}
+
+
 # ── Admin inicial ─────────────────────────────────────────────────────────────
 # Cambiar la password despues del primer login via endpoint de cambio de password.
 # Este usuario no se modifica en ejecuciones posteriores del seed.
 
 ADMIN_RH: dict = {
-    "num_empleado": "RH-0001",
-    "nombre": "Admin",
-    "apellido": "RH",
+    "empleado_id": 9999,
+    "no_empleado": "RH-0001",
+    "nombre": "Admin RH",
     "email": "admin.rh@leoni.com",
+    "usuario": "admin.rh",
     "password": "Leoni2026!RH",
-    "departamento": "Recursos Humanos",
-    "puesto": "Administrador del Sistema",
+    "estado_id": 1,
 }
 
 
 # ── Logica del seed ───────────────────────────────────────────────────────────
+
+
+async def seed_catalogos(db) -> None:
+    """Crea datos de catálogos mínimos para development. Idempotente por PK."""
+    plan = [
+        ("areas", Area, "area_id", CATALOGOS_SEED["areas"]),
+        ("categorias", Categoria, "categoria_id", CATALOGOS_SEED["categorias"]),
+        ("subareas", Subarea, "subarea_id", CATALOGOS_SEED["subareas"]),
+        ("puestos", Puesto, "puesto_id", CATALOGOS_SEED["puestos"]),
+        ("estados_empleados", EstadoEmpleado, "estado_id", CATALOGOS_SEED["estados_empleados"]),
+        (
+            "clasificaciones",
+            ClasificacionEmpleado,
+            "clasificacion_id",
+            CATALOGOS_SEED["clasificaciones"],
+        ),
+    ]
+
+    for nombre, Model, pk_field, rows in plan:
+        for row in rows:
+            pk_value = row[pk_field]
+            result = await db.execute(
+                select(Model).where(getattr(Model, pk_field) == pk_value)
+            )
+            existing = result.scalar_one_or_none()
+            if not existing:
+                db.add(Model(**row))
+                logger.info("  %s id=%d creado", nombre, pk_value)
+        await db.flush()
+    logger.info("Catálogos seed completado")
+
 
 async def seed_roles(db) -> dict[str, int]:
     """Crea o actualiza los 5 roles. Retorna mapa nombre→id."""
@@ -290,7 +380,7 @@ async def seed_roles(db) -> dict[str, int]:
 
 
 async def seed_admin(db, rol_rh_id: int) -> None:
-    """Crea el usuario admin RH si no existe. No lo modifica si ya existe."""
+    """Crea el usuario admin RH si no existe."""
     result = await db.execute(
         select(Empleado).where(Empleado.email == ADMIN_RH["email"])
     )
@@ -305,25 +395,20 @@ async def seed_admin(db, rol_rh_id: int) -> None:
         return
 
     admin = Empleado(
-        num_empleado=ADMIN_RH["num_empleado"],
+        empleado_id=ADMIN_RH["empleado_id"],
+        no_empleado=ADMIN_RH["no_empleado"],
         nombre=ADMIN_RH["nombre"],
-        apellido=ADMIN_RH["apellido"],
         email=ADMIN_RH["email"],
+        usuario=ADMIN_RH["usuario"],
         password_hash=hash_password(ADMIN_RH["password"]),
-        departamento=ADMIN_RH["departamento"],
-        puesto=ADMIN_RH["puesto"],
         rol_id=rol_rh_id,
-        activo=True,
+        estado_id=ADMIN_RH["estado_id"],
     )
     db.add(admin)
     await db.flush()
-    logger.info(
-        "  Admin RH creado (id=%d, email=%s)",
-        admin.id,
-        admin.email,
-    )
+    logger.info("  Admin RH creado (id=%d, email=%s)", admin.id, admin.email)
     logger.warning(
-        "  IMPORTANTE: Cambiar la password del admin RH despues del primer login."
+        "  IMPORTANTE: Cambiar la password del admin RH después del primer login."
     )
 
 
@@ -333,6 +418,9 @@ async def seed() -> None:
 
     async with AsyncSessionLocal() as db:
         try:
+            logger.info("Seeding catálogos...")
+            await seed_catalogos(db)
+
             logger.info("Seeding roles...")
             created_roles = await seed_roles(db)
 

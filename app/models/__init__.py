@@ -1,5 +1,13 @@
 # CRITICAL: All models must be imported here so Alembic autogenerate detects them.
 from app.models.roles import Rol
+from app.models.catalogos import (
+    Area,
+    Categoria,
+    ClasificacionEmpleado,
+    EstadoEmpleado,
+    Puesto,
+    Subarea,
+)
 from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
@@ -11,6 +19,12 @@ from app.models.tress import TressRobotQueue
 
 __all__ = [
     "Rol",
+    "Area",
+    "Subarea",
+    "Categoria",
+    "Puesto",
+    "EstadoEmpleado",
+    "ClasificacionEmpleado",
     "Empleado",
     "Solicitud",
     "SolicitudAprobacion",

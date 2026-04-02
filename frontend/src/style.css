@@ -12,6 +12,14 @@
   --color-text-muted:       #5A6880;
   --color-border:           #D1DCE8;
 
+  /* KPI directorio: icono intenso + tinte suave (activo más vivo, inactivo rojo más claro) */
+  --color-kpi-metric-total-icon:    #1d4ed8;
+  --color-kpi-metric-total-bg:      rgb(59 130 246 / 0.12);
+  --color-kpi-metric-activo-icon:   #047857;
+  --color-kpi-metric-activo-bg:     rgb(16 185 129 / 0.14);
+  --color-kpi-metric-inactivo-icon: #f87171;
+  --color-kpi-metric-inactivo-bg:   rgb(254 202 202 / 0.45);
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 

@@ -34,10 +34,10 @@ export type EmpleadosListParams = {
   page: number;
   page_size: number;
   q?: string;
-  departamento?: string;
-  puesto?: string;
-  /** Solo aplica para rol RH (backend ignora en otros roles). */
-  activo?: boolean | null;
+  area_id?: number;
+  puesto_id?: number;
+  /** Solo aplica con rol RH: true = activos, false = no activos, omitir = todos. */
+  activo?: boolean;
 };
 
 export async function getEmpleadosPage(params: EmpleadosListParams): Promise<UsuarioPage> {
@@ -45,8 +45,12 @@ export async function getEmpleadosPage(params: EmpleadosListParams): Promise<Usu
   sp.set("page", String(params.page));
   sp.set("page_size", String(params.page_size));
   if (params.q?.trim()) sp.set("q", params.q.trim());
-  if (params.departamento) sp.set("departamento", params.departamento);
-  if (params.puesto) sp.set("puesto", params.puesto);
+  if (params.area_id != null && !Number.isNaN(params.area_id)) {
+    sp.set("area_id", String(params.area_id));
+  }
+  if (params.puesto_id != null && !Number.isNaN(params.puesto_id)) {
+    sp.set("puesto_id", String(params.puesto_id));
+  }
   if (params.activo === true) sp.set("activo", "true");
   if (params.activo === false) sp.set("activo", "false");
 
@@ -60,3 +64,6 @@ export async function getEmpleadosCatalogoFiltros(): Promise<CatalogoFiltros> {
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as CatalogoFiltros;
 }
+
+export type { UsuarioVista360 } from "./vista360.ts";
+export { getEmpleadoVista360 } from "./vista360.ts";

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -15,10 +16,14 @@ from app.repositories.empleado_repository import EmpleadoRepository
 
 
 async def authenticate_user(
-    email: str, password: str, db: AsyncSession
+    identifier: str, password: str, db: AsyncSession
 ) -> Empleado:
     repo = EmpleadoRepository(db)
-    empleado = await repo.get_by_email(email)
+    ident = (identifier or "").strip()
+    if "@" in ident:
+        empleado = await repo.get_by_email(ident)
+    else:
+        empleado = await repo.get_by_usuario(ident)
 
     if not empleado or not verify_password(password, empleado.password_hash):
         raise HTTPException(
@@ -26,7 +31,7 @@ async def authenticate_user(
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not empleado.activo:
+    if empleado.estado_id is None or empleado.estado_id not in settings.ESTADOS_ACTIVOS_IDS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Empleado inactivo",
@@ -36,13 +41,11 @@ async def authenticate_user(
 
 def create_tokens(empleado: Empleado) -> dict:
     rol_nombre = empleado.rol.nombre if empleado.rol else "empleado"
-    nombre_completo = f"{empleado.nombre} {empleado.apellido}".strip()
     payload = {
         "sub": str(empleado.id),
         "rol": rol_nombre,
-        "dept": empleado.departamento or "",
-        "num": empleado.num_empleado,
-        "nombre": nombre_completo,
+        "num": empleado.no_empleado,
+        "nombre": empleado.nombre,
     }
     return {
         "access_token": create_access_token(payload),
@@ -59,6 +62,7 @@ async def revoke_token(jti: str, expires_at: datetime, db: AsyncSession) -> None
 
 async def is_token_revoked(jti: str, db: AsyncSession) -> bool:
     from sqlalchemy import select
+
     result = await db.execute(
         select(TokenBlacklist).where(TokenBlacklist.jti == jti)
     )
@@ -74,7 +78,6 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
             detail="Token de tipo incorrecto — se requiere refresh token",
         )
 
-    # Verificar no revocado
     jti = payload.get("jti", "")
     if await is_token_revoked(jti, db):
         raise HTTPException(
@@ -82,11 +85,9 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
             detail="Refresh token revocado",
         )
 
-    # Generar nuevo access token
     new_payload = {
         "sub": payload["sub"],
         "rol": payload.get("rol", "empleado"),
-        "dept": payload.get("dept", ""),
         "num": payload.get("num", ""),
         "nombre": payload.get("nombre") or "",
     }

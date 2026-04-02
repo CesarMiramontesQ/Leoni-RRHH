@@ -1,101 +1,75 @@
-# app/repositories/usuario_repository.py
-"""
-Repositorio de Empleados/Usuarios.
-Extiende EmpleadoRepository con queries adicionales para el modulo usuarios.
-"""
+from typing import Literal
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.empleados import Empleado
+from app.models.catalogos import Area, Puesto
 from app.repositories.base import BaseRepository
+
+ModoEstadoListado = Literal["todos", "activos", "inactivos"]
 
 
 class UsuarioRepository(BaseRepository[Empleado]):
     def __init__(self, db: AsyncSession):
         super().__init__(Empleado, db)
 
-    async def get_by_email(self, email: str) -> Empleado | None:
-        result = await self.db.execute(
-            select(Empleado)
-            .options(selectinload(Empleado.rol))
-            .where(Empleado.email == email)
-        )
-        return result.scalar_one_or_none()
-
-    async def get_by_num_empleado(self, num: str) -> Empleado | None:
-        result = await self.db.execute(
-            select(Empleado)
-            .options(selectinload(Empleado.rol))
-            .where(Empleado.num_empleado == num)
-        )
-        return result.scalar_one_or_none()
-
     async def get_with_rol(self, id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(
+                selectinload(Empleado.rol),
+                selectinload(Empleado.estado),
+                selectinload(Empleado.area),
+                selectinload(Empleado.puesto),
+                selectinload(Empleado.subarea),
+                selectinload(Empleado.categoria),
+                selectinload(Empleado.clasificacion),
+            )
             .where(Empleado.id == id)
         )
         return result.scalar_one_or_none()
 
-    async def list_activos(
-        self,
-        cursor: int | None,
-        limit: int,
-        filtros: dict | None = None,
-    ) -> tuple[list[Empleado], int | None]:
-        conditions = [Empleado.activo == True]  # noqa: E712
-
-        if filtros:
-            if filtros.get("departamento"):
-                conditions.append(Empleado.departamento == filtros["departamento"])
-            if filtros.get("puesto"):
-                conditions.append(Empleado.puesto == filtros["puesto"])
-            if filtros.get("rol_id"):
-                conditions.append(Empleado.rol_id == filtros["rol_id"])
-
-        query = select(Empleado).options(selectinload(Empleado.rol))
-        for cond in conditions:
-            query = query.where(cond)
-
-        if cursor is not None:
-            query = query.where(Empleado.id > cursor)
-
-        query = query.order_by(Empleado.id).limit(limit + 1)
-        result = await self.db.execute(query)
-        items = list(result.scalars().all())
-
-        next_cursor = None
-        if len(items) > limit:
-            items = items[:limit]
-            next_cursor = items[-1].id
-
-        return items, next_cursor
+    @staticmethod
+    def _estado_condition(
+        modo_estado: ModoEstadoListado,
+        estados_activos: list[int],
+    ):
+        if modo_estado == "todos":
+            return None
+        if not estados_activos:
+            return None
+        if modo_estado == "activos":
+            return Empleado.estado_id.in_(estados_activos)
+        return or_(
+            Empleado.estado_id.is_(None),
+            ~Empleado.estado_id.in_(estados_activos),
+        )
 
     @staticmethod
     def _list_filters(
         q: str | None,
-        departamento: str | None,
-        puesto: str | None,
-        activo: bool | None,
+        area_id: int | None,
+        puesto_id: int | None,
+        modo_estado: ModoEstadoListado,
+        estados_activos: list[int],
     ) -> list:
         conditions: list = []
-        if activo is not None:
-            conditions.append(Empleado.activo == activo)
-        if departamento:
-            conditions.append(Empleado.departamento == departamento)
-        if puesto:
-            conditions.append(Empleado.puesto == puesto)
+        est = UsuarioRepository._estado_condition(modo_estado, estados_activos)
+        if est is not None:
+            conditions.append(est)
+        if area_id is not None:
+            conditions.append(Empleado.area_id == area_id)
+        if puesto_id is not None:
+            conditions.append(Empleado.puesto_id == puesto_id)
         if q and q.strip():
             term = f"%{q.strip()}%"
             conditions.append(
                 or_(
                     Empleado.nombre.ilike(term),
-                    Empleado.apellido.ilike(term),
+                    Empleado.no_empleado.ilike(term),
                     Empleado.email.ilike(term),
-                    Empleado.num_empleado.ilike(term),
                 )
             )
         return conditions
@@ -105,14 +79,22 @@ class UsuarioRepository(BaseRepository[Empleado]):
         offset: int,
         limit: int,
         q: str | None,
-        departamento: str | None,
-        puesto: str | None,
-        activo: bool | None,
+        area_id: int | None,
+        puesto_id: int | None,
+        modo_estado: ModoEstadoListado = "todos",
+        estados_activos: list[int] | None = None,
     ) -> list[Empleado]:
-        conditions = self._list_filters(q, departamento, puesto, activo)
+        ea = estados_activos or []
+        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea)
         query = select(Empleado).options(
             selectinload(Empleado.rol),
-            selectinload(Empleado.supervisor),
+            selectinload(Empleado.lider),
+            selectinload(Empleado.estado),
+            selectinload(Empleado.area),
+            selectinload(Empleado.puesto),
+            selectinload(Empleado.subarea),
+            selectinload(Empleado.categoria),
+            selectinload(Empleado.clasificacion),
         )
         for cond in conditions:
             query = query.where(cond)
@@ -123,51 +105,61 @@ class UsuarioRepository(BaseRepository[Empleado]):
     async def count_filtered(
         self,
         q: str | None,
-        departamento: str | None,
-        puesto: str | None,
-        activo: bool | None,
+        area_id: int | None,
+        puesto_id: int | None,
+        modo_estado: ModoEstadoListado = "todos",
+        estados_activos: list[int] | None = None,
     ) -> int:
-        conditions = self._list_filters(q, departamento, puesto, activo)
+        ea = estados_activos or []
+        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea)
         query = select(func.count()).select_from(Empleado)
         for cond in conditions:
             query = query.where(cond)
         result = await self.db.execute(query)
         return result.scalar_one()
 
-    async def distinct_departamentos(self, solo_activos: bool = False) -> list[str]:
-        conds = [
-            Empleado.departamento.isnot(None),
-            Empleado.departamento != "",
-        ]
-        if solo_activos:
-            conds.append(Empleado.activo == True)  # noqa: E712
-        result = await self.db.execute(
-            select(Empleado.departamento)
-            .where(*conds)
-            .distinct()
-            .order_by(Empleado.departamento)
-        )
-        return [row[0] for row in result.all() if row[0]]
-
-    async def distinct_puestos(self, solo_activos: bool = False) -> list[str]:
-        conds = [
-            Empleado.puesto.isnot(None),
-            Empleado.puesto != "",
-        ]
-        if solo_activos:
-            conds.append(Empleado.activo == True)  # noqa: E712
-        result = await self.db.execute(
-            select(Empleado.puesto)
-            .where(*conds)
-            .distinct()
-            .order_by(Empleado.puesto)
-        )
-        return [row[0] for row in result.all() if row[0]]
-
-    async def get_subordinados(self, supervisor_id: int) -> list[Empleado]:
+    async def get_subordinados(self, lider_id: int, estados_activos: list[int]) -> list[Empleado]:
         result = await self.db.execute(
             select(Empleado)
             .options(selectinload(Empleado.rol))
-            .where(Empleado.supervisor_id == supervisor_id, Empleado.activo == True)  # noqa: E712
+            .where(
+                Empleado.lider_id == lider_id,
+                Empleado.estado_id.in_(estados_activos),
+            )
         )
         return list(result.scalars().all())
+
+    async def list_areas_activas(self) -> list[Area]:
+        result = await self.db.execute(
+            select(Area).where(Area.estatus_id == 1).order_by(Area.descripcion)
+        )
+        return list(result.scalars().all())
+
+    async def list_puestos_activos(self) -> list[Puesto]:
+        result = await self.db.execute(
+            select(Puesto).where(Puesto.estatus_id == 1).order_by(Puesto.descripcion)
+        )
+        return list(result.scalars().all())
+
+    async def count_activos(self, estados_activos: list[int]) -> int:
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(Empleado)
+            .where(Empleado.estado_id.in_(estados_activos))
+        )
+        return result.scalar_one()
+
+    async def count_inactivos(self, estados_activos: list[int]) -> int:
+        if not estados_activos:
+            return 0
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(Empleado)
+            .where(
+                or_(
+                    Empleado.estado_id.is_(None),
+                    ~Empleado.estado_id.in_(estados_activos),
+                )
+            )
+        )
+        return result.scalar_one()

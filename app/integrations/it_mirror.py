@@ -2,13 +2,12 @@
 """
 Integración IT Mirror — Plataforma RH Leoni Cable.
 
-La BD de IT es la fuente de verdad para empleados activos.
-Este módulo sincroniza cada IT_SYNC_INTERVAL_MINUTES la tabla de empleados
-desde la BD espejo de IT hacia la BD local de la plataforma RH.
+La BD de IT es la fuente de verdad para empleados y catálogos.
+Este módulo sincroniza cada IT_SYNC_INTERVAL_MINUTES hacia la BD local.
 
 Invariantes de seguridad:
-  - NUNCA sobreescribir: rol_id, supervisor_id, password_hash
-  - Si activo=False en IT y el empleado tiene solicitudes PENDING → cancelarlas y notificar
+  - NUNCA sobreescribir: rol_id, lider_id, password_hash
+  - Si estado deja de ser activo y el empleado tiene solicitudes PENDING → cancelarlas y notificar
   - Si la conexión falla → loggear + registrar en it_sync_log + NO propagar excepción
 """
 
@@ -17,52 +16,27 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.security import SYNC_PLACEHOLDER_PASSWORD_HASH
 
 logger = logging.getLogger(__name__)
 
-# ── Structured log helper ─────────────────────────────────────────────────────
 
 def _slog(level: str, event: str, **kwargs) -> None:
-    """Emite una línea de log estructurada para la integración IT Mirror."""
     extras = " | ".join(f"{k}={v}" for k, v in kwargs.items())
     msg = f"IT_MIRROR | event={event}" + (f" | {extras}" if extras else "")
     getattr(logger, level)(msg)
 
 
-# ── ITMirrorClient ────────────────────────────────────────────────────────────
-
 class ITMirrorClient:
     """
     Cliente de sincronización con la BD espejo de IT.
-    La BD IT es fuente de verdad para empleados activos.
-
-    Diseño de resiliencia:
-      - Nunca propaga excepciones al scheduler
-      - Registra en it_sync_log independientemente del resultado
-      - Opera con sesiones independientes para IT Mirror y BD local
     """
 
-    # Columnas que el sync puede actualizar — rol_id, supervisor_id, password_hash excluidos
-    _CAMPOS_SYNC: tuple[str, ...] = (
-        "nombre",
-        "apellido",
-        "email",
-        "departamento",
-        "puesto",
-        "fecha_ingreso",
-        "activo",
-    )
-
     async def sync_empleados(self) -> dict:
-        """
-        Sincroniza empleados desde IT Mirror a BD local.
-
-        Retorna: {insertados: int, actualizados: int, desactivados: int, errores: int}
-        """
         resultado = {"insertados": 0, "actualizados": 0, "desactivados": 0, "errores": 0}
 
         if not settings.IT_MIRROR_DB_URL:
@@ -72,7 +46,6 @@ class ITMirrorClient:
         _slog("info", "SYNC_START")
         inicio = datetime.now(timezone.utc)
 
-        # Sesión hacia BD IT Mirror (fuente de verdad)
         try:
             it_engine = create_async_engine(settings.IT_MIRROR_DB_URL, pool_pre_ping=True)
             it_session_factory = async_sessionmaker(it_engine, class_=AsyncSession, expire_on_commit=False)
@@ -86,11 +59,12 @@ class ITMirrorClient:
             )
             return resultado
 
-        # Sesión hacia BD local RH
         from app.core.database import AsyncSessionLocal
 
         try:
             async with it_session_factory() as it_db, AsyncSessionLocal() as rh_db:
+                await self._sync_catalogos(it_db, rh_db)
+
                 empleados_it = await self._leer_empleados_it(it_db)
 
                 if empleados_it is None:
@@ -114,7 +88,7 @@ class ITMirrorClient:
                         _slog(
                             "error",
                             "EMPLEADO_SYNC_ERROR",
-                            num_empleado=emp_it.get("num_empleado"),
+                            no_empleado=emp_it.get("no_empleado"),
                             error=str(exc_emp),
                         )
 
@@ -156,14 +130,80 @@ class ITMirrorClient:
 
         return resultado
 
+    async def _sync_catalogos(
+        self, it_db: AsyncSession, rh_db: AsyncSession
+    ) -> None:
+        from app.models.catalogos import (
+            Area,
+            Categoria,
+            ClasificacionEmpleado,
+            EstadoEmpleado,
+            Puesto,
+            Subarea,
+        )
+
+        plan = [
+            ("areas", "area_id", Area),
+            ("categorias", "categoria_id", Categoria),
+            ("subareas", "subarea_id", Subarea),
+            ("puestos", "puesto_id", Puesto),
+            ("estados_empleados", "estado_id", EstadoEmpleado),
+            ("clasificacion_empleado", "clasificacion_id", ClasificacionEmpleado),
+        ]
+
+        for tabla, pk_field, Model in plan:
+            try:
+                rows = await self._leer_tabla_catalogo(it_db, tabla)
+                if rows is None:
+                    _slog("warning", "CATALOGO_READ_FAILED", tabla=tabla)
+                    continue
+                for row in rows:
+                    await self._upsert_catalogo(rh_db, Model, pk_field, row)
+                _slog("info", "CATALOGO_SYNCED", tabla=tabla, count=len(rows))
+            except Exception as exc:
+                _slog("error", "CATALOGO_SYNC_ERROR", tabla=tabla, error=str(exc))
+
+    async def _leer_tabla_catalogo(
+        self, it_db: AsyncSession, tabla: str
+    ) -> list[dict] | None:
+        try:
+            result = await it_db.execute(text(f"SELECT * FROM {tabla}"))  # noqa: S608
+            rows = result.mappings().all()
+            return [dict(row) for row in rows]
+        except Exception as exc:
+            _slog("error", "READ_CATALOGO_FAILED", tabla=tabla, error=str(exc))
+            return None
+
+    async def _upsert_catalogo(
+        self,
+        rh_db: AsyncSession,
+        Model,
+        pk_field: str,
+        row: dict,
+    ) -> None:
+        pk_value = row[pk_field]
+        stmt = select(Model).where(getattr(Model, pk_field) == pk_value)
+        result = await rh_db.execute(stmt)
+        local = result.scalar_one_or_none()
+
+        if local is None:
+            clean = {k: v for k, v in row.items() if hasattr(Model, k)}
+            rh_db.add(Model(**clean))
+        else:
+            for campo, valor in row.items():
+                if hasattr(local, campo):
+                    setattr(local, campo, valor)
+
     async def _leer_empleados_it(self, it_db: AsyncSession) -> list[dict] | None:
-        """Lee todos los empleados de la tabla IT Mirror."""
         try:
             result = await it_db.execute(
                 text(
                     """
-                    SELECT num_empleado, nombre, apellido, email,
-                           departamento, puesto, activo, fecha_ingreso
+                    SELECT empleado_id, no_empleado, no_sap, nombre, usuario,
+                           categoria_id, subarea_id, puesto_id, estado_id,
+                           area_id, clasificacion_id, lider_id, centrocosto_id,
+                           foto, recibe_bono, brigada, registro,
+                           a_restringido, requiere_cambio_password
                     FROM empleados
                     """
                 )
@@ -175,76 +215,85 @@ class ITMirrorClient:
             return None
 
     async def _sync_empleado(self, rh_db: AsyncSession, emp_it: dict) -> str:
-        """
-        Sincroniza un empleado individual.
-        Retorna: 'insertados' | 'actualizados' | 'desactivados'
-        """
         from app.models.empleados import Empleado
         from app.models.roles import Rol
-        from sqlalchemy import select
 
-        num = emp_it["num_empleado"]
+        no_emp = emp_it["no_empleado"]
 
-        # Buscar empleado existente en BD local
-        stmt = select(Empleado).where(Empleado.num_empleado == num)
+        stmt = select(Empleado).where(Empleado.no_empleado == no_emp)
         result = await rh_db.execute(stmt)
         emp_local = result.scalar_one_or_none()
 
+        lider_local_id: int | None = None
+        if emp_it.get("lider_id"):
+            lider_stmt = select(Empleado).where(
+                Empleado.empleado_id == emp_it["lider_id"]
+            )
+            lider_result = await rh_db.execute(lider_stmt)
+            lider = lider_result.scalar_one_or_none()
+            if lider:
+                lider_local_id = lider.id
+
+        campos_sync = {
+            "empleado_id": emp_it["empleado_id"],
+            "no_sap": emp_it.get("no_sap"),
+            "nombre": emp_it["nombre"],
+            "usuario": emp_it.get("usuario"),
+            "categoria_id": emp_it.get("categoria_id"),
+            "subarea_id": emp_it.get("subarea_id"),
+            "puesto_id": emp_it.get("puesto_id"),
+            "estado_id": emp_it.get("estado_id"),
+            "area_id": emp_it.get("area_id"),
+            "clasificacion_id": emp_it.get("clasificacion_id"),
+            "lider_id": lider_local_id,
+            "centrocosto_id": emp_it.get("centrocosto_id"),
+            "foto": emp_it.get("foto"),
+            "recibe_bono": emp_it.get("recibe_bono"),
+            "brigada": emp_it.get("brigada"),
+            "registro": emp_it.get("registro"),
+            "a_restringido": emp_it.get("a_restringido"),
+            "requiere_cambio_password": emp_it.get("requiere_cambio_password"),
+        }
+
         if emp_local is None:
-            # INSERT — obtener rol_id por defecto ('empleado')
             rol_stmt = select(Rol).where(Rol.nombre == "empleado")
             rol_result = await rh_db.execute(rol_stmt)
             rol = rol_result.scalar_one_or_none()
             if rol is None:
-                raise ValueError("Rol 'empleado' no encontrado en BD local — verificar seed de roles")
+                raise ValueError("Rol 'empleado' no encontrado — verificar seed de roles")
 
             nuevo = Empleado(
-                num_empleado=num,
-                nombre=emp_it["nombre"],
-                apellido=emp_it["apellido"],
-                email=emp_it["email"],
-                departamento=emp_it.get("departamento"),
-                puesto=emp_it.get("puesto"),
-                activo=emp_it.get("activo", True),
-                fecha_ingreso=emp_it.get("fecha_ingreso"),
+                no_empleado=no_emp,
+                password_hash=SYNC_PLACEHOLDER_PASSWORD_HASH,
                 rol_id=rol.id,
-                # password_hash temporal — debe ser cambiado en primer login
-                password_hash="$2b$12$PLACEHOLDER_CHANGE_ON_FIRST_LOGIN",
-                supervisor_id=None,
+                **campos_sync,
             )
             rh_db.add(nuevo)
-            _slog("info", "EMPLEADO_INSERT", num_empleado=num)
+            _slog("info", "EMPLEADO_INSERT", no_empleado=no_emp)
             return "insertados"
 
-        else:
-            # Detectar cambios en campos permitidos
-            hubo_cambio = False
-            era_activo = emp_local.activo
+        era_activo = emp_local.estado_id in (settings.ESTADOS_ACTIVOS_IDS or [1])
+        hubo_cambio = False
 
-            for campo in self._CAMPOS_SYNC:
-                valor_it = emp_it.get(campo)
-                if getattr(emp_local, campo) != valor_it:
-                    setattr(emp_local, campo, valor_it)
-                    hubo_cambio = True
+        for campo, valor in campos_sync.items():
+            if getattr(emp_local, campo) != valor:
+                setattr(emp_local, campo, valor)
+                hubo_cambio = True
 
-            # Si el empleado fue desactivado y tenía solicitudes pending → cancelar
-            if era_activo and not emp_it.get("activo", True):
-                await self._cancelar_solicitudes_pending(rh_db, emp_local.id, num)
-                return "desactivados"
+        ahora_activo = emp_it.get("estado_id") in (settings.ESTADOS_ACTIVOS_IDS or [1])
+        if era_activo and not ahora_activo:
+            await self._cancelar_solicitudes_pending(rh_db, emp_local.id, no_emp)
+            return "desactivados"
 
-            if hubo_cambio:
-                _slog("info", "EMPLEADO_UPDATE", num_empleado=num)
-                return "actualizados"
-
-            # Sin cambios — contar como actualizado igualmente (operación idempotente)
-            return "actualizados"
+        if hubo_cambio:
+            _slog("info", "EMPLEADO_UPDATE", no_empleado=no_emp)
+        return "actualizados"
 
     async def _cancelar_solicitudes_pending(
-        self, rh_db: AsyncSession, empleado_id: int, num_empleado: str
+        self, rh_db: AsyncSession, empleado_id: int, no_empleado: str
     ) -> None:
-        """Cancela solicitudes PENDING de un empleado dado de baja en IT."""
         from app.models.solicitudes import Solicitud
-        from sqlalchemy import select, update
+        from sqlalchemy import update
 
         stmt = (
             update(Solicitud)
@@ -264,22 +313,21 @@ class ITMirrorClient:
             _slog(
                 "warning",
                 "SOLICITUDES_CANCELADAS_BAJA",
-                num_empleado=num_empleado,
+                no_empleado=no_empleado,
                 solicitud_ids=str(ids),
                 count=len(ids),
             )
-            # Notificar a RH sobre la cancelación (fire-and-forget)
-            await self._notificar_baja_con_solicitudes(num_empleado, ids)
+            await self._notificar_baja_con_solicitudes(no_empleado, ids)
 
     async def _notificar_baja_con_solicitudes(
-        self, num_empleado: str, solicitud_ids: list[int]
+        self, no_empleado: str, solicitud_ids: list[int]
     ) -> None:
-        """Notifica a RH cuando se cancela solicitudes por baja de empleado."""
         try:
             from app.integrations.email_sender import email_sender
+
             await email_sender.notificar_sync_it_error(
                 error_msg=(
-                    f"Empleado {num_empleado} fue dado de baja en IT. "
+                    f"Empleado {no_empleado} fue dado de baja en IT. "
                     f"Se cancelaron automáticamente las solicitudes PENDING: {solicitud_ids}"
                 ),
                 rh_admin_email=settings.SMTP_USER or "",
@@ -294,47 +342,34 @@ class ITMirrorClient:
         detalle: str,
         inicio: datetime,
     ) -> None:
-        """Registra el resultado del sync en it_sync_log."""
         duracion_ms = int((datetime.now(timezone.utc) - inicio).total_seconds() * 1000)
         try:
             from app.core.database import AsyncSessionLocal
+            from app.models.auditoria import ItSyncLog
 
             async with AsyncSessionLocal() as db:
-                await db.execute(
-                    text(
-                        """
-                        INSERT INTO it_sync_log
-                            (status, operacion, detalle, duracion_ms, created_at)
-                        VALUES
-                            (:status, :operacion, :detalle, :duracion_ms, :created_at)
-                        """
-                    ),
-                    {
-                        "status": status,
-                        "operacion": operacion,
-                        "detalle": detalle[:2000],  # truncar para evitar overflow
-                        "duracion_ms": duracion_ms,
-                        "created_at": datetime.now(timezone.utc),
-                    },
+                db.add(
+                    ItSyncLog(
+                        operacion="update",
+                        empleado_id=operacion[:50],
+                        datos={
+                            "detalle": detalle[:2000],
+                            "duracion_ms": duracion_ms,
+                            "fase": operacion,
+                        },
+                        status="ok" if status == "ok" else "error",
+                        error_msg=None if status == "ok" else detalle[:2000],
+                    )
                 )
                 await db.commit()
         except Exception as exc:
-            # El log de sync no debe tirar el proceso principal
             _slog("warning", "SYNC_LOG_WRITE_FAILED", error=str(exc))
 
-
-# ── Scheduler job ─────────────────────────────────────────────────────────────
 
 _client = ITMirrorClient()
 
 
 async def run_it_mirror_sync() -> None:
-    """
-    Job de APScheduler — sync IT Mirror cada IT_SYNC_INTERVAL_MINUTES minutos.
-
-    NUNCA propaga excepciones — diseñado para correr en BackgroundScheduler.
-    Todos los errores son capturados, loggeados y absorbidos.
-    """
     try:
         resultado = await _client.sync_empleados()
         _slog(
@@ -346,7 +381,6 @@ async def run_it_mirror_sync() -> None:
             errores=resultado["errores"],
         )
     except Exception as exc:
-        # Última línea de defensa — el scheduler nunca debe caer
         logger.error(
             "IT_MIRROR | event=JOB_UNHANDLED_ERROR | error=%s",
             str(exc),

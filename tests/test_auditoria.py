@@ -14,6 +14,7 @@ Cubre:
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import quote
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -270,7 +271,7 @@ async def test_get_logs_filtro_por_fecha_desde(client: AsyncClient, db):
     # servicio filtra correctamente
     future_date = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
     response = await client.get(
-        f"{LOGS_ENDPOINT}?fecha_desde={future_date}",
+        f"{LOGS_ENDPOINT}?fecha_desde={quote(future_date, safe='')}",
         headers=headers,
     )
 

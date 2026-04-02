@@ -77,13 +77,101 @@ async def test_login_email_inexistente_retorna_401(client: AsyncClient, db):
 
 
 # ---------------------------------------------------------------------------
+# Login por campo usuario (sin @ en el identificador)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_usuario_exitoso_retorna_tokens(client: AsyncClient, db):
+    await make_empleado(
+        db,
+        rol="empleado",
+        email="por_usuario@leoni.test",
+        usuario="jdoe.leoni",
+    )
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "jdoe.leoni", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "access_token" in body
+    assert "refresh_token" in body
+    assert body["token_type"] == "bearer"
+
+
+@pytest.mark.asyncio
+async def test_login_usuario_case_insensitive(client: AsyncClient, db):
+    await make_empleado(
+        db,
+        rol="empleado",
+        email="case_user@leoni.test",
+        usuario="MiUsuario",
+    )
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "miusuario", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_login_usuario_inexistente_retorna_401(client: AsyncClient, db):
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "no_existe_usuario", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_login_legacy_password_texto_plano_en_columna(client: AsyncClient, db):
+    """BD legada: `password_hash` puede ser la contraseña inicial en claro (p. ej. no_empleado)."""
+    empleado = await make_empleado(db, rol="empleado", email="legacy_plain@leoni.test")
+    empleado.password_hash = "RH-7777"
+    await db.flush()
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "legacy_plain@leoni.test", "password": "RH-7777"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_login_legacy_texto_plano_incorrecto_retorna_401(client: AsyncClient, db):
+    empleado = await make_empleado(db, rol="empleado", email="legacy_wrong@leoni.test")
+    empleado.password_hash = "solo_esto"
+    await db.flush()
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "legacy_wrong@leoni.test", "password": "otra_cosa"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
 # TC-AUTH-004: Login empleado inactivo
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_login_empleado_inactivo_retorna_403(client: AsyncClient, db):
     await make_empleado(
-        db, rol="empleado", email="inactivo@leoni.test", activo=False
+        db, rol="empleado", email="inactivo@leoni.test", estado_id=2
     )
 
     response = await client.post(
@@ -154,7 +242,7 @@ async def test_acceso_con_token_expirado_retorna_401(client: AsyncClient, db):
         "sub": str(empleado.id),
         "rol": "empleado",
         "dept": "",
-        "num": empleado.num_empleado,
+        "num": empleado.no_empleado,
         "jti": "test-jti-expired",
         "iat": now - timedelta(minutes=30),
         "exp": now - timedelta(minutes=15),
@@ -310,3 +398,17 @@ async def test_sync_it_con_rol_rh_retorna_200(client: AsyncClient, db):
 
     response = await client.post("/api/v1/auth/sync-it", headers=headers)
     assert response.status_code == 200
+
+
+def test_verify_password_bcrypt_y_texto_plano():
+    from app.core.security import hash_password, verify_password
+
+    h = hash_password("Secr3t!")
+    assert verify_password("Secr3t!", h)
+    assert not verify_password("Otro", h)
+
+    assert verify_password("12345", "12345")
+    assert not verify_password("12346", "12345")
+    assert verify_password("  RH-01  ", "RH-01")
+
+    assert not verify_password("x", "$2b$12$PLACEHOLDER_NO_VALIDO_COMO_BCRYPT")

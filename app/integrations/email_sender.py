@@ -200,9 +200,9 @@ class EmailSender:
           Una solicitud requiere su atención.
         </p>
         <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
-          {_campo("Empleado", f"{empleado.nombre} {empleado.apellido}")}
-          {_campo("No. Empleado", empleado.num_empleado)}
-          {_campo("Departamento", empleado.departamento or "N/A")}
+          {_campo("Empleado", empleado.nombre)}
+          {_campo("No. Empleado", empleado.no_empleado)}
+          {_campo("Departamento", "N/A")}
           {_campo("Tipo", solicitud.tipo.replace("_", " ").title())}
           {_campo("Fecha Inicio", str(solicitud.fecha_inicio))}
           {_campo("Fecha Fin", str(solicitud.fecha_fin))}
@@ -216,7 +216,7 @@ class EmailSender:
         return await self.send(
             destinatarios=[aprobador_email],
             asunto=f"[RH Leoni] Nueva solicitud de {solicitud.tipo} — "
-                   f"{empleado.nombre} {empleado.apellido}",
+                   empleado.nombre,
             cuerpo_html=_html_wrapper("Nueva Solicitud", cuerpo, _COLOR_WARNING),
         )
 

@@ -2,8 +2,8 @@
 """
 Directorio y consulta de empleados — RH, gerente, director y supervisor.
 
-- RH: listado completo (activos / inactivos / filtros), KPIs de plantilla, catálogo global.
-- Resto: solo empleados activos y catálogo derivado de activos.
+- RH: listado completo, KPIs de plantilla, catálogo global (áreas y puestos).
+- Resto: solo empleados en estados activos y mismo catálogo.
 
 CRUD de cuentas: /api/v1/usuarios (solo RH).
 """
@@ -61,11 +61,11 @@ async def list_empleados(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     q: str | None = Query(None),
-    departamento: str | None = Query(None),
-    puesto: str | None = Query(None),
+    area_id: int | None = Query(None),
+    puesto_id: int | None = Query(None),
     activo: bool | None = Query(
         None,
-        description="Solo RH puede filtrar por inactivos; omitir = todos (RH) o solo activos (otros roles).",
+        description="Solo RH: true=activos, false=no activos, omitir=todos",
     ),
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
     svc: UsuarioService = Depends(_svc),
@@ -76,17 +76,17 @@ async def list_empleados(
             page=page,
             page_size=page_size,
             q=q,
-            departamento=departamento,
-            puesto=puesto,
-            activo=activo,
+            area_id=area_id,
+            puesto_id=puesto_id,
             current_user=current_user,
+            activo=activo,
         )
     return await svc.list_directorio_empleados_page(
         page=page,
         page_size=page_size,
         q=q,
-        departamento=departamento,
-        puesto=puesto,
+        area_id=area_id,
+        puesto_id=puesto_id,
         current_user=current_user,
     )
 

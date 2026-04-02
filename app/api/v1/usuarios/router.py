@@ -1,11 +1,17 @@
 # app/api/v1/usuarios/router.py
 """
-CRUD administrativo de usuarios — solo RH.
+Directorio administrativo de usuarios — solo RH.
 
-Listado, KPIs de plantilla, catálogo y vista 360 / métricas están en /api/v1/empleados.
+Operaciones disponibles:
+  - GET /roles           — catálogo de roles
+  - GET /{id}            — detalle de un empleado
+  - PATCH /{id}          — editar solo lider_id y rol_id
+
+Creación/desactivación de empleados: no disponible — los empleados
+se sincronizan desde IT Mirror (BD del cliente, solo lectura).
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,9 +19,8 @@ from app.core.dependencies import role_checker
 from app.models.empleados import Empleado
 from app.schemas.usuarios import (
     RolBrief,
-    UsuarioCreate,
+    UsuarioAsignacionUpdate,
     UsuarioResponse,
-    UsuarioUpdate,
 )
 from app.services.usuario_service import UsuarioService
 
@@ -33,22 +38,8 @@ async def list_roles(
     current_user: Empleado = Depends(role_checker(_RH)),
     svc: UsuarioService = Depends(_svc),
 ):
-    """Catálogo de roles para alta de empleados (formulario RH)."""
+    """Catálogo de roles para formularios de asignación (solo RH)."""
     return await svc.list_roles_rh(current_user=current_user)
-
-
-@router.post("", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-async def crear_usuario(
-    body: UsuarioCreate,
-    background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(_RH)),
-    svc: UsuarioService = Depends(_svc),
-):
-    return await svc.crear_usuario(
-        data=body,
-        current_user=current_user,
-        background_tasks=background_tasks,
-    )
 
 
 @router.get("/{id}", response_model=UsuarioResponse)
@@ -60,31 +51,18 @@ async def get_usuario(
     return await svc.get_usuario(id=id, current_user=current_user)
 
 
-@router.put("/{id}", response_model=UsuarioResponse)
-async def actualizar_usuario(
+@router.patch("/{id}", response_model=UsuarioResponse)
+async def asignar_lider_y_rol(
     id: int,
-    body: UsuarioUpdate,
+    body: UsuarioAsignacionUpdate,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(role_checker(_RH)),
     svc: UsuarioService = Depends(_svc),
 ):
-    return await svc.actualizar_usuario(
+    """Edición restringida: solo lider_id y rol_id."""
+    return await svc.asignar_supervisor_y_rol(
         id=id,
         data=body,
-        current_user=current_user,
-        background_tasks=background_tasks,
-    )
-
-
-@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-async def desactivar_usuario(
-    id: int,
-    background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(_RH)),
-    svc: UsuarioService = Depends(_svc),
-):
-    await svc.desactivar_usuario(
-        id=id,
         current_user=current_user,
         background_tasks=background_tasks,
     )

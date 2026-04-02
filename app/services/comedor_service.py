@@ -165,7 +165,7 @@ class ComedorService:
 
             return HuellaValidarResponse(
                 acceso=True,
-                empleado=f"{empleado.nombre} {empleado.apellido}",
+                empleado=empleado.nombre,
                 tipo_platillo=tipo_platillo,
             )
 

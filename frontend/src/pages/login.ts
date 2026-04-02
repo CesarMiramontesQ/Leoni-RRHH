@@ -28,17 +28,17 @@ export function mountLogin(container: HTMLElement): void {
         <form id="login-form" class="space-y-6">
 
           <div>
-            <label for="email" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
-              Correo electrónico
+            <label for="login-identifier" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Correo o usuario
             </label>
             <div class="mt-2">
               <input
-                id="email"
-                type="email"
-                name="email"
+                id="login-identifier"
+                type="text"
+                name="username"
                 required
-                autocomplete="email"
-                placeholder="usuario@leoni.com"
+                autocomplete="username"
+                placeholder="correo@leoni.com o usuario de red"
                 class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary
                        placeholder:text-text-muted
                        focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
@@ -142,20 +142,20 @@ export function mountLogin(container: HTMLElement): void {
     btn.disabled = true;
     btn.textContent = "Verificando…";
 
-    const email = container.querySelector<HTMLInputElement>("#email")!.value;
+    const identifier = container.querySelector<HTMLInputElement>("#login-identifier")!.value;
     const password = container.querySelector<HTMLInputElement>("#password")!.value;
 
     try {
       const res = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ username: email, password }),
+        body: new URLSearchParams({ username: identifier, password }),
       });
 
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { detail?: string };
         errorEl.textContent =
-          data?.detail ?? "Credenciales incorrectas. Verifica tu correo y contraseña.";
+          data?.detail ?? "Credenciales incorrectas. Verifica tu correo o usuario y contraseña.";
         errorEl.classList.remove("hidden");
         return;
       }

@@ -40,6 +40,18 @@ class Settings(BaseSettings):
     IT_MIRROR_DB_URL: str = ""
     IT_SYNC_INTERVAL_MINUTES: int = 30
 
+    # Estados que se consideran "empleado activo" — ajustar en producción
+    ESTADOS_ACTIVOS_IDS: List[int] = [1]
+
+    @field_validator("ESTADOS_ACTIVOS_IDS", mode="before")
+    @classmethod
+    def parse_estados_activos(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return [1]
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+        return v
+
     # App
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"
