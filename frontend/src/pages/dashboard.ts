@@ -1,5 +1,18 @@
 import { getDashboardKpis, type KpiFetchError, type KpiResponse } from "../api/reportes.ts";
 import { clearAuth } from "../auth/session.ts";
+import { canAccessRhOperationalDashboard } from "../auth/jwt.ts";
+import {
+  renderRhDashboardSkeletonGrid,
+  renderRhOperationalDashboardGrid,
+} from "../components/dashboard/rhOperationalCards.ts";
+import {
+  bindRhCalendarNavigation,
+  renderRhLowerSection,
+  renderRhLowerSectionSkeleton,
+} from "../components/dashboard/rhLowerSection.ts";
+import { fetchRhDashboardLowerSection } from "../dashboard/rh/fetchRhDashboardLowerSection.ts";
+import { fetchRhDashboardMetrics } from "../dashboard/rh/fetchRhDashboardMetrics.ts";
+import { mapMetricsToCardViews } from "../dashboard/rh/mapMetricsToCardViews.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 
 function escapeHtml(text: string): string {
@@ -95,7 +108,52 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
   }
 }
 
-export function mountDashboardPlaceholder(container: HTMLElement): void {
+function rhMetricsUnavailableBanner(): string {
+  return `
+    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+      No se pudieron obtener las métricas en este momento. Las tarjetas muestran valores no disponibles (—) sin afectar el diseño.
+    </div>`;
+}
+
+async function loadRhOperationalDashboard(container: HTMLElement): Promise<void> {
+  const root = container.querySelector<HTMLElement>("#rh-dashboard-root");
+  if (!root) return;
+
+  let data = null;
+  let lower = null;
+  try {
+    const results = await Promise.all([
+      fetchRhDashboardMetrics().catch(() => null),
+      fetchRhDashboardLowerSection().catch(() => null),
+    ]);
+    data = results[0];
+    lower = results[1];
+  } catch {
+    data = null;
+    lower = null;
+  }
+
+  const views = mapMetricsToCardViews(data);
+  const banner = data === null ? rhMetricsUnavailableBanner() : "";
+  const now = new Date();
+  const calYear = lower?.calendar.initialYear ?? now.getFullYear();
+  const calMonth = lower?.calendar.initialMonthIndex ?? now.getMonth();
+  root.innerHTML =
+    banner + renderRhOperationalDashboardGrid(views) + renderRhLowerSection(calYear, calMonth, lower);
+  bindRhCalendarNavigation(container, lower, calYear, calMonth);
+}
+
+function mountRhOperationalDashboard(container: HTMLElement): void {
+  mountAppShell(container, {
+    pageTitle: "Dashboard",
+    activeNav: "dashboard",
+    mainHtml: `<div id="rh-dashboard-root">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
+  });
+
+  void loadRhOperationalDashboard(container);
+}
+
+function mountStandardDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
@@ -113,4 +171,13 @@ export function mountDashboardPlaceholder(container: HTMLElement): void {
   });
 
   void loadDashboardKpis(container);
+}
+
+/** Punto único de entrada del hash \`#/\`: RH ve operativo; el resto conserva KPIs actuales. */
+export function mountDashboardPlaceholder(container: HTMLElement): void {
+  if (canAccessRhOperationalDashboard()) {
+    mountRhOperationalDashboard(container);
+    return;
+  }
+  mountStandardDashboard(container);
 }

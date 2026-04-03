@@ -57,6 +57,11 @@ export function canAccessUsuariosAdmin(): boolean {
   return getRolFromAccessToken() === "rh";
 }
 
+/** Dashboard principal con tarjetas operativas (métricas mock / futura API dedicada). */
+export function canAccessRhOperationalDashboard(): boolean {
+  return getRolFromAccessToken() === "rh";
+}
+
 /** Directorio GET /api/v1/empleados (RH ve plantilla completa; otros solo activos). */
 export function canAccessDirectorioEmpleados(): boolean {
   const r = getRolFromAccessToken();
