@@ -8,6 +8,8 @@ import { getEmpleadosPage } from "../../api/empleados.ts";
 import { fetchUsuariosRoles, patchUsuarioAsignacion } from "../../api/usuariosAdmin.ts";
 import type { RolBrief, UsuarioListItem } from "../../api/usuarios.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
+import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
+import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
 import { showEmpleadosToast } from "./toast.ts";
 
 async function fetchEmpleadosParaLider(): Promise<UsuarioListItem[]> {
@@ -91,18 +93,18 @@ function formBodyHtml(
   const supOpts = supervisores
     .filter((u) => u.id !== empleado.id)
     .map((u) => {
-      const label = u.nombre.trim() || u.email || "—";
+      const label = formatNombreEmpleadoUi(u.nombre).trim() || u.email?.trim() || "—";
       const sel = u.id === empleado.lider_id ? "selected" : "";
-      return `<option value="${u.id}" ${sel}>${escapeHtml(label)} · #${escapeHtml(u.no_empleado)}</option>`;
+      return `<option value="${u.id}" ${sel}>${escapeHtml(label)} · #${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</option>`;
     })
     .join("");
 
-  const name = empleado.nombre.trim() || "—";
+  const name = formatNombreEmpleadoUi(empleado.nombre).trim() || "—";
 
   return `
     <p class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-text-muted">
       Empleado: <span class="font-semibold text-text-primary">${escapeHtml(name)}</span>
-      <span class="ml-1 text-xs">· #${escapeHtml(empleado.no_empleado)}</span>
+      <span class="ml-1 text-xs">· #${escapeHtml(formatNoEmpleadoDisplay(empleado.no_empleado))}</span>
     </p>
     <p id="editar-asignacion-error" class="mb-4 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
     <form id="form-editar-asignacion" class="space-y-4">

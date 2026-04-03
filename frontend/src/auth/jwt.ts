@@ -1,3 +1,4 @@
+import { formatNombreEmpleadoUi } from "../utils/nombreEmpleadoDisplay.ts";
 import { getAccessToken } from "./session.ts";
 
 function decodePayloadSegment(segment: string): Record<string, unknown> | null {
@@ -31,7 +32,10 @@ export function getRolFromAccessToken(): string | null {
 export function getUserDisplayNameFromAccessToken(): string {
   const p = getAccessTokenPayload();
   const n = p?.nombre;
-  if (typeof n === "string" && n.trim()) return n.trim();
+  if (typeof n === "string" && n.trim()) {
+    const raw = n.trim();
+    return formatNombreEmpleadoUi(raw) || raw;
+  }
   return "Usuario";
 }
 

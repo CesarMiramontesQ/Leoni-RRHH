@@ -19,9 +19,9 @@ export function vista360ProgressBarHtml(label: string, percent: number): string 
 export function vista360CompetenciasCardHtml(items: CompetenciaItem[]): string {
   if (items.length === 0) {
     return `
-      <div class="rounded-xl border border-dashed border-border bg-slate-50/80 p-6 text-center">
-        <p class="text-sm font-medium text-text-muted">Sin evaluaciones registradas</p>
-        <p class="mt-1 text-xs text-text-muted">Las competencias aparecerán cuando existan datos en el sistema.</p>
+      <div class="rounded-xl border border-dashed border-border/90 bg-slate-50/40 py-8 text-center">
+        <p class="text-sm font-semibold text-text-primary">Sin evaluaciones registradas</p>
+        <p class="mt-1.5 text-xs text-text-muted">Las competencias aparecerán cuando existan datos en el sistema.</p>
       </div>`;
   }
   return `<div class="space-y-4">${items.map((i) => vista360ProgressBarHtml(i.label, i.percent)).join("")}</div>`;

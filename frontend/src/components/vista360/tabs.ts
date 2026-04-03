@@ -9,12 +9,20 @@ const TABS: { id: Vista360TabId; label: string }[] = [
   { id: "beneficios", label: "Beneficios" },
 ];
 
+const TAB_BTN_BASE =
+  "-mb-px border-b-2 border-transparent px-1 py-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+
+/** Clases del botón de pestaña (sincronizar con `bindVista360TabDelegation`). */
+export function vista360TabButtonClass(isActive: boolean): string {
+  if (isActive) {
+    return `${TAB_BTN_BASE} border-leoni-blue text-leoni-blue`;
+  }
+  return `${TAB_BTN_BASE} text-slate-500 hover:text-text-primary`;
+}
+
 export function vista360TabsHtml(active: Vista360TabId): string {
   const buttons = TABS.map((t) => {
     const isActive = t.id === active;
-    const cls = isActive
-      ? "border-leoni-blue text-leoni-blue"
-      : "border-transparent text-text-muted hover:border-slate-200 hover:text-text-primary";
     return `
       <button
         type="button"
@@ -23,12 +31,12 @@ export function vista360TabsHtml(active: Vista360TabId): string {
         aria-selected="${isActive ? "true" : "false"}"
         aria-controls="v360-panel-${t.id}"
         data-v360-tab="${t.id}"
-        class="-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors ${cls}"
+        class="${vista360TabButtonClass(isActive)}"
       >${escapeHtml(t.label)}</button>`;
   }).join("");
 
   return `
-    <div class="border-b border-border" role="tablist" aria-label="Secciones del empleado">
-      <div class="flex flex-wrap gap-x-6 gap-y-1">${buttons}</div>
+    <div role="tablist" aria-label="Secciones del empleado" class="mt-1">
+      <div class="flex flex-wrap gap-x-8 gap-y-1 border-b border-slate-200/70">${buttons}</div>
     </div>`;
 }

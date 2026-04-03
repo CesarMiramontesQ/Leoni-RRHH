@@ -5,8 +5,9 @@ import { escapeHtml } from "./html.ts";
 export function vista360TimelineHtml(items: TimelineItem[]): string {
   if (items.length === 0) {
     return `
-      <div class="rounded-lg border border-dashed border-border bg-white py-8 text-center">
-        <p class="text-sm text-text-muted">No hay actividades recientes que mostrar.</p>
+      <div class="rounded-xl border border-dashed border-border/90 bg-slate-50/40 py-10 text-center">
+        <p class="text-sm font-semibold text-text-primary">Sin actividades recientes</p>
+        <p class="mt-1.5 text-xs text-text-muted">Cuando existan movimientos aparecerán en esta línea de tiempo.</p>
       </div>`;
   }
 

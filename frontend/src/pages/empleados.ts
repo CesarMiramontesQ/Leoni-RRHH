@@ -18,6 +18,8 @@ import { clearAuth } from "../auth/session.ts";
 import { mountEditarAsignacionModal } from "../components/empleados/editarAsignacionModal.ts";
 import type { EditarAsignacionModalHandle } from "../components/empleados/editarAsignacionModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
+import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 
 function escapeHtml(text: string): string {
   return text
@@ -27,11 +29,13 @@ function escapeHtml(text: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function initialsNombre(nombre: string): string {
-  const parts = nombre.trim().split(/\s+/).filter(Boolean);
-  const a = (parts[0]?.[0] ?? "").toUpperCase();
-  const b = (parts[1]?.[0] ?? parts[0]?.[1] ?? "").toUpperCase();
-  return (a + b) || "?";
+function nombreEmpleadoTablaMostrar(raw: string): string {
+  return formatNombreEmpleadoUi(raw) || "Sin nombre";
+}
+
+function inicialesEmpleadoTabla(raw: string): string {
+  const display = formatNombreEmpleadoUi(raw) || raw.trim();
+  return inicialesDesdeNombreDisplay(display);
 }
 
 type State = {
@@ -91,6 +95,12 @@ function filtrosActivos(state: State, rh: boolean): boolean {
 function textoAsignacion(val: string | null | undefined): string {
   const t = val?.trim();
   return t ? t : "Sin asignar";
+}
+
+/** Nombre de persona (líder) con formato natural para UI. */
+function textoLiderMostrar(val: string | null | undefined): string {
+  const f = formatNombreEmpleadoUi(val);
+  return f || "Sin asignar";
 }
 
 type KpiMetricSemantic = "total" | "activo" | "inactivo";
@@ -248,9 +258,9 @@ function estadoPill(estado: EstadoEmpleadoResponse | null): string {
 }
 
 function rowHtml(u: UsuarioListItem, isRh: boolean): string {
-  const name = u.nombre.trim() || "Sin nombre";
-  const ini = initialsNombre(u.nombre);
-  const sup = textoAsignacion(u.lider_nombre);
+  const name = nombreEmpleadoTablaMostrar(u.nombre);
+  const ini = inicialesEmpleadoTabla(u.nombre);
+  const sup = textoLiderMostrar(u.lider_nombre);
   const area = textoAsignacion(u.area?.descripcion);
   const puestoRaw = u.puesto?.descripcion?.trim() || "";
   const puesto = puestoRaw || "Sin asignar";
@@ -272,7 +282,7 @@ function rowHtml(u: UsuarioListItem, isRh: boolean): string {
           </div>
         </div>
       </td>
-      <td class="whitespace-nowrap px-4 py-4 text-right align-middle text-sm tabular-nums text-slate-500">#${escapeHtml(u.no_empleado)}</td>
+      <td class="whitespace-nowrap px-4 py-4 text-right align-middle text-sm tabular-nums text-slate-500">#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</td>
       <td class="max-w-[10rem] px-4 py-4 align-middle text-sm text-slate-700">
         <span class="block truncate" title="${escapeHtml(area)}">${escapeHtml(area)}</span>
       </td>
