@@ -1,4 +1,9 @@
 import { escapeHtml } from "../vista360/html.ts";
+import {
+  bindCalendarMonthNavigation,
+  CAL_NAV_BTN_CLASS,
+  formatCalendarMonthTitle,
+} from "./calendarShared.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
 import type {
   RhCalendarDayLine,
@@ -7,12 +12,6 @@ import type {
   RhPriorityAlertIcon,
   RhUpcomingEventIcon,
 } from "../../dashboard/rh/lowerSectionTypes.ts";
-function formatMonthTitle(year: number, monthIndex: number): string {
-  const d = new Date(year, monthIndex, 1);
-  const raw = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(d);
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
 function formatMetric(n: number | null): string {
   if (n === null || Number.isNaN(n)) return "—";
   return new Intl.NumberFormat("es-MX").format(Math.trunc(n));
@@ -193,16 +192,13 @@ function selectedIso(payload: RhLowerSectionPayload | null): string | null {
   return payload?.calendar.selectedIsoDate ?? null;
 }
 
-const CAL_NAV_BTN =
-  "inline-flex size-9 items-center justify-center rounded-lg text-leoni-blue transition-colors hover:bg-leoni-blue/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leoni-blue";
-
 /** Contenido interno del calendario (mes + leyenda + grilla), sustituible al navegar. */
 export function renderRhCalendarReplaceable(
   year: number,
   monthIndex: number,
   payload: RhLowerSectionPayload | null,
 ): string {
-  const title = escapeHtml(formatMonthTitle(year, monthIndex));
+  const title = escapeHtml(formatCalendarMonthTitle(year, monthIndex));
   const grid = buildRhCalendarMonthGrid(year, monthIndex);
   const map = dayMetricsMap(payload);
   const sel = selectedIso(payload);
@@ -260,11 +256,11 @@ export function renderRhCalendarReplaceable(
         <h2 class="text-base font-semibold text-text-primary">Calendario RH</h2>
         <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
           <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
-            <button type="button" id="rh-cal-prev" class="${CAL_NAV_BTN}" aria-label="Mes anterior">
+            <button type="button" id="rh-cal-prev" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes anterior">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
             <p id="rh-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
-            <button type="button" id="rh-cal-next" class="${CAL_NAV_BTN}" aria-label="Mes siguiente">
+            <button type="button" id="rh-cal-next" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes siguiente">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
             </button>
           </div>
@@ -459,11 +455,6 @@ export function renderRhLowerSectionSkeleton(): string {
   return `<div class="mt-10 border-t border-border/80 pt-10">${bar}${cal}${bottom}</div>`;
 }
 
-function addCalendarMonths(year: number, monthIndex: number, delta: number): [number, number] {
-  const d = new Date(year, monthIndex + delta, 1);
-  return [d.getFullYear(), d.getMonth()];
-}
-
 /**
  * Enlaza flechas del calendario para re-renderizar solo el bloque reemplazable.
  */
@@ -473,34 +464,13 @@ export function bindRhCalendarNavigation(
   initialYear: number,
   initialMonthIndex: number,
 ): void {
-  const replaceable = (): HTMLElement | null => container.querySelector("#rh-calendar-replaceable");
-
-  let y = initialYear;
-  let m = initialMonthIndex;
-
-  const paint = (): void => {
-    const el = replaceable();
-    if (!el) return;
-    el.innerHTML = renderRhCalendarReplaceable(y, m, payload);
-    wire();
-  };
-
-  const wire = (): void => {
-    container.querySelector("#rh-cal-prev")?.addEventListener("click", () => {
-      [y, m] = addCalendarMonths(y, m, -1);
-      paint();
-    });
-    container.querySelector("#rh-cal-next")?.addEventListener("click", () => {
-      [y, m] = addCalendarMonths(y, m, 1);
-      paint();
-    });
-    container.querySelector("#rh-cal-today")?.addEventListener("click", () => {
-      const now = new Date();
-      y = now.getFullYear();
-      m = now.getMonth();
-      paint();
-    });
-  };
-
-  wire();
+  bindCalendarMonthNavigation(container, {
+    replaceableSelector: "#rh-calendar-replaceable",
+    prevButtonId: "rh-cal-prev",
+    nextButtonId: "rh-cal-next",
+    todayButtonId: "rh-cal-today",
+    initialYear,
+    initialMonthIndex,
+    render: (yy, mm) => renderRhCalendarReplaceable(yy, mm, payload),
+  });
 }

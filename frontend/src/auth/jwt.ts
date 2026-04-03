@@ -62,6 +62,17 @@ export function canAccessRhOperationalDashboard(): boolean {
   return getRolFromAccessToken() === "rh";
 }
 
+/** Dashboard personal (vacaciones, HO, comidas) solo para el propio empleado. */
+export function canAccessEmpleadoPersonalDashboard(): boolean {
+  return getRolFromAccessToken() === "empleado";
+}
+
+/** Dashboard personal + equipo (tarjetas, aprobaciones, calendario del equipo). */
+export function canAccessLiderTeamDashboard(): boolean {
+  const r = getRolFromAccessToken();
+  return r === "supervisor" || r === "gerente";
+}
+
 /** Directorio GET /api/v1/empleados (RH ve plantilla completa; otros solo activos). */
 export function canAccessDirectorioEmpleados(): boolean {
   const r = getRolFromAccessToken();

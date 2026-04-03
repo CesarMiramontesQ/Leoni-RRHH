@@ -1,6 +1,10 @@
 import { getDashboardKpis, type KpiFetchError, type KpiResponse } from "../api/reportes.ts";
 import { clearAuth } from "../auth/session.ts";
-import { canAccessRhOperationalDashboard } from "../auth/jwt.ts";
+import {
+  canAccessEmpleadoPersonalDashboard,
+  canAccessLiderTeamDashboard,
+  canAccessRhOperationalDashboard,
+} from "../auth/jwt.ts";
 import {
   renderRhDashboardSkeletonGrid,
   renderRhOperationalDashboardGrid,
@@ -13,6 +17,20 @@ import {
 import { fetchRhDashboardLowerSection } from "../dashboard/rh/fetchRhDashboardLowerSection.ts";
 import { fetchRhDashboardMetrics } from "../dashboard/rh/fetchRhDashboardMetrics.ts";
 import { mapMetricsToCardViews } from "../dashboard/rh/mapMetricsToCardViews.ts";
+import { fetchEmpleadoDashboard } from "../dashboard/empleado/fetchEmpleadoDashboard.ts";
+import { emptyEmpleadoDashboardPayload } from "../dashboard/empleado/mock.ts";
+import {
+  bindEmpleadoCalendarNavigation,
+  renderEmpleadoDashboardSkeleton,
+  renderEmpleadoPersonalDashboard,
+} from "../components/dashboard/empleadoPersonalDashboard.ts";
+import {
+  bindLiderTeamCalendarNavigation,
+  renderLiderDashboardSkeleton,
+  renderLiderTeamDashboard,
+} from "../components/dashboard/liderTeamDashboard.ts";
+import { fetchLiderDashboard } from "../dashboard/lider/fetchLiderDashboard.ts";
+import { emptyLiderDashboardPayload } from "../dashboard/lider/mock.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 
 function escapeHtml(text: string): string {
@@ -153,6 +171,66 @@ function mountRhOperationalDashboard(container: HTMLElement): void {
   void loadRhOperationalDashboard(container);
 }
 
+async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<void> {
+  const root = container.querySelector<HTMLElement>("#empleado-dashboard-root");
+  if (!root) return;
+
+  let raw = null;
+  try {
+    raw = await fetchEmpleadoDashboard().catch(() => null);
+  } catch {
+    raw = null;
+  }
+  const payload = raw ?? emptyEmpleadoDashboardPayload(new Date());
+  const cal = payload.calendar;
+  const now = new Date();
+  const calYear = cal.initial_year ?? now.getFullYear();
+  const calMonth = cal.initial_month_index ?? now.getMonth();
+
+  root.innerHTML = renderEmpleadoPersonalDashboard(calYear, calMonth, payload);
+  bindEmpleadoCalendarNavigation(container, payload, calYear, calMonth);
+}
+
+function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
+  mountAppShell(container, {
+    pageTitle: "Dashboard",
+    activeNav: "dashboard",
+    mainHtml: `<div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div>`,
+  });
+
+  void loadEmpleadoPersonalDashboard(container);
+}
+
+async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
+  const root = container.querySelector<HTMLElement>("#lider-dashboard-root");
+  if (!root) return;
+
+  let raw = null;
+  try {
+    raw = await fetchLiderDashboard().catch(() => null);
+  } catch {
+    raw = null;
+  }
+  const payload = raw ?? emptyLiderDashboardPayload(new Date());
+  const cal = payload.team_calendar;
+  const now = new Date();
+  const calYear = cal.initial_year ?? now.getFullYear();
+  const calMonth = cal.initial_month_index ?? now.getMonth();
+
+  root.innerHTML = renderLiderTeamDashboard(calYear, calMonth, payload);
+  bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth);
+}
+
+function mountLiderTeamDashboardShell(container: HTMLElement): void {
+  mountAppShell(container, {
+    pageTitle: "Dashboard",
+    activeNav: "dashboard",
+    mainHtml: `<div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div>`,
+  });
+
+  void loadLiderTeamDashboard(container);
+}
+
 function mountStandardDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
@@ -173,10 +251,24 @@ function mountStandardDashboard(container: HTMLElement): void {
   void loadDashboardKpis(container);
 }
 
-/** Punto único de entrada del hash \`#/\`: RH ve operativo; el resto conserva KPIs actuales. */
+/**
+ * Punto único de entrada del hash `#/`:
+ * - `rh` → dashboard operativo
+ * - `supervisor` / `gerente` → dashboard personal + equipo
+ * - `empleado` → dashboard personal
+ * - resto (p. ej. `director`) → KPIs actuales
+ */
 export function mountDashboardPlaceholder(container: HTMLElement): void {
   if (canAccessRhOperationalDashboard()) {
     mountRhOperationalDashboard(container);
+    return;
+  }
+  if (canAccessLiderTeamDashboard()) {
+    mountLiderTeamDashboardShell(container);
+    return;
+  }
+  if (canAccessEmpleadoPersonalDashboard()) {
+    mountEmpleadoPersonalDashboardShell(container);
     return;
   }
   mountStandardDashboard(container);
