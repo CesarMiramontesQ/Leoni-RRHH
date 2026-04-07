@@ -88,3 +88,8 @@ export function canAccessEmpleadosPage(): boolean {
 export function canAccessRhSolicitudesAdminPage(): boolean {
   return getRolFromAccessToken() === "rh";
 }
+
+/** Vista administrativa de incidencias laborales (`#/incidencias`). Solo RH. */
+export function canAccessRhIncidenciasPage(): boolean {
+  return getRolFromAccessToken() === "rh";
+}

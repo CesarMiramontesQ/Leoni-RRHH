@@ -17,7 +17,7 @@ const navActive =
   "group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-leoni-blue";
 const navIconActive = "size-6 shrink-0 text-leoni-blue";
 
-export type ShellNavKey = "dashboard" | "empleados" | "solicitudes";
+export type ShellNavKey = "dashboard" | "empleados" | "solicitudes" | "incidencias";
 
 /** Sidebar interior (móvil + desktop idénticos). */
 function sidebarBody(activeNav: ShellNavKey | undefined): string {
@@ -25,6 +25,8 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const dashIcon = activeNav === "dashboard" ? navIconActive : navIconInactive;
   const solCls = activeNav === "solicitudes" ? navActive : navInactive;
   const solIcon = activeNav === "solicitudes" ? navIconActive : navIconInactive;
+  const incCls = activeNav === "incidencias" ? navActive : navInactive;
+  const incIcon = activeNav === "incidencias" ? navIconActive : navIconInactive;
   const empCls = activeNav === "empleados" ? navActive : navInactive;
   const empIcon = activeNav === "empleados" ? navIconActive : navIconInactive;
 
@@ -53,8 +55,8 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
               </a>
             </li>
             <li>
-              <a href="#" class="${navInactive}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="${navIconInactive}">
+              <a href="#/incidencias" class="${incCls}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="${incIcon}">
                   <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 Incidencias

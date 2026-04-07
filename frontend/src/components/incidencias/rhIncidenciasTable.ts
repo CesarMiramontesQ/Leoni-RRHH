@@ -1,0 +1,280 @@
+import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
+import type {
+  RhIncidenciasAdminViewModel,
+  RhIncidenciaEstadoCodigo,
+  RhIncidenciaPrioridadCodigo,
+  RhIncidenciaTipoCodigo,
+  RhIncidenciaTablaFila,
+} from "../../incidencias/rh/types.ts";
+import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../utils/nombreEmpleadoDisplay.ts";
+import { escapeIncHtml, INC_FIELD_FOCUS } from "./rhIncidenciasUiUtils.ts";
+
+function fmtFechaCorta(iso: string): string {
+  const p = iso.trim().split("-");
+  if (p.length !== 3) return iso;
+  const y = Number(p[0]);
+  const m = Number(p[1]);
+  const d = Number(p[2]);
+  if (!y || !m || !d) return iso;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function labelTipo(t: RhIncidenciaTipoCodigo): string {
+  switch (t) {
+    case "falta_injustificada":
+      return "Falta injustificada";
+    case "retardo":
+      return "Retardo";
+    case "indisciplina":
+      return "Indisciplina";
+    case "dano_equipo":
+      return "Daño a equipo";
+    default:
+      return t;
+  }
+}
+
+function badgeTipoFromRow(row: RhIncidenciaTablaFila): string {
+  const inner = escapeIncHtml(labelTipo(row.tipo));
+  if (row.tipo === "falta_injustificada" || row.tipo === "dano_equipo") {
+    return `<span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">${inner}</span>`;
+  }
+  if (row.tipo === "retardo") {
+    return `<span class="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800">${inner}</span>`;
+  }
+  return `<span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900">${inner}</span>`;
+}
+
+function labelEstado(e: RhIncidenciaEstadoCodigo): string {
+  switch (e) {
+    case "abierto":
+      return "Abierto";
+    case "en_investigacion":
+      return "En investigación";
+    case "cerrado":
+      return "Cerrado";
+    default:
+      return e;
+  }
+}
+
+function badgeEstadoFromRow(row: RhIncidenciaTablaFila): string {
+  const text = escapeIncHtml(labelEstado(row.estado));
+  switch (row.estado) {
+    case "abierto":
+      return `<span class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-800">
+        <span class="size-2 shrink-0 rounded-full bg-blue-500" aria-hidden="true"></span>${text}</span>`;
+    case "en_investigacion":
+      return `<span class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-800">
+        <span class="size-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span>${text}</span>`;
+    case "cerrado":
+      return `<span class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-800">
+        <span class="size-2 shrink-0 rounded-full bg-slate-400" aria-hidden="true"></span>${text}</span>`;
+    default:
+      return text;
+  }
+}
+
+function labelPrioridadUpper(p: RhIncidenciaPrioridadCodigo): string {
+  switch (p) {
+    case "baja":
+      return "BAJA";
+    case "media":
+      return "MEDIA";
+    case "alta":
+      return "ALTA";
+    case "critica":
+      return "CRÍTICA";
+    default:
+      return p;
+  }
+}
+
+function badgePrioridadFromRow(row: RhIncidenciaTablaFila): string {
+  const p = row.prioridad;
+  const text = escapeIncHtml(labelPrioridadUpper(p));
+  if (p === "critica") {
+    return `<span class="inline-flex items-center rounded-full bg-red-600 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">${text}</span>`;
+  }
+  if (p === "alta") {
+    return `<span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-800">${text}</span>`;
+  }
+  if (p === "media") {
+    return `<span class="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-orange-800">${text}</span>`;
+  }
+  return `<span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">${text}</span>`;
+}
+
+function celdaEmpleado(row: RhIncidenciaTablaFila): string {
+  const name = formatNombreEmpleadoUi(row.empleado_nombre_raw) || INC_COPY.sinNombre;
+  const ini = inicialesDesdeNombreDisplay(name);
+  const foto = row.foto_url?.trim();
+  const avatar = foto
+    ? `<img src="${escapeIncHtml(foto)}" alt="" class="size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`
+    : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeIncHtml(ini)}</span>`;
+  return `
+    <div class="flex min-w-0 items-center gap-3">
+      ${avatar}
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-900">${escapeIncHtml(name)}</p>
+      </div>
+    </div>`;
+}
+
+function paginationRange(totalPages: number, p: number): (number | "ellipsis")[] {
+  if (totalPages <= 0) return [];
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const out: (number | "ellipsis")[] = [];
+  const push = (x: number | "ellipsis"): void => {
+    if (out[out.length - 1] !== x) out.push(x);
+  };
+  push(1);
+  if (p > 3) push("ellipsis");
+  const start = Math.max(2, p - 1);
+  const end = Math.min(totalPages - 1, p + 1);
+  for (let i = start; i <= end; i++) push(i);
+  if (p < totalPages - 2) push("ellipsis");
+  push(totalPages);
+  return out;
+}
+
+/** Tabla de incidencias, estados vacío/carga/error y pie con paginación. */
+export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): string {
+  if (vm.tableStatus === "loading") {
+    return `
+      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+        <div class="flex items-center gap-3 px-4 py-14 text-sm text-text-muted sm:px-6">
+          <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          ${escapeIncHtml(INC_COPY.cargandoTabla)}
+        </div>
+      </section>`;
+  }
+
+  if (vm.tableStatus === "error") {
+    return `
+      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+        <div class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-6" role="alert">
+          ${escapeIncHtml(vm.tableErrorMessage ?? INC_COPY.errorTabla)}
+        </div>
+        <div class="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">${escapeIncHtml(INC_COPY.sinDatosTrasError)}</div>
+      </section>`;
+  }
+
+  const tbl = vm.table;
+  const emptyRow =
+    vm.tableStatus === "empty" || !tbl || tbl.total === 0
+      ? `<tr><td colspan="7" class="px-4 py-14 text-center text-sm text-slate-500">${escapeIncHtml(INC_COPY.tablaVacia)}</td></tr>`
+      : "";
+
+  const rows =
+    tbl && tbl.items.length > 0
+      ? tbl.items
+          .map((row) => {
+            const num = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
+            return `
+    <tr
+      class="cursor-pointer transition-colors hover:bg-slate-100/90 focus-within:bg-slate-50/90"
+      tabindex="0"
+      role="button"
+      data-rh-inc-row="1"
+      data-rh-inc-id="${row.id}"
+    >
+      <td class="px-4 py-4 align-middle">${celdaEmpleado(row)}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm font-medium tabular-nums text-slate-700">${escapeIncHtml(num)}</td>
+      <td class="max-w-40 px-4 py-4 align-middle text-sm text-slate-700">
+        <span class="block truncate" title="${escapeIncHtml(row.area)}">${escapeIncHtml(row.area)}</span>
+      </td>
+      <td class="px-4 py-4 align-middle">${badgeTipoFromRow(row)}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeIncHtml(fmtFechaCorta(row.fecha))}</td>
+      <td class="px-4 py-4 align-middle">${badgeEstadoFromRow(row)}</td>
+      <td class="px-4 py-4 align-middle">${badgePrioridadFromRow(row)}</td>
+    </tr>`;
+          })
+          .join("")
+      : emptyRow;
+
+  const th = (t: string) =>
+    `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold text-white">${escapeIncHtml(t)}</th>`;
+
+  const footer =
+    tbl && tbl.total > 0
+      ? (() => {
+          const totalPages = Math.max(1, Math.ceil(tbl.total / tbl.page_size) || 1);
+          const from = (tbl.page - 1) * tbl.page_size + 1;
+          const to = Math.min(tbl.page * tbl.page_size, tbl.total);
+          const pages = paginationRange(totalPages, tbl.page);
+          const pageButtons = pages
+            .map((x) => {
+              if (x === "ellipsis") {
+                return `<span class="flex min-h-10 items-center px-2 text-sm text-slate-500">…</span>`;
+              }
+              const active = x === tbl.page;
+              const cls = active
+                ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
+                : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+              return `<button type="button" data-rh-inc-page="${x}" class="${cls}">${x}</button>`;
+            })
+            .join("");
+          const pageSizeOpts = [5, 10, 25, 50]
+            .map((n) => `<option value="${n}" ${n === tbl.page_size ? "selected" : ""}>${n}</option>`)
+            .join("");
+          return `
+      <div class="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+          <p class="text-sm font-medium text-slate-600">
+            ${escapeIncHtml(INC_COPY.mostrando(from, to, tbl.total))}
+          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <label for="rh-inc-page-size" class="text-sm font-medium text-slate-600">${escapeIncHtml(INC_COPY.registrosPorPagina)}</label>
+            <select id="rh-inc-page-size" name="rh-inc-page-size" data-rh-inc-page-size class="rounded-md border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-800 shadow-sm ${INC_FIELD_FOCUS}">
+              ${pageSizeOpts}
+            </select>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-1 sm:justify-end">
+          <button type="button" data-rh-inc-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
+            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            <span class="sr-only">${escapeIncHtml(INC_COPY.anterior)}</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+          </button>
+          ${pageButtons}
+          <button type="button" data-rh-inc-page="${tbl.page + 1}" ${tbl.page >= totalPages ? "disabled" : ""}
+            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            <span class="sr-only">${escapeIncHtml(INC_COPY.siguiente)}</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+          </button>
+        </div>
+      </div>`;
+        })()
+      : tbl
+        ? `
+      <div class="border-t border-slate-100 px-4 py-4 text-center text-sm text-slate-500 sm:px-6">
+        ${escapeIncHtml(INC_COPY.mostrandoCero)}
+      </div>`
+        : "";
+
+  return `
+    <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+      <div class="-mx-4 max-h-[min(72vh,780px)] overflow-auto sm:mx-0">
+        <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
+        <table class="min-w-[920px] w-full text-left">
+          <thead class="border-b border-leoni-blue-light shadow-sm">
+            <tr class="text-white">
+              ${th(INC_COPY.colEmpleado)}
+              ${th(INC_COPY.colNumero)}
+              ${th(INC_COPY.colArea)}
+              ${th(INC_COPY.colTipo)}
+              ${th(INC_COPY.colFecha)}
+              ${th(INC_COPY.colEstado)}
+              ${th(INC_COPY.colPrioridad)}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
+        </table>
+      </div>
+      ${footer}
+    </section>`;
+}
