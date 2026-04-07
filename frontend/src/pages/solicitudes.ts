@@ -59,6 +59,7 @@ function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesA
       area_id: "",
       supervisor_id: "",
       empleado_id: "",
+      empleado_busqueda: "",
       estado: "",
       page: 1,
       page_size: 10,
@@ -83,6 +84,7 @@ function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]):
       area_id: "",
       supervisor_id: "",
       empleado_id: "",
+      empleado_busqueda: "",
       estado: "",
       page: 1,
       page_size: 10,
@@ -146,10 +148,13 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     area_id: "",
     supervisor_id: "",
     empleado_id: "",
+    empleado_busqueda: "",
     estado: "",
     page: 1,
     page_size: 10,
   };
+
+  let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function clampPage(): void {
     const filtered = filterRhSolicitudRows(allRows, state);
@@ -169,7 +174,27 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       empleadoVacacionesDisponibles,
     );
     const inner = container.querySelector("#rh-solicitudes-inner");
+    const active = document.activeElement;
+    let restoreEmpSearch: { start: number; end: number; dir: "forward" | "backward" | "none" } | null = null;
+    if (active instanceof HTMLInputElement && active.matches("[data-rh-sol-empleado-busqueda]")) {
+      restoreEmpSearch = {
+        start: active.selectionStart ?? active.value.length,
+        end: active.selectionEnd ?? active.value.length,
+        dir: active.selectionDirection === "backward" ? "backward" : active.selectionDirection === "none" ? "none" : "forward",
+      };
+    }
     if (inner) inner.innerHTML = renderRhSolicitudesAdminView(vm);
+    if (restoreEmpSearch) {
+      const el = container.querySelector<HTMLInputElement>("[data-rh-sol-empleado-busqueda]");
+      if (el) {
+        el.focus();
+        try {
+          el.setSelectionRange(restoreEmpSearch.start, restoreEmpSearch.end, restoreEmpSearch.dir);
+        } catch {
+          /* algunos tipos de input restringen setSelectionRange */
+        }
+      }
+    }
   }
 
   let rhNuevaSolicitudModal: RhNewRequestModalHandle | null = null;
@@ -238,6 +263,10 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   }
 
   signal.addEventListener("abort", () => {
+    if (empleadoBusquedaDebounceTimer != null) {
+      window.clearTimeout(empleadoBusquedaDebounceTimer);
+      empleadoBusquedaDebounceTimer = null;
+    }
     rhNuevaSolicitudModal?.destroy();
     solicitudDetalleModal?.destroy();
     solicitudResueltaModal?.destroy();
@@ -275,6 +304,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         state.area_id = "";
         state.supervisor_id = "";
         state.empleado_id = "";
+        state.empleado_busqueda = "";
         state.estado = "";
         state.page = 1;
         paint();
@@ -322,6 +352,22 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       if (!Number.isFinite(id)) return;
       if (trPending) void solicitudDetalleModal?.open(id);
       else void solicitudResueltaModal?.open(id);
+    },
+    { signal },
+  );
+
+  pageRoot?.addEventListener(
+    "input",
+    (e) => {
+      const inp = (e.target as HTMLElement).closest<HTMLInputElement>("[data-rh-sol-empleado-busqueda]");
+      if (!inp) return;
+      state.empleado_busqueda = inp.value;
+      state.page = 1;
+      if (empleadoBusquedaDebounceTimer != null) window.clearTimeout(empleadoBusquedaDebounceTimer);
+      empleadoBusquedaDebounceTimer = window.setTimeout(() => {
+        empleadoBusquedaDebounceTimer = null;
+        paint();
+      }, 200);
     },
     { signal },
   );

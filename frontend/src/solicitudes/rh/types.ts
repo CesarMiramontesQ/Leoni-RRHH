@@ -69,6 +69,8 @@ export type RhSolicitudFilterState = {
   area_id: string;
   supervisor_id: string;
   empleado_id: string;
+  /** Búsqueda libre de empleado (nombre, id, folio). UI: roles `rh`, `supervisor`, `gerente`; el resto no la escriben. */
+  empleado_busqueda: string;
   estado: "" | RhSolicitudEstadoCodigo;
   page: number;
   page_size: number;

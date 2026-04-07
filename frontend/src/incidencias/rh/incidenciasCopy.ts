@@ -18,6 +18,10 @@ export const INC_COPY = {
   errorMetricas: "No se pudieron calcular las métricas.",
 
   filtroArea: "Área",
+  filtroEmpleado: "Empleado",
+  placeholderBuscarEmpleado: "Buscar empleado...",
+  tablaVaciaSugerenciaEmpleado:
+    "Prueba con otro nombre, identificador o folio.",
   filtroSupervisor: "Supervisor",
   filtroTipo: "Tipo",
   filtroEstado: "Estado",
@@ -64,7 +68,7 @@ export const INC_COPY = {
 
   accesoDenegadoTitulo: "Acceso restringido",
   accesoDenegadoTexto:
-    "La vista de incidencias laborales está disponible solo para usuarios con rol Recursos Humanos.",
+    "La vista de incidencias laborales está disponible solo para usuarios con rol Recursos Humanos, gerente o supervisor.",
   volverDashboard: "Volver al dashboard",
 
   sinNombre: "Sin nombre",

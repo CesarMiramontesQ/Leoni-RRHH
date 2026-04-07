@@ -164,9 +164,13 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
   }
 
   const tbl = vm.table;
+  const emptyExtra =
+    vm.ui.modoFiltros === "rh" && vm.filters.empleado_busqueda.trim()
+      ? `<span class="mt-2 block text-xs text-slate-400">${escapeIncHtml(INC_COPY.tablaVaciaSugerenciaEmpleado)}</span>`
+      : "";
   const emptyRow =
     vm.tableStatus === "empty" || !tbl || tbl.total === 0
-      ? `<tr><td colspan="7" class="px-4 py-14 text-center text-sm text-slate-500">${escapeIncHtml(INC_COPY.tablaVacia)}</td></tr>`
+      ? `<tr><td colspan="7" class="px-4 py-14 text-center text-sm text-slate-500">${escapeIncHtml(INC_COPY.tablaVacia)}${emptyExtra}</td></tr>`
       : "";
 
   const rows =

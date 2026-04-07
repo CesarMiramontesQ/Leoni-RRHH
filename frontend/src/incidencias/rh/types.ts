@@ -15,6 +15,8 @@ export type RhIncidenciaTipoCodigo =
 /** Fila lista para tabla (mock o adapter de API). */
 export type RhIncidenciaTablaFila = {
   id: number;
+  /** Identificador del colaborador (mock/API); usado en búsqueda por texto. */
+  empleado_id: string;
   empleado_nombre_raw: string;
   foto_url: string | null;
   numero_folio: string;
@@ -36,7 +38,10 @@ export type RhIncidenciaResumenKpi = {
 };
 
 export type RhIncidenciaFilterState = {
+  /** Vista no-RH: filtro por área (select). */
   area_id: string;
+  /** Vista RH: búsqueda libre por nombre, id o folio. */
+  empleado_busqueda: string;
   supervisor_id: string;
   tipo: "" | RhIncidenciaTipoCodigo;
   estado: "" | RhIncidenciaEstadoCodigo;
@@ -62,11 +67,19 @@ export type RhIncidenciasTableData = {
 
 export type RhIncidenciasTableStatus = "loading" | "ready" | "empty" | "error";
 
+export type RhIncidenciasUiConfig = {
+  /** `rh`: input de empleado en lugar de área, sin botón de filtros avanzados. */
+  modoFiltros: "rh" | "estandar";
+  /** Filtro por supervisor en la barra (solo rol `rh`; gerente/supervisor comparten el resto con RH). */
+  mostrarFiltroSupervisor: boolean;
+};
+
 export type RhIncidenciasAdminViewModel = {
   resumen: RhIncidenciaResumenKpi | null;
   resumenStatus: "loading" | "ready" | "error";
   filterOptions: RhIncidenciaFilterOptions;
   filters: RhIncidenciaFilterState;
+  ui: RhIncidenciasUiConfig;
   tableStatus: RhIncidenciasTableStatus;
   table: RhIncidenciasTableData | null;
   tableErrorMessage?: string;

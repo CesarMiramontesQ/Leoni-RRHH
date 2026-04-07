@@ -60,6 +60,7 @@ export function buildRhIncidenciasMockFilas(): RhIncidenciaTablaFila[] {
 
     rows.push({
       id: 8800 + i,
+      empleado_id: `emp-${1001 + i}`,
       empleado_nombre_raw: NOMBRES[i % NOMBRES.length]!,
       foto_url: null,
       numero_folio: `INC-${8840 + i}`,

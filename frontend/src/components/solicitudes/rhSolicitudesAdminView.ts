@@ -1,7 +1,10 @@
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
 import { calcularDiasSolicitadosInclusive } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { SR_COPY } from "../../solicitudes/rh/solicitudResueltaCopy.ts";
-import type { RequestFilterKey } from "../../solicitudes/solicitudesPageFilterConfig.ts";
+import {
+  type RequestFilterKey,
+  solicitudesUsaFiltroEmpleadoTexto,
+} from "../../solicitudes/solicitudesPageFilterConfig.ts";
 import type {
   RhSolicitudesAdminViewModel,
   RhSolicitudEstadoCodigo,
@@ -133,9 +136,29 @@ function filtrosActivos(f: RhSolicitudFilterState, keys: readonly RequestFilterK
     if (k === "status" && f.estado) return true;
     if (k === "area" && f.area_id) return true;
     if (k === "supervisor" && f.supervisor_id) return true;
-    if (k === "employee" && f.empleado_id) return true;
+    if (k === "employee" && (f.empleado_id || f.empleado_busqueda.trim())) return true;
   }
   return false;
+}
+
+/** Filtro de empleado por texto (`rh`, `supervisor`, `gerente`). */
+function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState): string {
+  return `<div class="min-w-0">
+  <label for="rh-sol-f-emp-q" class="block text-sm/6 font-medium text-gray-900">Empleado</label>
+  <div class="mt-2">
+    <input
+      type="search"
+      id="rh-sol-f-emp-q"
+      name="empleado_busqueda"
+      data-rh-sol-empleado-busqueda
+      autocomplete="off"
+      enterkeyhint="search"
+      placeholder="Buscar empleado..."
+      value="${escapeHtml(f.empleado_busqueda)}"
+      class="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm sm:text-sm/6 ${FIELD_FOCUS}"
+    />
+  </div>
+</div>`;
 }
 
 function selectFilter(
@@ -259,9 +282,10 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   if (vm.statsStatus === "loading" || vm.stats === null) {
     const skel = `
       <div class="animate-pulse rounded-xl border border-border bg-white p-5 shadow-sm">
-        <div class="h-4 w-28 rounded bg-slate-200"></div>
-        <div class="mt-4 h-9 w-16 rounded bg-slate-200"></div>
-        <div class="mt-4 h-2 w-full rounded-full bg-slate-100"></div>
+        <div class="flex items-center justify-between gap-3">
+          <div class="h-4 w-28 rounded bg-slate-200"></div>
+          <div class="h-9 w-16 rounded bg-slate-200"></div>
+        </div>
       </div>`;
     return `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">${skel.repeat(4)}</div>`;
   }
@@ -271,29 +295,25 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   }
 
   const s = vm.stats;
-  const cards: { title: string; value: number; bar: string; borderTop: string }[] = [
+  const cards: { title: string; value: number; borderTop: string }[] = [
     {
       title: "Pendientes",
       value: s.pendientes,
-      bar: "bg-leoni-blue",
       borderTop: "border-t-leoni-blue",
     },
     {
       title: "Vacaciones",
       value: s.vacaciones,
-      bar: "bg-orange-500",
       borderTop: "border-t-orange-500",
     },
     {
       title: "Home Office",
       value: s.home_office,
-      bar: "bg-violet-600",
       borderTop: "border-t-violet-600",
     },
     {
       title: "Aprobadas hoy",
       value: s.aprobadas_hoy,
-      bar: "bg-emerald-500",
       borderTop: "border-t-emerald-500",
     },
   ];
@@ -301,13 +321,10 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   const html = cards
     .map(
       (c) => `
-    <article class="flex h-full flex-col rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-5 shadow-sm">
-      <h2 class="text-sm font-medium text-text-muted">${escapeHtml(c.title)}</h2>
-      <p class="mt-2 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(String(c.value))}</p>
-      <div class="mt-auto pt-5">
-        <div class="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="presentation">
-          <div class="h-full w-full rounded-full ${c.bar}"></div>
-        </div>
+    <article class="flex h-full flex-col justify-center rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="min-w-0 text-sm font-medium text-text-muted">${escapeHtml(c.title)}</h2>
+        <p class="shrink-0 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(String(c.value))}</p>
       </div>
     </article>`,
     )
@@ -378,7 +395,10 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
     } else if (key === "supervisor") {
       fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts)}</div>`);
     } else if (key === "employee") {
-      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts)}</div>`);
+      const empField = solicitudesUsaFiltroEmpleadoTexto(vm.ui.role)
+        ? empleadoTextoBusquedaFilterField(f)
+        : selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts);
+      fields.push(`<div class="${wrapCls}">${empField}</div>`);
     } else if (key === "status") {
       fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts)}</div>`);
     }
@@ -610,9 +630,13 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
   }
 
   const tbl = vm.table;
+  const emptyExtraEmpTexto =
+    solicitudesUsaFiltroEmpleadoTexto(vm.ui.role) && vm.filters.empleado_busqueda.trim()
+      ? `<span class="mt-2 block text-xs text-slate-400">Prueba con otro nombre, identificador o folio.</span>`
+      : "";
   const emptyRow =
     vm.tableStatus === "empty" || !tbl || tbl.total === 0
-      ? `<tr><td colspan="7" class="px-4 py-14 text-center text-sm text-slate-500">No hay solicitudes con los filtros actuales.</td></tr>`
+      ? `<tr><td colspan="7" class="px-4 py-14 text-center text-sm text-slate-500">No hay solicitudes con los filtros actuales.${emptyExtraEmpTexto}</td></tr>`
       : "";
 
   const rows =
@@ -779,7 +803,6 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
     : "";
-
   const toolbarGestor =
     vm.ui.showGestorToolbar && (vm.ui.showExportButton || vm.ui.showNewRequestButton)
       ? `<div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">${exportBtn}${nuevaGestorBtn}</div>`

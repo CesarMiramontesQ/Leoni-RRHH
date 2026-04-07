@@ -8,11 +8,18 @@ export type SolicitudesPageVariant = "gestor" | "empleado";
 export type RequestFilterKey = "area" | "supervisor" | "type" | "employee" | "status" | "period";
 
 export const filtersByRole: Record<SolicitudesPageRole, readonly RequestFilterKey[]> = {
-  rh: ["area", "supervisor", "type", "employee", "status", "period"],
-  supervisor: ["type", "employee", "status", "period"],
-  gerente: ["type", "employee", "status", "period"],
+  rh: ["employee", "area", "supervisor", "type", "status", "period"],
+  supervisor: ["employee", "type", "status", "period"],
+  gerente: ["employee", "type", "status", "period"],
   empleado: ["type", "status"],
 } as const;
+
+const ROLES_FILTRO_EMPLEADO_TEXTO: ReadonlySet<SolicitudesPageRole> = new Set(["rh", "supervisor", "gerente"]);
+
+/** `rh`, `supervisor` y `gerente`: búsqueda de empleado con input de texto (primero en la barra). */
+export function solicitudesUsaFiltroEmpleadoTexto(role: SolicitudesPageRole): boolean {
+  return ROLES_FILTRO_EMPLEADO_TEXTO.has(role);
+}
 
 /**
  * Claves que ya tienen control en la barra de filtros.

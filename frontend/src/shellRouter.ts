@@ -1,8 +1,11 @@
+import { getRolFromAccessToken } from "./auth/jwt.ts";
+import { empleadoMayAccessHash } from "./navigation/shellNavPolicy.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360 } from "./pages/empleadoVista360.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
-import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountIncidencias } from "./pages/incidencias.ts";
+import { mountComedorStub, mountNotificacionesStub } from "./pages/shellModuleStubs.ts";
+import { mountSolicitudes } from "./pages/solicitudes.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -19,7 +22,22 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   const { signal } = routeAbort;
 
   const go = (): void => {
-    const h = window.location.hash || "#/";
+    const rawHash = window.location.hash || "#/";
+    if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
+      history.replaceState(null, "", "#/");
+    }
+    const h =
+      getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/" : rawHash;
+
+    if (h.startsWith("#/comedor")) {
+      mountComedorStub(container);
+      return;
+    }
+    if (h.startsWith("#/notificaciones")) {
+      mountNotificacionesStub(container);
+      return;
+    }
+
     const vistaMatch = h.match(/^#\/empleados\/(\d+)\/?/);
     if (vistaMatch) {
       const id = Number.parseInt(vistaMatch[1] ?? "", 10);

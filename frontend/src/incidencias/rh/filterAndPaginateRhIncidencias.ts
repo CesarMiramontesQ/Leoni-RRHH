@@ -1,3 +1,4 @@
+import { filaCoincideBusquedaTextoEmpleado } from "../../utils/empleadoTextoBusqueda.ts";
 import { areaLabelFromFilterId } from "./buildRhIncidenciaFilterOptions.ts";
 import type {
   RhIncidenciaFilterState,
@@ -34,7 +35,10 @@ function matchesFilters(row: RhIncidenciaTablaFila, f: RhIncidenciaFilterState):
   if (f.tipo && row.tipo !== f.tipo) return false;
   if (f.estado && row.estado !== f.estado) return false;
   if (f.supervisor_id && row.supervisor_id !== f.supervisor_id) return false;
-  if (f.area_id) {
+  const qEmp = f.empleado_busqueda.trim();
+  if (qEmp) {
+    if (!filaCoincideBusquedaTextoEmpleado(row, qEmp)) return false;
+  } else if (f.area_id) {
     const want = areaLabelFromFilterId(f.area_id);
     if (!want || row.area !== want) return false;
   }

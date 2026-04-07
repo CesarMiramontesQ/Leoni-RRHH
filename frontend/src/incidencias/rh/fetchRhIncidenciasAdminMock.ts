@@ -6,6 +6,7 @@ import type {
   RhIncidenciaFilterState,
   RhIncidenciasAdminViewModel,
   RhIncidenciaTablaFila,
+  RhIncidenciasUiConfig,
 } from "./types.ts";
 
 const MOCK_DELAY_MS = 380;
@@ -37,6 +38,7 @@ export function buildRhIncidenciasAdminViewModel(
   rows: readonly RhIncidenciaTablaFila[],
   filterOptions: RhIncidenciasAdminViewModel["filterOptions"],
   filters: RhIncidenciaFilterState,
+  ui: RhIncidenciasUiConfig,
 ): RhIncidenciasAdminViewModel {
   const resumen = computeRhIncidenciaStats(rows);
   const filtered = filterRhIncidenciaRows(rows, filters);
@@ -47,6 +49,7 @@ export function buildRhIncidenciasAdminViewModel(
     resumenStatus: "ready",
     filterOptions,
     filters,
+    ui,
     tableStatus,
     table,
     tableErrorMessage: undefined,
