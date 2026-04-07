@@ -1,6 +1,7 @@
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360 } from "./pages/empleadoVista360.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
+import { mountSolicitudes } from "./pages/solicitudes.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -28,6 +29,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/empleados")) {
       mountEmpleados(container, signal);
+    } else if (h.startsWith("#/solicitudes")) {
+      mountSolicitudes(container, signal);
     } else {
       mountDashboardPlaceholder(container);
     }

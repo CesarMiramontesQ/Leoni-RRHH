@@ -1,0 +1,304 @@
+import { canAccessRhSolicitudesAdminPage } from "../auth/jwt.ts";
+import { clearAuth } from "../auth/session.ts";
+import {
+  mountSolicitudResueltaModal,
+  type SolicitudResueltaModalHandle,
+} from "../components/solicitudes/solicitudResueltaModal.ts";
+import {
+  mountSolicitudDetalleModal,
+  type SolicitudDetalleModalHandle,
+} from "../components/solicitudes/solicitudDetalleModal.ts";
+import {
+  mountRhNewRequestModal,
+  type RhNewRequestModalHandle,
+} from "../components/solicitudes/rhNewRequestModal.ts";
+import { renderRhSolicitudesAdminView } from "../components/solicitudes/rhSolicitudesAdminView.ts";
+import { mountAppShell } from "../layouts/appShell.ts";
+import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
+import {
+  buildRhSolicitudesAdminViewModel,
+  fetchRhSolicitudesAdminDatasetMock,
+} from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
+import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
+import type {
+  RhSolicitudEstadoCodigo,
+  RhSolicitudFilterState,
+  RhSolicitudTipoCodigo,
+  RhSolicitudesAdminViewModel,
+  RhSolicitudTablaFila,
+} from "../solicitudes/rh/types.ts";
+
+function forbiddenHtml(): string {
+  return `
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+      <p class="font-semibold">Acceso restringido</p>
+      <p class="mt-1">La vista administrativa de solicitudes está disponible solo para usuarios con rol Recursos Humanos.</p>
+      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
+    </div>`;
+}
+
+function loadingViewModel(): RhSolicitudesAdminViewModel {
+  return {
+    stats: null,
+    statsStatus: "loading",
+    filterOptions: buildRhSolicitudFilterOptions([]),
+    filters: {
+      tipo: "",
+      area_id: "",
+      supervisor_id: "",
+      estado: "",
+      page: 1,
+      page_size: 10,
+    },
+    tableStatus: "loading",
+    table: null,
+    tableErrorMessage: undefined,
+  };
+}
+
+function errorViewModel(message: string): RhSolicitudesAdminViewModel {
+  return {
+    stats: null,
+    statsStatus: "error",
+    filterOptions: buildRhSolicitudFilterOptions([]),
+    filters: {
+      tipo: "",
+      area_id: "",
+      supervisor_id: "",
+      estado: "",
+      page: 1,
+      page_size: 10,
+    },
+    tableStatus: "error",
+    table: null,
+    tableErrorMessage: message,
+  };
+}
+
+function isTipo(v: string): v is RhSolicitudTipoCodigo {
+  return v === "vacaciones" || v === "home_office";
+}
+
+function isEstado(v: string): v is RhSolicitudEstadoCodigo {
+  return (
+    v === "pending" ||
+    v === "approved" ||
+    v === "rejected" ||
+    v === "changes_requested" ||
+    v === "cancelled" ||
+    v === "overridden"
+  );
+}
+
+export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): void {
+  if (!canAccessRhSolicitudesAdminPage()) {
+    mountAppShell(container, {
+      pageTitle: "Solicitudes",
+      activeNav: "solicitudes",
+      mainHtml: forbiddenHtml(),
+    });
+    return;
+  }
+
+  let allRows: RhSolicitudTablaFila[] = [];
+  let filterOpts = buildRhSolicitudFilterOptions([]);
+
+  const state: RhSolicitudFilterState = {
+    tipo: "",
+    area_id: "",
+    supervisor_id: "",
+    estado: "",
+    page: 1,
+    page_size: 10,
+  };
+
+  function clampPage(): void {
+    const filtered = filterRhSolicitudRows(allRows, state);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / state.page_size) || 1);
+    if (state.page > totalPages) state.page = totalPages;
+    if (state.page < 1) state.page = 1;
+  }
+
+  function paint(): void {
+    clampPage();
+    const vm = buildRhSolicitudesAdminViewModel(allRows, filterOpts, state);
+    const inner = container.querySelector("#rh-solicitudes-inner");
+    if (inner) inner.innerHTML = renderRhSolicitudesAdminView(vm);
+  }
+
+  let rhNuevaSolicitudModal: RhNewRequestModalHandle | null = null;
+  let solicitudDetalleModal: SolicitudDetalleModalHandle | null = null;
+  let solicitudResueltaModal: SolicitudResueltaModalHandle | null = null;
+
+  mountAppShell(container, {
+    pageTitle: "Solicitudes de empleados",
+    activeNav: "solicitudes",
+    mainHtml: `<div id="rh-solicitudes-page" class="relative">
+      <div id="rh-solicitudes-inner">${renderRhSolicitudesAdminView(loadingViewModel())}</div>
+      <div id="rh-nueva-solicitud-modal-host"></div>
+      <div id="rh-solicitud-detalle-modal-host"></div>
+      <div id="rh-solicitud-resuelta-modal-host"></div>
+    </div>`,
+  });
+
+  const resueltaHostEl = container.querySelector("#rh-solicitud-resuelta-modal-host");
+  if (resueltaHostEl) {
+    solicitudResueltaModal = mountSolicitudResueltaModal(resueltaHostEl as HTMLElement, {
+      signal,
+      toastContainer: container,
+      getFilaById: (id) => allRows.find((r) => r.id === id),
+    });
+  }
+
+  const detalleHostEl = container.querySelector("#rh-solicitud-detalle-modal-host");
+  if (detalleHostEl) {
+    solicitudDetalleModal = mountSolicitudDetalleModal(detalleHostEl as HTMLElement, {
+      signal,
+      toastContainer: container,
+      getFilaById: (id) => allRows.find((r) => r.id === id),
+      aplicarFilaActualizada: (fila) => {
+        const i = allRows.findIndex((r) => r.id === fila.id);
+        if (i >= 0) allRows[i] = fila;
+      },
+      onRefrescarListado: () => paint(),
+    });
+  }
+
+  const modalHostEl = container.querySelector("#rh-nueva-solicitud-modal-host");
+  if (modalHostEl) {
+    rhNuevaSolicitudModal = mountRhNewRequestModal(modalHostEl as HTMLElement, {
+      signal,
+      toastContainer: container,
+      onSuccess: () => {
+        void paint();
+      },
+      onSessionExpired: () => {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+      },
+    });
+  }
+
+  signal.addEventListener("abort", () => {
+    rhNuevaSolicitudModal?.destroy();
+    solicitudDetalleModal?.destroy();
+    solicitudResueltaModal?.destroy();
+  });
+
+  const pageRoot = container.querySelector("#rh-solicitudes-page");
+  pageRoot?.addEventListener(
+    "click",
+    (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("#rh-sol-nueva")) {
+        void rhNuevaSolicitudModal?.open();
+        return;
+      }
+      if (t.closest("#rh-sol-export")) {
+        return;
+      }
+      if (t.closest("[data-rh-sol-clear-filters]")) {
+        state.tipo = "";
+        state.area_id = "";
+        state.supervisor_id = "";
+        state.estado = "";
+        state.page = 1;
+        paint();
+        return;
+      }
+      const pendingRow = t.closest<HTMLTableRowElement>("tr[data-rh-sol-row-pending]");
+      if (pendingRow) {
+        const raw = pendingRow.getAttribute("data-rh-sol-id");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        if (Number.isFinite(id)) void solicitudDetalleModal?.open(id);
+        return;
+      }
+      const resueltaRow = t.closest<HTMLTableRowElement>("tr[data-rh-sol-row-resuelta]");
+      if (resueltaRow) {
+        const raw = resueltaRow.getAttribute("data-rh-sol-id");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        if (Number.isFinite(id)) void solicitudResueltaModal?.open(id);
+        return;
+      }
+      const pageBtn = t.closest<HTMLButtonElement>("[data-rh-sol-page]");
+      if (pageBtn) {
+        const raw = pageBtn.getAttribute("data-rh-sol-page");
+        const n = raw ? Number.parseInt(raw, 10) : NaN;
+        if (!Number.isNaN(n)) {
+          state.page = n;
+          paint();
+        }
+      }
+    },
+    { signal },
+  );
+
+  pageRoot?.addEventListener(
+    "keydown",
+    (e: Event) => {
+      const ke = e as KeyboardEvent;
+      const trPending = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-sol-row-pending]");
+      const trRes = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-sol-row-resuelta]");
+      const tr = trPending ?? trRes;
+      if (!tr) return;
+      if (ke.key !== "Enter" && ke.key !== " ") return;
+      ke.preventDefault();
+      const raw = tr.getAttribute("data-rh-sol-id");
+      const id = raw ? Number.parseInt(raw, 10) : NaN;
+      if (!Number.isFinite(id)) return;
+      if (trPending) void solicitudDetalleModal?.open(id);
+      else void solicitudResueltaModal?.open(id);
+    },
+    { signal },
+  );
+
+  pageRoot?.addEventListener(
+    "change",
+    (e) => {
+      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-filter]");
+      if (sel) {
+        const name = sel.getAttribute("data-rh-sol-filter");
+        const value = sel.value;
+        state.page = 1;
+        if (name === "tipo") state.tipo = value === "" ? "" : isTipo(value) ? value : "";
+        else if (name === "area") state.area_id = value;
+        else if (name === "supervisor") state.supervisor_id = value;
+        else if (name === "estado") state.estado = value === "" ? "" : isEstado(value) ? value : "";
+        paint();
+        return;
+      }
+      const ps = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-page-size]");
+      if (ps) {
+        const n = Number.parseInt(ps.value, 10);
+        state.page_size = Number.isNaN(n) ? 10 : n;
+        state.page = 1;
+        paint();
+      }
+    },
+    { signal },
+  );
+
+  void (async () => {
+    const res = await fetchRhSolicitudesAdminDatasetMock(false);
+    if (!res.ok) {
+      allRows = [];
+      filterOpts = buildRhSolicitudFilterOptions([]);
+      const errVm = errorViewModel(res.message);
+      const inner = container.querySelector("#rh-solicitudes-inner");
+      if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
+      return;
+    }
+    allRows = res.rows;
+    filterOpts = res.filterOptions;
+    paint();
+  })().catch(() => {
+    allRows = [];
+    filterOpts = buildRhSolicitudFilterOptions([]);
+    const errVm = errorViewModel("Error inesperado al cargar solicitudes.");
+    const inner = container.querySelector("#rh-solicitudes-inner");
+    if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
+  });
+}

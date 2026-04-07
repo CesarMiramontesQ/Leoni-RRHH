@@ -83,3 +83,8 @@ export function canAccessDirectorioEmpleados(): boolean {
 export function canAccessEmpleadosPage(): boolean {
   return canAccessDirectorioEmpleados();
 }
+
+/** Vista administrativa global de solicitudes (`#/solicitudes`). Solo RH. */
+export function canAccessRhSolicitudesAdminPage(): boolean {
+  return getRolFromAccessToken() === "rh";
+}

@@ -17,12 +17,14 @@ const navActive =
   "group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-leoni-blue";
 const navIconActive = "size-6 shrink-0 text-leoni-blue";
 
-export type ShellNavKey = "dashboard" | "empleados";
+export type ShellNavKey = "dashboard" | "empleados" | "solicitudes";
 
 /** Sidebar interior (móvil + desktop idénticos). */
 function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const dashCls = activeNav === "dashboard" ? navActive : navInactive;
   const dashIcon = activeNav === "dashboard" ? navIconActive : navIconInactive;
+  const solCls = activeNav === "solicitudes" ? navActive : navInactive;
+  const solIcon = activeNav === "solicitudes" ? navIconActive : navIconInactive;
   const empCls = activeNav === "empleados" ? navActive : navInactive;
   const empIcon = activeNav === "empleados" ? navIconActive : navIconInactive;
 
@@ -43,8 +45,8 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
               </a>
             </li>
             <li>
-              <a href="#" class="${navInactive}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="${navIconInactive}">
+              <a href="#/solicitudes" class="${solCls}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="${solIcon}">
                   <path d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 Solicitudes

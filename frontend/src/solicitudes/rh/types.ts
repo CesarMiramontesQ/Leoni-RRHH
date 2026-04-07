@@ -1,0 +1,80 @@
+/**
+ * Contratos de la vista administrativa de solicitudes (rol RH).
+ * Desacoplados del componente de página para futura integración con API.
+ */
+
+export type RhSolicitudTipoCodigo = "vacaciones" | "home_office";
+
+export type RhSolicitudEstadoCodigo =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "changes_requested"
+  | "cancelled"
+  | "overridden";
+
+/** Fila de tabla lista para UI (tras adapter/mapper desde API o mock). */
+export type RhSolicitudTablaFila = {
+  id: number;
+  /** Nombre crudo (p. ej. `APELLIDO, NOMBRE`); la UI aplica `formatNombreEmpleadoUi`. */
+  empleado_nombre_raw: string;
+  foto_url: string | null;
+  /** Etiqueta tipo `#SOL-1234` o número de folio. */
+  numero_folio: string;
+  area: string;
+  tipo: RhSolicitudTipoCodigo;
+  /** ISO date `YYYY-MM-DD` — fecha de creación de la solicitud. */
+  fecha_solicitud: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  /** Si existe, sustituye el rango automático (p. ej. recurrencia HO). */
+  periodo_etiqueta: string | null;
+  estado: RhSolicitudEstadoCodigo;
+  supervisor_id: string;
+  supervisor_nombre: string;
+  /** ISO date — día en que pasó a aprobada (mock / futuro campo API). */
+  fecha_aprobacion: string | null;
+};
+
+/** Métricas del encabezado (normalmente globales, no filtradas por la tabla). */
+export type RhSolicitudRequestStats = {
+  pendientes: number;
+  vacaciones: number;
+  home_office: number;
+  aprobadas_hoy: number;
+};
+
+export type RhSolicitudFilterState = {
+  tipo: "" | RhSolicitudTipoCodigo;
+  area_id: string;
+  supervisor_id: string;
+  estado: "" | RhSolicitudEstadoCodigo;
+  page: number;
+  page_size: number;
+};
+
+export type RhSolicitudFilterOptions = {
+  areas: ReadonlyArray<{ id: string; label: string }>;
+  supervisores: ReadonlyArray<{ id: string; label: string }>;
+  tipos: ReadonlyArray<{ id: RhSolicitudTipoCodigo; label: string }>;
+  estados: ReadonlyArray<{ id: RhSolicitudEstadoCodigo; label: string }>;
+};
+
+export type RhSolicitudesTableData = {
+  items: RhSolicitudTablaFila[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type RhSolicitudesTableStatus = "loading" | "ready" | "empty" | "error";
+
+export type RhSolicitudesAdminViewModel = {
+  stats: RhSolicitudRequestStats | null;
+  statsStatus: "loading" | "ready" | "error";
+  filterOptions: RhSolicitudFilterOptions;
+  filters: RhSolicitudFilterState;
+  tableStatus: RhSolicitudesTableStatus;
+  table: RhSolicitudesTableData | null;
+  tableErrorMessage?: string;
+};
