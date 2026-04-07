@@ -1,4 +1,8 @@
-import { canAccessRhSolicitudesAdminPage } from "../auth/jwt.ts";
+import {
+  canAccessSolicitudesPage,
+  getEmpleadoIdFromAccessToken,
+  parseEmpleadoDirectoryNumericId,
+} from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   mountSolicitudResueltaModal,
@@ -19,6 +23,12 @@ import {
   buildRhSolicitudesAdminViewModel,
   fetchRhSolicitudesAdminDatasetMock,
 } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
+import { MOCK_EMPLEADO_PORTAL_EMPLEADO_ID } from "../solicitudes/rh/mockDataset.ts";
+import {
+  buildDefaultSolicitudesPageUiConfig,
+  dataScopeForSolicitudesRole,
+  getSolicitudesPageRoleFromSession,
+} from "../solicitudes/solicitudesPageFilterConfig.ts";
 import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
 import type {
   RhSolicitudEstadoCodigo,
@@ -32,20 +42,23 @@ function forbiddenHtml(): string {
   return `
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
       <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">La vista administrativa de solicitudes está disponible solo para usuarios con rol Recursos Humanos.</p>
+      <p class="mt-1">Esta sección de solicitudes no está disponible para tu usuario.</p>
       <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
     </div>`;
 }
 
-function loadingViewModel(): RhSolicitudesAdminViewModel {
+function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesAdminViewModel {
   return {
     stats: null,
-    statsStatus: "loading",
+    statsStatus: ui.showStatsCards ? "loading" : "ready",
+    empleadoPersonalStats: null,
+    empleadoPersonalStatsStatus: ui.showEmployeePersonalStats ? "loading" : "ready",
     filterOptions: buildRhSolicitudFilterOptions([]),
     filters: {
       tipo: "",
       area_id: "",
       supervisor_id: "",
+      empleado_id: "",
       estado: "",
       page: 1,
       page_size: 10,
@@ -53,18 +66,23 @@ function loadingViewModel(): RhSolicitudesAdminViewModel {
     tableStatus: "loading",
     table: null,
     tableErrorMessage: undefined,
+    profileResumen: null,
+    ui,
   };
 }
 
-function errorViewModel(message: string): RhSolicitudesAdminViewModel {
+function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesAdminViewModel {
   return {
     stats: null,
     statsStatus: "error",
+    empleadoPersonalStats: null,
+    empleadoPersonalStatsStatus: ui.showEmployeePersonalStats ? "error" : "ready",
     filterOptions: buildRhSolicitudFilterOptions([]),
     filters: {
       tipo: "",
       area_id: "",
       supervisor_id: "",
+      empleado_id: "",
       estado: "",
       page: 1,
       page_size: 10,
@@ -72,6 +90,8 @@ function errorViewModel(message: string): RhSolicitudesAdminViewModel {
     tableStatus: "error",
     table: null,
     tableErrorMessage: message,
+    profileResumen: null,
+    ui,
   };
 }
 
@@ -91,7 +111,7 @@ function isEstado(v: string): v is RhSolicitudEstadoCodigo {
 }
 
 export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): void {
-  if (!canAccessRhSolicitudesAdminPage()) {
+  if (!canAccessSolicitudesPage()) {
     mountAppShell(container, {
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
@@ -100,13 +120,32 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     return;
   }
 
+  const pageRole = getSolicitudesPageRoleFromSession();
+  if (!pageRole) {
+    mountAppShell(container, {
+      pageTitle: "Solicitudes",
+      activeNav: "solicitudes",
+      mainHtml: forbiddenHtml(),
+    });
+    return;
+  }
+
+  const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
+  const dataScope = dataScopeForSolicitudesRole(pageRole);
+  const empleadoScopeId =
+    pageRole === "empleado"
+      ? (getEmpleadoIdFromAccessToken() ?? MOCK_EMPLEADO_PORTAL_EMPLEADO_ID)
+      : undefined;
+
   let allRows: RhSolicitudTablaFila[] = [];
   let filterOpts = buildRhSolicitudFilterOptions([]);
+  let empleadoVacacionesDisponibles: number | null = null;
 
   const state: RhSolicitudFilterState = {
     tipo: "",
     area_id: "",
     supervisor_id: "",
+    empleado_id: "",
     estado: "",
     page: 1,
     page_size: 10,
@@ -121,7 +160,14 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   function paint(): void {
     clampPage();
-    const vm = buildRhSolicitudesAdminViewModel(allRows, filterOpts, state);
+    const vm = buildRhSolicitudesAdminViewModel(
+      allRows,
+      filterOpts,
+      state,
+      pageUi,
+      null,
+      empleadoVacacionesDisponibles,
+    );
     const inner = container.querySelector("#rh-solicitudes-inner");
     if (inner) inner.innerHTML = renderRhSolicitudesAdminView(vm);
   }
@@ -130,11 +176,13 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   let solicitudDetalleModal: SolicitudDetalleModalHandle | null = null;
   let solicitudResueltaModal: SolicitudResueltaModalHandle | null = null;
 
+  const shellTitle = pageRole === "empleado" ? "Solicitudes" : "Solicitudes de empleados";
+
   mountAppShell(container, {
-    pageTitle: "Solicitudes de empleados",
+    pageTitle: shellTitle,
     activeNav: "solicitudes",
     mainHtml: `<div id="rh-solicitudes-page" class="relative">
-      <div id="rh-solicitudes-inner">${renderRhSolicitudesAdminView(loadingViewModel())}</div>
+      <div id="rh-solicitudes-inner">${renderRhSolicitudesAdminView(loadingViewModel(pageUi))}</div>
       <div id="rh-nueva-solicitud-modal-host"></div>
       <div id="rh-solicitud-detalle-modal-host"></div>
       <div id="rh-solicitud-resuelta-modal-host"></div>
@@ -164,8 +212,14 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     });
   }
 
+  const empleadoSelfDirectoryId =
+    pageRole === "empleado" ?
+      (parseEmpleadoDirectoryNumericId(empleadoScopeId ?? "") ??
+        parseEmpleadoDirectoryNumericId(MOCK_EMPLEADO_PORTAL_EMPLEADO_ID))
+    : undefined;
+
   const modalHostEl = container.querySelector("#rh-nueva-solicitud-modal-host");
-  if (modalHostEl) {
+  if (modalHostEl && pageUi.showNewRequestButton) {
     rhNuevaSolicitudModal = mountRhNewRequestModal(modalHostEl as HTMLElement, {
       signal,
       toastContainer: container,
@@ -179,6 +233,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
           void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
         });
       },
+      fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
     });
   }
 
@@ -193,6 +248,21 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     "click",
     (e) => {
       const t = e.target as HTMLElement;
+
+      const ver = t.closest<HTMLElement>("[data-rh-sol-ver]");
+      if (ver) {
+        const raw = ver.getAttribute("data-rh-sol-ver");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        if (!Number.isFinite(id)) return;
+        const fila = allRows.find((r) => r.id === id);
+        if (!fila) return;
+        if (fila.estado === "pending") void solicitudDetalleModal?.open(id);
+        else if (fila.estado === "approved" || fila.estado === "rejected" || fila.estado === "overridden") {
+          void solicitudResueltaModal?.open(id);
+        }
+        return;
+      }
+
       if (t.closest("#rh-sol-nueva")) {
         void rhNuevaSolicitudModal?.open();
         return;
@@ -204,6 +274,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         state.tipo = "";
         state.area_id = "";
         state.supervisor_id = "";
+        state.empleado_id = "";
         state.estado = "";
         state.page = 1;
         paint();
@@ -266,6 +337,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         if (name === "tipo") state.tipo = value === "" ? "" : isTipo(value) ? value : "";
         else if (name === "area") state.area_id = value;
         else if (name === "supervisor") state.supervisor_id = value;
+        else if (name === "empleado") state.empleado_id = value;
         else if (name === "estado") state.estado = value === "" ? "" : isEstado(value) ? value : "";
         paint();
         return;
@@ -282,22 +354,25 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   );
 
   void (async () => {
-    const res = await fetchRhSolicitudesAdminDatasetMock(false);
+    const res = await fetchRhSolicitudesAdminDatasetMock(false, dataScope, empleadoScopeId);
     if (!res.ok) {
       allRows = [];
       filterOpts = buildRhSolicitudFilterOptions([]);
-      const errVm = errorViewModel(res.message);
+      empleadoVacacionesDisponibles = null;
+      const errVm = errorViewModel(res.message, pageUi);
       const inner = container.querySelector("#rh-solicitudes-inner");
       if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
       return;
     }
     allRows = res.rows;
     filterOpts = res.filterOptions;
+    empleadoVacacionesDisponibles = res.empleadoVacacionesDisponibles;
     paint();
   })().catch(() => {
     allRows = [];
     filterOpts = buildRhSolicitudFilterOptions([]);
-    const errVm = errorViewModel("Error inesperado al cargar solicitudes.");
+    empleadoVacacionesDisponibles = null;
+    const errVm = errorViewModel("Error inesperado al cargar solicitudes.", pageUi);
     const inner = container.querySelector("#rh-solicitudes-inner");
     if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
   });

@@ -84,9 +84,57 @@ export function canAccessEmpleadosPage(): boolean {
   return canAccessDirectorioEmpleados();
 }
 
-/** Vista administrativa global de solicitudes (`#/solicitudes`). Solo RH. */
+/** Vista administrativa global de solicitudes (`#/solicitudes`). Solo RH (catálogo completo de filtros). */
 export function canAccessRhSolicitudesAdminPage(): boolean {
   return getRolFromAccessToken() === "rh";
+}
+
+/** Gestión de solicitudes (`#/solicitudes`): RH, supervisores y gerentes (alcance y filtros según rol). */
+export function canAccessSolicitudesGestorPage(): boolean {
+  const r = getRolFromAccessToken();
+  return r === "rh" || r === "supervisor" || r === "gerente";
+}
+
+/** Consulta de solicitudes propias o de equipo (`#/solicitudes`), incluyendo rol `empleado`. */
+export function canAccessSolicitudesPage(): boolean {
+  return canAccessSolicitudesGestorPage() || getRolFromAccessToken() === "empleado";
+}
+
+/**
+ * Identificador del colaborador en sesión (p. ej. para filtrar solicitudes en portal).
+ * Contrato JWT: ampliar cuando el backend lo incluya en el token.
+ */
+export function getEmpleadoIdFromAccessToken(): string | null {
+  const p = getAccessTokenPayload();
+  if (!p) return null;
+  for (const k of ["empleado_id", "empleadoId", "id_empleado"] as const) {
+    const v = p[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  /** Algunos JWT usan `sub` como id numérico de empleado (cuando aplique). */
+  const sub = p.sub;
+  if (typeof sub === "string" && /^\d+$/.test(sub.trim())) return sub.trim();
+  return null;
+}
+
+/**
+ * Identificador numérico del directorio para mocks de solicitudes y modal (p. ej. `emp-1001` → 1001).
+ * Solo acepta prefijo `emp-` + dígitos o una cadena numérica pura.
+ */
+export function parseEmpleadoDirectoryNumericId(raw: string): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const m = /^emp-(\d+)$/i.exec(s);
+  if (m) {
+    const n = Number.parseInt(m[1]!, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (/^\d+$/.test(s)) {
+    const n = Number.parseInt(s, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 /** Vista administrativa de incidencias laborales (`#/incidencias`). Solo RH. */

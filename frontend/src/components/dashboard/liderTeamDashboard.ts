@@ -67,6 +67,21 @@ function iconColaboradores(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>`;
 }
 
+function renderLiderDashboardSectionHeader(title: string, subtitle: string): string {
+  const idSlug = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-|-$/gu, "");
+  const headingId = `lider-dash-section-${idSlug}`;
+  return `
+    <header class="mb-4">
+      <h2 id="${escapeHtml(headingId)}" class="text-lg font-semibold tracking-tight text-text-primary">${escapeHtml(title)}</h2>
+      <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-muted">${escapeHtml(subtitle)}</p>
+    </header>`;
+}
+
 export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
   const t = team;
   const cards = [
@@ -451,17 +466,37 @@ export function renderLiderTeamDashboard(
   const approvalsHtml = renderApprovalRequestsCard(p?.approval_requests ?? []);
   const calHtml = renderLiderTeamCalendarCard(year, monthIndex, p);
 
+  const teamHeading = renderLiderDashboardSectionHeader(
+    "Resumen del equipo",
+    "Indicadores generales del desempeño y estado del equipo",
+  );
+  const personalHeading = renderLiderDashboardSectionHeader(
+    "Resumen personal",
+    "Información y métricas individuales",
+  );
+
   return `
     <div class="space-y-0">
-      ${personalHtml}
-      <div class="my-6 border-t border-border/40" aria-hidden="true"></div>
-      ${teamHtml}
+      <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-del-equipo">
+        ${teamHeading}
+        ${teamHtml}
+      </section>
+      <div class="my-10 border-t border-border/40" aria-hidden="true"></div>
+      <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-personal">
+        ${personalHeading}
+        ${personalHtml}
+      </section>
       ${approvalsHtml}
       ${calHtml}
     </div>`;
 }
 
 export function renderLiderDashboardSkeleton(): string {
+  const headingSkel = `
+    <header class="mb-4">
+      <div class="h-6 w-52 max-w-full animate-pulse rounded-md bg-surface"></div>
+      <div class="mt-3 h-4 w-full max-w-xl animate-pulse rounded-md bg-surface/80"></div>
+    </header>`;
   const row4 = `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
     ${`<div class="animate-pulse rounded-2xl border border-border bg-white p-5 shadow-sm">
       <div class="flex justify-between gap-3"><div class="size-11 rounded-full bg-surface"></div><div class="h-3 w-24 rounded bg-surface"></div></div>
@@ -469,7 +504,7 @@ export function renderLiderDashboardSkeleton(): string {
       <div class="mt-2 h-4 w-36 rounded bg-surface/80"></div>
     </div>`.repeat(4)}
   </div>`;
-  const sep = `<div class="my-6 border-t border-border/40"></div>`;
+  const sep = `<div class="my-10 border-t border-border/40"></div>`;
   const table = `<div class="mt-8 animate-pulse rounded-2xl border border-border bg-white p-6 shadow-sm">
     <div class="flex justify-between"><div class="h-5 w-48 rounded bg-surface"></div><div class="h-4 w-16 rounded bg-surface"></div></div>
     <div class="mt-6 h-32 rounded-lg bg-surface/60"></div>
@@ -478,7 +513,7 @@ export function renderLiderDashboardSkeleton(): string {
     <div class="flex justify-between gap-4"><div class="h-5 w-40 rounded bg-surface"></div><div class="h-9 w-44 rounded-xl bg-surface"></div></div>
     <div class="mt-6 grid grid-cols-7 gap-1">${"<div class=\"h-16 rounded-sm bg-surface/50\"></div>".repeat(7)}</div>
   </div>`;
-  return row4 + sep + row4 + table + cal;
+  return headingSkel + row4 + sep + headingSkel + row4 + table + cal;
 }
 
 export function bindLiderTeamCalendarNavigation(

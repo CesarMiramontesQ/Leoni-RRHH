@@ -1,9 +1,9 @@
 /**
- * Modal «Nueva solicitud» exclusivo para rol RH.
- * No reutilizar en flujos de empleado / supervisor / gerente.
+ * Modal «Nueva solicitud»: modo RH (selector de colaborador) y modo portal (`fixedEmpleadoDirectoryId`).
  */
 
 import { getEmpleadosPage } from "../../api/empleados.ts";
+import { getUserDisplayNameFromAccessToken } from "../../auth/jwt.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
@@ -28,6 +28,11 @@ export type RhNewRequestModalOptions = {
   toastContainer: HTMLElement;
   onSuccess: () => void | Promise<void>;
   onSessionExpired: () => void;
+  /**
+   * Id numérico de directorio del colaborador autenticado. Si se define, no se muestra selector de empleado
+   * y el envío usa siempre este id (la UI no puede cambiar el destinatario).
+   */
+  fixedEmpleadoDirectoryId?: number;
 };
 
 export type RhNewRequestModalOpenOptions = {
@@ -42,6 +47,7 @@ export type RhNewRequestModalHandle = {
 };
 
 export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestModalOptions): RhNewRequestModalHandle {
+  const fixedSelfId = options.fixedEmpleadoDirectoryId;
   host.innerHTML = shellHtml();
   const overlay = host.querySelector("#rh-nr-overlay") as HTMLElement | null;
   const body = host.querySelector("#rh-nr-body") as HTMLElement | null;
@@ -116,8 +122,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     fechaFin: string;
     comentarios: string;
   } {
+    const hid = (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ?? "";
+    const sel = (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ?? "";
     return {
-      selectedEmpleadoId: (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ?? "",
+      selectedEmpleadoId: hid || sel,
       fechaInicio: (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ?? "",
       fechaFin: (host.querySelector("#rh-nr-fin") as HTMLInputElement | null)?.value ?? "",
       comentarios: (host.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null)?.value ?? "",
@@ -140,7 +148,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
 
   function renderForm(preserve: Partial<{ selectedId: string; fechaInicio: string; fechaFin: string; comentarios: string }>): void {
     const snap = readFormSnapshot();
-    const selectedEmpleadoId = preserve.selectedId ?? snap.selectedEmpleadoId;
+    const selectedEmpleadoId =
+      fixedSelfId != null ? String(fixedSelfId) : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFin = preserve.fechaFin ?? snap.fechaFin;
     const comentarios = preserve.comentarios ?? snap.comentarios;
@@ -150,7 +159,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       tipo === "vacaciones"
         ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk)
         : buildInfoHomeOfficeHtml(contextoHoText);
-    const ui = computeRhModalFormUi(tipo, contextoVac, selectedEmpleadoId, fechaInicio, fechaFin);
+    const ui = computeRhModalFormUi(
+      tipo,
+      contextoVac,
+      selectedEmpleadoId,
+      fechaInicio,
+      fechaFin,
+      fixedSelfId != null,
+    );
+    const fixedEmpleado =
+      fixedSelfId != null ?
+        { directoryId: String(fixedSelfId), displayLine: getUserDisplayNameFromAccessToken() }
+      : undefined;
     modalBody.innerHTML = buildFormHtml({
       tipo,
       items: empleadosCache,
@@ -166,6 +186,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaInInvalid: ui.fechaInInvalid,
       fechaFinInvalid: ui.fechaFinInvalid,
       canSubmit: ui.canSubmit,
+      fixedEmpleado,
     });
     bindFormInteractions();
     applyRhModalLiveFeedback(host, tipo, contextoVac);
@@ -191,43 +212,45 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       );
     });
 
-    qInput?.addEventListener(
-      "input",
-      () => {
-        empleadoSearchQ = qInput.value;
-        const q = qInput.value;
-        if (searchTimer) clearTimeout(searchTimer);
-        searchTimer = setTimeout(async () => {
-          if (q === lastSearchQ) return;
-          lastSearchQ = q;
-          try {
-            const prev = (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ?? "";
-            await loadEmpleados(q);
-            renderForm({ selectedId: prev });
-            const pid = prev ? Number.parseInt(prev, 10) : NaN;
-            void refreshContextForEmpleado(Number.isFinite(pid) ? pid : null);
-          } catch {
-            showError("No se pudo cargar el listado de empleados.");
-          }
-        }, 320);
-      },
-      { signal: options.signal },
-    );
+    if (fixedSelfId == null) {
+      qInput?.addEventListener(
+        "input",
+        () => {
+          empleadoSearchQ = qInput.value;
+          const q = qInput.value;
+          if (searchTimer) clearTimeout(searchTimer);
+          searchTimer = setTimeout(async () => {
+            if (q === lastSearchQ) return;
+            lastSearchQ = q;
+            try {
+              const prev = (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ?? "";
+              await loadEmpleados(q);
+              renderForm({ selectedId: prev });
+              const pid = prev ? Number.parseInt(prev, 10) : NaN;
+              void refreshContextForEmpleado(Number.isFinite(pid) ? pid : null);
+            } catch {
+              showError("No se pudo cargar el listado de empleados.");
+            }
+          }, 320);
+        },
+        { signal: options.signal },
+      );
 
-    sel?.addEventListener(
-      "change",
-      () => {
-        const v = sel.value;
-        if (v === "") {
-          void refreshContextForEmpleado(null);
-        } else {
-          const id = Number.parseInt(v, 10);
-          void refreshContextForEmpleado(Number.isFinite(id) ? id : null);
-        }
-        hideError();
-      },
-      { signal: options.signal },
-    );
+      sel?.addEventListener(
+        "change",
+        () => {
+          const v = sel.value;
+          if (v === "") {
+            void refreshContextForEmpleado(null);
+          } else {
+            const id = Number.parseInt(v, 10);
+            void refreshContextForEmpleado(Number.isFinite(id) ? id : null);
+          }
+          hideError();
+        },
+        { signal: options.signal },
+      );
+    }
 
     inicio?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
@@ -241,7 +264,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         const empRaw = String(fd.get("empleado_id") ?? "").trim();
         const empleado_id = Number.parseInt(empRaw, 10);
         if (!empRaw || Number.isNaN(empleado_id)) {
-          showError("Selecciona un empleado.");
+          showError(fixedSelfId != null ? "No se pudo validar tu usuario. Vuelve a iniciar sesión." : "Selecciona un empleado.");
+          return;
+        }
+        if (fixedSelfId != null && empleado_id !== fixedSelfId) {
+          showError("No está permitido modificar el colaborador de la solicitud.");
           return;
         }
         const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
@@ -338,24 +365,45 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       document.body.style.overflow = "hidden";
       modalBody.innerHTML = loadingBodyHtml();
 
+      const subEl = host.querySelector("#rh-nr-subtitle");
+      if (subEl) {
+        subEl.textContent =
+          fixedSelfId != null ?
+            "Elige el tipo de solicitud y las fechas. El registro quedará a tu nombre."
+          : "Selecciona el tipo de solicitud y completa los campos requeridos.";
+      }
+
       try {
-        await loadEmpleados("");
-        let prefill = openOpts?.prefillEmpleadoId;
-        if (prefill != null && !empleadosCache.some((u) => u.id === prefill)) {
-          await loadEmpleados(String(prefill));
+        if (fixedSelfId == null) {
+          await loadEmpleados("");
+          let prefill = openOpts?.prefillEmpleadoId;
+          if (prefill != null && !empleadosCache.some((u) => u.id === prefill)) {
+            await loadEmpleados(String(prefill));
+          }
+          const selectedId = prefill != null && empleadosCache.some((u) => u.id === prefill) ? String(prefill) : "";
+          const today = new Date();
+          const iso = (d: Date) =>
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          renderForm({
+            selectedId,
+            fechaInicio: iso(today),
+            fechaFin: iso(today),
+            comentarios: "",
+          });
+          await refreshContextForEmpleado(selectedId ? Number.parseInt(selectedId, 10) : null);
+          (host.querySelector("#rh-nr-empleado") as HTMLElement | null)?.focus();
+        } else {
+          await refreshContextForEmpleado(fixedSelfId);
+          const today = new Date();
+          const iso = (d: Date) =>
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          renderForm({
+            fechaInicio: iso(today),
+            fechaFin: iso(today),
+            comentarios: "",
+          });
+          (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
         }
-        const selectedId = prefill != null && empleadosCache.some((u) => u.id === prefill) ? String(prefill) : "";
-        const today = new Date();
-        const iso = (d: Date) =>
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        renderForm({
-          selectedId,
-          fechaInicio: iso(today),
-          fechaFin: iso(today),
-          comentarios: "",
-        });
-        await refreshContextForEmpleado(selectedId ? Number.parseInt(selectedId, 10) : null);
-        (host.querySelector("#rh-nr-empleado") as HTMLElement | null)?.focus();
       } catch (e: unknown) {
         if (isUsuariosFetchError(e) && e.status === 401) {
           options.onSessionExpired();

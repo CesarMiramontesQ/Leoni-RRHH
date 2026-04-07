@@ -6,6 +6,7 @@ import type { RhSolicitudTablaFila } from "./types.ts";
 export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   {
     id: 2938,
+    empleado_id: "emp-1001",
     empleado_nombre_raw: "MARTÍNEZ LÓPEZ, ANA",
     foto_url: null,
     numero_folio: "SOL-2938",
@@ -22,6 +23,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2939,
+    empleado_id: "emp-1002",
     empleado_nombre_raw: "RUIZ PÉREZ, LUIS",
     foto_url: null,
     numero_folio: "SOL-2939",
@@ -38,6 +40,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2940,
+    empleado_id: "emp-1003",
     empleado_nombre_raw: "SOTO, DIEGO",
     foto_url: null,
     numero_folio: "SOL-2940",
@@ -54,6 +57,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2941,
+    empleado_id: "emp-1004",
     empleado_nombre_raw: "FLORES, ELENA",
     foto_url: null,
     numero_folio: "SOL-2941",
@@ -70,6 +74,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2942,
+    empleado_id: "emp-1005",
     empleado_nombre_raw: "NÚÑEZ, PATRICIA",
     foto_url: null,
     numero_folio: "SOL-2942",
@@ -86,6 +91,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2943,
+    empleado_id: "emp-1006",
     empleado_nombre_raw: "ORTIZ, JORGE",
     foto_url: null,
     numero_folio: "SOL-2943",
@@ -102,6 +108,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2944,
+    empleado_id: "emp-1007",
     empleado_nombre_raw: "CASTRO, MÓNICA",
     foto_url: null,
     numero_folio: "SOL-2944",
@@ -118,6 +125,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2945,
+    empleado_id: "emp-1008",
     empleado_nombre_raw: "VARGAS, SERGIO",
     foto_url: null,
     numero_folio: "SOL-2945",
@@ -134,6 +142,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2946,
+    empleado_id: "emp-1009",
     empleado_nombre_raw: "RAMOS, CLAUDIA",
     foto_url: null,
     numero_folio: "SOL-2946",
@@ -150,6 +159,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2947,
+    empleado_id: "emp-1010",
     empleado_nombre_raw: "MENDOZA, FERNANDO",
     foto_url: null,
     numero_folio: "SOL-2947",
@@ -166,6 +176,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2948,
+    empleado_id: "emp-1011",
     empleado_nombre_raw: "IBARRA, LETICIA",
     foto_url: null,
     numero_folio: "SOL-2948",
@@ -182,6 +193,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2949,
+    empleado_id: "emp-1012",
     empleado_nombre_raw: "PEÑA, RICARDO",
     foto_url: null,
     numero_folio: "SOL-2949",
@@ -198,6 +210,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2950,
+    empleado_id: "emp-1013",
     empleado_nombre_raw: "DELGADO, ANDREA",
     foto_url: null,
     numero_folio: "SOL-2950",
@@ -214,6 +227,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2951,
+    empleado_id: "emp-1014",
     empleado_nombre_raw: "CAMPOS, HÉCTOR",
     foto_url: null,
     numero_folio: "SOL-2951",
@@ -230,6 +244,7 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
   },
   {
     id: 2952,
+    empleado_id: "emp-1015",
     empleado_nombre_raw: "REYES, GABRIELA",
     foto_url: null,
     numero_folio: "SOL-2952",
@@ -245,3 +260,28 @@ export const RH_SOLICITUDES_MOCK_FILAS: RhSolicitudTablaFila[] = [
     fecha_aprobacion: null,
   },
 ];
+
+/**
+ * Supervisor mock asociado al alcance de equipo para roles `supervisor` / `gerente`.
+ * Reemplazar por criterio real de backend (p. ej. empleado vinculado al JWT).
+ */
+export const MOCK_LIDER_SOLICITUDES_SUPERVISOR_ID = "sup-1";
+
+export function filterMockSolicitudesByLiderScope(
+  rows: readonly RhSolicitudTablaFila[],
+): RhSolicitudTablaFila[] {
+  return rows.filter((r) => r.supervisor_id === MOCK_LIDER_SOLICITUDES_SUPERVISOR_ID);
+}
+
+/**
+ * ID empleado demo para vista portal cuando el JWT aún no expone `empleado_id`.
+ * Debe coincidir con filas mock del “usuario” de prueba.
+ */
+export const MOCK_EMPLEADO_PORTAL_EMPLEADO_ID = "emp-1001";
+
+export function filterMockSolicitudesByEmpleadoId(
+  rows: readonly RhSolicitudTablaFila[],
+  empleadoId: string,
+): RhSolicitudTablaFila[] {
+  return rows.filter((r) => r.empleado_id === empleadoId);
+}

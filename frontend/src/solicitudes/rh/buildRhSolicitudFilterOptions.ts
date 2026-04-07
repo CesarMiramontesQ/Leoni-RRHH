@@ -11,6 +11,7 @@ function areaIdFromLabel(label: string): string {
 export function buildRhSolicitudFilterOptions(rows: readonly RhSolicitudTablaFila[]): RhSolicitudFilterOptions {
   const areas = new Map<string, string>();
   const sups = new Map<string, string>();
+  const emps = new Map<string, string>();
 
   for (const r of rows) {
     if (r.area.trim()) areas.set(r.area, r.area);
@@ -18,6 +19,9 @@ export function buildRhSolicitudFilterOptions(rows: readonly RhSolicitudTablaFil
     const rawName = r.supervisor_nombre.trim();
     const label = formatNombreEmpleadoUi(rawName) || rawName || "Sin supervisor";
     sups.set(sid, label);
+    const empLabel =
+      formatNombreEmpleadoUi(r.empleado_nombre_raw.trim()) || r.empleado_nombre_raw.trim() || "Sin nombre";
+    emps.set(r.empleado_id, empLabel);
   }
 
   const areaList = [...areas.entries()]
@@ -28,9 +32,14 @@ export function buildRhSolicitudFilterOptions(rows: readonly RhSolicitudTablaFil
     .sort((a, b) => a[1].localeCompare(b[1], "es"))
     .map(([id, label]) => ({ id, label }));
 
+  const empList = [...emps.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], "es"))
+    .map(([id, label]) => ({ id, label }));
+
   return {
     areas: areaList,
     supervisores: supList,
+    empleados: empList,
     tipos: [
       { id: "vacaciones", label: "Vacaciones" },
       { id: "home_office", label: "Home Office" },

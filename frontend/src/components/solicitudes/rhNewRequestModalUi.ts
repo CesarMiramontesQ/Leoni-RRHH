@@ -61,7 +61,7 @@ export function shellHtml(): string {
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 pr-2">
               <h2 id="rh-nr-title" class="text-xl font-bold tracking-tight text-slate-900">Nueva Solicitud</h2>
-              <p class="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+              <p id="rh-nr-subtitle" class="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
                 Selecciona el tipo de solicitud y completa los campos requeridos.
               </p>
             </div>
@@ -140,6 +140,8 @@ export type RhNewRequestFormParams = {
   fechaInInvalid: boolean;
   fechaFinInvalid: boolean;
   canSubmit: boolean;
+  /** Portal colaborador: sin selector; solo campo oculto con id de directorio. */
+  fixedEmpleado?: { directoryId: string; displayLine: string };
 };
 
 export const RESUMEN_BASE =
@@ -210,6 +212,8 @@ export function buildInfoHomeOfficeHtml(text: string): string {
 export function buildFormHtml(p: RhNewRequestFormParams): string {
   const vacActive = p.tipo === "vacaciones";
   const hoActive = p.tipo === "home_office";
+  const selfMode = Boolean(p.fixedEmpleado);
+  const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
   </svg>`;
@@ -217,30 +221,14 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const fiClass = `${CONTROL} font-medium tabular-nums ${p.fechaInInvalid ? CONTROL_INVALID : ""}`;
   const ffClass = `${CONTROL} font-medium tabular-nums ${p.fechaFinInvalid ? CONTROL_INVALID : ""}`;
 
-  return `
-    <form id="rh-nr-form" class="space-y-8" novalidate>
-    <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
-
-      <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
-        <h3 id="rh-nr-sec-tipo" class="${SEC_TITLE}">Tipo de solicitud</h3>
-        <div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
-          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconVacaciones(vacActive)}
-            <span>Vacaciones</span>
-          </button>
-          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconHome(hoActive)}
-            <span>Home Office</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="space-y-3" aria-labelledby="rh-nr-sec-disponibilidad">
-        <h3 id="rh-nr-sec-disponibilidad" class="${SEC_TITLE}">Disponibilidad</h3>
-        <div id="rh-nr-info-card">${p.infoHtml}</div>
-      </section>
-
-      <section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-empleado" data-rh-nr-empleado-section>
+  const empleadoBlock = selfMode
+    ? `<section class="${SEC_BOX} space-y-3" aria-labelledby="rh-nr-sec-empleado">
+        <h3 id="rh-nr-sec-empleado" class="${SEC_TITLE}">Solicitante</h3>
+        <p class="text-sm font-medium text-slate-800">${escapeHtml(p.fixedEmpleado!.displayLine)}</p>
+        <p class="text-xs text-slate-500">La solicitud queda registrada para tu usuario. No está permitido elegir otro colaborador.</p>
+        <input type="hidden" name="empleado_id" id="rh-nr-empleado-id" value="${escapeHtml(p.fixedEmpleado!.directoryId)}" />
+      </section>`
+    : `<section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-empleado" data-rh-nr-empleado-section>
         <h3 id="rh-nr-sec-empleado" class="${SEC_TITLE}">Empleado</h3>
         <p class="text-xs text-slate-500">Busca y selecciona la persona para la que registras la solicitud.</p>
         <div class="space-y-3">
@@ -273,7 +261,32 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
             </div>
           </div>
         </div>
+      </section>`;
+
+  return `
+    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}>
+    <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
+
+      <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
+        <h3 id="rh-nr-sec-tipo" class="${SEC_TITLE}">Tipo de solicitud</h3>
+        <div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
+          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
+            ${iconVacaciones(vacActive)}
+            <span>Vacaciones</span>
+          </button>
+          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
+            ${iconHome(hoActive)}
+            <span>Home Office</span>
+          </button>
+        </div>
       </section>
+
+      <section class="space-y-3" aria-labelledby="rh-nr-sec-disponibilidad">
+        <h3 id="rh-nr-sec-disponibilidad" class="${SEC_TITLE}">Disponibilidad</h3>
+        <div id="rh-nr-info-card">${p.infoHtml}</div>
+      </section>
+
+      ${empleadoBlock}
 
       <section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-fechas">
         <h3 id="rh-nr-sec-fechas" class="${SEC_TITLE}">Rango de fechas</h3>
@@ -350,6 +363,7 @@ export function computeRhModalFormUi(
   selectedEmpleadoId: string,
   fechaInicio: string,
   fechaFin: string,
+  empleadoSelectorOmitted = false,
 ): RhModalComputedUi {
   const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
@@ -371,7 +385,9 @@ export function computeRhModalFormUi(
     resumenHint = "El rango debe incluir al menos un día calendario.";
   } else if (tipo === "vacaciones" && contextoVac != null && dias > 0 && dias > contextoVac) {
     resumenState = "exceeded";
-    resumenHint = `Esta solicitud supera los ${contextoVac} días disponibles para el empleado seleccionado.`;
+    resumenHint = empleadoSelectorOmitted
+      ? `Esta solicitud supera los ${contextoVac} días disponibles en tu saldo.`
+      : `Esta solicitud supera los ${contextoVac} días disponibles para el empleado seleccionado.`;
   } else if (dias > 0 && fechasOk) {
     resumenState = "valid";
     if (tipo === "vacaciones" && contextoVac != null) {
@@ -385,7 +401,7 @@ export function computeRhModalFormUi(
     }
   }
 
-  const empOk = selectedEmpleadoId.trim() !== "";
+  const empOk = empleadoSelectorOmitted || selectedEmpleadoId.trim() !== "";
   const canSubmit =
     empOk &&
     bothDates &&
@@ -409,18 +425,16 @@ export function applyRhModalLiveFeedback(
   tipo: "vacaciones" | "home_office",
   contextoVac: number | null,
 ): void {
+  const selfMode = modalHost.querySelector("#rh-nr-form[data-rh-nr-self]") != null;
   const sel = modalHost.querySelector("#rh-nr-empleado") as HTMLSelectElement | null;
+  const hid = modalHost.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null;
   const fi = modalHost.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
   const ff = modalHost.querySelector("#rh-nr-fin") as HTMLInputElement | null;
   if (!fi || !ff) return;
 
-  const ui = computeRhModalFormUi(
-    tipo,
-    contextoVac,
-    sel?.value ?? "",
-    fi.value,
-    ff.value,
-  );
+  const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
+
+  const ui = computeRhModalFormUi(tipo, contextoVac, empVal, fi.value, ff.value, selfMode);
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;
   ff.className = `${CONTROL} font-medium tabular-nums ${ui.fechaFinInvalid ? CONTROL_INVALID : ""}`;

@@ -4,6 +4,7 @@ import type { RhSolicitudFilterState, RhSolicitudesTableData, RhSolicitudTablaFi
 function matchesFilters(row: RhSolicitudTablaFila, f: RhSolicitudFilterState): boolean {
   if (f.tipo && row.tipo !== f.tipo) return false;
   if (f.estado && row.estado !== f.estado) return false;
+  if (f.empleado_id && row.empleado_id !== f.empleado_id) return false;
   if (f.supervisor_id && row.supervisor_id !== f.supervisor_id) return false;
   if (f.area_id) {
     const want = areaLabelFromFilterId(f.area_id);

@@ -1,5 +1,7 @@
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
+import { calcularDiasSolicitadosInclusive } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { SR_COPY } from "../../solicitudes/rh/solicitudResueltaCopy.ts";
+import type { RequestFilterKey } from "../../solicitudes/solicitudesPageFilterConfig.ts";
 import type {
   RhSolicitudesAdminViewModel,
   RhSolicitudEstadoCodigo,
@@ -23,6 +25,17 @@ const FIELD_FOCUS =
 /** Contenedor de cada filtro: crece y reparte espacio; en móvil 1 col, sm ~2 cols, lg fila fluida con el botón. */
 const RH_SOL_FILTERS_FIELD_WRAP =
   "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.5rem)] lg:min-w-[12.5rem] lg:basis-0";
+
+/** Barra equilibrada cuando hay menos controles (p. ej. rol líder sin área/supervisor). */
+function filterFieldWrapClass(visibleCount: number): string {
+  if (visibleCount <= 2) {
+    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.5rem)] lg:min-w-[11rem] lg:max-w-md lg:basis-0";
+  }
+  if (visibleCount === 3) {
+    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.5rem)] lg:min-w-[10.5rem] lg:basis-0";
+  }
+  return RH_SOL_FILTERS_FIELD_WRAP;
+}
 
 const SELECT_CHEVRON = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-500 sm:size-4">
   <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
@@ -114,8 +127,15 @@ function paginationRange(totalPages: number, p: number): (number | "ellipsis")[]
   return out;
 }
 
-function filtrosActivos(f: RhSolicitudFilterState): boolean {
-  return Boolean(f.tipo || f.area_id || f.supervisor_id || f.estado);
+function filtrosActivos(f: RhSolicitudFilterState, keys: readonly RequestFilterKey[]): boolean {
+  for (const k of keys) {
+    if (k === "type" && f.tipo) return true;
+    if (k === "status" && f.estado) return true;
+    if (k === "area" && f.area_id) return true;
+    if (k === "supervisor" && f.supervisor_id) return true;
+    if (k === "employee" && f.empleado_id) return true;
+  }
+  return false;
 }
 
 function selectFilter(
@@ -135,7 +155,107 @@ function selectFilter(
 </div>`;
 }
 
+function iconEmpStatDisponibles(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m-6.53-7.11A5.5 5.5 0 0 1 12 7.5v0a5.5 5.5 0 0 1 6.53 6.39 6 6 0 0 1-1.06 2.34m-11 0A6 6 0 0 1 5.47 13.9" /></svg>`;
+}
+
+function iconEmpStatTomados(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
+}
+
+function iconEmpStatHomeOffice(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
+}
+
+function iconEmpStatPendientes(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+}
+
+/** Tarjetas KPI personales (rol `empleado`), alineadas al dashboard colaborador. */
+function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): string {
+  if (!vm.ui.showEmployeePersonalStats) return "";
+
+  if (vm.empleadoPersonalStatsStatus === "loading" || vm.empleadoPersonalStats === null) {
+    const skel = `
+      <div class="animate-pulse rounded-2xl border border-border bg-white p-5 shadow-sm">
+        <div class="flex justify-between gap-3">
+          <div class="size-11 rounded-full bg-slate-200"></div>
+          <div class="h-3 w-24 rounded bg-slate-200"></div>
+        </div>
+        <div class="mt-4 h-9 w-16 rounded bg-slate-200"></div>
+        <div class="mt-2 h-4 w-32 rounded bg-slate-100"></div>
+      </div>`;
+    return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${skel.repeat(4)}</div>`;
+  }
+
+  if (vm.empleadoPersonalStatsStatus === "error") {
+    return `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">No se pudieron cargar tus métricas personales.</div>`;
+  }
+
+  const s = vm.empleadoPersonalStats;
+  const cards: {
+    title: string;
+    value: string;
+    subtitle: string;
+    labelCls: string;
+    iconWrap: string;
+    icon: string;
+  }[] = [
+    {
+      title: "Días disponibles",
+      value: String(s.dias_disponibles),
+      subtitle: "Saldo de vacaciones",
+      labelCls: "text-leoni-green",
+      iconWrap: "bg-leoni-green/12 text-leoni-green",
+      icon: iconEmpStatDisponibles(),
+    },
+    {
+      title: "Días tomados",
+      value: String(s.dias_tomados),
+      subtitle: "Vacaciones aprobadas",
+      labelCls: "text-orange-600",
+      iconWrap: "bg-orange-500/12 text-orange-600",
+      icon: iconEmpStatTomados(),
+    },
+    {
+      title: "Home office tomados",
+      value: String(s.dias_home_office_tomados),
+      subtitle: "Días HO aprobados",
+      labelCls: "text-violet-700",
+      iconWrap: "bg-violet-500/12 text-violet-700",
+      icon: iconEmpStatHomeOffice(),
+    },
+    {
+      title: "Solicitudes pendientes",
+      value: String(s.solicitudes_pendientes),
+      subtitle: "En revisión",
+      labelCls: "text-amber-700",
+      iconWrap: "bg-amber-500/12 text-amber-700",
+      icon: iconEmpStatPendientes(),
+    },
+  ];
+
+  const html = cards
+    .map(
+      (c) => `
+    <article class="rounded-2xl border border-border bg-white p-5 shadow-sm">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex size-11 shrink-0 items-center justify-center rounded-full ${c.iconWrap}">
+          ${c.icon}
+        </div>
+        <span class="max-w-[55%] text-right text-[11px] font-bold uppercase leading-tight tracking-wide ${c.labelCls}">${escapeHtml(c.title)}</span>
+      </div>
+      <p class="mt-4 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(c.value)}</p>
+      <p class="mt-1 text-sm text-text-muted">${escapeHtml(c.subtitle)}</p>
+    </article>`,
+    )
+    .join("");
+
+  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+}
+
 function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
+  if (!vm.ui.showStatsCards) return "";
   if (vm.statsStatus === "loading" || vm.stats === null) {
     const skel = `
       <div class="animate-pulse rounded-xl border border-border bg-white p-5 shadow-sm">
@@ -199,6 +319,8 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
 function renderFilters(vm: RhSolicitudesAdminViewModel): string {
   const f = vm.filters;
   const opt = vm.filterOptions;
+  const keys = vm.ui.visibleFilterKeys;
+  const wrapCls = filterFieldWrapClass(keys.length);
 
   const tipoOpts =
     `<option value="" ${f.tipo === "" ? "selected" : ""}>Todos los tipos</option>` +
@@ -227,6 +349,15 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
       )
       .join("");
 
+  const empOpts =
+    `<option value="" ${f.empleado_id === "" ? "selected" : ""}>Todos los empleados</option>` +
+    opt.empleados
+      .map(
+        (em) =>
+          `<option value="${escapeHtml(em.id)}" ${f.empleado_id === em.id ? "selected" : ""}>${escapeHtml(em.label)}</option>`,
+      )
+      .join("");
+
   const estOpts =
     `<option value="" ${f.estado === "" ? "selected" : ""}>Todos los estados</option>` +
     opt.estados
@@ -236,9 +367,26 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
       )
       .join("");
 
-  const clearVisible = filtrosActivos(f);
+  const fields: string[] = [];
+  for (const key of keys) {
+    if (key === "type") {
+      fields.push(
+        `<div class="${wrapCls}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts)}</div>`,
+      );
+    } else if (key === "area") {
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-area", "Área", "area", areaOpts)}</div>`);
+    } else if (key === "supervisor") {
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts)}</div>`);
+    } else if (key === "employee") {
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts)}</div>`);
+    } else if (key === "status") {
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts)}</div>`);
+    }
+  }
+
+  const clearVisible = filtrosActivos(f, keys);
   const clearBtn = clearVisible
-    ? `<div class="w-full shrink-0 transition-all duration-200 ease-out sm:w-auto">
+    ? `<div class="w-full shrink-0 transition-all duration-200 ease-out sm:w-auto lg:shrink-0">
         <button
           type="button"
           data-rh-sol-clear-filters
@@ -252,40 +400,192 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
   return `
     <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="Filtros de solicitudes">
       <div class="flex flex-wrap items-end gap-4">
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts)}</div>
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${selectFilter("rh-sol-f-area", "Área", "area", areaOpts)}</div>
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts)}</div>
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts)}</div>
+        ${fields.join("")}
         ${clearBtn}
       </div>
     </section>`;
 }
 
-function renderFiltersSkeleton(): string {
+function renderFiltersSkeleton(visibleCount: number): string {
   const cell = `
     <div class="min-w-0 animate-pulse">
       <div class="h-4 w-28 max-w-full rounded bg-slate-200"></div>
       <div class="mt-2 h-9 w-full rounded-md bg-slate-100"></div>
     </div>`;
+  const wrapCls = filterFieldWrapClass(visibleCount);
+  const slots = Array.from({ length: Math.max(1, visibleCount) }, () => `<div class="${wrapCls}">${cell}</div>`).join(
+    "",
+  );
   return `
     <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-hidden="true" aria-label="Cargando filtros">
       <div class="flex flex-wrap items-end gap-4">
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${cell}</div>
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${cell}</div>
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${cell}</div>
-        <div class="${RH_SOL_FILTERS_FIELD_WRAP}">${cell}</div>
+        ${slots}
       </div>
     </section>`;
 }
 
 function renderFiltersSection(vm: RhSolicitudesAdminViewModel): string {
-  if (vm.tableStatus === "error" && vm.statsStatus === "error") {
+  const statsFallo = vm.ui.showEmployeePersonalStats
+    ? vm.empleadoPersonalStatsStatus === "error"
+    : vm.statsStatus === "error";
+  if (vm.tableStatus === "error" && statsFallo) {
     return "";
   }
-  if (vm.statsStatus === "loading") {
-    return renderFiltersSkeleton();
+  const n = vm.ui.visibleFilterKeys.length;
+  const filtersLoading =
+    vm.tableStatus === "loading" ||
+    (vm.ui.showStatsCards && vm.statsStatus === "loading") ||
+    (vm.ui.showEmployeePersonalStats && vm.empleadoPersonalStatsStatus === "loading");
+  if (filtersLoading) {
+    return renderFiltersSkeleton(n);
   }
   return renderFilters(vm);
+}
+
+function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdminViewModel["table"]>): string {
+  const totalPages = Math.max(1, Math.ceil(tbl.total / tbl.page_size) || 1);
+  const from = (tbl.page - 1) * tbl.page_size + 1;
+  const to = Math.min(tbl.page * tbl.page_size, tbl.total);
+  const pages = paginationRange(totalPages, tbl.page);
+  const pageButtons = pages
+    .map((x) => {
+      if (x === "ellipsis") {
+        return `<span class="flex min-h-10 items-center px-2 text-sm text-slate-500">…</span>`;
+      }
+      const active = x === tbl.page;
+      const cls = active
+        ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
+        : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+      return `<button type="button" data-rh-sol-page="${x}" class="${cls}">${x}</button>`;
+    })
+    .join("");
+  const pageSizeOpts = [5, 10, 25, 50]
+    .map((n) => `<option value="${n}" ${n === tbl.page_size ? "selected" : ""}>${n}</option>`)
+    .join("");
+  return `
+      <div class="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+          <p class="text-sm font-medium text-slate-600">
+            Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${tbl.total}</span> solicitudes
+          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <label for="rh-sol-emp-page-size" class="text-sm font-medium text-slate-600">Registros por página</label>
+            <select id="rh-sol-emp-page-size" name="rh-sol-emp-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-800 shadow-sm ${FIELD_FOCUS}">
+              ${pageSizeOpts}
+            </select>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-1 sm:justify-end">
+          <button type="button" data-rh-sol-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
+            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            <span class="sr-only">Anterior</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+          </button>
+          ${pageButtons}
+          <button type="button" data-rh-sol-page="${tbl.page + 1}" ${tbl.page >= totalPages ? "disabled" : ""}
+            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            <span class="sr-only">Siguiente</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+          </button>
+        </div>
+      </div>`;
+}
+
+function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string {
+  if (vm.tableStatus === "loading") {
+    return `
+      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Tus solicitudes">
+        <div class="flex items-center gap-3 px-4 py-14 text-sm text-text-muted sm:px-6">
+          <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Cargando solicitudes…
+        </div>
+      </section>`;
+  }
+
+  if (vm.tableStatus === "error") {
+    return `
+      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
+        <div class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-6" role="alert">
+          ${escapeHtml(vm.tableErrorMessage ?? "Error al cargar la tabla.")}
+        </div>
+        <div class="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">Sin datos disponibles.</div>
+      </section>`;
+  }
+
+  const tbl = vm.table;
+  const emptyRow =
+    vm.tableStatus === "empty" || !tbl || tbl.total === 0
+      ? `<tr><td colspan="8" class="px-4 py-14 text-center text-sm text-slate-500">No hay solicitudes con los filtros actuales.</td></tr>`
+      : "";
+
+  const rows =
+    tbl && tbl.items.length > 0
+      ? tbl.items
+          .map((row) => {
+            const num = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
+            const dias = String(calcularDiasSolicitadosInclusive(row.fecha_inicio, row.fecha_fin));
+            const pending = row.estado === "pending";
+            const resueltaConsulta =
+              row.estado === "approved" || row.estado === "rejected" || row.estado === "overridden";
+            const clickable = pending || resueltaConsulta;
+            const trClickCls = clickable
+              ? "cursor-pointer hover:bg-slate-100/90 focus-within:bg-slate-50/90"
+              : "";
+            const trDataAttrs = pending
+              ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
+              : resueltaConsulta
+                ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
+                : "";
+            const verBtn = clickable
+              ? `<button type="button" class="rounded-lg px-2 py-1 text-xs font-semibold text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" data-rh-sol-ver="${row.id}">Ver</button>`
+              : `<span class="text-xs text-slate-400">—</span>`;
+            return `
+    <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm font-medium tabular-nums text-slate-700">${escapeHtml(num)}</td>
+      <td class="px-4 py-4 align-middle">${badgeTipo(row.tipo)}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_inicio))}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_fin))}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm font-medium tabular-nums text-slate-800">${escapeHtml(dias)}</td>
+      <td class="px-4 py-4 align-middle">${badgeEstado(row.estado)}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_solicitud))}</td>
+      <td class="whitespace-nowrap px-4 py-4 align-middle text-right">${verBtn}</td>
+    </tr>`;
+          })
+          .join("")
+      : emptyRow;
+
+  const footer =
+    tbl && tbl.total > 0
+      ? renderEmpleadoSolicitudesTableFooter(tbl)
+      : tbl
+        ? `
+      <div class="border-t border-slate-100 px-4 py-4 text-center text-sm text-slate-500 sm:px-6">
+        Mostrando 0 de 0 solicitudes
+      </div>`
+        : "";
+
+  return `
+    <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
+      <div class="-mx-4 max-h-[min(72vh,780px)] overflow-auto sm:mx-0">
+        <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
+        <table class="min-w-[720px] w-full text-left">
+          <thead class="border-b border-leoni-blue-light shadow-sm">
+            <tr class="text-white">
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Folio</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Tipo</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Inicio</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Fin</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Días</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estatus</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Creación</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Detalle</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
+        </table>
+      </div>
+      ${footer}
+    </section>`;
 }
 
 function renderTable(vm: RhSolicitudesAdminViewModel): string {
@@ -430,14 +730,35 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
     </section>`;
 }
 
-/** HTML principal de la vista RH (sin el shell). */
+/** HTML principal de la vista de solicitudes (gestores y empleado; sin el shell). */
 export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): string {
-  return `
+  if (vm.ui.variant === "empleado") {
+    const nuevaBtn = vm.ui.showNewRequestButton
+      ? `<button
+            type="button"
+            id="rh-sol-nueva"
+            class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-leoni-blue px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+          >
+            <span aria-hidden="true">+</span> Nueva solicitud
+          </button>`
+      : "";
+    return `
     <div id="rh-solicitudes-root" class="space-y-8">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <p class="max-w-2xl text-sm text-text-muted">Gestión y aprobación de vacaciones y home office</p>
-        <div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
-          <button
+      <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <h1 class="text-xl font-semibold tracking-tight text-text-primary">Solicitudes</h1>
+          <p class="mt-1 max-w-2xl text-sm text-text-muted">Consulta, seguimiento y registro de tus solicitudes</p>
+        </div>
+        ${nuevaBtn}
+      </header>
+      <div id="rh-sol-emp-stats">${renderEmployeePersonalStatCards(vm)}</div>
+      <div id="rh-sol-filters">${renderFiltersSection(vm)}</div>
+      <div id="rh-sol-table">${renderEmpleadoSolicitudesTable(vm)}</div>
+    </div>`;
+  }
+
+  const exportBtn = vm.ui.showExportButton
+    ? `<button
             type="button"
             id="rh-sol-export"
             class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
@@ -446,15 +767,29 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
             Exportar solicitudes
-          </button>
-          <button
+          </button>`
+    : "";
+
+  const nuevaGestorBtn = vm.ui.showNewRequestButton
+    ? `<button
             type="button"
             id="rh-sol-nueva"
             class="inline-flex items-center gap-2 rounded-lg bg-leoni-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
-          </button>
-        </div>
+          </button>`
+    : "";
+
+  const toolbarGestor =
+    vm.ui.showGestorToolbar && (vm.ui.showExportButton || vm.ui.showNewRequestButton)
+      ? `<div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">${exportBtn}${nuevaGestorBtn}</div>`
+      : "";
+
+  return `
+    <div id="rh-solicitudes-root" class="space-y-8">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <p class="max-w-2xl text-sm text-text-muted">Gestión y aprobación de vacaciones y home office</p>
+        ${toolbarGestor}
       </div>
 
       <div id="rh-sol-stats">${renderStatCards(vm)}</div>
