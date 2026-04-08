@@ -13,6 +13,10 @@ import type {
   RhSolicitudTipoCodigo,
 } from "../../solicitudes/rh/types.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../utils/nombreEmpleadoDisplay.ts";
+import {
+  rhListadoTablaClasesLayoutScroll,
+  rhListadoTablaUsaScrollVerticalViewport,
+} from "../../utils/rhListadoTablaLayout.ts";
 
 function escapeHtml(text: string): string {
   return text
@@ -25,17 +29,17 @@ function escapeHtml(text: string): string {
 const FIELD_FOCUS =
   "outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2";
 
-/** Contenedor de cada filtro: crece y reparte espacio; en móvil 1 col, sm ~2 cols, lg fila fluida con el botón. */
+/** Contenedor de cada filtro: más compacto; en desktop ancho intenta una sola fila. */
 const RH_SOL_FILTERS_FIELD_WRAP =
-  "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.5rem)] lg:min-w-[12.5rem] lg:basis-0";
+  "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[9rem] lg:basis-0 xl:min-w-[7.75rem]";
 
 /** Barra equilibrada cuando hay menos controles (p. ej. rol líder sin área/supervisor). */
 function filterFieldWrapClass(visibleCount: number): string {
   if (visibleCount <= 2) {
-    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.5rem)] lg:min-w-[11rem] lg:max-w-md lg:basis-0";
+    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[8.75rem] lg:max-w-md lg:basis-0";
   }
   if (visibleCount === 3) {
-    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.5rem)] lg:min-w-[10.5rem] lg:basis-0";
+    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[8.75rem] lg:basis-0";
   }
   return RH_SOL_FILTERS_FIELD_WRAP;
 }
@@ -65,33 +69,33 @@ function fmtPeriodo(row: RhSolicitudTablaFila): string {
 
 function badgeTipo(t: RhSolicitudTipoCodigo): string {
   if (t === "vacaciones") {
-    return `<span class="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-900">Vacaciones</span>`;
+    return `<span class="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-900">Vacaciones</span>`;
   }
-  return `<span class="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-900">Home Office</span>`;
+  return `<span class="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-900">Home Office</span>`;
 }
 
 function badgeEstado(e: RhSolicitudEstadoCodigo): string {
   switch (e) {
     case "pending":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">
         <span class="size-1.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>Pendiente</span>`;
     case "approved":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">
         <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Aprobado</span>`;
     case "rejected":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
         <span class="size-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true"></span>Rechazado</span>`;
     case "changes_requested":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900">
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900">
         <span class="size-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span>Cambios solicitados</span>`;
     case "cancelled":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
         <span class="size-1.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true"></span>Cancelado</span>`;
     case "overridden":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">
         <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Override</span>`;
     default:
-      return `<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">${escapeHtml(e)}</span>`;
+      return `<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">${escapeHtml(e)}</span>`;
   }
 }
 
@@ -100,10 +104,10 @@ function celdaEmpleado(row: RhSolicitudTablaFila): string {
   const ini = inicialesDesdeNombreDisplay(name);
   const foto = row.foto_url?.trim();
   const avatar = foto
-    ? `<img src="${escapeHtml(foto)}" alt="" class="size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`
-    : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
+    ? `<img src="${escapeHtml(foto)}" alt="" class="size-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`
+    : `<span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
   return `
-    <div class="flex min-w-0 items-center gap-3">
+    <div class="flex min-w-0 items-center gap-2.5">
       ${avatar}
       <div class="min-w-0">
         <p class="text-sm font-semibold text-slate-900">${escapeHtml(name)}</p>
@@ -144,8 +148,8 @@ function filtrosActivos(f: RhSolicitudFilterState, keys: readonly RequestFilterK
 /** Filtro de empleado por texto (`rh`, `supervisor`, `gerente`). */
 function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState): string {
   return `<div class="min-w-0">
-  <label for="rh-sol-f-emp-q" class="block text-sm/6 font-medium text-gray-900">Empleado</label>
-  <div class="mt-2">
+  <label for="rh-sol-f-emp-q" class="mb-1 block text-xs font-medium text-gray-800">Empleado</label>
+  <div>
     <input
       type="search"
       id="rh-sol-f-emp-q"
@@ -155,7 +159,7 @@ function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState): string {
       enterkeyhint="search"
       placeholder="Buscar empleado..."
       value="${escapeHtml(f.empleado_busqueda)}"
-      class="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm sm:text-sm/6 ${FIELD_FOCUS}"
+      class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-base text-gray-900 shadow-sm sm:text-sm/6 ${FIELD_FOCUS}"
     />
   </div>
 </div>`;
@@ -168,9 +172,9 @@ function selectFilter(
   optionsHtml: string,
 ): string {
   return `<div class="min-w-0">
-  <label for="${id}" class="block text-sm/6 font-medium text-gray-900">${escapeHtml(label)}</label>
-  <div class="mt-2 grid grid-cols-1">
-    <select id="${id}" name="${name}" data-rh-sol-filter="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 sm:text-sm/6 ${FIELD_FOCUS}">
+  <label for="${id}" class="mb-1 block text-xs font-medium text-gray-800">${escapeHtml(label)}</label>
+  <div class="grid grid-cols-1">
+    <select id="${id}" name="${name}" data-rh-sol-filter="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-2.5 text-base text-gray-900 sm:text-sm/6 ${FIELD_FOCUS}">
       ${optionsHtml}
     </select>
     ${SELECT_CHEVRON}
@@ -179,19 +183,19 @@ function selectFilter(
 }
 
 function iconEmpStatDisponibles(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m-6.53-7.11A5.5 5.5 0 0 1 12 7.5v0a5.5 5.5 0 0 1 6.53 6.39 6 6 0 0 1-1.06 2.34m-11 0A6 6 0 0 1 5.47 13.9" /></svg>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m-6.53-7.11A5.5 5.5 0 0 1 12 7.5v0a5.5 5.5 0 0 1 6.53 6.39 6 6 0 0 1-1.06 2.34m-11 0A6 6 0 0 1 5.47 13.9" /></svg>`;
 }
 
 function iconEmpStatTomados(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
 }
 
 function iconEmpStatHomeOffice(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
 }
 
 function iconEmpStatPendientes(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
 }
 
 /** Tarjetas KPI personales (rol `empleado`), alineadas al dashboard colaborador. */
@@ -200,15 +204,14 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
 
   if (vm.empleadoPersonalStatsStatus === "loading" || vm.empleadoPersonalStats === null) {
     const skel = `
-      <div class="animate-pulse rounded-2xl border border-border bg-white p-5 shadow-sm">
-        <div class="flex justify-between gap-3">
-          <div class="size-11 rounded-full bg-slate-200"></div>
-          <div class="h-3 w-24 rounded bg-slate-200"></div>
+      <div class="animate-pulse rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
+        <div class="flex items-center justify-between gap-2">
+          <div class="h-3.5 w-28 rounded bg-slate-200"></div>
+          <div class="h-7 w-12 rounded bg-slate-200"></div>
         </div>
-        <div class="mt-4 h-9 w-16 rounded bg-slate-200"></div>
-        <div class="mt-2 h-4 w-32 rounded bg-slate-100"></div>
+        <div class="mt-1.5 h-3 w-36 rounded bg-slate-100"></div>
       </div>`;
-    return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${skel.repeat(4)}</div>`;
+    return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">${skel.repeat(4)}</div>`;
   }
 
   if (vm.empleadoPersonalStatsStatus === "error") {
@@ -220,7 +223,6 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
     title: string;
     value: string;
     subtitle: string;
-    labelCls: string;
     iconWrap: string;
     icon: string;
   }[] = [
@@ -228,7 +230,6 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
       title: "Días disponibles",
       value: String(s.dias_disponibles),
       subtitle: "Saldo de vacaciones",
-      labelCls: "text-leoni-green",
       iconWrap: "bg-leoni-green/12 text-leoni-green",
       icon: iconEmpStatDisponibles(),
     },
@@ -236,7 +237,6 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
       title: "Días tomados",
       value: String(s.dias_tomados),
       subtitle: "Vacaciones aprobadas",
-      labelCls: "text-orange-600",
       iconWrap: "bg-orange-500/12 text-orange-600",
       icon: iconEmpStatTomados(),
     },
@@ -244,7 +244,6 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
       title: "Home office tomados",
       value: String(s.dias_home_office_tomados),
       subtitle: "Días HO aprobados",
-      labelCls: "text-violet-700",
       iconWrap: "bg-violet-500/12 text-violet-700",
       icon: iconEmpStatHomeOffice(),
     },
@@ -252,7 +251,6 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
       title: "Solicitudes pendientes",
       value: String(s.solicitudes_pendientes),
       subtitle: "En revisión",
-      labelCls: "text-amber-700",
       iconWrap: "bg-amber-500/12 text-amber-700",
       icon: iconEmpStatPendientes(),
     },
@@ -261,33 +259,35 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
   const html = cards
     .map(
       (c) => `
-    <article class="rounded-2xl border border-border bg-white p-5 shadow-sm">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-full ${c.iconWrap}">
-          ${c.icon}
+    <article class="rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
+      <div class="flex items-start gap-2.5">
+        <div class="flex size-9 shrink-0 items-center justify-center rounded-full ${c.iconWrap}" aria-hidden="true">${c.icon}</div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-baseline justify-between gap-2">
+            <h2 class="min-w-0 text-xs font-semibold leading-snug text-text-muted">${escapeHtml(c.title)}</h2>
+            <p class="shrink-0 text-xl font-bold tabular-nums tracking-tight text-text-primary sm:text-2xl">${escapeHtml(c.value)}</p>
+          </div>
+          <p class="mt-0.5 text-xs leading-snug text-text-muted sm:text-sm">${escapeHtml(c.subtitle)}</p>
         </div>
-        <span class="max-w-[55%] text-right text-[11px] font-bold uppercase leading-tight tracking-wide ${c.labelCls}">${escapeHtml(c.title)}</span>
       </div>
-      <p class="mt-4 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(c.value)}</p>
-      <p class="mt-1 text-sm text-text-muted">${escapeHtml(c.subtitle)}</p>
     </article>`,
     )
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+  return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">${html}</div>`;
 }
 
 function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   if (!vm.ui.showStatsCards) return "";
   if (vm.statsStatus === "loading" || vm.stats === null) {
     const skel = `
-      <div class="animate-pulse rounded-xl border border-border bg-white p-5 shadow-sm">
-        <div class="flex items-center justify-between gap-3">
-          <div class="h-4 w-28 rounded bg-slate-200"></div>
-          <div class="h-9 w-16 rounded bg-slate-200"></div>
+      <div class="animate-pulse rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
+        <div class="flex items-center justify-between gap-2">
+          <div class="h-3.5 w-24 rounded bg-slate-200"></div>
+          <div class="h-7 w-14 rounded bg-slate-200"></div>
         </div>
       </div>`;
-    return `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">${skel.repeat(4)}</div>`;
+    return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-4">${skel.repeat(4)}</div>`;
   }
 
   if (vm.statsStatus === "error") {
@@ -321,16 +321,16 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   const html = cards
     .map(
       (c) => `
-    <article class="flex h-full flex-col justify-center rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-5 shadow-sm">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="min-w-0 text-sm font-medium text-text-muted">${escapeHtml(c.title)}</h2>
-        <p class="shrink-0 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(String(c.value))}</p>
+    <article class="flex h-full flex-col justify-center rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-3 shadow-sm sm:p-4">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="min-w-0 text-xs font-medium text-text-muted sm:text-sm">${escapeHtml(c.title)}</h2>
+        <p class="shrink-0 text-2xl font-bold tabular-nums tracking-tight text-text-primary sm:text-3xl">${escapeHtml(String(c.value))}</p>
       </div>
     </article>`,
     )
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+  return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-4">${html}</div>`;
 }
 
 function renderFilters(vm: RhSolicitudesAdminViewModel): string {
@@ -406,11 +406,11 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
 
   const clearVisible = filtrosActivos(f, keys);
   const clearBtn = clearVisible
-    ? `<div class="w-full shrink-0 transition-all duration-200 ease-out sm:w-auto lg:shrink-0">
+    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
         <button
           type="button"
           data-rh-sol-clear-filters
-          class="inline-flex h-9 w-full min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 ease-out hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto"
+          class="inline-flex h-8 w-full min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto sm:text-sm"
         >
           Limpiar filtros
         </button>
@@ -418,8 +418,8 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
     : "";
 
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="Filtros de solicitudes">
-      <div class="flex flex-wrap items-end gap-4">
+    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de solicitudes">
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
         ${fields.join("")}
         ${clearBtn}
       </div>
@@ -429,16 +429,16 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
 function renderFiltersSkeleton(visibleCount: number): string {
   const cell = `
     <div class="min-w-0 animate-pulse">
-      <div class="h-4 w-28 max-w-full rounded bg-slate-200"></div>
-      <div class="mt-2 h-9 w-full rounded-md bg-slate-100"></div>
+      <div class="mb-1 h-3 w-24 max-w-full rounded bg-slate-200"></div>
+      <div class="h-8 w-full rounded-md bg-slate-100"></div>
     </div>`;
   const wrapCls = filterFieldWrapClass(visibleCount);
   const slots = Array.from({ length: Math.max(1, visibleCount) }, () => `<div class="${wrapCls}">${cell}</div>`).join(
     "",
   );
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-hidden="true" aria-label="Cargando filtros">
-      <div class="flex flex-wrap items-end gap-4">
+    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-hidden="true" aria-label="Cargando filtros">
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
         ${slots}
       </div>
     </section>`;
@@ -470,12 +470,12 @@ function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdmi
   const pageButtons = pages
     .map((x) => {
       if (x === "ellipsis") {
-        return `<span class="flex min-h-10 items-center px-2 text-sm text-slate-500">…</span>`;
+        return `<span class="flex min-h-8 items-center px-1.5 text-xs text-slate-500 sm:text-sm">…</span>`;
       }
       const active = x === tbl.page;
       const cls = active
-        ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
-        : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+        ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
+        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
       return `<button type="button" data-rh-sol-page="${x}" class="${cls}">${x}</button>`;
     })
     .join("");
@@ -483,29 +483,29 @@ function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdmi
     .map((n) => `<option value="${n}" ${n === tbl.page_size ? "selected" : ""}>${n}</option>`)
     .join("");
   return `
-      <div class="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-          <p class="text-sm font-medium text-slate-600">
+      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <p class="text-xs font-medium text-slate-600 sm:text-sm">
             Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${tbl.total}</span> solicitudes
           </p>
-          <div class="flex flex-wrap items-center gap-2">
-            <label for="rh-sol-emp-page-size" class="text-sm font-medium text-slate-600">Registros por página</label>
-            <select id="rh-sol-emp-page-size" name="rh-sol-emp-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-800 shadow-sm ${FIELD_FOCUS}">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <label for="rh-sol-emp-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
+            <select id="rh-sol-emp-page-size" name="rh-sol-emp-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-center gap-1 sm:justify-end">
+        <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
           <button type="button" data-rh-sol-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
-            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
           <button type="button" data-rh-sol-page="${tbl.page + 1}" ${tbl.page >= totalPages ? "disabled" : ""}
-            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
           </button>
         </div>
       </div>`;
@@ -514,8 +514,8 @@ function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdmi
 function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string {
   if (vm.tableStatus === "loading") {
     return `
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Tus solicitudes">
-        <div class="flex items-center gap-3 px-4 py-14 text-sm text-text-muted sm:px-6">
+      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Tus solicitudes">
+        <div class="flex items-center gap-2.5 px-3 py-8 text-sm text-text-muted sm:px-4">
           <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           Cargando solicitudes…
         </div>
@@ -524,18 +524,18 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
 
   if (vm.tableStatus === "error") {
     return `
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
-        <div class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-6" role="alert">
+      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
+        <div class="border-b border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-800 sm:px-4" role="alert">
           ${escapeHtml(vm.tableErrorMessage ?? "Error al cargar la tabla.")}
         </div>
-        <div class="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">Sin datos disponibles.</div>
+        <div class="px-3 py-8 text-center text-sm text-slate-500 sm:px-4">Sin datos disponibles.</div>
       </section>`;
   }
 
   const tbl = vm.table;
   const emptyRow =
     vm.tableStatus === "empty" || !tbl || tbl.total === 0
-      ? `<tr><td colspan="8" class="px-4 py-14 text-center text-sm text-slate-500">No hay solicitudes con los filtros actuales.</td></tr>`
+      ? `<tr><td colspan="8" class="px-3 py-10 text-center text-sm text-slate-500 sm:px-4">No hay solicitudes con los filtros actuales.</td></tr>`
       : "";
 
   const rows =
@@ -561,14 +561,14 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
               : `<span class="text-xs text-slate-400">—</span>`;
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm font-medium tabular-nums text-slate-700">${escapeHtml(num)}</td>
-      <td class="px-4 py-4 align-middle">${badgeTipo(row.tipo)}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_inicio))}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_fin))}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm font-medium tabular-nums text-slate-800">${escapeHtml(dias)}</td>
-      <td class="px-4 py-4 align-middle">${badgeEstado(row.estado)}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_solicitud))}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-right">${verBtn}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeHtml(num)}</td>
+      <td class="px-3 py-2.5 align-middle sm:px-4">${badgeTipo(row.tipo)}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha_inicio))}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha_fin))}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-800 sm:px-4">${escapeHtml(dias)}</td>
+      <td class="px-3 py-2.5 align-middle sm:px-4">${badgeEstado(row.estado)}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha_solicitud))}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-right sm:px-4">${verBtn}</td>
     </tr>`;
           })
           .join("")
@@ -579,26 +579,31 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
       ? renderEmpleadoSolicitudesTableFooter(tbl)
       : tbl
         ? `
-      <div class="border-t border-slate-100 px-4 py-4 text-center text-sm text-slate-500 sm:px-6">
+      <div class="shrink-0 border-t border-slate-100 px-3 py-2.5 text-center text-sm text-slate-500 sm:px-4">
         Mostrando 0 de 0 solicitudes
       </div>`
         : "";
 
+  const visibleRowCount = tbl?.items.length ?? 0;
+  const { sectionLayoutCls, bodyWrapCls: tablaBodyWrapCls } = rhListadoTablaClasesLayoutScroll(
+    rhListadoTablaUsaScrollVerticalViewport(visibleRowCount),
+  );
+
   return `
-    <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
-      <div class="-mx-4 max-h-[min(72vh,780px)] overflow-auto sm:mx-0">
+    <section class="${sectionLayoutCls} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
+      <div class="${tablaBodyWrapCls}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="min-w-[720px] w-full text-left">
           <thead class="border-b border-leoni-blue-light shadow-sm">
             <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Folio</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Tipo</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Inicio</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Fin</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Días</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estatus</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Creación</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Detalle</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Folio</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Tipo</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Inicio</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Fin</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Días</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Estatus</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Creación</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-right text-xs font-semibold sm:px-4 sm:text-sm">Detalle</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -611,8 +616,8 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
 function renderTable(vm: RhSolicitudesAdminViewModel): string {
   if (vm.tableStatus === "loading") {
     return `
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Solicitudes">
-        <div class="flex items-center gap-3 px-4 py-14 text-sm text-text-muted sm:px-6">
+      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Solicitudes">
+        <div class="flex items-center gap-2.5 px-3 py-8 text-sm text-text-muted sm:px-4">
           <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           Cargando solicitudes…
         </div>
@@ -621,11 +626,11 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
 
   if (vm.tableStatus === "error") {
     return `
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Solicitudes">
-        <div class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-6" role="alert">
+      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Solicitudes">
+        <div class="border-b border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-800 sm:px-4" role="alert">
           ${escapeHtml(vm.tableErrorMessage ?? "Error al cargar la tabla.")}
         </div>
-        <div class="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">Sin datos disponibles.</div>
+        <div class="px-3 py-8 text-center text-sm text-slate-500 sm:px-4">Sin datos disponibles.</div>
       </section>`;
   }
 
@@ -636,7 +641,7 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
       : "";
   const emptyRow =
     vm.tableStatus === "empty" || !tbl || tbl.total === 0
-      ? `<tr><td colspan="7" class="px-4 py-14 text-center text-sm text-slate-500">No hay solicitudes con los filtros actuales.${emptyExtraEmpTexto}</td></tr>`
+      ? `<tr><td colspan="7" class="px-3 py-10 text-center text-sm text-slate-500 sm:px-4">No hay solicitudes con los filtros actuales.${emptyExtraEmpTexto}</td></tr>`
       : "";
 
   const rows =
@@ -658,17 +663,17 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
                 : "";
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
-      <td class="px-4 py-4 align-middle">${celdaEmpleado(row)}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm font-medium tabular-nums text-slate-700">${escapeHtml(num)}</td>
-      <td class="max-w-40 px-4 py-4 align-middle text-sm text-slate-700">
+      <td class="px-3 py-2.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeHtml(num)}</td>
+      <td class="max-w-40 px-3 py-2.5 align-middle text-sm text-slate-700 sm:px-4">
         <span class="block truncate" title="${escapeHtml(row.area)}">${escapeHtml(row.area)}</span>
       </td>
-      <td class="px-4 py-4 align-middle">${badgeTipo(row.tipo)}</td>
-      <td class="whitespace-nowrap px-4 py-4 align-middle text-sm text-slate-600">${escapeHtml(fmtFechaCorta(row.fecha_solicitud))}</td>
-      <td class="max-w-56 px-4 py-4 align-middle text-sm text-slate-700">
+      <td class="px-3 py-2.5 align-middle sm:px-4">${badgeTipo(row.tipo)}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha_solicitud))}</td>
+      <td class="max-w-56 px-3 py-2.5 align-middle text-sm text-slate-700 sm:px-4">
         <span class="block truncate" title="${escapeHtml(fmtPeriodo(row))}">${escapeHtml(fmtPeriodo(row))}</span>
       </td>
-      <td class="px-4 py-4 align-middle">${badgeEstado(row.estado)}</td>
+      <td class="px-3 py-2.5 align-middle sm:px-4">${badgeEstado(row.estado)}</td>
     </tr>`;
           })
           .join("")
@@ -684,12 +689,12 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
           const pageButtons = pages
             .map((x) => {
               if (x === "ellipsis") {
-                return `<span class="flex min-h-10 items-center px-2 text-sm text-slate-500">…</span>`;
+                return `<span class="flex min-h-8 items-center px-1.5 text-xs text-slate-500 sm:text-sm">…</span>`;
               }
               const active = x === tbl.page;
               const cls = active
-                ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
-                : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+                ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
+                : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
               return `<button type="button" data-rh-sol-page="${x}" class="${cls}">${x}</button>`;
             })
             .join("");
@@ -697,54 +702,58 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
             .map((n) => `<option value="${n}" ${n === tbl.page_size ? "selected" : ""}>${n}</option>`)
             .join("");
           return `
-      <div class="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-          <p class="text-sm font-medium text-slate-600">
+      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <p class="text-xs font-medium text-slate-600 sm:text-sm">
             Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${tbl.total}</span> solicitudes
           </p>
-          <div class="flex flex-wrap items-center gap-2">
-            <label for="rh-sol-page-size" class="text-sm font-medium text-slate-600">Registros por página</label>
-            <select id="rh-sol-page-size" name="rh-sol-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-800 shadow-sm ${FIELD_FOCUS}">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <label for="rh-sol-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
+            <select id="rh-sol-page-size" name="rh-sol-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-center gap-1 sm:justify-end">
+        <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
           <button type="button" data-rh-sol-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
-            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
           <button type="button" data-rh-sol-page="${tbl.page + 1}" ${tbl.page >= totalPages ? "disabled" : ""}
-            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
           </button>
         </div>
       </div>`;
         })()
       : tbl
         ? `
-      <div class="border-t border-slate-100 px-4 py-4 text-center text-sm text-slate-500 sm:px-6">
+      <div class="shrink-0 border-t border-slate-100 px-3 py-2.5 text-center text-sm text-slate-500 sm:px-4">
         Mostrando 0 de 0 solicitudes
       </div>`
         : "";
 
+  const visibleRowCountGestor = tbl?.items.length ?? 0;
+  const { sectionLayoutCls: sectionLayoutClsGestor, bodyWrapCls: tablaBodyWrapClsGestor } =
+    rhListadoTablaClasesLayoutScroll(rhListadoTablaUsaScrollVerticalViewport(visibleRowCountGestor));
+
   return `
-    <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Listado de solicitudes">
-      <div class="-mx-4 max-h-[min(72vh,780px)] overflow-auto sm:mx-0">
+    <section class="${sectionLayoutClsGestor} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Listado de solicitudes">
+      <div class="${tablaBodyWrapClsGestor}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="min-w-[880px] w-full text-left">
           <thead class="border-b border-leoni-blue-light shadow-sm">
             <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Empleado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Número</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Área</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Tipo</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Fecha solicitud</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Periodo solicitado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estado</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Empleado</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Número</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Área</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Tipo</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Fecha solicitud</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Periodo solicitado</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Estado</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -761,23 +770,23 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       ? `<button
             type="button"
             id="rh-sol-nueva"
-            class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-leoni-blue px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
       : "";
     return `
-    <div id="rh-solicitudes-root" class="space-y-8">
-      <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div id="rh-solicitudes-root" class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
+      <header class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
-          <h1 class="text-xl font-semibold tracking-tight text-text-primary">Solicitudes</h1>
-          <p class="mt-1 max-w-2xl text-sm text-text-muted">Consulta, seguimiento y registro de tus solicitudes</p>
+          <h1 class="text-lg font-semibold tracking-tight text-text-primary sm:text-xl">Solicitudes</h1>
+          <p class="mt-0.5 max-w-2xl text-xs leading-snug text-text-muted sm:text-sm">Consulta, seguimiento y registro de tus solicitudes</p>
         </div>
         ${nuevaBtn}
       </header>
-      <div id="rh-sol-emp-stats">${renderEmployeePersonalStatCards(vm)}</div>
-      <div id="rh-sol-filters">${renderFiltersSection(vm)}</div>
-      <div id="rh-sol-table">${renderEmpleadoSolicitudesTable(vm)}</div>
+      <div id="rh-sol-emp-stats" class="shrink-0">${renderEmployeePersonalStatCards(vm)}</div>
+      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm)}</div>
+      <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderEmpleadoSolicitudesTable(vm)}</div>
     </div>`;
   }
 
@@ -785,7 +794,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     ? `<button
             type="button"
             id="rh-sol-export"
-            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 sm:py-2"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -798,25 +807,25 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     ? `<button
             type="button"
             id="rh-sol-nueva"
-            class="inline-flex items-center gap-2 rounded-lg bg-leoni-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-leoni-blue px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 sm:py-2"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
     : "";
   const toolbarGestor =
     vm.ui.showGestorToolbar && (vm.ui.showExportButton || vm.ui.showNewRequestButton)
-      ? `<div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">${exportBtn}${nuevaGestorBtn}</div>`
+      ? `<div class="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-2.5">${exportBtn}${nuevaGestorBtn}</div>`
       : "";
 
   return `
-    <div id="rh-solicitudes-root" class="space-y-8">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <p class="max-w-2xl text-sm text-text-muted">Gestión y aprobación de vacaciones y home office</p>
+    <div id="rh-solicitudes-root" class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
+      <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
+        <p class="min-w-0 max-w-2xl text-xs leading-snug text-text-muted sm:max-w-none sm:text-sm">Gestión y aprobación de vacaciones y home office</p>
         ${toolbarGestor}
       </div>
 
-      <div id="rh-sol-stats">${renderStatCards(vm)}</div>
-      <div id="rh-sol-filters">${renderFiltersSection(vm)}</div>
-      <div id="rh-sol-table">${renderTable(vm)}</div>
+      <div id="rh-sol-stats" class="shrink-0">${renderStatCards(vm)}</div>
+      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm)}</div>
+      <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderTable(vm)}</div>
     </div>`;
 }

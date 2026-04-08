@@ -3,7 +3,7 @@
  */
 
 export const INC_COPY = {
-  tituloPagina: "Incidencias laborales",
+  tituloPagina: "Incidencias",
   subtitulo:
     "Registro y seguimiento de incidencias disciplinarias y operativas.",
   exportar: "Exportar incidencias",
@@ -63,7 +63,6 @@ export const INC_COPY = {
 
   toastExportMock: "Exportación de incidencias (mock) iniciada.",
   toastNuevaMock: "Flujo de nueva incidencia (mock).",
-  toastDetalleMock: "Detalle de incidencia (mock).",
   toastFiltrosAvMock: "Filtros avanzados (próximamente).",
 
   accesoDenegadoTitulo: "Acceso restringido",
@@ -72,4 +71,45 @@ export const INC_COPY = {
   volverDashboard: "Volver al dashboard",
 
   sinNombre: "Sin nombre",
+
+  cardReportante: "Información del empleado reportante",
+  cardDetalle: "Detalle de la incidencia",
+  cardEvidencia: (n: number) => `Evidencia (${n})`,
+  cardPersonal: "Personal involucrado",
+  cardDescCompleta: "Descripción completa",
+  cardLblNombre: "Nombre completo",
+  cardLblIdEmpleado: "ID de empleado",
+  cardLblArea: "Área / departamento",
+  cardLblPuesto: "Puesto",
+  cardLblSupervisor: "Supervisor directo",
+  cardLblTipo: "Tipo",
+  cardLblFechaHora: "Fecha y hora",
+  cardLblUbicacion: "Ubicación",
+  cardEstado: "Estado",
+  cardIdReporte: "ID de reporte",
+  cardPrioridad: "Prioridad",
+  cardSlaTiempo: "Tiempo transcurrido",
+  cardSlaObjetivo: (h: number) => `(SLA: ${h}H)`,
+  cardSlaDentro: "Dentro de tiempo",
+  cardSlaFuera: "Fuera de tiempo",
+  cardSlaProgreso: "Progreso SLA",
+  cardVerHistorial: "Ver historial de registro",
+  cardSinEvidencias: "Sin evidencias adjuntas.",
+  cardSinPersonal: "Sin personal adicional registrado.",
+  cardDescargaAria: "Descargar archivo",
+  badgeRolTestigo: "Testigo",
+  badgeRolAfectado: "Afectado",
+  badgeRolInvolucrado: "Involucrado",
+  toastHistorialMock: "Historial de registro (próximamente).",
+  toastDescargaMock: "Descarga de evidencia (simulación).",
+
+  detalleModalTitulo: "Detalle de incidencia",
+  detalleModalCerrar: "Cerrar detalle",
+
+  estadoCerrada: "Cerrada",
+  cardSlaHistoricoTitulo: "SLA (histórico)",
+  cardSlaHistoricoDescripcion:
+    "Caso cerrado. El seguimiento de tiempo de respuesta quedó registrado para auditoría.",
+  cardSlaHistoricoFinalizado: "SLA finalizado",
+  cardSlaTiempoTotal: "Tiempo total registrado",
 } as const;

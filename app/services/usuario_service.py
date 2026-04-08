@@ -135,11 +135,25 @@ class UsuarioService:
         self._require_directorio(current_user)
         offset = (page - 1) * page_size
         estados = settings.ESTADOS_ACTIVOS_IDS
+        rol = self._get_rol(current_user)
+        ids_permitidos: list[int] | None = None
+        if rol in ("gerente", "supervisor"):
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, estados
+            )
+            ids_permitidos = [e.id for e in subordinados] + [current_user.id]
         total = await self.repo.count_filtered(
-            q, area_id, puesto_id, "activos", estados
+            q, area_id, puesto_id, "activos", estados, ids_permitidos=ids_permitidos
         )
         items = await self.repo.list_page(
-            offset, page_size, q, area_id, puesto_id, "activos", estados
+            offset,
+            page_size,
+            q,
+            area_id,
+            puesto_id,
+            "activos",
+            estados,
+            ids_permitidos=ids_permitidos,
         )
         return UsuarioPageResponse(
             items=[self._to_list_item(u) for u in items],

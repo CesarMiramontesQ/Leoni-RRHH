@@ -1,6 +1,6 @@
 from typing import Literal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,6 +54,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
         puesto_id: int | None,
         modo_estado: ModoEstadoListado,
         estados_activos: list[int],
+        ids_permitidos: list[int] | None = None,
     ) -> list:
         conditions: list = []
         est = UsuarioRepository._estado_condition(modo_estado, estados_activos)
@@ -63,15 +64,23 @@ class UsuarioRepository(BaseRepository[Empleado]):
             conditions.append(Empleado.area_id == area_id)
         if puesto_id is not None:
             conditions.append(Empleado.puesto_id == puesto_id)
+        if ids_permitidos is not None:
+            if not ids_permitidos:
+                conditions.append(Empleado.id == -1)
+            else:
+                conditions.append(Empleado.id.in_(ids_permitidos))
         if q and q.strip():
             term = f"%{q.strip()}%"
-            conditions.append(
-                or_(
-                    Empleado.nombre.ilike(term),
-                    Empleado.no_empleado.ilike(term),
-                    Empleado.email.ilike(term),
-                )
-            )
+            q_like = [
+                Empleado.nombre.ilike(term),
+                Empleado.no_empleado.ilike(term),
+                Empleado.email.ilike(term),
+                cast(Empleado.id, String).ilike(term),
+                cast(Empleado.empleado_id, String).ilike(term),
+                and_(Empleado.no_sap.isnot(None), Empleado.no_sap.ilike(term)),
+                and_(Empleado.usuario.isnot(None), Empleado.usuario.ilike(term)),
+            ]
+            conditions.append(or_(*q_like))
         return conditions
 
     async def list_page(
@@ -83,9 +92,10 @@ class UsuarioRepository(BaseRepository[Empleado]):
         puesto_id: int | None,
         modo_estado: ModoEstadoListado = "todos",
         estados_activos: list[int] | None = None,
+        ids_permitidos: list[int] | None = None,
     ) -> list[Empleado]:
         ea = estados_activos or []
-        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea)
+        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea, ids_permitidos)
         query = select(Empleado).options(
             selectinload(Empleado.rol),
             selectinload(Empleado.lider),
@@ -109,9 +119,10 @@ class UsuarioRepository(BaseRepository[Empleado]):
         puesto_id: int | None,
         modo_estado: ModoEstadoListado = "todos",
         estados_activos: list[int] | None = None,
+        ids_permitidos: list[int] | None = None,
     ) -> int:
         ea = estados_activos or []
-        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea)
+        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea, ids_permitidos)
         query = select(func.count()).select_from(Empleado)
         for cond in conditions:
             query = query.where(cond)

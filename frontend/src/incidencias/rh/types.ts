@@ -12,6 +12,23 @@ export type RhIncidenciaTipoCodigo =
   | "indisciplina"
   | "dano_equipo";
 
+/** Archivo o imagen de evidencia (solo presentación / mock). */
+export type RhIncidenciaEvidenciaItem = {
+  id: string;
+  kind: "imagen" | "pdf" | "otro";
+  nombre: string;
+  tamano_mb?: number;
+  thumb_url?: string | null;
+};
+
+/** Persona ligada al incidente en vista detalle (solo presentación / mock). */
+export type RhIncidenciaPersonaInvolucrada = {
+  nombre: string;
+  puesto: string;
+  rol: "testigo" | "afectado" | "involucrado";
+  foto_url?: string | null;
+};
+
 /** Fila lista para tabla (mock o adapter de API). */
 export type RhIncidenciaTablaFila = {
   id: number;
@@ -28,6 +45,22 @@ export type RhIncidenciaTablaFila = {
   fecha: string;
   estado: RhIncidenciaEstadoCodigo;
   prioridad: RhIncidenciaPrioridadCodigo;
+  /**
+   * Campos opcionales para la tarjeta de detalle (incidencias no cerradas).
+   * Si faltan, la UI aplica valores por defecto derivados de los campos base.
+   */
+  descripcion?: string;
+  lugar?: string;
+  /** ISO datetime local para mostrar fecha y hora en tarjeta. */
+  fecha_hora_iso?: string;
+  puesto_empleado?: string;
+  /** Código visible tipo “LNE-88293”. */
+  id_empleado_display?: string;
+  evidencias?: RhIncidenciaEvidenciaItem[];
+  personal_involucrado?: RhIncidenciaPersonaInvolucrada[];
+  sla_horas_objetivo?: number;
+  /** Segundos simulados desde apertura (solo UI). */
+  sla_segundos_transcurridos?: number;
 };
 
 export type RhIncidenciaResumenKpi = {

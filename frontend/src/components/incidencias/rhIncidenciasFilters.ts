@@ -24,9 +24,9 @@ function selectFilter(
   optionsHtml: string,
 ): string {
   return `<div class="min-w-0">
-  <label for="${id}" class="block text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeIncHtml(label)}</label>
-  <div class="mt-2 grid grid-cols-1">
-    <select id="${id}" name="${name}" data-rh-inc-filter="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${INC_FIELD_FOCUS}">
+  <label for="${id}" class="mb-1 block text-xs font-medium text-gray-800">${escapeIncHtml(label)}</label>
+  <div class="grid grid-cols-1">
+    <select id="${id}" name="${name}" data-rh-inc-filter="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-md border border-slate-300 bg-white py-1.5 pr-8 pl-2.5 text-sm text-slate-900 shadow-sm ${INC_FIELD_FOCUS}">
       ${optionsHtml}
     </select>
     ${SELECT_CHEVRON}
@@ -36,8 +36,8 @@ function selectFilter(
 
 function empleadoTextoBusquedaFilterField(f: RhIncidenciaFilterState): string {
   return `<div class="min-w-0">
-  <label for="rh-inc-f-emp-q" class="block text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeIncHtml(INC_COPY.filtroEmpleado)}</label>
-  <div class="mt-2">
+  <label for="rh-inc-f-emp-q" class="mb-1 block text-xs font-medium text-gray-800">${escapeIncHtml(INC_COPY.filtroEmpleado)}</label>
+  <div>
     <input
       type="search"
       id="rh-inc-f-emp-q"
@@ -47,7 +47,7 @@ function empleadoTextoBusquedaFilterField(f: RhIncidenciaFilterState): string {
       enterkeyhint="search"
       placeholder="${escapeIncHtml(INC_COPY.placeholderBuscarEmpleado)}"
       value="${escapeIncHtml(f.empleado_busqueda)}"
-      class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ${INC_FIELD_FOCUS}"
+      class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 shadow-sm ${INC_FIELD_FOCUS}"
     />
   </div>
 </div>`;
@@ -103,11 +103,11 @@ function renderFilters(vm: RhIncidenciasAdminViewModel): string {
 
   const clearVisible = filtrosActivos(f, vm.ui);
   const clearBtn = clearVisible
-    ? `<div class="w-full shrink-0 sm:w-auto">
+    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
         <button
           type="button"
           data-rh-inc-clear-filters
-          class="inline-flex h-10 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto"
+          class="inline-flex h-8 w-full min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto sm:text-sm"
         >
           ${escapeIncHtml(INC_COPY.limpiarFiltros)}
         </button>
@@ -122,7 +122,7 @@ function renderFilters(vm: RhIncidenciasAdminViewModel): string {
         type="button"
         id="rh-inc-filtros-av"
         aria-label="${escapeIncHtml(INC_COPY.filtrosAvanzadosAria)}"
-        class="inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-leoni-blue shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+        class="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-leoni-blue shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v5.056a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
@@ -140,8 +140,8 @@ function renderFilters(vm: RhIncidenciasAdminViewModel): string {
     : "";
 
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="${escapeIncHtml(INC_COPY.filtrosSeccionAria)}">
-      <div class="flex flex-wrap items-end gap-4">
+    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="${escapeIncHtml(INC_COPY.filtrosSeccionAria)}">
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
         ${primeraColumnaFiltro}
         ${supervisorCol}
         <div class="${INC_FILTERS_FIELD_WRAP}">${selectFilter("rh-inc-f-tipo", INC_COPY.filtroTipo, "tipo", tipoOpts)}</div>
@@ -156,12 +156,12 @@ function renderFilters(vm: RhIncidenciasAdminViewModel): string {
 function renderFiltersSkeleton(ui: RhIncidenciasAdminViewModel["ui"]): string {
   const cell = `
     <div class="min-w-0 animate-pulse">
-      <div class="h-3 w-20 max-w-full rounded bg-slate-200"></div>
-      <div class="mt-2 h-10 w-full rounded-lg bg-slate-100"></div>
+      <div class="mb-1 h-3 w-20 max-w-full rounded bg-slate-200"></div>
+      <div class="h-8 w-full rounded-md bg-slate-100"></div>
     </div>`;
   const iconSlot =
     ui.modoFiltros === "estandar"
-      ? `<div class="size-10 shrink-0 rounded-lg bg-slate-100"></div>`
+      ? `<div class="size-9 shrink-0 rounded-lg bg-slate-100"></div>`
       : "";
   const fieldCount =
     ui.modoFiltros === "estandar"
@@ -174,8 +174,8 @@ function renderFiltersSkeleton(ui: RhIncidenciasAdminViewModel["ui"]): string {
     () => `<div class="${INC_FILTERS_FIELD_WRAP}">${cell}</div>`,
   ).join("");
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-hidden="true">
-      <div class="flex flex-wrap items-end gap-4">
+    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-hidden="true">
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
         ${cells}
         ${iconSlot}
       </div>

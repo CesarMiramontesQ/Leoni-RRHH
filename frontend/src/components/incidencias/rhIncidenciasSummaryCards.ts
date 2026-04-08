@@ -4,13 +4,13 @@ import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
 
 function skel(): string {
   const cell = `
-    <div class="animate-pulse rounded-xl border border-border bg-white p-5 shadow-sm">
-      <div class="flex items-center justify-between gap-3">
-        <div class="h-4 w-32 rounded bg-slate-200"></div>
-        <div class="h-9 w-14 rounded bg-slate-200"></div>
+    <div class="animate-pulse rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
+      <div class="flex items-center justify-between gap-2">
+        <div class="h-3.5 w-32 rounded bg-slate-200"></div>
+        <div class="h-7 w-14 rounded bg-slate-200"></div>
       </div>
     </div>`;
-  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${cell.repeat(4)}</div>`;
+  return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">${cell.repeat(4)}</div>`;
 }
 
 /** Cuatro tarjetas KPI (resumen global). */
@@ -55,18 +55,20 @@ export function renderRhIncidenciasSummaryCards(vm: RhIncidenciasAdminViewModel)
   const html = cards
     .map((c) => {
       const cardCls = c.critical
-        ? `rounded-xl border border-red-200/90 border-t-4 ${c.borderTop} bg-white p-5 shadow-sm ring-1 ring-red-100/80`
-        : `rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-5 shadow-sm`;
-      const valCls = c.critical ? "text-3xl font-bold tabular-nums tracking-tight text-red-600" : "text-3xl font-bold tabular-nums tracking-tight text-text-primary";
+        ? `rounded-xl border border-red-200/90 border-t-4 ${c.borderTop} bg-white p-3 shadow-sm ring-1 ring-red-100/80 sm:p-4`
+        : `rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-3 shadow-sm sm:p-4`;
+      const valCls = c.critical
+        ? "text-2xl font-bold tabular-nums tracking-tight text-red-600 sm:text-3xl"
+        : "text-2xl font-bold tabular-nums tracking-tight text-text-primary sm:text-3xl";
       return `
     <article class="${cardCls}">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="min-w-0 text-sm font-medium text-text-muted">${escapeIncHtml(c.title)}</h2>
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="min-w-0 text-xs font-medium text-text-muted sm:text-sm">${escapeIncHtml(c.title)}</h2>
         <p class="${valCls} shrink-0">${escapeIncHtml(String(c.value))}</p>
       </div>
     </article>`;
     })
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+  return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">${html}</div>`;
 }

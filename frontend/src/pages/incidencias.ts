@@ -1,6 +1,11 @@
 import { canAccessRhIncidenciasPage, getRolFromAccessToken } from "../auth/jwt.ts";
+import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
+import {
+  mountRhIncidenciaDetalleModal,
+  type RhIncidenciaDetalleModalHandle,
+} from "../components/incidencias/rhIncidenciaDetalleModal.ts";
 import {
   mountSolicitudesNuevaIncidenciaModal,
   type SolicitudesNuevaIncidenciaModalHandle,
@@ -101,10 +106,13 @@ function isPeriodo(v: string): v is RhIncidenciaFilterState["periodo"] {
 }
 
 export function mountIncidencias(container: HTMLElement, signal: AbortSignal): void {
+  const incidenciasMainClass = "py-5 sm:py-6";
+
   if (!canAccessRhIncidenciasPage()) {
     mountAppShell(container, {
       pageTitle: INC_COPY.tituloPagina,
       activeNav: "incidencias",
+      mainClass: incidenciasMainClass,
       mainHtml: forbiddenHtml(),
     });
     return;
@@ -171,11 +179,19 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   mountAppShell(container, {
     pageTitle: INC_COPY.tituloPagina,
     activeNav: "incidencias",
-    mainHtml: `<div id="rh-incidencias-page" class="relative">
-      <div id="rh-incidencias-inner">${renderRhIncidenciasAdminView(loadingViewModel())}</div>
-      <div id="rh-inc-nueva-incidencia-modal-host"></div>
+    mainClass: incidenciasMainClass,
+    mainHtml: `<div id="rh-incidencias-page" class="relative flex min-h-[calc(100dvh-11rem)] flex-col">
+      <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel())}</div>
+      <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
+      <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>
     </div>`,
   });
+
+  const detalleModalHost = container.querySelector("#rh-inc-detalle-modal-host");
+  const detalleModal: RhIncidenciaDetalleModalHandle | null =
+    detalleModalHost ?
+      mountRhIncidenciaDetalleModal(detalleModalHost as HTMLElement, { signal })
+    : null;
 
   const nuevaIncidenciaModalHost = container.querySelector("#rh-inc-nueva-incidencia-modal-host");
   const nuevaIncidenciaModal: SolicitudesNuevaIncidenciaModalHandle | null =
@@ -183,6 +199,13 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       mountSolicitudesNuevaIncidenciaModal(nuevaIncidenciaModalHost as HTMLElement, {
         signal,
         toastContainer: container,
+        onSessionExpired: () => {
+          clearAuth();
+          void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+            abortAuthenticatedShell();
+            void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+          });
+        },
       })
     : null;
 
@@ -214,10 +237,20 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         paint();
         return;
       }
+      if (t.closest("[data-rh-inc-historial]")) {
+        showEmpleadosToast(container, INC_COPY.toastHistorialMock, "success");
+        return;
+      }
+      if (t.closest("[data-rh-inc-ev-descarga]")) {
+        showEmpleadosToast(container, INC_COPY.toastDescargaMock, "success");
+        return;
+      }
       const row = t.closest<HTMLTableRowElement>("tr[data-rh-inc-row]");
       if (row) {
         const raw = row.getAttribute("data-rh-inc-id");
-        if (raw) showEmpleadosToast(container, INC_COPY.toastDetalleMock, "success");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        const fila = Number.isFinite(id) ? allRows.find((r) => r.id === id) : undefined;
+        if (fila) detalleModal?.open(fila);
         return;
       }
       const pageBtn = t.closest<HTMLButtonElement>("[data-rh-inc-page]");
@@ -242,7 +275,9 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       if (ke.key !== "Enter" && ke.key !== " ") return;
       ke.preventDefault();
       const raw = tr.getAttribute("data-rh-inc-id");
-      if (raw) showEmpleadosToast(container, INC_COPY.toastDetalleMock, "success");
+      const id = raw ? Number.parseInt(raw, 10) : NaN;
+      const fila = Number.isFinite(id) ? allRows.find((r) => r.id === id) : undefined;
+      if (fila) detalleModal?.open(fila);
     },
     { signal },
   );
@@ -297,6 +332,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       empleadoBusquedaDebounceTimer = null;
     }
     nuevaIncidenciaModal?.destroy();
+    detalleModal?.destroy();
   });
 
   void (async () => {

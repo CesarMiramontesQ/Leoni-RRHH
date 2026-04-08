@@ -8,7 +8,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/comedor"), titulo: "Comedor" },
   { match: (h) => h.startsWith("#/notificaciones"), titulo: "Notificaciones" },
   { match: (h) => h.startsWith("#/solicitudes"), titulo: "Solicitudes" },
-  { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias laborales" },
+  { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/reportes"), titulo: "Reportes" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];

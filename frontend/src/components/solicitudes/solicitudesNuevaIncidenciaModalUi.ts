@@ -88,13 +88,59 @@ export function solicitudesNuevaIncidenciaModalShellHtml(): string {
                 ${escapeNiHtml(SNI_COPY.secEmpleado)}
               </h3>
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label for="rh-ni-empleado" class="${LBL}">${escapeNiHtml(SNI_COPY.lblEmpleado)}</label>
-                  <input id="rh-ni-empleado" name="empleado" type="text" autocomplete="name" placeholder="${escapeNiHtml(SNI_COPY.phEmpleado)}" class="${INPUT}" />
+                <div class="min-w-0">
+                  <label for="rh-ni-empleado-q" class="${LBL}">${escapeNiHtml(SNI_COPY.lblEmpleado)}</label>
+                  <p class="mb-2 text-[11px] leading-relaxed text-slate-500">${escapeNiHtml(SNI_COPY.empleadoAyuda)}</p>
+                  <div class="relative">
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400">
+                      <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
+                    </svg>
+                    <input
+                      id="rh-ni-empleado-q"
+                      type="search"
+                      autocomplete="off"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-expanded="false"
+                      aria-controls="rh-ni-empleado-id"
+                      data-rh-ni-empleado-search
+                      placeholder="${escapeNiHtml(SNI_COPY.phEmpleado)}"
+                      class="${INPUT} pl-10"
+                    />
+                  </div>
+                  <div class="mt-3">
+                    <label for="rh-ni-empleado-id" class="${LBL}">${escapeNiHtml(SNI_COPY.lblEmpleadoSeleccionado)}</label>
+                    <div class="${SELECT_WRAP}">
+                      <select
+                        id="rh-ni-empleado-id"
+                        name="empleado_id"
+                        required
+                        data-rh-ni-empleado-select
+                        class="col-start-1 row-start-1 ${SELECT} cursor-pointer font-medium"
+                      >
+                        <option value="">Selecciona un empleado…</option>
+                      </select>
+                      ${CHEV}
+                    </div>
+                  </div>
+                  <p
+                    id="rh-ni-empleado-status"
+                    class="mt-2 hidden text-xs text-slate-500"
+                    role="status"
+                    aria-live="polite"
+                  ></p>
                 </div>
                 <div>
-                  <label for="rh-ni-nomina" class="${LBL}">${escapeNiHtml(SNI_COPY.lblNomina)}</label>
-                  <input id="rh-ni-nomina" name="numero_nomina" type="text" inputmode="text" placeholder="${escapeNiHtml(SNI_COPY.phNomina)}" class="${INPUT}" />
+                  <label for="rh-ni-no-empleado" class="${LBL}">${escapeNiHtml(SNI_COPY.lblNoEmpleado)}</label>
+                  <input
+                    id="rh-ni-no-empleado"
+                    name="no_empleado"
+                    type="text"
+                    inputmode="text"
+                    readonly
+                    placeholder="${escapeNiHtml(SNI_COPY.phNoEmpleado)}"
+                    class="${INPUT} cursor-default bg-slate-50/80 text-slate-700"
+                  />
                 </div>
               </div>
               <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">

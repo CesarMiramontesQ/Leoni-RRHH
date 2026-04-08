@@ -135,6 +135,16 @@ class IncidenciaService:
         if not empleado:
             raise NotFoundError(entidad="Empleado", id=data.empleado_id)
 
+        if rol in ("gerente", "supervisor"):
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
+            permitidos = {e.id for e in subordinados} | {current_user.id}
+            if data.empleado_id not in permitidos:
+                raise ForbiddenError(
+                    detail="No puedes registrar incidencias para empleados fuera de tu equipo"
+                )
+
         incidencia = await self.repo.create({
             "empleado_id": data.empleado_id,
             "tipo": data.tipo,

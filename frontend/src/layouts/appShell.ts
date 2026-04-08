@@ -190,12 +190,15 @@ export type AppShellOptions = {
   activeNav?: ShellNavKey;
   /** Si se omite, se elimina `access_token` y se llama a `mountLogin`. Si lo defines, encárgate tú de limpiar sesión y navegar. */
   onSignOut?: () => void;
+  /** Clases del `<main>`; por defecto `py-10` (páginas densas pueden usar p. ej. `py-5 sm:py-6`). */
+  mainClass?: string;
 };
 
 export function mountAppShell(container: HTMLElement, options: AppShellOptions): void {
   const tituloPagina = options.pageTitle ?? tituloDesdeHash(window.location.hash);
   document.title = `${tituloPagina} — Plataforma RH`;
   const tituloNavbar = escapeHtmlText(tituloPagina);
+  const mainClass = options.mainClass ?? "py-10";
   const body = sidebarBody(options.activeNav);
   const userName = escapeHtmlText(getUserDisplayNameFromAccessToken());
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
@@ -280,7 +283,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     </div>
   </div>
 
-  <main class="py-10">
+  <main class="${mainClass}">
     <div class="px-4 sm:px-6 lg:px-8">
       ${options.mainHtml}
     </div>

@@ -113,10 +113,13 @@ function isEstado(v: string): v is RhSolicitudEstadoCodigo {
 }
 
 export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): void {
+  const solicitudesMainClass = "py-5 sm:py-6";
+
   if (!canAccessSolicitudesPage()) {
     mountAppShell(container, {
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
+      mainClass: solicitudesMainClass,
       mainHtml: forbiddenHtml(),
     });
     return;
@@ -127,6 +130,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     mountAppShell(container, {
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
+      mainClass: solicitudesMainClass,
       mainHtml: forbiddenHtml(),
     });
     return;
@@ -206,11 +210,12 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   mountAppShell(container, {
     pageTitle: shellTitle,
     activeNav: "solicitudes",
-    mainHtml: `<div id="rh-solicitudes-page" class="relative">
-      <div id="rh-solicitudes-inner">${renderRhSolicitudesAdminView(loadingViewModel(pageUi))}</div>
-      <div id="rh-nueva-solicitud-modal-host"></div>
-      <div id="rh-solicitud-detalle-modal-host"></div>
-      <div id="rh-solicitud-resuelta-modal-host"></div>
+    mainClass: solicitudesMainClass,
+    mainHtml: `<div id="rh-solicitudes-page" class="relative flex min-h-[calc(100dvh-11rem)] flex-col">
+      <div id="rh-solicitudes-inner" class="flex min-h-0 flex-1 flex-col">${renderRhSolicitudesAdminView(loadingViewModel(pageUi))}</div>
+      <div id="rh-nueva-solicitud-modal-host" class="shrink-0"></div>
+      <div id="rh-solicitud-detalle-modal-host" class="shrink-0"></div>
+      <div id="rh-solicitud-resuelta-modal-host" class="shrink-0"></div>
     </div>`,
   });
 

@@ -99,13 +99,28 @@ export function empleadoOptionLabel(u: UsuarioListItem): string {
   return `${no} · ${name}`;
 }
 
-function buildEmpleadoOptions(items: UsuarioListItem[], selectedId: string): string {
+/** Texto del `<option>` solo con nombre (p. ej. modal nueva incidencia). */
+export function empleadoOptionLabelSoloNombre(u: UsuarioListItem): string {
+  return formatNombreEmpleadoUi(u.nombre).trim() || u.nombre.trim() || "Sin nombre";
+}
+
+export type BuildEmpleadoOptionsOpts = {
+  /** Si es true, el texto visible de cada opción es únicamente el nombre. */
+  soloNombre?: boolean;
+};
+
+export function buildEmpleadoOptions(
+  items: UsuarioListItem[],
+  selectedId: string,
+  opts?: BuildEmpleadoOptionsOpts,
+): string {
+  const labelFn = opts?.soloNombre ? empleadoOptionLabelSoloNombre : empleadoOptionLabel;
   const head = `<option value="" ${selectedId === "" ? "selected" : ""}>Selecciona un empleado…</option>`;
   const rest = items
     .map((u) => {
       const v = String(u.id);
       const sel = v === selectedId ? "selected" : "";
-      return `<option value="${escapeHtml(v)}" ${sel}>${escapeHtml(empleadoOptionLabel(u))}</option>`;
+      return `<option value="${escapeHtml(v)}" ${sel}>${escapeHtml(labelFn(u))}</option>`;
     })
     .join("");
   return head + rest;

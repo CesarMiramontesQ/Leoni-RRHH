@@ -38,7 +38,7 @@ export function buildRhIncidenciaFilterOptions(rows: readonly RhIncidenciaTablaF
     estados: [
       { id: "abierto", label: "Abierto" },
       { id: "en_investigacion", label: "En investigación" },
-      { id: "cerrado", label: "Cerrado" },
+      { id: "cerrado", label: INC_COPY.estadoCerrada },
     ],
     periodos: [
       { id: "30d", label: INC_COPY.optUltimos30 },
