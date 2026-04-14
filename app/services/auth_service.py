@@ -23,7 +23,9 @@ async def authenticate_user(
     if "@" in ident:
         empleado = await repo.get_by_email(ident)
     else:
-        empleado = await repo.get_by_usuario(ident)
+        empleado = await repo.get_by_no_empleado(ident)
+        if not empleado:
+            empleado = await repo.get_by_usuario(ident)
 
     if not empleado or not verify_password(password, empleado.password_hash):
         raise HTTPException(

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.emails import Email
     from app.models.roles import Rol
     from app.models.solicitudes import Solicitud, SolicitudAprobacion
     from app.models.incidencias import Incidencia, Evidencia
@@ -99,6 +100,11 @@ class Empleado(Base):
         "Empleado",
         foreign_keys=[lider_id],
         back_populates="lider",
+    )
+    email_alterno: Mapped[Optional["Email"]] = relationship(
+        "Email",
+        back_populates="empleado",
+        uselist=False,
     )
 
     def __repr__(self) -> str:

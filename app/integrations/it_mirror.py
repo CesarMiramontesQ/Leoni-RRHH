@@ -20,6 +20,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.db_engine_utils import normalizar_url_y_connect_args
 from app.core.security import SYNC_PLACEHOLDER_PASSWORD_HASH
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,14 @@ class ITMirrorClient:
         inicio = datetime.now(timezone.utc)
 
         try:
-            it_engine = create_async_engine(settings.IT_MIRROR_DB_URL, pool_pre_ping=True)
+            it_db_url, it_connect_args = normalizar_url_y_connect_args(
+                settings.IT_MIRROR_DB_URL
+            )
+            it_engine = create_async_engine(
+                it_db_url,
+                pool_pre_ping=True,
+                connect_args=it_connect_args,
+            )
             it_session_factory = async_sessionmaker(it_engine, class_=AsyncSession, expire_on_commit=False)
         except Exception as exc:
             _slog("error", "IT_ENGINE_CREATE_FAILED", error=str(exc))

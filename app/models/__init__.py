@@ -14,6 +14,7 @@ from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.comedor import Comedor, MenuSemanal, ComedorRegistro
 from app.models.notificaciones import Notificacion
+from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.tress import TressRobotQueue
 
@@ -36,6 +37,7 @@ __all__ = [
     "MenuSemanal",
     "ComedorRegistro",
     "Notificacion",
+    "Email",
     "AuditLog",
     "ItSyncLog",
     "TokenBlacklist",

@@ -59,6 +59,7 @@ async def get_current_user(
             selectinload(Empleado.subarea),
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
+            selectinload(Empleado.email_alterno),
         )
         .where(Empleado.id == int(empleado_id))
     )

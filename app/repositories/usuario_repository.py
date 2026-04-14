@@ -4,6 +4,7 @@ from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.emails import Email
 from app.models.empleados import Empleado
 from app.models.catalogos import Area, Puesto
 from app.repositories.base import BaseRepository
@@ -26,6 +27,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 selectinload(Empleado.subarea),
                 selectinload(Empleado.categoria),
                 selectinload(Empleado.clasificacion),
+                selectinload(Empleado.email_alterno),
             )
             .where(Empleado.id == id)
         )
@@ -75,6 +77,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 Empleado.nombre.ilike(term),
                 Empleado.no_empleado.ilike(term),
                 Empleado.email.ilike(term),
+                Email.email.ilike(term),
                 cast(Empleado.id, String).ilike(term),
                 cast(Empleado.empleado_id, String).ilike(term),
                 and_(Empleado.no_sap.isnot(None), Empleado.no_sap.ilike(term)),
@@ -105,7 +108,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
             selectinload(Empleado.subarea),
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
+            selectinload(Empleado.email_alterno),
         )
+        query = query.outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
         for cond in conditions:
             query = query.where(cond)
         query = query.order_by(Empleado.id).offset(offset).limit(limit)
@@ -123,7 +128,11 @@ class UsuarioRepository(BaseRepository[Empleado]):
     ) -> int:
         ea = estados_activos or []
         conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea, ids_permitidos)
-        query = select(func.count()).select_from(Empleado)
+        query = (
+            select(func.count())
+            .select_from(Empleado)
+            .outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
+        )
         for cond in conditions:
             query = query.where(cond)
         result = await self.db.execute(query)
@@ -132,7 +141,10 @@ class UsuarioRepository(BaseRepository[Empleado]):
     async def get_subordinados(self, lider_id: int, estados_activos: list[int]) -> list[Empleado]:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(
+                selectinload(Empleado.rol),
+                selectinload(Empleado.email_alterno),
+            )
             .where(
                 Empleado.lider_id == lider_id,
                 Empleado.estado_id.in_(estados_activos),

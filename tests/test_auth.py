@@ -133,6 +133,60 @@ async def test_login_usuario_inexistente_retorna_401(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_login_no_empleado_exitoso_retorna_tokens(client: AsyncClient, db):
+    await make_empleado(
+        db,
+        rol="empleado",
+        email="por_numero@leoni.test",
+        no_empleado="1234.0",
+    )
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "1234", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "access_token" in body
+    assert "refresh_token" in body
+    assert body["token_type"] == "bearer"
+
+
+@pytest.mark.asyncio
+async def test_login_email_alterno_exitoso_y_me_retorna_email_alterno(
+    client: AsyncClient, db
+):
+    from app.models.emails import Email
+
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="primario@leoni.test",
+        no_empleado="EMP-ALT-01",
+    )
+    empleado.email = None
+    db.add(Email(no_empleado=empleado.no_empleado, email="alterno@leoni.test"))
+    await db.flush()
+
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "alterno@leoni.test", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_resp.status_code == 200
+    access_token = login_resp.json()["access_token"]
+
+    me_resp = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert me_resp.status_code == 200
+    assert me_resp.json()["email"] == "alterno@leoni.test"
+
+
+@pytest.mark.asyncio
 async def test_login_legacy_password_texto_plano_en_columna(client: AsyncClient, db):
     """BD legada: `password_hash` puede ser la contraseña inicial en claro (p. ej. no_empleado)."""
     empleado = await make_empleado(db, rol="empleado", email="legacy_plain@leoni.test")

@@ -26,7 +26,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
     request: Request = None,
 ):
-    """Login con credenciales (correo si contiene @, si no `empleados.usuario`)."""
+    """Login con correo; sin @ intenta no_empleado y luego usuario."""
     empleado = await authenticate_user(form_data.username, form_data.password, db)
     tokens = create_tokens(empleado)
     return tokens

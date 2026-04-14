@@ -46,6 +46,7 @@ import app.models.tress  # noqa: F401
 import app.models.incidencias  # noqa: F401
 import app.models.actas  # noqa: F401
 import app.models.notificaciones  # noqa: F401
+import app.models.emails  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password
