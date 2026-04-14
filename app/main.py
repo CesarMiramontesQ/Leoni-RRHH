@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import httpx
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,33 +17,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 
 
-def _it_mirror_sync_job():
-    """Ejecuta sincronizacion IT Mirror → BD local en thread pool."""
-    import asyncio
+async def _it_mirror_sync_job():
+    """Ejecuta sincronizacion IT Mirror → BD local en event loop principal."""
     try:
         from app.core.database import AsyncSessionLocal
         from app.integrations.tress.tress_sync_service import TressSyncService
 
-        async def _run():
-            async with AsyncSessionLocal() as db:
-                service = TressSyncService(db)
-                resultado = await service.sincronizar_empleados()
-                logger.info("IT Mirror sync completado: %s", resultado)
-
-        asyncio.run(_run())
+        async with AsyncSessionLocal() as db:
+            service = TressSyncService(db)
+            resultado = await service.sincronizar_empleados()
+            logger.info("IT Mirror sync completado: %s", resultado)
     except Exception as exc:
         logger.error("Error en IT Mirror sync job: %s", str(exc), exc_info=True)
 
 
-def _tress_scheduler_job():
+async def _tress_scheduler_job():
     """Procesa la cola de operaciones TRESS pendientes."""
-    import asyncio
     try:
         from app.integrations.tress.tress_scheduler import procesar_cola_tress
-        asyncio.run(procesar_cola_tress())
+
+        await procesar_cola_tress()
     except Exception as exc:
         logger.error("Error en TRESS scheduler job: %s", str(exc), exc_info=True)
 
