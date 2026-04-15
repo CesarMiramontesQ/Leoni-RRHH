@@ -2,6 +2,7 @@ import type {
   ComedorPanelState,
   ComedorReservationsPage,
 } from "../../comedor/rh/types.ts";
+import { FIELD_FOCUS } from "../../ui/uiTokens.ts";
 import {
   dietBadgeLabel,
   escapeComedorHtml,
@@ -23,7 +24,7 @@ function tabClass(active: boolean): string {
 }
 
 function th(label: string): string {
-  return `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold text-white">${escapeComedorHtml(label)}</th>`;
+  return `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold text-white sm:px-4 sm:text-sm">${escapeComedorHtml(label)}</th>`;
 }
 
 export function renderComedorReservationsTable(
@@ -54,7 +55,7 @@ export function renderComedorReservationsTable(
           data-comedor-search
           placeholder="Buscar por nombre o número"
           autocomplete="off"
-          class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-88"
+          class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} sm:w-88"
         />
         <div class="overflow-x-auto">
           <div class="inline-flex min-w-max items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
