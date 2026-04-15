@@ -24,6 +24,19 @@ import {
   type ActaTablaFila,
   type ActaTipoCodigo,
 } from "../actas/actasMockData.ts";
+import { escapeHtml, fmtFechaCorta, paginationRange } from "../ui/uiUtils.ts";
+import {
+  FIELD_FOCUS,
+  SELECT_CHEVRON,
+  FILTER_FIELD_WRAP,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  BTN_GHOST,
+  badgeOpen,
+  badgeInProgress,
+  badgeApproved,
+  badgeCancelled,
+} from "../ui/uiTokens.ts";
 
 type ActasTableData = {
   items: ActaTablaFila[];
@@ -73,14 +86,6 @@ const DEFAULT_FILTERS: ActasFilterState = {
   page_size: 10,
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function forbiddenHtml(): string {
   return `
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
@@ -108,12 +113,6 @@ function parseLocalDate(iso: string): Date | null {
   const dt = new Date(y, m - 1, d);
   if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
   return dt;
-}
-
-function fmtFechaCorta(iso: string): string {
-  const dt = parseLocalDate(iso);
-  if (!dt) return iso;
-  return dt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function dentroDePeriodo(fechaIso: string, periodo: ActasFilterState["periodo"]): boolean {
@@ -169,22 +168,6 @@ function paginateActas(filtered: readonly ActaTablaFila[], filters: ActasFilterS
   };
 }
 
-function paginationRange(totalPages: number, page: number): (number | "ellipsis")[] {
-  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-  const out: (number | "ellipsis")[] = [];
-  const push = (v: number | "ellipsis"): void => {
-    if (out[out.length - 1] !== v) out.push(v);
-  };
-  push(1);
-  if (page > 3) push("ellipsis");
-  const start = Math.max(2, page - 1);
-  const end = Math.min(totalPages - 1, page + 1);
-  for (let i = start; i <= end; i++) push(i);
-  if (page < totalPages - 2) push("ellipsis");
-  push(totalPages);
-  return out;
-}
-
 function labelTipo(tipo: ActaTipoCodigo): string {
   if (tipo === "amonestacion") return "Amonestación";
   if (tipo === "suspension") return "Suspensión";
@@ -202,25 +185,14 @@ function badgeTipo(tipo: ActaTipoCodigo): string {
   return `<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">${text}</span>`;
 }
 
-function labelEstado(estado: ActaEstadoCodigo): string {
-  if (estado === "abierta") return "Abierta";
-  if (estado === "en_proceso") return "En proceso";
-  if (estado === "firmada") return "Firmada";
-  return "Cerrada";
-}
-
 function badgeEstado(estado: ActaEstadoCodigo): string {
-  const text = escapeHtml(labelEstado(estado));
-  if (estado === "abierta") {
-    return `<span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 sm:text-sm"><span class="size-1.5 shrink-0 rounded-full bg-blue-500 sm:size-2" aria-hidden="true"></span>${text}</span>`;
+  switch (estado) {
+    case "abierta":    return badgeOpen("Abierta");
+    case "en_proceso": return badgeInProgress("En proceso");
+    case "firmada":    return badgeApproved("Firmada");
+    case "cerrada":    return badgeCancelled("Cerrada");
+    default:           return escapeHtml(estado);
   }
-  if (estado === "en_proceso") {
-    return `<span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 sm:text-sm"><span class="size-1.5 shrink-0 rounded-full bg-amber-500 sm:size-2" aria-hidden="true"></span>${text}</span>`;
-  }
-  if (estado === "firmada") {
-    return `<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-900 ring-1 ring-emerald-200/90">FIRMADA</span>`;
-  }
-  return `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-slate-700">CERRADA</span>`;
 }
 
 function buildNuevaActaEmpleados(rows: readonly ActaTablaFila[]): NuevaActaEmpleadoOption[] {
@@ -304,13 +276,11 @@ function renderSelectFilter(
       <select
         id="${id}"
         data-rh-actas-filter="${field}"
-        class="col-start-1 row-start-1 w-full appearance-none rounded-md border border-slate-300 bg-white py-1.5 pr-8 pl-2.5 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+        class="col-start-1 row-start-1 w-full appearance-none rounded-md border border-slate-300 bg-white py-1.5 pr-8 pl-2.5 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
       >
         ${optionsHtml}
       </select>
-      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-500 sm:size-4">
-        <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-      </svg>
+      ${SELECT_CHEVRON}
     </div>
   </div>`;
 }
@@ -321,7 +291,7 @@ function renderActasFilters(filters: ActasFilterState): string {
       <button
         type="button"
         data-rh-actas-clear-filters
-        class="inline-flex h-8 w-full min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto sm:text-sm"
+        class="${BTN_GHOST} w-full sm:w-auto"
       >
         Limpiar filtros
       </button>
@@ -331,7 +301,7 @@ function renderActasFilters(filters: ActasFilterState): string {
   return `
     <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de actas">
       <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
-        <div class="min-w-0 flex-1 basis-48 xl:basis-46">
+        <div class="${FILTER_FIELD_WRAP}">
           <label for="rh-actas-f-empleado" class="mb-1 block text-xs font-medium text-gray-800">Empleado</label>
           <input
             id="rh-actas-f-empleado"
@@ -340,19 +310,19 @@ function renderActasFilters(filters: ActasFilterState): string {
             placeholder="Buscar empleado..."
             data-rh-actas-empleado-busqueda
             autocomplete="off"
-            class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+            class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
           />
         </div>
-        <div class="min-w-0 flex-1 basis-48 xl:basis-46">
+        <div class="${FILTER_FIELD_WRAP}">
           ${renderSelectFilter("rh-actas-f-sup", "Supervisor", "supervisor", filters.supervisor_id, ACTAS_SUPERVISORES, "Cualquier supervisor")}
         </div>
-        <div class="min-w-0 flex-1 basis-48 xl:basis-46">
+        <div class="${FILTER_FIELD_WRAP}">
           ${renderSelectFilter("rh-actas-f-tipo", "Tipo", "tipo", filters.tipo, ACTAS_TIPOS, "Todos los tipos")}
         </div>
-        <div class="min-w-0 flex-1 basis-48 xl:basis-46">
+        <div class="${FILTER_FIELD_WRAP}">
           ${renderSelectFilter("rh-actas-f-estado", "Estado", "estado", filters.estado, ACTAS_ESTADOS, "Cualquier estado")}
         </div>
-        <div class="min-w-0 flex-1 basis-48 xl:basis-46">
+        <div class="${FILTER_FIELD_WRAP}">
           ${renderSelectFilter("rh-actas-f-periodo", "Periodo", "periodo", filters.periodo, ACTAS_PERIODOS, "Periodo")}
         </div>
         ${clearBtn}
@@ -479,7 +449,7 @@ function renderActasMain(filters: ActasFilterState, table: ActasTableData): stri
           <button
             type="button"
             id="rh-actas-export"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+            class="${BTN_SECONDARY}"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -489,7 +459,7 @@ function renderActasMain(filters: ActasFilterState, table: ActasTableData): stri
           <button
             type="button"
             id="rh-actas-nueva"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-leoni-blue px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+            class="${BTN_PRIMARY}"
           >
             <span aria-hidden="true">+</span> Nueva acta administrativa
           </button>
