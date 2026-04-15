@@ -4,14 +4,7 @@
 
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
 import type { SolicitudDetallePendienteVm } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
-
-export function escapeHtmlSd(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
+import { escapeHtml } from "../../ui/uiUtils.ts";
 
 const SEC_HEAD =
   "flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-leoni-blue";
@@ -32,8 +25,8 @@ const ICON_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 function kv(label: string, value: string, valueClass = VALUE): string {
   return `
     <div class="grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,11rem)_1fr] sm:items-baseline sm:gap-4">
-      <dt class="${LABEL}">${escapeHtmlSd(label)}</dt>
-      <dd class="${valueClass}">${escapeHtmlSd(value)}</dd>
+      <dt class="${LABEL}">${escapeHtml(label)}</dt>
+      <dd class="${valueClass}">${escapeHtml(value)}</dd>
     </div>`;
 }
 
@@ -53,14 +46,14 @@ export function solicitudDetalleShellHtml(): string {
         <header class="shrink-0 border-b border-slate-100 px-5 pb-4 pt-5 sm:px-8 sm:pb-5 sm:pt-7">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 pr-2">
-              <h2 id="rh-sd-title" class="text-xl font-bold tracking-tight text-slate-900">${escapeHtmlSd(SD_COPY.tituloModal)}</h2>
-              <p class="mt-2 text-sm leading-relaxed text-slate-500">${escapeHtmlSd(SD_COPY.subtituloModal)}</p>
+              <h2 id="rh-sd-title" class="text-xl font-bold tracking-tight text-slate-900">${escapeHtml(SD_COPY.tituloModal)}</h2>
+              <p class="mt-2 text-sm leading-relaxed text-slate-500">${escapeHtml(SD_COPY.subtituloModal)}</p>
             </div>
             <button
               type="button"
               class="-m-1 flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
               data-rh-sd-close
-              aria-label="${escapeHtmlSd(SD_COPY.cerrarAria)}"
+              aria-label="${escapeHtml(SD_COPY.cerrarAria)}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true">
                 <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
@@ -80,7 +73,7 @@ export function solicitudDetalleLoadingBodyHtml(): string {
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
       </svg>
-      ${escapeHtmlSd(SD_COPY.cargandoDetalle)}
+      ${escapeHtml(SD_COPY.cargandoDetalle)}
     </div>`;
 }
 
@@ -89,17 +82,17 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
   const e = vm.empleado;
   const diasTxt = `${s.total_dias} ${SD_COPY.diasUnidad}`;
 
-  const badge = `<span class="inline-flex max-w-full items-center rounded-lg border border-leoni-blue/20 bg-leoni-blue/[0.08] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-leoni-blue">${escapeHtmlSd(s.tipo_badge)}</span>`;
+  const badge = `<span class="inline-flex max-w-full items-center rounded-lg border border-leoni-blue/20 bg-leoni-blue/[0.08] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-leoni-blue">${escapeHtml(s.tipo_badge)}</span>`;
 
   const saldoCards = `
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtmlSd(SD_COPY.lblSaldoActual)}</p>
-        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtmlSd(String(s.saldo_actual))}</p>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblSaldoActual)}</p>
+        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtml(String(s.saldo_actual))}</p>
       </div>
       <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtmlSd(SD_COPY.lblRestante)}</p>
-        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtmlSd(String(s.saldo_restante))}</p>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblRestante)}</p>
+        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtml(String(s.saldo_restante))}</p>
       </div>
     </div>`;
 
@@ -111,7 +104,7 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
       <section class="space-y-3" aria-labelledby="rh-sd-sec-emp">
         <h3 id="rh-sd-sec-emp" class="${SEC_HEAD}">
           ${ICON_USER}
-          ${escapeHtmlSd(SD_COPY.seccionEmpleado)}
+          ${escapeHtml(SD_COPY.seccionEmpleado)}
         </h3>
         <div class="${PANEL} space-y-3">
           ${kv(SD_COPY.lblNombre, e.nombre)}
@@ -125,30 +118,30 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
       <section class="space-y-3" aria-labelledby="rh-sd-sec-sol">
         <h3 id="rh-sd-sec-sol" class="${SEC_HEAD}">
           ${ICON_CAL}
-          ${escapeHtmlSd(SD_COPY.seccionSolicitud)}
+          ${escapeHtml(SD_COPY.seccionSolicitud)}
         </h3>
         <div class="${PANEL} space-y-5">
           <div>
-            <p class="${LABEL} mb-2">${escapeHtmlSd(SD_COPY.lblTipoSolicitud)}</p>
+            <p class="${LABEL} mb-2">${escapeHtml(SD_COPY.lblTipoSolicitud)}</p>
             ${badge}
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <p class="${LABEL}">${escapeHtmlSd(SD_COPY.lblFechaInicio)}</p>
-              <p class="mt-1 text-base font-bold text-slate-900">${escapeHtmlSd(s.fecha_inicio)}</p>
+              <p class="${LABEL}">${escapeHtml(SD_COPY.lblFechaInicio)}</p>
+              <p class="mt-1 text-base font-bold text-slate-900">${escapeHtml(s.fecha_inicio)}</p>
             </div>
             <div>
-              <p class="${LABEL}">${escapeHtmlSd(SD_COPY.lblFechaFin)}</p>
-              <p class="mt-1 text-base font-bold text-slate-900">${escapeHtmlSd(s.fecha_fin)}</p>
+              <p class="${LABEL}">${escapeHtml(SD_COPY.lblFechaFin)}</p>
+              <p class="mt-1 text-base font-bold text-slate-900">${escapeHtml(s.fecha_fin)}</p>
             </div>
           </div>
           <div class="flex flex-col gap-1 border-t border-slate-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <span class="text-sm font-medium text-slate-600">${escapeHtmlSd(SD_COPY.lblTotalDias)}</span>
-            <span class="text-2xl font-bold tabular-nums text-leoni-blue">${escapeHtmlSd(diasTxt)}</span>
+            <span class="text-sm font-medium text-slate-600">${escapeHtml(SD_COPY.lblTotalDias)}</span>
+            <span class="text-2xl font-bold tabular-nums text-leoni-blue">${escapeHtml(diasTxt)}</span>
           </div>
           <div>
-            <p class="${LABEL} mb-2">${escapeHtmlSd(SD_COPY.lblComentarioEmpleado)}</p>
-            <p class="rounded-lg border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-600">${escapeHtmlSd(s.comentario_empleado)}</p>
+            <p class="${LABEL} mb-2">${escapeHtml(SD_COPY.lblComentarioEmpleado)}</p>
+            <p class="rounded-lg border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-600">${escapeHtml(s.comentario_empleado)}</p>
           </div>
           ${saldoCards}
         </div>
@@ -164,7 +157,7 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5 shrink-0" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
-          ${escapeHtmlSd(SD_COPY.accionAprobar)}
+          ${escapeHtml(SD_COPY.accionAprobar)}
         </button>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
@@ -176,7 +169,7 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
             </svg>
-            ${escapeHtmlSd(SD_COPY.accionCambios)}
+            ${escapeHtml(SD_COPY.accionCambios)}
           </button>
           <button
             type="button"
@@ -187,7 +180,7 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
-            ${escapeHtmlSd(SD_COPY.accionRechazar)}
+            ${escapeHtml(SD_COPY.accionRechazar)}
           </button>
         </div>
       </div>
@@ -201,19 +194,19 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
           aria-controls="rh-sd-internal-panel"
         >
           <span class="text-lg leading-none" aria-hidden="true">+</span>
-          ${escapeHtmlSd(SD_COPY.toggleComentarioInterno)}
+          ${escapeHtml(SD_COPY.toggleComentarioInterno)}
         </button>
         <div id="rh-sd-internal-panel" class="mt-3 hidden space-y-2">
-          <label for="rh-sd-internal-ta" class="sr-only">${escapeHtmlSd(SD_COPY.toggleComentarioInterno)}</label>
+          <label for="rh-sd-internal-ta" class="sr-only">${escapeHtml(SD_COPY.toggleComentarioInterno)}</label>
           <textarea
             id="rh-sd-internal-ta"
             rows="4"
             class="w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25"
-            placeholder="${escapeHtmlSd(SD_COPY.placeholderComentarioInterno)}"
+            placeholder="${escapeHtml(SD_COPY.placeholderComentarioInterno)}"
           ></textarea>
-          <p class="text-xs text-slate-500">${escapeHtmlSd(SD_COPY.ayudaComentarioInterno)}</p>
+          <p class="text-xs text-slate-500">${escapeHtml(SD_COPY.ayudaComentarioInterno)}</p>
         </div>
       </div>
     </div>
-    <input type="hidden" id="rh-sd-solicitud-id" value="${escapeHtmlSd(vm.id)}" />`;
+    <input type="hidden" id="rh-sd-solicitud-id" value="${escapeHtml(vm.id)}" />`;
 }

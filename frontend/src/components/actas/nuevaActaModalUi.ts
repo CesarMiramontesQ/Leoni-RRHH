@@ -4,6 +4,7 @@ import type {
   NuevaActaFormErrors,
   NuevaActaSelectOption,
 } from "../../actas/nuevaActaModalConfig.ts";
+import { escapeHtml } from "../../ui/uiUtils.ts";
 
 type BuildNuevaActaFormHtmlParams = {
   formData: NuevaActaFormData;
@@ -14,14 +15,6 @@ type BuildNuevaActaFormHtmlParams = {
   isSubmitting: boolean;
   dragActive: boolean;
 };
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
 
 function renderSelectOptions(
   options: readonly NuevaActaSelectOption[],

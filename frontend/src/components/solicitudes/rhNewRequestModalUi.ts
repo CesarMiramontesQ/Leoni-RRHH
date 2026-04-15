@@ -7,14 +7,8 @@ import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../soli
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
-
-export function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
+import { escapeHtml } from "../../ui/uiUtils.ts";
+export { escapeHtml };
 
 /** Título de bloque (escaneable, accesible). */
 const SEC_TITLE =

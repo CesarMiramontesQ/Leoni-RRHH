@@ -7,14 +7,7 @@ import {
   type ActaEstadoCodigo,
 } from "../actas/actasMockData.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml } from "../ui/uiUtils.ts";
 
 function forbiddenHtml(): string {
   return `

@@ -13,17 +13,7 @@ import type {
 } from "../../incidencias/rh/types.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../utils/nombreEmpleadoDisplay.ts";
 import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
-
-function fmtFechaCorta(iso: string): string {
-  const p = iso.trim().split("-");
-  if (p.length !== 3) return iso;
-  const y = Number(p[0]);
-  const m = Number(p[1]);
-  const d = Number(p[2]);
-  if (!y || !m || !d) return iso;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
-}
+import { fmtFechaCorta } from "../../ui/uiUtils.ts";
 
 function fmtFechaHora(row: RhIncidenciaTablaFila): string {
   const raw = row.fecha_hora_iso?.trim();

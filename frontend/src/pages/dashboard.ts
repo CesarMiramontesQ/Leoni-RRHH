@@ -32,14 +32,7 @@ import {
 import { fetchLiderDashboard } from "../dashboard/lider/fetchLiderDashboard.ts";
 import { emptyLiderDashboardPayload } from "../dashboard/lider/mock.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
+import { escapeHtml } from "../ui/uiUtils.ts";
 
 function renderError(message: string): string {
   return `

@@ -3,6 +3,7 @@ import type {
   ComedorMenuOption,
   ComedorPersonType,
 } from "../../comedor/rh/types.ts";
+import { escapeHtml } from "../../ui/uiUtils.ts";
 
 export type ComedorNewRequestFormState = {
   personType: ComedorPersonType;
@@ -30,14 +31,6 @@ export type BuildComedorNewRequestFormParams = {
   searchEmployeesError: string | null;
   selectedEmployee: ComedorEmployeeOption | null;
 };
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
 
 function personTabClass(active: boolean): string {
   return active

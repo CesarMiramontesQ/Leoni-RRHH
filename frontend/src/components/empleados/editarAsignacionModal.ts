@@ -11,6 +11,7 @@ import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
 import { showEmpleadosToast } from "./toast.ts";
+import { escapeHtml } from "../../ui/uiUtils.ts";
 
 async function fetchEmpleadosParaLider(): Promise<UsuarioListItem[]> {
   const page_size = 100;
@@ -23,14 +24,6 @@ async function fetchEmpleadosParaLider(): Promise<UsuarioListItem[]> {
     page += 1;
   }
   return acc;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
 function shellHtml(): string {

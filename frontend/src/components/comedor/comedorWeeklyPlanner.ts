@@ -81,10 +81,6 @@ function renderPreview(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlan
     </article>`;
 }
 
-function menuValue(day: ComedorWeekPlanner["dias"][number], field: PlannerMenuField): string {
-  return field === "menuNormal" ? day.menuNormal : day.menuDieta;
-}
-
 export function renderComedorWeeklyPlanner(state: ComedorWeeklyPlannerViewState): string {
   if (state.panelState === "loading") {
     return `

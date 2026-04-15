@@ -8,17 +8,7 @@ import type {
 } from "./solicitudResueltaTypes.ts";
 import type { RhSolicitudTablaFila } from "./types.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
-
-function fmtFechaCorta(iso: string): string {
-  const p = iso.trim().split("-");
-  if (p.length !== 3) return iso;
-  const y = Number(p[0]);
-  const m = Number(p[1]);
-  const d = Number(p[2]);
-  if (!y || !m || !d) return iso;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "2-digit" });
-}
+import { fmtFechaCorta } from "../../ui/uiUtils.ts";
 
 function fmtFechaHora(ts: number): string {
   return new Date(ts).toLocaleString("es-MX", {
