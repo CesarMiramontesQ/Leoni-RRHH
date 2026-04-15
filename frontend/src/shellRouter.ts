@@ -32,6 +32,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     const h =
       getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/" : rawHash;
 
+    if (h.startsWith("#/reportes")) {
+      history.replaceState(null, "", "#/comedor/reporte");
+      mountComedor(container, signal);
+      return;
+    }
+
     if (h.startsWith("#/comedor")) {
       mountComedor(container, signal);
       return;

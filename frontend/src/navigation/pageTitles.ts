@@ -5,6 +5,7 @@
 const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }> = [
   { match: (h) => /^#\/empleados\/\d+/.test(h), titulo: "Vista 360" },
   { match: (h) => /^#\/actas\/\d+/.test(h), titulo: "Detalle de acta" },
+  { match: (h) => h.startsWith("#/comedor/reporte"), titulo: "Reporte comedor" },
   { match: (h) => h.startsWith("#/comedor/planear"), titulo: "Configuración de Menú Semanal" },
   { match: (h) => h.startsWith("#/empleados"), titulo: "Empleados" },
   { match: (h) => h.startsWith("#/comedor"), titulo: "Comedor" },
@@ -12,7 +13,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/solicitudes"), titulo: "Solicitudes" },
   { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/actas"), titulo: "Actas" },
-  { match: (h) => h.startsWith("#/reportes"), titulo: "Reportes" },
+  { match: (h) => h.startsWith("#/reportes"), titulo: "Reporte comedor" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];
 

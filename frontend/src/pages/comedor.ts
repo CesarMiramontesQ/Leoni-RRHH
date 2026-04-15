@@ -16,6 +16,11 @@ import {
   fetchComedorTeamReservationsMock,
 } from "../comedor/rh/mockData.ts";
 import {
+  fetchReporteComedorEmpleadosMock,
+  fetchReporteComedorFiltersMock,
+  fetchReporteComedorKpisMock,
+} from "../comedor/reportes/mockData.ts";
+import {
   clearWeekPlannerMock,
   createBlankWeekByStartIso,
   duplicatePreviousWeekMock,
@@ -47,8 +52,10 @@ import {
   type ComedorWeeklyPlannerViewState,
 } from "../components/comedor/comedorWeeklyPlanner.ts";
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
+import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { mountComedorStub } from "./shellModuleStubs.ts";
+import type { ReporteComedorViewState } from "../comedor/reportes/types.ts";
 
 type RhComedorState = {
   statsState: ComedorPanelState;
@@ -148,6 +155,12 @@ function toEmpleadoViewState(state: EmpleadoComedorState): ComedorDashboardEmple
     calendar: state.calendar,
     calendarError: state.calendarError,
   };
+}
+
+type ReporteComedorState = ReporteComedorViewState;
+
+function toReporteViewState(state: ReporteComedorState): ReporteComedorViewState {
+  return { ...state };
 }
 
 type RhPlannerState = {
@@ -358,7 +371,9 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         toastContainer: container,
         loadMenuOptions: fetchComedorMenuOptionsMock,
         searchEmployees: searchComedorEmployeesFromDb,
-        onSubmit: createComedorRequestMock,
+        onSubmit: async (payload) => {
+          await createComedorRequestMock(payload);
+        },
       })
     : null;
   let tableSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -974,7 +989,9 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         allowExternalPeople: false,
         loadMenuOptions: fetchComedorMenuOptionsMock,
         searchEmployees: searchComedorEmployeesFromDb,
-        onSubmit: createComedorRequestMock,
+        onSubmit: async (payload) => {
+          await createComedorRequestMock(payload);
+        },
       })
     : null;
   let tableSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1153,7 +1170,9 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           : null,
         loadMenuOptions: fetchComedorMenuOptionsMock,
         searchEmployees: async () => [],
-        onSubmit: createComedorRequestMock,
+        onSubmit: async (payload) => {
+          await createComedorRequestMock(payload);
+        },
       })
     : null;
   root?.addEventListener(
@@ -1214,12 +1233,191 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
   void loadCalendar();
 }
 
+function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void {
+  const state: ReporteComedorState = {
+    filtersDataset: {
+      departamentos: [{ id: "todos", label: "Todos los departamentos" }],
+      turnos: [{ id: "todos", label: "Todos los turnos" }],
+      fechaInicioIso: "2023-10-01",
+      fechaFinIso: "2023-10-31",
+    },
+    selectedDepartamentoId: "todos",
+    selectedTurnoId: "todos",
+    selectedFechaInicioIso: "2023-10-01",
+    selectedFechaFinIso: "2023-10-31",
+    kpisState: "loading",
+    kpis: null,
+    kpisError: null,
+    tableState: "loading",
+    table: null,
+    tableError: null,
+    selectedEmpleadoId: null,
+  };
+
+  function queryFromState(): {
+    departamentoId: string;
+    turnoId: string;
+    fechaInicioIso: string;
+    fechaFinIso: string;
+  } {
+    return {
+      departamentoId: state.selectedDepartamentoId,
+      turnoId: state.selectedTurnoId,
+      fechaInicioIso: state.selectedFechaInicioIso,
+      fechaFinIso: state.selectedFechaFinIso,
+    };
+  }
+
+  function normalizeSelection(): void {
+    const empleados = state.table?.empleados ?? [];
+    if (empleados.length === 0) {
+      state.selectedEmpleadoId = null;
+      return;
+    }
+    const stillExists = empleados.some((item) => item.id === state.selectedEmpleadoId);
+    if (!stillExists) {
+      state.selectedEmpleadoId = empleados[0]?.id ?? null;
+    }
+  }
+
+  function paint(): void {
+    const root = container.querySelector<HTMLElement>("#comedor-reporte-root");
+    if (!root) return;
+    root.innerHTML = renderComedorReporteDashboard(toReporteViewState(state));
+  }
+
+  async function loadFilters(): Promise<void> {
+    try {
+      const dataset = await fetchReporteComedorFiltersMock();
+      if (signal.aborted) return;
+      state.filtersDataset = dataset;
+      state.selectedDepartamentoId = dataset.departamentos[0]?.id ?? "todos";
+      state.selectedTurnoId = dataset.turnos[0]?.id ?? "todos";
+      state.selectedFechaInicioIso = dataset.fechaInicioIso;
+      state.selectedFechaFinIso = dataset.fechaFinIso;
+    } catch {
+      if (signal.aborted) return;
+    }
+    paint();
+  }
+
+  async function loadKpis(): Promise<void> {
+    state.kpisState = "loading";
+    state.kpisError = null;
+    paint();
+    try {
+      const rows = await fetchReporteComedorKpisMock(queryFromState());
+      if (signal.aborted) return;
+      state.kpis = rows;
+      state.kpisState = rows.length > 0 ? "ready" : "empty";
+    } catch (error) {
+      if (signal.aborted) return;
+      state.kpis = null;
+      state.kpisState = "error";
+      state.kpisError = error instanceof Error ? error.message : "Error al cargar métricas.";
+    }
+    paint();
+  }
+
+  async function loadTable(): Promise<void> {
+    state.tableState = "loading";
+    state.tableError = null;
+    paint();
+    try {
+      const dataset = await fetchReporteComedorEmpleadosMock(queryFromState());
+      if (signal.aborted) return;
+      state.table = dataset;
+      state.tableState = dataset.empleados.length > 0 ? "ready" : "empty";
+      normalizeSelection();
+    } catch (error) {
+      if (signal.aborted) return;
+      state.table = null;
+      state.tableState = "error";
+      state.tableError = error instanceof Error ? error.message : "Error al cargar empleados.";
+      state.selectedEmpleadoId = null;
+    }
+    paint();
+  }
+
+  async function reloadAll(): Promise<void> {
+    await Promise.all([loadKpis(), loadTable()]);
+  }
+
+  mountAppShell(container, {
+    pageTitle: "Reporte comedor",
+    activeNav: "comedor",
+    mainClass: "py-5 sm:py-6",
+    mainHtml: `<div id="comedor-reporte-root">${renderComedorReporteDashboard(toReporteViewState(state))}</div>`,
+  });
+
+  const root = container.querySelector<HTMLElement>("#comedor-reporte-root");
+  root?.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-comedor-reporte-retry-kpis]")) {
+        void loadKpis();
+        return;
+      }
+      if (target.closest("[data-comedor-reporte-retry-table]")) {
+        void loadTable();
+        return;
+      }
+      const row = target.closest<HTMLElement>("[data-comedor-reporte-row]");
+      if (row) {
+        state.selectedEmpleadoId = row.getAttribute("data-comedor-reporte-row");
+        paint();
+      }
+    },
+    { signal },
+  );
+
+  root?.addEventListener(
+    "change",
+    (event) => {
+      const target = event.target as HTMLElement;
+      const filter = target.closest<HTMLElement>("[data-comedor-reporte-filter]");
+      if (!filter) return;
+      const key = filter.getAttribute("data-comedor-reporte-filter");
+      if (!key) return;
+      if (key === "departamento" && filter instanceof HTMLSelectElement) {
+        state.selectedDepartamentoId = filter.value;
+      }
+      if (key === "turno" && filter instanceof HTMLSelectElement) {
+        state.selectedTurnoId = filter.value;
+      }
+      if (key === "fecha_inicio" && filter instanceof HTMLInputElement) {
+        state.selectedFechaInicioIso = filter.value;
+      }
+      if (key === "fecha_fin" && filter instanceof HTMLInputElement) {
+        state.selectedFechaFinIso = filter.value;
+      }
+      void reloadAll();
+    },
+    { signal },
+  );
+
+  void loadFilters().then(() => {
+    if (signal.aborted) return;
+    void reloadAll();
+  });
+}
+
 export function mountComedor(container: HTMLElement, signal: AbortSignal): void {
   const hash = window.location.hash || "#/comedor";
   const isPlannerRoute = hash.startsWith("#/comedor/planear");
   if (isPlannerRoute) {
     if (canAccessComedorRhPage()) {
       mountComedorRhPlanner(container, signal);
+      return;
+    }
+    history.replaceState(null, "", "#/comedor");
+  }
+
+  const isReporteRoute = hash.startsWith("#/comedor/reporte");
+  if (isReporteRoute) {
+    if (canAccessComedorRhPage() || canAccessComedorLiderPage()) {
+      mountComedorReporte(container, signal);
       return;
     }
     history.replaceState(null, "", "#/comedor");
