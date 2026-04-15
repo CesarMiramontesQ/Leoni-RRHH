@@ -17,47 +17,21 @@ import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-const FIELD_FOCUS =
-  "outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2";
-
-/** Contenedor de cada filtro: más compacto; en desktop ancho intenta una sola fila. */
-const RH_SOL_FILTERS_FIELD_WRAP =
-  "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[9rem] lg:basis-0 xl:min-w-[7.75rem]";
-
-/** Barra equilibrada cuando hay menos controles (p. ej. rol líder sin área/supervisor). */
-function filterFieldWrapClass(visibleCount: number): string {
-  if (visibleCount <= 2) {
-    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[8.75rem] lg:max-w-md lg:basis-0";
-  }
-  if (visibleCount === 3) {
-    return "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[8.75rem] lg:basis-0";
-  }
-  return RH_SOL_FILTERS_FIELD_WRAP;
-}
-
-const SELECT_CHEVRON = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-500 sm:size-4">
-  <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-</svg>`;
-
-function fmtFechaCorta(iso: string): string {
-  const p = iso.trim().split("-");
-  if (p.length !== 3) return iso;
-  const y = Number(p[0]);
-  const m = Number(p[1]);
-  const d = Number(p[2]);
-  if (!y || !m || !d) return iso;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
-}
+import { escapeHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
+import {
+  FIELD_FOCUS,
+  SELECT_CHEVRON,
+  FILTER_FIELD_WRAP,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  BTN_GHOST,
+  badgePending,
+  badgeApproved,
+  badgeRejected,
+  badgeCancelled,
+  badgeChangesRequested,
+  badgeOverridden,
+} from "../../ui/uiTokens.ts";
 
 function fmtPeriodo(row: RhSolicitudTablaFila): string {
   if (row.periodo_etiqueta?.trim()) return row.periodo_etiqueta.trim();
@@ -76,26 +50,13 @@ function badgeTipo(t: RhSolicitudTipoCodigo): string {
 
 function badgeEstado(e: RhSolicitudEstadoCodigo): string {
   switch (e) {
-    case "pending":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">
-        <span class="size-1.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>Pendiente</span>`;
-    case "approved":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">
-        <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Aprobado</span>`;
-    case "rejected":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
-        <span class="size-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true"></span>Rechazado</span>`;
-    case "changes_requested":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900">
-        <span class="size-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span>Cambios solicitados</span>`;
-    case "cancelled":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-        <span class="size-1.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true"></span>Cancelado</span>`;
-    case "overridden":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">
-        <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Override</span>`;
-    default:
-      return `<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">${escapeHtml(e)}</span>`;
+    case "pending":           return badgePending("Pendiente");
+    case "approved":          return badgeApproved("Aprobado");
+    case "rejected":          return badgeRejected("Rechazado");
+    case "changes_requested": return badgeChangesRequested("Cambios solicitados");
+    case "cancelled":         return badgeCancelled("Cancelado");
+    case "overridden":        return badgeOverridden("Override");
+    default:                  return escapeHtml(e);
   }
 }
 
@@ -113,25 +74,6 @@ function celdaEmpleado(row: RhSolicitudTablaFila): string {
         <p class="text-sm font-semibold text-slate-900">${escapeHtml(name)}</p>
       </div>
     </div>`;
-}
-
-function paginationRange(totalPages: number, p: number): (number | "ellipsis")[] {
-  if (totalPages <= 0) return [];
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
-  }
-  const out: (number | "ellipsis")[] = [];
-  const push = (x: number | "ellipsis"): void => {
-    if (out[out.length - 1] !== x) out.push(x);
-  };
-  push(1);
-  if (p > 3) push("ellipsis");
-  const start = Math.max(2, p - 1);
-  const end = Math.min(totalPages - 1, p + 1);
-  for (let i = start; i <= end; i++) push(i);
-  if (p < totalPages - 2) push("ellipsis");
-  push(totalPages);
-  return out;
 }
 
 function filtrosActivos(f: RhSolicitudFilterState, keys: readonly RequestFilterKey[]): boolean {
@@ -337,7 +279,7 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
   const f = vm.filters;
   const opt = vm.filterOptions;
   const keys = vm.ui.visibleFilterKeys;
-  const wrapCls = filterFieldWrapClass(keys.length);
+  const wrapCls = FILTER_FIELD_WRAP;
 
   const tipoOpts =
     `<option value="" ${f.tipo === "" ? "selected" : ""}>Todos los tipos</option>` +
@@ -410,7 +352,7 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
         <button
           type="button"
           data-rh-sol-clear-filters
-          class="inline-flex h-8 w-full min-h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto sm:text-sm"
+          class="${BTN_GHOST} w-full sm:w-auto"
         >
           Limpiar filtros
         </button>
@@ -432,7 +374,7 @@ function renderFiltersSkeleton(visibleCount: number): string {
       <div class="mb-1 h-3 w-24 max-w-full rounded bg-slate-200"></div>
       <div class="h-8 w-full rounded-md bg-slate-100"></div>
     </div>`;
-  const wrapCls = filterFieldWrapClass(visibleCount);
+  const wrapCls = FILTER_FIELD_WRAP;
   const slots = Array.from({ length: Math.max(1, visibleCount) }, () => `<div class="${wrapCls}">${cell}</div>`).join(
     "",
   );
@@ -770,7 +712,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       ? `<button
             type="button"
             id="rh-sol-nueva"
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4"
+            class="${BTN_PRIMARY} shrink-0"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
@@ -794,7 +736,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     ? `<button
             type="button"
             id="rh-sol-export"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+            class="${BTN_SECONDARY}"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -807,7 +749,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     ? `<button
             type="button"
             id="rh-sol-nueva"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-leoni-blue px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+            class="${BTN_PRIMARY}"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
