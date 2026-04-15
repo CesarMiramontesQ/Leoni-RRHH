@@ -20,14 +20,8 @@ import type { EditarAsignacionModalHandle } from "../components/empleados/editar
 import { mountAppShell } from "../layouts/appShell.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
+import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
+import { FIELD_FOCUS, SELECT_CHEVRON, BTN_GHOST } from "../ui/uiTokens.ts";
 
 function nombreEmpleadoTablaMostrar(raw: string): string {
   return formatNombreEmpleadoUi(raw) || "Sin nombre";
@@ -58,25 +52,6 @@ function parseActivoRh(s: State["activo_rh"]): boolean | undefined {
   if (s === "true") return true;
   if (s === "false") return false;
   return undefined;
-}
-
-function paginationRange(totalPages: number, p: number): (number | "ellipsis")[] {
-  if (totalPages <= 0) return [];
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
-  }
-  const out: (number | "ellipsis")[] = [];
-  const push = (x: number | "ellipsis"): void => {
-    if (out[out.length - 1] !== x) out.push(x);
-  };
-  push(1);
-  if (p > 3) push("ellipsis");
-  const start = Math.max(2, p - 1);
-  const end = Math.min(totalPages - 1, p + 1);
-  for (let i = start; i <= end; i++) push(i);
-  if (p < totalPages - 2) push("ellipsis");
-  push(totalPages);
-  return out;
 }
 
 function round1(n: number): number {
@@ -310,21 +285,14 @@ function rowHtml(u: UsuarioListItem, isRh: boolean): string {
     </tr>`;
 }
 
-const EMPLEADOS_SELECT_CHEVRON = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-500 sm:size-4">
-  <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-</svg>`;
-
-const EMPLEADOS_FIELD_FOCUS =
-  "outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2";
-
 function empleadosSelectFilter(id: string, name: string, labelText: string, optionsHtml: string): string {
   return `<div>
   <label for="${id}" class="block text-sm/6 font-medium text-gray-900">${escapeHtml(labelText)}</label>
   <div class="mt-2 grid grid-cols-1">
-    <select id="${id}" name="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 sm:text-sm/6 ${EMPLEADOS_FIELD_FOCUS}">
+    <select id="${id}" name="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 sm:text-sm/6 ${FIELD_FOCUS}">
       ${optionsHtml}
     </select>
-    ${EMPLEADOS_SELECT_CHEVRON}
+    ${SELECT_CHEVRON}
   </div>
 </div>`;
 }
@@ -339,7 +307,7 @@ function empleadosSearchInput(value: string): string {
               autocomplete="off"
               placeholder="Buscar por nombre, ID o número de empleado..."
               value="${escapeHtml(value)}"
-              class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 placeholder:text-gray-400 sm:text-sm/6 ${EMPLEADOS_FIELD_FOCUS}"
+              class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 placeholder:text-gray-400 sm:text-sm/6 ${FIELD_FOCUS}"
             />
           </div>`;
 }
@@ -380,7 +348,7 @@ function renderPanel(
             <option value="false" ${state.activo_rh === "false" ? "selected" : ""}>No activos</option>`;
 
   const clearBtn = filtrosActivos(state, isRh)
-    ? `<button type="button" data-emp-clear-filters class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">Limpiar filtros</button>`
+    ? `<button type="button" data-emp-clear-filters class="${BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
     : "";
 
   const filtrosToolbar = clearBtn
@@ -433,7 +401,7 @@ function renderPanel(
           <p class="text-sm font-medium text-slate-600">Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${pg.total}</span> empleados</p>
           <div class="flex flex-wrap items-center gap-2">
             <label for="emp-page-size" class="text-sm font-medium text-slate-600">Registros por página</label>
-            <select id="emp-page-size" name="emp-page-size" class="rounded-md border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-800 shadow-sm ${EMPLEADOS_FIELD_FOCUS}">
+            <select id="emp-page-size" name="emp-page-size" class="rounded-md border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-800 shadow-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
