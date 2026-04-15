@@ -11,6 +11,9 @@ describe("escapeHtml", () => {
   it("sin caracteres especiales", () => {
     expect(escapeHtml("hola mundo")).toBe("hola mundo");
   });
+  it("escapa comilla simple", () => {
+    expect(escapeHtml("it's")).toBe("it&#x27;s");
+  });
 });
 
 describe("fmtFechaCorta", () => {
@@ -22,6 +25,10 @@ describe("fmtFechaCorta", () => {
   it("retorna el input original si el formato es inválido", () => {
     expect(fmtFechaCorta("no-es-fecha")).toBe("no-es-fecha");
     expect(fmtFechaCorta("")).toBe("");
+  });
+  it("retorna ISO original para fecha con mes fuera de rango (overflow)", () => {
+    expect(fmtFechaCorta("2025-13-01")).toBe("2025-13-01");
+    expect(fmtFechaCorta("2025-01-32")).toBe("2025-01-32");
   });
 });
 
@@ -45,6 +52,18 @@ describe("paginationRange", () => {
   });
   it("página 10 de 10: no hay ellipsis al final", () => {
     const result = paginationRange(10, 10);
+    expect(result[result.length - 1]).toBe(10);
+    expect(result[result.length - 2]).toBe(9);
+  });
+  it("currentPage <= 0: se trata como página 1", () => {
+    const result = paginationRange(10, 0);
+    expect(result[0]).toBe(1);
+    expect(result[1]).toBe(2);
+    // p se clampea a 1, mismo resultado que paginationRange(10, 1)
+    expect(result).toEqual(paginationRange(10, 1));
+  });
+  it("currentPage > totalPages: se trata como la última página", () => {
+    const result = paginationRange(10, 15);
     expect(result[result.length - 1]).toBe(10);
     expect(result[result.length - 2]).toBe(9);
   });

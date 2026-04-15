@@ -9,7 +9,8 @@ export function escapeHtml(s: string): string {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#x27;");
 }
 
 /** Formatea fecha ISO 'YYYY-MM-DD' a string localizado en es-MX (ej: "15 ene. 2025"). */
@@ -32,17 +33,18 @@ export function fmtFechaCorta(iso: string): string {
  */
 export function paginationRange(totalPages: number, currentPage: number): (number | "ellipsis")[] {
   if (totalPages <= 0) return [];
+  const p = Math.max(1, Math.min(totalPages, currentPage));
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
   const out: (number | "ellipsis")[] = [];
   const push = (x: number | "ellipsis"): void => {
     if (out[out.length - 1] !== x) out.push(x);
   };
   push(1);
-  if (currentPage > 3) push("ellipsis");
-  const start = Math.max(2, currentPage - 1);
-  const end = Math.min(totalPages - 1, currentPage + 1);
+  if (p > 3) push("ellipsis");
+  const start = Math.max(2, p - 1);
+  const end = Math.min(totalPages - 1, p + 1);
   for (let i = start; i <= end; i++) push(i);
-  if (currentPage < totalPages - 2) push("ellipsis");
+  if (p < totalPages - 2) push("ellipsis");
   push(totalPages);
   return out;
 }
