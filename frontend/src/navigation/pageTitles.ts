@@ -4,6 +4,8 @@
  */
 const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }> = [
   { match: (h) => /^#\/empleados\/\d+/.test(h), titulo: "Vista 360" },
+  { match: (h) => /^#\/actas\/\d+/.test(h), titulo: "Detalle de acta" },
+  { match: (h) => h.startsWith("#/comedor/planear"), titulo: "Configuración de Menú Semanal" },
   { match: (h) => h.startsWith("#/empleados"), titulo: "Empleados" },
   { match: (h) => h.startsWith("#/comedor"), titulo: "Comedor" },
   { match: (h) => h.startsWith("#/notificaciones"), titulo: "Notificaciones" },

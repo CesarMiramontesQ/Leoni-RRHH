@@ -3,9 +3,11 @@ import { empleadoMayAccessHash } from "./navigation/shellNavPolicy.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360 } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
+import { mountActaDetalle } from "./pages/actaDetalle.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
 import { mountIncidencias } from "./pages/incidencias.ts";
-import { mountComedorStub, mountNotificacionesStub } from "./pages/shellModuleStubs.ts";
+import { mountComedor } from "./pages/comedor.ts";
+import { mountNotificacionesStub } from "./pages/shellModuleStubs.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 
 let routeAbort: AbortController | null = null;
@@ -31,13 +33,22 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/" : rawHash;
 
     if (h.startsWith("#/comedor")) {
-      mountComedorStub(container);
+      mountComedor(container, signal);
       return;
     }
     if (h.startsWith("#/notificaciones")) {
       mountNotificacionesStub(container);
       return;
     }
+    const actaMatch = h.match(/^#\/actas\/(\d+)\/?/);
+    if (actaMatch) {
+      const id = Number.parseInt(actaMatch[1] ?? "", 10);
+      if (!Number.isNaN(id)) {
+        mountActaDetalle(container, id, signal);
+        return;
+      }
+    }
+
     if (h.startsWith("#/actas")) {
       mountActas(container);
       return;

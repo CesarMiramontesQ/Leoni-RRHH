@@ -14,23 +14,16 @@ import {
 } from "../utils/rhListadoTablaLayout.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-
-type ActaTipoCodigo = "amonestacion" | "suspension" | "administrativa";
-type ActaEstadoCodigo = "abierta" | "en_proceso" | "firmada" | "cerrada";
-
-type ActaTablaFila = {
-  id: number;
-  folio: string;
-  empleado_id: string;
-  empleado_nombre_raw: string;
-  foto_url: string | null;
-  area: string;
-  supervisor_id: string;
-  supervisor_nombre: string;
-  tipo: ActaTipoCodigo;
-  fecha: string;
-  estado: ActaEstadoCodigo;
-};
+import {
+  ACTAS_ESTADOS,
+  ACTAS_MOCK_ROWS,
+  ACTAS_PERIODOS,
+  ACTAS_SUPERVISORES,
+  ACTAS_TIPOS,
+  type ActaEstadoCodigo,
+  type ActaTablaFila,
+  type ActaTipoCodigo,
+} from "../actas/actasMockData.ts";
 
 type ActasTableData = {
   items: ActaTablaFila[];
@@ -55,47 +48,6 @@ type ActasFilterState = {
   page: number;
   page_size: number;
 };
-
-const ACTAS_MOCK_ROWS: readonly ActaTablaFila[] = [
-  { id: 1, folio: "ACT-2401", empleado_id: "emp-1001", empleado_nombre_raw: "JUAN PEREZ", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "amonestacion", fecha: "2026-04-12", estado: "abierta" },
-  { id: 2, folio: "ACT-2402", empleado_id: "emp-1002", empleado_nombre_raw: "MARIA LOPEZ", foto_url: null, area: "Calidad", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "suspension", fecha: "2026-04-10", estado: "en_proceso" },
-  { id: 3, folio: "ACT-2403", empleado_id: "emp-1003", empleado_nombre_raw: "LUIS HERNANDEZ", foto_url: null, area: "Logística", supervisor_id: "sup-3", supervisor_nombre: "Miguel Sánchez", tipo: "administrativa", fecha: "2026-04-07", estado: "firmada" },
-  { id: 4, folio: "ACT-2404", empleado_id: "emp-1004", empleado_nombre_raw: "DANIELA CRUZ", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "amonestacion", fecha: "2026-04-05", estado: "cerrada" },
-  { id: 5, folio: "ACT-2405", empleado_id: "emp-1005", empleado_nombre_raw: "JESUS MORALES", foto_url: null, area: "Almacén", supervisor_id: "sup-3", supervisor_nombre: "Miguel Sánchez", tipo: "suspension", fecha: "2026-04-02", estado: "abierta" },
-  { id: 6, folio: "ACT-2406", empleado_id: "emp-1006", empleado_nombre_raw: "SOFIA RAMIREZ", foto_url: null, area: "Calidad", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "administrativa", fecha: "2026-03-30", estado: "en_proceso" },
-  { id: 7, folio: "ACT-2407", empleado_id: "emp-1007", empleado_nombre_raw: "ANDRES GOMEZ", foto_url: null, area: "Mantenimiento", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "amonestacion", fecha: "2026-03-28", estado: "firmada" },
-  { id: 8, folio: "ACT-2408", empleado_id: "emp-1008", empleado_nombre_raw: "PAOLA RIVERA", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "suspension", fecha: "2026-03-24", estado: "cerrada" },
-  { id: 9, folio: "ACT-2409", empleado_id: "emp-1009", empleado_nombre_raw: "MARIO TORRES", foto_url: null, area: "Logística", supervisor_id: "sup-3", supervisor_nombre: "Miguel Sánchez", tipo: "administrativa", fecha: "2026-03-20", estado: "abierta" },
-  { id: 10, folio: "ACT-2410", empleado_id: "emp-1010", empleado_nombre_raw: "ELENA VARGAS", foto_url: null, area: "Calidad", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "amonestacion", fecha: "2026-03-15", estado: "firmada" },
-  { id: 11, folio: "ACT-2411", empleado_id: "emp-1011", empleado_nombre_raw: "RICARDO FLORES", foto_url: null, area: "Compras", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "suspension", fecha: "2026-03-10", estado: "cerrada" },
-  { id: 12, folio: "ACT-2412", empleado_id: "emp-1012", empleado_nombre_raw: "FERNANDA ORTIZ", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "administrativa", fecha: "2026-02-26", estado: "en_proceso" },
-];
-
-const ACTAS_SUPERVISORES: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "sup-1", label: "Carlos Pérez" },
-  { id: "sup-2", label: "Ana Gutiérrez" },
-  { id: "sup-3", label: "Miguel Sánchez" },
-];
-
-const ACTAS_TIPOS: ReadonlyArray<{ id: ActaTipoCodigo; label: string }> = [
-  { id: "amonestacion", label: "Amonestación" },
-  { id: "suspension", label: "Suspensión" },
-  { id: "administrativa", label: "Administrativa" },
-];
-
-const ACTAS_ESTADOS: ReadonlyArray<{ id: ActaEstadoCodigo; label: string }> = [
-  { id: "abierta", label: "Abierta" },
-  { id: "en_proceso", label: "En proceso" },
-  { id: "firmada", label: "Firmada" },
-  { id: "cerrada", label: "Cerrada" },
-];
-
-const ACTAS_PERIODOS: ReadonlyArray<{ id: ActasFilterState["periodo"]; label: string }> = [
-  { id: "30d", label: "Últimos 30 días" },
-  { id: "90d", label: "Últimos 90 días" },
-  { id: "365d", label: "Últimos 12 meses" },
-  { id: "all", label: "Todo" },
-];
 
 // TODO: reemplazar por catálogo real desde API de usuarios RH.
 const ACTAS_RESPONSABLES_RH: readonly NuevaActaSelectOption[] = [
@@ -419,9 +371,21 @@ function renderActasTable(table: ActasTableData, filters: ActasFilterState): str
       : table.items
           .map(
             (row) => `
-      <tr class="transition-colors hover:bg-slate-100/90">
+      <tr
+        class="cursor-pointer transition-colors hover:bg-slate-100/90 focus-within:bg-slate-50/90"
+        tabindex="0"
+        role="button"
+        data-rh-actas-row="1"
+        data-rh-actas-id="${row.id}"
+      >
         <td class="px-3 py-2.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>
-        <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeHtml(row.folio)}</td>
+        <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">
+          <a
+            href="#/actas/${row.id}"
+            data-rh-actas-open="${row.id}"
+            class="rounded text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+          >${escapeHtml(row.folio)}</a>
+        </td>
         <td class="max-w-40 px-3 py-2.5 align-middle text-sm text-slate-700 sm:px-4"><span class="block truncate" title="${escapeHtml(row.area)}">${escapeHtml(row.area)}</span></td>
         <td class="px-3 py-2.5 align-middle sm:px-4">${badgeTipo(row.tipo)}</td>
         <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha))}</td>
@@ -683,6 +647,19 @@ export function mountActas(container: HTMLElement): void {
 
   pageRoot?.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
+    const openLink = target.closest<HTMLAnchorElement>("[data-rh-actas-open]");
+    if (openLink) {
+      return;
+    }
+    const row = target.closest<HTMLTableRowElement>("tr[data-rh-actas-row]");
+    if (row) {
+      const raw = row.getAttribute("data-rh-actas-id");
+      const id = raw ? Number.parseInt(raw, 10) : NaN;
+      if (Number.isFinite(id)) {
+        window.location.hash = `#/actas/${id}`;
+      }
+      return;
+    }
     if (target.closest("#rh-actas-nueva")) {
       nuevaActaModal?.open();
       return;
@@ -706,6 +683,19 @@ export function mountActas(container: HTMLElement): void {
         state.page = n;
         paint();
       }
+    }
+  });
+
+  pageRoot?.addEventListener("keydown", (event: Event) => {
+    const ke = event as KeyboardEvent;
+    const row = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-actas-row]");
+    if (!row) return;
+    if (ke.key !== "Enter" && ke.key !== " ") return;
+    ke.preventDefault();
+    const raw = row.getAttribute("data-rh-actas-id");
+    const id = raw ? Number.parseInt(raw, 10) : NaN;
+    if (Number.isFinite(id)) {
+      window.location.hash = `#/actas/${id}`;
     }
   });
 }

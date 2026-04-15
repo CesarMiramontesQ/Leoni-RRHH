@@ -62,6 +62,17 @@ export function canAccessRhOperationalDashboard(): boolean {
   return getRolFromAccessToken() === "rh";
 }
 
+/** Vista operativa de comedor (`#/comedor`) exclusiva para RH. */
+export function canAccessComedorRhPage(): boolean {
+  return getRolFromAccessToken() === "rh";
+}
+
+/** Vista de comedor para líderes (`#/comedor`): propio + equipo, sin analítica avanzada. */
+export function canAccessComedorLiderPage(): boolean {
+  const r = getRolFromAccessToken();
+  return r === "supervisor" || r === "gerente";
+}
+
 /** Dashboard personal (vacaciones, HO, comidas) solo para el propio empleado. */
 export function canAccessEmpleadoPersonalDashboard(): boolean {
   return getRolFromAccessToken() === "empleado";
