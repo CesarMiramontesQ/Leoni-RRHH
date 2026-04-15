@@ -11,18 +11,8 @@ import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
-import { escapeIncHtml, INC_FIELD_FOCUS } from "./rhIncidenciasUiUtils.ts";
-
-function fmtFechaCorta(iso: string): string {
-  const p = iso.trim().split("-");
-  if (p.length !== 3) return iso;
-  const y = Number(p[0]);
-  const m = Number(p[1]);
-  const d = Number(p[2]);
-  if (!y || !m || !d) return iso;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
-}
+import { escapeHtml as escapeIncHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
+import { FIELD_FOCUS as INC_FIELD_FOCUS, badgeOpen, badgeInProgress, badgeCancelled } from "../../ui/uiTokens.ts";
 
 function labelTipo(t: RhIncidenciaTipoCodigo): string {
   switch (t) {
@@ -64,20 +54,15 @@ function labelEstado(e: RhIncidenciaEstadoCodigo): string {
 }
 
 function badgeEstadoFromRow(row: RhIncidenciaTablaFila): string {
-  const text = escapeIncHtml(labelEstado(row.estado));
   switch (row.estado) {
     case "abierto":
-      return `<span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 sm:text-sm">
-        <span class="size-1.5 shrink-0 rounded-full bg-blue-500 sm:size-2" aria-hidden="true"></span>${text}</span>`;
+      return badgeOpen("Abierto");
     case "en_investigacion":
-      return `<span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 sm:text-sm">
-        <span class="size-1.5 shrink-0 rounded-full bg-amber-500 sm:size-2" aria-hidden="true"></span>${text}</span>`;
+      return badgeInProgress("En investigación");
     case "cerrado":
-      return `<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-900 ring-1 ring-emerald-200/90">${escapeIncHtml(
-        INC_COPY.estadoCerrada.toUpperCase(),
-      )}</span>`;
+      return badgeCancelled("Cerrado");
     default:
-      return text;
+      return escapeIncHtml(labelEstado(row.estado));
   }
 }
 
@@ -125,25 +110,6 @@ function celdaEmpleado(row: RhIncidenciaTablaFila): string {
         <p class="text-sm font-semibold text-slate-900">${escapeIncHtml(name)}</p>
       </div>
     </div>`;
-}
-
-function paginationRange(totalPages: number, p: number): (number | "ellipsis")[] {
-  if (totalPages <= 0) return [];
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
-  }
-  const out: (number | "ellipsis")[] = [];
-  const push = (x: number | "ellipsis"): void => {
-    if (out[out.length - 1] !== x) out.push(x);
-  };
-  push(1);
-  if (p > 3) push("ellipsis");
-  const start = Math.max(2, p - 1);
-  const end = Math.min(totalPages - 1, p + 1);
-  for (let i = start; i <= end; i++) push(i);
-  if (p < totalPages - 2) push("ellipsis");
-  push(totalPages);
-  return out;
 }
 
 /** Tabla de incidencias, estados vacío/carga/error y pie con paginación. */
