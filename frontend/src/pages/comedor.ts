@@ -55,7 +55,12 @@ import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../c
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { mountComedorStub } from "./shellModuleStubs.ts";
-import type { ReporteComedorViewState } from "../comedor/reportes/types.ts";
+import type {
+  ReporteComedorDatePreset,
+  ReporteComedorSortDirection,
+  ReporteComedorSortKey,
+  ReporteComedorViewState,
+} from "../comedor/reportes/types.ts";
 
 type RhComedorState = {
   statsState: ComedorPanelState;
@@ -161,6 +166,56 @@ type ReporteComedorState = ReporteComedorViewState;
 
 function toReporteViewState(state: ReporteComedorState): ReporteComedorViewState {
   return { ...state };
+}
+
+function toIsoDate(value: Date): string {
+  const y = String(value.getFullYear()).padStart(4, "0");
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function startOfMonth(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
+}
+
+function endOfMonth(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth() + 1, 0);
+}
+
+function dateRangeFromPreset(preset: Exclude<ReporteComedorDatePreset, "custom">): {
+  inicioIso: string;
+  finIso: string;
+} {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (preset === "last_7") {
+    const start = new Date(today);
+    start.setDate(today.getDate() - 6);
+    return { inicioIso: toIsoDate(start), finIso: toIsoDate(today) };
+  }
+  if (preset === "last_30") {
+    const start = new Date(today);
+    start.setDate(today.getDate() - 29);
+    return { inicioIso: toIsoDate(start), finIso: toIsoDate(today) };
+  }
+  if (preset === "this_month") {
+    return { inicioIso: toIsoDate(startOfMonth(today)), finIso: toIsoDate(endOfMonth(today)) };
+  }
+  const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return {
+    inicioIso: toIsoDate(startOfMonth(previousMonth)),
+    finIso: toIsoDate(endOfMonth(previousMonth)),
+  };
+}
+
+function toUpdatedLabel(timestamp: number): string {
+  const formatter = new Intl.DateTimeFormat("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return formatter.format(timestamp);
 }
 
 type RhPlannerState = {
@@ -1234,23 +1289,33 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
 }
 
 function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void {
+  const initialRange = dateRangeFromPreset("this_month");
   const state: ReporteComedorState = {
     filtersDataset: {
       departamentos: [{ id: "todos", label: "Todos los departamentos" }],
       turnos: [{ id: "todos", label: "Todos los turnos" }],
-      fechaInicioIso: "2023-10-01",
-      fechaFinIso: "2023-10-31",
+      fechaInicioIso: initialRange.inicioIso,
+      fechaFinIso: initialRange.finIso,
     },
+    draftDepartamentoId: "todos",
+    draftTurnoId: "todos",
+    draftFechaInicioIso: initialRange.inicioIso,
+    draftFechaFinIso: initialRange.finIso,
+    draftDatePreset: "this_month",
     selectedDepartamentoId: "todos",
     selectedTurnoId: "todos",
-    selectedFechaInicioIso: "2023-10-01",
-    selectedFechaFinIso: "2023-10-31",
+    selectedFechaInicioIso: initialRange.inicioIso,
+    selectedFechaFinIso: initialRange.finIso,
     kpisState: "loading",
     kpis: null,
     kpisError: null,
     tableState: "loading",
     table: null,
     tableError: null,
+    tableSearch: "",
+    tableSortKey: "dias_mes",
+    tableSortDirection: "desc",
+    lastUpdatedLabel: null,
     selectedEmpleadoId: null,
   };
 
@@ -1295,6 +1360,11 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       state.selectedTurnoId = dataset.turnos[0]?.id ?? "todos";
       state.selectedFechaInicioIso = dataset.fechaInicioIso;
       state.selectedFechaFinIso = dataset.fechaFinIso;
+      state.draftDepartamentoId = state.selectedDepartamentoId;
+      state.draftTurnoId = state.selectedTurnoId;
+      state.draftFechaInicioIso = state.selectedFechaInicioIso;
+      state.draftFechaFinIso = state.selectedFechaFinIso;
+      state.draftDatePreset = "custom";
     } catch {
       if (signal.aborted) return;
     }
@@ -1341,11 +1411,69 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
 
   async function reloadAll(): Promise<void> {
     await Promise.all([loadKpis(), loadTable()]);
+    if (signal.aborted) return;
+    state.lastUpdatedLabel = toUpdatedLabel(Date.now());
+    paint();
+  }
+
+  function applyFilters(): void {
+    state.selectedDepartamentoId = state.draftDepartamentoId;
+    state.selectedTurnoId = state.draftTurnoId;
+    state.selectedFechaInicioIso = state.draftFechaInicioIso;
+    state.selectedFechaFinIso = state.draftFechaFinIso;
+    void reloadAll();
+  }
+
+  function clearFilters(): void {
+    const defaultDepartamentoId = state.filtersDataset.departamentos[0]?.id ?? "todos";
+    const defaultTurnoId = state.filtersDataset.turnos[0]?.id ?? "todos";
+    const inicioIso = state.filtersDataset.fechaInicioIso;
+    const finIso = state.filtersDataset.fechaFinIso;
+    state.draftDepartamentoId = defaultDepartamentoId;
+    state.draftTurnoId = defaultTurnoId;
+    state.draftFechaInicioIso = inicioIso;
+    state.draftFechaFinIso = finIso;
+    state.draftDatePreset = "custom";
+    applyFilters();
+  }
+
+  function applyDatePreset(preset: Exclude<ReporteComedorDatePreset, "custom">): void {
+    const range = dateRangeFromPreset(preset);
+    state.draftDatePreset = preset;
+    state.draftFechaInicioIso = range.inicioIso;
+    state.draftFechaFinIso = range.finIso;
+    paint();
+  }
+
+  function removeActiveChip(chip: "departamento" | "turno" | "fecha"): void {
+    if (chip === "departamento") {
+      state.draftDepartamentoId = state.filtersDataset.departamentos[0]?.id ?? "todos";
+    }
+    if (chip === "turno") {
+      state.draftTurnoId = state.filtersDataset.turnos[0]?.id ?? "todos";
+    }
+    if (chip === "fecha") {
+      state.draftFechaInicioIso = state.filtersDataset.fechaInicioIso;
+      state.draftFechaFinIso = state.filtersDataset.fechaFinIso;
+      state.draftDatePreset = "custom";
+    }
+    applyFilters();
+  }
+
+  function updateTableSort(nextKey: ReporteComedorSortKey): void {
+    if (state.tableSortKey === nextKey) {
+      state.tableSortDirection = state.tableSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      state.tableSortKey = nextKey;
+      const defaultDir: ReporteComedorSortDirection = nextKey === "nombre" ? "asc" : "desc";
+      state.tableSortDirection = defaultDir;
+    }
+    paint();
   }
 
   mountAppShell(container, {
     pageTitle: "Reporte comedor",
-    activeNav: "comedor",
+    activeNav: "reportes",
     mainClass: "py-5 sm:py-6",
     mainHtml: `<div id="comedor-reporte-root">${renderComedorReporteDashboard(toReporteViewState(state))}</div>`,
   });
@@ -1361,6 +1489,34 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       }
       if (target.closest("[data-comedor-reporte-retry-table]")) {
         void loadTable();
+        return;
+      }
+      if (target.closest("[data-comedor-reporte-clear-filters]")) {
+        clearFilters();
+        return;
+      }
+      const presetBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-date-preset]");
+      if (presetBtn) {
+        const preset = presetBtn.getAttribute("data-comedor-reporte-date-preset");
+        if (preset === "last_7" || preset === "last_30" || preset === "this_month" || preset === "previous_month") {
+          applyDatePreset(preset);
+        }
+        return;
+      }
+      const clearChipBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-clear-chip]");
+      if (clearChipBtn) {
+        const chip = clearChipBtn.getAttribute("data-comedor-reporte-clear-chip");
+        if (chip === "departamento" || chip === "turno" || chip === "fecha") {
+          removeActiveChip(chip);
+        }
+        return;
+      }
+      const sortBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-sort]");
+      if (sortBtn) {
+        const key = sortBtn.getAttribute("data-comedor-reporte-sort");
+        if (key === "nombre" || key === "dias_mes" || key === "menu" || key === "estado") {
+          updateTableSort(key);
+        }
         return;
       }
       const row = target.closest<HTMLElement>("[data-comedor-reporte-row]");
@@ -1381,18 +1537,32 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       const key = filter.getAttribute("data-comedor-reporte-filter");
       if (!key) return;
       if (key === "departamento" && filter instanceof HTMLSelectElement) {
-        state.selectedDepartamentoId = filter.value;
+        state.draftDepartamentoId = filter.value;
       }
       if (key === "turno" && filter instanceof HTMLSelectElement) {
-        state.selectedTurnoId = filter.value;
+        state.draftTurnoId = filter.value;
       }
       if (key === "fecha_inicio" && filter instanceof HTMLInputElement) {
-        state.selectedFechaInicioIso = filter.value;
+        state.draftFechaInicioIso = filter.value;
+        state.draftDatePreset = "custom";
       }
       if (key === "fecha_fin" && filter instanceof HTMLInputElement) {
-        state.selectedFechaFinIso = filter.value;
+        state.draftFechaFinIso = filter.value;
+        state.draftDatePreset = "custom";
       }
-      void reloadAll();
+      paint();
+    },
+    { signal },
+  );
+
+  root?.addEventListener(
+    "input",
+    (event) => {
+      const target = event.target as HTMLElement;
+      const search = target.closest<HTMLInputElement>("[data-comedor-reporte-search]");
+      if (!search) return;
+      state.tableSearch = search.value;
+      paint();
     },
     { signal },
   );

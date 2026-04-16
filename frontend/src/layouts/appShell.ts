@@ -29,6 +29,7 @@ export type ShellNavKey =
   | "incidencias"
   | "actas"
   | "comedor"
+  | "reportes"
   | "notificaciones";
 
 type NavItemDef = {
@@ -101,7 +102,7 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
   },
   {
     id: "reportes",
-    key: null,
+    key: "reportes",
     hrefFor: (rol) =>
       rol === "rh" || rol === "supervisor" || rol === "gerente" || rol === "director"
         ? "#/comedor/reporte"

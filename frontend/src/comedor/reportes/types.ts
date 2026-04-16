@@ -62,8 +62,19 @@ export type ReporteComedorFiltersQuery = {
   fechaFinIso: string;
 };
 
+export type ReporteComedorDatePreset = "last_7" | "last_30" | "this_month" | "previous_month" | "custom";
+
+export type ReporteComedorSortKey = "nombre" | "dias_mes" | "menu" | "estado";
+
+export type ReporteComedorSortDirection = "asc" | "desc";
+
 export type ReporteComedorViewState = {
   filtersDataset: ReporteComedorFiltersDataset;
+  draftDepartamentoId: string;
+  draftTurnoId: string;
+  draftFechaInicioIso: string;
+  draftFechaFinIso: string;
+  draftDatePreset: ReporteComedorDatePreset;
   selectedDepartamentoId: string;
   selectedTurnoId: string;
   selectedFechaInicioIso: string;
@@ -74,5 +85,9 @@ export type ReporteComedorViewState = {
   tableState: ComedorPanelState;
   table: ReporteComedorTableResponse | null;
   tableError: string | null;
+  tableSearch: string;
+  tableSortKey: ReporteComedorSortKey;
+  tableSortDirection: ReporteComedorSortDirection;
+  lastUpdatedLabel: string | null;
   selectedEmpleadoId: string | null;
 };
