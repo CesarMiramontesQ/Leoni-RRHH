@@ -62,6 +62,11 @@ export function canAccessRhOperationalDashboard(): boolean {
   return getRolFromAccessToken() === "rh";
 }
 
+/** Página de organigrama empresarial (`#/organigrama`) exclusiva para RH. */
+export function canAccessOrganigramaPage(): boolean {
+  return getRolFromAccessToken() === "rh";
+}
+
 /** Vista operativa de comedor (`#/comedor`) exclusiva para RH. */
 export function canAccessComedorRhPage(): boolean {
   return getRolFromAccessToken() === "rh";

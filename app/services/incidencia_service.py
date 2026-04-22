@@ -181,6 +181,8 @@ class IncidenciaService:
                     "en tu expediente. Por favor revisa la plataforma para mas informacion."
                 ),
                 canal="in_app",
+                target_url="#/incidencias",
+                metadata={"entidad": "incidencia", "tipo": data.tipo},
             )
 
         background_tasks.add_task(_notify_incidencia)

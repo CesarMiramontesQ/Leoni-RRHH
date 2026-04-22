@@ -13,6 +13,30 @@ import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
 import { showEmpleadosToast } from "./toast.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 
+const LEADER_SEARCH_DEBOUNCE_MS = 250;
+
+function claveOrdenLider(u: UsuarioListItem): string {
+  const nombre = u.nombre?.trim();
+  if (nombre) return nombre;
+  const email = u.email?.trim();
+  if (email) return email;
+  return String(u.no_empleado ?? "").trim();
+}
+
+function ordenarEmpleadosParaLider(empleados: UsuarioListItem[]): UsuarioListItem[] {
+  return empleados
+    .map((u, index) => ({ u, index }))
+    .sort((a, b) => {
+      const byName = claveOrdenLider(a.u).localeCompare(claveOrdenLider(b.u), "es", {
+        sensitivity: "base",
+        ignorePunctuation: true,
+      });
+      if (byName !== 0) return byName;
+      return a.index - b.index;
+    })
+    .map(({ u }) => u);
+}
+
 async function fetchEmpleadosParaLider(): Promise<UsuarioListItem[]> {
   const page_size = 100;
   const acc: UsuarioListItem[] = [];
@@ -23,7 +47,65 @@ async function fetchEmpleadosParaLider(): Promise<UsuarioListItem[]> {
     if (pg.items.length < page_size || acc.length >= pg.total) break;
     page += 1;
   }
-  return acc;
+  return ordenarEmpleadosParaLider(acc);
+}
+
+function normalizarTextoBusqueda(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function etiquetaSupervisor(u: UsuarioListItem): string {
+  return formatNombreEmpleadoUi(u.nombre).trim() || u.email?.trim() || "—";
+}
+
+function construirClaveBusquedaSupervisor(u: UsuarioListItem): string {
+  const nombreRaw = u.nombre?.trim() ?? "";
+  const nombreUi = formatNombreEmpleadoUi(u.nombre).trim();
+  const noEmpleado = formatNoEmpleadoDisplay(u.no_empleado);
+  const email = u.email?.trim() ?? "";
+  const piezas = [nombreRaw, nombreUi, noEmpleado, email];
+  return normalizarTextoBusqueda(piezas.join(" "));
+}
+
+function renderSupervisorOption(
+  u: UsuarioListItem,
+  selectedLiderId: number | null,
+  selectedSuffix = "",
+): string {
+  const label = etiquetaSupervisor(u);
+  const sel = u.id === selectedLiderId ? "selected" : "";
+  return `<option value="${u.id}" ${sel}>${escapeHtml(label)} · #${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}${escapeHtml(selectedSuffix)}</option>`;
+}
+
+function renderSupervisorOptions(
+  empleadoId: number,
+  supervisoresOriginales: UsuarioListItem[],
+  supervisoresFiltrados: UsuarioListItem[],
+  selectedLiderId: number | null,
+): string {
+  const seleccion = selectedLiderId == null ? "selected" : "";
+  let html = `<option value="" ${seleccion}>Sin líder</option>`;
+
+  const filtradosSinSelf = supervisoresFiltrados.filter((u) => u.id !== empleadoId);
+  if (selectedLiderId != null && !filtradosSinSelf.some((u) => u.id === selectedLiderId)) {
+    const seleccionado = supervisoresOriginales.find((u) => u.id === selectedLiderId && u.id !== empleadoId);
+    if (seleccionado) {
+      html += renderSupervisorOption(seleccionado, selectedLiderId, " (seleccionado)");
+    }
+  }
+
+  if (filtradosSinSelf.length === 0) {
+    html += `<option value="__sin_resultados" disabled>Sin resultados</option>`;
+    return html;
+  }
+
+  html += filtradosSinSelf.map((u) => renderSupervisorOption(u, selectedLiderId)).join("");
+  return html;
 }
 
 function shellHtml(): string {
@@ -83,14 +165,12 @@ function formBodyHtml(
     )
     .join("");
 
-  const supOpts = supervisores
-    .filter((u) => u.id !== empleado.id)
-    .map((u) => {
-      const label = formatNombreEmpleadoUi(u.nombre).trim() || u.email?.trim() || "—";
-      const sel = u.id === empleado.lider_id ? "selected" : "";
-      return `<option value="${u.id}" ${sel}>${escapeHtml(label)} · #${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</option>`;
-    })
-    .join("");
+  const supOpts = renderSupervisorOptions(
+    empleado.id,
+    supervisores,
+    supervisores,
+    empleado.lider_id ?? null,
+  );
 
   const name = formatNombreEmpleadoUi(empleado.nombre).trim() || "—";
 
@@ -114,11 +194,18 @@ function formBodyHtml(
         <label for="ea-lider_id" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
           Líder inmediato
         </label>
+        <input
+          id="ea-lider-search"
+          type="search"
+          autocomplete="off"
+          placeholder="Buscar empleado..."
+          class="mb-2 block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
+        />
         <select id="ea-lider_id" name="lider_id"
           class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue">
-          <option value="" ${empleado.lider_id == null ? "selected" : ""}>Sin líder</option>
           ${supOpts}
         </select>
+        <p id="ea-lider-search-status" class="mt-1 min-h-5 text-xs text-text-muted" aria-live="polite"></p>
       </div>
       <div class="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
         <button type="button" data-close-modal
@@ -243,6 +330,61 @@ export function mountEditarAsignacionModal(
     );
   }
 
+  function bindLiderSearch(empleado: UsuarioListItem, supervisores: UsuarioListItem[]): void {
+    const searchInput = host.querySelector("#ea-lider-search") as HTMLInputElement | null;
+    const liderSelect = host.querySelector("#ea-lider_id") as HTMLSelectElement | null;
+    const status = host.querySelector("#ea-lider-search-status") as HTMLElement | null;
+    if (!searchInput || !liderSelect) return;
+
+    const indiceBusqueda = supervisores.map((u) => ({
+      supervisor: u,
+      searchKey: construirClaveBusquedaSupervisor(u),
+    }));
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const applyFilter = (): void => {
+      const termino = normalizarTextoBusqueda(searchInput.value);
+      const selectedRaw = liderSelect.value.trim();
+      const selectedLiderId =
+        selectedRaw === "" ? null : Number.parseInt(selectedRaw, 10);
+      const filtrados =
+        termino === ""
+          ? supervisores
+          : indiceBusqueda
+              .filter((item) => item.searchKey.includes(termino))
+              .map((item) => item.supervisor);
+
+      liderSelect.innerHTML = renderSupervisorOptions(
+        empleado.id,
+        supervisores,
+        filtrados,
+        Number.isNaN(selectedLiderId ?? Number.NaN) ? null : selectedLiderId,
+      );
+
+      const selectedStr =
+        selectedLiderId == null || Number.isNaN(selectedLiderId) ? "" : String(selectedLiderId);
+      liderSelect.value = selectedStr;
+      if (liderSelect.value !== selectedStr) liderSelect.value = "";
+
+      if (!status) return;
+      if (termino && filtrados.filter((u) => u.id !== empleado.id).length === 0) {
+        status.textContent = "Sin resultados";
+        return;
+      }
+      status.textContent = "";
+    };
+
+    searchInput.addEventListener(
+      "input",
+      () => {
+        clearTimeout(timer);
+        timer = window.setTimeout(applyFilter, LEADER_SEARCH_DEBOUNCE_MS);
+      },
+      { signal: options.signal },
+    );
+  }
+
   rootOverlay.addEventListener(
     "click",
     (e) => {
@@ -289,6 +431,7 @@ export function mountEditarAsignacionModal(
         }
         modalBody.innerHTML = formBodyHtml(empleado, rolesCache, supervisoresCache);
         bindFormSubmit(empleado);
+        bindLiderSearch(empleado, supervisoresCache);
         const firstInput = host.querySelector<HTMLElement>("#editar-asignacion-modal-body select");
         firstInput?.focus();
       } catch (e: unknown) {

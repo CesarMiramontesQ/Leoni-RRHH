@@ -183,6 +183,11 @@ class SolicitudService:
                         "Por favor rev&iacute;sala en la plataforma."
                     ),
                     canal="in_app",
+                    target_url="#/solicitudes",
+                    metadata={
+                        "entidad": "solicitud",
+                        "tipo": tipo,
+                    },
                 )
 
             background_tasks.add_task(_notify_supervisor)
@@ -261,6 +266,8 @@ class SolicitudService:
                 asunto="Tu solicitud fue aprobada",
                 cuerpo="Tu solicitud ha sido <b>aprobada</b>. Puedes consultarla en la plataforma.",
                 canal="in_app",
+                target_url="#/solicitudes",
+                metadata={"entidad": "solicitud", "estado": "approved"},
             )
 
         background_tasks.add_task(_notify_aprobacion)

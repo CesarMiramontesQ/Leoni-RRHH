@@ -1,14 +1,12 @@
-# app/api/v1/notificaciones/router.py
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
-from app.repositories.notificacion_repository import NotificacionRepository
 from app.schemas import PaginatedResponse
 from app.schemas.notificaciones import NotificacionResponse
+from app.services.notificacion_service import NotificacionService
 
 router = APIRouter(prefix="/api/v1/notificaciones", tags=["Notificaciones"])
 
@@ -20,53 +18,60 @@ async def get_bandeja(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = NotificacionRepository(db)
-    items, next_cursor = await repo.list_paginated(
+    service = NotificacionService(db)
+    return await service.list_notificaciones(
+        user_id=current_user.id,
         cursor=cursor,
         limit=limit,
-        filters={"destinatario_id": current_user.id},
     )
-    no_leidas = sum(1 for n in items if not n.leida)
-    return PaginatedResponse(
-        items=[NotificacionResponse.model_validate(n) for n in items],
-        next_cursor=next_cursor,
-        total=len(items),
-    )
+
+
+@router.get("/recientes", response_model=list[NotificacionResponse])
+async def get_recientes(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = NotificacionService(db)
+    return await service.list_recientes(user_id=current_user.id, limit=5)
 
 
 @router.get("/no-leidas/count")
+@router.get("/unread-count")
 async def count_no_leidas(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = NotificacionRepository(db)
-    no_leidas = await repo.list_no_leidas(destinatario_id=current_user.id)
-    return {"no_leidas": len(no_leidas)}
+    service = NotificacionService(db)
+    no_leidas = await service.count_no_leidas(user_id=current_user.id)
+    return {"no_leidas": no_leidas}
 
 
 @router.put("/{notificacion_id}/leer", response_model=NotificacionResponse)
+@router.put("/{notificacion_id}/read", response_model=NotificacionResponse)
 async def marcar_leida(
     notificacion_id: int,
+    background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = NotificacionRepository(db)
-    notif = await repo.get(notificacion_id)
-    if not notif:
-        raise NotFoundError(entidad="Notificacion", id=notificacion_id)
-    if notif.destinatario_id != current_user.id:
-        raise ForbiddenError(detail="No puedes marcar como leida una notificacion de otro usuario")
-    updated = await repo.marcar_leida(notificacion_id)
-    return NotificacionResponse.model_validate(updated)
+    service = NotificacionService(db)
+    return await service.marcar_leida(
+        notificacion_id=notificacion_id,
+        user_id=current_user.id,
+        background_tasks=background_tasks,
+    )
 
 
 @router.put("/leer-todas")
+@router.put("/read-all")
 async def marcar_todas_leidas(
+    background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    repo = NotificacionRepository(db)
-    no_leidas = await repo.list_no_leidas(destinatario_id=current_user.id)
-    for n in no_leidas:
-        await repo.marcar_leida(n.id)
-    return {"marcadas": len(no_leidas)}
+    service = NotificacionService(db)
+    marcadas = await service.marcar_todas_leidas(
+        user_id=current_user.id,
+        background_tasks=background_tasks,
+    )
+    return {"marcadas": marcadas}

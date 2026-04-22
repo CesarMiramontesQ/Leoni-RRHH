@@ -7,8 +7,10 @@ import { mountActaDetalle } from "./pages/actaDetalle.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
 import { mountIncidencias } from "./pages/incidencias.ts";
 import { mountComedor } from "./pages/comedor.ts";
-import { mountNotificacionesStub } from "./pages/shellModuleStubs.ts";
+import { mountNotificaciones } from "./pages/notificaciones.ts";
+import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
+import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -43,7 +45,16 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/notificaciones")) {
-      mountNotificacionesStub(container);
+      mountNotificaciones(container, signal);
+      return;
+    }
+    if (h.startsWith("#/organigrama")) {
+      if (!canAccessOrganigramaPage()) {
+        history.replaceState(null, "", "#/");
+        mountDashboardPlaceholder(container);
+        return;
+      }
+      mountOrganigrama(container, signal);
       return;
     }
     const actaMatch = h.match(/^#\/actas\/(\d+)\/?/);

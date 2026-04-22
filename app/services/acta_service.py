@@ -346,6 +346,8 @@ class ActaService:
                         "por todos los responsables. Puedes consultarla en la plataforma."
                     ),
                     canal="in_app",
+                    target_url=f"#/actas/{id}",
+                    metadata={"entidad": "acta", "estado": "signed", "acta_id": id},
                 )
 
             background_tasks.add_task(_notify_acta_signed)

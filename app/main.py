@@ -172,6 +172,7 @@ from app.api.v1.comedor.router import router as comedor_router
 from app.api.v1.reportes.router import router as reportes_router
 from app.api.v1.notificaciones.router import router as notificaciones_router
 from app.api.v1.auditoria.router import router as auditoria_router
+from app.api.v1.organigrama.router import router as organigrama_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -183,6 +184,7 @@ app.include_router(comedor_router)
 app.include_router(reportes_router)
 app.include_router(notificaciones_router)
 app.include_router(auditoria_router)
+app.include_router(organigrama_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

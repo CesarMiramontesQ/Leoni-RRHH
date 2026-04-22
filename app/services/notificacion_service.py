@@ -16,12 +16,18 @@ Canales:
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 
 import aiosmtplib
+from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
 from app.repositories.notificacion_repository import NotificacionRepository
+from app.schemas import PaginatedResponse
+from app.schemas.notificaciones import NotificacionResponse
+from app.utils.audit_logger import audit_background
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +37,101 @@ class NotificacionService:
         self.repo = NotificacionRepository(db)
         self.db = db
 
+    async def list_notificaciones(
+        self,
+        user_id: int,
+        cursor: int | None,
+        limit: int,
+    ) -> PaginatedResponse[NotificacionResponse]:
+        items, next_cursor = await self.repo.list_by_user_paginated(
+            user_id=user_id,
+            cursor=cursor,
+            limit=limit,
+        )
+        total = await self.repo.count_by_user(user_id=user_id)
+        return PaginatedResponse(
+            items=[NotificacionResponse.model_validate(item) for item in items],
+            next_cursor=next_cursor,
+            total=total,
+        )
+
+    async def list_recientes(
+        self,
+        user_id: int,
+        limit: int = 5,
+    ) -> list[NotificacionResponse]:
+        items = await self.repo.list_recientes_by_user(user_id=user_id, limit=limit)
+        return [NotificacionResponse.model_validate(item) for item in items]
+
+    async def count_no_leidas(self, user_id: int) -> int:
+        return await self.repo.count_unread_by_user(user_id=user_id)
+
+    async def marcar_leida(
+        self,
+        notificacion_id: int,
+        user_id: int,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> NotificacionResponse:
+        updated = await self.repo.marcar_leida_for_user(
+            notificacion_id=notificacion_id,
+            user_id=user_id,
+        )
+        if not updated:
+            raise NotFoundError(entidad="Notificacion", id=notificacion_id)
+
+        if background_tasks:
+            audit_background(
+                background_tasks=background_tasks,
+                db=self.db,
+                accion="NOTIFICACION_READ",
+                modulo="notificaciones",
+                usuario_id=user_id,
+                entidad_id=updated.id,
+                datos_antes={"is_read": False},
+                datos_despues={"is_read": True},
+            )
+
+        return NotificacionResponse.model_validate(updated)
+
+    async def marcar_todas_leidas(
+        self,
+        user_id: int,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> int:
+        marcadas = await self.repo.marcar_todas_leidas_for_user(user_id=user_id)
+        if marcadas > 0 and background_tasks:
+            audit_background(
+                background_tasks=background_tasks,
+                db=self.db,
+                accion="NOTIFICACION_READ_ALL",
+                modulo="notificaciones",
+                usuario_id=user_id,
+                datos_despues={"marcadas": marcadas},
+            )
+        return marcadas
+
+    async def crear_notificacion(
+        self,
+        user_id: int,
+        title: str,
+        message: str,
+        type_: str = "in_app",
+        target_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        enviada: bool = True,
+    ) -> NotificacionResponse:
+        notificacion = await self.repo.create({
+            "user_id": user_id,
+            "type": type_,
+            "title": title,
+            "message": message,
+            "is_read": False,
+            "enviada": enviada,
+            "target_url": target_url,
+            "metadata_json": metadata,
+        })
+        return NotificacionResponse.model_validate(notificacion)
+
     async def enviar(
         self,
         destinatario_id: int,
@@ -38,6 +139,8 @@ class NotificacionService:
         cuerpo: str,
         canal: str = "in_app",
         email_destino: str | None = None,
+        target_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Punto de entrada unico para todas las notificaciones.
@@ -50,14 +153,15 @@ class NotificacionService:
             email_destino: Requerido si canal es "email" o "ambos"
         """
         if canal in ("in_app", "ambos"):
-            await self.repo.create({
-                "destinatario_id": destinatario_id,
-                "tipo": "in_app",
-                "asunto": asunto,
-                "cuerpo": cuerpo,
-                "leida": False,
-                "enviada": True,
-            })
+            await self.crear_notificacion(
+                user_id=destinatario_id,
+                title=asunto,
+                message=cuerpo,
+                type_="in_app",
+                target_url=target_url,
+                metadata=metadata,
+                enviada=True,
+            )
 
         if canal in ("email", "ambos") and email_destino:
             await self._enviar_email(
@@ -65,6 +169,8 @@ class NotificacionService:
                 asunto=asunto,
                 cuerpo=cuerpo,
                 destinatario_id=destinatario_id,
+                target_url=target_url,
+                metadata=metadata,
             )
 
     async def _enviar_email(
@@ -73,20 +179,23 @@ class NotificacionService:
         asunto: str,
         cuerpo: str,
         destinatario_id: int,
+        target_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Persiste el registro ANTES de intentar el envio.
         Si el envio falla, el registro queda con enviada=False para reintento manual.
         El error de SMTP nunca se propaga — es un fallo no critico.
         """
-        notificacion = await self.repo.create({
-            "destinatario_id": destinatario_id,
-            "tipo": "email",
-            "asunto": asunto,
-            "cuerpo": cuerpo,
-            "leida": False,
-            "enviada": False,
-        })
+        notificacion = await self.crear_notificacion(
+            user_id=destinatario_id,
+            title=asunto,
+            message=cuerpo,
+            type_="email",
+            target_url=target_url,
+            metadata=metadata,
+            enviada=False,
+        )
 
         if not settings.SMTP_USER:
             logger.warning(

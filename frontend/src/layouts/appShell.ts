@@ -6,6 +6,13 @@ import {
 import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
+import {
+  getNoLeidasCount,
+  getNotificacionesRecientes,
+  marcarNotificacionLeida,
+  type NotificacionApiItem,
+} from "../api/notificaciones.ts";
+import { renderNotificacionBadge, renderNotificacionListItem } from "../notificaciones/ui.ts";
 
 function escapeHtmlText(s: string): string {
   return s
@@ -21,9 +28,11 @@ const navIconInactive = "size-6 shrink-0 text-text-muted group-hover:text-leoni-
 const navActive =
   "group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-leoni-blue";
 const navIconActive = "size-6 shrink-0 text-leoni-blue";
+let shellUiAbortController: AbortController | null = null;
 
 export type ShellNavKey =
   | "dashboard"
+  | "organigrama"
   | "empleados"
   | "solicitudes"
   | "incidencias"
@@ -68,6 +77,13 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
     hrefFor: () => "#/",
     label: "Dashboard",
     svgPaths: `<path d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "organigrama",
+    key: "organigrama",
+    hrefFor: () => "#/organigrama",
+    label: "Organigrama",
+    svgPaths: `<path d="M6 3.75A2.25 2.25 0 0 0 3.75 6v1.5A2.25 2.25 0 0 0 6 9.75h1.5A2.25 2.25 0 0 0 9.75 7.5V6A2.25 2.25 0 0 0 7.5 3.75H6Zm10.5 0A2.25 2.25 0 0 0 14.25 6v1.5a2.25 2.25 0 0 0 2.25 2.25H18a2.25 2.25 0 0 0 2.25-2.25V6A2.25 2.25 0 0 0 18 3.75h-1.5ZM6 14.25A2.25 2.25 0 0 0 3.75 16.5V18A2.25 2.25 0 0 0 6 20.25h1.5A2.25 2.25 0 0 0 9.75 18v-1.5A2.25 2.25 0 0 0 7.5 14.25H6Zm10.5 0a2.25 2.25 0 0 0-2.25 2.25V18a2.25 2.25 0 0 0 2.25 2.25H18A2.25 2.25 0 0 0 20.25 18v-1.5A2.25 2.25 0 0 0 18 14.25h-1.5Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M9.75 6.75h4.5m-2.25 3v4.5m2.25-2.25h-4.5" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
     id: "solicitudes",
@@ -132,7 +148,7 @@ const NAV_MODULES: readonly NavItemDef[] = [
   {
     id: "notificaciones",
     key: "notificaciones",
-    hrefFor: (rol) => (rol === "empleado" ? "#/notificaciones" : "#"),
+    hrefFor: () => "#/notificaciones",
     label: "Notificaciones",
     labelWrapClass: "truncate",
     svgPaths: `<path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />`,
@@ -203,6 +219,10 @@ export type AppShellOptions = {
 };
 
 export function mountAppShell(container: HTMLElement, options: AppShellOptions): void {
+  shellUiAbortController?.abort();
+  shellUiAbortController = new AbortController();
+  const { signal } = shellUiAbortController;
+
   const tituloPagina = options.pageTitle ?? tituloDesdeHash(window.location.hash);
   document.title = `${tituloPagina} — Plataforma RH`;
   const tituloNavbar = escapeHtmlText(tituloPagina);
@@ -261,12 +281,28 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
         ${tituloNavbar}
       </p>
       <div class="flex items-center gap-x-4 lg:gap-x-6">
-        <button type="button" id="app-shell-notifications" class="-m-2.5 p-2.5 text-text-muted hover:text-text-primary">
-          <span class="sr-only">Ver notificaciones</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
-            <path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
+        <div id="app-shell-notifications-wrapper" class="relative">
+          <button type="button" id="app-shell-notifications" class="relative -m-2.5 p-2.5 text-text-muted hover:text-text-primary">
+            <span class="sr-only">Ver notificaciones</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
+              <path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span id="app-shell-notifications-badge"></span>
+          </button>
+          <div
+            id="app-shell-notifications-panel"
+            class="invisible absolute right-0 z-50 mt-2 w-[22rem] origin-top-right rounded-md border border-border bg-white opacity-0 shadow-lg transition duration-100 ease-out"
+          >
+            <div class="flex items-center justify-between border-b border-border px-3 py-2">
+              <p class="text-sm font-semibold text-text-primary">Notificaciones</p>
+              <span id="app-shell-notifications-count" class="text-xs text-text-muted">0 no leídas</span>
+            </div>
+            <div id="app-shell-notifications-list" class="max-h-96 space-y-2 overflow-y-auto p-3">
+              <p class="text-sm text-text-muted">Cargando...</p>
+            </div>
+            <a href="#/notificaciones" class="block border-t border-border px-3 py-2 text-center text-sm font-semibold text-leoni-blue hover:bg-surface">Ver todas</a>
+          </div>
+        </div>
 
         <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-text-primary/10"></div>
 
@@ -309,11 +345,106 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       abortAuthenticatedShell();
       void import("../pages/login.ts").then(({ mountLogin }) => mountLogin(container));
     });
-  });
+  }, { signal });
 
-  container.querySelector("#app-shell-notifications")?.addEventListener("click", () => {
-    if (getRolFromAccessToken() === "empleado") {
-      window.location.hash = "#/notificaciones";
+  const notifWrapper = container.querySelector<HTMLElement>("#app-shell-notifications-wrapper");
+  const notifButton = container.querySelector<HTMLButtonElement>("#app-shell-notifications");
+  const notifPanel = container.querySelector<HTMLElement>("#app-shell-notifications-panel");
+  const notifBadgeHost = container.querySelector<HTMLElement>("#app-shell-notifications-badge");
+  const notifList = container.querySelector<HTMLElement>("#app-shell-notifications-list");
+  const notifCount = container.querySelector<HTMLElement>("#app-shell-notifications-count");
+  let notifPanelOpen = false;
+  let recientes: NotificacionApiItem[] = [];
+
+  const mountLoginPage = (): void => {
+    clearAuth();
+    void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+      abortAuthenticatedShell();
+      void import("../pages/login.ts").then(({ mountLogin }) => mountLogin(container));
+    });
+  };
+
+  const setNotifPanelState = (open: boolean): void => {
+    notifPanelOpen = open;
+    if (!notifPanel) return;
+    notifPanel.classList.toggle("invisible", !open);
+    notifPanel.classList.toggle("opacity-0", !open);
+  };
+
+  const renderNotifDropdown = (items: NotificacionApiItem[]): void => {
+    if (!notifList) return;
+    if (items.length === 0) {
+      notifList.innerHTML = `<p class="rounded-md border border-border bg-surface px-3 py-4 text-center text-sm text-text-muted">No tienes notificaciones recientes.</p>`;
+      return;
     }
-  });
+    notifList.innerHTML = items.map((item) => renderNotificacionListItem(item, { compact: true })).join("");
+  };
+
+  const loadNotificaciones = async (): Promise<void> => {
+    if (!notifList || !notifBadgeHost || !notifCount) return;
+    notifList.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
+    try {
+      const [noLeidas, items] = await Promise.all([getNoLeidasCount(), getNotificacionesRecientes()]);
+      recientes = items;
+      notifBadgeHost.innerHTML = renderNotificacionBadge(noLeidas);
+      notifCount.textContent = `${noLeidas} no leídas`;
+      renderNotifDropdown(items);
+    } catch (error) {
+      if (typeof error === "object" && error != null && "status" in error && (error as { status?: unknown }).status === 401) {
+        mountLoginPage();
+        return;
+      }
+      notifList.innerHTML = `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">No se pudieron cargar las notificaciones.</p>`;
+    }
+  };
+
+  notifButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const open = !notifPanelOpen;
+    setNotifPanelState(open);
+    if (open) void loadNotificaciones();
+  }, { signal });
+
+  notifList?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const row = target.closest<HTMLElement>("[data-notif-id]");
+    if (!row) return;
+    const rawId = row.getAttribute("data-notif-id");
+    const id = rawId ? Number.parseInt(rawId, 10) : NaN;
+    if (!Number.isFinite(id)) return;
+    const selected = recientes.find((item) => item.id === id);
+    if (!selected) return;
+
+    const goTo = (): void => {
+      setNotifPanelState(false);
+      window.location.hash = selected.target_url || "#/notificaciones";
+    };
+
+    if (selected.is_read) {
+      goTo();
+      return;
+    }
+
+    void marcarNotificacionLeida(id)
+      .then(() => loadNotificaciones())
+      .then(() => goTo())
+      .catch((error: unknown) => {
+        if (typeof error === "object" && error != null && "status" in error && (error as { status?: unknown }).status === 401) {
+          mountLoginPage();
+          return;
+        }
+        goTo();
+      });
+  }, { signal });
+
+  document.addEventListener("click", (event) => {
+    if (!notifPanelOpen || !notifWrapper) return;
+    if (!notifWrapper.contains(event.target as Node)) setNotifPanelState(false);
+  }, { signal });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && notifPanelOpen) setNotifPanelState(false);
+  }, { signal });
+
+  void loadNotificaciones();
 }

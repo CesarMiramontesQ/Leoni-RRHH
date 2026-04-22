@@ -4,6 +4,7 @@
 
 export type AppShellNavItemId =
   | "dashboard"
+  | "organigrama"
   | "solicitudes"
   | "incidencias"
   | "actas"
@@ -21,11 +22,14 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "notificaciones",
 ]);
 
+const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
+
 /**
  * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.
  */
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+  if (RH_ONLY_NAV_IDS.has(itemId)) return rol === "rh";
   return true;
 }
 
