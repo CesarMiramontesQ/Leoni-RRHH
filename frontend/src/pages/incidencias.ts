@@ -1,4 +1,5 @@
 import { canAccessRhIncidenciasPage, getRolFromAccessToken } from "../auth/jwt.ts";
+import { getIncidenciasRows, type IncidenciasFetchError } from "../api/incidencias.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
@@ -12,10 +13,7 @@ import {
 } from "../components/solicitudes/solicitudesNuevaIncidenciaModal.ts";
 import { INC_COPY } from "../incidencias/rh/incidenciasCopy.ts";
 import { buildRhIncidenciaFilterOptions } from "../incidencias/rh/buildRhIncidenciaFilterOptions.ts";
-import {
-  buildRhIncidenciasAdminViewModel,
-  fetchRhIncidenciasAdminDatasetMock,
-} from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
+import { buildRhIncidenciasAdminViewModel } from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
 import { filterRhIncidenciaRows } from "../incidencias/rh/filterAndPaginateRhIncidencias.ts";
 import type {
   RhIncidenciaEstadoCodigo,
@@ -215,7 +213,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     (e) => {
       const t = e.target as HTMLElement;
       if (t.closest("#rh-inc-export")) {
-        showEmpleadosToast(container, INC_COPY.toastExportMock, "success");
+        showEmpleadosToast(container, "Exportacion no disponible hasta integrar backend.", "error");
         return;
       }
       if (t.closest("#rh-inc-nueva")) {
@@ -223,7 +221,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         return;
       }
       if (t.closest("#rh-inc-filtros-av")) {
-        showEmpleadosToast(container, INC_COPY.toastFiltrosAvMock, "success");
+        showEmpleadosToast(container, "Filtros avanzados en integracion.", "error");
         return;
       }
       if (t.closest("[data-rh-inc-clear-filters]")) {
@@ -238,11 +236,11 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         return;
       }
       if (t.closest("[data-rh-inc-historial]")) {
-        showEmpleadosToast(container, INC_COPY.toastHistorialMock, "success");
+        showEmpleadosToast(container, "Historial no disponible en esta version.", "error");
         return;
       }
       if (t.closest("[data-rh-inc-ev-descarga]")) {
-        showEmpleadosToast(container, INC_COPY.toastDescargaMock, "success");
+        showEmpleadosToast(container, "Descarga de evidencia no disponible.", "error");
         return;
       }
       const row = t.closest<HTMLTableRowElement>("tr[data-rh-inc-row]");
@@ -336,23 +334,25 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   });
 
   void (async () => {
-    const res = await fetchRhIncidenciasAdminDatasetMock(false);
-    if (!res.ok) {
+    try {
+      allRows = await getIncidenciasRows();
+      filterOpts = buildRhIncidenciaFilterOptions(allRows);
+      paint();
+    } catch (error) {
+      const fetchError = error as IncidenciasFetchError;
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
       allRows = [];
       filterOpts = buildRhIncidenciaFilterOptions([]);
-      const errVm = errorViewModel(res.message);
+      const errVm = errorViewModel(fetchError?.detail || "Error inesperado al cargar incidencias.");
       const inner = container.querySelector("#rh-incidencias-inner");
       if (inner) inner.innerHTML = renderRhIncidenciasAdminView(errVm);
-      return;
     }
-    allRows = res.rows;
-    filterOpts = res.filterOptions;
-    paint();
-  })().catch(() => {
-    allRows = [];
-    filterOpts = buildRhIncidenciaFilterOptions([]);
-    const errVm = errorViewModel("Error inesperado al cargar incidencias.");
-    const inner = container.querySelector("#rh-incidencias-inner");
-    if (inner) inner.innerHTML = renderRhIncidenciasAdminView(errVm);
-  });
+  })();
 }

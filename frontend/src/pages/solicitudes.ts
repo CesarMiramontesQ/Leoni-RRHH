@@ -3,6 +3,7 @@ import {
   getEmpleadoIdFromAccessToken,
   parseEmpleadoDirectoryNumericId,
 } from "../auth/jwt.ts";
+import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   mountSolicitudResueltaModal,
@@ -19,14 +20,9 @@ import {
 import { renderRhSolicitudesAdminView } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
-import {
-  buildRhSolicitudesAdminViewModel,
-  fetchRhSolicitudesAdminDatasetMock,
-} from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
-import { MOCK_EMPLEADO_PORTAL_EMPLEADO_ID } from "../solicitudes/rh/mockDataset.ts";
+import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
 import {
   buildDefaultSolicitudesPageUiConfig,
-  dataScopeForSolicitudesRole,
   getSolicitudesPageRoleFromSession,
 } from "../solicitudes/solicitudesPageFilterConfig.ts";
 import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
@@ -137,11 +133,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   }
 
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
-  const dataScope = dataScopeForSolicitudesRole(pageRole);
-  const empleadoScopeId =
-    pageRole === "empleado"
-      ? (getEmpleadoIdFromAccessToken() ?? MOCK_EMPLEADO_PORTAL_EMPLEADO_ID)
-      : undefined;
+  const empleadoScopeId = pageRole === "empleado" ? getEmpleadoIdFromAccessToken() : undefined;
 
   let allRows: RhSolicitudTablaFila[] = [];
   let filterOpts = buildRhSolicitudFilterOptions([]);
@@ -244,8 +236,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   const empleadoSelfDirectoryId =
     pageRole === "empleado" ?
-      (parseEmpleadoDirectoryNumericId(empleadoScopeId ?? "") ??
-        parseEmpleadoDirectoryNumericId(MOCK_EMPLEADO_PORTAL_EMPLEADO_ID))
+      parseEmpleadoDirectoryNumericId(empleadoScopeId ?? "")
     : undefined;
 
   const modalHostEl = container.querySelector("#rh-nueva-solicitud-modal-host");
@@ -405,26 +396,30 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   );
 
   void (async () => {
-    const res = await fetchRhSolicitudesAdminDatasetMock(false, dataScope, empleadoScopeId);
-    if (!res.ok) {
+    try {
+      allRows = await getSolicitudesRows();
+      filterOpts = buildRhSolicitudFilterOptions(allRows);
+      empleadoVacacionesDisponibles = null;
+      paint();
+    } catch (error) {
+      const fetchError = error as SolicitudesFetchError;
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
       allRows = [];
       filterOpts = buildRhSolicitudFilterOptions([]);
       empleadoVacacionesDisponibles = null;
-      const errVm = errorViewModel(res.message, pageUi);
+      const errVm = errorViewModel(
+        fetchError?.detail || "Error inesperado al cargar solicitudes.",
+        pageUi,
+      );
       const inner = container.querySelector("#rh-solicitudes-inner");
       if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
-      return;
     }
-    allRows = res.rows;
-    filterOpts = res.filterOptions;
-    empleadoVacacionesDisponibles = res.empleadoVacacionesDisponibles;
-    paint();
-  })().catch(() => {
-    allRows = [];
-    filterOpts = buildRhSolicitudFilterOptions([]);
-    empleadoVacacionesDisponibles = null;
-    const errVm = errorViewModel("Error inesperado al cargar solicitudes.", pageUi);
-    const inner = container.querySelector("#rh-solicitudes-inner");
-    if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
-  });
+  })();
 }

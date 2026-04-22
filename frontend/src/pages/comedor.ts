@@ -5,36 +5,16 @@ import {
   getEmpleadoIdFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
-import {
-  createComedorRequestMock,
-  fetchComedorCalendarMonthMock,
-  fetchComedorKpisMock,
-  fetchComedorMenuOptionsMock,
-  fetchComedorReservationsMock,
-  fetchComedorSidebarMock,
-  fetchComedorTeamKpisMock,
-  fetchComedorTeamReservationsMock,
-} from "../comedor/rh/mockData.ts";
-import {
-  fetchReporteComedorEmpleadosMock,
-  fetchReporteComedorFiltersMock,
-  fetchReporteComedorKpisMock,
-} from "../comedor/reportes/mockData.ts";
-import {
-  clearWeekPlannerMock,
-  createBlankWeekByStartIso,
-  duplicatePreviousWeekMock,
-  getCurrentWeekStartIso,
-  loadWeekPlannerMock,
-  publishWeekPlannerMock,
-  saveWeekPlannerDraftMock,
-  shiftWeekStartIso,
-} from "../comedor/rh/weeklyPlannerMock.ts";
 import { mountComedorNewRequestModal } from "../components/comedor/comedorNewRequestModal.ts";
 import type {
+  ComedorCalendarMonth,
   ComedorEmployeeOption,
+  ComedorMenuOption,
   ComedorPanelState,
+  ComedorReservationsPage,
+  ComedorSidebarDataset,
   ComedorWeekPlanner,
+  ComedorWeekPlannerDay,
   ComedorWeekPlannerDayKey,
 } from "../comedor/rh/types.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
@@ -166,6 +146,141 @@ type ReporteComedorState = ReporteComedorViewState;
 
 function toReporteViewState(state: ReporteComedorState): ReporteComedorViewState {
   return { ...state };
+}
+
+function emptyCalendarMonth(year: number, monthIndex: number): ComedorCalendarMonth {
+  return {
+    year,
+    monthIndex,
+    legend: [],
+    dayMetrics: {},
+  };
+}
+
+function emptyReservationsPage(page: number, pageSize: number): ComedorReservationsPage {
+  return {
+    items: [],
+    total: 0,
+    page,
+    pageSize,
+  };
+}
+
+function emptySidebarDataset(): ComedorSidebarDataset {
+  return {
+    alerts: [],
+    weeklyOccupancy: [],
+    dietDistribution: {
+      saludablePercent: 0,
+      regularPercent: 0,
+    },
+    suggestion: {
+      titulo: "Sin información disponible",
+      mensaje: "No hay datos para mostrar todavía.",
+      ctaLabel: "Reintentar",
+    },
+  };
+}
+
+async function loadComedorMenuOptions(): Promise<readonly ComedorMenuOption[]> {
+  return [];
+}
+
+const WEEK_DAY_KEYS: readonly ComedorWeekPlannerDayKey[] = [
+  "lunes",
+  "martes",
+  "miercoles",
+  "jueves",
+  "viernes",
+];
+
+const WEEK_DAY_LABELS: Record<ComedorWeekPlannerDayKey, string> = {
+  lunes: "Lunes",
+  martes: "Martes",
+  miercoles: "Miercoles",
+  jueves: "Jueves",
+  viernes: "Viernes",
+};
+
+function dateToIso(value: Date): string {
+  const y = String(value.getFullYear()).padStart(4, "0");
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function isoToDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map((part) => Number.parseInt(part, 10));
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+
+function addDays(value: Date, days: number): Date {
+  const out = new Date(value);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+function mondayOf(value: Date): Date {
+  const out = new Date(value);
+  const weekday = (out.getDay() + 6) % 7;
+  out.setDate(out.getDate() - weekday);
+  out.setHours(0, 0, 0, 0);
+  return out;
+}
+
+function formatWeekShortDate(value: Date): string {
+  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short" })
+    .format(value)
+    .replace(".", "");
+}
+
+function formatWeekLabel(start: Date, end: Date): string {
+  const startLabel = new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short" })
+    .format(start)
+    .replace(".", "");
+  const endLabel = new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+    .format(end)
+    .replace(".", "");
+  return `${startLabel} - ${endLabel}`;
+}
+
+function getCurrentWeekStartIso(): string {
+  return dateToIso(mondayOf(new Date()));
+}
+
+function shiftWeekStartIso(weekStartIso: string, deltaWeeks: number): string {
+  const start = isoToDate(weekStartIso);
+  return dateToIso(addDays(start, deltaWeeks * 7));
+}
+
+function createBlankWeekByStartIso(weekStartIso: string): ComedorWeekPlanner {
+  const start = isoToDate(weekStartIso);
+  const end = addDays(start, 4);
+  const dias: ComedorWeekPlannerDay[] = WEEK_DAY_KEYS.map((dayKey, index) => {
+    const dayDate = addDays(start, index);
+    return {
+      key: dayKey,
+      label: WEEK_DAY_LABELS[dayKey],
+      fechaIso: dateToIso(dayDate),
+      fechaCorta: formatWeekShortDate(dayDate),
+      menuNormal: "",
+      menuDieta: "",
+      visibleEmpleados: false,
+      fotoMenuDataUrl: null,
+      fotoMenuNombre: null,
+    };
+  });
+  return {
+    weekStartIso,
+    weekEndIso: dateToIso(end),
+    weekLabel: formatWeekLabel(start, end),
+    status: "borrador",
+    dias,
+  };
 }
 
 function toIsoDate(value: Date): string {
@@ -339,7 +454,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     state.statsError = null;
     paint();
     try {
-      const rows = await fetchComedorKpisMock();
+      const rows: typeof state.stats = [];
       if (signal.aborted) return;
       state.stats = rows;
       state.statsState = rows.length > 0 ? "ready" : "empty";
@@ -357,7 +472,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     state.calendarError = null;
     paint();
     try {
-      const month = await fetchComedorCalendarMonthMock(state.year, state.monthIndex);
+      const month = emptyCalendarMonth(state.year, state.monthIndex);
       if (signal.aborted) return;
       state.calendar = month;
       state.calendarState = Object.keys(month.dayMetrics).length > 0 ? "ready" : "empty";
@@ -375,7 +490,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     state.sidebarError = null;
     paint();
     try {
-      const dataset = await fetchComedorSidebarMock();
+      const dataset = emptySidebarDataset();
       if (signal.aborted) return;
       state.sidebar = dataset;
       state.sidebarState = dataset.alerts.length > 0 ? "ready" : "empty";
@@ -393,12 +508,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     state.tableError = null;
     paint();
     try {
-      const page = await fetchComedorReservationsMock({
-        statusFilter: state.statusFilter,
-        search: state.search,
-        page: state.page,
-        pageSize: state.pageSize,
-      });
+      const page = emptyReservationsPage(state.page, state.pageSize);
       if (signal.aborted) return;
       state.table = page;
       state.tableState = page.items.length > 0 ? "ready" : "empty";
@@ -424,10 +534,10 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     modalHost ?
       mountComedorNewRequestModal(modalHost, {
         toastContainer: container,
-        loadMenuOptions: fetchComedorMenuOptionsMock,
+        loadMenuOptions: loadComedorMenuOptions,
         searchEmployees: searchComedorEmployeesFromDb,
-        onSubmit: async (payload) => {
-          await createComedorRequestMock(payload);
+        onSubmit: async () => {
+          throw new Error("Registro de solicitud en integracion con backend.");
         },
       })
     : null;
@@ -590,15 +700,9 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     state.menuEditor.open = false;
     paint();
     try {
-      const week = await loadWeekPlannerMock(weekStartIso);
+      state.week = createBlankWeekByStartIso(weekStartIso);
       if (signal.aborted) return;
-      if (week) {
-        state.week = week;
-        state.panelState = "ready";
-      } else {
-        state.week = createBlankWeekByStartIso(weekStartIso);
-        state.panelState = "empty";
-      }
+      state.panelState = "empty";
       state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
       state.incompleteDaysCount = plannerIncompleteDays(state.week);
     } catch (error) {
@@ -690,14 +794,8 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     state.isSavingDraft = true;
     paint();
     try {
-      const week = await saveWeekPlannerDraftMock(state.week);
       if (signal.aborted) return;
-      state.week = week;
-      state.panelState = "ready";
-      state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-      state.incompleteDaysCount = plannerIncompleteDays(state.week);
-      state.lastSavedAt = Date.now();
-      showEmpleadosToast(container, "Borrador guardado correctamente.", "success");
+      showEmpleadosToast(container, "Guardado de borrador en integracion con backend.", "error");
     } catch {
       if (signal.aborted) return;
       showEmpleadosToast(container, "No se pudo guardar el borrador.", "error");
@@ -713,14 +811,8 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     state.isPublishing = true;
     paint();
     try {
-      const week = await publishWeekPlannerMock(state.week);
       if (signal.aborted) return;
-      state.week = week;
-      state.panelState = "ready";
-      state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-      state.incompleteDaysCount = plannerIncompleteDays(state.week);
-      state.lastSavedAt = Date.now();
-      showEmpleadosToast(container, "Semana publicada para empleados.", "success");
+      showEmpleadosToast(container, "Publicacion de semana en integracion con backend.", "error");
     } catch {
       if (signal.aborted) return;
       showEmpleadosToast(container, "No se pudo publicar la semana.", "error");
@@ -734,18 +826,8 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     state.isDuplicating = true;
     paint();
     try {
-      const duplicated = await duplicatePreviousWeekMock(state.week.weekStartIso);
       if (signal.aborted) return;
-      if (!duplicated) {
-        showEmpleadosToast(container, "No hay semana anterior para duplicar.", "error");
-      } else {
-        state.week = duplicated;
-        state.panelState = "ready";
-        state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-        state.incompleteDaysCount = plannerIncompleteDays(state.week);
-        state.lastSavedAt = Date.now();
-        showEmpleadosToast(container, "Semana anterior duplicada.", "success");
-      }
+      showEmpleadosToast(container, "Duplicado de semana en integracion con backend.", "error");
     } catch {
       if (signal.aborted) return;
       showEmpleadosToast(container, "No se pudo duplicar la semana anterior.", "error");
@@ -759,9 +841,8 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     const confirmed = window.confirm("Se limpiarán los campos de la semana en edición. ¿Deseas continuar?");
     if (!confirmed) return;
     try {
-      const cleared = await clearWeekPlannerMock(state.week.weekStartIso);
       if (signal.aborted) return;
-      state.week = cleared;
+      state.week = createBlankWeekByStartIso(state.week.weekStartIso);
       state.panelState = "empty";
       state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
       state.selectedDayKey = "lunes";
@@ -974,7 +1055,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.calendarError = null;
     paint();
     try {
-      const month = await fetchComedorCalendarMonthMock(state.year, state.monthIndex);
+      const month = emptyCalendarMonth(state.year, state.monthIndex);
       if (signal.aborted) return;
       state.calendar = month;
       state.calendarState = Object.keys(month.dayMetrics).length > 0 ? "ready" : "empty";
@@ -992,7 +1073,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.statsError = null;
     paint();
     try {
-      const rows = await fetchComedorTeamKpisMock();
+      const rows: typeof state.stats = [];
       if (signal.aborted) return;
       state.stats = rows;
       state.statsState = rows.length > 0 ? "ready" : "empty";
@@ -1010,12 +1091,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.tableError = null;
     paint();
     try {
-      const page = await fetchComedorTeamReservationsMock({
-        statusFilter: state.statusFilter,
-        search: state.search,
-        page: state.page,
-        pageSize: state.pageSize,
-      });
+      const page = emptyReservationsPage(state.page, state.pageSize);
       if (signal.aborted) return;
       state.table = page;
       state.tableState = page.items.length > 0 ? "ready" : "empty";
@@ -1042,10 +1118,10 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
       mountComedorNewRequestModal(modalHost, {
         toastContainer: container,
         allowExternalPeople: false,
-        loadMenuOptions: fetchComedorMenuOptionsMock,
+        loadMenuOptions: loadComedorMenuOptions,
         searchEmployees: searchComedorEmployeesFromDb,
-        onSubmit: async (payload) => {
-          await createComedorRequestMock(payload);
+        onSubmit: async () => {
+          throw new Error("Registro de solicitud en integracion con backend.");
         },
       })
     : null;
@@ -1183,7 +1259,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     state.calendarError = null;
     paint();
     try {
-      const month = await fetchComedorCalendarMonthMock(state.year, state.monthIndex);
+      const month = emptyCalendarMonth(state.year, state.monthIndex);
       if (signal.aborted) return;
       state.calendar = month;
       state.calendarState = Object.keys(month.dayMetrics).length > 0 ? "ready" : "empty";
@@ -1218,15 +1294,15 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
             {
               id: empleadoId,
               nombre: empleadoNombre,
-              numero: "Mi usuario",
-              area: "Mi área",
+              numero: empleadoId,
+              area: "Sin area",
               avatarUrl: null,
             }
           : null,
-        loadMenuOptions: fetchComedorMenuOptionsMock,
+        loadMenuOptions: loadComedorMenuOptions,
         searchEmployees: async () => [],
-        onSubmit: async (payload) => {
-          await createComedorRequestMock(payload);
+        onSubmit: async () => {
+          throw new Error("Registro de solicitud en integracion con backend.");
         },
       })
     : null;
@@ -1319,20 +1395,6 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     selectedEmpleadoId: null,
   };
 
-  function queryFromState(): {
-    departamentoId: string;
-    turnoId: string;
-    fechaInicioIso: string;
-    fechaFinIso: string;
-  } {
-    return {
-      departamentoId: state.selectedDepartamentoId,
-      turnoId: state.selectedTurnoId,
-      fechaInicioIso: state.selectedFechaInicioIso,
-      fechaFinIso: state.selectedFechaFinIso,
-    };
-  }
-
   function normalizeSelection(): void {
     const empleados = state.table?.empleados ?? [];
     if (empleados.length === 0) {
@@ -1353,7 +1415,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
 
   async function loadFilters(): Promise<void> {
     try {
-      const dataset = await fetchReporteComedorFiltersMock();
+      const dataset = state.filtersDataset;
       if (signal.aborted) return;
       state.filtersDataset = dataset;
       state.selectedDepartamentoId = dataset.departamentos[0]?.id ?? "todos";
@@ -1376,7 +1438,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     state.kpisError = null;
     paint();
     try {
-      const rows = await fetchReporteComedorKpisMock(queryFromState());
+      const rows: typeof state.kpis = [];
       if (signal.aborted) return;
       state.kpis = rows;
       state.kpisState = rows.length > 0 ? "ready" : "empty";
@@ -1394,7 +1456,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     state.tableError = null;
     paint();
     try {
-      const dataset = await fetchReporteComedorEmpleadosMock(queryFromState());
+      const dataset = { empleados: [] };
       if (signal.aborted) return;
       state.table = dataset;
       state.tableState = dataset.empleados.length > 0 ? "ready" : "empty";

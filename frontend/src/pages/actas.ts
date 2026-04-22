@@ -16,7 +16,6 @@ import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
   ACTAS_ESTADOS,
-  ACTAS_MOCK_ROWS,
   ACTAS_PERIODOS,
   ACTAS_SUPERVISORES,
   ACTAS_TIPOS,
@@ -63,18 +62,7 @@ type ActasFilterState = {
 };
 
 // TODO: reemplazar por catálogo real desde API de usuarios RH.
-const ACTAS_RESPONSABLES_RH: readonly NuevaActaSelectOption[] = [
-  { id: "rh-1", label: "Laura Méndez" },
-  { id: "rh-2", label: "José Contreras" },
-  { id: "rh-3", label: "Mariana Ávila" },
-];
-
-const ACTAS_STATS: readonly ActasStatCard[] = [
-  { id: "abiertas", titulo: "Actas abiertas", valor: 5, borderTop: "border-t-blue-600" },
-  { id: "proceso", titulo: "En proceso", valor: 3, borderTop: "border-t-amber-500" },
-  { id: "firmadas", titulo: "Firmadas", valor: 12, borderTop: "border-t-emerald-500" },
-  { id: "cerradas", titulo: "Cerradas", valor: 20, borderTop: "border-t-slate-500" },
-];
+const ACTAS_RESPONSABLES_RH: readonly NuevaActaSelectOption[] = [];
 
 const DEFAULT_FILTERS: ActasFilterState = {
   empleado_busqueda: "",
@@ -241,8 +229,34 @@ function celdaEmpleado(row: ActaTablaFila): string {
     </div>`;
 }
 
-function renderStatsCards(): string {
-  const cards = ACTAS_STATS.map(
+function renderStatsCards(rows: readonly ActaTablaFila[]): string {
+  const cardsData: readonly ActasStatCard[] = [
+    {
+      id: "abiertas",
+      titulo: "Actas abiertas",
+      valor: rows.filter((row) => row.estado === "abierta").length,
+      borderTop: "border-t-blue-600",
+    },
+    {
+      id: "proceso",
+      titulo: "En proceso",
+      valor: rows.filter((row) => row.estado === "en_proceso").length,
+      borderTop: "border-t-amber-500",
+    },
+    {
+      id: "firmadas",
+      titulo: "Firmadas",
+      valor: rows.filter((row) => row.estado === "firmada").length,
+      borderTop: "border-t-emerald-500",
+    },
+    {
+      id: "cerradas",
+      titulo: "Cerradas",
+      valor: rows.filter((row) => row.estado === "cerrada").length,
+      borderTop: "border-t-slate-500",
+    },
+  ];
+  const cards = cardsData.map(
     (card) => `
       <article class="rounded-xl border border-border border-t-4 ${card.borderTop} bg-white p-3 shadow-sm sm:p-4">
         <div class="flex items-center justify-between gap-2">
@@ -436,7 +450,11 @@ function renderActasTable(table: ActasTableData, filters: ActasFilterState): str
     </section>`;
 }
 
-function renderActasMain(filters: ActasFilterState, table: ActasTableData): string {
+function renderActasMain(
+  filters: ActasFilterState,
+  table: ActasTableData,
+  allRows: readonly ActaTablaFila[],
+): string {
   return `
     <div class="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5">
       <section class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -465,7 +483,7 @@ function renderActasMain(filters: ActasFilterState, table: ActasTableData): stri
           </button>
         </div>
       </section>
-      ${renderStatsCards()}
+      ${renderStatsCards(allRows)}
       ${renderActasFilters(filters)}
       ${renderActasTable(table, filters)}
     </div>`;
@@ -485,7 +503,7 @@ export function mountActas(container: HTMLElement): void {
   }
 
   const state: ActasFilterState = { ...DEFAULT_FILTERS };
-  const allRows = [...ACTAS_MOCK_ROWS];
+  const allRows: ActaTablaFila[] = [];
   const modalEmpleadoOptions = buildNuevaActaEmpleados(allRows);
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -503,7 +521,7 @@ export function mountActas(container: HTMLElement): void {
     activeNav: "actas",
     mainClass: actasMainClass,
     mainHtml: `<div id="rh-actas-page" class="flex min-h-[calc(100dvh-11rem)] flex-col">
-      <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable)}</div>
+      <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable, allRows)}</div>
       <div id="rh-actas-nueva-modal-host" class="shrink-0"></div>
     </div>`,
   });
@@ -560,7 +578,7 @@ export function mountActas(container: HTMLElement): void {
       };
     }
     const table = tableFromState();
-    if (inner) inner.innerHTML = renderActasMain(state, table);
+    if (inner) inner.innerHTML = renderActasMain(state, table, allRows);
     if (restoreSearch) {
       const el = container.querySelector<HTMLInputElement>("[data-rh-actas-empleado-busqueda]");
       if (el) {

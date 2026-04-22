@@ -62,25 +62,9 @@ export type ActaDetalle = {
 };
 
 export const ACTAS_MOCK_ROWS: readonly ActaTablaFila[] = [
-  { id: 1, folio: "ACT-2401", empleado_id: "emp-1001", empleado_nombre_raw: "JUAN PEREZ", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "amonestacion", fecha: "2026-04-12", estado: "abierta" },
-  { id: 2, folio: "ACT-2402", empleado_id: "emp-1002", empleado_nombre_raw: "MARIA LOPEZ", foto_url: null, area: "Calidad", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "suspension", fecha: "2026-04-10", estado: "en_proceso" },
-  { id: 3, folio: "ACT-2403", empleado_id: "emp-1003", empleado_nombre_raw: "LUIS HERNANDEZ", foto_url: null, area: "Logística", supervisor_id: "sup-3", supervisor_nombre: "Miguel Sánchez", tipo: "administrativa", fecha: "2026-04-07", estado: "firmada" },
-  { id: 4, folio: "ACT-2404", empleado_id: "emp-1004", empleado_nombre_raw: "DANIELA CRUZ", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "amonestacion", fecha: "2026-04-05", estado: "cerrada" },
-  { id: 5, folio: "ACT-2405", empleado_id: "emp-1005", empleado_nombre_raw: "JESUS MORALES", foto_url: null, area: "Almacén", supervisor_id: "sup-3", supervisor_nombre: "Miguel Sánchez", tipo: "suspension", fecha: "2026-04-02", estado: "abierta" },
-  { id: 6, folio: "ACT-2406", empleado_id: "emp-1006", empleado_nombre_raw: "SOFIA RAMIREZ", foto_url: null, area: "Calidad", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "administrativa", fecha: "2026-03-30", estado: "en_proceso" },
-  { id: 7, folio: "ACT-2407", empleado_id: "emp-1007", empleado_nombre_raw: "ANDRES GOMEZ", foto_url: null, area: "Mantenimiento", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "amonestacion", fecha: "2026-03-28", estado: "firmada" },
-  { id: 8, folio: "ACT-2408", empleado_id: "emp-1008", empleado_nombre_raw: "PAOLA RIVERA", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "suspension", fecha: "2026-03-24", estado: "cerrada" },
-  { id: 9, folio: "ACT-2409", empleado_id: "emp-1009", empleado_nombre_raw: "MARIO TORRES", foto_url: null, area: "Logística", supervisor_id: "sup-3", supervisor_nombre: "Miguel Sánchez", tipo: "administrativa", fecha: "2026-03-20", estado: "abierta" },
-  { id: 10, folio: "ACT-2410", empleado_id: "emp-1010", empleado_nombre_raw: "ELENA VARGAS", foto_url: null, area: "Calidad", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "amonestacion", fecha: "2026-03-15", estado: "firmada" },
-  { id: 11, folio: "ACT-2411", empleado_id: "emp-1011", empleado_nombre_raw: "RICARDO FLORES", foto_url: null, area: "Compras", supervisor_id: "sup-2", supervisor_nombre: "Ana Gutiérrez", tipo: "suspension", fecha: "2026-03-10", estado: "cerrada" },
-  { id: 12, folio: "ACT-2412", empleado_id: "emp-1012", empleado_nombre_raw: "FERNANDA ORTIZ", foto_url: null, area: "Producción", supervisor_id: "sup-1", supervisor_nombre: "Carlos Pérez", tipo: "administrativa", fecha: "2026-02-26", estado: "en_proceso" },
 ];
 
-export const ACTAS_SUPERVISORES: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "sup-1", label: "Carlos Pérez" },
-  { id: "sup-2", label: "Ana Gutiérrez" },
-  { id: "sup-3", label: "Miguel Sánchez" },
-];
+export const ACTAS_SUPERVISORES: ReadonlyArray<{ id: string; label: string }> = [];
 
 export const ACTAS_TIPOS: ReadonlyArray<{ id: ActaTipoCodigo; label: string }> = [
   { id: "amonestacion", label: "Amonestación" },
@@ -166,8 +150,8 @@ function detallePorFila(row: ActaTablaFila): ActaDetalle {
     },
     involucrados: [
       { id: `sup-${row.id}`, nombre: row.supervisor_nombre, rol: "Supervisor de Turno (Reportante)" },
-      { id: `testigo-${row.id}`, nombre: "Juan Carlos Pérez", rol: "Testigo (Operador Línea C)" },
-      { id: `rh-${row.id}`, nombre: "Lic. Ricardo Vega", rol: "Representante RH" },
+      { id: `testigo-${row.id}`, nombre: "Sin registro", rol: "Testigo" },
+      { id: `rh-${row.id}`, nombre: "Sin registro", rol: "Representante RH" },
     ],
     historial: [
       {
