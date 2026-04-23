@@ -20,12 +20,22 @@ export const SD_COPY = {
   lblEstadoGerencia: "Estado gerencia",
 
   supSinAsignar: "Sin supervisor asignado en el organigrama.",
+  /** Textos legacy (listados); flujo actual: una sola aprobación. */
   supPendienteAprobacion: "Pendiente de aprobación del supervisor directo.",
   supYaAprobo: "El supervisor directo ya aprobó en el sistema.",
+  /** Modal jerarquía — solicitud pendiente (supervisor asignado). */
+  supPuedeAprobarUnPaso: "Puede aprobar o rechazar como supervisor directo del solicitante.",
+  /** Modal jerarquía — solicitud ya no pendiente. */
+  supEstadoCerrada: "Referencia de organigrama (solicitud ya no pendiente).",
 
   gerPendienteAprobacion: "Pendiente de aprobación del gerente de línea.",
   gerEsperaSiAplica: "Hay gerente de línea; la etapa de gerencia procede tras el supervisor.",
   gerSinEnCadena: "No hay gerente en la cadena de mando sobre el solicitante.",
+  gerPuedeAprobarUnPaso: "Puede aprobar o rechazar como gerente de línea del solicitante.",
+  gerEstadoCerrada: "Referencia de organigrama (solicitud ya no pendiente).",
+
+  jerarquiaUnaSolaAprobacion:
+    "Basta una sola decisión: el supervisor directo o el gerente de línea puede aprobar o rechazar (en cualquier orden). No se requiere segunda aprobación.",
 
   /** Solicitud propia (supervisor/gerente): sin botones de decisión jerárquica. */
   avisoAutopaprobacionBloqueada:
@@ -60,6 +70,8 @@ export const SD_COPY = {
 
   validacionComentarioRequerido: "Indica un comentario interno para rechazar o solicitar cambios.",
   errorProcesar: "No se pudo completar la acción. Intenta de nuevo.",
+  listadoRecargaError:
+    "La decisión se guardó, pero no se pudo actualizar la tabla. Recarga la página si no ves el cambio.",
   exitoAprobar: "Solicitud aprobada.",
   exitoCambios: "Se solicitó revisión con cambios.",
   exitoRechazar: "Solicitud rechazada.",
@@ -72,4 +84,6 @@ export const SD_COPY = {
 
   /** `title` en filas pendientes de la tabla (accesibilidad). */
   tituloFilaPendiente: "Abrir detalle de la solicitud pendiente",
+  tituloFilaCambiosSolicitados:
+    "Solicitud con cambios solicitados — abrir para revisar o corregir",
 } as const;

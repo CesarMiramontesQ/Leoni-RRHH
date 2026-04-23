@@ -7,8 +7,14 @@ Flujo de estados:
   pending → rejected   (via rechazar_solicitud)
   pending → cancelled  (via cancelar_solicitud — solo el propio empleado)
   pending/rejected → overridden  (via override_solicitud — director o rh)
+  pending → changes_requested  (via solicitar_cambios_solicitud — aprobador)
+  changes_requested → pending  (via requisitor_actualizar_y_reenviar — solo el solicitante)
 
-Al aprobar: se encola en TRESS dentro de la misma transaccion (consistencia garantizada).
+Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (supervisor directo O gerente
+de linea, en cualquier orden; no hay segunda etapa obligatoria).
+
+Al aprobar: estado `approved`, registro de aprobacion, cola TRESS y notificacion in-app al requisitor
+en la misma transaccion del request (rollback conjunto si falla cualquier paso).
 Al rechazar/cancelar: NO se encola en TRESS.
 """
 
@@ -37,11 +43,15 @@ from app.repositories.solicitud_repository import (
 )
 from app.schemas import PaginatedResponse
 from app.schemas.solicitudes import (
+    ESTADO_SOLICITUD_APROBADA,
     SolicitudAprobacionCreate,
     SolicitudAprobacionResponse,
     SolicitudCreate,
+    SolicitudRequisitorRevision,
     SolicitudResponse,
+    SolicitudSolicitarCambiosBody,
 )
+from app.services.notificacion_service import NotificacionService
 from app.utils.audit_logger import audit_background
 
 logger = logging.getLogger(__name__)
@@ -54,7 +64,7 @@ _TRESS_ACCION_MAP = {
 
 # Duplicidad exacta (mismo colaborador, mismas fechas inicio/fin): solo estos estados
 # cuentan como «ya existe»; rechazadas/canceladas permiten volver a registrar esas fechas.
-_ESTADOS_DUPLICADO_EXACTO = frozenset({"pending", "approved", "overridden"})
+_ESTADOS_DUPLICADO_EXACTO = frozenset({"pending", "approved", "overridden", "changes_requested"})
 _MSG_SOLICITUD_YA_EXISTE = "Esta solicitud ya existe"
 
 
@@ -187,6 +197,21 @@ def _supervisor_ya_aprobo(solicitud: Solicitud, supervisor_id: int | None) -> bo
 _ROLES_APROBADOR_JERARQUICO = frozenset({"supervisor", "gerente"})
 
 
+def _puede_actuar_jerarquia_solicitud(
+    *,
+    rol: str,
+    lider_id: int | None,
+    primer_gerente_id: int | None,
+    current_user_id: int,
+) -> bool:
+    """Supervisor directo o gerente de linea (primer gerente en cadena) pueden aprobar/rechazar."""
+    if rol == "supervisor" and lider_id is not None and lider_id == current_user_id:
+        return True
+    if rol == "gerente" and primer_gerente_id is not None and primer_gerente_id == current_user_id:
+        return True
+    return False
+
+
 def _asegurar_no_autopaprobacion_jerarquica(
     solicitud: Solicitud,
     current_user: Empleado,
@@ -222,15 +247,14 @@ class SolicitudService:
         primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
         sup_id = emp.lider_id
         sup_aprobo = _supervisor_ya_aprobo(solicitud, sup_id)
-        pend_sup = solicitud.estado == "pending" and sup_id is not None and not sup_aprobo
-        pend_ger = solicitud.estado == "pending" and solicitud.nivel_actual >= 2
+        # Una sola aprobacion requerida: no se exponen colas obligatorias supervisor→gerente.
         return base.model_copy(
             update={
                 "gerente_linea_id": primer_g.id if primer_g else None,
                 "gerente_linea_nombre": primer_g.nombre if primer_g else None,
                 "supervisor_aprobo": sup_aprobo,
-                "pendiente_aprobacion_supervisor": pend_sup,
-                "pendiente_aprobacion_gerente": pend_ger,
+                "pendiente_aprobacion_supervisor": False,
+                "pendiente_aprobacion_gerente": False,
             }
         )
 
@@ -465,8 +489,16 @@ class SolicitudService:
         datos_antes = {"estado": solicitud.estado, "nivel_actual": solicitud.nivel_actual}
         no_empleado_solicitante = solicitud.empleado.no_empleado
 
-        await self.repo.update(solicitud_id, {"estado": "approved"})
-        await self.aprobacion_repo.create({
+        if not await self.repo.marcar_estado_aprobada_si_pending(solicitud_id):
+            raise ConflictError(
+                detail="La solicitud ya no esta pendiente; no se puede completar la aprobacion."
+            )
+        # synchronize_session=False en el UPDATE: refrescar la fila en la sesion para lecturas posteriores.
+        sol_sync = await self.repo.get(solicitud_id)
+        if sol_sync is not None:
+            await self.db.refresh(sol_sync)
+
+        aprob_row = await self.aprobacion_repo.create({
             "solicitud_id": solicitud_id,
             "aprobador_id": current_user.id,
             "accion": "approve",
@@ -486,6 +518,28 @@ class SolicitudService:
             },
         )
 
+        requisitor_id = solicitud.empleado_id
+        tipo_txt = solicitud.tipo.replace("_", " ")
+        notif_svc = NotificacionService(self.db)
+        await notif_svc.enviar(
+            destinatario_id=requisitor_id,
+            asunto="Tu solicitud fue aprobada",
+            cuerpo=(
+                f"Tu solicitud de <b>{tipo_txt}</b> del {solicitud.fecha_inicio} al {solicitud.fecha_fin} "
+                "quedo registrada como <b>aprobada</b>. Puedes consultarla en la plataforma."
+            ),
+            canal="in_app",
+            target_url="#/solicitudes",
+            metadata={
+                "entidad": "solicitud",
+                "solicitud_id": solicitud_id,
+                "estado": ESTADO_SOLICITUD_APROBADA,
+                "aprobador_id": current_user.id,
+                "solicitud_aprobacion_id": aprob_row.id,
+                "tipo_evento": "solicitud_aprobada_final",
+            },
+        )
+
         audit_background(
             background_tasks=background_tasks,
             db=self.db,
@@ -494,18 +548,11 @@ class SolicitudService:
             usuario_id=current_user.id,
             entidad_id=solicitud_id,
             datos_antes=datos_antes,
-            datos_despues={"estado": "approved"},
-        )
-
-        empleado_id = solicitud.empleado_id
-        background_tasks.add_task(
-            _enviar_notificacion_background,
-            destinatario_id=empleado_id,
-            asunto="Tu solicitud fue aprobada",
-            cuerpo="Tu solicitud ha sido <b>aprobada</b>. Puedes consultarla en la plataforma.",
-            canal="in_app",
-            target_url="#/solicitudes",
-            metadata={"entidad": "solicitud", "estado": "approved"},
+            datos_despues={
+                "estado": ESTADO_SOLICITUD_APROBADA,
+                "aprobador_id": current_user.id,
+                "solicitud_aprobacion_id": aprob_row.id,
+            },
         )
 
         solicitud_final = await self.repo.get_with_empleado(solicitud_id)
@@ -544,46 +591,14 @@ class SolicitudService:
 
         primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
         lid = emp.lider_id
+        gid = primer_g.id if primer_g else None
 
-        if solicitud.nivel_actual == 1:
-            if lid is None:
-                raise ForbiddenError(
-                    detail="La solicitud no tiene supervisor asignado; solo RH o director pueden aprobarla"
-                )
-            if lid != current_user.id:
-                raise ForbiddenError(
-                    detail="Solo el jefe directo puede actuar sobre esta solicitud en esta etapa"
-                )
-            requiere_segunda_etapa = (
-                primer_g is not None
-                and lid is not None
-                and primer_g.id != lid
-            )
-            if requiere_segunda_etapa:
-                datos_antes = {"estado": solicitud.estado, "nivel_actual": solicitud.nivel_actual}
-                await self.aprobacion_repo.create({
-                    "solicitud_id": solicitud_id,
-                    "aprobador_id": current_user.id,
-                    "accion": "approve",
-                    "nivel": aprobacion.nivel,
-                    "comentario": aprobacion.comentario,
-                })
-                await self.repo.update(solicitud_id, {"nivel_actual": 2})
-                audit_background(
-                    background_tasks=background_tasks,
-                    db=self.db,
-                    accion="SOLICITUD_ETAPA_SUPERVISOR_COMPLETADA",
-                    modulo="solicitudes",
-                    usuario_id=current_user.id,
-                    entidad_id=solicitud_id,
-                    datos_antes=datos_antes,
-                    datos_despues={"nivel_actual": 2, "estado": "pending"},
-                )
-                solicitud_final = await self.repo.get_with_empleado(solicitud_id)
-                if not solicitud_final:
-                    raise NotFoundError(entidad="Solicitud", id=solicitud_id)
-                return await self._build_solicitud_response_con_flujo(solicitud_final)
-
+        if _puede_actuar_jerarquia_solicitud(
+            rol=rol,
+            lider_id=lid,
+            primer_gerente_id=gid,
+            current_user_id=current_user.id,
+        ):
             return await self._aprobar_final_con_tress(
                 solicitud_id=solicitud_id,
                 solicitud=solicitud,
@@ -592,24 +607,10 @@ class SolicitudService:
                 background_tasks=background_tasks,
             )
 
-        if solicitud.nivel_actual >= 2:
-            if primer_g is None or primer_g.id != current_user.id:
-                raise ForbiddenError(
-                    detail="Solo el gerente responsable de la linea puede completar esta aprobacion"
-                )
-            if lid is not None and not _supervisor_ya_aprobo(solicitud, lid):
-                raise ForbiddenError(
-                    detail="Aun no consta la aprobacion del supervisor directo en el sistema"
-                )
-            return await self._aprobar_final_con_tress(
-                solicitud_id=solicitud_id,
-                solicitud=solicitud,
-                aprobacion=aprobacion,
-                current_user=current_user,
-                background_tasks=background_tasks,
-            )
-
-        raise ConflictError(detail="Estado de flujo de la solicitud no valido para aprobar")
+        raise ForbiddenError(
+            detail="No tienes permiso para aprobar esta solicitud. Solo el supervisor directo, "
+            "el gerente de linea, RH o director pueden aprobarla."
+        )
 
     # ── Rechazar ─────────────────────────────────────────────────────────────
 
@@ -636,26 +637,17 @@ class SolicitudService:
         if rol not in ("director", "rh"):
             primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
             lid = emp.lider_id
-            if solicitud.nivel_actual == 1:
-                if lid is None:
-                    raise ForbiddenError(
-                        detail="La solicitud no tiene supervisor asignado; solo RH o director pueden rechazarla"
-                    )
-                if lid != current_user.id:
-                    raise ForbiddenError(
-                        detail="Solo el jefe directo puede rechazar la solicitud en esta etapa"
-                    )
-            elif solicitud.nivel_actual >= 2:
-                if primer_g is None or primer_g.id != current_user.id:
-                    raise ForbiddenError(
-                        detail="Solo el gerente responsable de la linea puede rechazar en esta etapa"
-                    )
-                if lid is not None and not _supervisor_ya_aprobo(solicitud, lid):
-                    raise ForbiddenError(
-                        detail="Aun no consta la aprobacion del supervisor directo en el sistema"
-                    )
-            else:
-                raise ConflictError(detail="Estado de flujo de la solicitud no valido para rechazar")
+            gid = primer_g.id if primer_g else None
+            if not _puede_actuar_jerarquia_solicitud(
+                rol=rol,
+                lider_id=lid,
+                primer_gerente_id=gid,
+                current_user_id=current_user.id,
+            ):
+                raise ForbiddenError(
+                    detail="No tienes permiso para rechazar esta solicitud. Solo el supervisor directo, "
+                    "el gerente de linea, RH o director pueden rechazarla."
+                )
 
         datos_antes = {"estado": solicitud.estado}
         await self.repo.update(solicitud_id, {"estado": "rejected"})
@@ -696,7 +688,7 @@ class SolicitudService:
         if not solicitud:
             raise NotFoundError(entidad="Solicitud", id=solicitud_id)
 
-        if solicitud.estado not in ("pending", "rejected"):
+        if solicitud.estado not in ("pending", "rejected", "changes_requested"):
             raise ConflictError(
                 detail=f"No se puede hacer override de una solicitud en estado '{solicitud.estado}'"
             )
@@ -726,6 +718,204 @@ class SolicitudService:
         if not solicitud_final:
             raise NotFoundError(entidad="Solicitud", id=solicitud_id)
         return _solicitud_to_response(solicitud_final)
+
+    # ── Solicitar cambios (requisitor debe corregir) ──────────────────────────
+
+    async def solicitar_cambios_solicitud(
+        self,
+        solicitud_id: int,
+        body: SolicitudSolicitarCambiosBody,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> SolicitudResponse:
+        solicitud = await self.repo.get_with_empleado(solicitud_id)
+        if not solicitud:
+            raise NotFoundError(entidad="Solicitud", id=solicitud_id)
+
+        if solicitud.estado != "pending":
+            raise ConflictError(
+                detail=(
+                    "Solo se pueden solicitar cambios sobre solicitudes en estado 'pending'; "
+                    f"estado actual: '{solicitud.estado}'"
+                )
+            )
+
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
+        emp = solicitud.empleado
+
+        if rol not in ("director", "rh"):
+            primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
+            lid = emp.lider_id
+            gid = primer_g.id if primer_g else None
+            if not _puede_actuar_jerarquia_solicitud(
+                rol=rol,
+                lider_id=lid,
+                primer_gerente_id=gid,
+                current_user_id=current_user.id,
+            ):
+                raise ForbiddenError(
+                    detail="No tienes permiso para solicitar cambios en esta solicitud. Solo el supervisor "
+                    "directo, el gerente de linea, RH o director pueden hacerlo."
+                )
+
+        datos_antes = {"estado": solicitud.estado}
+        await self.repo.update(solicitud_id, {"estado": "changes_requested"})
+        aprob_row = await self.aprobacion_repo.create({
+            "solicitud_id": solicitud_id,
+            "aprobador_id": current_user.id,
+            "accion": "request_changes",
+            "nivel": body.nivel,
+            "comentario": body.comentario,
+        })
+
+        requisitor_id = solicitud.empleado_id
+        tipo_txt = solicitud.tipo.replace("_", " ")
+        notif_svc = NotificacionService(self.db)
+        await notif_svc.enviar(
+            destinatario_id=requisitor_id,
+            asunto="Tu solicitud requiere cambios",
+            cuerpo=(
+                f"Se solicitaron correcciones a tu solicitud de <b>{tipo_txt}</b> "
+                f"del {solicitud.fecha_inicio} al {solicitud.fecha_fin}. "
+                "Revisa el comentario del aprobador, actualiza la solicitud y vuelve a enviarla."
+            ),
+            canal="in_app",
+            target_url="#/solicitudes",
+            metadata={
+                "entidad": "solicitud",
+                "solicitud_id": solicitud_id,
+                "estado": "changes_requested",
+                "tipo_evento": "solicitud_cambios_solicitados",
+                "aprobador_id": current_user.id,
+                "solicitud_aprobacion_id": aprob_row.id,
+            },
+        )
+
+        audit_background(
+            background_tasks=background_tasks,
+            db=self.db,
+            accion="SOLICITUD_CHANGES_REQUESTED",
+            modulo="solicitudes",
+            usuario_id=current_user.id,
+            entidad_id=solicitud_id,
+            datos_antes=datos_antes,
+            datos_despues={
+                "estado": "changes_requested",
+                "comentario": body.comentario,
+                "solicitud_aprobacion_id": aprob_row.id,
+            },
+        )
+
+        solicitud_final = await self.repo.get_with_empleado(solicitud_id)
+        if not solicitud_final:
+            raise NotFoundError(entidad="Solicitud", id=solicitud_id)
+        return await self._build_solicitud_response_con_flujo(solicitud_final)
+
+    async def requisitor_actualizar_y_reenviar(
+        self,
+        solicitud_id: int,
+        data: SolicitudRequisitorRevision,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> SolicitudResponse:
+        solicitud = await self.repo.get_with_empleado(solicitud_id)
+        if not solicitud:
+            raise NotFoundError(entidad="Solicitud", id=solicitud_id)
+
+        if solicitud.empleado_id != current_user.id:
+            raise ForbiddenError(detail="Solo el solicitante puede actualizar esta solicitud")
+
+        if solicitud.estado != "changes_requested":
+            raise ConflictError(
+                detail=(
+                    "Solo se puede corregir una solicitud en estado 'changes_requested'; "
+                    f"estado actual: '{solicitud.estado}'"
+                )
+            )
+
+        duplicado = await self.repo.count(
+            filters=[
+                Solicitud.empleado_id == current_user.id,
+                Solicitud.id != solicitud_id,
+                Solicitud.fecha_inicio == data.fecha_inicio,
+                Solicitud.fecha_fin == data.fecha_fin,
+                Solicitud.estado.in_(_ESTADOS_DUPLICADO_EXACTO),
+            ]
+        )
+        if duplicado > 0:
+            raise ConflictError(detail=_MSG_SOLICITUD_YA_EXISTE)
+
+        if solicitud.tipo == "vacaciones":
+            await self._validar_saldo_vacaciones_crear(
+                current_user=current_user,
+                fecha_inicio=data.fecha_inicio,
+                fecha_fin=data.fecha_fin,
+            )
+
+        datos_antes = {
+            "estado": solicitud.estado,
+            "fecha_inicio": str(solicitud.fecha_inicio),
+            "fecha_fin": str(solicitud.fecha_fin),
+            "comentarios": solicitud.comentarios,
+        }
+        await self.repo.update(
+            solicitud_id,
+            {
+                "fecha_inicio": data.fecha_inicio,
+                "fecha_fin": data.fecha_fin,
+                "comentarios": data.comentarios,
+                "estado": "pending",
+                "nivel_actual": 1,
+            },
+        )
+
+        audit_background(
+            background_tasks=background_tasks,
+            db=self.db,
+            accion="SOLICITUD_REVISION_REENVIADA",
+            modulo="solicitudes",
+            usuario_id=current_user.id,
+            entidad_id=solicitud_id,
+            datos_antes=datos_antes,
+            datos_despues={
+                "estado": "pending",
+                "fecha_inicio": str(data.fecha_inicio),
+                "fecha_fin": str(data.fecha_fin),
+                "comentarios": data.comentarios,
+                "nivel_actual": 1,
+            },
+        )
+
+        if current_user.lider_id:
+            supervisor_id = current_user.lider_id
+            nombre_empleado = current_user.nombre
+            tipo = solicitud.tipo
+            tipo_txt = tipo.replace("_", " ")
+            notif_sup = NotificacionService(self.db)
+            await notif_sup.enviar(
+                destinatario_id=supervisor_id,
+                asunto=f"Solicitud corregida por {nombre_empleado}",
+                cuerpo=(
+                    f"El colaborador actualizó su solicitud de <b>{tipo_txt}</b> "
+                    f"del {data.fecha_inicio} al {data.fecha_fin} y quedó pendiente de revisión."
+                ),
+                canal="in_app",
+                target_url="#/solicitudes",
+                metadata={
+                    "entidad": "solicitud",
+                    "tipo": tipo,
+                    "solicitud_id": solicitud_id,
+                    "estado": "pending",
+                    "tipo_evento": "solicitud_corregida_reenviada",
+                    "empleado_solicitante_id": current_user.id,
+                },
+            )
+
+        solicitud_final = await self.repo.get_with_empleado(solicitud_id)
+        if not solicitud_final:
+            raise NotFoundError(entidad="Solicitud", id=solicitud_id)
+        return await self._build_solicitud_response_con_flujo(solicitud_final)
 
     # ── Cancelar ─────────────────────────────────────────────────────────────
 
@@ -779,4 +969,12 @@ class SolicitudService:
         await self.get_solicitud(solicitud_id=solicitud_id, current_user=current_user)
 
         aprobaciones = await self.aprobacion_repo.list_by_solicitud(solicitud_id)
-        return [SolicitudAprobacionResponse.model_validate(a) for a in aprobaciones]
+        out: list[SolicitudAprobacionResponse] = []
+        for a in aprobaciones:
+            base = SolicitudAprobacionResponse.model_validate(a)
+            nom = ""
+            aprobador = getattr(a, "aprobador", None)
+            if aprobador is not None and getattr(aprobador, "nombre", None):
+                nom = (aprobador.nombre or "").strip()
+            out.append(base.model_copy(update={"aprobador_nombre": nom}))
+        return out

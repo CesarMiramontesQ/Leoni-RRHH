@@ -12,6 +12,15 @@ export const SR_COPY = {
 
   seccionHistorial: "Historial de aprobación",
 
+  historialTituloRegistrada: "Solicitud registrada",
+  historialTituloAprobada: "Solicitud aprobada",
+  historialTituloRechazada: "Solicitud rechazada",
+  historialTituloOverride: "Aprobación administrativa (override)",
+  historialTituloCambiosSolicitados: "Cambios solicitados por el aprobador",
+  historialRolSolicitante: "Solicitante",
+  historialRolAprobadorNivel: (nivel: number) => `Aprobador · nivel ${nivel}`,
+  historialActorDesconocido: "—",
+
   cardGeneral: "Información general",
   cardPeriodo: "Período solicitado",
   lblEmpleado: "Empleado",
@@ -24,6 +33,10 @@ export const SR_COPY = {
 
   badgeAprobado: "APROBADO",
   badgeRechazado: "RECHAZADO",
+  badgeCambiosSolicitados: "CAMBIOS SOLICITADOS",
+
+  bloqueCambiosTitulo: "Instrucciones del aprobador",
+  lblSolicitoCambios: "Solicitó los cambios",
 
   tituloVacaciones: "Solicitud de vacaciones",
   tituloHomeOffice: "Solicitud de home office",
@@ -36,10 +49,12 @@ export const SR_COPY = {
 
   btnFirmar: "Firmar documento",
   btnCancelar: "Cancelar",
+  btnImprimir: "Imprimir",
   btnCerrar: "Cerrar",
   btnVerComentario: "Ver comentario completo",
   btnOcultarComentario: "Ocultar comentario completo",
   btnDescargar: "Descargar comprobante",
+  btnCorregirYReenviar: "Editar y reenviar a aprobación",
 
   bloqueRechazoTitulo: "Motivo del rechazo",
   lblResponsable: "Responsable",
@@ -53,4 +68,4 @@ export const SR_COPY = {
 
   errorNoResuelta: "Solo se puede consultar el detalle de solicitudes aprobadas o rechazadas.",
   errorNoEncontrada: "No se encontró la solicitud.",
-} as const;
+};

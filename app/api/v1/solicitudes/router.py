@@ -25,7 +25,9 @@ from app.schemas.solicitudes import (
     SolicitudAprobacionCreate,
     SolicitudAprobacionResponse,
     SolicitudCreate,
+    SolicitudRequisitorRevision,
     SolicitudResponse,
+    SolicitudSolicitarCambiosBody,
 )
 from app.services.solicitud_service import SolicitudService
 
@@ -123,6 +125,43 @@ async def reject_solicitud(
     return await service.rechazar_solicitud(
         solicitud_id=solicitud_id,
         aprobacion=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.put("/{solicitud_id}/request-changes", response_model=SolicitudResponse)
+async def request_changes_solicitud(
+    solicitud_id: int,
+    body: SolicitudSolicitarCambiosBody,
+    background_tasks: BackgroundTasks,
+    current_user: Empleado = Depends(
+        role_checker(["supervisor", "gerente", "director", "rh"])
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    service = SolicitudService(db)
+    return await service.solicitar_cambios_solicitud(
+        solicitud_id=solicitud_id,
+        body=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.patch("/{solicitud_id}/revision", response_model=SolicitudResponse)
+async def patch_solicitud_revision(
+    solicitud_id: int,
+    body: SolicitudRequisitorRevision,
+    background_tasks: BackgroundTasks,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Solo el creador de la solicitud, solo en `changes_requested`: actualiza fechas/comentarios, auditoría y vuelve a `pending` con notificación al supervisor."""
+    service = SolicitudService(db)
+    return await service.requisitor_actualizar_y_reenviar(
+        solicitud_id=solicitud_id,
+        data=body,
         current_user=current_user,
         background_tasks=background_tasks,
     )

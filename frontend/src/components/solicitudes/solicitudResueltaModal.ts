@@ -1,9 +1,9 @@
 /**
  * Modal de consulta para solicitudes resueltas (aprobadas / rechazadas).
- * Datos: `fetchSolicitudResueltaDetalleMock` + `mapTablaFilaToSolicitudResuelta`.
+ * Datos: API (`fetchSolicitudResueltaDetalle`) + `mapTablaFilaToSolicitudResuelta`.
  */
 
-import { fetchSolicitudResueltaDetalleMock } from "../../solicitudes/rh/fetchSolicitudResueltaDetalleMock.ts";
+import { fetchSolicitudResueltaDetalle } from "../../solicitudes/rh/fetchSolicitudResueltaDetalle.ts";
 import { SR_COPY } from "../../solicitudes/rh/solicitudResueltaCopy.ts";
 import type { SolicitudResueltaDetalleVm } from "../../solicitudes/rh/solicitudResueltaTypes.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
@@ -26,6 +26,10 @@ export type SolicitudResueltaModalOpciones = {
   onDescargarComprobante?: (requestId: string) => void | Promise<void>;
   /** Rol empleado: sin acciones mock (firmar, cancelar, descargar). */
   soloLectura?: boolean;
+  /** Id directorio del usuario en sesión (para CTA «corregir» en `changes_requested`). */
+  sesionEmpleadoDirectoryId?: number | null;
+  /** Abre el formulario de corrección / reenvío (modal nueva solicitud en modo revisión). */
+  onCorregirSolicitud?: (solicitudId: number) => void | Promise<void>;
 };
 
 export type SolicitudResueltaModalHandle = {
@@ -58,6 +62,7 @@ export function mountSolicitudResueltaModal(
   const rootOverlay = overlay;
   const modalBody = body;
   const soloLectura = options.soloLectura ?? false;
+  const sesionEmpleadoDirectoryId = options.sesionEmpleadoDirectoryId;
   let loading = false;
 
   function close(): void {
@@ -123,6 +128,24 @@ export function mountSolicitudResueltaModal(
         { signal: options.signal },
       );
     });
+
+    host.querySelector("[data-rh-sr-imprimir]")?.addEventListener(
+      "click",
+      () => {
+        /* Reservado: impresión / PDF de la solicitud */
+      },
+      { signal: options.signal },
+    );
+
+    host.querySelector("[data-rh-sr-corregir]")?.addEventListener(
+      "click",
+      () => {
+        const id = Number.parseInt(getId(), 10);
+        if (!Number.isFinite(id)) return;
+        void Promise.resolve(options.onCorregirSolicitud?.(id));
+      },
+      { signal: options.signal },
+    );
   }
 
   rootOverlay.addEventListener(
@@ -161,7 +184,12 @@ export function mountSolicitudResueltaModal(
       modalBody.innerHTML = solicitudResueltaLoadingBodyHtml();
       loading = true;
 
-      const res = await fetchSolicitudResueltaDetalleMock(solicitudId, options.getFilaById, false, soloLectura);
+      const res = await fetchSolicitudResueltaDetalle(
+        solicitudId,
+        options.getFilaById,
+        soloLectura,
+        sesionEmpleadoDirectoryId,
+      );
       loading = false;
 
       if (!res.ok) {

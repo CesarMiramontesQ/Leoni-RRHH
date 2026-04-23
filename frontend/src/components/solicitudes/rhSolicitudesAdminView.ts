@@ -487,17 +487,20 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
             const num = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
             const dias = String(calcularDiasSolicitadosInclusive(row.fecha_inicio, row.fecha_fin));
             const pending = row.estado === "pending";
+            const cambiosSolicitados = row.estado === "changes_requested";
             const resueltaConsulta =
               row.estado === "approved" || row.estado === "rejected" || row.estado === "overridden";
-            const clickable = pending || resueltaConsulta;
+            const clickable = pending || resueltaConsulta || cambiosSolicitados;
             const trClickCls = clickable
               ? "cursor-pointer hover:bg-slate-100/90 focus-within:bg-slate-50/90"
               : "";
             const trDataAttrs = pending
               ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
-              : resueltaConsulta
-                ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
-                : "";
+              : cambiosSolicitados
+                ? ` tabindex="0" role="button" data-rh-sol-row-changes="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaCambiosSolicitados)}"`
+                : resueltaConsulta
+                  ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
+                  : "";
             const verBtn = clickable
               ? `<button type="button" class="rounded-lg px-2 py-1 text-xs font-semibold text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" data-rh-sol-ver="${row.id}">Ver</button>`
               : `<span class="text-xs text-slate-400">—</span>`;
@@ -592,17 +595,20 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
           .map((row) => {
             const num = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
             const pending = row.estado === "pending";
+            const cambiosSolicitados = row.estado === "changes_requested";
             const resueltaConsulta =
               row.estado === "approved" || row.estado === "rejected" || row.estado === "overridden";
-            const clickable = pending || resueltaConsulta;
+            const clickable = pending || resueltaConsulta || cambiosSolicitados;
             const trClickCls = clickable
               ? "cursor-pointer hover:bg-slate-100/90 focus-within:bg-slate-50/90"
               : "";
             const trDataAttrs = pending
               ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
-              : resueltaConsulta
-                ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
-                : "";
+              : cambiosSolicitados
+                ? ` tabindex="0" role="button" data-rh-sol-row-changes="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaCambiosSolicitados)}"`
+                : resueltaConsulta
+                  ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
+                  : "";
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
       <td class="px-3 py-2.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>

@@ -1,3 +1,5 @@
+import type { SolicitudApiItem, SolicitudAprobacionApiItem } from "../../api/solicitudes.ts";
+import { buildHistorialFromAprobaciones } from "./buildHistorialFromAprobaciones.ts";
 import { calcularDiasSolicitadosInclusive } from "./rhNewRequestDays.ts";
 import { SR_COPY } from "./solicitudResueltaCopy.ts";
 import type {
@@ -178,14 +180,55 @@ function buildHistorialRechazada(row: RhSolicitudTablaFila, emp: string, sup: st
   return acc.sort((a, b) => b.ts - a.ts).map((x) => x.vm);
 }
 
+function ultimaActualizacionFmt(solicitud: SolicitudApiItem, aprobaciones: SolicitudAprobacionApiItem[]): string {
+  let maxMs = Date.parse(solicitud.created_at);
+  if (!Number.isFinite(maxMs)) maxMs = Date.now();
+  for (const a of aprobaciones) {
+    const t = Date.parse(a.timestamp);
+    if (Number.isFinite(t) && t > maxMs) maxMs = t;
+  }
+  return fmtFechaHora(maxMs);
+}
+
+function tsOrZero(iso: string): number {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function ultimoRechazo(aprobaciones: SolicitudAprobacionApiItem[]): SolicitudAprobacionApiItem | undefined {
+  const rechazos = aprobaciones.filter((a) => a.accion === "reject");
+  if (!rechazos.length) return undefined;
+  return rechazos.reduce((a, b) => (tsOrZero(a.timestamp) >= tsOrZero(b.timestamp) ? a : b));
+}
+
+function ultimoRequestChanges(aprobaciones: SolicitudAprobacionApiItem[]): SolicitudAprobacionApiItem | undefined {
+  const xs = aprobaciones.filter((a) => a.accion === "request_changes");
+  if (!xs.length) return undefined;
+  return xs.reduce((a, b) => (tsOrZero(a.timestamp) >= tsOrZero(b.timestamp) ? a : b));
+}
+
+export type MapTablaFilaToSolicitudResueltaOpciones = {
+  soloLectura?: boolean;
+  /** Sesión autenticada es el colaborador dueño de la fila (mismo `empleado_id` que la solicitud). */
+  sesionEsCreador?: boolean;
+  /** Si viene del GET por id, el historial se arma desde `aprobaciones` persistidas. */
+  solicitudApi?: SolicitudApiItem;
+  aprobaciones?: SolicitudAprobacionApiItem[];
+};
+
 /**
- * Construye la vista de detalle solo para filas `approved`, `overridden` o `rejected`.
+ * Construye la vista de detalle para filas resueltas o `changes_requested` (consulta).
  */
 export function mapTablaFilaToSolicitudResuelta(
   row: RhSolicitudTablaFila,
-  opciones?: { soloLectura?: boolean },
+  opciones?: MapTablaFilaToSolicitudResueltaOpciones,
 ): SolicitudResueltaDetalleVm | null {
-  if (row.estado !== "approved" && row.estado !== "rejected" && row.estado !== "overridden") {
+  if (
+    row.estado !== "approved" &&
+    row.estado !== "rejected" &&
+    row.estado !== "overridden" &&
+    row.estado !== "changes_requested"
+  ) {
     return null;
   }
 
@@ -197,15 +240,47 @@ export function mapTablaFilaToSolicitudResuelta(
     row.tipo === "vacaciones" ? SR_COPY.tipoVacacionesAnuales : SR_COPY.tipoHomeOffice;
   const titulo = row.tipo === "vacaciones" ? SR_COPY.tituloVacaciones : SR_COPY.tituloHomeOffice;
 
-  const estado_ui: SolicitudResueltaEstadoUi = row.estado === "rejected" ? "rechazada" : "aprobada";
-  const perfilBase = estado_ui === "aprobada" ? perfilDefaultAprobada() : perfilDefaultRechazada();
+  const estado_ui: SolicitudResueltaEstadoUi =
+    row.estado === "rejected" ? "rechazada"
+    : row.estado === "changes_requested" ? "cambios_solicitados"
+    : "aprobada";
+
+  const perfilBase =
+    estado_ui === "aprobada" ? perfilDefaultAprobada()
+    : estado_ui === "cambios_solicitados" ?
+      {
+        puede_firmar: false,
+        puede_cancelar: false,
+        proceso_completado: true,
+        comprobante_disponible: false,
+        motivo_rechazo: "—",
+      }
+    : perfilDefaultRechazada();
   const perfil = mergePerfil(row.id, perfilBase);
 
-  const historial =
-    estado_ui === "aprobada" ? buildHistorialAprobada(row, emp, sup) : buildHistorialRechazada(row, emp, sup);
+  const solicitudApi = opciones?.solicitudApi;
+  const aprobaciones = opciones?.aprobaciones ?? [];
+  const usarHistorialServidor = solicitudApi != null;
+  const sesionEsCreador = opciones?.sesionEsCreador === true;
 
-  const updatedTs = Date.now() - 2 * 36e5;
-  const actualizado_en = fmtFechaHora(updatedTs);
+  let historial: SolicitudHistorialItemVm[];
+  let actualizado_en: string;
+  let actualizado_relativo: string | undefined;
+
+  if (usarHistorialServidor && solicitudApi) {
+    historial = buildHistorialFromAprobaciones(solicitudApi, aprobaciones, row.empleado_nombre_raw);
+    actualizado_en = ultimaActualizacionFmt(solicitudApi, aprobaciones);
+    actualizado_relativo = undefined;
+  } else if (estado_ui === "cambios_solicitados") {
+    historial = [];
+    actualizado_en = fmtFechaHora(Date.now() - 2 * 36e5);
+    actualizado_relativo = SR_COPY.haceHoras(2);
+  } else {
+    historial =
+      estado_ui === "aprobada" ? buildHistorialAprobada(row, emp, sup) : buildHistorialRechazada(row, emp, sup);
+    actualizado_en = fmtFechaHora(Date.now() - 2 * 36e5);
+    actualizado_relativo = SR_COPY.haceHoras(2);
+  }
 
   const vm: SolicitudResueltaDetalleVm = {
     id: String(row.id),
@@ -220,15 +295,16 @@ export function mapTablaFilaToSolicitudResuelta(
     fecha_fin: fmtFechaCorta(row.fecha_fin),
     total_dias: total,
     actualizado_en,
-    actualizado_relativo: SR_COPY.haceHoras(2),
+    actualizado_relativo,
     puede_firmar: perfil.puede_firmar,
     puede_cancelar: perfil.puede_cancelar,
     proceso_completado: perfil.proceso_completado,
     comprobante_disponible: perfil.comprobante_disponible,
+    ...(estado_ui === "cambios_solicitados" && sesionEsCreador ? { puede_corregir_y_reenviar: true as const } : {}),
     historial,
   };
 
-  if (estado_ui === "aprobada") {
+  if (estado_ui === "aprobada" && !usarHistorialServidor && row.tipo !== "vacaciones") {
     if (perfil.proceso_completado) {
       vm.siguiente_paso = undefined;
       vm.historial = [
@@ -259,11 +335,53 @@ export function mapTablaFilaToSolicitudResuelta(
     }
   }
 
+  if (estado_ui === "aprobada" && usarHistorialServidor && row.tipo !== "vacaciones") {
+    vm.siguiente_paso = perfil.siguiente_paso;
+  }
+
+  if (estado_ui === "aprobada" && row.tipo === "vacaciones") {
+    vm.siguiente_paso = undefined;
+    vm.puede_firmar = false;
+    vm.puede_cancelar = false;
+  }
+
+  if (estado_ui === "cambios_solicitados" && usarHistorialServidor) {
+    const uc = ultimoRequestChanges(aprobaciones);
+    if (uc) {
+      const por =
+        formatNombreEmpleadoUi((uc.aprobador_nombre || "").trim()).trim() ||
+        (uc.aprobador_nombre || "").trim() ||
+        `Empleado #${uc.aprobador_id}`;
+      vm.rechazado_por = por;
+      vm.fecha_rechazo = fmtFechaHora(Date.parse(uc.timestamp));
+      const c = typeof uc.comentario === "string" && uc.comentario.trim() ? uc.comentario.trim() : "";
+      vm.motivo_rechazo = c || "—";
+      vm.comentario_rechazo_largo = c || "—";
+    } else {
+      vm.motivo_rechazo = "—";
+      vm.rechazado_por = sup;
+      vm.fecha_rechazo = actualizado_en;
+    }
+  }
+
   if (estado_ui === "rechazada") {
-    vm.motivo_rechazo = perfil.motivo_rechazo;
-    vm.comentario_rechazo_largo = perfil.comentario_rechazo_largo ?? perfil.motivo_rechazo;
-    vm.rechazado_por = sup;
-    vm.fecha_rechazo = historial.find((h) => h.tipo === "rechazada")?.fecha_hora ?? actualizado_en;
+    const ur = usarHistorialServidor ? ultimoRechazo(aprobaciones) : undefined;
+    if (ur) {
+      const por =
+        formatNombreEmpleadoUi((ur.aprobador_nombre || "").trim()).trim() ||
+        (ur.aprobador_nombre || "").trim() ||
+        `Empleado #${ur.aprobador_id}`;
+      vm.rechazado_por = por;
+      vm.fecha_rechazo = fmtFechaHora(Date.parse(ur.timestamp));
+      const c = typeof ur.comentario === "string" && ur.comentario.trim() ? ur.comentario.trim() : "";
+      vm.motivo_rechazo = c || perfil.motivo_rechazo;
+      vm.comentario_rechazo_largo = c || perfil.comentario_rechazo_largo || perfil.motivo_rechazo;
+    } else {
+      vm.motivo_rechazo = perfil.motivo_rechazo;
+      vm.comentario_rechazo_largo = perfil.comentario_rechazo_largo ?? perfil.motivo_rechazo;
+      vm.rechazado_por = sup;
+      vm.fecha_rechazo = historial.find((h) => h.tipo === "rechazada")?.fecha_hora ?? actualizado_en;
+    }
   }
 
   if (opciones?.soloLectura) {

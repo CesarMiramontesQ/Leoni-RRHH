@@ -151,8 +151,15 @@ export function solicitudResueltaEmptyBodyHtml(): string {
 function headerInnerHtml(vm: SolicitudResueltaDetalleVm): string {
   const badgeAprobada = `inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-800`;
   const badgeRechazada = `inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-red-800`;
-  const badgeCls = vm.estado_ui === "aprobada" ? badgeAprobada : badgeRechazada;
-  const badgeTxt = vm.estado_ui === "aprobada" ? SR_COPY.badgeAprobado : SR_COPY.badgeRechazado;
+  const badgeCambios = `inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-900`;
+  const badgeCls =
+    vm.estado_ui === "aprobada" ? badgeAprobada
+    : vm.estado_ui === "cambios_solicitados" ? badgeCambios
+    : badgeRechazada;
+  const badgeTxt =
+    vm.estado_ui === "aprobada" ? SR_COPY.badgeAprobado
+    : vm.estado_ui === "cambios_solicitados" ? SR_COPY.badgeCambiosSolicitados
+    : SR_COPY.badgeRechazado;
 
   return `
     <div class="flex flex-wrap items-start justify-between gap-3 pr-2">
@@ -171,6 +178,18 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
     .map((item, i) => renderTimelineItem(item, i === 0, i === n - 1))
     .join("");
 
+  const cambiosBloque =
+    vm.estado_ui === "cambios_solicitados" ?
+      `<div class="rounded-xl border border-sky-200/90 bg-sky-50/80 p-4 sm:p-5">
+        <h4 class="text-sm font-bold text-sky-950">${escapeHtml(SR_COPY.bloqueCambiosTitulo)}</h4>
+        <p class="mt-2 text-sm leading-relaxed text-sky-950/90">${escapeHtml(vm.motivo_rechazo ?? "—")}</p>
+        <dl class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+          <div><dt class="text-slate-600">${escapeHtml(SR_COPY.lblSolicitoCambios)}</dt><dd class="font-semibold text-slate-900">${escapeHtml(vm.rechazado_por ?? "—")}</dd></div>
+          <div><dt class="text-slate-600">${escapeHtml(SR_COPY.lblFechaRechazo)}</dt><dd class="font-semibold text-slate-900">${escapeHtml(vm.fecha_rechazo ?? "—")}</dd></div>
+        </dl>
+      </div>`
+    : "";
+
   const rechazoBloque =
     vm.estado_ui === "rechazada" ?
       `<div class="rounded-xl border border-red-200/90 bg-red-50/80 p-4 sm:p-5">
@@ -184,8 +203,22 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
       </div>`
     : "";
 
+  const esVacacionesAprobada = vm.estado_ui === "aprobada" && vm.tipo_codigo === "vacaciones";
+
+  const footerVacacionesAprobada = esVacacionesAprobada ?
+      `<div class="flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          data-rh-sr-imprimir
+          class="min-h-11 rounded-xl bg-leoni-blue px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-leoni-blue/20 hover:bg-leoni-blue-light"
+        >
+          ${escapeHtml(SR_COPY.btnImprimir)}
+        </button>
+      </div>`
+    : "";
+
   const footerAprobadaProceso =
-    vm.estado_ui === "aprobada" && vm.proceso_completado ?
+    vm.estado_ui === "aprobada" && vm.proceso_completado && !esVacacionesAprobada ?
       `<div class="flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p class="text-sm text-slate-600">${escapeHtml(SR_COPY.procesoCompletado)}</p>
         <div class="flex flex-wrap justify-end gap-3">
@@ -196,7 +229,7 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
     : "";
 
   const footerAprobadaActiva =
-    vm.estado_ui === "aprobada" && !vm.proceso_completado ?
+    vm.estado_ui === "aprobada" && !vm.proceso_completado && !esVacacionesAprobada ?
       `<div class="flex flex-col gap-4 border-t border-slate-100 pt-5 lg:flex-row lg:items-center lg:justify-between">
         <p class="text-sm text-leoni-blue">
           <span class="mr-1 inline-block size-2 rounded-full bg-leoni-blue align-middle" aria-hidden="true"></span>
@@ -217,6 +250,18 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
           ${vm.comentario_rechazo_largo && vm.comentario_rechazo_largo !== vm.motivo_rechazo ? `<button type="button" id="rh-sr-toggle-comentario" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">${escapeHtml(SR_COPY.btnVerComentario)}</button>` : ""}
           ${vm.comprobante_disponible ? `<button type="button" data-rh-sr-descargar class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">${escapeHtml(SR_COPY.btnDescargar)}</button>` : ""}
         </div>
+        <button type="button" data-rh-sr-close class="min-h-11 rounded-xl bg-slate-100 px-6 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-200">${escapeHtml(SR_COPY.btnCerrar)}</button>
+      </div>`
+    : "";
+
+  const footerCambiosSolicitados =
+    vm.estado_ui === "cambios_solicitados" ?
+      vm.puede_corregir_y_reenviar ?
+        `<div class="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-col sm:gap-3">
+        <button type="button" data-rh-sr-corregir class="min-h-11 w-full rounded-xl bg-leoni-blue px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-leoni-blue/20 hover:bg-leoni-blue-light sm:w-auto sm:self-end">${escapeHtml(SR_COPY.btnCorregirYReenviar)}</button>
+        <button type="button" data-rh-sr-close class="min-h-11 rounded-xl bg-slate-100 px-6 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-200 sm:self-end">${escapeHtml(SR_COPY.btnCerrar)}</button>
+      </div>`
+      : `<div class="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
         <button type="button" data-rh-sr-close class="min-h-11 rounded-xl bg-slate-100 px-6 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-200">${escapeHtml(SR_COPY.btnCerrar)}</button>
       </div>`
     : "";
@@ -243,6 +288,7 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
         </div>
       </div>
 
+      ${cambiosBloque}
       ${rechazoBloque}
 
       <section class="border-t border-slate-100 pt-6" aria-labelledby="rh-sr-hist-title">
@@ -260,9 +306,11 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
         </ul>
       </section>
 
+      ${footerVacacionesAprobada}
       ${footerAprobadaProceso}
       ${footerAprobadaActiva}
       ${footerRechazada}
+      ${footerCambiosSolicitados}
       <input type="hidden" id="rh-sr-solicitud-id" value="${escapeHtml(vm.id)}" />
     </div>`;
 }

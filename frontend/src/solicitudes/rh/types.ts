@@ -38,6 +38,8 @@ export type RhSolicitudTablaFila = {
   supervisor_nombre: string;
   /** ISO date — día en que pasó a aprobada (mock / futuro campo API). */
   fecha_aprobacion: string | null;
+  /** Nivel jerárquico actual (API `nivel_actual`); se usa al enviar approve/reject. */
+  nivel_actual?: number;
   /** Comentarios del empleado al crear la solicitud (API). */
   comentarios?: string | null;
 };

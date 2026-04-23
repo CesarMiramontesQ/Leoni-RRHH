@@ -151,6 +151,9 @@ export type RhNewRequestFormParams = {
   canSubmit: boolean;
   /** Portal colaborador: sin selector; solo campo oculto con id de directorio. */
   fixedEmpleado?: { directoryId: string; displayLine: string };
+  /** Corrección tras `changes_requested`: no cambiar tipo de solicitud. */
+  modoRevision?: boolean;
+  submitLabel?: string;
 };
 
 export const RESUMEN_BASE =
@@ -222,7 +225,12 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const vacActive = p.tipo === "vacaciones";
   const hoActive = p.tipo === "home_office";
   const selfMode = Boolean(p.fixedEmpleado);
+  const revision = Boolean(p.modoRevision);
   const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
+  const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
+  const tipoDisabledAttr = revision ? " disabled aria-disabled=\"true\"" : "";
+  const tipoTabClsInactive = revision ? `${TAB_INACTIVE} pointer-events-none opacity-50` : TAB_INACTIVE;
+  const submitLabel = p.submitLabel ?? "Enviar solicitud";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
   </svg>`;
@@ -272,18 +280,35 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         </div>
       </section>`;
 
+  const revisionCallout = revision
+    ? `<div class="rounded-xl border border-amber-200/90 bg-amber-50/95 px-4 py-3.5 text-sm text-amber-950 shadow-sm shadow-amber-900/5" role="status">
+        <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-amber-800/90">Cambios solicitados</p>
+        <p class="mt-1.5 text-[13px] leading-relaxed text-amber-950/95">
+          Tu aprobador devolvió la solicitud para que la corrijas. Solo tú puedes editarla en este estado.
+          Ajusta las fechas o los comentarios y usa <strong class="font-semibold">Guardar y reenviar</strong> para volver a enviarla a aprobación.
+        </p>
+      </div>`
+    : "";
+
+  const pieFlujo = revision
+    ? `<p class="text-xs leading-relaxed text-slate-600">
+        Al confirmar, la solicitud pasa a <strong class="font-semibold text-slate-800">pendiente de aprobación</strong> y se notifica a tu supervisor para una nueva revisión.
+      </p>`
+    : `<p class="text-xs leading-relaxed text-slate-500">La solicitud será registrada en el sistema y seguirá el flujo correspondiente.</p>`;
+
   return `
-    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}>
+    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}>
     <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
+    ${revisionCallout}
 
       <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
         <h3 id="rh-nr-sec-tipo" class="${SEC_TITLE}">Tipo de solicitud</h3>
         <div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
-          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
+          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones"${tipoDisabledAttr} class="${vacActive ? TAB_ACTIVE : tipoTabClsInactive}">
             ${iconVacaciones(vacActive)}
             <span>Vacaciones</span>
           </button>
-          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
+          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office"${tipoDisabledAttr} class="${hoActive ? TAB_ACTIVE : tipoTabClsInactive}">
             ${iconHome(hoActive)}
             <span>Home Office</span>
           </button>
@@ -343,7 +368,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mt-0.5 size-3.5 shrink-0 text-slate-400 opacity-80" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
         </svg>
-        <p class="text-xs leading-relaxed text-slate-500">La solicitud será registrada en el sistema y seguirá el flujo correspondiente.</p>
+        ${pieFlujo}
       </div>
 
       <footer class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end sm:gap-3">
@@ -351,7 +376,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
           Cancelar
         </button>
         <button type="submit" id="rh-nr-submit" ${p.canSubmit ? "" : "disabled"} class="min-h-11 w-full rounded-xl bg-leoni-blue px-6 text-sm font-semibold text-white shadow-md shadow-leoni-blue/20 transition-[background-color,box-shadow,opacity] duration-200 hover:bg-leoni-blue-light hover:shadow-lg hover:shadow-leoni-blue/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45 sm:w-auto">
-          Enviar solicitud
+          ${escapeHtml(submitLabel)}
         </button>
       </footer>
     </form>`;

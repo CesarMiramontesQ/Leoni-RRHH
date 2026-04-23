@@ -4,13 +4,14 @@ Repositorios para el dominio solicitudes.
 Solo contiene queries SQLAlchemy — sin logica de negocio.
 """
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.repositories.base import BaseRepository
+from app.schemas.solicitudes import ESTADO_SOLICITUD_APROBADA
 
 
 class SolicitudRepository(BaseRepository[Solicitud]):
@@ -77,6 +78,19 @@ class SolicitudRepository(BaseRepository[Solicitud]):
         filters = [Solicitud.empleado_id.in_(empleado_ids)]
         return await self.list_paginated(cursor=cursor, limit=limit, filters=filters)
 
+    async def marcar_estado_aprobada_si_pending(self, solicitud_id: int) -> bool:
+        """
+        Pasa la solicitud a estado aprobado solo si sigue en pending (una sola fila).
+        Evita doble aprobacion concurrente y mantiene coherencia con notificacion en la misma transaccion.
+        """
+        result = await self.db.execute(
+            update(Solicitud)
+            .where(Solicitud.id == solicitud_id, Solicitud.estado == "pending")
+            .values(estado=ESTADO_SOLICITUD_APROBADA, nivel_actual=1)
+            .execution_options(synchronize_session=False)
+        )
+        return (result.rowcount or 0) > 0
+
 
 class SolicitudAprobacionRepository(BaseRepository[SolicitudAprobacion]):
     def __init__(self, db: AsyncSession):
@@ -87,6 +101,7 @@ class SolicitudAprobacionRepository(BaseRepository[SolicitudAprobacion]):
     ) -> list[SolicitudAprobacion]:
         result = await self.db.execute(
             select(SolicitudAprobacion)
+            .options(selectinload(SolicitudAprobacion.aprobador))
             .where(SolicitudAprobacion.solicitud_id == solicitud_id)
             .order_by(SolicitudAprobacion.timestamp)
         )

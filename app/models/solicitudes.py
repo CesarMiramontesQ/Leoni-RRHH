@@ -19,7 +19,15 @@ class Solicitud(Base):
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
     estado: Mapped[str] = mapped_column(
-        Enum("pending", "approved", "rejected", "cancelled", "overridden", name="solicitud_estado_enum"),
+        Enum(
+            "pending",
+            "approved",
+            "rejected",
+            "cancelled",
+            "overridden",
+            "changes_requested",
+            name="solicitud_estado_enum",
+        ),
         nullable=False,
         default="pending",
     )
@@ -46,7 +54,7 @@ class SolicitudAprobacion(Base):
     solicitud_id: Mapped[int] = mapped_column(ForeignKey("solicitudes.id"), nullable=False)
     aprobador_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
     accion: Mapped[str] = mapped_column(
-        Enum("approve", "reject", "override", name="aprobacion_accion_enum"),
+        Enum("approve", "reject", "override", "request_changes", name="aprobacion_accion_enum"),
         nullable=False,
     )
     nivel: Mapped[int] = mapped_column(Integer, nullable=False)

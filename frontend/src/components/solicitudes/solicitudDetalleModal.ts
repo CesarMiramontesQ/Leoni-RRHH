@@ -1,9 +1,9 @@
 /**
  * Modal de detalle y decisión para solicitudes pendientes (rol RH / aprobador).
- * Presentación en `solicitudDetalleModalUi.ts`; decisión mock en `solicitudDetalleDecisionMock.ts`.
+ * Presentación en `solicitudDetalleModalUi.ts`; persistencia en `solicitudDetalleDecisionSubmit.ts`.
  */
 
-import { ejecutarDecisionSolicitudMock } from "../../solicitudes/rh/solicitudDetalleDecisionMock.ts";
+import { ejecutarDecisionSolicitudSubmit } from "../../solicitudes/rh/solicitudDetalleDecisionSubmit.ts";
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
 import { mapTablaFilaToSolicitudDetallePendiente } from "../../solicitudes/rh/mapTablaFilaToSolicitudDetalle.ts";
 import type { SolicitudDetalleAccion } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
@@ -22,8 +22,8 @@ export type SolicitudDetalleModalOptions = {
   signal: AbortSignal;
   toastContainer: HTMLElement;
   getFilaById: (id: number) => RhSolicitudTablaFila | undefined;
-  aplicarFilaActualizada: (fila: RhSolicitudTablaFila) => void;
-  onRefrescarListado: () => void;
+  /** Tras una decisión exitosa: recargar filas desde el API (misma fuente que al refrescar la página). */
+  onRefrescarListado: () => void | Promise<void>;
   /** Rol empleado: solo consulta, sin DOM de acciones de aprobación. */
   soloLectura?: boolean;
   /** GET /solicitudes/{id} para panel de jerarquía (supervisor, gerente, RH, etc.). */
@@ -131,27 +131,36 @@ export function mountSolicitudDetalleModal(
     }
 
     setActionBusy(true);
-    const res = await ejecutarDecisionSolicitudMock(
-      { solicitudId, accion, comentario_interno },
-      fila,
-    );
-    setActionBusy(false);
+    try {
+      const res = await ejecutarDecisionSolicitudSubmit(
+        { solicitudId, accion, comentario_interno },
+        fila,
+      );
+      if (!res.ok) {
+        showEmpleadosToast(options.toastContainer, res.message, "error");
+        return;
+      }
 
-    if (!res.ok) {
-      showEmpleadosToast(options.toastContainer, res.message, "error");
-      return;
+      try {
+        await Promise.resolve(options.onRefrescarListado());
+      } catch {
+        showEmpleadosToast(options.toastContainer, SD_COPY.listadoRecargaError, "error");
+      }
+
+      // `close()` no hace nada mientras `busy` es true; liberar antes de cerrar tras éxito real.
+      setActionBusy(false);
+
+      const msg =
+        accion === "aprobar"
+          ? SD_COPY.exitoAprobar
+          : accion === "cambios"
+            ? SD_COPY.exitoCambios
+            : SD_COPY.exitoRechazar;
+      showEmpleadosToast(options.toastContainer, msg, "success");
+      close();
+    } finally {
+      setActionBusy(false);
     }
-
-    options.aplicarFilaActualizada(res.fila);
-    const msg =
-      accion === "aprobar"
-        ? SD_COPY.exitoAprobar
-        : accion === "cambios"
-          ? SD_COPY.exitoCambios
-          : SD_COPY.exitoRechazar;
-    showEmpleadosToast(options.toastContainer, msg, "success");
-    close();
-    options.onRefrescarListado();
   }
 
   function bindDetailInteractions(): void {

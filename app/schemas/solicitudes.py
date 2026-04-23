@@ -15,8 +15,19 @@ from pydantic import BaseModel, field_validator
 
 
 SOLICITUD_TIPOS_VALIDOS = {"vacaciones", "home_office"}
-SOLICITUD_ESTADOS_VALIDOS = {"pending", "approved", "rejected", "cancelled", "overridden"}
-APROBACION_ACCIONES_VALIDAS = {"approve", "reject", "override"}
+SOLICITUD_ESTADOS_VALIDOS = {
+    "pending",
+    "approved",
+    "rejected",
+    "cancelled",
+    "overridden",
+    "changes_requested",
+}
+APROBACION_ACCIONES_VALIDAS = {"approve", "reject", "override", "request_changes"}
+
+# Valor persistido en `solicitudes.estado` cuando la solicitud queda aprobada (enum del sistema).
+# La UI puede mostrar «aprobado»; en base de datos el canonico es `approved`.
+ESTADO_SOLICITUD_APROBADA = "approved"
 
 
 class SolicitudCreate(BaseModel):
@@ -84,6 +95,41 @@ class SolicitudResponse(BaseModel):
     pendiente_aprobacion_gerente: bool = False
 
 
+class SolicitudSolicitarCambiosBody(BaseModel):
+    """Entrada para PUT request-changes (aprobador)."""
+
+    model_config = {"str_strip_whitespace": True}
+
+    nivel: int = 1
+    comentario: str
+
+    @field_validator("comentario")
+    @classmethod
+    def comentario_no_vacio(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("comentario es obligatorio para solicitar cambios")
+        return t
+
+
+class SolicitudRequisitorRevision(BaseModel):
+    """Body para reenviar una solicitud tras `changes_requested` (solo el dueño)."""
+
+    model_config = {"str_strip_whitespace": True}
+
+    fecha_inicio: date
+    fecha_fin: date
+    comentarios: Optional[str] = None
+
+    @field_validator("fecha_fin")
+    @classmethod
+    def validar_fechas(cls, v: date, info) -> date:
+        fecha_inicio = info.data.get("fecha_inicio")
+        if fecha_inicio and v < fecha_inicio:
+            raise ValueError("fecha_fin debe ser mayor o igual a fecha_inicio")
+        return v
+
+
 class SolicitudAprobacionCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
@@ -109,3 +155,5 @@ class SolicitudAprobacionResponse(BaseModel):
     nivel: int
     comentario: Optional[str]
     timestamp: datetime
+    # Enriquecido en el servicio (no es columna de `solicitud_aprobaciones`).
+    aprobador_nombre: str = ""

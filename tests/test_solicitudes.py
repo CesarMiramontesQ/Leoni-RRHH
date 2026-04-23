@@ -8,7 +8,7 @@ Cubre:
   - Saldo vacaciones insuficiente (TRESS mockeado) → 422
   - Validacion de esquema (fecha_fin < fecha_inicio, tipo invalido) → 422
   - Listado con filtrado por rol (empleado, supervisor, gerente, rh)
-  - Gerente: acceso por subarbol; GET enriquecido; aprobacion en dos etapas cuando hay gerente en cadena
+  - Gerente: acceso por subarbol; GET enriquecido; aprobacion jerarquica en un solo paso (supervisor o gerente)
   - Aprobacion: supervisor directo aprueba → ok
   - Aprobacion: empleado intenta aprobar → 403 (rol)
   - Rechazo: empleado intenta rechazar → 403 (rol)
@@ -19,6 +19,9 @@ Cubre:
   - Cancelar: otro empleado intenta cancelar → 403
   - Cancelar: solicitud no-pending → 409
   - Rechazar → estado REJECTED
+  - Solicitar cambios: solo pending; estado changes_requested; notificación; bitácora vía aprobaciones
+  - PATCH revision: solo dueño en changes_requested → pending; 403 si no es el creador; 409 si no aplica
+  - PATCH revision: notificación in-app al supervisor (tipo_evento solicitud_corregida_reenviada)
   - GET solicitud por ID con acceso/no-acceso
   - Aprobar solicitud ya aprobada → 409
 """
@@ -51,6 +54,11 @@ RECHAZO_PAYLOAD = {
     "accion": "reject",
     "nivel": 1,
     "comentario": "No hay cobertura",
+}
+
+REQUEST_CHANGES_PAYLOAD = {
+    "nivel": 1,
+    "comentario": "Ajusta las fechas al calendario de planta.",
 }
 
 
@@ -429,6 +437,43 @@ async def test_aprobar_solicitud_supervisor_directo_ok(client: AsyncClient, db):
     assert response.json()["estado"] == "approved"
 
 
+@pytest.mark.asyncio
+async def test_aprobar_solicitud_persiste_notificacion_in_app_para_requisitor(client: AsyncClient, db):
+    """Al aprobar, la notificacion al requisitor queda en la misma transaccion (tabla notificaciones)."""
+    from sqlalchemy import select
+
+    from app.models.notificaciones import Notificacion
+
+    supervisor = await make_empleado(db, rol="supervisor", email="sol_notif_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol_notif_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert response.status_code == 200
+
+    result = await db.execute(select(Notificacion).where(Notificacion.user_id == subordinado.id))
+    notifs = list(result.scalars().all())
+    aprobacion = [n for n in notifs if (n.metadata_json or {}).get("tipo_evento") == "solicitud_aprobada_final"]
+    assert len(aprobacion) == 1
+    n = aprobacion[0]
+    assert n.user_id == subordinado.id
+    assert "aprobada" in (n.message or "").lower()
+    meta = n.metadata_json or {}
+    assert meta.get("solicitud_id") == solicitud.id
+    assert meta.get("entidad") == "solicitud"
+    assert meta.get("estado") == "approved"
+
+
 # ---------------------------------------------------------------------------
 # TC-SOL-011: Aprobar solicitud — empleado intenta aprobar → 403 por rol
 # ---------------------------------------------------------------------------
@@ -494,7 +539,7 @@ async def test_aprobar_solicitud_supervisor_no_directo_retorna_403(client: Async
     )
 
     assert response.status_code == 403
-    assert "jefe directo" in response.json().get("detail", "").lower()
+    assert "permiso" in response.json().get("detail", "").lower()
 
 
 # ---------------------------------------------------------------------------
@@ -522,15 +567,15 @@ async def test_aprobar_solicitud_supervisor_propia_retorna_403(client: AsyncClie
 
 
 # ---------------------------------------------------------------------------
-# TC-SOL-012c: Gerente intenta aprobar solicitud propia en etapa 2 → 403
+# TC-SOL-012c: Solicitud del gerente — supervisor aprueba en un paso; segundo intento 409
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_aprobar_solicitud_gerente_propia_etapa2_retorna_403(client: AsyncClient, db):
+async def test_aprobar_solicitud_gerente_propia_supervisor_cierra_un_paso(client: AsyncClient, db):
     """
-    Cadena G ↔ S: el primer gerente en cadena sobre G es G mismo; el supervisor S aprueba etapa 1
-    y G no debe poder cerrar su propia solicitud en etapa 2.
+    El gerente es el solicitante; su supervisor aprueba una sola vez y queda approved.
+    El gerente no puede «segunda aprobar» (409).
     """
     gerente = await make_empleado(db, rol="gerente", email="sol012cg@leoni.test")
     supervisor = await make_empleado(
@@ -550,7 +595,8 @@ async def test_aprobar_solicitud_gerente_propia_etapa2_retorna_403(client: Async
         headers=headers_s,
     )
     assert r1.status_code == 200
-    assert r1.json()["nivel_actual"] == 2
+    assert r1.json()["estado"] == "approved"
+    assert r1.json()["nivel_actual"] == 1
 
     headers_g = await auth_headers(client, gerente)
     r2 = await client.put(
@@ -558,8 +604,7 @@ async def test_aprobar_solicitud_gerente_propia_etapa2_retorna_403(client: Async
         json=APROBACION_PAYLOAD,
         headers=headers_g,
     )
-    assert r2.status_code == 403
-    assert "propia" in r2.json().get("detail", "").lower()
+    assert r2.status_code == 409
 
 
 # ---------------------------------------------------------------------------
@@ -730,6 +775,267 @@ async def test_rechazar_solicitud_no_pending_retorna_409(client: AsyncClient, db
 
 
 # ---------------------------------------------------------------------------
+# TC-SOL-019b: Solicitar cambios — supervisor, pending → changes_requested
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_solicitar_cambios_supervisor_pending_ok(client: AsyncClient, db):
+    from sqlalchemy import select
+
+    from app.models.solicitudes import SolicitudAprobacion
+
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019b_sup@leoni.test")
+    subordinado = await make_empleado(
+        db, rol="empleado", email="sol019b_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/request-changes",
+        json=REQUEST_CHANGES_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["estado"] == "changes_requested"
+
+    result = await db.execute(
+        select(SolicitudAprobacion).where(SolicitudAprobacion.solicitud_id == solicitud.id)
+    )
+    rows = list(result.scalars().all())
+    assert any(a.accion == "request_changes" for a in rows)
+    rc = next(a for a in rows if a.accion == "request_changes")
+    assert rc.aprobador_id == supervisor.id
+    assert rc.comentario == REQUEST_CHANGES_PAYLOAD["comentario"]
+
+
+@pytest.mark.asyncio
+async def test_solicitar_cambios_persiste_notificacion_in_app_para_requisitor(
+    client: AsyncClient, db,
+):
+    from sqlalchemy import select
+
+    from app.models.notificaciones import Notificacion
+
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019c_sup@leoni.test")
+    subordinado = await make_empleado(
+        db, rol="empleado", email="sol019c_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/request-changes",
+        json=REQUEST_CHANGES_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert response.status_code == 200
+
+    result = await db.execute(select(Notificacion).where(Notificacion.user_id == subordinado.id))
+    notifs = list(result.scalars().all())
+    cambios = [n for n in notifs if (n.metadata_json or {}).get("tipo_evento") == "solicitud_cambios_solicitados"]
+    assert len(cambios) == 1
+    n = cambios[0]
+    meta = n.metadata_json or {}
+    assert meta.get("solicitud_id") == solicitud.id
+    assert meta.get("estado") == "changes_requested"
+    assert meta.get("aprobador_id") == supervisor.id
+
+
+@pytest.mark.asyncio
+async def test_solicitar_cambios_empleado_retorna_403(client: AsyncClient, db):
+    empleado_a = await make_empleado(db, rol="empleado", email="sol019d_a@leoni.test")
+    empleado_b = await make_empleado(db, rol="empleado", email="sol019d_b@leoni.test")
+    solicitud = await make_solicitud(db, empleado_id=empleado_b.id, estado="pending")
+
+    headers_a = await auth_headers(client, empleado_a)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/request-changes",
+        json=REQUEST_CHANGES_PAYLOAD,
+        headers=headers_a,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_solicitar_cambios_no_pending_retorna_409(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019e_sup@leoni.test")
+    subordinado = await make_empleado(
+        db, rol="empleado", email="sol019e_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="approved")
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/request-changes",
+        json=REQUEST_CHANGES_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert response.status_code == 409
+    assert "pending" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_requisitor_changes_requested_ok(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019f_sup@leoni.test")
+    subordinado = await make_empleado(
+        db, rol="empleado", email="sol019f_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=subordinado.id,
+        estado="changes_requested",
+        fecha_inicio=date(2026, 5, 5),
+        fecha_fin=date(2026, 5, 9),
+    )
+
+    headers_sub = await auth_headers(client, subordinado)
+    patch_body = {
+        "fecha_inicio": "2026-05-12",
+        "fecha_fin": "2026-05-16",
+        "comentarios": "Fechas corregidas según comentario del supervisor.",
+    }
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json=patch_body,
+        headers=headers_sub,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["estado"] == "pending"
+    assert body["nivel_actual"] == 1
+    assert body["fecha_inicio"] == patch_body["fecha_inicio"]
+    assert body["fecha_fin"] == patch_body["fecha_fin"]
+    assert body["comentarios"] == patch_body["comentarios"]
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_otro_empleado_retorna_403(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019g_sup@leoni.test")
+    dueno = await make_empleado(
+        db, rol="empleado", email="sol019g_own@leoni.test",
+        lider_id=supervisor.id,
+    )
+    otro = await make_empleado(db, rol="empleado", email="sol019g_otr@leoni.test")
+    solicitud = await make_solicitud(db, empleado_id=dueno.id, estado="changes_requested")
+
+    headers_otro = await auth_headers(client, otro)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": str(solicitud.fecha_inicio),
+            "fecha_fin": str(solicitud.fecha_fin),
+        },
+        headers=headers_otro,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_pending_retorna_409(client: AsyncClient, db):
+    empleado = await make_empleado(db, rol="empleado", email="sol019h@leoni.test")
+    solicitud = await make_solicitud(db, empleado_id=empleado.id, estado="pending")
+
+    headers = await auth_headers(client, empleado)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": str(solicitud.fecha_inicio),
+            "fecha_fin": str(solicitud.fecha_fin),
+        },
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert "changes_requested" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_supervisor_retorna_403(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019i_sup@leoni.test")
+    subordinado = await make_empleado(
+        db, rol="empleado", email="sol019i_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="changes_requested")
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": str(solicitud.fecha_inicio),
+            "fecha_fin": str(solicitud.fecha_fin),
+        },
+        headers=headers_sup,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_rh_retorna_403(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol019j_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol019j_emp@leoni.test")
+    solicitud = await make_solicitud(db, empleado_id=empleado.id, estado="changes_requested")
+
+    headers_rh = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": str(solicitud.fecha_inicio),
+            "fecha_fin": str(solicitud.fecha_fin),
+        },
+        headers=headers_rh,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_notifica_supervisor_corregida_reenviada(client: AsyncClient, db):
+    from sqlalchemy import select
+
+    from app.models.notificaciones import Notificacion
+
+    supervisor = await make_empleado(db, rol="supervisor", email="sol019k_sup@leoni.test")
+    subordinado = await make_empleado(
+        db, rol="empleado", email="sol019k_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=subordinado.id,
+        estado="changes_requested",
+        fecha_inicio=date(2026, 6, 2),
+        fecha_fin=date(2026, 6, 6),
+    )
+
+    headers_sub = await auth_headers(client, subordinado)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": "2026-06-09",
+            "fecha_fin": "2026-06-13",
+            "comentarios": "Corrección aplicada.",
+        },
+        headers=headers_sub,
+    )
+    assert response.status_code == 200
+
+    result = await db.execute(select(Notificacion).where(Notificacion.user_id == supervisor.id))
+    notifs = list(result.scalars().all())
+    reenv = [n for n in notifs if (n.metadata_json or {}).get("tipo_evento") == "solicitud_corregida_reenviada"]
+    assert len(reenv) == 1
+    meta = reenv[0].metadata_json or {}
+    assert meta.get("solicitud_id") == solicitud.id
+    assert meta.get("estado") == "pending"
+    assert meta.get("empleado_solicitante_id") == subordinado.id
+
+
+# ---------------------------------------------------------------------------
 # TC-SOL-021: GET solicitud por ID — empleado accede a la suya → 200
 # ---------------------------------------------------------------------------
 
@@ -782,6 +1088,48 @@ async def test_get_solicitud_inexistente_retorna_404(client: AsyncClient, db):
 
     response = await client.get("/api/v1/solicitudes/99999", headers=headers)
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-023b: GET aprobaciones — incluye nombre del aprobador
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_aprobaciones_incluye_nombre_aprobador(client: AsyncClient, db):
+    supervisor = await make_empleado(
+        db,
+        rol="supervisor",
+        email="sol023b_sup@leoni.test",
+        nombre="Ana Aprobadora Histórico",
+    )
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol023b_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
+
+    headers_sup = await auth_headers(client, supervisor)
+    approve = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert approve.status_code == 200
+
+    headers_sub = await auth_headers(client, subordinado)
+    response = await client.get(
+        f"/api/v1/solicitudes/{solicitud.id}/aprobaciones",
+        headers=headers_sub,
+    )
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 1
+    assert rows[0]["accion"] == "approve"
+    assert rows[0]["aprobador_id"] == supervisor.id
+    assert rows[0]["aprobador_nombre"] == "Ana Aprobadora Histórico"
 
 
 # ---------------------------------------------------------------------------
@@ -906,11 +1254,11 @@ async def test_get_solicitud_gerente_fuera_de_linea_retorna_403(client: AsyncCli
 
 
 # ---------------------------------------------------------------------------
-# TC-SOL-030: Gerente — no aprueba etapa 1 si no es jefe directo
+# TC-SOL-030: Gerente — puede aprobar como gerente de línea (un solo paso)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_aprobar_etapa1_gerente_no_directo_retorna_403(client: AsyncClient, db):
+async def test_aprobar_solicitud_gerente_linea_un_solo_paso_ok(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="sol030g@leoni.test")
     supervisor = await make_empleado(
         db, rol="supervisor", email="sol030s@leoni.test", lider_id=gerente.id
@@ -926,16 +1274,16 @@ async def test_aprobar_etapa1_gerente_no_directo_retorna_403(client: AsyncClient
         json=APROBACION_PAYLOAD,
         headers=headers_g,
     )
-    assert response.status_code == 403
-    assert "jefe directo" in response.json().get("detail", "").lower()
+    assert response.status_code == 200
+    assert response.json()["estado"] == "approved"
 
 
 # ---------------------------------------------------------------------------
-# TC-SOL-031: Flujo supervisor luego gerente — GET enriquecido y cierre final
+# TC-SOL-031: Un solo paso — supervisor aprueba y queda cerrada; segundo intento 409
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_flujo_aprobacion_supervisor_luego_gerente(client: AsyncClient, db):
+async def test_flujo_aprobacion_supervisor_un_paso_segundo_409(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="sol031g@leoni.test")
     supervisor = await make_empleado(
         db, rol="supervisor", email="sol031s@leoni.test", lider_id=gerente.id
@@ -949,7 +1297,8 @@ async def test_flujo_aprobacion_supervisor_luego_gerente(client: AsyncClient, db
     det = await client.get(f"/api/v1/solicitudes/{solicitud.id}", headers=headers_g)
     assert det.status_code == 200
     body0 = det.json()
-    assert body0["pendiente_aprobacion_supervisor"] is True
+    assert body0["pendiente_aprobacion_supervisor"] is False
+    assert body0["pendiente_aprobacion_gerente"] is False
     assert body0["gerente_linea_id"] == gerente.id
     assert body0["gerente_linea_nombre"] == gerente.nombre
 
@@ -960,28 +1309,61 @@ async def test_flujo_aprobacion_supervisor_luego_gerente(client: AsyncClient, db
         headers=headers_s,
     )
     assert r1.status_code == 200
-    assert r1.json()["estado"] == "pending"
-    assert r1.json()["nivel_actual"] == 2
+    assert r1.json()["estado"] == "approved"
+    assert r1.json()["nivel_actual"] == 1
 
     det2 = await client.get(f"/api/v1/solicitudes/{solicitud.id}", headers=headers_g)
     assert det2.json()["supervisor_aprobo"] is True
-    assert det2.json()["pendiente_aprobacion_gerente"] is True
+    assert det2.json()["pendiente_aprobacion_gerente"] is False
 
     r2 = await client.put(
         f"/api/v1/solicitudes/{solicitud.id}/approve",
         json=APROBACION_PAYLOAD,
         headers=headers_g,
     )
-    assert r2.status_code == 200
-    assert r2.json()["estado"] == "approved"
+    assert r2.status_code == 409
 
 
 # ---------------------------------------------------------------------------
-# TC-SOL-032: Otro gerente no puede cerrar solicitud en etapa 2
+# TC-SOL-031b: Gerente puede aprobar primero (un solo paso)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_flujo_aprobacion_gerente_primero_ok(client: AsyncClient, db):
+    gerente = await make_empleado(db, rol="gerente", email="sol031bgg@leoni.test")
+    supervisor = await make_empleado(
+        db, rol="supervisor", email="sol031bss@leoni.test", lider_id=gerente.id
+    )
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol031bee@leoni.test", lider_id=supervisor.id
+    )
+    solicitud = await make_solicitud(db, empleado_id=empleado.id)
+
+    headers_g = await auth_headers(client, gerente)
+    r1 = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_g,
+    )
+    assert r1.status_code == 200
+    assert r1.json()["estado"] == "approved"
+
+    headers_s = await auth_headers(client, supervisor)
+    r2 = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_s,
+    )
+    assert r2.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-032: Otro gerente no puede aprobar; tras primera aprobación el segundo intento es 409
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_aprobar_etapa2_otro_gerente_retorna_403(client: AsyncClient, db):
+async def test_aprobar_otro_gerente_sin_permiso_o_ya_aprobada(client: AsyncClient, db):
     gerente_a = await make_empleado(db, rol="gerente", email="sol032ga@leoni.test")
     gerente_b = await make_empleado(db, rol="gerente", email="sol032gb@leoni.test")
     supervisor = await make_empleado(
@@ -1006,5 +1388,4 @@ async def test_aprobar_etapa2_otro_gerente_retorna_403(client: AsyncClient, db):
         json=APROBACION_PAYLOAD,
         headers=headers_b,
     )
-    assert r2.status_code == 403
-    assert "gerente" in r2.json().get("detail", "").lower()
+    assert r2.status_code == 409

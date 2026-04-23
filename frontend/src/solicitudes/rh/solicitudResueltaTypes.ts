@@ -20,8 +20,8 @@ export type SolicitudHistorialItemVm = {
   fecha_hora: string;
 };
 
-/** Estado binario para UI (aprobada incluye override de tabla). */
-export type SolicitudResueltaEstadoUi = "aprobada" | "rechazada";
+/** Estado de la solicitud en la vista de consulta (no confundir con `estado` de fila API). */
+export type SolicitudResueltaEstadoUi = "aprobada" | "rechazada" | "cambios_solicitados";
 
 /**
  * Vista de detalle de solicitud resuelta (consulta, sin decisión).
@@ -49,12 +49,14 @@ export type SolicitudResueltaDetalleVm = {
   puede_cancelar: boolean;
   proceso_completado: boolean;
   comprobante_disponible: boolean;
+  /** Solo si `estado_ui === "cambios_solicitados"` y la sesión es el creador de la solicitud. */
+  puede_corregir_y_reenviar?: boolean;
   historial: SolicitudHistorialItemVm[];
 };
 
 // —— Contratos en inglés (integración / docs) ——————————————————————————————
 
-export type RequestStatus = "approved" | "rejected";
+export type RequestStatus = "approved" | "rejected" | "changes_requested";
 
 export type ApprovalTimelineItemType =
   | "created"
@@ -91,6 +93,7 @@ export type ResolvedRequestDetail = {
   nextStep?: string;
   canSign?: boolean;
   canCancel?: boolean;
+  canCorrectAndResubmit?: boolean;
   timeline: ApprovalTimelineItem[];
 };
 
@@ -107,7 +110,10 @@ function mapHistorialTipoToEn(t: SolicitudHistorialTipo): ApprovalTimelineItemTy
 }
 
 export function toResolvedRequestDetail(vm: SolicitudResueltaDetalleVm): ResolvedRequestDetail {
-  const status: RequestStatus = vm.estado_ui === "aprobada" ? "approved" : "rejected";
+  const status: RequestStatus =
+    vm.estado_ui === "aprobada" ? "approved"
+    : vm.estado_ui === "cambios_solicitados" ? "changes_requested"
+    : "rejected";
   return {
     id: vm.id,
     title: vm.titulo,
@@ -125,6 +131,7 @@ export function toResolvedRequestDetail(vm: SolicitudResueltaDetalleVm): Resolve
     nextStep: vm.siguiente_paso,
     canSign: vm.puede_firmar,
     canCancel: vm.puede_cancelar,
+    canCorrectAndResubmit: vm.puede_corregir_y_reenviar === true,
     timeline: vm.historial.map((h) => ({
       id: h.id,
       type: mapHistorialTipoToEn(h.tipo),

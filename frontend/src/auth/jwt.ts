@@ -153,6 +153,16 @@ export function parseEmpleadoDirectoryNumericId(raw: string): number | null {
   return null;
 }
 
+/**
+ * Id numérico de colaborador en directorio a partir del JWT (`empleado_id`, `emp-NNN`, `sub` numérico).
+ * Usado para comparar con `empleado_id` de solicitudes (API numérico → string en filas).
+ */
+export function getEmpleadoDirectoryNumericIdFromAccessToken(): number | null {
+  const raw = getEmpleadoIdFromAccessToken();
+  if (raw == null || !raw.trim()) return null;
+  return parseEmpleadoDirectoryNumericId(raw);
+}
+
 /** Vista de incidencias laborales (`#/incidencias`): RH, gerente y supervisor. */
 export function canAccessRhIncidenciasPage(): boolean {
   const r = getRolFromAccessToken();

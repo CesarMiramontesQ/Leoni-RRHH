@@ -96,23 +96,23 @@ export function solicitudDetalleJerarquiaHtml(api: SolicitudApiItem): string {
     : "";
 
   const sinSup = !supNom;
-  const pendSup = Boolean(api.pendiente_aprobacion_supervisor);
-  const pendGer = Boolean(api.pendiente_aprobacion_gerente);
+  const pending = api.estado === "pending";
 
-  const estadoSup = sinSup ? SD_COPY.supSinAsignar : pendSup ? SD_COPY.supPendienteAprobacion : SD_COPY.supYaAprobo;
-  const estadoGer =
-    pendGer ? SD_COPY.gerPendienteAprobacion
-    : gerNom ? SD_COPY.gerEsperaSiAplica
-    : SD_COPY.gerSinEnCadena;
+  let estadoSup: string;
+  let estadoGer: string;
+  let alertaFlujo: string;
 
-  const alertaSup =
-    pendSup && !sinSup ?
-      `<p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">${escapeHtml(SD_COPY.supPendienteAprobacion)}</p>`
-    : "";
-  const alertaGer =
-    pendGer && gerNom ?
-      `<p class="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">${escapeHtml(SD_COPY.gerPendienteAprobacion)}</p>`
-    : "";
+  if (pending) {
+    estadoSup = sinSup ? SD_COPY.supSinAsignar : SD_COPY.supPuedeAprobarUnPaso;
+    estadoGer = !gerNom ? SD_COPY.gerSinEnCadena : SD_COPY.gerPuedeAprobarUnPaso;
+    alertaFlujo = `<p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">${escapeHtml(
+      SD_COPY.jerarquiaUnaSolaAprobacion,
+    )}</p>`;
+  } else {
+    estadoSup = sinSup ? SD_COPY.supSinAsignar : api.supervisor_aprobo ? SD_COPY.supYaAprobo : SD_COPY.supEstadoCerrada;
+    estadoGer = !gerNom ? SD_COPY.gerSinEnCadena : SD_COPY.gerEstadoCerrada;
+    alertaFlujo = "";
+  }
 
   return `
     <section class="space-y-3 rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm" aria-labelledby="rh-sd-jer-title">
@@ -125,8 +125,7 @@ export function solicitudDetalleJerarquiaHtml(api: SolicitudApiItem): string {
         ${kv(SD_COPY.lblGerenteLinea, gerNom || "—")}
         ${kv(SD_COPY.lblEstadoSupervisor, estadoSup)}
         ${kv(SD_COPY.lblEstadoGerencia, estadoGer)}
-        ${alertaSup}
-        ${alertaGer}
+        ${alertaFlujo}
       </div>
     </section>`;
 }

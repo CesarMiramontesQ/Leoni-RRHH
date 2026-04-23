@@ -46,6 +46,18 @@ export type SolicitudCreatePayload = {
 
 export type SolicitudCreateResponse = SolicitudApiItem;
 
+/** Respuesta de `GET /api/v1/solicitudes/{id}/aprobaciones`. */
+export type SolicitudAprobacionApiItem = {
+  id: number;
+  solicitud_id: number;
+  aprobador_id: number;
+  accion: string;
+  nivel: number;
+  comentario: string | null;
+  timestamp: string;
+  aprobador_nombre?: string;
+};
+
 /** Extrae `detail` legible de respuestas FastAPI / Pydantic. */
 function normalizeApiErrorDetail(parsed: unknown): string | null {
   if (typeof parsed !== "object" || parsed === null) return null;
@@ -104,6 +116,8 @@ function toFila(item: SolicitudApiItem): RhSolicitudTablaFila {
   const supId = item.lider_id != null && Number.isFinite(item.lider_id) ? String(item.lider_id) : "";
   const supNom =
     typeof item.lider_nombre === "string" && item.lider_nombre.trim() ? item.lider_nombre.trim() : "Sin supervisor";
+  const nivel =
+    typeof item.nivel_actual === "number" && Number.isFinite(item.nivel_actual) ? item.nivel_actual : 1;
 
   return {
     id: item.id,
@@ -121,8 +135,14 @@ function toFila(item: SolicitudApiItem): RhSolicitudTablaFila {
     supervisor_id: supId,
     supervisor_nombre: supNom,
     fecha_aprobacion: null,
+    nivel_actual: nivel,
     comentarios: item.comentarios ?? null,
   };
+}
+
+/** Mapea la respuesta del API al modelo de fila usado por la vista RH. */
+export function mapSolicitudApiItemToRhTablaFila(item: SolicitudApiItem): RhSolicitudTablaFila {
+  return toFila(item);
 }
 
 export async function getSolicitudesRows(limitPerPage = 100): Promise<RhSolicitudTablaFila[]> {
@@ -156,6 +176,15 @@ export async function getSolicitudById(id: number): Promise<SolicitudApiItem> {
   return (await res.json()) as SolicitudApiItem;
 }
 
+export async function getSolicitudAprobaciones(id: number): Promise<SolicitudAprobacionApiItem[]> {
+  const res = await fetchWithAuth(`/api/v1/solicitudes/${id}/aprobaciones`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as SolicitudAprobacionApiItem[];
+}
+
 export async function createSolicitud(payload: SolicitudCreatePayload): Promise<SolicitudCreateResponse> {
   const res = await fetchWithAuth("/api/v1/solicitudes", {
     method: "POST",
@@ -167,4 +196,96 @@ export async function createSolicitud(payload: SolicitudCreatePayload): Promise<
     throw { status: res.status, detail } as SolicitudesFetchError;
   }
   return (await res.json()) as SolicitudCreateResponse;
+}
+
+export type SolicitudDecisionApiPayload = {
+  nivel: number;
+  comentario: string | null;
+};
+
+export async function approveSolicitud(
+  solicitudId: number,
+  body: SolicitudDecisionApiPayload,
+): Promise<SolicitudApiItem> {
+  const res = await fetchWithAuth(`/api/v1/solicitudes/${solicitudId}/approve`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accion: "approve",
+      nivel: body.nivel,
+      comentario: body.comentario,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as SolicitudApiItem;
+}
+
+export async function rejectSolicitud(
+  solicitudId: number,
+  body: SolicitudDecisionApiPayload,
+): Promise<SolicitudApiItem> {
+  const res = await fetchWithAuth(`/api/v1/solicitudes/${solicitudId}/reject`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accion: "reject",
+      nivel: body.nivel,
+      comentario: body.comentario,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as SolicitudApiItem;
+}
+
+export type SolicitudRequestChangesPayload = {
+  nivel: number;
+  comentario: string;
+};
+
+export async function requestChangesSolicitud(
+  solicitudId: number,
+  body: SolicitudRequestChangesPayload,
+): Promise<SolicitudApiItem> {
+  const res = await fetchWithAuth(`/api/v1/solicitudes/${solicitudId}/request-changes`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel: body.nivel, comentario: body.comentario }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as SolicitudApiItem;
+}
+
+export type SolicitudRevisionPatchPayload = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  comentarios: string | null;
+};
+
+export async function patchSolicitudRevision(
+  solicitudId: number,
+  body: SolicitudRevisionPatchPayload,
+): Promise<SolicitudApiItem> {
+  const res = await fetchWithAuth(`/api/v1/solicitudes/${solicitudId}/revision`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fecha_inicio: body.fecha_inicio,
+      fecha_fin: body.fecha_fin,
+      comentarios: body.comentarios,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as SolicitudApiItem;
 }

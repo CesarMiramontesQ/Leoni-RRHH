@@ -1,7 +1,6 @@
 import {
   canAccessSolicitudesPage,
-  getEmpleadoIdFromAccessToken,
-  parseEmpleadoDirectoryNumericId,
+  getEmpleadoDirectoryNumericIdFromAccessToken,
 } from "../auth/jwt.ts";
 import { getSolicitudById, getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { clearAuth } from "../auth/session.ts";
@@ -133,7 +132,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   }
 
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
-  const empleadoScopeId = pageRole === "empleado" ? getEmpleadoIdFromAccessToken() : undefined;
+  const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
 
   let allRows: RhSolicitudTablaFila[] = [];
   let filterOpts = buildRhSolicitudFilterOptions([]);
@@ -218,36 +217,19 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     </div>`,
   });
 
-  const resueltaHostEl = container.querySelector("#rh-solicitud-resuelta-modal-host");
-  if (resueltaHostEl) {
-    solicitudResueltaModal = mountSolicitudResueltaModal(resueltaHostEl as HTMLElement, {
-      signal,
-      toastContainer: container,
-      getFilaById: (id) => allRows.find((r) => r.id === id),
-      soloLectura: pageRole === "empleado",
-    });
-  }
-
   const detalleHostEl = container.querySelector("#rh-solicitud-detalle-modal-host");
   if (detalleHostEl) {
     solicitudDetalleModal = mountSolicitudDetalleModal(detalleHostEl as HTMLElement, {
       signal,
       toastContainer: container,
       getFilaById: (id) => allRows.find((r) => r.id === id),
-      aplicarFilaActualizada: (fila) => {
-        const i = allRows.findIndex((r) => r.id === fila.id);
-        if (i >= 0) allRows[i] = fila;
-      },
-      onRefrescarListado: () => paint(),
+      onRefrescarListado: () => recargarSolicitudesDesdeApi(),
       soloLectura: pageRole === "empleado",
       cargarDetalleServidor: pageRole !== "empleado" ? (id) => getSolicitudById(id) : undefined,
     });
   }
 
-  const empleadoSelfDirectoryId =
-    pageRole === "empleado" ?
-      parseEmpleadoDirectoryNumericId(empleadoScopeId ?? "")
-    : undefined;
+  const empleadoSelfDirectoryId = pageRole === "empleado" ? sessionEmpleadoDirId ?? undefined : undefined;
 
   const modalHostEl = container.querySelector("#rh-nueva-solicitud-modal-host");
   if (modalHostEl && pageUi.showNewRequestButton) {
@@ -266,6 +248,59 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       },
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
     });
+  }
+
+  const resueltaHostEl = container.querySelector("#rh-solicitud-resuelta-modal-host");
+  if (resueltaHostEl) {
+    solicitudResueltaModal = mountSolicitudResueltaModal(resueltaHostEl as HTMLElement, {
+      signal,
+      toastContainer: container,
+      getFilaById: (id) => allRows.find((r) => r.id === id),
+      soloLectura: pageRole === "empleado",
+      sesionEmpleadoDirectoryId: sessionEmpleadoDirId,
+      onCorregirSolicitud: (sid) => {
+        solicitudResueltaModal?.close();
+        const dir = getEmpleadoDirectoryNumericIdFromAccessToken();
+        if (dir == null || !rhNuevaSolicitudModal) return;
+        void rhNuevaSolicitudModal.open(
+          pageRole === "empleado" ?
+            { revisarSolicitudId: sid }
+          : { revisarSolicitudId: sid, fixedEmpleadoParaRevision: dir },
+        );
+      },
+    });
+  }
+
+  function esCreadorDeSolicitud(fila: RhSolicitudTablaFila): boolean {
+    if (sessionEmpleadoDirId == null) return false;
+    const fid = Number.parseInt(fila.empleado_id, 10);
+    return Number.isFinite(fid) && fid === sessionEmpleadoDirId;
+  }
+
+  function abrirSolicitudSegunEstado(fila: RhSolicitudTablaFila, id: number): void {
+    if (fila.estado === "pending") {
+      void solicitudDetalleModal?.open(id);
+      return;
+    }
+    if (fila.estado === "changes_requested") {
+      if (esCreadorDeSolicitud(fila) && rhNuevaSolicitudModal && sessionEmpleadoDirId != null) {
+        void rhNuevaSolicitudModal.open(
+          pageRole === "empleado" ?
+            { revisarSolicitudId: id }
+          : { revisarSolicitudId: id, fixedEmpleadoParaRevision: sessionEmpleadoDirId },
+        );
+        return;
+      }
+      void solicitudResueltaModal?.open(id);
+      return;
+    }
+    if (
+      fila.estado === "approved" ||
+      fila.estado === "rejected" ||
+      fila.estado === "overridden"
+    ) {
+      void solicitudResueltaModal?.open(id);
+    }
   }
 
   signal.addEventListener("abort", () => {
@@ -291,10 +326,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         if (!Number.isFinite(id)) return;
         const fila = allRows.find((r) => r.id === id);
         if (!fila) return;
-        if (fila.estado === "pending") void solicitudDetalleModal?.open(id);
-        else if (fila.estado === "approved" || fila.estado === "rejected" || fila.estado === "overridden") {
-          void solicitudResueltaModal?.open(id);
-        }
+        abrirSolicitudSegunEstado(fila, id);
         return;
       }
 
@@ -320,14 +352,30 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       if (pendingRow) {
         const raw = pendingRow.getAttribute("data-rh-sol-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
-        if (Number.isFinite(id)) void solicitudDetalleModal?.open(id);
+        if (Number.isFinite(id)) {
+          const fila = allRows.find((r) => r.id === id);
+          if (fila) abrirSolicitudSegunEstado(fila, id);
+        }
+        return;
+      }
+      const changesRow = t.closest<HTMLTableRowElement>("tr[data-rh-sol-row-changes]");
+      if (changesRow) {
+        const raw = changesRow.getAttribute("data-rh-sol-id");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        if (Number.isFinite(id)) {
+          const fila = allRows.find((r) => r.id === id);
+          if (fila) abrirSolicitudSegunEstado(fila, id);
+        }
         return;
       }
       const resueltaRow = t.closest<HTMLTableRowElement>("tr[data-rh-sol-row-resuelta]");
       if (resueltaRow) {
         const raw = resueltaRow.getAttribute("data-rh-sol-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
-        if (Number.isFinite(id)) void solicitudResueltaModal?.open(id);
+        if (Number.isFinite(id)) {
+          const fila = allRows.find((r) => r.id === id);
+          if (fila) abrirSolicitudSegunEstado(fila, id);
+        }
         return;
       }
       const pageBtn = t.closest<HTMLButtonElement>("[data-rh-sol-page]");
@@ -349,15 +397,17 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       const ke = e as KeyboardEvent;
       const trPending = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-sol-row-pending]");
       const trRes = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-sol-row-resuelta]");
-      const tr = trPending ?? trRes;
+      const trChanges = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-sol-row-changes]");
+      const tr = trPending ?? trRes ?? trChanges;
       if (!tr) return;
       if (ke.key !== "Enter" && ke.key !== " ") return;
       ke.preventDefault();
       const raw = tr.getAttribute("data-rh-sol-id");
       const id = raw ? Number.parseInt(raw, 10) : NaN;
       if (!Number.isFinite(id)) return;
-      if (trPending) void solicitudDetalleModal?.open(id);
-      else void solicitudResueltaModal?.open(id);
+      const fila = allRows.find((r) => r.id === id);
+      if (!fila) return;
+      abrirSolicitudSegunEstado(fila, id);
     },
     { signal },
   );
