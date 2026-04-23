@@ -9,6 +9,7 @@ import {
   SOLICITUD_DUPLICADA_DETAIL,
 } from "../../api/solicitudes.ts";
 import { getUserDisplayNameFromAccessToken } from "../../auth/jwt.ts";
+import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
@@ -72,6 +73,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   const modalBody = body;
 
   let revisionSolicitudId: number | null = null;
+  /** Dueño de la solicitud en corrección (validación de `empleado_id` en envío). */
+  let revisionEmpleadoId: number | null = null;
+  let revisionEmpleadoDisplayLine = "";
+  let revisionTipoOriginal: "vacaciones" | "home_office" = "vacaciones";
 
   let tipo: "vacaciones" | "home_office" = "vacaciones";
   let empleadosCache: UsuarioListItem[] = [];
@@ -86,6 +91,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     rootOverlay.classList.remove("flex");
     document.body.style.overflow = "";
     revisionSolicitudId = null;
+    revisionEmpleadoId = null;
+    revisionEmpleadoDisplayLine = "";
     if (searchTimer) clearTimeout(searchTimer);
   }
 
@@ -168,13 +175,29 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaInicio: string;
       fechaFin: string;
       comentarios: string;
-      modoRevision: boolean;
       submitLabel: string;
     }>,
   ): void {
+    const modoRevision = revisionSolicitudId != null;
     const snap = readFormSnapshot();
+
+    let fixedEmpleado:
+      | { directoryId: string; displayLine: string }
+      | undefined;
+    if (modoRevision && revisionEmpleadoId != null) {
+      fixedEmpleado = {
+        directoryId: String(revisionEmpleadoId),
+        displayLine: revisionEmpleadoDisplayLine.trim() || `Empleado #${revisionEmpleadoId}`,
+      };
+    } else if (!modoRevision && fixedSelfId != null) {
+      fixedEmpleado = {
+        directoryId: String(fixedSelfId),
+        displayLine: getUserDisplayNameFromAccessToken(),
+      };
+    }
+
     const selectedEmpleadoId =
-      fixedSelfId != null ? String(fixedSelfId) : (preserve.selectedId ?? snap.selectedEmpleadoId);
+      fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFin = preserve.fechaFin ?? snap.fechaFin;
     const comentarios = preserve.comentarios ?? snap.comentarios;
@@ -184,18 +207,15 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       tipo === "vacaciones"
         ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk)
         : buildInfoHomeOfficeHtml(contextoHoText);
+    const empleadoSelectorOmitido = fixedEmpleado != null;
     const ui = computeRhModalFormUi(
       tipo,
       contextoVac,
       selectedEmpleadoId,
       fechaInicio,
       fechaFin,
-      fixedSelfId != null,
+      empleadoSelectorOmitido,
     );
-    const fixedEmpleado =
-      fixedSelfId != null ?
-        { directoryId: String(fixedSelfId), displayLine: getUserDisplayNameFromAccessToken() }
-      : undefined;
     modalBody.innerHTML = buildFormHtml({
       tipo,
       items: empleadosCache,
@@ -212,7 +232,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaFinInvalid: ui.fechaFinInvalid,
       canSubmit: ui.canSubmit,
       fixedEmpleado,
-      modoRevision: preserve.modoRevision,
+      modoRevision,
       submitLabel: preserve.submitLabel,
     });
     bindFormInteractions();
@@ -241,7 +261,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       });
     }
 
-    if (fixedSelfId == null) {
+    if (sel) {
       qInput?.addEventListener(
         "input",
         () => {
@@ -293,10 +313,23 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         const empRaw = String(fd.get("empleado_id") ?? "").trim();
         const empleado_id = Number.parseInt(empRaw, 10);
         if (!empRaw || Number.isNaN(empleado_id)) {
-          showError(fixedSelfId != null ? "No se pudo validar tu usuario. Vuelve a iniciar sesión." : "Selecciona un empleado.");
+          showError(
+            revisionSolicitudId != null || fixedSelfId != null ?
+              "No se pudo validar los datos de la solicitud. Cierra el modal e inténtalo de nuevo."
+            : "Selecciona un empleado.",
+          );
           return;
         }
-        if (fixedSelfId != null && empleado_id !== fixedSelfId) {
+        if (revisionSolicitudId != null) {
+          if (revisionEmpleadoId == null || empleado_id !== revisionEmpleadoId) {
+            showError("No está permitido modificar el colaborador de la solicitud.");
+            return;
+          }
+          if (tipo !== revisionTipoOriginal) {
+            showError("No está permitido modificar el tipo de la solicitud.");
+            return;
+          }
+        } else if (fixedSelfId != null && empleado_id !== fixedSelfId) {
           showError("No está permitido modificar el colaborador de la solicitud.");
           return;
         }
@@ -412,6 +445,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     open: async (openOpts?: RhNewRequestModalOpenOptions) => {
       hideError();
       revisionSolicitudId = openOpts?.revisarSolicitudId ?? null;
+      revisionEmpleadoId = null;
+      revisionEmpleadoDisplayLine = "";
       const titleEl = host.querySelector("#rh-nr-title");
       if (titleEl) {
         titleEl.textContent = revisionSolicitudId != null ? "Corregir solicitud" : "Nueva solicitud";
@@ -456,13 +491,17 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             return;
           }
           tipo = sol.tipo === "home_office" ? "home_office" : "vacaciones";
+          revisionTipoOriginal = tipo;
+          revisionEmpleadoId = empleadoRevision;
+          const rawNom = typeof sol.empleado_nombre === "string" ? sol.empleado_nombre.trim() : "";
+          revisionEmpleadoDisplayLine =
+            rawNom ? formatNombreEmpleadoUi(rawNom).trim() || rawNom : `Empleado #${empleadoRevision}`;
           await refreshContextForEmpleado(empleadoRevision);
           const com = typeof sol.comentarios === "string" ? sol.comentarios : "";
           renderForm({
             fechaInicio: String(sol.fecha_inicio).slice(0, 10),
             fechaFin: String(sol.fecha_fin).slice(0, 10),
             comentarios: com,
-            modoRevision: true,
             submitLabel: "Guardar y reenviar",
           });
           (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();

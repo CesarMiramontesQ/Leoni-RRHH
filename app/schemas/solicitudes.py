@@ -113,7 +113,12 @@ class SolicitudSolicitarCambiosBody(BaseModel):
 
 
 class SolicitudRequisitorRevision(BaseModel):
-    """Body para reenviar una solicitud tras `changes_requested` (solo el dueño)."""
+    """
+    Body para reenviar una solicitud tras `changes_requested` (solo el dueño).
+
+    Solo fechas y comentarios: `tipo` y `empleado_id` no forman parte del contrato y no deben
+    alterarse en el servicio (el UPDATE persistido no los modifica).
+    """
 
     model_config = {"str_strip_whitespace": True}
 

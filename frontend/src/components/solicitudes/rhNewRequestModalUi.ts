@@ -149,9 +149,9 @@ export type RhNewRequestFormParams = {
   fechaInInvalid: boolean;
   fechaFinInvalid: boolean;
   canSubmit: boolean;
-  /** Portal colaborador: sin selector; solo campo oculto con id de directorio. */
+  /** Sin selector: campo oculto `empleado_id` (portal o corrección de solicitud existente). */
   fixedEmpleado?: { directoryId: string; displayLine: string };
-  /** Corrección tras `changes_requested`: no cambiar tipo de solicitud. */
+  /** Corrección tras `changes_requested`: tipo y empleado fijos; solo fechas y comentarios. */
   modoRevision?: boolean;
   submitLabel?: string;
 };
@@ -228,8 +228,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const revision = Boolean(p.modoRevision);
   const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
   const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
-  const tipoDisabledAttr = revision ? " disabled aria-disabled=\"true\"" : "";
-  const tipoTabClsInactive = revision ? `${TAB_INACTIVE} pointer-events-none opacity-50` : TAB_INACTIVE;
+  const tipoEtiquetaLectura = vacActive ? "Vacaciones" : "Home office";
   const submitLabel = p.submitLabel ?? "Enviar solicitud";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
@@ -238,11 +237,17 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const fiClass = `${CONTROL} font-medium tabular-nums ${p.fechaInInvalid ? CONTROL_INVALID : ""}`;
   const ffClass = `${CONTROL} font-medium tabular-nums ${p.fechaFinInvalid ? CONTROL_INVALID : ""}`;
 
+  const empleadoAyudaFija =
+    revision ?
+      "El colaborador de la solicitud no puede cambiarse al corregir. Solo puedes ajustar fechas y comentarios."
+    : "La solicitud queda registrada para tu usuario. No está permitido elegir otro colaborador.";
+  const empleadoTituloSeccion = revision ? "Colaborador de la solicitud" : "Solicitante";
+
   const empleadoBlock = selfMode
     ? `<section class="${SEC_BOX} space-y-3" aria-labelledby="rh-nr-sec-empleado">
-        <h3 id="rh-nr-sec-empleado" class="${SEC_TITLE}">Solicitante</h3>
+        <h3 id="rh-nr-sec-empleado" class="${SEC_TITLE}">${escapeHtml(empleadoTituloSeccion)}</h3>
         <p class="text-sm font-medium text-slate-800">${escapeHtml(p.fixedEmpleado!.displayLine)}</p>
-        <p class="text-xs text-slate-500">La solicitud queda registrada para tu usuario. No está permitido elegir otro colaborador.</p>
+        <p class="text-xs text-slate-500">${escapeHtml(empleadoAyudaFija)}</p>
         <input type="hidden" name="empleado_id" id="rh-nr-empleado-id" value="${escapeHtml(p.fixedEmpleado!.directoryId)}" />
       </section>`
     : `<section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-empleado" data-rh-nr-empleado-section>
@@ -303,16 +308,23 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
 
       <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
         <h3 id="rh-nr-sec-tipo" class="${SEC_TITLE}">Tipo de solicitud</h3>
-        <div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
-          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones"${tipoDisabledAttr} class="${vacActive ? TAB_ACTIVE : tipoTabClsInactive}">
+        ${
+          revision ?
+            `<div class="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3.5 shadow-sm">
+          <p class="text-sm font-semibold text-slate-900">${escapeHtml(tipoEtiquetaLectura)}</p>
+          <p class="mt-1 text-xs text-slate-500">No se puede modificar el tipo al corregir una solicitud existente.</p>
+        </div>`
+          : `<div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
+          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
             ${iconVacaciones(vacActive)}
             <span>Vacaciones</span>
           </button>
-          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office"${tipoDisabledAttr} class="${hoActive ? TAB_ACTIVE : tipoTabClsInactive}">
+          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
             ${iconHome(hoActive)}
             <span>Home Office</span>
           </button>
-        </div>
+        </div>`
+        }
       </section>
 
       <section class="space-y-3" aria-labelledby="rh-nr-sec-disponibilidad">
@@ -459,7 +471,11 @@ export function applyRhModalLiveFeedback(
   tipo: "vacaciones" | "home_office",
   contextoVac: number | null,
 ): void {
-  const selfMode = modalHost.querySelector("#rh-nr-form[data-rh-nr-self]") != null;
+  /** Empleado fijo: portal o corrección (hidden sin `<select>`). */
+  const selfMode =
+    modalHost.querySelector("#rh-nr-form[data-rh-nr-self]") != null ||
+    (modalHost.querySelector("#rh-nr-empleado-id") != null &&
+      modalHost.querySelector("#rh-nr-empleado") == null);
   const sel = modalHost.querySelector("#rh-nr-empleado") as HTMLSelectElement | null;
   const hid = modalHost.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null;
   const fi = modalHost.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
@@ -504,7 +520,8 @@ export function applyRhModalLiveFeedback(
   }
 
   const submit = modalHost.querySelector("#rh-nr-submit") as HTMLButtonElement | null;
-  if (submit && submit.textContent !== "Enviando…") {
+  const busyLabel = submit?.textContent === "Enviando…" || submit?.textContent === "Reenviando…";
+  if (submit && !busyLabel) {
     submit.disabled = !ui.canSubmit;
   }
 
