@@ -15,6 +15,7 @@ export async function fetchSolicitudResueltaDetalleMock(
   solicitudId: number,
   getFilaById: (id: number) => RhSolicitudTablaFila | undefined,
   simulateError = false,
+  soloLectura = false,
 ): Promise<{ ok: true; data: SolicitudResueltaDetalleVm } | { ok: false; message: string }> {
   await delay(MOCK_MS);
   if (simulateError) {
@@ -24,7 +25,7 @@ export async function fetchSolicitudResueltaDetalleMock(
   if (!fila) {
     return { ok: false, message: "not_found" };
   }
-  const data = mapTablaFilaToSolicitudResuelta(fila);
+  const data = mapTablaFilaToSolicitudResuelta(fila, { soloLectura });
   if (!data) {
     return { ok: false, message: "not_resolved" };
   }

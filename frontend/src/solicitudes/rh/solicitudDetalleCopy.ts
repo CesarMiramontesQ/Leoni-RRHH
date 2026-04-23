@@ -6,10 +6,30 @@
 export const SD_COPY = {
   tituloModal: "Detalle de solicitud",
   subtituloModal: "Revisión de información y decisión de aprobación",
+  /** Vista empleado: sin acciones de aprobación. */
+  subtituloModalSoloLectura: "Consulta de la información registrada en tu solicitud.",
   cerrarAria: "Cerrar modal",
 
   seccionEmpleado: "Info empleado",
   seccionSolicitud: "Info solicitud",
+  seccionJerarquia: "Flujo jerárquico y aprobaciones",
+
+  lblSupervisorAsignado: "Supervisor asignado",
+  lblGerenteLinea: "Gerente de línea",
+  lblEstadoSupervisor: "Estado del supervisor",
+  lblEstadoGerencia: "Estado gerencia",
+
+  supSinAsignar: "Sin supervisor asignado en el organigrama.",
+  supPendienteAprobacion: "Pendiente de aprobación del supervisor directo.",
+  supYaAprobo: "El supervisor directo ya aprobó en el sistema.",
+
+  gerPendienteAprobacion: "Pendiente de aprobación del gerente de línea.",
+  gerEsperaSiAplica: "Hay gerente de línea; la etapa de gerencia procede tras el supervisor.",
+  gerSinEnCadena: "No hay gerente en la cadena de mando sobre el solicitante.",
+
+  /** Solicitud propia (supervisor/gerente): sin botones de decisión jerárquica. */
+  avisoAutopaprobacionBloqueada:
+    "Esta solicitud es tuya: no puedes aprobarla ni rechazarla tú mismo. Debe actuar otro aprobador de la cadena.",
 
   lblNombre: "Nombre",
   lblIdEmpleado: "ID de empleado",

@@ -1,7 +1,9 @@
 /**
  * Envío de nueva solicitud desde el modal RH (en nombre de otro empleado).
- * La API actual crea siempre para el usuario autenticado; este adaptador queda listo para un endpoint RH.
+ * Actualmente la API crea para el usuario autenticado.
  */
+
+import { createSolicitud, type SolicitudesFetchError } from "../../api/solicitudes.ts";
 
 export type RhNuevaSolicitudPayload = {
   empleado_id: number;
@@ -11,18 +13,25 @@ export type RhNuevaSolicitudPayload = {
   comentarios: string | null;
 };
 
-const MOCK_DELAY_MS = 700;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+/**
+ * Crea una solicitud real vía API.
+ * Nota: `empleado_id` se mantiene por compatibilidad de UI, pero el backend usa el usuario autenticado.
+ */
+export async function enviarRhNuevaSolicitud(payload: RhNuevaSolicitudPayload): Promise<void> {
+  await createSolicitud({
+    tipo: payload.tipo,
+    fecha_inicio: payload.fecha_inicio,
+    fecha_fin: payload.fecha_fin,
+    comentarios: payload.comentarios,
+  });
 }
 
-/**
- * Simula éxito. Integración: POST con `empleado_id` cuando el backend lo exponga.
- */
-export async function enviarRhNuevaSolicitudMock(payload: RhNuevaSolicitudPayload): Promise<void> {
-  await delay(MOCK_DELAY_MS);
-  if (import.meta.env.DEV) {
-    console.info("[RH] Nueva solicitud (mock)", payload);
-  }
+export function isSolicitudesFetchError(error: unknown): error is SolicitudesFetchError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    "detail" in error &&
+    typeof (error as SolicitudesFetchError).detail === "string"
+  );
 }

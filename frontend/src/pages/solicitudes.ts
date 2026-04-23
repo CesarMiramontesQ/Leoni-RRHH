@@ -3,7 +3,7 @@ import {
   getEmpleadoIdFromAccessToken,
   parseEmpleadoDirectoryNumericId,
 } from "../auth/jwt.ts";
-import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
+import { getSolicitudById, getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   mountSolicitudResueltaModal,
@@ -152,6 +152,13 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  async function recargarSolicitudesDesdeApi(): Promise<void> {
+    allRows = await getSolicitudesRows();
+    filterOpts = buildRhSolicitudFilterOptions(allRows);
+    empleadoVacacionesDisponibles = null;
+    paint();
+  }
+
   function clampPage(): void {
     const filtered = filterRhSolicitudRows(allRows, state);
     const totalPages = Math.max(1, Math.ceil(filtered.length / state.page_size) || 1);
@@ -217,6 +224,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       signal,
       toastContainer: container,
       getFilaById: (id) => allRows.find((r) => r.id === id),
+      soloLectura: pageRole === "empleado",
     });
   }
 
@@ -231,6 +239,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         if (i >= 0) allRows[i] = fila;
       },
       onRefrescarListado: () => paint(),
+      soloLectura: pageRole === "empleado",
+      cargarDetalleServidor: pageRole !== "empleado" ? (id) => getSolicitudById(id) : undefined,
     });
   }
 
@@ -244,8 +254,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     rhNuevaSolicitudModal = mountRhNewRequestModal(modalHostEl as HTMLElement, {
       signal,
       toastContainer: container,
-      onSuccess: () => {
-        void paint();
+      onSuccess: async () => {
+        await recargarSolicitudesDesdeApi();
       },
       onSessionExpired: () => {
         clearAuth();
@@ -397,10 +407,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   void (async () => {
     try {
-      allRows = await getSolicitudesRows();
-      filterOpts = buildRhSolicitudFilterOptions(allRows);
-      empleadoVacacionesDisponibles = null;
-      paint();
+      await recargarSolicitudesDesdeApi();
     } catch (error) {
       const fetchError = error as SolicitudesFetchError;
       if (fetchError?.status === 401) {

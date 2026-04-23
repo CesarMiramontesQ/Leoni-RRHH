@@ -9,11 +9,14 @@ import { mapTablaFilaToSolicitudDetallePendiente } from "../../solicitudes/rh/ma
 import type { SolicitudDetalleAccion } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
+import type { SolicitudApiItem } from "../../api/solicitudes.ts";
 import {
   solicitudDetalleContentHtml,
+  solicitudDetalleJerarquiaHtml,
   solicitudDetalleLoadingBodyHtml,
   solicitudDetalleShellHtml,
 } from "./solicitudDetalleModalUi.ts";
+import { debeOcultarAccionesAprobacionPorAutopaprobacionDesdeSesion } from "../../solicitudes/rh/solicitudAutopaprobacionUi.ts";
 
 export type SolicitudDetalleModalOptions = {
   signal: AbortSignal;
@@ -21,6 +24,10 @@ export type SolicitudDetalleModalOptions = {
   getFilaById: (id: number) => RhSolicitudTablaFila | undefined;
   aplicarFilaActualizada: (fila: RhSolicitudTablaFila) => void;
   onRefrescarListado: () => void;
+  /** Rol empleado: solo consulta, sin DOM de acciones de aprobación. */
+  soloLectura?: boolean;
+  /** GET /solicitudes/{id} para panel de jerarquía (supervisor, gerente, RH, etc.). */
+  cargarDetalleServidor?: (id: number) => Promise<SolicitudApiItem>;
 };
 
 export type SolicitudDetalleModalHandle = {
@@ -46,6 +53,7 @@ export function mountSolicitudDetalleModal(
 
   const rootOverlay = overlay;
   const modalBody = body;
+  const soloLectura = options.soloLectura ?? false;
 
   let busy = false;
 
@@ -201,32 +209,52 @@ export function mountSolicitudDetalleModal(
 
   return {
     open: (solicitudId: number) => {
-      if (busy) return;
-      hideFormError();
-      const fila = options.getFilaById(solicitudId);
-      if (!fila) {
-        showEmpleadosToast(options.toastContainer, SD_COPY.errorNoEncontrada, "error");
-        return;
-      }
-      if (fila.estado !== "pending") {
-        showEmpleadosToast(options.toastContainer, SD_COPY.errorNoPendiente, "error");
-        return;
-      }
-      const vm = mapTablaFilaToSolicitudDetallePendiente(fila);
-      if (!vm) {
-        showEmpleadosToast(options.toastContainer, SD_COPY.errorNoPendiente, "error");
-        return;
-      }
+      void (async () => {
+        if (busy) return;
+        hideFormError();
+        const fila = options.getFilaById(solicitudId);
+        if (!fila) {
+          showEmpleadosToast(options.toastContainer, SD_COPY.errorNoEncontrada, "error");
+          return;
+        }
+        if (fila.estado !== "pending") {
+          showEmpleadosToast(options.toastContainer, SD_COPY.errorNoPendiente, "error");
+          return;
+        }
+        const vm = mapTablaFilaToSolicitudDetallePendiente(fila, { soloLectura });
+        if (!vm) {
+          showEmpleadosToast(options.toastContainer, SD_COPY.errorNoPendiente, "error");
+          return;
+        }
 
-      rootOverlay.classList.remove("hidden");
-      rootOverlay.classList.add("flex");
-      document.body.style.overflow = "hidden";
-      modalBody.innerHTML = solicitudDetalleLoadingBodyHtml();
+        const sub = host.querySelector("#rh-sd-subtitle");
+        if (sub) sub.textContent = soloLectura ? SD_COPY.subtituloModalSoloLectura : SD_COPY.subtituloModal;
 
-      window.requestAnimationFrame(() => {
-        modalBody.innerHTML = solicitudDetalleContentHtml(vm);
-        bindDetailInteractions();
-      });
+        rootOverlay.classList.remove("hidden");
+        rootOverlay.classList.add("flex");
+        document.body.style.overflow = "hidden";
+        modalBody.innerHTML = solicitudDetalleLoadingBodyHtml();
+
+        let jerarquiaHtml = "";
+        const ocultarDecisionJerarquica =
+          !soloLectura && debeOcultarAccionesAprobacionPorAutopaprobacionDesdeSesion(fila);
+
+        if (options.cargarDetalleServidor && !soloLectura) {
+          try {
+            const det = await options.cargarDetalleServidor(solicitudId);
+            jerarquiaHtml = solicitudDetalleJerarquiaHtml(det);
+          } catch {
+            /* sin panel de jerarquía si falla el GET */
+          }
+        }
+
+        modalBody.innerHTML = solicitudDetalleContentHtml(vm, {
+          soloLectura,
+          jerarquiaHtml,
+          ocultarDecisionJerarquica,
+        });
+        if (!soloLectura && !ocultarDecisionJerarquica) bindDetailInteractions();
+      })();
     },
     close,
     destroy: () => {

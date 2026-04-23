@@ -3,13 +3,15 @@
  */
 
 import { getEmpleadosPage } from "../../api/empleados.ts";
+import { SOLICITUD_DUPLICADA_DETAIL } from "../../api/solicitudes.ts";
 import { getUserDisplayNameFromAccessToken } from "../../auth/jwt.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
-  enviarRhNuevaSolicitudMock,
+  enviarRhNuevaSolicitud,
+  isSolicitudesFetchError,
   type RhNuevaSolicitudPayload,
 } from "../../solicitudes/rh/rhNewRequestSubmit.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
@@ -308,12 +310,25 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         };
 
         try {
-          await enviarRhNuevaSolicitudMock(payload);
+          await enviarRhNuevaSolicitud(payload);
           showEmpleadosToast(options.toastContainer, "Solicitud registrada correctamente.", "success");
           close();
           await options.onSuccess();
-        } catch {
-          showError("No se pudo completar el envío. Intenta de nuevo.");
+        } catch (error) {
+          if (isSolicitudesFetchError(error)) {
+            const d = typeof error.detail === "string" ? error.detail.trim() : "";
+            const mensaje =
+              d === SOLICITUD_DUPLICADA_DETAIL ?
+                SOLICITUD_DUPLICADA_DETAIL
+              : d || "No se pudo completar el envío. Intenta de nuevo.";
+            showError(mensaje);
+            // Toast fijo encima del layout: el bloque #rh-nr-error puede quedar fuera de vista al hacer scroll.
+            showEmpleadosToast(options.toastContainer, mensaje, "error");
+          } else {
+            const fallback = "No se pudo completar el envío. Intenta de nuevo.";
+            showError(fallback);
+            showEmpleadosToast(options.toastContainer, fallback, "error");
+          }
         } finally {
           if (submitBtn) {
             submitBtn.textContent = "Enviar solicitud";

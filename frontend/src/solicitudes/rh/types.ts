@@ -38,6 +38,8 @@ export type RhSolicitudTablaFila = {
   supervisor_nombre: string;
   /** ISO date — día en que pasó a aprobada (mock / futuro campo API). */
   fecha_aprobacion: string | null;
+  /** Comentarios del empleado al crear la solicitud (API). */
+  comentarios?: string | null;
 };
 
 /** Métricas del encabezado (normalmente globales, no filtradas por la tabla). */

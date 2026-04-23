@@ -70,6 +70,18 @@ class SolicitudResponse(BaseModel):
     nivel_actual: int
     comentarios: Optional[str]
     created_at: datetime
+    # Enriquecimiento para listados y UI (no son columnas de `solicitudes`).
+    empleado_nombre: str = ""
+    empleado_area: Optional[str] = None
+    empleado_foto: Optional[str] = None
+    lider_id: Optional[int] = None
+    lider_nombre: Optional[str] = None
+    # Flujo jerarquico (enriquecido principalmente en GET por id).
+    gerente_linea_id: Optional[int] = None
+    gerente_linea_nombre: Optional[str] = None
+    supervisor_aprobo: bool = False
+    pendiente_aprobacion_supervisor: bool = False
+    pendiente_aprobacion_gerente: bool = False
 
 
 class SolicitudAprobacionCreate(BaseModel):

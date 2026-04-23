@@ -181,7 +181,10 @@ function buildHistorialRechazada(row: RhSolicitudTablaFila, emp: string, sup: st
 /**
  * Construye la vista de detalle solo para filas `approved`, `overridden` o `rejected`.
  */
-export function mapTablaFilaToSolicitudResuelta(row: RhSolicitudTablaFila): SolicitudResueltaDetalleVm | null {
+export function mapTablaFilaToSolicitudResuelta(
+  row: RhSolicitudTablaFila,
+  opciones?: { soloLectura?: boolean },
+): SolicitudResueltaDetalleVm | null {
   if (row.estado !== "approved" && row.estado !== "rejected" && row.estado !== "overridden") {
     return null;
   }
@@ -261,6 +264,12 @@ export function mapTablaFilaToSolicitudResuelta(row: RhSolicitudTablaFila): Soli
     vm.comentario_rechazo_largo = perfil.comentario_rechazo_largo ?? perfil.motivo_rechazo;
     vm.rechazado_por = sup;
     vm.fecha_rechazo = historial.find((h) => h.tipo === "rechazada")?.fecha_hora ?? actualizado_en;
+  }
+
+  if (opciones?.soloLectura) {
+    vm.puede_firmar = false;
+    vm.puede_cancelar = false;
+    vm.comprobante_disponible = false;
   }
 
   return vm;

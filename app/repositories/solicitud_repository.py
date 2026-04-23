@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.repositories.base import BaseRepository
 
@@ -16,13 +17,42 @@ class SolicitudRepository(BaseRepository[Solicitud]):
     def __init__(self, db: AsyncSession):
         super().__init__(Solicitud, db)
 
+    async def list_paginated(
+        self,
+        cursor: int | None = None,
+        limit: int = 20,
+        filters: list | None = None,
+    ) -> tuple[list[Solicitud], int | None]:
+        """Lista con empleado, area y lider precargados para respuestas enriquecidas."""
+        query = (
+            select(Solicitud)
+            .options(
+                selectinload(Solicitud.empleado).selectinload(Empleado.area),
+                selectinload(Solicitud.empleado).selectinload(Empleado.lider),
+            )
+        )
+        if filters:
+            for condition in filters:
+                query = query.where(condition)
+        if cursor is not None:
+            query = query.where(Solicitud.id > cursor)
+        query = query.order_by(Solicitud.id).limit(limit + 1)
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+        next_cursor = None
+        if len(items) > limit:
+            items = items[:limit]
+            next_cursor = items[-1].id
+        return items, next_cursor
+
     async def get_with_empleado(self, solicitud_id: int) -> Solicitud | None:
         """Carga la solicitud con su empleado y aprobaciones para que el Service pueda
         operar sin lazy loading."""
         result = await self.db.execute(
             select(Solicitud)
             .options(
-                selectinload(Solicitud.empleado),
+                selectinload(Solicitud.empleado).selectinload(Empleado.area),
+                selectinload(Solicitud.empleado).selectinload(Empleado.lider),
                 selectinload(Solicitud.aprobaciones),
             )
             .where(Solicitud.id == solicitud_id)

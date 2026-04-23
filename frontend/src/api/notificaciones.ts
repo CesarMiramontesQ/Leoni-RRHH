@@ -39,8 +39,10 @@ function throwIfNotOk(res: Response, detail: string): never {
   throw { status: res.status, detail } as NotificacionesFetchError;
 }
 
+const noStore: RequestInit = { cache: "no-store" };
+
 export async function getNotificacionesRecientes(): Promise<NotificacionApiItem[]> {
-  const res = await fetchWithAuth("/api/v1/notificaciones/recientes");
+  const res = await fetchWithAuth("/api/v1/notificaciones/recientes", noStore);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as NotificacionApiItem[];
 }
@@ -52,13 +54,13 @@ export async function getNotificacionesPage(
   const sp = new URLSearchParams();
   sp.set("limit", String(limit));
   if (cursor != null) sp.set("cursor", String(cursor));
-  const res = await fetchWithAuth(`/api/v1/notificaciones?${sp.toString()}`);
+  const res = await fetchWithAuth(`/api/v1/notificaciones?${sp.toString()}`, noStore);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as NotificacionesPage;
 }
 
 export async function getNoLeidasCount(): Promise<number> {
-  const res = await fetchWithAuth("/api/v1/notificaciones/no-leidas/count");
+  const res = await fetchWithAuth("/api/v1/notificaciones/no-leidas/count", noStore);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   const data = (await res.json()) as { no_leidas?: unknown };
   return typeof data.no_leidas === "number" ? data.no_leidas : 0;

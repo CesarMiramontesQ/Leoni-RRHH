@@ -2,6 +2,7 @@
  * Plantillas HTML del modal de detalle de solicitud pendiente (solo presentación).
  */
 
+import type { SolicitudApiItem } from "../../api/solicitudes.ts";
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
 import type { SolicitudDetallePendienteVm } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
@@ -47,7 +48,7 @@ export function solicitudDetalleShellHtml(): string {
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 pr-2">
               <h2 id="rh-sd-title" class="text-xl font-bold tracking-tight text-slate-900">${escapeHtml(SD_COPY.tituloModal)}</h2>
-              <p class="mt-2 text-sm leading-relaxed text-slate-500">${escapeHtml(SD_COPY.subtituloModal)}</p>
+              <p id="rh-sd-subtitle" class="mt-2 text-sm leading-relaxed text-slate-500">${escapeHtml(SD_COPY.subtituloModal)}</p>
             </div>
             <button
               type="button"
@@ -77,14 +78,75 @@ export function solicitudDetalleLoadingBodyHtml(): string {
     </div>`;
 }
 
-export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): string {
+export type SolicitudDetalleContentOpciones = {
+  soloLectura?: boolean;
+  /** Sin botones aprobar/rechazar/cambios (p. ej. solicitud propia de supervisor/gerente). */
+  ocultarDecisionJerarquica?: boolean;
+  /** Panel de organigrama / etapas (solo cuando el GET devuelve metadatos). */
+  jerarquiaHtml?: string;
+};
+
+/** Panel informativo para supervisores, gerentes y RH a partir del GET enriquecido. */
+export function solicitudDetalleJerarquiaHtml(api: SolicitudApiItem): string {
+  const supNom =
+    typeof api.lider_nombre === "string" && api.lider_nombre.trim() ? api.lider_nombre.trim() : "";
+  const gerNom =
+    typeof api.gerente_linea_nombre === "string" && api.gerente_linea_nombre.trim() ?
+      api.gerente_linea_nombre.trim()
+    : "";
+
+  const sinSup = !supNom;
+  const pendSup = Boolean(api.pendiente_aprobacion_supervisor);
+  const pendGer = Boolean(api.pendiente_aprobacion_gerente);
+
+  const estadoSup = sinSup ? SD_COPY.supSinAsignar : pendSup ? SD_COPY.supPendienteAprobacion : SD_COPY.supYaAprobo;
+  const estadoGer =
+    pendGer ? SD_COPY.gerPendienteAprobacion
+    : gerNom ? SD_COPY.gerEsperaSiAplica
+    : SD_COPY.gerSinEnCadena;
+
+  const alertaSup =
+    pendSup && !sinSup ?
+      `<p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">${escapeHtml(SD_COPY.supPendienteAprobacion)}</p>`
+    : "";
+  const alertaGer =
+    pendGer && gerNom ?
+      `<p class="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">${escapeHtml(SD_COPY.gerPendienteAprobacion)}</p>`
+    : "";
+
+  return `
+    <section class="space-y-3 rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm" aria-labelledby="rh-sd-jer-title">
+      <h3 id="rh-sd-jer-title" class="${SEC_HEAD}">
+        ${ICON_USER}
+        ${escapeHtml(SD_COPY.seccionJerarquia)}
+      </h3>
+      <div class="${PANEL} space-y-3">
+        ${kv(SD_COPY.lblSupervisorAsignado, sinSup ? "—" : supNom)}
+        ${kv(SD_COPY.lblGerenteLinea, gerNom || "—")}
+        ${kv(SD_COPY.lblEstadoSupervisor, estadoSup)}
+        ${kv(SD_COPY.lblEstadoGerencia, estadoGer)}
+        ${alertaSup}
+        ${alertaGer}
+      </div>
+    </section>`;
+}
+
+export function solicitudDetalleContentHtml(
+  vm: SolicitudDetallePendienteVm,
+  opciones?: SolicitudDetalleContentOpciones,
+): string {
+  const soloLectura = opciones?.soloLectura ?? false;
+  const ocultarDecisionJerarquica = opciones?.ocultarDecisionJerarquica ?? false;
+  const jerarquiaBlock = opciones?.jerarquiaHtml?.trim() ? opciones.jerarquiaHtml : "";
   const s = vm.solicitud;
   const e = vm.empleado;
   const diasTxt = `${s.total_dias} ${SD_COPY.diasUnidad}`;
 
   const badge = `<span class="inline-flex max-w-full items-center rounded-lg border border-leoni-blue/20 bg-leoni-blue/[0.08] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-leoni-blue">${escapeHtml(s.tipo_badge)}</span>`;
 
-  const saldoCards = `
+  const saldoCards = soloLectura
+    ? ""
+    : `
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblSaldoActual)}</p>
@@ -100,6 +162,14 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
     <div class="space-y-6">
       <p id="rh-sd-error" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></p>
       <p id="rh-sd-busy-banner" class="hidden rounded-xl border border-leoni-blue/20 bg-leoni-blue/[0.06] px-4 py-3 text-center text-sm font-semibold text-leoni-blue" role="status" aria-live="polite"></p>
+
+      ${jerarquiaBlock}
+
+      ${
+        ocultarDecisionJerarquica && !soloLectura ?
+          `<p class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-950">${escapeHtml(SD_COPY.avisoAutopaprobacionBloqueada)}</p>`
+        : ""
+      }
 
       <section class="space-y-3" aria-labelledby="rh-sd-sec-emp">
         <h3 id="rh-sd-sec-emp" class="${SEC_HEAD}">
@@ -147,7 +217,10 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
         </div>
       </section>
 
-      <div class="space-y-3 border-t border-slate-100 pt-2">
+      ${
+        soloLectura || ocultarDecisionJerarquica
+          ? ""
+          : `<div class="space-y-3 border-t border-slate-100 pt-2">
         <button
           type="button"
           id="rh-sd-btn-aprobar"
@@ -206,7 +279,8 @@ export function solicitudDetalleContentHtml(vm: SolicitudDetallePendienteVm): st
           ></textarea>
           <p class="text-xs text-slate-500">${escapeHtml(SD_COPY.ayudaComentarioInterno)}</p>
         </div>
-      </div>
+      </div>`
+      }
     </div>
     <input type="hidden" id="rh-sd-solicitud-id" value="${escapeHtml(vm.id)}" />`;
 }

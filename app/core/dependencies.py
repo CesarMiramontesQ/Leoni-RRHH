@@ -60,6 +60,8 @@ async def get_current_user(
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
             selectinload(Empleado.email_alterno),
+            # Evita lazy load async al serializar solicitudes (p. ej. `emp.lider` en `_solicitud_to_response`).
+            selectinload(Empleado.lider),
         )
         .where(Empleado.id == int(empleado_id))
     )

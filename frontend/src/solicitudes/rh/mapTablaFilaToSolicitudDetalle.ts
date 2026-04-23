@@ -16,11 +16,20 @@ function fmtFechaDisplay(iso: string): string {
   return dt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 }
 
+export type MapTablaFilaToSolicitudDetalleOpciones = {
+  /** Rol empleado: datos de referencia sin cupo simulado ni acciones de aprobación. */
+  soloLectura?: boolean;
+};
+
 /**
  * Construye la vista de detalle para una fila pendiente (mock + fila de tabla).
  */
-export function mapTablaFilaToSolicitudDetallePendiente(row: RhSolicitudTablaFila): SolicitudDetallePendienteVm | null {
+export function mapTablaFilaToSolicitudDetallePendiente(
+  row: RhSolicitudTablaFila,
+  opciones?: MapTablaFilaToSolicitudDetalleOpciones,
+): SolicitudDetallePendienteVm | null {
   if (row.estado !== "pending") return null;
+  const soloLectura = opciones?.soloLectura ?? false;
   const extra = getSolicitudDetalleMockExtra(row.id);
   const nombre = formatNombreEmpleadoUi(row.empleado_nombre_raw).trim() || row.empleado_nombre_raw.trim() || "Sin nombre";
   const supervisor =
@@ -29,16 +38,20 @@ export function mapTablaFilaToSolicitudDetallePendiente(row: RhSolicitudTablaFil
   const saldoRestante = Math.max(0, extra.saldo_actual - totalDias);
   const tipoBadge =
     row.tipo === "vacaciones" ? SD_COPY.badgeVacacionesPendiente : SD_COPY.badgeHomeOfficePendiente;
-  const comentarioEmp = extra.comentario_empleado.trim();
+  const comentarioApi =
+    typeof row.comentarios === "string" && row.comentarios.trim() ? row.comentarios.trim() : "";
+  const comentarioEmp = comentarioApi || extra.comentario_empleado.trim();
+  const idEmpleadoUi = row.empleado_id.trim() || "—";
+  const puestoUi = soloLectura ? "—" : extra.puesto;
 
   return {
     id: String(row.id),
     estado: "pending",
     empleado: {
       nombre,
-      id_empleado: extra.id_empleado,
+      id_empleado: idEmpleadoUi,
       area: row.area.trim() || "—",
-      puesto: extra.puesto,
+      puesto: puestoUi,
       supervisor,
     },
     solicitud: {

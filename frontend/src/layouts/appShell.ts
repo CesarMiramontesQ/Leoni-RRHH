@@ -6,12 +6,11 @@ import {
 import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
+import { marcarNotificacionLeida, type NotificacionApiItem } from "../api/notificaciones.ts";
 import {
-  getNoLeidasCount,
-  getNotificacionesRecientes,
-  marcarNotificacionLeida,
-  type NotificacionApiItem,
-} from "../api/notificaciones.ts";
+  getNotificacionesResumenSnapshot,
+  refreshNotificacionesResumen,
+} from "../notificaciones/notificacionesResumenStore.ts";
 import { renderNotificacionBadge, renderNotificacionListItem } from "../notificaciones/ui.ts";
 
 function escapeHtmlText(s: string): string {
@@ -380,22 +379,35 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     notifList.innerHTML = items.map((item) => renderNotificacionListItem(item, { compact: true })).join("");
   };
 
+  const applyNotificacionesSnapshot = (): void => {
+    if (!notifList || !notifBadgeHost || !notifCount) return;
+    const snap = getNotificacionesResumenSnapshot();
+    recientes = snap.recientes;
+    notifBadgeHost.innerHTML = renderNotificacionBadge(snap.unreadCount);
+    notifCount.textContent = `${snap.unreadCount} no leídas`;
+    if (snap.status === "error" && snap.errorMessage) {
+      notifList.innerHTML = `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">${escapeHtmlText(snap.errorMessage)}</p>`;
+      return;
+    }
+    renderNotifDropdown(snap.recientes);
+  };
+
   const loadNotificaciones = async (): Promise<void> => {
     if (!notifList || !notifBadgeHost || !notifCount) return;
-    notifList.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
-    try {
-      const [noLeidas, items] = await Promise.all([getNoLeidasCount(), getNotificacionesRecientes()]);
-      recientes = items;
-      notifBadgeHost.innerHTML = renderNotificacionBadge(noLeidas);
-      notifCount.textContent = `${noLeidas} no leídas`;
-      renderNotifDropdown(items);
-    } catch (error) {
-      if (typeof error === "object" && error != null && "status" in error && (error as { status?: unknown }).status === 401) {
-        mountLoginPage();
-        return;
-      }
-      notifList.innerHTML = `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">No se pudieron cargar las notificaciones.</p>`;
+    if (notifPanelOpen) {
+      notifList.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     }
+    const antes = getNotificacionesResumenSnapshot();
+    if (antes.status === "idle") {
+      notifBadgeHost.innerHTML = `<span class="absolute -top-0.5 -right-0.5 size-2 animate-pulse rounded-full bg-leoni-blue/50" aria-hidden="true"></span>`;
+      notifCount.textContent = "…";
+    }
+    const result = await refreshNotificacionesResumen();
+    if (!result.ok && result.unauthorized) {
+      mountLoginPage();
+      return;
+    }
+    applyNotificacionesSnapshot();
   };
 
   notifButton?.addEventListener("click", (event) => {

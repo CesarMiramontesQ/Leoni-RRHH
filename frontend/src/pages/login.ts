@@ -1,4 +1,8 @@
 import { setSession } from "../auth/session.ts";
+import {
+  refreshNotificacionesResumen,
+  resetNotificacionesResumen,
+} from "../notificaciones/notificacionesResumenStore.ts";
 import { mountAuthenticatedShell } from "../shellRouter.ts";
 
 export function mountLogin(container: HTMLElement): void {
@@ -170,6 +174,8 @@ export function mountLogin(container: HTMLElement): void {
         { access_token: body.access_token, refresh_token: body.refresh_token },
         remember,
       );
+      resetNotificacionesResumen();
+      void refreshNotificacionesResumen();
 
       window.location.hash = "#/";
       mountAuthenticatedShell(container);

@@ -24,6 +24,8 @@ export type SolicitudResueltaModalOpciones = {
   onFirmarDocumento?: (requestId: string) => void | Promise<void>;
   onCancelarProceso?: (requestId: string) => void | Promise<void>;
   onDescargarComprobante?: (requestId: string) => void | Promise<void>;
+  /** Rol empleado: sin acciones mock (firmar, cancelar, descargar). */
+  soloLectura?: boolean;
 };
 
 export type SolicitudResueltaModalHandle = {
@@ -55,6 +57,7 @@ export function mountSolicitudResueltaModal(
 
   const rootOverlay = overlay;
   const modalBody = body;
+  const soloLectura = options.soloLectura ?? false;
   let loading = false;
 
   function close(): void {
@@ -158,7 +161,7 @@ export function mountSolicitudResueltaModal(
       modalBody.innerHTML = solicitudResueltaLoadingBodyHtml();
       loading = true;
 
-      const res = await fetchSolicitudResueltaDetalleMock(solicitudId, options.getFilaById, false);
+      const res = await fetchSolicitudResueltaDetalleMock(solicitudId, options.getFilaById, false, soloLectura);
       loading = false;
 
       if (!res.ok) {
