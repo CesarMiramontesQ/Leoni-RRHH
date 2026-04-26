@@ -35,7 +35,7 @@ export type EmpleadosListParams = {
   page_size: number;
   q?: string;
   area_id?: number;
-  puesto_id?: number;
+  puesto_id?: number | number[];
   /** Solo aplica con rol RH: true = activos, false = no activos, omitir = todos. */
   activo?: boolean;
 };
@@ -48,7 +48,11 @@ export async function getEmpleadosPage(params: EmpleadosListParams): Promise<Usu
   if (params.area_id != null && !Number.isNaN(params.area_id)) {
     sp.set("area_id", String(params.area_id));
   }
-  if (params.puesto_id != null && !Number.isNaN(params.puesto_id)) {
+  if (Array.isArray(params.puesto_id)) {
+    for (const id of params.puesto_id) {
+      if (!Number.isNaN(id)) sp.append("puesto_id", String(id));
+    }
+  } else if (params.puesto_id != null && !Number.isNaN(params.puesto_id)) {
     sp.set("puesto_id", String(params.puesto_id));
   }
   if (params.activo === true) sp.set("activo", "true");

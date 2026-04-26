@@ -34,6 +34,13 @@ export type TeamCalendarEventKind = "meal" | "vacation" | "home_office" | "incid
 export type TeamCalendarLine = {
   kind: TeamCalendarEventKind;
   text: string;
+  /** Solo para solicitudes: estado canónico API (`approved` / `pending`). */
+  request_status?: "approved" | "pending";
+  /** Solo para solicitudes: tipo de solicitud para etiqueta. */
+  request_type?: "vacation" | "home_office";
+  /** Dueño de la solicitud (comparado con usuario en sesión). */
+  owner_id?: string;
+  owner_name?: string;
 };
 
 export type TeamCalendarDayEntry = {

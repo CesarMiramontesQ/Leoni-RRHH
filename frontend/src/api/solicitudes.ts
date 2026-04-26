@@ -91,19 +91,21 @@ async function readErrorDetail(res: Response): Promise<string> {
 }
 
 function toTipo(tipo: string): RhSolicitudTipoCodigo {
-  return tipo === "vacaciones" ? "vacaciones" : "home_office";
+  const raw = (tipo || "").trim().toLowerCase();
+  if (raw === "vacaciones" || raw === "vacation") return "vacaciones";
+  if (raw === "home_office" || raw === "home office" || raw === "homeoffice") return "home_office";
+  return "home_office";
 }
 
 function toEstado(estado: string): RhSolicitudEstadoCodigo {
-  if (
-    estado === "pending" ||
-    estado === "approved" ||
-    estado === "rejected" ||
-    estado === "cancelled" ||
-    estado === "overridden" ||
-    estado === "changes_requested"
-  ) {
-    return estado;
+  const raw = (estado || "").trim().toLowerCase();
+  if (raw === "pending" || raw === "pendiente") return "pending";
+  if (raw === "approved" || raw === "aprobado") return "approved";
+  if (raw === "rejected" || raw === "rechazado") return "rejected";
+  if (raw === "cancelled" || raw === "cancelado" || raw === "canceled") return "cancelled";
+  if (raw === "overridden" || raw === "override") return "overridden";
+  if (raw === "changes_requested" || raw === "solicitar_cambios" || raw === "cambios_solicitados") {
+    return "changes_requested";
   }
   return "cancelled";
 }

@@ -23,23 +23,84 @@ function buildTeamCalendarDemo(year: number, monthIndex: number): Record<string,
   };
 
   put(4, [
-    { kind: "vacation", text: "Vac. Ana" },
+    {
+      kind: "vacation",
+      text: "Vacaciones",
+      request_type: "vacation",
+      request_status: "approved",
+      owner_id: "1002",
+      owner_name: "Ana",
+    },
     { kind: "meal", text: "Comida 8" },
   ]);
   put(5, [
-    { kind: "home_office", text: "HO Luis" },
-    { kind: "vacation", text: "Vac. 2" },
+    {
+      kind: "home_office",
+      text: "Home Office",
+      request_type: "home_office",
+      request_status: "pending",
+      owner_id: "1003",
+      owner_name: "Luis",
+    },
+    {
+      kind: "vacation",
+      text: "Vacaciones",
+      request_type: "vacation",
+      request_status: "approved",
+      owner_id: "1001",
+      owner_name: "Mi solicitud",
+    },
   ]);
   put(11, [{ kind: "meal", text: "Comida 12" }, { kind: "incident", text: "Inc. equipo" }]);
   put(14, [
-    { kind: "vacation", text: "Vac. María" },
-    { kind: "vacation", text: "Vac. Pedro" },
-    { kind: "home_office", text: "HO Carmen" },
+    {
+      kind: "vacation",
+      text: "Vacaciones",
+      request_type: "vacation",
+      request_status: "approved",
+      owner_id: "1004",
+      owner_name: "María",
+    },
+    {
+      kind: "vacation",
+      text: "Vacaciones",
+      request_type: "vacation",
+      request_status: "pending",
+      owner_id: "1005",
+      owner_name: "Pedro",
+    },
+    {
+      kind: "home_office",
+      text: "Home Office",
+      request_type: "home_office",
+      request_status: "pending",
+      owner_id: "1006",
+      owner_name: "Carmen",
+    },
     { kind: "meal", text: "Comida 6" },
     { kind: "meal", text: "Extra" },
   ]);
-  put(18, [{ kind: "home_office", text: "HO Ana" }]);
-  put(22, [{ kind: "meal", text: "Comida 10" }, { kind: "vacation", text: "Vac. Luis" }]);
+  put(18, [
+    {
+      kind: "home_office",
+      text: "Home Office",
+      request_type: "home_office",
+      request_status: "approved",
+      owner_id: "1002",
+      owner_name: "Ana",
+    },
+  ]);
+  put(22, [
+    { kind: "meal", text: "Comida 10" },
+    {
+      kind: "vacation",
+      text: "Vacaciones",
+      request_type: "vacation",
+      request_status: "approved",
+      owner_id: "1003",
+      owner_name: "Luis",
+    },
+  ]);
 
   const today = new Date();
   if (today.getFullYear() === year && today.getMonth() === monthIndex) {
@@ -49,7 +110,14 @@ function buildTeamCalendarDemo(year: number, monthIndex: number): Record<string,
       lines: [
         ...existing,
         { kind: "meal", text: "Comida hoy" },
-        { kind: "vacation", text: "Vac. hoy" },
+        {
+          kind: "vacation",
+          text: "Vacaciones",
+          request_type: "vacation",
+          request_status: "pending",
+          owner_id: "1001",
+          owner_name: "Mi solicitud",
+        },
       ],
     };
   }

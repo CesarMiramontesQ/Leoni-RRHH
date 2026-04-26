@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from typing import Literal
 
 from sqlalchemy import String, and_, cast, func, or_, select
@@ -13,6 +15,23 @@ ModoEstadoListado = Literal["todos", "activos", "inactivos"]
 
 
 class UsuarioRepository(BaseRepository[Empleado]):
+    @staticmethod
+    def _normalize_search_text(value: str) -> str:
+        no_accents = "".join(
+            ch for ch in unicodedata.normalize("NFD", value) if unicodedata.category(ch) != "Mn"
+        )
+        return re.sub(r"\s+", " ", no_accents).strip().lower()
+
+    @staticmethod
+    def _normalized_sql(expr):
+        # Normaliza en SQL para búsquedas case/diacritics insensitive.
+        lowered = func.lower(func.coalesce(expr, ""))
+        return func.translate(
+            lowered,
+            "áéíóúäëïöüàèìòùâêîôûãõñç",
+            "aeiouaeiouaeiouaeiouaonc",
+        )
+
     def __init__(self, db: AsyncSession):
         super().__init__(Empleado, db)
 
@@ -53,7 +72,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
     def _list_filters(
         q: str | None,
         area_id: int | None,
-        puesto_id: int | None,
+        puesto_id: list[int] | None,
         modo_estado: ModoEstadoListado,
         estados_activos: list[int],
         ids_permitidos: list[int] | None = None,
@@ -64,26 +83,36 @@ class UsuarioRepository(BaseRepository[Empleado]):
             conditions.append(est)
         if area_id is not None:
             conditions.append(Empleado.area_id == area_id)
-        if puesto_id is not None:
-            conditions.append(Empleado.puesto_id == puesto_id)
+        if puesto_id:
+            conditions.append(Empleado.puesto_id.in_(puesto_id))
         if ids_permitidos is not None:
             if not ids_permitidos:
                 conditions.append(Empleado.id == -1)
             else:
                 conditions.append(Empleado.id.in_(ids_permitidos))
         if q and q.strip():
-            term = f"%{q.strip()}%"
-            q_like = [
-                Empleado.nombre.ilike(term),
-                Empleado.no_empleado.ilike(term),
-                Empleado.email.ilike(term),
-                Email.email.ilike(term),
-                cast(Empleado.id, String).ilike(term),
-                cast(Empleado.empleado_id, String).ilike(term),
-                and_(Empleado.no_sap.isnot(None), Empleado.no_sap.ilike(term)),
-                and_(Empleado.usuario.isnot(None), Empleado.usuario.ilike(term)),
-            ]
-            conditions.append(or_(*q_like))
+            normalized_q = UsuarioRepository._normalize_search_text(q)
+            tokens = [tok for tok in normalized_q.split(" ") if tok]
+            for token in tokens:
+                term = f"%{token}%"
+                token_like = [
+                    UsuarioRepository._normalized_sql(Empleado.nombre).ilike(term),
+                    UsuarioRepository._normalized_sql(Empleado.no_empleado).ilike(term),
+                    UsuarioRepository._normalized_sql(Empleado.email).ilike(term),
+                    UsuarioRepository._normalized_sql(Email.email).ilike(term),
+                    cast(Empleado.id, String).ilike(term),
+                    cast(Empleado.empleado_id, String).ilike(term),
+                    and_(
+                        Empleado.no_sap.isnot(None),
+                        UsuarioRepository._normalized_sql(Empleado.no_sap).ilike(term),
+                    ),
+                    and_(
+                        Empleado.usuario.isnot(None),
+                        UsuarioRepository._normalized_sql(Empleado.usuario).ilike(term),
+                    ),
+                ]
+                # Cada token debe existir en alguno de los campos (AND entre tokens).
+                conditions.append(or_(*token_like))
         return conditions
 
     async def list_page(
@@ -92,7 +121,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
         limit: int,
         q: str | None,
         area_id: int | None,
-        puesto_id: int | None,
+        puesto_id: list[int] | None,
         modo_estado: ModoEstadoListado = "todos",
         estados_activos: list[int] | None = None,
         ids_permitidos: list[int] | None = None,
@@ -121,7 +150,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
         self,
         q: str | None,
         area_id: int | None,
-        puesto_id: int | None,
+        puesto_id: list[int] | None,
         modo_estado: ModoEstadoListado = "todos",
         estados_activos: list[int] | None = None,
         ids_permitidos: list[int] | None = None,
@@ -185,4 +214,11 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 )
             )
         )
+        return result.scalar_one()
+
+    async def count_sin_lider_asignado(self, estados_activos: list[int] | None = None) -> int:
+        query = select(func.count()).select_from(Empleado).where(Empleado.lider_id.is_(None))
+        if estados_activos:
+            query = query.where(Empleado.estado_id.in_(estados_activos))
+        result = await self.db.execute(query)
         return result.scalar_one()

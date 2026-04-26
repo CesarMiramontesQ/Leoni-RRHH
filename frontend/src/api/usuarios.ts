@@ -4,6 +4,7 @@ export type UsuarioResumen = {
   total_plantilla: number;
   activos: number;
   inactivos: number;
+  sin_lider_asignado: number;
   practicantes: number;
   porcentaje_operatividad: number;
 };

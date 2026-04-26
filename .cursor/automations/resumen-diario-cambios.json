@@ -1,0 +1,36 @@
+{
+  "name": "Resumen diario de cambios",
+  "triggers": [
+    {
+      "cron": {
+        "cron": "0 2 * * *"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "mcp": {
+        "server": {
+          "name": "Resend"
+        }
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "prompt": "### Objetivo\nProducir un resumen conciso y de **\"alta señal\"** sobre lo que cambió en las últimas 24 horas.\n\n### Qué incluir\n* **PRs principales fusionados:** Enfocados en el impacto para el usuario o el sistema.\n* **Correcciones notables:** Errores críticos, incidentes y áreas de riesgo modificadas.\n* **Seguridad y dependencias:** Cualquier cambio relacionado con estas áreas.\n* **Seguimientos importantes:** Pruebas faltantes, riesgos de despliegue o posibles regresiones.\n\n### Estándar de calidad\n* **Prioriza la relevancia:** Es mejor ser breve y útil que exhaustivo y tedioso.\n* **Agrupa por temas:** Clasifica los cambios relacionados en bloques temáticos.\n* **Sin invenciones:** No inventes detalles; básate exclusivamente en evidencia concreta de los commits o PRs.\n* **Legibilidad:** El resumen debe ser fácil de leer de un vistazo.\n\n### Formato de salida\nPublica un mensaje (Email) que contenga:\n1.  **Rango de fechas** cubierto.\n2.  **3 a 7 puntos clave** con los cambios más significativos.\n3.  **Sección \"Watchlist\" (Lista de vigilancia):** Con 1 a 3 riesgos o tareas pendientes que requieran atención inmediata."
+    }
+  ],
+  "agentOptions": {
+    "skipInstall": true
+  },
+  "memoryEnabled": true,
+  "scope": "team_visible",
+  "gitConfig": {
+    "repo": "https://github.com/CesarMiramontesQ/Leoni-RRHH",
+    "repos": [
+      "https://github.com/CesarMiramontesQ/Leoni-RRHH"
+    ],
+    "branch": "main"
+  }
+}

@@ -5,11 +5,13 @@ import {
   formatCalendarMonthTitle,
 } from "./calendarShared.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
+import { getEmpleadoSolicitudCalendarBadge } from "../../dashboard/empleado/solicitudCalendarioConsts.ts";
 import type {
   EmpleadoCalendarDayEntry,
   EmpleadoDashboardPayload,
   EmpleadoPendingRequestType,
 } from "../../dashboard/empleado/types.ts";
+import { getRolFromAccessToken } from "../../auth/jwt.ts";
 
 function fmtDays(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "0 días";
@@ -50,6 +52,18 @@ function entryToLines(entry: EmpleadoCalendarDayEntry | undefined): Array<{ text
         "rounded-md bg-violet-500/12 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-violet-800 md:text-[11px]",
     });
   }
+  const solicitudes = entry.solicitudes_empleado;
+  if (solicitudes?.length) {
+    const rol = getRolFromAccessToken();
+    const sorted = [...solicitudes].sort((a, b) => {
+      const pri = (e: (typeof solicitudes)[0]) => (e.estado === "pending" ? 0 : 1);
+      return pri(a) - pri(b) || a.solicitud_id - b.solicitud_id;
+    });
+    for (const ev of sorted) {
+      const b = getEmpleadoSolicitudCalendarBadge(rol, ev.estado, ev.tipo);
+      lines.push({ text: b.text, cls: b.badgeCls });
+    }
+  }
   return lines;
 }
 
@@ -62,6 +76,20 @@ function renderMobileDots(entry: EmpleadoCalendarDayEntry | undefined): string {
   }
   if (entry.home_office) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-violet-600" title="Home Office"></span>');
+  }
+  const solicitudes = entry.solicitudes_empleado;
+  if (solicitudes?.length) {
+    const rol = getRolFromAccessToken();
+    const sorted = [...solicitudes].sort((a, b) => {
+      const pri = (e: (typeof solicitudes)[0]) => (e.estado === "pending" ? 0 : 1);
+      return pri(a) - pri(b) || a.solicitud_id - b.solicitud_id;
+    });
+    for (const ev of sorted) {
+      const b = getEmpleadoSolicitudCalendarBadge(rol, ev.estado, ev.tipo);
+      dots.push(
+        `<span class="size-1.5 shrink-0 rounded-full ${b.dotClass}" title="${escapeHtml(b.dotTitle)}"></span>`,
+      );
+    }
   }
   if (dots.length === 0) return "";
   return `<div class="mt-0.5 flex flex-wrap gap-1 md:hidden" aria-hidden="true">${dots.join("")}</div>`;
@@ -268,6 +296,14 @@ export function renderEmpleadoCalendarReplaceable(
       <span class="inline-flex items-center gap-2 text-text-muted">
         <span class="size-2 shrink-0 rounded-full bg-violet-600" aria-hidden="true"></span>
         <span class="font-medium text-text-primary">Home Office</span>
+      </span>
+      <span class="inline-flex items-center gap-2 text-text-muted">
+        <span class="size-2 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Solicitud aprobada (verde)</span>
+      </span>
+      <span class="inline-flex items-center gap-2 text-text-muted">
+        <span class="size-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Solicitud pendiente (amarillo)</span>
       </span>
     </div>`;
 

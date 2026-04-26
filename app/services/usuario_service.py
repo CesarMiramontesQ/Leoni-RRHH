@@ -97,7 +97,7 @@ class UsuarioService:
         page_size: int,
         q: str | None,
         area_id: int | None,
-        puesto_id: int | None,
+        puesto_id: list[int] | None,
         current_user: Empleado,
         activo: bool | None = None,
     ) -> UsuarioPageResponse:
@@ -129,7 +129,7 @@ class UsuarioService:
         page_size: int,
         q: str | None,
         area_id: int | None,
-        puesto_id: int | None,
+        puesto_id: list[int] | None,
         current_user: Empleado,
     ) -> UsuarioPageResponse:
         self._require_directorio(current_user)
@@ -168,22 +168,27 @@ class UsuarioService:
         estados = settings.ESTADOS_ACTIVOS_IDS
         activos = await self.repo.count_activos(estados)
         inactivos = await self.repo.count_inactivos(estados)
+        sin_lider_asignado = await self.repo.count_sin_lider_asignado(estados)
         pct = round((activos / total) * 100, 1) if total else 0.0
         return UsuarioResumenResponse(
             total_plantilla=total,
             activos=activos,
             inactivos=inactivos,
+            sin_lider_asignado=sin_lider_asignado,
             practicantes=0,
             porcentaje_operatividad=pct,
         )
 
     async def resumen_directorio(self, current_user: Empleado) -> UsuarioResumenResponse:
         self._require_directorio(current_user)
-        activos = await self.repo.count_activos(settings.ESTADOS_ACTIVOS_IDS)
+        estados_activos = settings.ESTADOS_ACTIVOS_IDS
+        activos = await self.repo.count_activos(estados_activos)
+        sin_lider_asignado = await self.repo.count_sin_lider_asignado(estados_activos)
         return UsuarioResumenResponse(
             total_plantilla=activos,
             activos=activos,
             inactivos=0,
+            sin_lider_asignado=sin_lider_asignado,
             practicantes=0,
             porcentaje_operatividad=100.0 if activos else 0.0,
         )

@@ -1,0 +1,36 @@
+{
+  "name": "Resumen semanal de cambios",
+  "triggers": [
+    {
+      "cron": {
+        "cron": "0 2 * * 1"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "mcp": {
+        "server": {
+          "name": "Resend"
+        }
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "prompt": "### Objetivo\nProducir un resumen semanal conciso y de **\"alta señal\"** sobre los cambios más relevantes de los últimos 7 días.\n\n### Qué incluir\n* **PRs principales fusionados:** Enfocados en impacto para usuarios, operaciones y estabilidad del sistema.\n* **Correcciones notables:** Bugs críticos, incidentes atendidos y áreas de riesgo intervenidas.\n* **Seguridad y dependencias:** Actualizaciones relevantes, parches, vulnerabilidades mitigadas o pendientes.\n* **Seguimientos importantes:** Pruebas faltantes, deudas técnicas, riesgos de despliegue o posibles regresiones.\n\n### Estándar de calidad\n* **Prioriza relevancia sobre volumen:** Incluye solo lo más importante.\n* **Agrupa por temas:** Ordena por bloques claros (producto, backend, frontend, infraestructura, seguridad).\n* **Sin invenciones:** Basarse únicamente en evidencia de commits y PRs.\n* **Legibilidad ejecutiva:** Debe poder leerse en menos de 2 minutos.\n\n### Formato de salida\nPublica un mensaje (Email) que contenga:\n1. **Rango de fechas** cubierto (semana analizada).\n2. **5 a 10 puntos clave** con lo más significativo.\n3. **Sección \"Watchlist\" (Lista de vigilancia):** 2 a 5 riesgos o tareas prioritarias de la siguiente semana.\n4. **Sección \"Siguiente semana\":** 2 a 4 focos recomendados de seguimiento."
+    }
+  ],
+  "agentOptions": {
+    "skipInstall": true
+  },
+  "memoryEnabled": true,
+  "scope": "team_visible",
+  "gitConfig": {
+    "repo": "https://github.com/CesarMiramontesQ/Leoni-RRHH",
+    "repos": [
+      "https://github.com/CesarMiramontesQ/Leoni-RRHH"
+    ],
+    "branch": "main"
+  }
+}

@@ -6,7 +6,9 @@ import {
 } from "./calendarShared.ts";
 import { renderEmpleadoStatCards } from "./empleadoPersonalDashboard.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
+import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { emptyEmpleadoDashboardPayload } from "../../dashboard/empleado/mock.ts";
+import { getCalendarRequestBadge } from "../../dashboard/empleado/solicitudCalendarioConsts.ts";
 import type { EmpleadoDashboardPayload } from "../../dashboard/empleado/types.ts";
 import type {
   LiderApprovalRequestRow,
@@ -15,7 +17,6 @@ import type {
   LiderPersonalStats,
   LiderTeamStats,
   TeamCalendarDayEntry,
-  TeamCalendarEventKind,
   TeamCalendarLine,
 } from "../../dashboard/lider/types.ts";
 
@@ -231,8 +232,17 @@ function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string
     </section>`;
 }
 
-function teamLineClass(kind: TeamCalendarEventKind): string {
-  switch (kind) {
+function teamLineClass(line: TeamCalendarLine): string {
+  if (
+    (line.kind === "vacation" || line.kind === "home_office") &&
+    (line.request_status === "approved" || line.request_status === "pending")
+  ) {
+    return line.request_status === "approved"
+      ? "rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-emerald-800 md:text-[11px]"
+      : "rounded-md bg-amber-400/25 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-amber-950 md:text-[11px]";
+  }
+
+  switch (line.kind) {
     case "meal":
       return "rounded-md bg-leoni-blue/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-leoni-blue md:text-[11px]";
     case "vacation":
@@ -244,6 +254,24 @@ function teamLineClass(kind: TeamCalendarEventKind): string {
     default:
       return "rounded-md px-1.5 py-0.5 text-[10px] text-text-muted md:text-[11px]";
   }
+}
+
+function renderTeamLineText(line: TeamCalendarLine, currentRole: string | null, currentUserId: string | null): string {
+  if (
+    (line.kind === "vacation" || line.kind === "home_office") &&
+    (line.request_status === "approved" || line.request_status === "pending")
+  ) {
+    const tipo = line.request_type === "home_office" || line.kind === "home_office" ? "home_office" : "vacaciones";
+    return getCalendarRequestBadge({
+      userRole: currentRole,
+      currentUserId,
+      ownerId: line.owner_id ?? null,
+      ownerName: line.owner_name ?? null,
+      estado: line.request_status,
+      tipo,
+    }).text;
+  }
+  return line.text;
 }
 
 function visibleTeamLines(entry: TeamCalendarDayEntry | undefined): {
@@ -263,12 +291,22 @@ function visibleTeamLines(entry: TeamCalendarDayEntry | undefined): {
 function teamCalendarMobileDots(entry: TeamCalendarDayEntry | undefined): string {
   if (!entry?.lines?.length) return "";
   const kinds = new Set(entry.lines.map((l) => l.kind));
+  const hasApprovedRequest = entry.lines.some(
+    (l) => (l.kind === "vacation" || l.kind === "home_office") && l.request_status === "approved",
+  );
+  const hasPendingRequest = entry.lines.some(
+    (l) => (l.kind === "vacation" || l.kind === "home_office") && l.request_status === "pending",
+  );
   const dots: string[] = [];
   if (kinds.has("meal")) dots.push('<span class="size-1.5 shrink-0 rounded-full bg-leoni-blue" title="Comidas"></span>');
-  if (kinds.has("vacation")) {
+  if (hasApprovedRequest) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-emerald-600" title="Solicitudes aprobadas"></span>');
+  } else if (kinds.has("vacation")) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-500" title="Vacaciones"></span>');
   }
-  if (kinds.has("home_office")) {
+  if (hasPendingRequest) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-amber-500" title="Solicitudes pendientes"></span>');
+  } else if (kinds.has("home_office")) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-violet-600" title="Home Office"></span>');
   }
   if (kinds.has("incident")) dots.push('<span class="size-1.5 shrink-0 rounded-full bg-red-500" title="Incidencias"></span>');
@@ -286,6 +324,8 @@ function renderTeamCalendarDayCell(
 ): string {
   const { visible, overflow } = visibleTeamLines(entry);
   const hasContent = visible.length > 0 || overflow > 0;
+  const currentRole = getRolFromAccessToken();
+  const currentUserId = getEmpleadoIdFromAccessToken();
 
   const cellPieces: string[] = [
     "group relative flex min-h-[4.5rem] flex-col rounded-sm p-2 outline-none md:min-h-[6.5rem] md:p-3",
@@ -321,7 +361,12 @@ function renderTeamCalendarDayCell(
   const linesDesktop =
     visible.length > 0 || overflow > 0 ?
       `<div class="hidden min-h-0 flex-1 flex-col gap-1 overflow-hidden md:flex">
-          ${visible.map((ln) => `<span class="truncate ${teamLineClass(ln.kind)}">${escapeHtml(ln.text)}</span>`).join("")}
+          ${visible
+            .map(
+              (ln) =>
+                `<span class="truncate ${teamLineClass(ln)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`,
+            )
+            .join("")}
           ${overflowPill}
         </div>`
     : "";
@@ -388,6 +433,14 @@ export function renderLiderTeamCalendarReplaceable(
       <span class="inline-flex items-center gap-2 text-text-muted">
         <span class="size-2 shrink-0 rounded-full bg-violet-600" aria-hidden="true"></span>
         <span class="font-medium text-text-primary">Home Office</span>
+      </span>
+      <span class="inline-flex items-center gap-2 text-text-muted">
+        <span class="size-2 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Solicitudes aprobadas</span>
+      </span>
+      <span class="inline-flex items-center gap-2 text-text-muted">
+        <span class="size-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Solicitudes pendientes</span>
       </span>
       <span class="inline-flex items-center gap-2 text-text-muted">
         <span class="size-2 shrink-0 rounded-full bg-red-500" aria-hidden="true"></span>

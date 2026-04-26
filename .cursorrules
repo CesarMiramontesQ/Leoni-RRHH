@@ -1,0 +1,32 @@
+# Reglas globales del proyecto Leoni RRHH
+
+## Idioma y comunicación
+- Responder siempre en espanol.
+- Mantener respuestas cortas, accionables y enfocadas en completar la tarea.
+
+## Flujo de trabajo obligatorio
+- Antes de editar, revisar contexto del modulo afectado.
+- Hacer cambios minimos y puntuales; evitar refactors no solicitados.
+- No revertir cambios del usuario sin confirmacion explicita.
+- Si hay ambiguedad funcional, pedir aclaracion antes de continuar.
+
+## Backend (FastAPI)
+- Mantener arquitectura por capas: `api -> services -> repositories -> schemas`.
+- Validar tipado y contratos de Pydantic en entradas y salidas.
+- Evitar logica de negocio en routers.
+- Para cambios de API, actualizar esquemas, servicio y consumo frontend correspondiente.
+
+## Frontend
+- Centralizar llamadas HTTP en `frontend/src/api/`.
+- Mantener tipos en `dashboard/*/types.ts` sincronizados con respuestas del backend.
+- Evitar duplicar tipos o constantes si ya existen.
+
+## Verificacion antes de cerrar tarea
+- Ejecutar checks/lint del area modificada cuando sea posible.
+- Reportar claramente que se cambio, en que archivos y como validarlo.
+- Si no se pudo validar localmente, indicar comandos sugeridos de verificacion.
+
+## Git y seguridad
+- Nunca incluir secretos ni credenciales en commits.
+- No usar comandos destructivos (`reset --hard`, `checkout --`) sin aprobacion del usuario.
+- Crear commits solo cuando el usuario lo solicite de forma explicita.

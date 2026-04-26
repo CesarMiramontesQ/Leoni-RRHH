@@ -2,12 +2,26 @@
  * Contrato listo para API del dashboard personal (rol empleado).
  */
 
+import type { RhSolicitudTipoCodigo } from "../../solicitudes/rh/types.ts";
+
 export type EmpleadoPendingRequestType = "vacation" | "homeOffice";
+
+/** Estados de solicitud mostrados en el calendario del empleado (valores API). */
+export type SolicitudEstadoCalendarioEmpleado = "approved" | "pending";
+
+/** Marca de solicitud propia en el calendario (solo se rellena para rol `empleado`). */
+export type EmpleadoSolicitudCalendarioEvento = {
+  solicitud_id: number;
+  estado: SolicitudEstadoCalendarioEmpleado;
+  tipo: RhSolicitudTipoCodigo;
+};
 
 export type EmpleadoCalendarDayEntry = {
   meal?: boolean;
   vacation?: boolean;
   home_office?: boolean;
+  /** Solicitudes propias (pendiente / aprobada), solo dashboard empleado. */
+  solicitudes_empleado?: EmpleadoSolicitudCalendarioEvento[];
 };
 
 export type EmpleadoDashboardPayload = {

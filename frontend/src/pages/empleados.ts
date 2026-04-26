@@ -48,6 +48,17 @@ function parseOptionalInt(s: string): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
+function parseOptionalIntList(s: string): number[] | undefined {
+  const raw = s.trim();
+  if (!raw) return undefined;
+  const values = raw
+    .split(",")
+    .map((part) => Number.parseInt(part.trim(), 10))
+    .filter((n) => !Number.isNaN(n));
+  if (values.length === 0) return undefined;
+  return [...new Set(values)];
+}
+
 function parseActivoRh(s: State["activo_rh"]): boolean | undefined {
   if (s === "true") return true;
   if (s === "false") return false;
@@ -78,7 +89,7 @@ function textoLiderMostrar(val: string | null | undefined): string {
   return f || "Sin asignar";
 }
 
-type KpiMetricSemantic = "total" | "activo" | "inactivo";
+type KpiMetricSemantic = "total" | "activo" | "inactivo" | "sinLider";
 
 /** Contenedor homogéneo: tinte suave, icono 600, borde y anillo inset para definición. */
 function kpiMetricIconBox(semantic: KpiMetricSemantic, svgHtml: string): string {
@@ -89,6 +100,8 @@ function kpiMetricIconBox(semantic: KpiMetricSemantic, svgHtml: string): string 
       "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-kpi-metric-activo-bg text-kpi-metric-activo-icon border-kpi-metric-activo-icon/25 ring-kpi-metric-activo-icon/10",
     inactivo:
       "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-kpi-metric-inactivo-bg text-kpi-metric-inactivo-icon border-kpi-metric-inactivo-icon/25 ring-kpi-metric-inactivo-icon/10",
+    sinLider:
+      "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-amber-50 text-amber-700 border-amber-300/60 ring-amber-200/60",
   };
   return `<span class="${cls[semantic]}" aria-hidden="true">${svgHtml}</span>`;
 }
@@ -104,6 +117,14 @@ function svgKpiTotalPlantilla(): string {
 function svgKpiNoActivo(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+  </svg>`;
+}
+
+function svgKpiSinLider(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5a7.5 7.5 0 0 1 15 0" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 4.5v6m3-3h-6" />
   </svg>`;
 }
 
@@ -146,7 +167,7 @@ function renderKpis(r: UsuarioResumen, isRh: boolean): string {
     r.total_plantilla > 0 ? round1((r.inactivos / r.total_plantilla) * 100) : 0;
 
   return `
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Total de plantilla</p>
@@ -182,6 +203,15 @@ function renderKpis(r: UsuarioResumen, isRh: boolean): string {
         <p class="mt-2 text-sm font-semibold text-red-700">${escapeHtml(String(pctInactivosPlantilla))}% de la plantilla</p>
         <p class="${KPI_MICRO_CLS}">Comparación vs mes anterior: no disponible</p>
       </article>
+      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-sm font-semibold text-slate-600">Sin Líder Asignado</p>
+          ${kpiMetricIconBox("sinLider", svgKpiSinLider())}
+        </div>
+        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.sin_lider_asignado))}</p>
+        <p class="${KPI_SUB_CLS}">Empleados sin responsable jerárquico</p>
+        <p class="${KPI_MICRO_CLS}">Requieren asignación de líder</p>
+      </article>
     </div>`;
 }
 
@@ -198,13 +228,34 @@ function areaOptions(areas: AreaResponse[], selected: string, emptyLabel: string
 
 function puestoOptions(puestos: PuestoResponse[], selected: string, emptyLabel: string): string {
   const head = `<option value="" ${selected === "" ? "selected" : ""}>${escapeHtml(emptyLabel)}</option>`;
-  const rest = puestos
+  const groups = new Map<string, { descripcion: string; ids: number[] }>();
+  for (const puesto of puestos) {
+    const key = normalizaClavePuesto(puesto.descripcion);
+    if (!key) continue;
+    const prev = groups.get(key);
+    if (!prev) {
+      groups.set(key, { descripcion: puesto.descripcion.trim(), ids: [puesto.puesto_id] });
+      continue;
+    }
+    if (!prev.ids.includes(puesto.puesto_id)) prev.ids.push(puesto.puesto_id);
+  }
+  const entries = [...groups.values()].sort((a, b) => a.descripcion.localeCompare(b.descripcion, "es"));
+  const rest = entries
     .map((p) => {
-      const v = String(p.puesto_id);
+      const v = p.ids.sort((a, b) => a - b).join(",");
       return `<option value="${escapeHtml(v)}" ${v === selected ? "selected" : ""}>${escapeHtml(p.descripcion)}</option>`;
     })
     .join("");
   return head + rest;
+}
+
+function normalizaClavePuesto(descripcion: string): string {
+  return descripcion
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 function esEstadoVisualActivo(estado: EstadoEmpleadoResponse | null): boolean {
@@ -300,15 +351,27 @@ function empleadosSelectFilter(id: string, name: string, labelText: string, opti
 function empleadosSearchInput(value: string): string {
   return `<label for="emp-search" class="block text-sm/6 font-medium text-gray-900">Búsqueda</label>
           <div class="mt-2">
-            <input
-              id="emp-search"
-              type="text"
-              name="emp-search"
-              autocomplete="off"
-              placeholder="Buscar por nombre, ID o número de empleado..."
-              value="${escapeHtml(value)}"
-              class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 placeholder:text-gray-400 sm:text-sm/6 ${FIELD_FOCUS}"
-            />
+            <div class="relative">
+              <input
+                id="emp-search"
+                type="text"
+                name="emp-search"
+                autocomplete="off"
+                placeholder="Buscar por nombre, ID o número de empleado..."
+                value="${escapeHtml(value)}"
+                class="block w-full rounded-md bg-white px-3 py-1.5 pr-10 text-base text-gray-900 placeholder:text-gray-400 sm:text-sm/6 ${FIELD_FOCUS}"
+              />
+              <span
+                data-emp-search-loading
+                class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted"
+                aria-hidden="true"
+              >
+                <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </span>
+            </div>
           </div>`;
 }
 
@@ -378,7 +441,7 @@ function renderPanel(
         ${filtrosToolbar}
         ${filtrosGrid}
       </section>
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Listado de empleados">
+      <section data-emp-table-region class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5 transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="min-w-[720px] w-full text-left">
@@ -458,6 +521,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
 
   let catalogo: CatalogoFiltros = { areas: [], puestos: [] };
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let latestLoadRequestId = 0;
 
   mountAppShell(container, {
     pageTitle: "Empleados",
@@ -546,26 +610,61 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   const kpisEl = (): HTMLElement | null => container.querySelector("#empleados-kpis");
   const panelEl = (): HTMLElement | null => container.querySelector("#empleados-panel");
 
+  function setSearchLoading(loading: boolean): void {
+    const spinner = container.querySelector<HTMLElement>("[data-emp-search-loading]");
+    if (spinner) {
+      spinner.classList.toggle("hidden", !loading);
+      spinner.classList.toggle("flex", loading);
+    }
+    const tableRegion = container.querySelector<HTMLElement>("[data-emp-table-region]");
+    if (tableRegion) {
+      tableRegion.classList.toggle("opacity-70", loading);
+    }
+  }
+
   function renderError(message: string): string {
     return `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(message)}</div>`;
   }
 
-  async function loadPage(): Promise<void> {
+  async function loadPage(options?: { background?: boolean; preserveSearchFocus?: boolean }): Promise<void> {
+    const background = options?.background === true;
+    const preserveSearchFocus = options?.preserveSearchFocus === true;
     const panel = panelEl();
     if (!panel) return;
-    panel.innerHTML = `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
+    const activeSearch = container.querySelector<HTMLInputElement>("#emp-search");
+    const shouldRestoreSearch = preserveSearchFocus && activeSearch === document.activeElement;
+    const searchSelectionStart = shouldRestoreSearch ? activeSearch.selectionStart : null;
+    const searchSelectionEnd = shouldRestoreSearch ? activeSearch.selectionEnd : null;
+    const requestId = ++latestLoadRequestId;
+    if (background) {
+      setSearchLoading(true);
+    } else {
+      panel.innerHTML = `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
+    }
     try {
       const pg = await getEmpleadosPage({
         page: state.page,
         page_size: state.page_size,
         q: state.q,
         area_id: parseOptionalInt(state.area_id),
-        puesto_id: parseOptionalInt(state.puesto_id),
+        puesto_id: parseOptionalIntList(state.puesto_id),
         ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
       });
+      if (requestId !== latestLoadRequestId) return;
       currentPageItems = pg.items;
       panel.innerHTML = renderPanel(state, catalogo, pg, isRh);
+      if (shouldRestoreSearch) {
+        const nextSearch = container.querySelector<HTMLInputElement>("#emp-search");
+        if (nextSearch) {
+          nextSearch.focus({ preventScroll: true });
+          const valueLength = nextSearch.value.length;
+          const start = searchSelectionStart == null ? valueLength : Math.min(searchSelectionStart, valueLength);
+          const end = searchSelectionEnd == null ? valueLength : Math.min(searchSelectionEnd, valueLength);
+          nextSearch.setSelectionRange(start, end);
+        }
+      }
     } catch (e: unknown) {
+      if (requestId !== latestLoadRequestId) return;
       if (isUsuariosFetchError(e) && e.status === 401) {
         clearAuth();
         void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
@@ -581,6 +680,10 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
             ? e.detail
             : "Error de conexión.";
       panel.innerHTML = `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(msg)}</div>`;
+    } finally {
+      if (background && requestId === latestLoadRequestId) {
+        setSearchLoading(false);
+      }
     }
   }
 
@@ -595,7 +698,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
           page_size: state.page_size,
           q: state.q,
           area_id: parseOptionalInt(state.area_id),
-          puesto_id: parseOptionalInt(state.puesto_id),
+          puesto_id: parseOptionalIntList(state.puesto_id),
           ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
         }),
       ]);
@@ -689,11 +792,15 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       searchTimer = window.setTimeout(() => {
         state.q = (t as HTMLInputElement).value;
         state.page = 1;
-        void loadPage();
-      }, 480);
+        void loadPage({ background: true, preserveSearchFocus: true });
+      }, 400);
     },
     { signal },
   );
+
+  signal.addEventListener("abort", () => {
+    clearTimeout(searchTimer);
+  });
 
   void init();
 }

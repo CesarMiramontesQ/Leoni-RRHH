@@ -62,7 +62,10 @@ async def list_empleados(
     page_size: int = Query(10, ge=1, le=100),
     q: str | None = Query(None),
     area_id: int | None = Query(None),
-    puesto_id: int | None = Query(None),
+    puesto_id: list[int] | None = Query(
+        None,
+        description="Permite múltiples valores: ?puesto_id=1&puesto_id=2",
+    ),
     activo: bool | None = Query(
         None,
         description="Solo RH: true=activos, false=no activos, omitir=todos",

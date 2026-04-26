@@ -106,6 +106,7 @@ class UsuarioResumenResponse(BaseModel):
     total_plantilla: int
     activos: int
     inactivos: int
+    sin_lider_asignado: int
     practicantes: int
     porcentaje_operatividad: float
 
