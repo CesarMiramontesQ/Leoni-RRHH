@@ -16,7 +16,7 @@ export type ComedorCalendarLegendItem = {
   dotClass: string;
 };
 
-export type ComedorCalendarDayTagTone = "normal" | "dieta" | "critico";
+export type ComedorCalendarDayTagTone = "normal" | "dieta" | "critico" | "reserva" | "supervisor";
 
 export type ComedorCalendarDayTag = {
   id: string;
@@ -93,6 +93,23 @@ export type ComedorReservationsQuery = {
 
 export type ComedorReservationsPage = {
   items: ComedorReservationRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type ComedorTeamReservationRow = {
+  id: number;
+  empleadoId: number;
+  empleadoNombre: string;
+  tipoComida: string;
+  fecha: string;
+  estado: string;
+  canManage: boolean;
+};
+
+export type ComedorTeamReservationsPage = {
+  items: ComedorTeamReservationRow[];
   total: number;
   page: number;
   pageSize: number;

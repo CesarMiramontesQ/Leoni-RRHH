@@ -1,21 +1,42 @@
 import {
   canAccessComedorLiderPage,
+  canAccessComedorReportePage,
   canAccessComedorRhPage,
   canAccessEmpleadoPersonalDashboard,
+  getEmpleadoDirectoryNumericIdFromAccessToken,
   getEmpleadoIdFromAccessToken,
+  getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
+import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
 import { mountComedorNewRequestModal } from "../components/comedor/comedorNewRequestModal.ts";
 import {
+  addYearsToIsoString,
+  etiquetaTipoComida,
+  primerLunesReservaComedorPermitidoIso,
+} from "../utils/comedorReservaFechas.ts";
+import {
+  cancelarComedorAcceso,
+  editarComedorAcceso,
   getComedorEstadisticas,
   getComedorMenuSemana,
+  getComedorMisFechasOcupadas,
+  getComedorMisProximasReservas,
+  getComedorMisReservasMes,
+  getComedorEquipoProximasReservas,
+  getComedorEquipoReservasMes,
+  getComedorEquipoBeneficiarios,
+  getComedorPrimeraFechaReserva,
   getComedorProyecciones,
   getComedoresActivos,
   publicarComedorMenu,
   registrarComedorSeleccion,
-  type ComedorApiError,
+  reservarComedorAcceso,
+  isComedorApiError,
+  type ComedorMisReservaApiItem,
   type MenuSemanalApiItem,
 } from "../api/comedor.ts";
+import { extraerPrimerNombreApellido } from "../utils/comedorNombreCorto.ts";
 import type {
   ComedorCalendarMonth,
   ComedorEmployeeOption,
@@ -23,6 +44,7 @@ import type {
   ComedorMenuOption,
   ComedorPanelState,
   ComedorReservationsPage,
+  ComedorTeamReservationsPage,
   ComedorSidebarDataset,
   ComedorWeekPlanner,
   ComedorWeekPlannerDay,
@@ -108,7 +130,6 @@ type LiderComedorState = {
   calendarError: string | null;
   tableState: ComedorPanelState;
   tableError: string | null;
-  statusFilter: "todos" | "confirmado" | "cancelado";
   search: string;
   page: number;
   pageSize: number;
@@ -136,22 +157,42 @@ function toLiderViewState(state: LiderComedorState): ComedorDashboardLiderViewSt
     tableState: state.tableState,
     table: state.table,
     tableError: state.tableError,
-    tableFilters: { statusFilter: state.statusFilter, search: state.search },
+    tableFilters: { search: state.search },
   };
 }
 
 type EmpleadoComedorState = {
   calendarState: ComedorPanelState;
   calendarError: string | null;
+  proximasState: ComedorPanelState;
+  proximasError: string | null;
+  editingReservaId: number | null;
+  editTipoComida: string;
+  isSavingEdition: boolean;
   year: number;
   monthIndex: number;
-} & Omit<ComedorDashboardEmpleadoViewState, "calendarState" | "calendarError">;
+} & Omit<
+  ComedorDashboardEmpleadoViewState,
+  | "calendarState"
+  | "calendarError"
+  | "proximasState"
+  | "proximasError"
+  | "editingReservaId"
+  | "editTipoComida"
+  | "isSavingEdition"
+>;
 
 function toEmpleadoViewState(state: EmpleadoComedorState): ComedorDashboardEmpleadoViewState {
   return {
     calendarState: state.calendarState,
     calendar: state.calendar,
     calendarError: state.calendarError,
+    proximasState: state.proximasState,
+    proximas: state.proximas,
+    proximasError: state.proximasError,
+    editingReservaId: state.editingReservaId,
+    editTipoComida: state.editTipoComida,
+    isSavingEdition: state.isSavingEdition,
   };
 }
 
@@ -171,6 +212,15 @@ function emptyCalendarMonth(year: number, monthIndex: number): ComedorCalendarMo
 }
 
 function emptyReservationsPage(page: number, pageSize: number): ComedorReservationsPage {
+  return {
+    items: [],
+    total: 0,
+    page,
+    pageSize,
+  };
+}
+
+function emptyTeamReservationsPage(page: number, pageSize: number): ComedorTeamReservationsPage {
   return {
     items: [],
     total: 0,
@@ -359,20 +409,106 @@ function mapMenusToCalendarMonth(
   };
 }
 
-function createComedorIdResolver(): () => Promise<number | null> {
-  let cached: number | null | undefined;
-  return async () => {
-    if (cached !== undefined) return cached;
-    const comedores = await getComedoresActivos();
-    cached = comedores[0]?.id ?? null;
-    return cached;
+function mapReservasEmpleadoToCalendarMonth(
+  year: number,
+  monthIndex: number,
+  items: ComedorMisReservaApiItem[],
+): ComedorCalendarMonth {
+  const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
+  for (const r of items) {
+    const dayDate = isoToDate(r.fecha_servicio);
+    if (dayDate.getFullYear() !== year || dayDate.getMonth() !== monthIndex) continue;
+    const iso = dateToIso(dayDate);
+    if (!dayMetrics[iso]) {
+      dayMetrics[iso] = { isoDate: iso, reservas: 0, tags: [] };
+    }
+    dayMetrics[iso].reservas += 1;
+    dayMetrics[iso].tags.push({
+      id: `reserva-${r.id}`,
+      label: etiquetaTipoComida(r.tipo_comida),
+      tone: "reserva",
+    });
+  }
+  return {
+    year,
+    monthIndex,
+    legend: [{ id: "mis_reservas", label: "Mis reservas", dotClass: "bg-orange-500" }],
+    dayMetrics,
   };
 }
 
-function isComedorApiError(value: unknown): value is ComedorApiError {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<ComedorApiError>;
-  return typeof candidate.status === "number" && typeof candidate.detail === "string";
+function mapReservasEquipoToCalendarMonth(
+  year: number,
+  monthIndex: number,
+  items: Awaited<ReturnType<typeof getComedorEquipoReservasMes>>,
+  currentUserId: number | null,
+): ComedorCalendarMonth {
+  const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
+  for (const r of items) {
+    const dayDate = isoToDate(r.fecha_servicio);
+    if (dayDate.getFullYear() !== year || dayDate.getMonth() !== monthIndex) continue;
+    const iso = dateToIso(dayDate);
+    if (!dayMetrics[iso]) {
+      dayMetrics[iso] = { isoDate: iso, reservas: 0, tags: [] };
+    }
+    const nombreCorto = (r.empleado_nombre_corto || "").trim() || extraerPrimerNombreApellido(r.empleado_nombre);
+    dayMetrics[iso].reservas += 1;
+    const isOwnReservation = currentUserId != null && r.empleado_id === currentUserId;
+    dayMetrics[iso].tags.push(
+      isOwnReservation
+        ? {
+            id: `equipo-${r.id}`,
+            label: etiquetaTipoComida(r.tipo_comida),
+            tone: "supervisor",
+          }
+        : {
+            id: `equipo-${r.id}`,
+            label: `Comida ${nombreCorto}`,
+            tone: "reserva",
+          },
+    );
+  }
+  return {
+    year,
+    monthIndex,
+    legend: [
+      { id: "equipo_reservas", label: "Reservas de equipo", dotClass: "bg-orange-500" },
+      { id: "mis_reservas_supervisor", label: "Mis reservas", dotClass: "bg-violet-500" },
+    ],
+    dayMetrics,
+  };
+}
+
+function formatEstadoAccesoLabel(estadoAcceso: string): string {
+  const key = estadoAcceso.trim().toUpperCase();
+  if (key === "ACCEDIDO") return "Accedido";
+  if (key === "PENDIENTE") return "Pendiente";
+  return estadoAcceso;
+}
+
+function formatTipoComidaLabel(tipoComida: string): string {
+  const key = tipoComida.trim().toLowerCase();
+  if (key === "casera") return "Casera";
+  if (key === "saludable") return "Saludable";
+  return tipoComida;
+}
+
+function createComedorIdResolver(): {
+  resolve: () => Promise<number | null>;
+  invalidate: () => void;
+} {
+  let cached: number | null | undefined;
+  return {
+    resolve: async () => {
+      if (cached !== undefined) return cached;
+      const comedores = await getComedoresActivos();
+      cached = comedores[0]?.id ?? null;
+      return cached;
+    },
+    invalidate: () => {
+      cached = undefined;
+    },
+  };
 }
 
 function mapEstadisticasToRhKpis(
@@ -625,7 +761,8 @@ async function searchComedorEmployeesFromDb(query: string): Promise<readonly Com
 
 function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
-  const resolveComedorId = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver();
+  const resolveComedorId = () => comedorIdResolver.resolve();
   const state: RhComedorState = {
     statsState: "loading",
     stats: null,
@@ -752,11 +889,22 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     pageTitle: "Comedor",
     activeNav: "comedor",
     mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div><div id="comedor-new-request-modal-host"></div>`,
+    mainHtml: `<div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-rh-root");
   const modalHost = container.querySelector<HTMLElement>("#comedor-new-request-modal-host");
+  const crearComedorHost = container.querySelector<HTMLElement>("#comedor-rh-crear-comedor-host");
+  const crearComedorModal =
+    crearComedorHost ?
+      mountComedorCrearComedorModal(crearComedorHost, {
+        toastContainer: container,
+        onCreated: async () => {
+          comedorIdResolver.invalidate();
+          await Promise.all([loadKpis(), loadCalendar(), loadSidebar(), loadTable()]);
+        },
+      })
+    : null;
   const newRequestModal =
     modalHost ?
       mountComedorNewRequestModal(modalHost, {
@@ -795,6 +943,10 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         window.location.hash = "#/comedor/planear";
         return;
       }
+      if (target.closest("[data-comedor-rh-crear-comedor]")) {
+        crearComedorModal?.open();
+        return;
+      }
       if (target.closest("[data-comedor-nuevo]")) {
         void newRequestModal?.open();
         return;
@@ -813,17 +965,6 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       }
       if (target.closest("[data-comedor-retry-table]")) {
         void loadTable();
-        return;
-      }
-
-      const statusBtn = target.closest<HTMLButtonElement>("[data-comedor-filter-status]");
-      if (statusBtn) {
-        const status = statusBtn.getAttribute("data-comedor-filter-status");
-        if (status === "todos" || status === "confirmado" || status === "cancelado") {
-          state.statusFilter = status;
-          state.page = 1;
-          void loadTable();
-        }
         return;
       }
 
@@ -900,6 +1041,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       tableSearchDebounceTimer = null;
     }
     newRequestModal?.destroy();
+    crearComedorModal?.destroy();
   });
 
   void loadKpis();
@@ -910,7 +1052,8 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
 
 function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): void {
   const initialWeek = createBlankWeekByStartIso(getCurrentWeekStartIso());
-  const resolveComedorId = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver();
+  const resolveComedorId = () => comedorIdResolver.resolve();
   const state: RhPlannerState = {
     panelState: "loading",
     errorMessage: null,
@@ -1335,7 +1478,10 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 
 function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
-  const resolveComedorId = createComedorIdResolver();
+  const isSupervisor = getRolFromAccessToken() === "supervisor";
+  const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
+  const comedorIdResolver = createComedorIdResolver();
+  const resolveComedorId = () => comedorIdResolver.resolve();
   const state: LiderComedorState = {
     statsState: "loading",
     stats: null,
@@ -1346,7 +1492,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     tableState: "loading",
     table: null,
     tableError: null,
-    statusFilter: "todos",
     search: "",
     page: 1,
     pageSize: 10,
@@ -1365,18 +1510,8 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.calendarError = null;
     paint();
     try {
-      const comedorId = await resolveComedorId();
-      if (comedorId == null) {
-        state.calendar = emptyCalendarMonth(state.year, state.monthIndex);
-        state.calendarState = "ready";
-        paint();
-        return;
-      }
-      const weeks = weekStartsForMonth(state.year, state.monthIndex);
-      const menus = await Promise.all(
-        weeks.map(async (weekStartIso) => [weekStartIso, await getComedorMenuSemana(comedorId, weekStartIso)] as const),
-      );
-      const month = mapMenusToCalendarMonth(state.year, state.monthIndex, Object.fromEntries(menus));
+      const reservas = await getComedorEquipoReservasMes(state.year, state.monthIndex + 1);
+      const month = mapReservasEquipoToCalendarMonth(state.year, state.monthIndex, reservas, currentUserId);
       if (signal.aborted) return;
       state.calendar = month;
       state.calendarState = "ready";
@@ -1430,10 +1565,36 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.tableState = "loading";
     state.tableError = null;
     paint();
-    const page = emptyReservationsPage(state.page, state.pageSize);
-    if (signal.aborted) return;
-    state.table = page;
-    state.tableState = "empty";
+    try {
+      const rows = await getComedorEquipoProximasReservas(200);
+      if (signal.aborted) return;
+      const search = state.search.trim().toLowerCase();
+      const filtered = search
+        ? rows.filter((row) => row.empleado_nombre.toLowerCase().includes(search))
+        : rows;
+      const start = (state.page - 1) * state.pageSize;
+      const end = start + state.pageSize;
+      state.table = {
+        items: filtered.slice(start, end).map((row) => ({
+          id: row.id,
+          empleadoId: row.empleado_id,
+          empleadoNombre: extraerPrimerNombreApellido(row.empleado_nombre),
+          tipoComida: formatTipoComidaLabel(row.tipo_comida),
+          fecha: row.fecha_servicio,
+          estado: formatEstadoAccesoLabel(row.estado_acceso),
+          canManage: currentUserId != null && row.empleado_id === currentUserId,
+        })),
+        total: filtered.length,
+        page: state.page,
+        pageSize: state.pageSize,
+      };
+      state.tableState = filtered.length > 0 ? "ready" : "empty";
+    } catch (error) {
+      if (signal.aborted) return;
+      state.table = emptyTeamReservationsPage(state.page, state.pageSize);
+      state.tableState = "error";
+      state.tableError = error instanceof Error ? error.message : "Error al cargar registros del equipo.";
+    }
     paint();
   }
 
@@ -1452,26 +1613,40 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         toastContainer: container,
         allowExternalPeople: false,
         allowEmployeeSearch: false,
-        loadMenuOptions: async () => {
-          const comedorId = await resolveComedorId();
-          if (comedorId == null) return DEFAULT_MENU_OPTIONS;
-          const rows = await getComedorMenuSemana(comedorId, getCurrentWeekStartIso());
-          const tipos = Array.from(new Set(rows.map((row) => normalizeDayLabel(row.tipo))));
-          if (tipos.length === 0) return DEFAULT_MENU_OPTIONS;
-          return tipos.map((tipo) => ({
-            id: tipo,
-            label: tipo === "dieta" ? "Dieta" : "Normal",
-          }));
-        },
+        menuFieldLabel: "Tipo de comida",
+        loadMenuOptions: async () => [
+          { id: "casera", label: "Casera" },
+          { id: "saludable", label: "Saludable" },
+        ],
+        loadEmployeeOptions: isSupervisor
+          ? async () => {
+              const rows = await getComedorEquipoBeneficiarios();
+              return rows.map((row) => ({
+                id: String(row.empleado_id),
+                nombre: row.nombre_corto,
+                numero: row.no_empleado,
+                area: row.empleado_id === rows[0]?.empleado_id ? "Mí mismo" : "Equipo directo",
+                avatarUrl: null,
+              }));
+            }
+          : undefined,
         searchEmployees: searchComedorEmployeesFromDb,
         onSubmit: async (payload) => {
           const comedorId = await resolveComedorId();
           if (comedorId == null) throw new Error("No hay comedor activo configurado.");
-          await registrarComedorSeleccion({
+          const targetUserId = isSupervisor && payload.personType === "interno" && payload.employeeId
+            ? Number.parseInt(payload.employeeId, 10)
+            : undefined;
+          if (isSupervisor && targetUserId != null && !Number.isFinite(targetUserId)) {
+            throw new Error("Selecciona un beneficiario válido.");
+          }
+          await reservarComedorAcceso({
             comedorId,
-            semanaIso: startOfWeekIsoFromDateIso(payload.fecha),
-            tipoPlatillo: payload.menuId,
+            fechaIso: payload.fecha,
+            tipoComida: payload.menuId,
+            targetUserId,
           });
+          await Promise.all([loadCalendar(), loadTable()]);
         },
       })
     : null;
@@ -1494,17 +1669,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
       }
       if (target.closest("[data-comedor-retry-table]")) {
         void loadTable();
-        return;
-      }
-
-      const statusBtn = target.closest<HTMLButtonElement>("[data-comedor-filter-status]");
-      if (statusBtn) {
-        const status = statusBtn.getAttribute("data-comedor-filter-status");
-        if (status === "todos" || status === "confirmado" || status === "cancelado") {
-          state.statusFilter = status;
-          state.page = 1;
-          void loadTable();
-        }
         return;
       }
 
@@ -1552,6 +1716,69 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           state.monthIndex = month;
           void loadCalendar();
         }
+        return;
+      }
+
+      const editBtn = target.closest<HTMLButtonElement>("[data-comedor-edit-acceso-id]");
+      if (editBtn) {
+        const accesoId = Number.parseInt(editBtn.getAttribute("data-comedor-edit-acceso-id") ?? "", 10);
+        if (!Number.isFinite(accesoId)) return;
+        const row = state.table?.items.find((item) => item.id === accesoId) ?? null;
+        if (!row || !row.canManage) {
+          showEmpleadosToast(container, "Solo puedes editar tus propios registros.", "error");
+          return;
+        }
+        const tipoActual = row.tipoComida.trim().toLowerCase();
+        const sugerido = tipoActual === "saludable" ? "saludable" : "casera";
+        const nuevoTipo = window
+          .prompt("Editar tipo de comida (casera/saludable):", sugerido)
+          ?.trim()
+          .toLowerCase();
+        if (!nuevoTipo) return;
+        if (nuevoTipo !== "casera" && nuevoTipo !== "saludable") {
+          showEmpleadosToast(container, "Tipo de comida inválido.", "error");
+          return;
+        }
+        void (async () => {
+          try {
+            await editarComedorAcceso({ accesoId, tipoComida: nuevoTipo });
+            showEmpleadosToast(container, "Registro actualizado correctamente.", "success");
+            await Promise.all([loadCalendar(), loadTable()]);
+          } catch (error) {
+            showEmpleadosToast(
+              container,
+              isComedorApiError(error) ? error.detail : "No se pudo actualizar el registro.",
+              "error",
+            );
+          }
+        })();
+        return;
+      }
+
+      const cancelBtn = target.closest<HTMLButtonElement>("[data-comedor-cancel-acceso-id]");
+      if (cancelBtn) {
+        const accesoId = Number.parseInt(cancelBtn.getAttribute("data-comedor-cancel-acceso-id") ?? "", 10);
+        if (!Number.isFinite(accesoId)) return;
+        const row = state.table?.items.find((item) => item.id === accesoId) ?? null;
+        if (!row || !row.canManage) {
+          showEmpleadosToast(container, "Solo puedes cancelar tus propios registros.", "error");
+          return;
+        }
+        const ok = window.confirm("¿Deseas cancelar este registro de comedor?");
+        if (!ok) return;
+        void (async () => {
+          try {
+            await cancelarComedorAcceso(accesoId);
+            showEmpleadosToast(container, "Registro cancelado correctamente.", "success");
+            await Promise.all([loadCalendar(), loadTable()]);
+          } catch (error) {
+            showEmpleadosToast(
+              container,
+              isComedorApiError(error) ? error.detail : "No se pudo cancelar el registro.",
+              "error",
+            );
+          }
+        })();
       }
     },
     { signal },
@@ -1590,11 +1817,18 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
 
 function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
-  const resolveComedorId = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver();
+  const resolveComedorId = () => comedorIdResolver.resolve();
   const state: EmpleadoComedorState = {
     calendarState: "loading",
     calendar: null,
     calendarError: null,
+    proximasState: "loading",
+    proximas: [],
+    proximasError: null,
+    editingReservaId: null,
+    editTipoComida: "casera",
+    isSavingEdition: false,
     year: now.getFullYear(),
     monthIndex: now.getMonth(),
   };
@@ -1617,134 +1851,303 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
         paint();
         return;
       }
-      const weeks = weekStartsForMonth(state.year, state.monthIndex);
-      const menus = await Promise.all(
-        weeks.map(async (weekStartIso) => [weekStartIso, await getComedorMenuSemana(comedorId, weekStartIso)] as const),
-      );
-      const month = mapMenusToCalendarMonth(state.year, state.monthIndex, Object.fromEntries(menus));
+      const reservas = await getComedorMisReservasMes(state.year, state.monthIndex + 1);
       if (signal.aborted) return;
-      state.calendar = month;
+      state.calendar = mapReservasEmpleadoToCalendarMonth(state.year, state.monthIndex, reservas);
       state.calendarState = "ready";
     } catch (error) {
       if (signal.aborted) return;
       state.calendar = null;
       state.calendarState = "error";
-      state.calendarError = error instanceof Error ? error.message : "Error al cargar calendario.";
+      state.calendarError = isComedorApiError(error)
+        ? error.detail
+        : error instanceof Error
+          ? error.message
+          : "Error al cargar calendario.";
     }
     paint();
   }
 
-  mountAppShell(container, {
-    pageTitle: "Comedor",
-    activeNav: "comedor",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-empleado-root">${renderComedorDashboardEmpleado(toEmpleadoViewState(state))}</div><div id="comedor-empleado-new-request-modal-host"></div>`,
-  });
+  async function loadProximas(): Promise<void> {
+    state.proximasState = "loading";
+    state.proximasError = null;
+    paint();
+    try {
+      const rows = await getComedorMisProximasReservas(5);
+      if (signal.aborted) return;
+      state.proximas = rows;
+      state.proximasState = "ready";
+    } catch (error) {
+      if (signal.aborted) return;
+      state.proximas = [];
+      state.proximasState = "error";
+      state.proximasError = isComedorApiError(error)
+        ? error.detail
+        : error instanceof Error
+          ? error.message
+          : "Error al cargar próximas asistencias.";
+    }
+    paint();
+  }
 
-  const root = container.querySelector<HTMLElement>("#comedor-empleado-root");
-  const modalHost = container.querySelector<HTMLElement>("#comedor-empleado-new-request-modal-host");
-  const empleadoId = getEmpleadoIdFromAccessToken();
-  const empleadoNombre = getUserDisplayNameFromAccessToken();
-  const newRequestModal =
-    modalHost ?
-      mountComedorNewRequestModal(modalHost, {
-        toastContainer: container,
-        allowExternalPeople: false,
-        allowEmployeeSearch: false,
-        fixedEmployee:
-          empleadoId ?
-            {
-              id: empleadoId,
-              nombre: empleadoNombre,
-              numero: empleadoId,
-              area: "Sin area",
-              avatarUrl: null,
+  function findProximaById(accesoId: number): EmpleadoComedorState["proximas"][number] | null {
+    return state.proximas.find((row) => row.id === accesoId) ?? null;
+  }
+
+  void (async () => {
+    let fechaMinReservaIso = primerLunesReservaComedorPermitidoIso();
+    try {
+      const ref = await getComedorPrimeraFechaReserva();
+      if (!signal.aborted && ref.fecha_iso?.trim()) {
+        fechaMinReservaIso = ref.fecha_iso.trim();
+      }
+    } catch {
+      /* fallback: cálculo local */
+    }
+    if (signal.aborted) return;
+
+    mountAppShell(container, {
+      pageTitle: "Comedor",
+      activeNav: "comedor",
+      mainClass: "py-5 sm:py-6",
+      mainHtml: `<div id="comedor-empleado-root">${renderComedorDashboardEmpleado(toEmpleadoViewState(state))}</div><div id="comedor-empleado-new-request-modal-host"></div>`,
+    });
+
+    const root = container.querySelector<HTMLElement>("#comedor-empleado-root");
+    const modalHost = container.querySelector<HTMLElement>("#comedor-empleado-new-request-modal-host");
+    const empleadoId = getEmpleadoIdFromAccessToken();
+    const empleadoNombre = getUserDisplayNameFromAccessToken();
+    const newRequestModal =
+      modalHost ?
+        mountComedorNewRequestModal(modalHost, {
+          toastContainer: container,
+          allowExternalPeople: false,
+          allowEmployeeSearch: false,
+          fechaMinReservaIso,
+          loadFechasBloqueadas: async () => {
+            const desde = fechaMinReservaIso;
+            const hasta = addYearsToIsoString(desde, 1);
+            const { fechas } = await getComedorMisFechasOcupadas(desde, hasta);
+            return fechas;
+          },
+          menuFieldLabel: "Opción de comida",
+          fixedEmployee:
+            empleadoId ?
+              {
+                id: empleadoId,
+                nombre: empleadoNombre,
+                numero: empleadoId,
+                area: "Sin area",
+                avatarUrl: null,
+              }
+            : null,
+          loadMenuOptions: async () => [
+            { id: "casera", label: "Casera" },
+            { id: "saludable", label: "Saludable" },
+          ],
+          searchEmployees: async () => [],
+          onSubmit: async (payload) => {
+            const comedorId = await resolveComedorId();
+            if (comedorId == null) throw new Error("No hay comedor activo configurado.");
+            const semanaIso = startOfWeekIsoFromDateIso(payload.fecha);
+            const intentarReserva = async () => {
+              await reservarComedorAcceso({
+                comedorId,
+                fechaIso: payload.fecha,
+                tipoComida: payload.menuId,
+              });
+            };
+            try {
+              await intentarReserva();
+            } catch (error) {
+              if (
+                isComedorApiError(error) &&
+                typeof error.detail === "string" &&
+                error.detail.toLowerCase().includes("selecci")
+              ) {
+                await registrarComedorSeleccion({
+                  comedorId,
+                  semanaIso,
+                  tipoPlatillo: "normal",
+                });
+                await intentarReserva();
+              } else {
+                throw error;
+              }
             }
-          : null,
-        loadMenuOptions: async () => {
-          const comedorId = await resolveComedorId();
-          if (comedorId == null) return DEFAULT_MENU_OPTIONS;
-          const rows = await getComedorMenuSemana(comedorId, getCurrentWeekStartIso());
-          const tipos = Array.from(new Set(rows.map((row) => normalizeDayLabel(row.tipo))));
-          if (tipos.length === 0) return DEFAULT_MENU_OPTIONS;
-          return tipos.map((tipo) => ({
-            id: tipo,
-            label: tipo === "dieta" ? "Dieta" : "Normal",
-          }));
-        },
-        searchEmployees: async () => [],
-        onSubmit: async (payload) => {
-          const comedorId = await resolveComedorId();
-          if (comedorId == null) throw new Error("No hay comedor activo configurado.");
-          await registrarComedorSeleccion({
-            comedorId,
-            semanaIso: startOfWeekIsoFromDateIso(payload.fecha),
-            tipoPlatillo: payload.menuId,
-          });
-        },
-      })
-    : null;
-  root?.addEventListener(
-    "click",
-    (event) => {
-      const target = event.target as HTMLElement;
-      if (target.closest("[data-comedor-nuevo]")) {
-        void newRequestModal?.open();
-        return;
-      }
-      if (target.closest("[data-comedor-retry-calendar]")) {
-        void loadCalendar();
-        return;
-      }
-
-      const prevBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-prev-year]");
-      if (prevBtn) {
-        const year = Number.parseInt(prevBtn.getAttribute("data-comedor-cal-prev-year") ?? "", 10);
-        const month = Number.parseInt(prevBtn.getAttribute("data-comedor-cal-prev-month") ?? "", 10);
-        if (Number.isFinite(year) && Number.isFinite(month)) {
-          state.year = year;
-          state.monthIndex = month;
-          void loadCalendar();
+            await Promise.all([loadCalendar(), loadProximas()]);
+          },
+        })
+      : null;
+    root?.addEventListener(
+      "click",
+      (event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-comedor-nuevo]")) {
+          void newRequestModal?.open();
+          return;
         }
-        return;
-      }
-
-      const nextBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-next-year]");
-      if (nextBtn) {
-        const year = Number.parseInt(nextBtn.getAttribute("data-comedor-cal-next-year") ?? "", 10);
-        const month = Number.parseInt(nextBtn.getAttribute("data-comedor-cal-next-month") ?? "", 10);
-        if (Number.isFinite(year) && Number.isFinite(month)) {
-          state.year = year;
-          state.monthIndex = month;
+        if (target.closest("[data-comedor-retry-calendar]")) {
           void loadCalendar();
+          return;
         }
-        return;
-      }
-
-      const todayBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-today-year]");
-      if (todayBtn) {
-        const year = Number.parseInt(todayBtn.getAttribute("data-comedor-cal-today-year") ?? "", 10);
-        const month = Number.parseInt(todayBtn.getAttribute("data-comedor-cal-today-month") ?? "", 10);
-        if (Number.isFinite(year) && Number.isFinite(month)) {
-          state.year = year;
-          state.monthIndex = month;
-          void loadCalendar();
+        if (target.closest("[data-comedor-retry-proximas]")) {
+          void loadProximas();
+          return;
         }
-      }
-    },
-    { signal },
-  );
 
-  signal.addEventListener("abort", () => {
-    newRequestModal?.destroy();
-  });
+        const editBtn = target.closest<HTMLButtonElement>("[data-comedor-edit-acceso-id]");
+        if (editBtn) {
+          const accesoId = Number.parseInt(editBtn.getAttribute("data-comedor-edit-acceso-id") ?? "", 10);
+          if (!Number.isFinite(accesoId)) return;
+          const row = findProximaById(accesoId);
+          if (!row) return;
+          if (row.fecha_servicio < fechaMinReservaIso) {
+            showEmpleadosToast(
+              container,
+              "Solo puedes editar reservas de semanas futuras.",
+              "error",
+            );
+            return;
+          }
+          state.editingReservaId = accesoId;
+          state.editTipoComida = row.tipo_comida;
+          state.isSavingEdition = false;
+          paint();
+          return;
+        }
 
-  void loadCalendar();
+        const cancelBtn = target.closest<HTMLButtonElement>("[data-comedor-cancel-acceso-id]");
+        if (cancelBtn) {
+          const accesoId = Number.parseInt(cancelBtn.getAttribute("data-comedor-cancel-acceso-id") ?? "", 10);
+          if (!Number.isFinite(accesoId)) return;
+          const row = findProximaById(accesoId);
+          if (!row) return;
+          if (row.fecha_servicio < fechaMinReservaIso) {
+            showEmpleadosToast(
+              container,
+              "Solo puedes cancelar reservas de semanas futuras.",
+              "error",
+            );
+            return;
+          }
+          const ok = window.confirm("¿Deseas cancelar este registro de comedor?");
+          if (!ok) return;
+          void (async () => {
+            try {
+              await cancelarComedorAcceso(accesoId);
+              showEmpleadosToast(container, "Registro cancelado correctamente.", "success");
+              await Promise.all([loadCalendar(), loadProximas()]);
+            } catch (error) {
+              showEmpleadosToast(
+                container,
+                isComedorApiError(error)
+                  ? error.detail
+                  : "No se pudo cancelar el registro.",
+                "error",
+              );
+            }
+          })();
+          return;
+        }
+
+        if (target.closest("[data-comedor-edit-cancel]")) {
+          state.editingReservaId = null;
+          state.isSavingEdition = false;
+          paint();
+          return;
+        }
+
+        if (target.closest("[data-comedor-edit-save]")) {
+          if (state.editingReservaId == null || state.isSavingEdition) return;
+          state.isSavingEdition = true;
+          paint();
+          void (async () => {
+            try {
+              await editarComedorAcceso({
+                accesoId: state.editingReservaId as number,
+                tipoComida: state.editTipoComida,
+              });
+              state.editingReservaId = null;
+              state.isSavingEdition = false;
+              showEmpleadosToast(container, "Registro actualizado correctamente.", "success");
+              await Promise.all([loadCalendar(), loadProximas()]);
+            } catch (error) {
+              state.isSavingEdition = false;
+              paint();
+              showEmpleadosToast(
+                container,
+                isComedorApiError(error)
+                  ? error.detail
+                  : "No se pudo actualizar el registro.",
+                "error",
+              );
+            }
+          })();
+          return;
+        }
+
+        const prevBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-prev-year]");
+        if (prevBtn) {
+          const year = Number.parseInt(prevBtn.getAttribute("data-comedor-cal-prev-year") ?? "", 10);
+          const month = Number.parseInt(prevBtn.getAttribute("data-comedor-cal-prev-month") ?? "", 10);
+          if (Number.isFinite(year) && Number.isFinite(month)) {
+            state.year = year;
+            state.monthIndex = month;
+            void loadCalendar();
+          }
+          return;
+        }
+
+        const nextBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-next-year]");
+        if (nextBtn) {
+          const year = Number.parseInt(nextBtn.getAttribute("data-comedor-cal-next-year") ?? "", 10);
+          const month = Number.parseInt(nextBtn.getAttribute("data-comedor-cal-next-month") ?? "", 10);
+          if (Number.isFinite(year) && Number.isFinite(month)) {
+            state.year = year;
+            state.monthIndex = month;
+            void loadCalendar();
+          }
+          return;
+        }
+
+        const todayBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-today-year]");
+        if (todayBtn) {
+          const year = Number.parseInt(todayBtn.getAttribute("data-comedor-cal-today-year") ?? "", 10);
+          const month = Number.parseInt(todayBtn.getAttribute("data-comedor-cal-today-month") ?? "", 10);
+          if (Number.isFinite(year) && Number.isFinite(month)) {
+            state.year = year;
+            state.monthIndex = month;
+            void loadCalendar();
+          }
+        }
+      },
+      { signal },
+    );
+
+    root?.addEventListener(
+      "change",
+      (event) => {
+        const select = (event.target as HTMLElement).closest<HTMLSelectElement>("[data-comedor-edit-tipo-comida]");
+        if (!select) return;
+        state.editTipoComida = select.value;
+      },
+      { signal },
+    );
+
+    signal.addEventListener("abort", () => {
+      newRequestModal?.destroy();
+    });
+
+    void loadCalendar();
+    void loadProximas();
+  })();
 }
 
 function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void {
   const initialRange = dateRangeFromPreset("this_month");
-  const resolveComedorId = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver();
+  const resolveComedorId = () => comedorIdResolver.resolve();
   const state: ReporteComedorState = {
     filtersDataset: {
       departamentos: [{ id: "todos", label: "Todos los departamentos" }],
@@ -2037,7 +2440,7 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
 
   const isReporteRoute = hash.startsWith("#/comedor/reporte");
   if (isReporteRoute) {
-    if (canAccessComedorRhPage() || canAccessComedorLiderPage()) {
+    if (canAccessComedorReportePage()) {
       mountComedorReporte(container, signal);
       return;
     }

@@ -72,6 +72,12 @@ export function canAccessComedorRhPage(): boolean {
   return getRolFromAccessToken() === "rh";
 }
 
+/** Tablero analítico «Reporte comedor» (`#/comedor/reporte`): alineado con GET estadisticas/proyecciones. */
+export function canAccessComedorReportePage(): boolean {
+  const r = getRolFromAccessToken();
+  return r === "rh" || r === "gerente" || r === "director";
+}
+
 /** Vista de comedor para líderes (`#/comedor`): propio + equipo, sin analítica avanzada. */
 export function canAccessComedorLiderPage(): boolean {
   const r = getRolFromAccessToken();

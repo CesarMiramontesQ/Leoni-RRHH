@@ -129,12 +129,6 @@ ROUTES = [
         ("PUT",    "/api/v1/notificaciones/{id}/leer",            "Notificación → Clic para marcar leída",          "Autenticado","Cambia leida=True. Actualizar badge en UI."),
         ("PUT",    "/api/v1/notificaciones/leer-todas",           "Bandeja → Botón «Marcar todas como leídas»",     "Autenticado","Marca todas las notificaciones del usuario como leídas."),
     ]),
-
-    # ── AUDITORÍA ─────────────────────────────────────────────
-    ("Auditoría (Solo RH)", [
-        ("GET",    "/api/v1/auditoria/logs",                      "Panel RH → Log de auditoría con filtros",        "rh",         "Filtros: módulo, usuario, acción, rango de fechas."),
-        ("GET",    "/api/v1/auditoria/logs/{id}",                 "Panel RH → Detalle de entrada de auditoría",     "rh",         "Ver datos_antes / datos_despues del cambio."),
-    ]),
 ]
 
 
@@ -401,7 +395,6 @@ def build_pdf(output_path: str):
         ("📈  Estadísticas comedor","/api/v1/comedor/estadisticas",              "Dashboard de consumo semanal (RH)."),
         ("🔔  Notificaciones",      "/api/v1/notificaciones",                   "Panel lateral. Badge con no-leidas/count."),
         ("👤  Gestión usuarios",    "/api/v1/usuarios",                         "CRUD completo. Solo RH."),
-        ("🗂️   Log de auditoría",   "/api/v1/auditoria/logs",                   "Solo RH. Filtros avanzados."),
         ("⚙️   Sync IT Mirror",     "POST /api/v1/auth/sync-it",                "Botón en panel admin RH."),
     ]
 

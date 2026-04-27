@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.middleware import SupervisorRestrictedRoutesMiddleware
 from app.core.exceptions import EXCEPTION_STATUS_MAP, LeoniException
 
 logging.basicConfig(
@@ -113,6 +114,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Después de CORS: bloquea `supervisor` en actas y reportes de comedor (API) antes del router.
+app.add_middleware(SupervisorRestrictedRoutesMiddleware)
+
 # ── Exception Handlers ────────────────────────────────────────
 def _validation_errors_json_safe(errors: list) -> list:
     """Normaliza ctx de Pydantic (puede contener excepciones) para JSONResponse."""
@@ -171,7 +175,6 @@ from app.api.v1.empleados.router import router as empleados_router
 from app.api.v1.comedor.router import router as comedor_router
 from app.api.v1.reportes.router import router as reportes_router
 from app.api.v1.notificaciones.router import router as notificaciones_router
-from app.api.v1.auditoria.router import router as auditoria_router
 from app.api.v1.organigrama.router import router as organigrama_router
 
 app.include_router(auth_router)
@@ -183,7 +186,6 @@ app.include_router(empleados_router)
 app.include_router(comedor_router)
 app.include_router(reportes_router)
 app.include_router(notificaciones_router)
-app.include_router(auditoria_router)
 app.include_router(organigrama_router)
 
 

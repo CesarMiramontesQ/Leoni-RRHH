@@ -12,7 +12,7 @@ async def health():
 
 @router.get("")
 async def list_actas(
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
 ):
     return {"items": [], "next_cursor": None, "total": 0}
 

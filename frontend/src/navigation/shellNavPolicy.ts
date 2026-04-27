@@ -11,7 +11,6 @@ export type AppShellNavItemId =
   | "comedor"
   | "empleados"
   | "reportes"
-  | "auditoria"
   | "notificaciones"
   | "ajustes";
 
@@ -24,12 +23,15 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 
+const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
+
 /**
  * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.
  */
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (RH_ONLY_NAV_IDS.has(itemId)) return rol === "rh";
+  if (rol === "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
   return true;
 }
 
@@ -43,4 +45,15 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
   return false;
+}
+
+/**
+ * Rutas prohibidas para `supervisor` (hash manual o enlaces profundos).
+ */
+export function supervisorMayAccessHash(hash: string): boolean {
+  const h = (hash || "#/").trim();
+  if (h.startsWith("#/actas")) return false;
+  if (h.startsWith("#/comedor/reporte")) return false;
+  if (h.startsWith("#/reportes")) return false;
+  return true;
 }

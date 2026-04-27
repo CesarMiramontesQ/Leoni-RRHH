@@ -35,6 +35,9 @@ function renderHeader(): string {
         <p class="mt-1 text-sm text-text-muted">Monitoreo avanzado de capacidad y planificación mensual del comedor.</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <button type="button" data-comedor-rh-crear-comedor class="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 shadow-sm hover:bg-emerald-100">
+          Nuevo comedor
+        </button>
         <button type="button" data-comedor-planear class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
           Planear
         </button>

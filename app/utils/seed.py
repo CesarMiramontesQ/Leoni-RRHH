@@ -78,9 +78,6 @@ ROLES_SEED: list[dict] = [
                 "editar": False,
                 "crear": False,
             },
-            "auditoria": {
-                "ver": False,
-            },
         },
     },
     {
@@ -119,9 +116,6 @@ ROLES_SEED: list[dict] = [
                 "ver": True,
                 "editar": False,
                 "crear": False,
-            },
-            "auditoria": {
-                "ver": False,
             },
         },
     },
@@ -162,9 +156,6 @@ ROLES_SEED: list[dict] = [
                 "editar": False,
                 "crear": False,
             },
-            "auditoria": {
-                "ver": False,
-            },
         },
     },
     {
@@ -204,9 +195,6 @@ ROLES_SEED: list[dict] = [
                 "editar": True,
                 "crear": False,
             },
-            "auditoria": {
-                "ver": True,
-            },
         },
     },
     {
@@ -245,9 +233,6 @@ ROLES_SEED: list[dict] = [
                 "ver": True,
                 "editar": True,
                 "crear": True,
-            },
-            "auditoria": {
-                "ver": True,
             },
         },
     },

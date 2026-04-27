@@ -21,6 +21,15 @@ import type {
 } from "../../dashboard/lider/types.ts";
 
 const MAX_VISIBLE_TEAM_CAL_LINES = 3;
+const DEFAULT_MEAL_DETAIL_TITLE = "Selecciona un registro de comida";
+const DEFAULT_MEAL_DETAIL_BODY = "Haz clic en una etiqueta azul del calendario para ver tipo de menú y hora.";
+
+type SelectedMealDetail = {
+  dateIso: string;
+  employeeName: string;
+  mealType: string;
+  mealTime: string;
+};
 
 function personalToEmpleadoPayload(p: LiderPersonalStats): EmpleadoDashboardPayload {
   const stub = emptyEmpleadoDashboardPayload();
@@ -256,6 +265,10 @@ function teamLineClass(line: TeamCalendarLine): string {
   }
 }
 
+function mealLineIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 3v6a2.5 2.5 0 0 0 5 0V3M7 3v18m8-18v8m0 0c0 1.1.9 2 2 2h.5M15 11v10" /></svg>`;
+}
+
 function renderTeamLineText(line: TeamCalendarLine, currentRole: string | null, currentUserId: string | null): string {
   if (
     (line.kind === "vacation" || line.kind === "home_office") &&
@@ -321,6 +334,7 @@ function renderTeamCalendarDayCell(
   entry: TeamCalendarDayEntry | undefined,
   isToday: boolean,
   isSelected: boolean,
+  selectedMeal: SelectedMealDetail | null,
 ): string {
   const { visible, overflow } = visibleTeamLines(entry);
   const hasContent = visible.length > 0 || overflow > 0;
@@ -362,10 +376,35 @@ function renderTeamCalendarDayCell(
     visible.length > 0 || overflow > 0 ?
       `<div class="hidden min-h-0 flex-1 flex-col gap-1 overflow-hidden md:flex">
           ${visible
-            .map(
-              (ln) =>
-                `<span class="truncate ${teamLineClass(ln)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`,
-            )
+            .map((ln) => {
+              if (ln.kind !== "meal") {
+                return `<span class="truncate ${teamLineClass(ln)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`;
+              }
+              const dateIso = escapeHtml(iso);
+              const employeeName = escapeHtml(ln.meal_employee_name ?? "Sin nombre");
+              const mealType = escapeHtml(ln.meal_type_label ?? "Sin tipo");
+              const mealTime = escapeHtml(ln.meal_time_label ?? "Sin hora");
+              const isMealSelected =
+                selectedMeal?.dateIso === iso &&
+                selectedMeal.employeeName === (ln.meal_employee_name ?? "Sin nombre") &&
+                selectedMeal.mealType === (ln.meal_type_label ?? "Sin tipo") &&
+                selectedMeal.mealTime === (ln.meal_time_label ?? "Sin hora");
+              const selectedClass = isMealSelected ? "ring-1 ring-inset ring-leoni-blue/50" : "";
+              const summaryText = escapeHtml(ln.text);
+              return `<button
+                type="button"
+                class="inline-flex max-w-full items-center gap-1 truncate text-left ${teamLineClass(ln)} ${selectedClass}"
+                data-lider-meal-detail="1"
+                data-lider-meal-date="${dateIso}"
+                data-lider-meal-employee="${employeeName}"
+                data-lider-meal-type="${mealType}"
+                data-lider-meal-time="${mealTime}"
+                title="${summaryText}"
+              >
+                ${mealLineIcon()}
+                <span class="truncate">${summaryText}</span>
+              </button>`;
+            })
             .join("")}
           ${overflowPill}
         </div>`
@@ -394,6 +433,7 @@ export function renderLiderTeamCalendarReplaceable(
   year: number,
   monthIndex: number,
   payload: LiderDashboardPayload | null,
+  selectedMeal: SelectedMealDetail | null = null,
 ): string {
   const title = escapeHtml(formatCalendarMonthTitle(year, monthIndex));
   const grid = buildRhCalendarMonthGrid(year, monthIndex);
@@ -414,6 +454,7 @@ export function renderLiderTeamCalendarReplaceable(
             map[cell.isoDate],
             cell.isoDate === todayIso,
             Boolean(sel && cell.isoDate === sel),
+            selectedMeal,
           ),
         )
         .join("")}</div>`,
@@ -455,6 +496,23 @@ export function renderLiderTeamCalendarReplaceable(
     )
     .join("");
 
+  const hasMealSelected = Boolean(selectedMeal);
+  const mealTitle = hasMealSelected ? "Detalle de comida" : DEFAULT_MEAL_DETAIL_TITLE;
+  const mealMain = hasMealSelected
+    ? `${selectedMeal?.employeeName ?? "Sin nombre"} · ${selectedMeal?.mealType ?? "Sin tipo"}`
+    : DEFAULT_MEAL_DETAIL_BODY;
+  const mealMeta = hasMealSelected
+    ? `Fecha: ${selectedMeal?.dateIso ?? ""} · Hora: ${selectedMeal?.mealTime ?? "Sin hora"}`
+    : "";
+  const mealDetail = `<div
+      id="lider-meal-detail-panel"
+      class="mt-4 rounded-xl border px-4 py-3 ${hasMealSelected ? "border-leoni-blue/25 bg-leoni-blue/5" : "border-border/80 bg-surface/50"}"
+    >
+      <p id="lider-meal-detail-title" class="text-xs font-semibold ${hasMealSelected ? "uppercase tracking-wide text-leoni-blue" : "text-text-primary"}">${escapeHtml(mealTitle)}</p>
+      <p id="lider-meal-detail-main" class="mt-1 ${hasMealSelected ? "text-sm font-semibold text-text-primary" : "text-xs text-text-muted"}">${escapeHtml(mealMain)}</p>
+      <p id="lider-meal-detail-meta" class="text-xs text-text-muted">${escapeHtml(mealMeta)}</p>
+    </div>`;
+
   return `
     <header class="px-4 pt-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -492,6 +550,7 @@ export function renderLiderTeamCalendarReplaceable(
         <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
         ${rows.join("")}
       </div>
+      ${mealDetail}
     </div>`;
 }
 
@@ -499,11 +558,12 @@ function renderLiderTeamCalendarCard(
   year: number,
   monthIndex: number,
   payload: LiderDashboardPayload | null,
+  selectedMeal: SelectedMealDetail | null = null,
 ): string {
   return `
     <section class="mt-8 overflow-hidden rounded-2xl border border-border bg-white shadow-sm" aria-label="Calendario del equipo">
       <div id="lider-calendar-replaceable">
-        ${renderLiderTeamCalendarReplaceable(year, monthIndex, payload)}
+        ${renderLiderTeamCalendarReplaceable(year, monthIndex, payload, selectedMeal)}
       </div>
     </section>`;
 }
@@ -512,12 +572,13 @@ export function renderLiderTeamDashboard(
   year: number,
   monthIndex: number,
   payload: LiderDashboardPayload | null,
+  selectedMeal: SelectedMealDetail | null = null,
 ): string {
   const p = payload;
   const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null);
   const teamHtml = renderLiderTeamStatCards(p?.team ?? null);
   const approvalsHtml = renderApprovalRequestsCard(p?.approval_requests ?? []);
-  const calHtml = renderLiderTeamCalendarCard(year, monthIndex, p);
+  const calHtml = renderLiderTeamCalendarCard(year, monthIndex, p, selectedMeal);
 
   const teamHeading = renderLiderDashboardSectionHeader(
     "Resumen del equipo",
@@ -583,5 +644,29 @@ export function bindLiderTeamCalendarNavigation(
     initialYear,
     initialMonthIndex,
     render: (yy, mm) => renderLiderTeamCalendarReplaceable(yy, mm, payload),
+  });
+
+  container.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const button = target.closest<HTMLButtonElement>("[data-lider-meal-detail]");
+    if (!button) return;
+    const selectedMeal: SelectedMealDetail = {
+      dateIso: button.getAttribute("data-lider-meal-date") ?? "",
+      employeeName: button.getAttribute("data-lider-meal-employee") ?? "Sin nombre",
+      mealType: button.getAttribute("data-lider-meal-type") ?? "Sin tipo",
+      mealTime: button.getAttribute("data-lider-meal-time") ?? "Sin hora",
+    };
+    const panel = container.querySelector<HTMLElement>("#lider-meal-detail-panel");
+    const title = container.querySelector<HTMLElement>("#lider-meal-detail-title");
+    const main = container.querySelector<HTMLElement>("#lider-meal-detail-main");
+    const meta = container.querySelector<HTMLElement>("#lider-meal-detail-meta");
+    if (!panel || !title || !main || !meta) return;
+    panel.className = "mt-4 rounded-xl border border-leoni-blue/25 bg-leoni-blue/5 px-4 py-3";
+    title.className = "text-xs font-semibold uppercase tracking-wide text-leoni-blue";
+    main.className = "mt-1 text-sm font-semibold text-text-primary";
+    meta.className = "text-xs text-text-muted";
+    title.textContent = "Detalle de comida";
+    main.textContent = `${selectedMeal.employeeName} · ${selectedMeal.mealType}`;
+    meta.textContent = `Fecha: ${selectedMeal.dateIso} · Hora: ${selectedMeal.mealTime}`;
   });
 }

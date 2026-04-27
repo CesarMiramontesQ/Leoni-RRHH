@@ -4,6 +4,7 @@ import type {
   ComedorMenuOption,
   ComedorPersonType,
 } from "../../comedor/rh/types.ts";
+import { comedorErrorMessage } from "../../api/comedor.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import {
   buildComedorNewRequestFormHtml,
@@ -20,7 +21,17 @@ export type ComedorNewRequestModalOptions = {
   toastContainer: HTMLElement;
   allowExternalPeople?: boolean;
   allowEmployeeSearch?: boolean;
+  loadEmployeeOptions?: () => Promise<readonly ComedorEmployeeOption[]>;
+  defaultEmployeeId?: string | null;
   fixedEmployee?: ComedorEmployeeOption | null;
+  /** ISO yyyy-mm-dd para `min` del date input y validación. */
+  fechaMinReservaIso?: string | null;
+  /**
+   * Fechas (ISO yyyy-mm-dd) con reserva activa: validación y mensaje al elegir el día.
+   * El input nativo no deshabilita días sueltos; se bloquea por feedback y 409 en backend.
+   */
+  loadFechasBloqueadas?: () => Promise<readonly string[]>;
+  menuFieldLabel?: string;
   loadMenuOptions: () => Promise<readonly ComedorMenuOption[]>;
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
   onSubmit: (payload: ComedorCreateRequestPayload) => Promise<void> | void;
@@ -40,11 +51,11 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-function initialState(fixedEmployeeId: string | null): ComedorNewRequestFormState {
+function initialState(initialEmployeeId: string | null): ComedorNewRequestFormState {
   return {
     personType: "interno",
     employeeSearch: "",
-    selectedEmployeeId: fixedEmployeeId,
+    selectedEmployeeId: initialEmployeeId,
     externalPeopleCount: "1",
     menuId: "",
     fecha: "",
@@ -57,13 +68,17 @@ function validateForm(
   allowExternalPeople: boolean,
   allowEmployeeSearch: boolean,
   fixedEmployeeId: string | null,
+  fechaMinReservaIso: string | null | undefined,
+  fechasBloqueadas: ReadonlySet<string> | null,
 ): ComedorNewRequestFormErrors {
   const errors: ComedorNewRequestFormErrors = {};
   if (state.personType !== "interno" && state.personType !== "externo") {
     errors.personType = "Selecciona un tipo de persona.";
   }
   const effectiveSelectedEmployeeId =
-    state.personType === "interno" && !allowEmployeeSearch ? fixedEmployeeId : state.selectedEmployeeId;
+    state.personType === "interno" && !allowEmployeeSearch
+      ? (state.selectedEmployeeId || fixedEmployeeId)
+      : state.selectedEmployeeId;
   if (state.personType === "interno" && !effectiveSelectedEmployeeId) {
     errors.employee = "Selecciona un empleado.";
   }
@@ -78,6 +93,10 @@ function validateForm(
   }
   if (!state.fecha.trim()) {
     errors.fecha = "Selecciona una fecha.";
+  } else if (fechaMinReservaIso && state.fecha < fechaMinReservaIso) {
+    errors.fecha = "Solo puedes agendar a partir del lunes de la semana siguiente.";
+  } else if (fechasBloqueadas?.has(state.fecha)) {
+    errors.fecha = "Ya tienes un registro para este día";
   }
   return errors;
 }
@@ -118,9 +137,14 @@ export function mountComedorNewRequestModal(
   const allowExternalPeople = options.allowExternalPeople ?? true;
   const allowEmployeeSearch = options.allowEmployeeSearch ?? true;
   const fixedEmployee = options.fixedEmployee ?? null;
+  const defaultEmployeeId = options.defaultEmployeeId ?? fixedEmployee?.id ?? null;
   const fixedEmployeeId = fixedEmployee?.id ?? null;
+  const fechaMinReservaIso = options.fechaMinReservaIso ?? null;
+  const menuFieldLabel = options.menuFieldLabel;
+  const loadFechasBloqueadas = options.loadFechasBloqueadas;
+  let fechasBloqueadasSet: ReadonlySet<string> | null = null;
   let catalog: Catalog | null = null;
-  let formState = initialState(fixedEmployeeId);
+  let formState = initialState(defaultEmployeeId);
   let errors: ComedorNewRequestFormErrors = {};
   let isSubmitting = false;
   let searchResults: readonly ComedorEmployeeOption[] = [];
@@ -129,6 +153,7 @@ export function mountComedorNewRequestModal(
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let searchToken = 0;
   const employeeSelectionCache = new Map<string, ComedorEmployeeOption>();
+  let employeeOptions: readonly ComedorEmployeeOption[] = fixedEmployee ? [fixedEmployee] : [];
 
   function isOpen(): boolean {
     return !overlayEl.classList.contains("hidden");
@@ -137,6 +162,8 @@ export function mountComedorNewRequestModal(
   function selectedEmployee(): ComedorEmployeeOption | null {
     if (!allowEmployeeSearch && fixedEmployee) return fixedEmployee;
     if (!formState.selectedEmployeeId) return null;
+    const option = employeeOptions.find((employee) => employee.id === formState.selectedEmployeeId);
+    if (option) return option;
     return (
       searchResults.find((employee) => employee.id === formState.selectedEmployeeId) ??
       employeeSelectionCache.get(formState.selectedEmployeeId) ??
@@ -153,7 +180,11 @@ export function mountComedorNewRequestModal(
       errors,
       isSubmitting,
       menuOptions: catalog.menus,
+      menuFieldLabel,
+      fechaMinIso: fechaMinReservaIso,
+      fechasBloqueadasCount: fechasBloqueadasSet?.size ?? 0,
       searchResults,
+      employeeOptions,
       isSearchingEmployees,
       searchEmployeesError,
       selectedEmployee: selectedEmployee(),
@@ -165,7 +196,7 @@ export function mountComedorNewRequestModal(
     overlayEl.classList.add("hidden");
     overlayEl.classList.remove("flex");
     document.body.style.overflow = "";
-    formState = initialState(fixedEmployeeId);
+    formState = initialState(defaultEmployeeId);
     formState.personType = "interno";
     errors = {};
     isSubmitting = false;
@@ -177,6 +208,7 @@ export function mountComedorNewRequestModal(
       window.clearTimeout(searchDebounceTimer);
       searchDebounceTimer = null;
     }
+    fechasBloqueadasSet = null;
     bodyEl.innerHTML = "";
   }
 
@@ -192,6 +224,15 @@ export function mountComedorNewRequestModal(
       try {
         const menus = await options.loadMenuOptions();
         catalog = { menus };
+        if (options.loadEmployeeOptions) {
+          employeeOptions = await options.loadEmployeeOptions();
+          for (const row of employeeOptions) {
+            employeeSelectionCache.set(row.id, row);
+          }
+          if (!formState.selectedEmployeeId) {
+            formState.selectedEmployeeId = defaultEmployeeId ?? employeeOptions[0]?.id ?? null;
+          }
+        }
       } catch {
         bodyEl.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
           No fue posible cargar el formulario.
@@ -201,7 +242,16 @@ export function mountComedorNewRequestModal(
         return;
       }
     }
-    formState = initialState(fixedEmployeeId);
+    fechasBloqueadasSet = new Set();
+    if (loadFechasBloqueadas) {
+      try {
+        const bloqueadas = await loadFechasBloqueadas();
+        fechasBloqueadasSet = new Set(bloqueadas);
+      } catch {
+        fechasBloqueadasSet = new Set();
+      }
+    }
+    formState = initialState(defaultEmployeeId);
     errors = {};
     isSubmitting = false;
     searchResults = [];
@@ -312,6 +362,13 @@ export function mountComedorNewRequestModal(
       });
     });
 
+    const employeeSelect = form.querySelector<HTMLSelectElement>("[data-comedor-modal-employee-select]");
+    employeeSelect?.addEventListener("change", () => {
+      formState.selectedEmployeeId = employeeSelect.value || null;
+      errors.employee = undefined;
+      renderForm();
+    });
+
     const menuSelect = form.querySelector<HTMLSelectElement>("[data-comedor-modal-menu]");
     menuSelect?.addEventListener("change", () => {
       formState.menuId = menuSelect.value;
@@ -322,6 +379,10 @@ export function mountComedorNewRequestModal(
     dateInput?.addEventListener("change", () => {
       formState.fecha = dateInput.value;
       errors.fecha = undefined;
+      if (formState.fecha && fechasBloqueadasSet?.has(formState.fecha)) {
+        errors.fecha = "Ya tienes un registro para este día";
+      }
+      renderForm();
     });
 
     const notesInput = form.querySelector<HTMLTextAreaElement>("[data-comedor-modal-observaciones]");
@@ -344,7 +405,14 @@ export function mountComedorNewRequestModal(
       if (!allowExternalPeople) {
         formState.personType = "interno";
       }
-      errors = validateForm(formState, allowExternalPeople, allowEmployeeSearch, fixedEmployeeId);
+      errors = validateForm(
+        formState,
+        allowExternalPeople,
+        allowEmployeeSearch,
+        fixedEmployeeId,
+        fechaMinReservaIso,
+        fechasBloqueadasSet,
+      );
       if (Object.keys(errors).length > 0) {
         renderForm();
         const selector = firstInvalidSelector(errors, allowExternalPeople);
@@ -371,9 +439,13 @@ export function mountComedorNewRequestModal(
         });
         showEmpleadosToast(options.toastContainer, "Solicitud de comida registrada correctamente.", "success");
         close();
-      } catch {
+      } catch (error: unknown) {
         isSubmitting = false;
-        showEmpleadosToast(options.toastContainer, "No se pudo registrar la solicitud. Intenta de nuevo.", "error");
+        const msg = comedorErrorMessage(
+          error,
+          "No se pudo registrar la solicitud. Intenta de nuevo.",
+        );
+        showEmpleadosToast(options.toastContainer, msg, "error");
         renderForm();
       }
     });

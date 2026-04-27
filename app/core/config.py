@@ -33,6 +33,19 @@ class Settings(BaseSettings):
     # Lectores de huella — IPs autorizadas separadas por coma; vacío = permite todo (dev)
     HUELLA_WHITELIST_IPS: List[str] = []
 
+    # Terminal comedor / torniquete (usuario+contraseña). Si vacío, se usa HUELLA_WHITELIST_IPS.
+    COMEDOR_TERMINAL_IPS: List[str] = []
+
+    # Zona horaria para "hoy" en reservas y terminal de comedor
+    APP_TIMEZONE: str = "America/Mexico_City"
+
+    # Ventana opcional HH:MM (24h); vacío = sin restricción horaria
+    COMEDOR_ACCESO_HORA_INICIO: str = ""
+    COMEDOR_ACCESO_HORA_FIN: str = ""
+
+    # Si no está vacío, los endpoints de terminal exigen header X-Torniquete-Key
+    TORNIQUETE_API_KEY: str = ""
+
     # TRESS SQL Server (Windows only)
     TRESS_ODBC_CONN: str = ""
 
@@ -60,6 +73,15 @@ class Settings(BaseSettings):
     @field_validator("HUELLA_WHITELIST_IPS", mode="before")
     @classmethod
     def parse_huella_ips(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return []
+            return [ip.strip() for ip in v.split(",") if ip.strip()]
+        return v
+
+    @field_validator("COMEDOR_TERMINAL_IPS", mode="before")
+    @classmethod
+    def parse_comedor_terminal_ips(cls, v):
         if isinstance(v, str):
             if not v.strip():
                 return []

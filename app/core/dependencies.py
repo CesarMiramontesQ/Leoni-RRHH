@@ -112,3 +112,41 @@ async def require_huella_ip(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="IP no autorizada para acceso de lector de huella",
         )
+
+
+def _comedor_terminal_allowed_ips() -> list[str]:
+    from app.core.config import settings
+
+    if settings.COMEDOR_TERMINAL_IPS:
+        return list(settings.COMEDOR_TERMINAL_IPS)
+    return list(settings.HUELLA_WHITELIST_IPS)
+
+
+async def require_comedor_terminal_ip(request: Request) -> None:
+    """Solo terminales en la red del comedor (whitelist). Vacío = permite todo (dev)."""
+    allowed = _comedor_terminal_allowed_ips()
+    if not allowed:
+        return
+
+    client_ip = request.client.host if request.client else None
+    if not client_ip or client_ip not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="IP no autorizada para terminal de comedor",
+        )
+
+
+async def require_torniquete_api_key(request: Request) -> None:
+    """Si TORNIQUETE_API_KEY está definida, exige header X-Torniquete-Key."""
+    from app.core.config import settings
+
+    expected = (settings.TORNIQUETE_API_KEY or "").strip()
+    if not expected:
+        return
+
+    got = request.headers.get("X-Torniquete-Key") or request.headers.get("x-torniquete-key")
+    if got != expected:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clave de terminal inválida",
+        )

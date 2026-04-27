@@ -26,7 +26,14 @@ export type BuildComedorNewRequestFormParams = {
   errors: ComedorNewRequestFormErrors;
   isSubmitting: boolean;
   menuOptions: readonly ComedorMenuOption[];
+  /** Etiqueta del selector (ej. "Tipo de comida" para empleados). */
+  menuFieldLabel?: string;
+  /** ISO yyyy-mm-dd: límite mínimo del input type="date". */
+  fechaMinIso?: string | null;
+  /** Cuántas fechas ya tienen reserva (para texto de ayuda; el input no deshabilita días aislados). */
+  fechasBloqueadasCount?: number;
   searchResults: readonly ComedorEmployeeOption[];
+  employeeOptions: readonly ComedorEmployeeOption[];
   isSearchingEmployees: boolean;
   searchEmployeesError: string | null;
   selectedEmployee: ComedorEmployeeOption | null;
@@ -166,7 +173,11 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     errors,
     isSubmitting,
     menuOptions,
+    menuFieldLabel = "Selector de menú",
+    fechaMinIso,
+    fechasBloqueadasCount = 0,
     searchResults,
+    employeeOptions,
     isSearchingEmployees,
     searchEmployeesError,
     selectedEmployee,
@@ -224,6 +235,26 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
               ${renderSelectedEmployeeCard(selectedEmployee)}
               ${fieldError(errors.employee)}
             </section>`
+            : employeeOptions.length > 0
+              ? `<section>
+                   <label for="comedor-modal-employee-select" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Registro para</label>
+                   <select
+                     id="comedor-modal-employee-select"
+                     data-comedor-modal-employee-select
+                     class="${employeeClass}"
+                     aria-invalid="${errors.employee ? "true" : "false"}"
+                   >
+                     <option value="">Selecciona empleado...</option>
+                     ${employeeOptions
+                       .map((employee) => {
+                         const selected = state.selectedEmployeeId === employee.id ? "selected" : "";
+                         return `<option value="${escapeHtml(employee.id)}" ${selected}>${escapeHtml(employee.nombre)}</option>`;
+                       })
+                       .join("")}
+                   </select>
+                   ${renderSelectedEmployeeCard(selectedEmployee)}
+                   ${fieldError(errors.employee)}
+                 </section>`
             : `<section>
                  <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Registro para</label>
                  ${renderSelectedEmployeeCard(selectedEmployee)}
@@ -254,7 +285,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
 
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <label for="comedor-modal-menu" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Selector de menú</label>
+          <label for="comedor-modal-menu" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(menuFieldLabel)}</label>
           <select
             id="comedor-modal-menu"
             data-comedor-modal-menu
@@ -274,6 +305,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
               type="date"
               data-comedor-modal-date
               value="${escapeHtml(state.fecha)}"
+              ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
               class="${dateClass}"
               aria-invalid="${errors.fecha ? "true" : "false"}"
             />
@@ -283,6 +315,13 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
               </svg>
             </span>
           </div>
+          ${
+            fechasBloqueadasCount > 0
+              ? `<p class="mt-1.5 text-xs text-slate-500" id="comedor-modal-date-hint">Ya tienes reservas en ${fechasBloqueadasCount} día${
+                  fechasBloqueadasCount === 1 ? "" : "s"
+                } de este rango. Si intentas reservar de nuevo, verás un aviso.</p>`
+              : ""
+          }
           ${fieldError(errors.fecha)}
         </div>
       </section>

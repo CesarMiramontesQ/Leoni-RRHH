@@ -2,11 +2,11 @@ import type {
   ComedorCalendarMonth,
   ComedorKpi,
   ComedorPanelState,
-  ComedorReservationsPage,
+  ComedorTeamReservationsPage,
 } from "../../comedor/rh/types.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
 import { renderComedorStats } from "./comedorStats.ts";
-import { renderComedorReservationsTable, type ComedorTableFiltersState } from "./comedorReservationsTable.ts";
+import { renderComedorTeamReservationsTable } from "./comedorTeamReservationsTable.ts";
 
 export type ComedorDashboardLiderViewState = {
   statsState: ComedorPanelState;
@@ -16,9 +16,9 @@ export type ComedorDashboardLiderViewState = {
   calendar: ComedorCalendarMonth | null;
   calendarError: string | null;
   tableState: ComedorPanelState;
-  table: ComedorReservationsPage | null;
+  table: ComedorTeamReservationsPage | null;
   tableError: string | null;
-  tableFilters: ComedorTableFiltersState;
+  tableFilters: { search: string };
 };
 
 function renderHeader(): string {
@@ -48,6 +48,6 @@ export function renderComedorDashboardLider(state: ComedorDashboardLiderViewStat
         "grid grid-cols-1 gap-3 sm:grid-cols-2",
       )}
       ${renderComedorCalendar(state.calendarState, state.calendar, state.calendarError)}
-      ${renderComedorReservationsTable(state.tableState, state.table, state.tableFilters, state.tableError)}
+      ${renderComedorTeamReservationsTable(state.tableState, state.table, state.tableFilters, state.tableError)}
     </div>`;
 }

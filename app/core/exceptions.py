@@ -55,6 +55,16 @@ class ForbiddenError(LeoniException):
         super().__init__(detail=detail, code="FORBIDDEN")
 
 
+class UnauthorizedError(LeoniException):
+    """
+    Credenciales invalidas u operacion que requiere autenticacion valida.
+    Mapea a HTTP 401.
+    """
+
+    def __init__(self, detail: str = "No autorizado"):
+        super().__init__(detail=detail, code="UNAUTHORIZED")
+
+
 class DomainValidationError(LeoniException):
     """
     Datos de negocio invalidos que la validacion Pydantic no puede detectar.
@@ -84,6 +94,7 @@ EXCEPTION_STATUS_MAP: dict[type[LeoniException], int] = {
     NotFoundError: 404,
     ConflictError: 409,
     ForbiddenError: 403,
+    UnauthorizedError: 401,
     DomainValidationError: 422,
     ServiceUnavailableError: 503,
 }

@@ -34,6 +34,12 @@ export type TeamCalendarEventKind = "meal" | "vacation" | "home_office" | "incid
 export type TeamCalendarLine = {
   kind: TeamCalendarEventKind;
   text: string;
+  /** Solo para comidas: nombre corto del colaborador con reserva. */
+  meal_employee_name?: string;
+  /** Solo para comidas: tipo de comida ya formateado para UI. */
+  meal_type_label?: string;
+  /** Solo para comidas: hora de registro (HH:mm) cuando existe. */
+  meal_time_label?: string;
   /** Solo para solicitudes: estado canónico API (`approved` / `pending`). */
   request_status?: "approved" | "pending";
   /** Solo para solicitudes: tipo de solicitud para etiqueta. */

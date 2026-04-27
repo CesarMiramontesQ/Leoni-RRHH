@@ -1,5 +1,5 @@
 import { getRolFromAccessToken } from "./auth/jwt.ts";
-import { empleadoMayAccessHash } from "./navigation/shellNavPolicy.ts";
+import { empleadoMayAccessHash, supervisorMayAccessHash } from "./navigation/shellNavPolicy.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360 } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -31,8 +31,13 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
+    if (getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash)) {
+      history.replaceState(null, "", "#/");
+    }
     const h =
-      getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/" : rawHash;
+      getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
+      : getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash) ? "#/"
+      : rawHash;
 
     if (h.startsWith("#/reportes")) {
       history.replaceState(null, "", "#/comedor/reporte");

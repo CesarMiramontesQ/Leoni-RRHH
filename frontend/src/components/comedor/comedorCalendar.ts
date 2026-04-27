@@ -24,7 +24,9 @@ function buildMonthGrid(year: number, monthIndex: number): CalendarCell[] {
   return cells;
 }
 
-function dayTagClass(tone: "normal" | "dieta" | "critico"): string {
+function dayTagClass(tone: "normal" | "dieta" | "critico" | "reserva" | "supervisor"): string {
+  if (tone === "reserva") return "bg-orange-100 text-orange-800 border border-orange-200";
+  if (tone === "supervisor") return "bg-violet-100 text-violet-800 border border-violet-200";
   if (tone === "dieta") return "bg-emerald-100 text-emerald-800";
   if (tone === "critico") return "bg-red-100 text-red-700";
   return "bg-sky-100 text-sky-800";
@@ -40,7 +42,7 @@ function renderCalendarBody(month: ComedorCalendarMonth): string {
       `<div class="grid grid-cols-7 gap-1">${chunk
         .map((cell) => {
           const metrics = month.dayMetrics[cell.isoDate];
-          const tags = metrics?.tags.slice(0, 2) ?? [];
+          const tags = metrics?.tags.slice(0, 6) ?? [];
           const isToday = cell.isoDate === today;
           return `
             <div class="min-h-[5.75rem] rounded-lg border p-2 transition-colors ${
