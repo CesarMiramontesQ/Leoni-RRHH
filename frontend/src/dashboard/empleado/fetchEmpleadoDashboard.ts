@@ -2,7 +2,7 @@ import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { getComedorMisReservasMes } from "../../api/comedor.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { etiquetaTipoComida } from "../../utils/comedorReservaFechas.ts";
-import { rhIsoLocalDate } from "../rh/calendarMonthGrid.ts";
+import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyEmpleadoDashboardPayload } from "./mock.ts";
 import { SOLICITUD_ESTADO_API } from "./solicitudCalendarioConsts.ts";
 import type { EmpleadoCalendarDayEntry, EmpleadoDashboardPayload, SolicitudEstadoCalendarioEmpleado } from "./types.ts";
@@ -12,6 +12,7 @@ type CalendarMonthFetchTarget = {
   monthIndex: number;
   visibleStartIso?: string;
   visibleEndIso?: string;
+  weekStartsOn?: 0 | 1;
 };
 
 /** Días locales YYYY-MM-DD desde fecha_inicio hasta fecha_fin (inclusive), mismo criterio que el grid del calendario. */
@@ -35,9 +36,13 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function computeVisibleRange(year: number, monthIndex: number): { startIso: string; endIso: string } {
+function computeVisibleRange(
+  year: number,
+  monthIndex: number,
+  weekStartsOn: 0 | 1 = 1,
+): { startIso: string; endIso: string } {
   const first = new Date(year, monthIndex, 1);
-  const startOffset = (first.getDay() + 6) % 7;
+  const startOffset = rhWeekdayByStart(first, weekStartsOn);
   const start = new Date(year, monthIndex, 1 - startOffset);
   const end = new Date(start);
   end.setDate(start.getDate() + 41);
@@ -73,7 +78,11 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
     target ? new Date(target.year, target.monthIndex, 1) : now;
   const base = emptyEmpleadoDashboardPayload(referenceDate);
   const myId = getEmpleadoIdFromAccessToken();
-  const visibleRange = computeVisibleRange(base.calendar.initial_year, base.calendar.initial_month_index);
+  const visibleRange = computeVisibleRange(
+    base.calendar.initial_year,
+    base.calendar.initial_month_index,
+    target?.weekStartsOn ?? 1,
+  );
   const rangeStartIso = target?.visibleStartIso ?? visibleRange.startIso;
   const rangeEndIso = target?.visibleEndIso ?? visibleRange.endIso;
   const monthsToLoad = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);

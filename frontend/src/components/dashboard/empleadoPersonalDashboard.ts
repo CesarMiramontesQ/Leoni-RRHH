@@ -1,8 +1,19 @@
 import { escapeHtml } from "../vista360/html.ts";
 import {
-  bindCalendarMonthNavigation,
+  addCalendarMonths,
+  addCalendarWeeks,
   CAL_NAV_BTN_CLASS,
+  formatCalendarWeekTitle,
   formatCalendarMonthTitle,
+  getCalendarMonthVisibleRange,
+  getCalendarWeekDates,
+  getCalendarWeekVisibleRange,
+  getCalendarWeekdayLabels,
+  isoLocalDate,
+  parseIsoLocalDate,
+  resolveCalendarWeekStart,
+  type CalendarViewMode,
+  type CalendarWeekStart,
 } from "./calendarShared.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
 import { getEmpleadoSolicitudCalendarBadge } from "../../dashboard/empleado/solicitudCalendarioConsts.ts";
@@ -262,28 +273,55 @@ export function renderEmpleadoCalendarReplaceable(
   year: number,
   monthIndex: number,
   payload: EmpleadoDashboardPayload | null,
+  viewMode: CalendarViewMode = "month",
+  weekAnchorIso: string | null = null,
+  weekStartsOn: CalendarWeekStart = 1,
 ): string {
-  const title = escapeHtml(formatCalendarMonthTitle(year, monthIndex));
-  const grid = buildRhCalendarMonthGrid(year, monthIndex);
+  const anchorDate = parseIsoLocalDate(weekAnchorIso) ?? new Date(year, monthIndex, 1);
+  const title = escapeHtml(
+    viewMode === "week"
+      ? formatCalendarWeekTitle(anchorDate, weekStartsOn)
+      : formatCalendarMonthTitle(year, monthIndex),
+  );
+  const grid = buildRhCalendarMonthGrid(year, monthIndex, weekStartsOn);
   const map = payload?.calendar.day_entries ?? {};
   const sel = payload?.calendar.selected_iso_date ?? null;
   const todayIso = rhIsoLocalDate(new Date());
 
   const rows: string[] = [];
-  for (let r = 0; r < 6; r += 1) {
-    const slice = grid.slice(r * 7, r * 7 + 7);
+  if (viewMode === "month") {
+    for (let r = 0; r < 6; r += 1) {
+      const slice = grid.slice(r * 7, r * 7 + 7);
+      rows.push(
+        `<div role="row" class="grid grid-cols-7 gap-1">${slice
+          .map((cell) =>
+            renderEmpleadoDayCell(
+              cell.isoDate,
+              cell.dayNumber,
+              cell.inCurrentMonth,
+              map[cell.isoDate],
+              cell.isoDate === todayIso,
+              Boolean(sel && cell.isoDate === sel),
+            ),
+          )
+          .join("")}</div>`,
+      );
+    }
+  } else {
+    const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
     rows.push(
-      `<div role="row" class="grid grid-cols-7 gap-1">${slice
-        .map((cell) =>
-          renderEmpleadoDayCell(
-            cell.isoDate,
-            cell.dayNumber,
-            cell.inCurrentMonth,
-            map[cell.isoDate],
-            cell.isoDate === todayIso,
-            Boolean(sel && cell.isoDate === sel),
-          ),
-        )
+      `<div role="row" class="grid grid-cols-7 gap-1">${weekDates
+        .map((d) => {
+          const iso = isoLocalDate(d);
+          return renderEmpleadoDayCell(
+            iso,
+            d.getDate(),
+            true,
+            map[iso],
+            iso === todayIso,
+            Boolean(sel && iso === sel),
+          );
+        })
         .join("")}</div>`,
     );
   }
@@ -312,12 +350,45 @@ export function renderEmpleadoCalendarReplaceable(
       </span>
     </div>`;
 
-  const weekHeader = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+  const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
         `<div role="columnheader" class="rounded-sm bg-white py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
     )
     .join("");
+
+  const weeklyPlanner = (() => {
+    if (viewMode !== "week") return "";
+    const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
+    const dayColumns = weekDates
+      .map((d) => {
+        const iso = isoLocalDate(d);
+        const isToday = iso === todayIso;
+        const dayName = new Intl.DateTimeFormat("es-MX", { weekday: "short" }).format(d);
+        const lines = entryToLines(map[iso]);
+        const entries =
+          lines.length > 0
+            ? lines
+                .map(
+                  (ln) =>
+                    `<span class="truncate rounded-md px-2 py-1 text-xs font-semibold ${ln.cls}">${escapeHtml(ln.text)}</span>`,
+                )
+                .join("")
+            : `<span class="text-xs text-text-muted">Sin registros</span>`;
+        return `<article class="rounded-xl border border-border bg-white p-3 shadow-sm">
+          <div class="mb-3 flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(dayName)}</span>
+            <span class="${isToday ? "inline-flex size-8 items-center justify-center rounded-full bg-leoni-blue text-sm font-semibold text-white" : "inline-flex size-8 items-center justify-center rounded-full bg-surface text-sm font-semibold text-text-primary"}">${d.getDate()}</span>
+          </div>
+          <div class="flex flex-col gap-1.5">${entries}</div>
+        </article>`;
+      })
+      .join("");
+    return `
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-7">
+        ${dayColumns}
+      </div>`;
+  })();
 
   return `
     <header class="px-4 pt-5 sm:px-6">
@@ -325,11 +396,39 @@ export function renderEmpleadoCalendarReplaceable(
         <h2 class="text-base font-semibold text-text-primary">Mi calendario</h2>
         <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
           <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
-            <button type="button" id="emp-cal-prev" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes anterior">
+            <button
+              type="button"
+              id="emp-cal-view-month"
+              data-emp-cal-view="month"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "month" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+            >
+              Mes
+            </button>
+            <button
+              type="button"
+              id="emp-cal-view-week"
+              data-emp-cal-view="week"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "week" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+            >
+              Semana
+            </button>
+          </div>
+          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+            <button
+              type="button"
+              id="emp-cal-prev"
+              class="${CAL_NAV_BTN_CLASS}"
+              aria-label="${viewMode === "week" ? "Semana anterior" : "Mes anterior"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
             <p id="emp-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
-            <button type="button" id="emp-cal-next" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes siguiente">
+            <button
+              type="button"
+              id="emp-cal-next"
+              class="${CAL_NAV_BTN_CLASS}"
+              aria-label="${viewMode === "week" ? "Semana siguiente" : "Mes siguiente"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
             </button>
           </div>
@@ -348,14 +447,16 @@ export function renderEmpleadoCalendarReplaceable(
       </div>
     </header>
     <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6">
-      <div
-        role="grid"
-        aria-label="Calendario personal"
-        class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
-      >
-        <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
-        ${rows.join("")}
-      </div>
+      ${viewMode === "week"
+        ? weeklyPlanner
+        : `<div
+            role="grid"
+            aria-label="Calendario personal"
+            class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
+          >
+            <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
+            ${rows.join("")}
+          </div>`}
     </div>`;
 }
 
@@ -424,36 +525,116 @@ export function bindEmpleadoCalendarNavigation(
       monthIndex: number;
       visibleStartIso: string;
       visibleEndIso: string;
+      weekStartsOn: CalendarWeekStart;
     }) => Promise<EmpleadoDashboardPayload | null>;
   },
 ): void {
   let currentPayload = payload;
-  bindCalendarMonthNavigation(container, {
-    replaceableSelector: "#empleado-calendar-replaceable",
-    prevButtonId: "emp-cal-prev",
-    nextButtonId: "emp-cal-next",
-    todayButtonId: "emp-cal-today",
-    initialYear,
-    initialMonthIndex,
-    render: (yy, mm) => renderEmpleadoCalendarReplaceable(yy, mm, currentPayload),
-    onMonthChange: async (ctx) => {
-      if (!options?.loadMonthData) return;
-      const next = await options.loadMonthData({
-        year: ctx.year,
-        monthIndex: ctx.monthIndex,
-        visibleStartIso: ctx.visibleRange.startIso,
-        visibleEndIso: ctx.visibleRange.endIso,
-      });
-      if (!ctx.isCurrent() || !next) return;
-      const prevSelected = currentPayload?.calendar.selected_iso_date ?? null;
-      currentPayload = {
-        ...next,
-        calendar: {
-          ...next.calendar,
-          selected_iso_date: prevSelected ?? next.calendar.selected_iso_date,
-        },
-      };
-      ctx.refresh();
-    },
-  });
+  const weekStartsOn = resolveCalendarWeekStart();
+  let currentYear = initialYear;
+  let currentMonthIndex = initialMonthIndex;
+  let currentView: CalendarViewMode = "month";
+  let fetchVersion = 0;
+  let weekAnchor = parseIsoLocalDate(currentPayload?.calendar.selected_iso_date) ?? new Date(initialYear, initialMonthIndex, 1);
+
+  const replaceable = (): HTMLElement | null => container.querySelector("#empleado-calendar-replaceable");
+  const ensureAnchorInCurrentMonth = (): void => {
+    if (currentView !== "month") return;
+    const day = weekAnchor.getDate();
+    weekAnchor = new Date(currentYear, currentMonthIndex, Math.min(day, new Date(currentYear, currentMonthIndex + 1, 0).getDate()));
+  };
+  const paint = (): void => {
+    const slot = replaceable();
+    if (!slot) return;
+    slot.innerHTML = renderEmpleadoCalendarReplaceable(
+      currentYear,
+      currentMonthIndex,
+      currentPayload,
+      currentView,
+      isoLocalDate(weekAnchor),
+      weekStartsOn,
+    );
+    wire();
+  };
+  const currentVisibleRange = (): { startIso: string; endIso: string } =>
+    currentView === "week"
+      ? getCalendarWeekVisibleRange(weekAnchor, weekStartsOn)
+      : getCalendarMonthVisibleRange(currentYear, currentMonthIndex, weekStartsOn);
+  const requestData = async (): Promise<void> => {
+    if (!options?.loadMonthData) return;
+    const reqVersion = ++fetchVersion;
+    const visible = currentVisibleRange();
+    const next = await options.loadMonthData({
+      year: currentView === "week" ? weekAnchor.getFullYear() : currentYear,
+      monthIndex: currentView === "week" ? weekAnchor.getMonth() : currentMonthIndex,
+      visibleStartIso: visible.startIso,
+      visibleEndIso: visible.endIso,
+      weekStartsOn,
+    });
+    if (reqVersion !== fetchVersion || !next) return;
+    const prevSelected = currentPayload?.calendar.selected_iso_date ?? null;
+    currentPayload = {
+      ...next,
+      calendar: {
+        ...next.calendar,
+        selected_iso_date: prevSelected ?? next.calendar.selected_iso_date,
+      },
+    };
+    paint();
+  };
+
+  const wire = (): void => {
+    container.querySelector<HTMLButtonElement>("#emp-cal-prev")?.addEventListener("click", () => {
+      if (currentView === "week") {
+        weekAnchor = addCalendarWeeks(weekAnchor, -1);
+        currentYear = weekAnchor.getFullYear();
+        currentMonthIndex = weekAnchor.getMonth();
+      } else {
+        [currentYear, currentMonthIndex] = addCalendarMonths(currentYear, currentMonthIndex, -1);
+        ensureAnchorInCurrentMonth();
+      }
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#emp-cal-next")?.addEventListener("click", () => {
+      if (currentView === "week") {
+        weekAnchor = addCalendarWeeks(weekAnchor, 1);
+        currentYear = weekAnchor.getFullYear();
+        currentMonthIndex = weekAnchor.getMonth();
+      } else {
+        [currentYear, currentMonthIndex] = addCalendarMonths(currentYear, currentMonthIndex, 1);
+        ensureAnchorInCurrentMonth();
+      }
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#emp-cal-today")?.addEventListener("click", () => {
+      const now = new Date();
+      currentYear = now.getFullYear();
+      currentMonthIndex = now.getMonth();
+      weekAnchor = now;
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#emp-cal-view-month")?.addEventListener("click", () => {
+      if (currentView === "month") return;
+      currentView = "month";
+      currentYear = weekAnchor.getFullYear();
+      currentMonthIndex = weekAnchor.getMonth();
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#emp-cal-view-week")?.addEventListener("click", () => {
+      if (currentView === "week") return;
+      currentView = "week";
+      const now = new Date();
+      weekAnchor = now;
+      currentYear = now.getFullYear();
+      currentMonthIndex = now.getMonth();
+      paint();
+      void requestData();
+    });
+  };
+
+  paint();
 }

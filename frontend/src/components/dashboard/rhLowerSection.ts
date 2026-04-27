@@ -1,8 +1,17 @@
 import { escapeHtml } from "../vista360/html.ts";
 import {
-  bindCalendarMonthNavigation,
+  addCalendarMonths,
+  addCalendarWeeks,
   CAL_NAV_BTN_CLASS,
+  formatCalendarWeekTitle,
   formatCalendarMonthTitle,
+  getCalendarWeekDates,
+  getCalendarWeekdayLabels,
+  isoLocalDate,
+  parseIsoLocalDate,
+  resolveCalendarWeekStart,
+  type CalendarViewMode,
+  type CalendarWeekStart,
 } from "./calendarShared.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
 import type {
@@ -197,28 +206,55 @@ export function renderRhCalendarReplaceable(
   year: number,
   monthIndex: number,
   payload: RhLowerSectionPayload | null,
+  viewMode: CalendarViewMode = "month",
+  weekAnchorIso: string | null = null,
+  weekStartsOn: CalendarWeekStart = 1,
 ): string {
-  const title = escapeHtml(formatCalendarMonthTitle(year, monthIndex));
-  const grid = buildRhCalendarMonthGrid(year, monthIndex);
+  const anchorDate = parseIsoLocalDate(weekAnchorIso) ?? new Date(year, monthIndex, 1);
+  const title = escapeHtml(
+    viewMode === "week"
+      ? formatCalendarWeekTitle(anchorDate, weekStartsOn)
+      : formatCalendarMonthTitle(year, monthIndex),
+  );
+  const grid = buildRhCalendarMonthGrid(year, monthIndex, weekStartsOn);
   const map = dayMetricsMap(payload);
   const sel = selectedIso(payload);
   const todayIso = rhIsoLocalDate(new Date());
 
   const rows: string[] = [];
-  for (let r = 0; r < 6; r += 1) {
-    const slice = grid.slice(r * 7, r * 7 + 7);
+  if (viewMode === "month") {
+    for (let r = 0; r < 6; r += 1) {
+      const slice = grid.slice(r * 7, r * 7 + 7);
+      rows.push(
+        `<div role="row" class="grid grid-cols-7 gap-1">${slice
+          .map((cell) =>
+            renderCalendarDayCell(
+              cell.isoDate,
+              cell.dayNumber,
+              cell.inCurrentMonth,
+              map[cell.isoDate],
+              cell.isoDate === todayIso,
+              Boolean(sel && cell.isoDate === sel),
+            ),
+          )
+          .join("")}</div>`,
+      );
+    }
+  } else {
+    const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
     rows.push(
-      `<div role="row" class="grid grid-cols-7 gap-1">${slice
-        .map((cell) =>
-          renderCalendarDayCell(
-            cell.isoDate,
-            cell.dayNumber,
-            cell.inCurrentMonth,
-            map[cell.isoDate],
-            cell.isoDate === todayIso,
-            Boolean(sel && cell.isoDate === sel),
-          ),
-        )
+      `<div role="row" class="grid grid-cols-7 gap-1">${weekDates
+        .map((d) => {
+          const iso = isoLocalDate(d);
+          return renderCalendarDayCell(
+            iso,
+            d.getDate(),
+            true,
+            map[iso],
+            iso === todayIso,
+            Boolean(sel && iso === sel),
+          );
+        })
         .join("")}</div>`,
     );
   }
@@ -243,12 +279,45 @@ export function renderRhCalendarReplaceable(
       </span>
     </div>`;
 
-  const weekHeader = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+  const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
         `<div role="columnheader" class="rounded-sm bg-white py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
     )
     .join("");
+
+  const weeklyPlanner = (() => {
+    if (viewMode !== "week") return "";
+    const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
+    const dayColumns = weekDates
+      .map((d) => {
+        const iso = isoLocalDate(d);
+        const isToday = iso === todayIso;
+        const dayName = new Intl.DateTimeFormat("es-MX", { weekday: "short" }).format(d);
+        const metrics = map[iso];
+        const lineItems = metrics?.lines ?? [];
+        const entries =
+          lineItems.length > 0
+            ? lineItems
+                .map((ln) => `<span class="truncate ${lineClasses(ln)}">${escapeHtml(ln.text)}</span>`)
+                .join("")
+            : `<span class="text-xs text-text-muted">Sin registros</span>`;
+        const flags = `${metrics?.showWarning ? '<span class="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">Alerta</span>' : ""}${metrics?.showAttention ? '<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">Atención</span>' : ""}`;
+        return `<article class="rounded-xl border border-border bg-white p-3 shadow-sm">
+          <div class="mb-3 flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(dayName)}</span>
+            <span class="${isToday ? "inline-flex size-8 items-center justify-center rounded-full bg-leoni-blue text-sm font-semibold text-white" : "inline-flex size-8 items-center justify-center rounded-full bg-surface text-sm font-semibold text-text-primary"}">${d.getDate()}</span>
+          </div>
+          <div class="mb-2 flex flex-wrap gap-1">${flags}</div>
+          <div class="flex flex-col gap-1.5">${entries}</div>
+        </article>`;
+      })
+      .join("");
+    return `
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-7">
+        ${dayColumns}
+      </div>`;
+  })();
 
   return `
     <header class="px-4 pt-5 sm:px-6">
@@ -256,11 +325,39 @@ export function renderRhCalendarReplaceable(
         <h2 class="text-base font-semibold text-text-primary">Calendario RH</h2>
         <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
           <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
-            <button type="button" id="rh-cal-prev" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes anterior">
+            <button
+              type="button"
+              id="rh-cal-view-month"
+              data-rh-cal-view="month"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "month" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+            >
+              Mes
+            </button>
+            <button
+              type="button"
+              id="rh-cal-view-week"
+              data-rh-cal-view="week"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "week" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+            >
+              Semana
+            </button>
+          </div>
+          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+            <button
+              type="button"
+              id="rh-cal-prev"
+              class="${CAL_NAV_BTN_CLASS}"
+              aria-label="${viewMode === "week" ? "Semana anterior" : "Mes anterior"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
             <p id="rh-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
-            <button type="button" id="rh-cal-next" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes siguiente">
+            <button
+              type="button"
+              id="rh-cal-next"
+              class="${CAL_NAV_BTN_CLASS}"
+              aria-label="${viewMode === "week" ? "Semana siguiente" : "Mes siguiente"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
             </button>
           </div>
@@ -279,14 +376,16 @@ export function renderRhCalendarReplaceable(
       </div>
     </header>
     <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6">
-      <div
-        role="grid"
-        aria-label="Calendario mensual"
-        class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
-      >
-        <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
-        ${rows.join("")}
-      </div>
+      ${viewMode === "week"
+        ? weeklyPlanner
+        : `<div
+            role="grid"
+            aria-label="Calendario mensual"
+            class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
+          >
+            <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
+            ${rows.join("")}
+          </div>`}
     </div>`;
 }
 
@@ -464,13 +563,77 @@ export function bindRhCalendarNavigation(
   initialYear: number,
   initialMonthIndex: number,
 ): void {
-  bindCalendarMonthNavigation(container, {
-    replaceableSelector: "#rh-calendar-replaceable",
-    prevButtonId: "rh-cal-prev",
-    nextButtonId: "rh-cal-next",
-    todayButtonId: "rh-cal-today",
-    initialYear,
-    initialMonthIndex,
-    render: (yy, mm) => renderRhCalendarReplaceable(yy, mm, payload),
-  });
+  const weekStartsOn = resolveCalendarWeekStart();
+  let currentYear = initialYear;
+  let currentMonthIndex = initialMonthIndex;
+  let currentView: CalendarViewMode = "month";
+  let weekAnchor = parseIsoLocalDate(payload?.calendar.selectedIsoDate) ?? new Date(initialYear, initialMonthIndex, 1);
+  const replaceable = (): HTMLElement | null => container.querySelector("#rh-calendar-replaceable");
+  const ensureAnchorInCurrentMonth = (): void => {
+    if (currentView !== "month") return;
+    const day = weekAnchor.getDate();
+    weekAnchor = new Date(currentYear, currentMonthIndex, Math.min(day, new Date(currentYear, currentMonthIndex + 1, 0).getDate()));
+  };
+  const paint = (): void => {
+    const slot = replaceable();
+    if (!slot) return;
+    slot.innerHTML = renderRhCalendarReplaceable(
+      currentYear,
+      currentMonthIndex,
+      payload,
+      currentView,
+      isoLocalDate(weekAnchor),
+      weekStartsOn,
+    );
+    wire();
+  };
+  const wire = (): void => {
+    container.querySelector<HTMLButtonElement>("#rh-cal-prev")?.addEventListener("click", () => {
+      if (currentView === "week") {
+        weekAnchor = addCalendarWeeks(weekAnchor, -1);
+        currentYear = weekAnchor.getFullYear();
+        currentMonthIndex = weekAnchor.getMonth();
+      } else {
+        [currentYear, currentMonthIndex] = addCalendarMonths(currentYear, currentMonthIndex, -1);
+        ensureAnchorInCurrentMonth();
+      }
+      paint();
+    });
+    container.querySelector<HTMLButtonElement>("#rh-cal-next")?.addEventListener("click", () => {
+      if (currentView === "week") {
+        weekAnchor = addCalendarWeeks(weekAnchor, 1);
+        currentYear = weekAnchor.getFullYear();
+        currentMonthIndex = weekAnchor.getMonth();
+      } else {
+        [currentYear, currentMonthIndex] = addCalendarMonths(currentYear, currentMonthIndex, 1);
+        ensureAnchorInCurrentMonth();
+      }
+      paint();
+    });
+    container.querySelector<HTMLButtonElement>("#rh-cal-today")?.addEventListener("click", () => {
+      const now = new Date();
+      currentYear = now.getFullYear();
+      currentMonthIndex = now.getMonth();
+      weekAnchor = now;
+      paint();
+    });
+    container.querySelector<HTMLButtonElement>("#rh-cal-view-month")?.addEventListener("click", () => {
+      if (currentView === "month") return;
+      currentView = "month";
+      currentYear = weekAnchor.getFullYear();
+      currentMonthIndex = weekAnchor.getMonth();
+      paint();
+    });
+    container.querySelector<HTMLButtonElement>("#rh-cal-view-week")?.addEventListener("click", () => {
+      if (currentView === "week") return;
+      currentView = "week";
+      const now = new Date();
+      weekAnchor = now;
+      currentYear = now.getFullYear();
+      currentMonthIndex = now.getMonth();
+      paint();
+    });
+  };
+
+  paint();
 }

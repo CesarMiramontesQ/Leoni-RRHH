@@ -207,6 +207,18 @@ async def test_supervisor_reserva_para_subordinado_refleja_en_empleado(client: A
     )
 
     headers_sup = await auth_headers(client, supervisor, password="SupReserva1!")
+    r_self = await client.post(
+        RESERVAR_URL,
+        json={
+            "comedor_id": comedor.id,
+            "fecha_servicio": "2026-04-28",
+            "tipo_comida": "saludable",
+        },
+        headers=headers_sup,
+    )
+    assert r_self.status_code == 200, r_self.text
+    assert r_self.json()["empleado_id"] == supervisor.id
+
     r = await client.post(
         RESERVAR_URL,
         json={
@@ -219,6 +231,19 @@ async def test_supervisor_reserva_para_subordinado_refleja_en_empleado(client: A
     )
     assert r.status_code == 200, r.text
     assert r.json()["empleado_id"] == sub.id
+
+    r_dup = await client.post(
+        RESERVAR_URL,
+        json={
+            "comedor_id": comedor.id,
+            "fecha_servicio": "2026-04-28",
+            "tipo_comida": "casera",
+            "target_user_id": sub.id,
+        },
+        headers=headers_sup,
+    )
+    assert r_dup.status_code == 409
+    assert r_dup.json().get("detail") == "El empleado Carlos Lopez ya tiene una comida registrada para este día"
 
     headers_sub = await auth_headers(client, sub, password="SubReserva1!")
     r_sub = await client.get("/api/v1/comedor/accesos/mis-reservas?anio=2026&mes=4", headers=headers_sub)

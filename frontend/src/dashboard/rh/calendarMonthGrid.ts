@@ -25,16 +25,25 @@ export function rhIsoFromYmd(year: number, monthIndex: number, day: number): str
 }
 
 /** Lunes = 0 … Domingo = 6 */
-export function rhMondayWeekday(d: Date): number {
+export function rhWeekdayByStart(d: Date, weekStartsOn: 0 | 1 = 1): number {
+  if (weekStartsOn === 0) return d.getDay();
   return (d.getDay() + 6) % 7;
+}
+
+export function rhMondayWeekday(d: Date): number {
+  return rhWeekdayByStart(d, 1);
 }
 
 /**
  * 6 filas × 7 columnas, empezando el lunes anterior o igual al día 1 del mes.
  */
-export function buildRhCalendarMonthGrid(year: number, monthIndex: number): RhCalendarGridCell[] {
+export function buildRhCalendarMonthGrid(
+  year: number,
+  monthIndex: number,
+  weekStartsOn: 0 | 1 = 1,
+): RhCalendarGridCell[] {
   const first = new Date(year, monthIndex, 1);
-  const startOffset = rhMondayWeekday(first);
+  const startOffset = rhWeekdayByStart(first, weekStartsOn);
   const startDay = 1 - startOffset;
 
   const cells: RhCalendarGridCell[] = [];

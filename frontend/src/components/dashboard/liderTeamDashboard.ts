@@ -1,8 +1,19 @@
 import { escapeHtml } from "../vista360/html.ts";
 import {
-  bindCalendarMonthNavigation,
+  addCalendarMonths,
+  addCalendarWeeks,
   CAL_NAV_BTN_CLASS,
+  formatCalendarWeekTitle,
   formatCalendarMonthTitle,
+  getCalendarMonthVisibleRange,
+  getCalendarWeekDates,
+  getCalendarWeekVisibleRange,
+  getCalendarWeekdayLabels,
+  isoLocalDate,
+  parseIsoLocalDate,
+  resolveCalendarWeekStart,
+  type CalendarViewMode,
+  type CalendarWeekStart,
 } from "./calendarShared.ts";
 import { renderEmpleadoStatCards } from "./empleadoPersonalDashboard.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
@@ -434,29 +445,57 @@ export function renderLiderTeamCalendarReplaceable(
   monthIndex: number,
   payload: LiderDashboardPayload | null,
   selectedMeal: SelectedMealDetail | null = null,
+  viewMode: CalendarViewMode = "month",
+  weekAnchorIso: string | null = null,
+  weekStartsOn: CalendarWeekStart = 1,
 ): string {
-  const title = escapeHtml(formatCalendarMonthTitle(year, monthIndex));
-  const grid = buildRhCalendarMonthGrid(year, monthIndex);
+  const anchorDate = parseIsoLocalDate(weekAnchorIso) ?? new Date(year, monthIndex, 1);
+  const title = escapeHtml(
+    viewMode === "week"
+      ? formatCalendarWeekTitle(anchorDate, weekStartsOn)
+      : formatCalendarMonthTitle(year, monthIndex),
+  );
+  const grid = buildRhCalendarMonthGrid(year, monthIndex, weekStartsOn);
   const map = payload?.team_calendar.day_entries ?? {};
   const sel = payload?.team_calendar.selected_iso_date ?? null;
   const todayIso = rhIsoLocalDate(new Date());
 
   const rows: string[] = [];
-  for (let r = 0; r < 6; r += 1) {
-    const slice = grid.slice(r * 7, r * 7 + 7);
+  if (viewMode === "month") {
+    for (let r = 0; r < 6; r += 1) {
+      const slice = grid.slice(r * 7, r * 7 + 7);
+      rows.push(
+        `<div role="row" class="grid grid-cols-7 gap-1">${slice
+          .map((cell) =>
+            renderTeamCalendarDayCell(
+              cell.isoDate,
+              cell.dayNumber,
+              cell.inCurrentMonth,
+              map[cell.isoDate],
+              cell.isoDate === todayIso,
+              Boolean(sel && cell.isoDate === sel),
+              selectedMeal,
+            ),
+          )
+          .join("")}</div>`,
+      );
+    }
+  } else {
+    const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
     rows.push(
-      `<div role="row" class="grid grid-cols-7 gap-1">${slice
-        .map((cell) =>
-          renderTeamCalendarDayCell(
-            cell.isoDate,
-            cell.dayNumber,
-            cell.inCurrentMonth,
-            map[cell.isoDate],
-            cell.isoDate === todayIso,
-            Boolean(sel && cell.isoDate === sel),
+      `<div role="row" class="grid grid-cols-7 gap-1">${weekDates
+        .map((d) => {
+          const iso = isoLocalDate(d);
+          return renderTeamCalendarDayCell(
+            iso,
+            d.getDate(),
+            true,
+            map[iso],
+            iso === todayIso,
+            Boolean(sel && iso === sel),
             selectedMeal,
-          ),
-        )
+          );
+        })
         .join("")}</div>`,
     );
   }
@@ -489,7 +528,7 @@ export function renderLiderTeamCalendarReplaceable(
       </span>
     </div>`;
 
-  const weekHeader = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+  const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
         `<div role="columnheader" class="rounded-sm bg-white py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
@@ -513,17 +552,97 @@ export function renderLiderTeamCalendarReplaceable(
       <p id="lider-meal-detail-meta" class="text-xs text-text-muted">${escapeHtml(mealMeta)}</p>
     </div>`;
 
+  const currentRole = getRolFromAccessToken();
+  const currentUserId = getEmpleadoIdFromAccessToken();
+  const weeklyPlanner = (() => {
+    if (viewMode !== "week") return "";
+    const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
+    const dayColumns = weekDates
+      .map((d) => {
+        const iso = isoLocalDate(d);
+        const isToday = iso === todayIso;
+        const dayName = new Intl.DateTimeFormat("es-MX", { weekday: "short" }).format(d);
+        const lines = map[iso]?.lines ?? [];
+        const entries =
+          lines.length > 0
+            ? lines
+                .map((ln) => {
+                  if (ln.kind === "meal") {
+                    const dateIso = escapeHtml(iso);
+                    const employeeName = escapeHtml(ln.meal_employee_name ?? "Sin nombre");
+                    const mealType = escapeHtml(ln.meal_type_label ?? "Sin tipo");
+                    const mealTime = escapeHtml(ln.meal_time_label ?? "Sin hora");
+                    return `<button
+                      type="button"
+                      class="inline-flex max-w-full items-center gap-1 truncate text-left ${teamLineClass(ln)}"
+                      data-lider-meal-detail="1"
+                      data-lider-meal-date="${dateIso}"
+                      data-lider-meal-employee="${employeeName}"
+                      data-lider-meal-type="${mealType}"
+                      data-lider-meal-time="${mealTime}"
+                    >
+                      ${mealLineIcon()}
+                      <span class="truncate">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>
+                    </button>`;
+                  }
+                  return `<span class="truncate ${teamLineClass(ln)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`;
+                })
+                .join("")
+            : `<span class="text-xs text-text-muted">Sin registros</span>`;
+        return `<article class="rounded-xl border border-border bg-white p-3 shadow-sm">
+          <div class="mb-3 flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(dayName)}</span>
+            <span class="${isToday ? "inline-flex size-8 items-center justify-center rounded-full bg-leoni-blue text-sm font-semibold text-white" : "inline-flex size-8 items-center justify-center rounded-full bg-surface text-sm font-semibold text-text-primary"}">${d.getDate()}</span>
+          </div>
+          <div class="flex flex-col gap-1.5">${entries}</div>
+        </article>`;
+      })
+      .join("");
+    return `
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-7">
+        ${dayColumns}
+      </div>`;
+  })();
+
   return `
     <header class="px-4 pt-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-base font-semibold text-text-primary">Calendario del equipo</h2>
         <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
           <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
-            <button type="button" id="lid-cal-prev" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes anterior">
+            <button
+              type="button"
+              id="lid-cal-view-month"
+              data-lid-cal-view="month"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "month" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+            >
+              Mes
+            </button>
+            <button
+              type="button"
+              id="lid-cal-view-week"
+              data-lid-cal-view="week"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "week" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+            >
+              Semana
+            </button>
+          </div>
+          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+            <button
+              type="button"
+              id="lid-cal-prev"
+              class="${CAL_NAV_BTN_CLASS}"
+              aria-label="${viewMode === "week" ? "Semana anterior" : "Mes anterior"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
             <p id="lid-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
-            <button type="button" id="lid-cal-next" class="${CAL_NAV_BTN_CLASS}" aria-label="Mes siguiente">
+            <button
+              type="button"
+              id="lid-cal-next"
+              class="${CAL_NAV_BTN_CLASS}"
+              aria-label="${viewMode === "week" ? "Semana siguiente" : "Mes siguiente"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
             </button>
           </div>
@@ -542,14 +661,16 @@ export function renderLiderTeamCalendarReplaceable(
       </div>
     </header>
     <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6">
-      <div
-        role="grid"
-        aria-label="Calendario del equipo"
-        class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
-      >
-        <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
-        ${rows.join("")}
-      </div>
+      ${viewMode === "week"
+        ? weeklyPlanner
+        : `<div
+            role="grid"
+            aria-label="Calendario del equipo"
+            class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
+          >
+            <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
+            ${rows.join("")}
+          </div>`}
       ${mealDetail}
     </div>`;
 }
@@ -641,60 +762,135 @@ export function bindLiderTeamCalendarNavigation(
       monthIndex: number;
       visibleStartIso: string;
       visibleEndIso: string;
+      weekStartsOn: CalendarWeekStart;
     }) => Promise<LiderDashboardPayload | null>;
   },
 ): void {
   let currentPayload = payload;
-  bindCalendarMonthNavigation(container, {
-    replaceableSelector: "#lider-calendar-replaceable",
-    prevButtonId: "lid-cal-prev",
-    nextButtonId: "lid-cal-next",
-    todayButtonId: "lid-cal-today",
-    initialYear,
-    initialMonthIndex,
-    render: (yy, mm) => renderLiderTeamCalendarReplaceable(yy, mm, currentPayload),
-    onMonthChange: async (ctx) => {
-      if (!options?.loadMonthData) return;
-      const next = await options.loadMonthData({
-        year: ctx.year,
-        monthIndex: ctx.monthIndex,
-        visibleStartIso: ctx.visibleRange.startIso,
-        visibleEndIso: ctx.visibleRange.endIso,
-      });
-      if (!ctx.isCurrent() || !next) return;
-      const prevSelected = currentPayload?.team_calendar.selected_iso_date ?? null;
-      currentPayload = {
-        ...next,
-        team_calendar: {
-          ...next.team_calendar,
-          selected_iso_date: prevSelected ?? next.team_calendar.selected_iso_date,
-        },
-      };
-      ctx.refresh();
-    },
-  });
+  const weekStartsOn = resolveCalendarWeekStart();
+  let currentYear = initialYear;
+  let currentMonthIndex = initialMonthIndex;
+  let currentView: CalendarViewMode = "month";
+  let fetchVersion = 0;
+  let selectedMeal: SelectedMealDetail | null = null;
+  let weekAnchor = parseIsoLocalDate(currentPayload?.team_calendar.selected_iso_date) ?? new Date(initialYear, initialMonthIndex, 1);
+  const replaceable = (): HTMLElement | null => container.querySelector("#lider-calendar-replaceable");
+  const ensureAnchorInCurrentMonth = (): void => {
+    if (currentView !== "month") return;
+    const day = weekAnchor.getDate();
+    weekAnchor = new Date(currentYear, currentMonthIndex, Math.min(day, new Date(currentYear, currentMonthIndex + 1, 0).getDate()));
+  };
+  const paint = (): void => {
+    const slot = replaceable();
+    if (!slot) return;
+    slot.innerHTML = renderLiderTeamCalendarReplaceable(
+      currentYear,
+      currentMonthIndex,
+      currentPayload,
+      selectedMeal,
+      currentView,
+      isoLocalDate(weekAnchor),
+      weekStartsOn,
+    );
+    wire();
+  };
+  const currentVisibleRange = (): { startIso: string; endIso: string } =>
+    currentView === "week"
+      ? getCalendarWeekVisibleRange(weekAnchor, weekStartsOn)
+      : getCalendarMonthVisibleRange(currentYear, currentMonthIndex, weekStartsOn);
+  const requestData = async (): Promise<void> => {
+    if (!options?.loadMonthData) return;
+    const reqVersion = ++fetchVersion;
+    const visible = currentVisibleRange();
+    const next = await options.loadMonthData({
+      year: currentView === "week" ? weekAnchor.getFullYear() : currentYear,
+      monthIndex: currentView === "week" ? weekAnchor.getMonth() : currentMonthIndex,
+      visibleStartIso: visible.startIso,
+      visibleEndIso: visible.endIso,
+      weekStartsOn,
+    });
+    if (reqVersion !== fetchVersion || !next) return;
+    const prevSelected = currentPayload?.team_calendar.selected_iso_date ?? null;
+    currentPayload = {
+      ...next,
+      team_calendar: {
+        ...next.team_calendar,
+        selected_iso_date: prevSelected ?? next.team_calendar.selected_iso_date,
+      },
+    };
+    paint();
+  };
+
+  const wire = (): void => {
+    container.querySelector<HTMLButtonElement>("#lid-cal-prev")?.addEventListener("click", () => {
+      selectedMeal = null;
+      if (currentView === "week") {
+        weekAnchor = addCalendarWeeks(weekAnchor, -1);
+        currentYear = weekAnchor.getFullYear();
+        currentMonthIndex = weekAnchor.getMonth();
+      } else {
+        [currentYear, currentMonthIndex] = addCalendarMonths(currentYear, currentMonthIndex, -1);
+        ensureAnchorInCurrentMonth();
+      }
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#lid-cal-next")?.addEventListener("click", () => {
+      selectedMeal = null;
+      if (currentView === "week") {
+        weekAnchor = addCalendarWeeks(weekAnchor, 1);
+        currentYear = weekAnchor.getFullYear();
+        currentMonthIndex = weekAnchor.getMonth();
+      } else {
+        [currentYear, currentMonthIndex] = addCalendarMonths(currentYear, currentMonthIndex, 1);
+        ensureAnchorInCurrentMonth();
+      }
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#lid-cal-today")?.addEventListener("click", () => {
+      selectedMeal = null;
+      const now = new Date();
+      currentYear = now.getFullYear();
+      currentMonthIndex = now.getMonth();
+      weekAnchor = now;
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#lid-cal-view-month")?.addEventListener("click", () => {
+      if (currentView === "month") return;
+      currentView = "month";
+      selectedMeal = null;
+      currentYear = weekAnchor.getFullYear();
+      currentMonthIndex = weekAnchor.getMonth();
+      paint();
+      void requestData();
+    });
+    container.querySelector<HTMLButtonElement>("#lid-cal-view-week")?.addEventListener("click", () => {
+      if (currentView === "week") return;
+      currentView = "week";
+      selectedMeal = null;
+      const now = new Date();
+      weekAnchor = now;
+      currentYear = now.getFullYear();
+      currentMonthIndex = now.getMonth();
+      paint();
+      void requestData();
+    });
+  };
+
+  paint();
 
   container.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
     const button = target.closest<HTMLButtonElement>("[data-lider-meal-detail]");
     if (!button) return;
-    const selectedMeal: SelectedMealDetail = {
+    selectedMeal = {
       dateIso: button.getAttribute("data-lider-meal-date") ?? "",
       employeeName: button.getAttribute("data-lider-meal-employee") ?? "Sin nombre",
       mealType: button.getAttribute("data-lider-meal-type") ?? "Sin tipo",
       mealTime: button.getAttribute("data-lider-meal-time") ?? "Sin hora",
     };
-    const panel = container.querySelector<HTMLElement>("#lider-meal-detail-panel");
-    const title = container.querySelector<HTMLElement>("#lider-meal-detail-title");
-    const main = container.querySelector<HTMLElement>("#lider-meal-detail-main");
-    const meta = container.querySelector<HTMLElement>("#lider-meal-detail-meta");
-    if (!panel || !title || !main || !meta) return;
-    panel.className = "mt-4 rounded-xl border border-leoni-blue/25 bg-leoni-blue/5 px-4 py-3";
-    title.className = "text-xs font-semibold uppercase tracking-wide text-leoni-blue";
-    main.className = "mt-1 text-sm font-semibold text-text-primary";
-    meta.className = "text-xs text-text-muted";
-    title.textContent = "Detalle de comida";
-    main.textContent = `${selectedMeal.employeeName} · ${selectedMeal.mealType}`;
-    meta.textContent = `Fecha: ${selectedMeal.dateIso} · Hora: ${selectedMeal.mealTime}`;
+    paint();
   });
 }

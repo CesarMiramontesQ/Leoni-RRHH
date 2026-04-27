@@ -497,8 +497,18 @@ class ComedorService:
                 ComedorAccesoEstado.ACCEDIDO,
                 ComedorAccesoEstado.PENDIENTE,
             ):
+                detail = "Ya tienes un registro para este día"
+                if beneficiario_id != current_user.id:
+                    beneficiario = await self.empleado_repo.get(beneficiario_id)
+                    nombre_beneficiario = self._nombre_corto(
+                        beneficiario.nombre if beneficiario else None
+                    )
+                    detail = (
+                        f"El empleado {nombre_beneficiario} ya tiene una comida registrada "
+                        "para este día"
+                    )
                 raise ConflictError(
-                    detail="Ya tienes un registro para este día",
+                    detail=detail,
                 )
             if existente.estado_acceso == ComedorAccesoEstado.EXPIRADO:
                 acc = await self.acceso_repo.update(

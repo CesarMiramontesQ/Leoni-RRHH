@@ -24,6 +24,7 @@ import {
   renderEmpleadoDashboardSkeleton,
   renderEmpleadoPersonalDashboard,
 } from "../components/dashboard/empleadoPersonalDashboard.ts";
+import { resolveCalendarWeekStart } from "../components/dashboard/calendarShared.ts";
 import {
   bindLiderTeamCalendarNavigation,
   renderLiderDashboardSkeleton,
@@ -169,11 +170,13 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   if (!root) return;
 
   const now = new Date();
+  const weekStartsOn = resolveCalendarWeekStart();
   let raw = null;
   try {
     raw = await fetchEmpleadoDashboard({
       year: now.getFullYear(),
       monthIndex: now.getMonth(),
+      weekStartsOn,
     }).catch(() => null);
   } catch {
     raw = null;
@@ -204,11 +207,13 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   if (!root) return;
 
   const now = new Date();
+  const weekStartsOn = resolveCalendarWeekStart();
   let raw = null;
   try {
     raw = await fetchLiderDashboard({
       year: now.getFullYear(),
       monthIndex: now.getMonth(),
+      weekStartsOn,
     }).catch(() => null);
   } catch {
     raw = null;

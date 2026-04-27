@@ -423,9 +423,9 @@ export function mountComedorNewRequestModal(
       renderForm();
       try {
         const employeeId =
-          formState.personType === "interno" && !allowEmployeeSearch
-            ? fixedEmployeeId
-            : formState.selectedEmployeeId;
+          formState.personType === "interno"
+            ? (formState.selectedEmployeeId || fixedEmployeeId)
+            : null;
         await options.onSubmit({
           personType: formState.personType,
           employeeId: formState.personType === "interno" ? employeeId : null,
