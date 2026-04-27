@@ -23,6 +23,13 @@ class ComedorCreate(BaseModel):
     activo: bool = True
 
 
+class ComedorUpdate(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=150)
+    ubicacion: Optional[str] = Field(None, max_length=255)
+    capacidad: Optional[int] = Field(None, ge=0, le=500_000)
+    activo: bool
+
+
 class MenuSemanalCreate(BaseModel):
     comedor_id: int
     semana: date

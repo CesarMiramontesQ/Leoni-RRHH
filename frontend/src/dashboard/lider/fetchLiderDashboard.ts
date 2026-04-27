@@ -8,6 +8,13 @@ import type { LiderDashboardPayload, TeamCalendarDayEntry, TeamCalendarLine } fr
 import { etiquetaTipoComida } from "../../utils/comedorReservaFechas.ts";
 import { extraerPrimerNombreApellido } from "../../utils/comedorNombreCorto.ts";
 
+type CalendarMonthFetchTarget = {
+  year: number;
+  monthIndex: number;
+  visibleStartIso?: string;
+  visibleEndIso?: string;
+};
+
 function eachIsoDayInclusive(fechaInicio: string, fechaFin: string): string[] {
   const a = fechaInicio.slice(0, 10);
   const b = fechaFin.slice(0, 10);
@@ -19,6 +26,36 @@ function eachIsoDayInclusive(fechaInicio: string, fechaFin: string): string[] {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
   const out: string[] = [];
   for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) out.push(rhIsoLocalDate(cur));
+  return out;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function computeVisibleRange(year: number, monthIndex: number): { startIso: string; endIso: string } {
+  const first = new Date(year, monthIndex, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const start = new Date(year, monthIndex, 1 - startOffset);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 41);
+  return {
+    startIso: `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}`,
+    endIso: `${end.getFullYear()}-${pad2(end.getMonth() + 1)}-${pad2(end.getDate())}`,
+  };
+}
+
+function monthsCoveredByIsoRange(startIso: string, endIso: string): Array<{ year: number; month: number }> {
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) return [];
+  const out: Array<{ year: number; month: number }> = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cursor <= last) {
+    out.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
   return out;
 }
 
@@ -62,28 +99,26 @@ function mealLineFromReserva(reserva: ComedorEquipoReservaApiItem): TeamCalendar
   };
 }
 
-function monthOffset(baseYear: number, baseMonthIndex: number, delta: number): { year: number; month: number } {
-  const dt = new Date(baseYear, baseMonthIndex + delta, 1);
-  return { year: dt.getFullYear(), month: dt.getMonth() + 1 };
-}
-
 /**
  * Dashboard de supervisor/gerente:
  * construye el calendario de equipo con solicitudes propias+equipo (API scoped por rol).
  */
-export async function fetchLiderDashboard(): Promise<LiderDashboardPayload | null> {
+export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Promise<LiderDashboardPayload | null> {
   const role = getRolFromAccessToken();
   if (role !== "supervisor" && role !== "gerente") return null;
 
   const now = new Date();
-  const base = emptyLiderDashboardPayload(now);
+  const referenceDate =
+    target ? new Date(target.year, target.monthIndex, 1) : now;
+  const base = emptyLiderDashboardPayload(referenceDate);
   const myId = getEmpleadoIdFromAccessToken();
+  const visibleRange = computeVisibleRange(base.team_calendar.initial_year, base.team_calendar.initial_month_index);
+  const rangeStartIso = target?.visibleStartIso ?? visibleRange.startIso;
+  const rangeEndIso = target?.visibleEndIso ?? visibleRange.endIso;
 
   try {
     // API `/api/v1/solicitudes` admite máximo `limit=100`.
-    const nowYear = now.getFullYear();
-    const nowMonth = now.getMonth();
-    const mealMonths = [monthOffset(nowYear, nowMonth, -1), monthOffset(nowYear, nowMonth, 0), monthOffset(nowYear, nowMonth, 1)];
+    const mealMonths = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
     const [rows, mealRowsByMonth] = await Promise.all([
       getSolicitudesRows(100),
       role === "supervisor"
@@ -93,7 +128,8 @@ export async function fetchLiderDashboard(): Promise<LiderDashboardPayload | nul
     const solicitudesCalendario = rows.filter(
       (r) =>
         (r.tipo === "vacaciones" || r.tipo === "home_office") &&
-        (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE),
+        (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE) &&
+        !(r.fecha_fin.slice(0, 10) < rangeStartIso || r.fecha_inicio.slice(0, 10) > rangeEndIso),
     );
 
     const day_entries: Record<string, TeamCalendarDayEntry> = {};
@@ -101,6 +137,7 @@ export async function fetchLiderDashboard(): Promise<LiderDashboardPayload | nul
       const estado = r.estado === SOLICITUD_ESTADO_API.APROBADO ? "approved" : "pending";
       const line = toTeamCalendarLine(r.tipo, estado, r.empleado_id, r.empleado_nombre_raw);
       for (const iso of eachIsoDayInclusive(r.fecha_inicio, r.fecha_fin)) {
+        if (iso < rangeStartIso || iso > rangeEndIso) continue;
         const prev = day_entries[iso]?.lines ?? [];
         day_entries[iso] = { lines: [...prev, line] };
       }
@@ -110,7 +147,7 @@ export async function fetchLiderDashboard(): Promise<LiderDashboardPayload | nul
       const mealRows = mealRowsByMonth.flat();
       for (const reserva of mealRows) {
         const iso = reserva.fecha_servicio?.slice(0, 10);
-        if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
+        if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso) || iso < rangeStartIso || iso > rangeEndIso) continue;
         const prev = day_entries[iso]?.lines ?? [];
         day_entries[iso] = { lines: [...prev, mealLineFromReserva(reserva)] };
       }

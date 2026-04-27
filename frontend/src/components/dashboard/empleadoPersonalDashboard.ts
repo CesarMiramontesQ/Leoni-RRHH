@@ -28,14 +28,19 @@ function pendingTypeLabel(t: EmpleadoPendingRequestType): string {
   return t === "vacation" ? "VAC" : "HO";
 }
 
+function mealCalendarText(meal: EmpleadoCalendarDayEntry["meal"]): string {
+  if (typeof meal === "string" && meal.trim()) return meal.trim();
+  return "Comida";
+}
+
 function entryToLines(entry: EmpleadoCalendarDayEntry | undefined): Array<{ text: string; cls: string }> {
   if (!entry) return [];
   const lines: Array<{ text: string; cls: string }> = [];
   if (entry.meal) {
     lines.push({
-      text: "Comida",
+      text: mealCalendarText(entry.meal),
       cls:
-        "rounded-md bg-leoni-blue/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-leoni-blue md:text-[11px]",
+        "rounded border border-orange-200 bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-orange-800 md:text-[11px]",
     });
   }
   if (entry.vacation) {
@@ -70,7 +75,7 @@ function entryToLines(entry: EmpleadoCalendarDayEntry | undefined): Array<{ text
 function renderMobileDots(entry: EmpleadoCalendarDayEntry | undefined): string {
   if (!entry) return "";
   const dots: string[] = [];
-  if (entry.meal) dots.push('<span class="size-1.5 shrink-0 rounded-full bg-leoni-blue" title="Comida"></span>');
+  if (entry.meal) dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-500" title="Comida"></span>');
   if (entry.vacation) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-500" title="Vacaciones"></span>');
   }
@@ -286,7 +291,7 @@ export function renderEmpleadoCalendarReplaceable(
   const legend = `
     <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs">
       <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-leoni-blue" aria-hidden="true"></span>
+        <span class="size-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true"></span>
         <span class="font-medium text-text-primary">Comidas</span>
       </span>
       <span class="inline-flex items-center gap-2 text-text-muted">
@@ -413,7 +418,16 @@ export function bindEmpleadoCalendarNavigation(
   payload: EmpleadoDashboardPayload | null,
   initialYear: number,
   initialMonthIndex: number,
+  options?: {
+    loadMonthData?: (target: {
+      year: number;
+      monthIndex: number;
+      visibleStartIso: string;
+      visibleEndIso: string;
+    }) => Promise<EmpleadoDashboardPayload | null>;
+  },
 ): void {
+  let currentPayload = payload;
   bindCalendarMonthNavigation(container, {
     replaceableSelector: "#empleado-calendar-replaceable",
     prevButtonId: "emp-cal-prev",
@@ -421,6 +435,25 @@ export function bindEmpleadoCalendarNavigation(
     todayButtonId: "emp-cal-today",
     initialYear,
     initialMonthIndex,
-    render: (yy, mm) => renderEmpleadoCalendarReplaceable(yy, mm, payload),
+    render: (yy, mm) => renderEmpleadoCalendarReplaceable(yy, mm, currentPayload),
+    onMonthChange: async (ctx) => {
+      if (!options?.loadMonthData) return;
+      const next = await options.loadMonthData({
+        year: ctx.year,
+        monthIndex: ctx.monthIndex,
+        visibleStartIso: ctx.visibleRange.startIso,
+        visibleEndIso: ctx.visibleRange.endIso,
+      });
+      if (!ctx.isCurrent() || !next) return;
+      const prevSelected = currentPayload?.calendar.selected_iso_date ?? null;
+      currentPayload = {
+        ...next,
+        calendar: {
+          ...next.calendar,
+          selected_iso_date: prevSelected ?? next.calendar.selected_iso_date,
+        },
+      };
+      ctx.refresh();
+    },
   });
 }

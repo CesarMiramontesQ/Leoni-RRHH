@@ -39,6 +39,7 @@ from app.schemas.comedor import (
     ComedorAccesoReservaResponse,
     ComedorAccesoReservaUpdate,
     ComedorCreate,
+    ComedorUpdate,
     ComedorMisFechasOcupadasResponse,
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
@@ -205,6 +206,52 @@ class ComedorService:
             usuario_id=current_user.id,
             entidad_id=comedor.id,
             datos_despues={"nombre": data.nombre, "activo": data.activo},
+        )
+        return ComedorResponse.model_validate(comedor)
+
+    async def editar_comedor(
+        self,
+        comedor_id: int,
+        data: ComedorUpdate,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> ComedorResponse:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede editar comedores")
+
+        comedor = await self.comedor_repo.get(comedor_id)
+        if comedor is None:
+            raise NotFoundError(entidad="Comedor", id=comedor_id)
+
+        datos_antes = {
+            "nombre": comedor.nombre,
+            "ubicacion": comedor.ubicacion,
+            "capacidad": comedor.capacidad,
+            "activo": comedor.activo,
+        }
+        comedor = await self.comedor_repo.update(comedor_id, {
+            "nombre": data.nombre.strip(),
+            "ubicacion": (data.ubicacion or "").strip() or None,
+            "capacidad": data.capacidad,
+            "activo": data.activo,
+        })
+        if comedor is None:
+            raise NotFoundError(entidad="Comedor", id=comedor_id)
+
+        audit_background(
+            background_tasks,
+            self.db,
+            accion="COMEDOR_ACTUALIZADO",
+            modulo="comedor",
+            usuario_id=current_user.id,
+            entidad_id=comedor.id,
+            datos_antes=datos_antes,
+            datos_despues={
+                "nombre": comedor.nombre,
+                "ubicacion": comedor.ubicacion,
+                "capacidad": comedor.capacidad,
+                "activo": comedor.activo,
+            },
         )
         return ComedorResponse.model_validate(comedor)
 

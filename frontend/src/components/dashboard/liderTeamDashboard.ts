@@ -635,7 +635,16 @@ export function bindLiderTeamCalendarNavigation(
   payload: LiderDashboardPayload | null,
   initialYear: number,
   initialMonthIndex: number,
+  options?: {
+    loadMonthData?: (target: {
+      year: number;
+      monthIndex: number;
+      visibleStartIso: string;
+      visibleEndIso: string;
+    }) => Promise<LiderDashboardPayload | null>;
+  },
 ): void {
+  let currentPayload = payload;
   bindCalendarMonthNavigation(container, {
     replaceableSelector: "#lider-calendar-replaceable",
     prevButtonId: "lid-cal-prev",
@@ -643,7 +652,26 @@ export function bindLiderTeamCalendarNavigation(
     todayButtonId: "lid-cal-today",
     initialYear,
     initialMonthIndex,
-    render: (yy, mm) => renderLiderTeamCalendarReplaceable(yy, mm, payload),
+    render: (yy, mm) => renderLiderTeamCalendarReplaceable(yy, mm, currentPayload),
+    onMonthChange: async (ctx) => {
+      if (!options?.loadMonthData) return;
+      const next = await options.loadMonthData({
+        year: ctx.year,
+        monthIndex: ctx.monthIndex,
+        visibleStartIso: ctx.visibleRange.startIso,
+        visibleEndIso: ctx.visibleRange.endIso,
+      });
+      if (!ctx.isCurrent() || !next) return;
+      const prevSelected = currentPayload?.team_calendar.selected_iso_date ?? null;
+      currentPayload = {
+        ...next,
+        team_calendar: {
+          ...next.team_calendar,
+          selected_iso_date: prevSelected ?? next.team_calendar.selected_iso_date,
+        },
+      };
+      ctx.refresh();
+    },
   });
 
   container.addEventListener("click", (event) => {

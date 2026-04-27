@@ -18,6 +18,7 @@ from app.schemas.comedor import (
     ComedorAccesoReservaResponse,
     ComedorAccesoReservaUpdate,
     ComedorCreate,
+    ComedorUpdate,
     ComedorMisFechasOcupadasResponse,
     ComedorMisReservaItem,
     ComedorEquipoReservaItem,
@@ -59,6 +60,24 @@ async def crear_comedor(
     """Alta de comedor (solo RH)."""
     service = ComedorService(db)
     return await service.crear_comedor(
+        data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.put("/comedores/{comedor_id}", response_model=ComedorResponse)
+async def editar_comedor(
+    comedor_id: int,
+    body: ComedorUpdate,
+    background_tasks: BackgroundTasks,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edición de comedor (solo RH)."""
+    service = ComedorService(db)
+    return await service.editar_comedor(
+        comedor_id=comedor_id,
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,

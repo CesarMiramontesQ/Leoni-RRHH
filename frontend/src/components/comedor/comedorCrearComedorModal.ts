@@ -100,10 +100,10 @@ export function mountComedorCrearComedorModal(
   options: ComedorCrearComedorModalOptions,
 ): ComedorCrearComedorModalHandle {
   host.innerHTML = shellHtml();
-  const overlay = host.querySelector("#comedor-crear-comedor-overlay");
-  const form = host.querySelector("#comedor-crear-comedor-form");
-  const btnSubmit = host.querySelector("#comedor-crear-comedor-submit");
-  if (!(overlay instanceof HTMLElement) || !(form instanceof HTMLFormElement) || !(btnSubmit instanceof HTMLButtonElement)) {
+  const overlay = host.querySelector<HTMLElement>("#comedor-crear-comedor-overlay");
+  const form = host.querySelector<HTMLFormElement>("#comedor-crear-comedor-form");
+  const btnSubmit = host.querySelector<HTMLButtonElement>("#comedor-crear-comedor-submit");
+  if (!overlay || !form || !btnSubmit) {
     return {
       open: () => {},
       close: () => {},
@@ -112,26 +112,29 @@ export function mountComedorCrearComedorModal(
       },
     };
   }
+  const overlayEl = overlay;
+  const formEl = form;
+  const btnSubmitEl = btnSubmit;
 
   function close(): void {
-    overlay.classList.add("hidden");
-    overlay.classList.remove("flex");
+    overlayEl.classList.add("hidden");
+    overlayEl.classList.remove("flex");
     document.body.style.overflow = "";
-    form.reset();
+    formEl.reset();
     const activo = host.querySelector<HTMLInputElement>("#comedor-crear-activo");
     if (activo) activo.checked = true;
-    btnSubmit.disabled = false;
-    btnSubmit.textContent = "Guardar";
+    btnSubmitEl.disabled = false;
+    btnSubmitEl.textContent = "Guardar";
   }
 
   function open(): void {
-    overlay.classList.remove("hidden");
-    overlay.classList.add("flex");
+    overlayEl.classList.remove("hidden");
+    overlayEl.classList.add("flex");
     document.body.style.overflow = "hidden";
     host.querySelector<HTMLInputElement>("#comedor-crear-nombre")?.focus();
   }
 
-  form.addEventListener("submit", async (e) => {
+  formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const nombre = host.querySelector<HTMLInputElement>("#comedor-crear-nombre")?.value.trim() ?? "";
     if (!nombre) {
@@ -146,8 +149,8 @@ export function mountComedorCrearComedorModal(
         return Number.isFinite(n) ? n : null;
       })();
     const activo = host.querySelector<HTMLInputElement>("#comedor-crear-activo")?.checked ?? true;
-    btnSubmit.disabled = true;
-    btnSubmit.textContent = "Guardando…";
+    btnSubmitEl.disabled = true;
+    btnSubmitEl.textContent = "Guardando…";
     try {
       await crearComedor({
         nombre,
@@ -161,8 +164,8 @@ export function mountComedorCrearComedorModal(
     } catch (err: unknown) {
       showEmpleadosToast(options.toastContainer, comedorErrorMessage(err, "No se pudo crear el comedor."), "error");
     } finally {
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = "Guardar";
+      btnSubmitEl.disabled = false;
+      btnSubmitEl.textContent = "Guardar";
     }
   });
 
@@ -171,18 +174,18 @@ export function mountComedorCrearComedorModal(
     if (
       t.closest("[data-comedor-crear-comedor-cerrar]") ||
       t.closest("[data-comedor-crear-comedor-cancelar]") ||
-      ev.target === overlay
+      ev.target === overlayEl
     ) {
       close();
     }
   };
-  overlay.addEventListener("click", onCloseClick);
+  overlayEl.addEventListener("click", onCloseClick);
 
   return {
     open,
     close,
     destroy: () => {
-      overlay.removeEventListener("click", onCloseClick);
+      overlayEl.removeEventListener("click", onCloseClick);
       close();
       host.innerHTML = "";
     },

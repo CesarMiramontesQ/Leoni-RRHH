@@ -107,6 +107,29 @@ export async function crearComedor(payload: {
   return (await res.json()) as ComedorApiItem;
 }
 
+export async function editarComedor(
+  comedorId: number,
+  payload: {
+    nombre: string;
+    ubicacion: string | null;
+    capacidad: number | null;
+    activo: boolean;
+  },
+): Promise<ComedorApiItem> {
+  const res = await fetchWithAuth(`/api/v1/comedor/comedores/${comedorId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      nombre: payload.nombre,
+      ubicacion: payload.ubicacion,
+      capacidad: payload.capacidad,
+      activo: payload.activo,
+    }),
+  });
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorApiItem;
+}
+
 export async function getComedorMenuSemana(
   comedorId: number,
   semanaIso: string,

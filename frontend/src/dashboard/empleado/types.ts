@@ -17,7 +17,7 @@ export type EmpleadoSolicitudCalendarioEvento = {
 };
 
 export type EmpleadoCalendarDayEntry = {
-  meal?: boolean;
+  meal?: boolean | string;
   vacation?: boolean;
   home_office?: boolean;
   /** Solicitudes propias (pendiente / aprobada), solo dashboard empleado. */

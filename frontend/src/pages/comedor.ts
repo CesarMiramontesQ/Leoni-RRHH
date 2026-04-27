@@ -9,6 +9,8 @@ import {
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
 import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
+import { mountComedorEditarComedorModal } from "../components/comedor/comedorEditarComedorModal.ts";
+import { renderComedorGestionAdmin } from "../components/comedor/comedorGestionAdmin.ts";
 import { mountComedorNewRequestModal } from "../components/comedor/comedorNewRequestModal.ts";
 import {
   addYearsToIsoString,
@@ -67,6 +69,7 @@ import {
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { mountDashboardPlaceholder } from "./dashboard.ts";
 import { mountComedorStub } from "./shellModuleStubs.ts";
 import type {
   ReporteComedorDatePreset,
@@ -201,6 +204,12 @@ type ReporteComedorState = ReporteComedorViewState;
 function toReporteViewState(state: ReporteComedorState): ReporteComedorViewState {
   return { ...state };
 }
+
+type ComedorGestionAdminState = {
+  panelState: "loading" | "ready" | "empty" | "error";
+  items: Awaited<ReturnType<typeof getComedoresActivos>>;
+  errorMessage: string | null;
+};
 
 function emptyCalendarMonth(year: number, monthIndex: number): ComedorCalendarMonth {
   return {
@@ -355,14 +364,44 @@ function startOfWeekIsoFromDateIso(dateIso: string): string {
   return dateToIso(mondayOf(isoToDate(dateIso)));
 }
 
-function weekStartsForMonth(year: number, monthIndex: number): string[] {
-  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+function weekStartsForVisibleRange(year: number, monthIndex: number): string[] {
+  const { start, end } = calendarVisibleDateRange(year, monthIndex);
   const unique = new Set<string>();
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const iso = dateToIso(new Date(year, monthIndex, day));
-    unique.add(startOfWeekIsoFromDateIso(iso));
+  for (let cursor = new Date(start); cursor <= end; cursor = addDays(cursor, 1)) {
+    unique.add(startOfWeekIsoFromDateIso(dateToIso(cursor)));
   }
   return Array.from(unique.values()).sort((a, b) => a.localeCompare(b));
+}
+
+function calendarVisibleDateRange(year: number, monthIndex: number): {
+  start: Date;
+  end: Date;
+  startIso: string;
+  endIso: string;
+} {
+  const first = new Date(year, monthIndex, 1);
+  const firstWeekday = (first.getDay() + 6) % 7;
+  const start = new Date(year, monthIndex, 1 - firstWeekday);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 41);
+  return {
+    start,
+    end,
+    startIso: dateToIso(start),
+    endIso: dateToIso(end),
+  };
+}
+
+function monthsCoveredByVisibleRange(year: number, monthIndex: number): Array<{ year: number; month: number }> {
+  const { start, end } = calendarVisibleDateRange(year, monthIndex);
+  const out: Array<{ year: number; month: number }> = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cursor <= last) {
+    out.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return out;
 }
 
 function mapMenusToCalendarMonth(
@@ -370,6 +409,7 @@ function mapMenusToCalendarMonth(
   monthIndex: number,
   menusByWeek: Record<string, MenuSemanalApiItem[]>,
 ): ComedorCalendarMonth {
+  const visible = calendarVisibleDateRange(year, monthIndex);
   const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
 
   for (const [weekStartIso, menus] of Object.entries(menusByWeek)) {
@@ -378,7 +418,7 @@ function mapMenusToCalendarMonth(
       const dayIndex = DIA_TO_INDEX[normalizeDayLabel(menu.dia)];
       if (dayIndex == null) continue;
       const dayDate = addDays(monday, dayIndex);
-      if (dayDate.getFullYear() !== year || dayDate.getMonth() !== monthIndex) continue;
+      if (dayDate < visible.start || dayDate > visible.end) continue;
       const iso = dateToIso(dayDate);
       const tipo = normalizeDayLabel(menu.tipo);
       const tone = tipo.includes("diet") ? "dieta" : "normal";
@@ -414,10 +454,11 @@ function mapReservasEmpleadoToCalendarMonth(
   monthIndex: number,
   items: ComedorMisReservaApiItem[],
 ): ComedorCalendarMonth {
+  const visible = calendarVisibleDateRange(year, monthIndex);
   const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
   for (const r of items) {
     const dayDate = isoToDate(r.fecha_servicio);
-    if (dayDate.getFullYear() !== year || dayDate.getMonth() !== monthIndex) continue;
+    if (dayDate < visible.start || dayDate > visible.end) continue;
     const iso = dateToIso(dayDate);
     if (!dayMetrics[iso]) {
       dayMetrics[iso] = { isoDate: iso, reservas: 0, tags: [] };
@@ -443,10 +484,11 @@ function mapReservasEquipoToCalendarMonth(
   items: Awaited<ReturnType<typeof getComedorEquipoReservasMes>>,
   currentUserId: number | null,
 ): ComedorCalendarMonth {
+  const visible = calendarVisibleDateRange(year, monthIndex);
   const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
   for (const r of items) {
     const dayDate = isoToDate(r.fecha_servicio);
-    if (dayDate.getFullYear() !== year || dayDate.getMonth() !== monthIndex) continue;
+    if (dayDate < visible.start || dayDate > visible.end) continue;
     const iso = dateToIso(dayDate);
     if (!dayMetrics[iso]) {
       dayMetrics[iso] = { isoDate: iso, reservas: 0, tags: [] };
@@ -759,6 +801,102 @@ async function searchComedorEmployeesFromDb(query: string): Promise<readonly Com
   }));
 }
 
+function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): void {
+  const state: ComedorGestionAdminState = {
+    panelState: "loading",
+    items: [],
+    errorMessage: null,
+  };
+
+  function paint(): void {
+    const root = container.querySelector<HTMLElement>("#comedor-admin-root");
+    if (!root) return;
+    root.innerHTML = renderComedorGestionAdmin(state);
+  }
+
+  async function loadComedores(): Promise<void> {
+    state.panelState = "loading";
+    state.errorMessage = null;
+    paint();
+    try {
+      const rows = await getComedoresActivos();
+      if (signal.aborted) return;
+      state.items = rows;
+      state.panelState = rows.length > 0 ? "ready" : "empty";
+    } catch (error) {
+      if (signal.aborted) return;
+      state.items = [];
+      state.panelState = "error";
+      state.errorMessage = error instanceof Error ? error.message : "Error al cargar comedores.";
+    }
+    paint();
+  }
+
+  mountAppShell(container, {
+    pageTitle: "Gestión de comedores",
+    activeNav: "comedor",
+    mainClass: "py-5 sm:py-6",
+    mainHtml: `<div id="comedor-admin-root">${renderComedorGestionAdmin(state)}</div><div id="comedor-admin-crear-host"></div><div id="comedor-admin-editar-host"></div>`,
+  });
+
+  const root = container.querySelector<HTMLElement>("#comedor-admin-root");
+  const crearHost = container.querySelector<HTMLElement>("#comedor-admin-crear-host");
+  const editarHost = container.querySelector<HTMLElement>("#comedor-admin-editar-host");
+  const crearModal =
+    crearHost ?
+      mountComedorCrearComedorModal(crearHost, {
+        toastContainer: container,
+        onCreated: async () => {
+          await loadComedores();
+        },
+      })
+    : null;
+  const editarModal =
+    editarHost ?
+      mountComedorEditarComedorModal(editarHost, {
+        toastContainer: container,
+        onUpdated: async () => {
+          await loadComedores();
+        },
+      })
+    : null;
+
+  root?.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-comedor-admin-back]")) {
+        window.location.hash = "#/comedor";
+        return;
+      }
+      if (target.closest("[data-comedor-admin-add]")) {
+        crearModal?.open();
+        return;
+      }
+      if (target.closest("[data-comedor-admin-retry]")) {
+        void loadComedores();
+        return;
+      }
+      const editBtn = target.closest<HTMLButtonElement>("[data-comedor-admin-edit-id]");
+      if (editBtn) {
+        const comedorId = Number.parseInt(editBtn.getAttribute("data-comedor-admin-edit-id") ?? "", 10);
+        if (!Number.isFinite(comedorId)) return;
+        const comedor = state.items.find((item) => item.id === comedorId);
+        if (!comedor) return;
+        editarModal?.open(comedor);
+      }
+    },
+    { signal },
+  );
+
+  signal.addEventListener("abort", () => {
+    crearModal?.destroy();
+    editarModal?.destroy();
+  });
+
+  void loadComedores();
+}
+
 function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
   const comedorIdResolver = createComedorIdResolver();
@@ -783,6 +921,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     year: now.getFullYear(),
     monthIndex: now.getMonth(),
   };
+  let calendarRequestVersion = 0;
 
   function paint(): void {
     const root = container.querySelector<HTMLElement>("#comedor-rh-root");
@@ -821,6 +960,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   }
 
   async function loadCalendar(): Promise<void> {
+    const requestVersion = ++calendarRequestVersion;
     state.calendarState = "loading";
     state.calendarError = null;
     paint();
@@ -832,16 +972,16 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         paint();
         return;
       }
-      const weeks = weekStartsForMonth(state.year, state.monthIndex);
+      const weeks = weekStartsForVisibleRange(state.year, state.monthIndex);
       const menus = await Promise.all(
         weeks.map(async (weekStartIso) => [weekStartIso, await getComedorMenuSemana(comedorId, weekStartIso)] as const),
       );
+      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
       const month = mapMenusToCalendarMonth(state.year, state.monthIndex, Object.fromEntries(menus));
-      if (signal.aborted) return;
       state.calendar = month;
       state.calendarState = "ready";
     } catch (error) {
-      if (signal.aborted) return;
+      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
       state.calendar = null;
       state.calendarState = "error";
       state.calendarError = error instanceof Error ? error.message : "Error al cargar calendario.";
@@ -939,6 +1079,10 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     "click",
     (event) => {
       const target = event.target as HTMLElement;
+      if (target.closest("[data-comedor-gestionar]")) {
+        window.location.hash = "#/comedor/gestion";
+        return;
+      }
       if (target.closest("[data-comedor-planear]")) {
         window.location.hash = "#/comedor/planear";
         return;
@@ -1498,6 +1642,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     year: now.getFullYear(),
     monthIndex: now.getMonth(),
   };
+  let calendarRequestVersion = 0;
 
   function paint(): void {
     const root = container.querySelector<HTMLElement>("#comedor-lider-root");
@@ -1506,17 +1651,23 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   }
 
   async function loadCalendar(): Promise<void> {
+    const requestVersion = ++calendarRequestVersion;
     state.calendarState = "loading";
     state.calendarError = null;
     paint();
     try {
-      const reservas = await getComedorEquipoReservasMes(state.year, state.monthIndex + 1);
-      const month = mapReservasEquipoToCalendarMonth(state.year, state.monthIndex, reservas, currentUserId);
-      if (signal.aborted) return;
+      const monthsToLoad = monthsCoveredByVisibleRange(state.year, state.monthIndex);
+      const reservasPorMes = await Promise.all(
+        monthsToLoad.map(({ year, month }) => getComedorEquipoReservasMes(year, month)),
+      );
+      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
+      const reservas = reservasPorMes.flat();
+      const reservasUnicas = Array.from(new Map(reservas.map((item) => [item.id, item])).values());
+      const month = mapReservasEquipoToCalendarMonth(state.year, state.monthIndex, reservasUnicas, currentUserId);
       state.calendar = month;
       state.calendarState = "ready";
     } catch (error) {
-      if (signal.aborted) return;
+      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
       state.calendar = null;
       state.calendarState = "error";
       state.calendarError = error instanceof Error ? error.message : "Error al cargar calendario.";
@@ -1832,6 +1983,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     year: now.getFullYear(),
     monthIndex: now.getMonth(),
   };
+  let calendarRequestVersion = 0;
 
   function paint(): void {
     const root = container.querySelector<HTMLElement>("#comedor-empleado-root");
@@ -1840,6 +1992,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
   }
 
   async function loadCalendar(): Promise<void> {
+    const requestVersion = ++calendarRequestVersion;
     state.calendarState = "loading";
     state.calendarError = null;
     paint();
@@ -1851,12 +2004,17 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
         paint();
         return;
       }
-      const reservas = await getComedorMisReservasMes(state.year, state.monthIndex + 1);
-      if (signal.aborted) return;
-      state.calendar = mapReservasEmpleadoToCalendarMonth(state.year, state.monthIndex, reservas);
+      const monthsToLoad = monthsCoveredByVisibleRange(state.year, state.monthIndex);
+      const reservasPorMes = await Promise.all(
+        monthsToLoad.map(({ year, month }) => getComedorMisReservasMes(year, month)),
+      );
+      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
+      const reservas = reservasPorMes.flat();
+      const reservasUnicas = Array.from(new Map(reservas.map((item) => [item.id, item])).values());
+      state.calendar = mapReservasEmpleadoToCalendarMonth(state.year, state.monthIndex, reservasUnicas);
       state.calendarState = "ready";
     } catch (error) {
-      if (signal.aborted) return;
+      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
       state.calendar = null;
       state.calendarState = "error";
       state.calendarError = isComedorApiError(error)
@@ -2429,6 +2587,17 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
 
 export function mountComedor(container: HTMLElement, signal: AbortSignal): void {
   const hash = window.location.hash || "#/comedor";
+  const isGestionRoute = hash.startsWith("#/comedor/gestion");
+  if (isGestionRoute) {
+    if (canAccessComedorRhPage()) {
+      mountComedorGestionAdmin(container, signal);
+      return;
+    }
+    history.replaceState(null, "", "#/");
+    mountDashboardPlaceholder(container);
+    return;
+  }
+
   const isPlannerRoute = hash.startsWith("#/comedor/planear");
   if (isPlannerRoute) {
     if (canAccessComedorRhPage()) {

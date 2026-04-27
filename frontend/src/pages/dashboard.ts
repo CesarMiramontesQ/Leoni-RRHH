@@ -168,20 +168,25 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   const root = container.querySelector<HTMLElement>("#empleado-dashboard-root");
   if (!root) return;
 
+  const now = new Date();
   let raw = null;
   try {
-    raw = await fetchEmpleadoDashboard().catch(() => null);
+    raw = await fetchEmpleadoDashboard({
+      year: now.getFullYear(),
+      monthIndex: now.getMonth(),
+    }).catch(() => null);
   } catch {
     raw = null;
   }
   const payload = raw ?? emptyEmpleadoDashboardPayload(new Date());
   const cal = payload.calendar;
-  const now = new Date();
   const calYear = cal.initial_year ?? now.getFullYear();
   const calMonth = cal.initial_month_index ?? now.getMonth();
 
   root.innerHTML = renderEmpleadoPersonalDashboard(calYear, calMonth, payload);
-  bindEmpleadoCalendarNavigation(container, payload, calYear, calMonth);
+  bindEmpleadoCalendarNavigation(container, payload, calYear, calMonth, {
+    loadMonthData: async (target) => fetchEmpleadoDashboard(target).catch(() => null),
+  });
 }
 
 function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
@@ -198,20 +203,25 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   const root = container.querySelector<HTMLElement>("#lider-dashboard-root");
   if (!root) return;
 
+  const now = new Date();
   let raw = null;
   try {
-    raw = await fetchLiderDashboard().catch(() => null);
+    raw = await fetchLiderDashboard({
+      year: now.getFullYear(),
+      monthIndex: now.getMonth(),
+    }).catch(() => null);
   } catch {
     raw = null;
   }
   const payload = raw ?? emptyLiderDashboardPayload(new Date());
   const cal = payload.team_calendar;
-  const now = new Date();
   const calYear = cal.initial_year ?? now.getFullYear();
   const calMonth = cal.initial_month_index ?? now.getMonth();
 
   root.innerHTML = renderLiderTeamDashboard(calYear, calMonth, payload);
-  bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth);
+  bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth, {
+    loadMonthData: async (target) => fetchLiderDashboard(target).catch(() => null),
+  });
 }
 
 function mountLiderTeamDashboardShell(container: HTMLElement): void {

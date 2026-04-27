@@ -632,7 +632,8 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     const panel = panelEl();
     if (!panel) return;
     const activeSearch = container.querySelector<HTMLInputElement>("#emp-search");
-    const shouldRestoreSearch = preserveSearchFocus && activeSearch === document.activeElement;
+    const shouldRestoreSearch =
+      preserveSearchFocus && activeSearch instanceof HTMLInputElement && activeSearch === document.activeElement;
     const searchSelectionStart = shouldRestoreSearch ? activeSearch.selectionStart : null;
     const searchSelectionEnd = shouldRestoreSearch ? activeSearch.selectionEnd : null;
     const requestId = ++latestLoadRequestId;
