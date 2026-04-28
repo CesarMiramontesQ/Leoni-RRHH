@@ -27,6 +27,7 @@ import {
   getComedorMisReservasMes,
   getComedorEquipoProximasReservas,
   getComedorEquipoReservasMes,
+  getComedorEquipoMetricas,
   getComedorEquipoBeneficiarios,
   getComedorPrimeraFechaReserva,
   getComedorProyecciones,
@@ -596,6 +597,41 @@ function mapEstadisticasToRhKpis(
         estadisticas.total_registros > 0
           ? Math.round((estadisticas.dieta / estadisticas.total_registros) * 100)
           : 0,
+    },
+  ];
+}
+
+function mapMetricasLiderToKpis(metricas: Awaited<ReturnType<typeof getComedorEquipoMetricas>>): readonly ComedorKpi[] {
+  return [
+    {
+      id: "semana_actual_total",
+      titulo: "Comidas semana actual",
+      valor: String(metricas.semana_actual_total ?? 0),
+      descripcion: "Reservas activas y confirmadas (lunes a domingo).",
+      accentClass: "border-t-leoni-blue",
+    },
+    {
+      id: "semana_proxima_total",
+      titulo: "Comidas semana próxima",
+      valor: String(metricas.semana_proxima_total ?? 0),
+      descripcion: "Reservas activas y confirmadas para la próxima semana.",
+      accentClass: "border-t-sky-500",
+    },
+    {
+      id: "porcentaje_caseras",
+      titulo: "% Comidas caseras",
+      valor: `${metricas.porcentaje_caseras ?? 0}%`,
+      descripcion: `Sobre ${metricas.total_activas ?? 0} reservas activas/confirmadas.`,
+      accentClass: "border-t-emerald-500",
+      progressPercent: metricas.porcentaje_caseras ?? 0,
+    },
+    {
+      id: "porcentaje_saludables",
+      titulo: "% Comidas saludables",
+      valor: `${metricas.porcentaje_saludables ?? 0}%`,
+      descripcion: `Sobre ${metricas.total_activas ?? 0} reservas activas/confirmadas.`,
+      accentClass: "border-t-violet-500",
+      progressPercent: metricas.porcentaje_saludables ?? 0,
     },
   ];
 }
@@ -1683,19 +1719,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.statsError = null;
     paint();
     try {
-      const comedorId = await resolveComedorId();
-      if (comedorId == null) {
-        state.stats = [];
-        state.statsState = "empty";
-        paint();
-        return;
-      }
-      const [comedores, estadisticas] = await Promise.all([
-        getComedoresActivos(),
-        getComedorEstadisticas(getCurrentWeekStartIso()),
-      ]);
-      const capacidad = comedores.find((c) => c.id === comedorId)?.capacidad ?? null;
-      const rows = mapEstadisticasToRhKpis(estadisticas, capacidad).slice(0, 2);
+      const rows = mapMetricasLiderToKpis(await getComedorEquipoMetricas());
       if (signal.aborted) return;
       state.stats = rows;
       state.statsState = rows.length > 0 ? "ready" : "empty";

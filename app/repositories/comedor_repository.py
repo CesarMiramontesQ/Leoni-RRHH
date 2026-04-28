@@ -5,7 +5,7 @@ Repositorio de Comedor: menus semanales, registros de seleccion y validacion de 
 
 from datetime import date
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, case, delete, func, select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -330,6 +330,90 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             )
         )
         return list(result.scalars().all())
+
+    async def get_metricas_reservas_activas_equipo(
+        self,
+        empleado_ids: list[int],
+        semana_actual_inicio: date,
+        semana_actual_fin: date,
+        semana_siguiente_inicio: date,
+        semana_siguiente_fin: date,
+    ) -> dict[str, int]:
+        if not empleado_ids:
+            return {
+                "total_semana_actual": 0,
+                "total_semana_siguiente": 0,
+                "total_activas": 0,
+                "total_caseras": 0,
+                "total_saludables": 0,
+            }
+
+        estado_activo = (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+        stmt = (
+            select(
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                and_(
+                                    ComedorAcceso.fecha_servicio >= semana_actual_inicio,
+                                    ComedorAcceso.fecha_servicio <= semana_actual_fin,
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("total_semana_actual"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                and_(
+                                    ComedorAcceso.fecha_servicio >= semana_siguiente_inicio,
+                                    ComedorAcceso.fecha_servicio <= semana_siguiente_fin,
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("total_semana_siguiente"),
+                func.coalesce(func.count(ComedorAcceso.id), 0).label("total_activas"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (ComedorAcceso.tipo_comida == ComedorTipoComida.casera, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("total_caseras"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (ComedorAcceso.tipo_comida == ComedorTipoComida.saludable, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("total_saludables"),
+            )
+            .where(
+                ComedorAcceso.empleado_id.in_(empleado_ids),
+                ComedorAcceso.estado_acceso.in_(estado_activo),
+            )
+        )
+        row = (await self.db.execute(stmt)).one()
+        return {
+            "total_semana_actual": int(row.total_semana_actual or 0),
+            "total_semana_siguiente": int(row.total_semana_siguiente or 0),
+            "total_activas": int(row.total_activas or 0),
+            "total_caseras": int(row.total_caseras or 0),
+            "total_saludables": int(row.total_saludables or 0),
+        }
 
     async def get_by_id_empleado(
         self,

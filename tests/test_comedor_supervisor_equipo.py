@@ -8,6 +8,7 @@ from tests.conftest import auth_headers, make_empleado
 PROXIMAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/mis-proximas-reservas"
 RESERVAS_EQUIPO_MES_URL = "/api/v1/comedor/accesos/equipo/mis-reservas"
 BENEFICIARIOS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/beneficiarios"
+METRICAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/metricas"
 RESERVAR_URL = "/api/v1/comedor/accesos/reservar"
 EDITAR_ACCESO_URL = "/api/v1/comedor/accesos/{acceso_id}"
 
@@ -367,3 +368,106 @@ async def test_supervisor_ve_sus_reservas_y_puede_editar_solo_las_propias(client
         headers=headers,
     )
     assert r_edit_other.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_supervisor_metricas_dashboard(client: AsyncClient, db, monkeypatch):
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(cs, "business_today", lambda: date(2026, 4, 23))  # jueves
+    comedor = Comedor(nombre="Comedor metricas", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    supervisor = await make_empleado(
+        db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_metricas@test.leoni", password="SupMetricas1!"
+    )
+    sub = await make_empleado(
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.id, email="sub_metricas@test.leoni", password="SubMetricas1!"
+    )
+    externo = await make_empleado(
+        db, rol="empleado", nombre="FUERA, SCOPE", email="ext_metricas@test.leoni", password="ExtMetricas1!"
+    )
+
+    reg_sup = ComedorRegistro(
+        empleado_id=supervisor.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 20),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    reg_sub = ComedorRegistro(
+        empleado_id=sub.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 20),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    reg_ext = ComedorRegistro(
+        empleado_id=externo.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 20),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add_all([reg_sup, reg_sub, reg_ext])
+    await db.flush()
+
+    db.add_all(
+        [
+            # Semana actual (2026-04-20..2026-04-26) dentro del scope
+            ComedorAcceso(
+                empleado_id=supervisor.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg_sup.id,
+                fecha_servicio=date(2026, 4, 23),
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.PENDIENTE,
+            ),
+            # Semana próxima (2026-04-27..2026-05-03) dentro del scope
+            ComedorAcceso(
+                empleado_id=sub.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg_sub.id,
+                fecha_servicio=date(2026, 4, 28),
+                tipo_comida=ComedorTipoComida.saludable,
+                estado_acceso=ComedorAccesoEstado.ACCEDIDO,
+            ),
+            # Expirada (no debe contar)
+            ComedorAcceso(
+                empleado_id=sub.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg_sub.id,
+                fecha_servicio=date(2026, 4, 29),
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.EXPIRADO,
+            ),
+            # Fuera del scope (no subordinado)
+            ComedorAcceso(
+                empleado_id=externo.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg_ext.id,
+                fecha_servicio=date(2026, 4, 28),
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.PENDIENTE,
+            ),
+        ]
+    )
+    await db.flush()
+
+    headers = await auth_headers(client, supervisor, password="SupMetricas1!")
+    r = await client.get(METRICAS_EQUIPO_URL, headers=headers)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["semana_actual_total"] == 1
+    assert data["semana_proxima_total"] == 1
+    assert data["total_activas"] == 2
+    assert data["porcentaje_caseras"] == 50
+    assert data["porcentaje_saludables"] == 50

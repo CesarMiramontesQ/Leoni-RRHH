@@ -443,6 +443,46 @@ class ComedorService:
             for row in rows
         ]
 
+    async def get_equipo_metricas_dashboard(
+        self,
+        current_user: Empleado,
+    ) -> dict[str, int]:
+        if self._get_rol(current_user) not in ("supervisor", "gerente"):
+            raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar métricas de equipo")
+        hoy = business_today()
+        inicio_semana_actual = hoy - timedelta(days=hoy.weekday())
+        fin_semana_actual = inicio_semana_actual + timedelta(days=6)
+        inicio_semana_siguiente = inicio_semana_actual + timedelta(days=7)
+        fin_semana_siguiente = inicio_semana_siguiente + timedelta(days=6)
+
+        equipo_ids = await self.empleado_repo.get_ids_subarbol(
+            current_user.id,
+            settings.ESTADOS_ACTIVOS_IDS,
+        )
+        equipo_ids.add(current_user.id)
+        metricas = await self.acceso_repo.get_metricas_reservas_activas_equipo(
+            empleado_ids=list(equipo_ids),
+            semana_actual_inicio=inicio_semana_actual,
+            semana_actual_fin=fin_semana_actual,
+            semana_siguiente_inicio=inicio_semana_siguiente,
+            semana_siguiente_fin=fin_semana_siguiente,
+        )
+        total_activas = metricas["total_activas"]
+        if total_activas <= 0:
+            porcentaje_caseras = 0
+            porcentaje_saludables = 0
+        else:
+            porcentaje_caseras = round((metricas["total_caseras"] / total_activas) * 100)
+            porcentaje_saludables = round((metricas["total_saludables"] / total_activas) * 100)
+
+        return {
+            "semana_actual_total": metricas["total_semana_actual"],
+            "semana_proxima_total": metricas["total_semana_siguiente"],
+            "porcentaje_caseras": int(porcentaje_caseras),
+            "porcentaje_saludables": int(porcentaje_saludables),
+            "total_activas": total_activas,
+        }
+
     async def reservar_acceso_dia(
         self,
         data: ComedorAccesoReservaCreate,

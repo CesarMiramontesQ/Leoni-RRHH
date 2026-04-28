@@ -220,6 +220,14 @@ export type ComedorEquipoBeneficiarioApiItem = {
   nombre_corto: string;
 };
 
+export type ComedorEquipoMetricasApi = {
+  semana_actual_total: number;
+  semana_proxima_total: number;
+  porcentaje_caseras: number;
+  porcentaje_saludables: number;
+  total_activas: number;
+};
+
 export type ComedorPrimeraFechaApi = {
   fecha_iso: string;
 };
@@ -287,6 +295,12 @@ export async function getComedorEquipoBeneficiarios(): Promise<ComedorEquipoBene
   const res = await fetchWithAuth("/api/v1/comedor/accesos/equipo/beneficiarios");
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorEquipoBeneficiarioApiItem[];
+}
+
+export async function getComedorEquipoMetricas(): Promise<ComedorEquipoMetricasApi> {
+  const res = await fetchWithAuth("/api/v1/comedor/accesos/equipo/metricas");
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorEquipoMetricasApi;
 }
 
 export async function reservarComedorAcceso(payload: {

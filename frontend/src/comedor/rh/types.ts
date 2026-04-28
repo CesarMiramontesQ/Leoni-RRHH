@@ -1,7 +1,7 @@
 export type ComedorPanelState = "loading" | "ready" | "empty" | "error";
 
 export type ComedorKpi = {
-  id: "reservas_hoy" | "capacidad_total" | "ocupacion_actual" | "dietas_especiales";
+  id: string;
   titulo: string;
   valor: string;
   descripcion: string;

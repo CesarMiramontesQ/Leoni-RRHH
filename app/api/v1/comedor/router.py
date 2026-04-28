@@ -234,6 +234,16 @@ async def equipo_reservas_mes_comedor(
     )
 
 
+@router.get("/accesos/equipo/metricas")
+async def equipo_metricas_comedor(
+    current_user: Empleado = Depends(role_checker(["supervisor", "gerente"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tarjetas de métricas para dashboard de supervisor/gerente."""
+    service = ComedorService(db)
+    return await service.get_equipo_metricas_dashboard(current_user=current_user)
+
+
 @router.post(
     "/accesos/reservar",
     response_model=ComedorAccesoReservaResponse | list[ComedorAccesoReservaResponse],
