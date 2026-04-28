@@ -30,3 +30,47 @@
 - Nunca incluir secretos ni credenciales en commits.
 - No usar comandos destructivos (`reset --hard`, `checkout --`) sin aprobacion del usuario.
 - Crear commits solo cuando el usuario lo solicite de forma explicita.
+
+## Flujo de trabajo Git (OBLIGATORIO)
+
+### NUNCA push directo a main
+- `main` es rama protegida. Todo cambio entra via Pull Request.
+- Si se detecta que estamos en main, advertir y crear rama antes de commitear.
+
+### Ramas — una por feature/fix
+- Naming: `tipo/iniciales/descripcion-corta`
+  - `feat/af/descripcion-corta`
+  - `fix/af/descripcion-corta`
+  - `refactor/af/descripcion-corta`
+  - `docs/af/descripcion-corta`
+  - `chore/af/descripcion-corta`
+
+### Commits — Conventional Commits + iniciales
+- Formato: `tipo(scope): descripcion [XX]` donde XX son las iniciales del autor.
+- Ejemplos:
+  - `feat(comedor): agregar reservas por equipo [AF]`
+  - `fix(auth): corregir expiracion de JWT [AF]`
+- Commits pequenos y atomicos; un commit por cambio logico.
+
+### Pull Requests
+- Siempre crear PR para mergear a main.
+- Describir que se hizo y como probarlo.
+
+### Mantener ramas al dia
+- Antes de trabajar: `git pull origin main`.
+- Si la rama se quedo atras de main, hacer rebase:
+  ```
+  git fetch origin
+  git rebase origin/main
+  ```
+- Resolver conflictos durante el rebase, no dejarlos para el PR.
+
+### Flujo resumido
+```
+1. git checkout main && git pull origin main
+2. git checkout -b feat/af/mi-feature
+3. Hacer cambios, commits con convencion
+4. git push -u origin feat/af/mi-feature
+5. Crear Pull Request -> revision -> merge
+6. Volver a main y repetir
+```
