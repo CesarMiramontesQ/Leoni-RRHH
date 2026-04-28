@@ -291,7 +291,7 @@ export async function getComedorEquipoBeneficiarios(): Promise<ComedorEquipoBene
 
 export async function reservarComedorAcceso(payload: {
   comedorId: number;
-  fechaIso: string;
+  fechasIso: string[];
   tipoComida: string;
   targetUserId?: number;
 }): Promise<void> {
@@ -300,7 +300,7 @@ export async function reservarComedorAcceso(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       comedor_id: payload.comedorId,
-      fecha_servicio: payload.fechaIso,
+      fechas_servicio: payload.fechasIso,
       tipo_comida: payload.tipoComida,
       target_user_id: payload.targetUserId ?? null,
     }),

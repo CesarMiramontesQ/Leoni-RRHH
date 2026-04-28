@@ -448,18 +448,30 @@ class ComedorService:
         data: ComedorAccesoReservaCreate,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
-    ) -> ComedorAccesoReservaResponse:
+    ) -> list[ComedorAccesoReservaResponse]:
         beneficiario_id = await self._resolver_beneficiario_reserva(
             current_user=current_user,
             target_user_id=data.target_user_id,
         )
 
+        fechas = list(data.fechas_servicio or [])
+        if data.fecha_servicio is not None:
+            fechas.append(data.fecha_servicio)
+        fechas = sorted(set(fechas))
+        if not fechas:
+            raise ConflictError(detail="Debes seleccionar al menos una fecha de servicio")
+
         hoy = business_today()
         primer_lunes = primer_lunes_reserva_comedor_permitido(hoy)
-        if data.fecha_servicio < primer_lunes:
-            raise ConflictError(
-                detail="Solo puedes agendar comidas a partir del lunes de la semana siguiente",
-            )
+        for fecha_servicio in fechas:
+            if fecha_servicio < primer_lunes:
+                raise ConflictError(
+                    detail="Solo puedes agendar comidas a partir del lunes de la semana siguiente",
+                )
+            if fecha_servicio.weekday() >= 5:
+                raise ConflictError(
+                    detail="No se permiten reservaciones de comedor en fines de semana",
+                )
 
         tipo_enum = ComedorTipoComida(data.tipo_comida)
 
@@ -467,32 +479,39 @@ class ComedorService:
         if not comedor:
             raise NotFoundError(entidad="Comedor", id=data.comedor_id)
 
-        inicio_semana = data.fecha_servicio - timedelta(days=data.fecha_servicio.weekday())
-        registro = await self.registro_repo.get_registro_semana_comedor(
-            empleado_id=beneficiario_id,
-            comedor_id=data.comedor_id,
-            semana=inicio_semana,
-        )
-        if not registro:
-            if self._get_rol(current_user) in ("supervisor", "gerente"):
-                registro = await self.registro_repo.create({
-                    "empleado_id": beneficiario_id,
-                    "comedor_id": data.comedor_id,
-                    "semana": inicio_semana,
-                    "tipo_platillo": "normal",
-                    "acceso_concedido": False,
-                })
-                await self.db.flush()
-            else:
-                raise ConflictError(
-                    detail="Primero debes registrar tu selección semanal para este comedor",
-                )
+        semanas = sorted({f - timedelta(days=f.weekday()) for f in fechas})
+        registros_por_semana: dict[date, object] = {}
+        for inicio_semana in semanas:
+            registro = await self.registro_repo.get_registro_semana_comedor(
+                empleado_id=beneficiario_id,
+                comedor_id=data.comedor_id,
+                semana=inicio_semana,
+            )
+            if not registro:
+                if self._get_rol(current_user) in ("supervisor", "gerente"):
+                    registro = await self.registro_repo.create({
+                        "empleado_id": beneficiario_id,
+                        "comedor_id": data.comedor_id,
+                        "semana": inicio_semana,
+                        "tipo_platillo": "normal",
+                        "acceso_concedido": False,
+                    })
+                    await self.db.flush()
+                else:
+                    raise ConflictError(
+                        detail="Primero debes registrar tu selección semanal para este comedor",
+                    )
+            registros_por_semana[inicio_semana] = registro
 
-        existente = await self.acceso_repo.get_acceso_por_empleado_y_fecha(
-            beneficiario_id,
-            data.fecha_servicio,
+        existentes = await self.acceso_repo.list_accesos_por_empleado_y_fechas(
+            empleado_id=beneficiario_id,
+            fechas_servicio=fechas,
         )
-        if existente:
+        existentes_por_fecha = {row.fecha_servicio: row for row in existentes}
+        for fecha_servicio in fechas:
+            existente = existentes_por_fecha.get(fecha_servicio)
+            if not existente:
+                continue
             if existente.estado_acceso in (
                 ComedorAccesoEstado.ACCEDIDO,
                 ComedorAccesoEstado.PENDIENTE,
@@ -510,7 +529,13 @@ class ComedorService:
                 raise ConflictError(
                     detail=detail,
                 )
-            if existente.estado_acceso == ComedorAccesoEstado.EXPIRADO:
+
+        reservados: list[ComedorAccesoReservaResponse] = []
+        for fecha_servicio in fechas:
+            inicio_semana = fecha_servicio - timedelta(days=fecha_servicio.weekday())
+            registro = registros_por_semana[inicio_semana]
+            existente = existentes_por_fecha.get(fecha_servicio)
+            if existente and existente.estado_acceso == ComedorAccesoEstado.EXPIRADO:
                 acc = await self.acceso_repo.update(
                     existente.id,
                     {
@@ -522,47 +547,50 @@ class ComedorService:
                     },
                 )
                 await self.db.flush()
-                audit_background(
-                    background_tasks,
-                    self.db,
-                    accion="COMEDOR_ACCESO_RESERVA",
-                    modulo="comedor",
-                    usuario_id=current_user.id,
-                    entidad_id=acc.id if acc else None,
-                    datos_despues={
-                        "reactivado": True,
-                        "beneficiario_id": beneficiario_id,
-                        "fecha_servicio": str(data.fecha_servicio),
-                        "tipo_comida": data.tipo_comida,
-                    },
-                )
-                return ComedorAccesoReservaResponse.model_validate(acc)
+                if acc:
+                    reservados.append(ComedorAccesoReservaResponse.model_validate(acc))
+                    audit_background(
+                        background_tasks,
+                        self.db,
+                        accion="COMEDOR_ACCESO_RESERVA",
+                        modulo="comedor",
+                        usuario_id=current_user.id,
+                        entidad_id=acc.id,
+                        datos_despues={
+                            "reactivado": True,
+                            "beneficiario_id": beneficiario_id,
+                            "fecha_servicio": str(fecha_servicio),
+                            "tipo_comida": data.tipo_comida,
+                        },
+                    )
+                continue
 
-        acceso = await self.acceso_repo.create({
-            "empleado_id": beneficiario_id,
-            "comedor_id": data.comedor_id,
-            "comedor_registro_id": registro.id,
-            "fecha_servicio": data.fecha_servicio,
-            "tipo_comida": tipo_enum,
-            "estado_acceso": ComedorAccesoEstado.PENDIENTE,
-        })
-        await self.db.flush()
-
-        audit_background(
-            background_tasks,
-            self.db,
-            accion="COMEDOR_ACCESO_RESERVA",
-            modulo="comedor",
-            usuario_id=current_user.id,
-            entidad_id=acceso.id,
-            datos_despues={
-                "beneficiario_id": beneficiario_id,
+            acceso = await self.acceso_repo.create({
+                "empleado_id": beneficiario_id,
                 "comedor_id": data.comedor_id,
-                "fecha_servicio": str(data.fecha_servicio),
-                "tipo_comida": data.tipo_comida,
-            },
-        )
-        return ComedorAccesoReservaResponse.model_validate(acceso)
+                "comedor_registro_id": registro.id,
+                "fecha_servicio": fecha_servicio,
+                "tipo_comida": tipo_enum,
+                "estado_acceso": ComedorAccesoEstado.PENDIENTE,
+            })
+            await self.db.flush()
+            reservados.append(ComedorAccesoReservaResponse.model_validate(acceso))
+            audit_background(
+                background_tasks,
+                self.db,
+                accion="COMEDOR_ACCESO_RESERVA",
+                modulo="comedor",
+                usuario_id=current_user.id,
+                entidad_id=acceso.id,
+                datos_despues={
+                    "beneficiario_id": beneficiario_id,
+                    "comedor_id": data.comedor_id,
+                    "fecha_servicio": str(fecha_servicio),
+                    "tipo_comida": data.tipo_comida,
+                },
+            )
+
+        return reservados
 
     async def editar_mi_reserva(
         self,

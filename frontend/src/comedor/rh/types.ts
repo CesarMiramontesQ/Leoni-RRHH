@@ -135,7 +135,7 @@ export type ComedorCreateRequestPayload = {
   employeeId: string | null;
   externalPeopleCount: number | null;
   menuId: string;
-  fecha: string;
+  fechas: string[];
   observaciones: string;
 };
 

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 ComedorTipoComidaLiteral = Literal["casera", "saludable"]
 
@@ -80,7 +80,14 @@ class HuellaValidarResponse(BaseModel):
 
 class ComedorAccesoReservaCreate(BaseModel):
     comedor_id: int
-    fecha_servicio: date
+    fecha_servicio: date | None = Field(
+        default=None,
+        description="Compatibilidad: fecha única de servicio.",
+    )
+    fechas_servicio: list[date] | None = Field(
+        default=None,
+        description="Fechas de servicio para reserva batch.",
+    )
     target_user_id: int | None = Field(
         default=None,
         description="Empleado beneficiario de la reserva (solo supervisor/gerente).",
@@ -89,6 +96,14 @@ class ComedorAccesoReservaCreate(BaseModel):
         ...,
         description="Opción de comedor: casera o saludable",
     )
+
+    @model_validator(mode="after")
+    def validate_fechas_payload(self) -> "ComedorAccesoReservaCreate":
+        if self.fecha_servicio is None and not self.fechas_servicio:
+            raise ValueError("Debes enviar fecha_servicio o fechas_servicio.")
+        if self.fechas_servicio is not None and len(self.fechas_servicio) == 0:
+            raise ValueError("fechas_servicio no puede ser un arreglo vacío.")
+        return self
 
 
 class ComedorAccesoReservaUpdate(BaseModel):

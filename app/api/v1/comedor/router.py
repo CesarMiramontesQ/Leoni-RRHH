@@ -234,7 +234,10 @@ async def equipo_reservas_mes_comedor(
     )
 
 
-@router.post("/accesos/reservar", response_model=ComedorAccesoReservaResponse)
+@router.post(
+    "/accesos/reservar",
+    response_model=ComedorAccesoReservaResponse | list[ComedorAccesoReservaResponse],
+)
 async def reservar_acceso_dia(
     body: ComedorAccesoReservaCreate,
     background_tasks: BackgroundTasks,
@@ -243,11 +246,12 @@ async def reservar_acceso_dia(
 ):
     """Pre-autorización por día y tipo de comida (empleado, supervisor y gerente)."""
     service = ComedorService(db)
-    return await service.reservar_acceso_dia(
+    reservas = await service.reservar_acceso_dia(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
     )
+    return reservas[0] if len(reservas) == 1 else reservas
 
 
 @router.put("/accesos/{acceso_id}", response_model=ComedorAccesoReservaResponse)

@@ -1065,11 +1065,13 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         },
         searchEmployees: searchComedorEmployeesFromDb,
         onSubmit: async (payload) => {
+          const firstDate = payload.fechas[0];
+          if (!firstDate) throw new Error("Selecciona al menos un día hábil.");
           const comedorId = await resolveComedorId();
           if (comedorId == null) throw new Error("No hay comedor activo configurado.");
           await registrarComedorSeleccion({
             comedorId,
-            semanaIso: startOfWeekIsoFromDateIso(payload.fecha),
+            semanaIso: startOfWeekIsoFromDateIso(firstDate),
             tipoPlatillo: payload.menuId,
           });
         },
@@ -1794,7 +1796,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           }
           await reservarComedorAcceso({
             comedorId,
-            fechaIso: payload.fecha,
+            fechasIso: payload.fechas,
             tipoComida: payload.menuId,
             targetUserId,
           });
@@ -2106,13 +2108,15 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           ],
           searchEmployees: async () => [],
           onSubmit: async (payload) => {
+            const firstDate = payload.fechas[0];
+            if (!firstDate) throw new Error("Selecciona al menos un día hábil.");
             const comedorId = await resolveComedorId();
             if (comedorId == null) throw new Error("No hay comedor activo configurado.");
-            const semanaIso = startOfWeekIsoFromDateIso(payload.fecha);
+            const semanaIso = startOfWeekIsoFromDateIso(firstDate);
             const intentarReserva = async () => {
               await reservarComedorAcceso({
                 comedorId,
-                fechaIso: payload.fecha,
+                fechasIso: payload.fechas,
                 tipoComida: payload.menuId,
               });
             };

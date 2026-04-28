@@ -161,6 +161,21 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         )
         return result.scalar_one_or_none()
 
+    async def list_accesos_por_empleado_y_fechas(
+        self,
+        empleado_id: int,
+        fechas_servicio: list[date],
+    ) -> list[ComedorAcceso]:
+        if not fechas_servicio:
+            return []
+        result = await self.db.execute(
+            select(ComedorAcceso).where(
+                ComedorAcceso.empleado_id == empleado_id,
+                ComedorAcceso.fecha_servicio.in_(fechas_servicio),
+            )
+        )
+        return list(result.scalars().all())
+
     async def list_fechas_reserva_activa(
         self,
         empleado_id: int,
