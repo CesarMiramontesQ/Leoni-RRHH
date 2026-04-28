@@ -1752,21 +1752,34 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     paint();
   }
 
-  mountAppShell(container, {
-    pageTitle: "Comedor",
-    activeNav: "comedor",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-lider-root">${renderComedorDashboardLider(toLiderViewState(state))}</div><div id="comedor-lider-new-request-modal-host"></div>`,
-  });
+  void (async () => {
+    let fechaMinReservaIso = primerLunesReservaComedorPermitidoIso();
+    try {
+      const ref = await getComedorPrimeraFechaReserva();
+      if (!signal.aborted && ref.fecha_iso?.trim()) {
+        fechaMinReservaIso = ref.fecha_iso.trim();
+      }
+    } catch {
+      /* fallback: cálculo local */
+    }
+    if (signal.aborted) return;
 
-  const root = container.querySelector<HTMLElement>("#comedor-lider-root");
-  const modalHost = container.querySelector<HTMLElement>("#comedor-lider-new-request-modal-host");
-  const newRequestModal =
-    modalHost ?
-      mountComedorNewRequestModal(modalHost, {
+    mountAppShell(container, {
+      pageTitle: "Comedor",
+      activeNav: "comedor",
+      mainClass: "py-5 sm:py-6",
+      mainHtml: `<div id="comedor-lider-root">${renderComedorDashboardLider(toLiderViewState(state))}</div><div id="comedor-lider-new-request-modal-host"></div>`,
+    });
+
+    const root = container.querySelector<HTMLElement>("#comedor-lider-root");
+    const modalHost = container.querySelector<HTMLElement>("#comedor-lider-new-request-modal-host");
+    const newRequestModal =
+      modalHost ?
+        mountComedorNewRequestModal(modalHost, {
         toastContainer: container,
         allowExternalPeople: false,
         allowEmployeeSearch: false,
+        fechaMinReservaIso,
         menuFieldLabel: "Tipo de comida",
         loadMenuOptions: async () => [
           { id: "casera", label: "Casera" },
@@ -1803,9 +1816,9 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           await Promise.all([loadCalendar(), loadTable()]);
         },
       })
-    : null;
-  let tableSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  root?.addEventListener(
+      : null;
+    let tableSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    root?.addEventListener(
     "click",
     (event) => {
       const target = event.target as HTMLElement;
@@ -1935,10 +1948,10 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         })();
       }
     },
-    { signal },
-  );
+      { signal },
+    );
 
-  root?.addEventListener(
+    root?.addEventListener(
     "input",
     (event) => {
       const input = (event.target as HTMLElement).closest<HTMLInputElement>("[data-comedor-search]");
@@ -1953,20 +1966,21 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         void loadTable();
       }, 220);
     },
-    { signal },
-  );
+      { signal },
+    );
 
-  signal.addEventListener("abort", () => {
-    if (tableSearchDebounceTimer != null) {
-      window.clearTimeout(tableSearchDebounceTimer);
-      tableSearchDebounceTimer = null;
-    }
-    newRequestModal?.destroy();
-  });
+    signal.addEventListener("abort", () => {
+      if (tableSearchDebounceTimer != null) {
+        window.clearTimeout(tableSearchDebounceTimer);
+        tableSearchDebounceTimer = null;
+      }
+      newRequestModal?.destroy();
+    });
 
-  void loadKpis();
-  void loadCalendar();
-  void loadTable();
+    void loadKpis();
+    void loadCalendar();
+    void loadTable();
+  })();
 }
 
 function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void {

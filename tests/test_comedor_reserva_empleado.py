@@ -86,7 +86,7 @@ async def test_reservar_rechaza_semana_actual_permite_siguiente(client: AsyncCli
         },
         headers=hdrs,
     )
-    assert r_bloque.status_code == 409
+    assert r_bloque.status_code == 403
 
     r_ok = await client.post(
         RESERVAR_URL,

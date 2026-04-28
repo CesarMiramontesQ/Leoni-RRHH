@@ -465,7 +465,7 @@ class ComedorService:
         primer_lunes = primer_lunes_reserva_comedor_permitido(hoy)
         for fecha_servicio in fechas:
             if fecha_servicio < primer_lunes:
-                raise ConflictError(
+                raise ForbiddenError(
                     detail="Solo puedes agendar comidas a partir del lunes de la semana siguiente",
                 )
             if fecha_servicio.weekday() >= 5:
