@@ -5,7 +5,7 @@ Repositorio de Comedor: menus semanales, registros de seleccion y validacion de 
 
 from datetime import date
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -234,6 +234,9 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
                 ComedorAcceso.empleado_id == empleado_id,
                 ComedorAcceso.fecha_servicio >= desde,
                 ComedorAcceso.fecha_servicio <= hasta,
+                ComedorAcceso.estado_acceso.in_(
+                    (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+                ),
             )
             .order_by(ComedorAcceso.fecha_servicio, ComedorAcceso.tipo_comida)
         )
@@ -344,8 +347,6 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         acceso_id: int,
         fecha_servicio: date,
     ) -> int:
-        from sqlalchemy import update
-
         stmt = (
             update(ComedorAcceso)
             .where(
@@ -356,6 +357,29 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             .values(
                 estado_acceso=ComedorAccesoEstado.ACCEDIDO,
                 hora_entrada=func.now(),
+            )
+        )
+        result = await self.db.execute(stmt)
+        await self.db.flush()
+        return result.rowcount
+
+    async def expirar_pendientes_en_rango_por_empleado(
+        self,
+        empleado_id: int,
+        desde: date,
+        hasta: date,
+    ) -> int:
+        stmt = (
+            update(ComedorAcceso)
+            .where(
+                ComedorAcceso.empleado_id == empleado_id,
+                ComedorAcceso.fecha_servicio >= desde,
+                ComedorAcceso.fecha_servicio <= hasta,
+                ComedorAcceso.estado_acceso == ComedorAccesoEstado.PENDIENTE,
+            )
+            .values(
+                estado_acceso=ComedorAccesoEstado.EXPIRADO,
+                hora_entrada=None,
             )
         )
         result = await self.db.execute(stmt)

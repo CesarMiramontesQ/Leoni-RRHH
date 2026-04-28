@@ -97,6 +97,7 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
     const comedorReservas = reservasPorMes
       .flat()
       .filter((reserva) => {
+        if (reserva.estado_acceso.trim().toUpperCase() === "EXPIRADO") return false;
         const iso = reserva.fecha_servicio.slice(0, 10);
         return iso >= rangeStartIso && iso <= rangeEndIso;
       });

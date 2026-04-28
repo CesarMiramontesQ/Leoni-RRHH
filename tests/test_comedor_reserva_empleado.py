@@ -212,6 +212,64 @@ async def test_mis_reservas_mes(client: AsyncClient, db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_mis_reservas_mes_excluye_expiradas(client: AsyncClient, db, monkeypatch):
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(cs, "business_today", lambda: date(2026, 4, 23))
+
+    comedor = Comedor(nombre="C exp", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    emp = await make_empleado(db, email="res_exp@test.leoni", password="SecretExp!")
+    reg = ComedorRegistro(
+        empleado_id=emp.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 27),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add(reg)
+    await db.flush()
+
+    db.add_all(
+        [
+            ComedorAcceso(
+                empleado_id=emp.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg.id,
+                fecha_servicio=date(2026, 4, 28),
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.PENDIENTE,
+            ),
+            ComedorAcceso(
+                empleado_id=emp.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg.id,
+                fecha_servicio=date(2026, 4, 29),
+                tipo_comida=ComedorTipoComida.saludable,
+                estado_acceso=ComedorAccesoEstado.EXPIRADO,
+            ),
+        ]
+    )
+    await db.flush()
+
+    hdrs = await auth_headers(client, emp, password="SecretExp!")
+    r = await client.get(f"{MIS_RESERVAS_URL}?anio=2026&mes=4", headers=hdrs)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert [row["fecha_servicio"] for row in data] == ["2026-04-28"]
+    assert all(row["estado_acceso"] != "EXPIRADO" for row in data)
+
+
+@pytest.mark.asyncio
 async def test_mis_fechas_ocupadas_incluye_reserva_activa(client: AsyncClient, db, monkeypatch):
     from app.models.comedor import Comedor, ComedorRegistro
     from app.services import comedor_service as cs

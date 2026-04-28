@@ -457,6 +457,7 @@ function mapReservasEmpleadoToCalendarMonth(
   const visible = calendarVisibleDateRange(year, monthIndex);
   const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
   for (const r of items) {
+    if (r.estado_acceso.trim().toUpperCase() === "EXPIRADO") continue;
     const dayDate = isoToDate(r.fecha_servicio);
     if (dayDate < visible.start || dayDate > visible.end) continue;
     const iso = dateToIso(dayDate);
@@ -2033,7 +2034,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     try {
       const rows = await getComedorMisProximasReservas(5);
       if (signal.aborted) return;
-      state.proximas = rows;
+      state.proximas = rows.filter((row) => row.estado_acceso.trim().toUpperCase() !== "EXPIRADO");
       state.proximasState = "ready";
     } catch (error) {
       if (signal.aborted) return;
