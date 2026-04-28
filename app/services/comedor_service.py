@@ -44,6 +44,7 @@ from app.schemas.comedor import (
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
     ComedorMisReservaItem,
+    ComedorResumenDiarioItem,
     ComedorPrimeraFechaReservaResponse,
     ComedorRegistroCreate,
     ComedorRegistroResponse,
@@ -482,6 +483,19 @@ class ComedorService:
             "porcentaje_saludables": int(porcentaje_saludables),
             "total_activas": total_activas,
         }
+
+    async def list_resumen_diario_rh(
+        self,
+        current_user: Empleado,
+        desde: date,
+        hasta: date,
+    ) -> list[ComedorResumenDiarioItem]:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede consultar resumen diario global")
+        if hasta < desde:
+            raise ConflictError(detail="El rango de fechas es inválido")
+        rows = await self.acceso_repo.list_resumen_diario_global(desde=desde, hasta=hasta)
+        return [ComedorResumenDiarioItem(**row) for row in rows]
 
     async def reservar_acceso_dia(
         self,

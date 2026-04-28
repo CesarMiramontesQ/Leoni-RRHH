@@ -228,6 +228,12 @@ export type ComedorEquipoMetricasApi = {
   total_activas: number;
 };
 
+export type ComedorResumenDiarioApiItem = {
+  fecha: string;
+  caseras: number;
+  saludables: number;
+};
+
 export type ComedorPrimeraFechaApi = {
   fecha_iso: string;
 };
@@ -301,6 +307,18 @@ export async function getComedorEquipoMetricas(): Promise<ComedorEquipoMetricasA
   const res = await fetchWithAuth("/api/v1/comedor/accesos/equipo/metricas");
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorEquipoMetricasApi;
+}
+
+export async function getComedorRhResumenDiario(
+  desdeIso: string,
+  hastaIso: string,
+): Promise<ComedorResumenDiarioApiItem[]> {
+  const params = new URLSearchParams();
+  params.set("desde", desdeIso);
+  params.set("hasta", hastaIso);
+  const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/resumen-diario?${params.toString()}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorResumenDiarioApiItem[];
 }
 
 export async function reservarComedorAcceso(payload: {

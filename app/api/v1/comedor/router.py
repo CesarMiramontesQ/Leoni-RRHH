@@ -23,6 +23,7 @@ from app.schemas.comedor import (
     ComedorMisReservaItem,
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
+    ComedorResumenDiarioItem,
     ComedorPrimeraFechaReservaResponse,
     ComedorRegistroCreate,
     ComedorRegistroResponse,
@@ -242,6 +243,21 @@ async def equipo_metricas_comedor(
     """Tarjetas de métricas para dashboard de supervisor/gerente."""
     service = ComedorService(db)
     return await service.get_equipo_metricas_dashboard(current_user=current_user)
+
+
+@router.get("/accesos/rh/resumen-diario", response_model=list[ComedorResumenDiarioItem])
+async def rh_resumen_diario_comedor(
+    desde: date = Query(..., description="Inicio del rango (inclusive)"),
+    hasta: date = Query(..., description="Fin del rango (inclusive)"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.list_resumen_diario_rh(
+        current_user=current_user,
+        desde=desde,
+        hasta=hasta,
+    )
 
 
 @router.post(

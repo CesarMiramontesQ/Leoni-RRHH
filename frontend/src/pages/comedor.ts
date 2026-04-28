@@ -27,6 +27,7 @@ import {
   getComedorMisReservasMes,
   getComedorEquipoProximasReservas,
   getComedorEquipoReservasMes,
+  getComedorRhResumenDiario,
   getComedorEquipoMetricas,
   getComedorEquipoBeneficiarios,
   getComedorPrimeraFechaReserva,
@@ -523,6 +524,39 @@ function mapReservasEquipoToCalendarMonth(
   };
 }
 
+function mapResumenRhToCalendarMonth(
+  year: number,
+  monthIndex: number,
+  items: Awaited<ReturnType<typeof getComedorRhResumenDiario>>,
+): ComedorCalendarMonth {
+  const visible = calendarVisibleDateRange(year, monthIndex);
+  const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
+  for (const r of items) {
+    const dayDate = isoToDate(r.fecha);
+    if (dayDate < visible.start || dayDate > visible.end) continue;
+    const iso = dateToIso(dayDate);
+    const caseras = Number.isFinite(r.caseras) ? Math.max(0, r.caseras) : 0;
+    const saludables = Number.isFinite(r.saludables) ? Math.max(0, r.saludables) : 0;
+    dayMetrics[iso] = {
+      isoDate: iso,
+      reservas: caseras + saludables,
+      tags: [
+        { id: `rh-caseras-${iso}`, label: `${caseras} Caseras`, tone: "normal" },
+        { id: `rh-saludables-${iso}`, label: `${saludables} Saludables`, tone: "dieta" },
+      ],
+    };
+  }
+  return {
+    year,
+    monthIndex,
+    legend: [
+      { id: "rh-caseras", label: "Caseras", dotClass: "bg-leoni-blue" },
+      { id: "rh-saludables", label: "Saludables", dotClass: "bg-emerald-500" },
+    ],
+    dayMetrics,
+  };
+}
+
 function formatEstadoAccesoLabel(estadoAcceso: string): string {
   const key = estadoAcceso.trim().toUpperCase();
   if (key === "ACCEDIDO") return "Accedido";
@@ -557,11 +591,11 @@ function createComedorIdResolver(): {
 
 function mapEstadisticasToRhKpis(
   estadisticas: Awaited<ReturnType<typeof getComedorEstadisticas>>,
-  capacidad: number | null,
+  proximaSemanaTotal: number,
 ): readonly ComedorKpi[] {
   const total = estadisticas.total_registros;
-  const cap = capacidad && capacidad > 0 ? capacidad : null;
-  const ocupacionPercent = cap ? Math.round((total / cap) * 100) : null;
+  const porcentajeAsistencia =
+    total > 0 ? Math.round((estadisticas.acceso_concedido / total) * 100) : 0;
   return [
     {
       id: "reservas_hoy",
@@ -569,34 +603,31 @@ function mapEstadisticasToRhKpis(
       valor: String(total),
       descripcion: `Semana ${estadisticas.semana}`,
       accentClass: "border-t-leoni-blue",
-      progressPercent: cap ? Math.min(100, ocupacionPercent ?? 0) : undefined,
+      progressPercent: undefined,
     },
     {
-      id: "capacidad_total",
-      titulo: "Capacidad diaria",
-      valor: cap ? String(cap) : "—",
-      descripcion: "Capacidad del comedor activo",
+      id: "registros_proxima_semana",
+      titulo: "Registros de la próxima semana",
+      valor: String(proximaSemanaTotal),
+      descripcion: "Planeación operativa para la semana siguiente",
       accentClass: "border-t-sky-500",
-      progressPercent: cap ? 100 : undefined,
+      progressPercent: undefined,
     },
     {
       id: "ocupacion_actual",
-      titulo: "Ocupación estimada",
-      valor: ocupacionPercent == null ? "—" : `${ocupacionPercent}%`,
-      descripcion: cap ? `${total} de ${cap}` : "Sin capacidad configurada",
+      titulo: "Registros activos",
+      valor: String(total),
+      descripcion: "Total de registros confirmados en la semana actual",
       accentClass: "border-t-emerald-500",
-      progressPercent: ocupacionPercent == null ? undefined : Math.min(100, ocupacionPercent),
+      progressPercent: undefined,
     },
     {
-      id: "dietas_especiales",
-      titulo: "Dietas especiales",
-      valor: String(estadisticas.dieta),
-      descripcion: `Normales: ${estadisticas.normal}`,
+      id: "porcentaje_asistencia",
+      titulo: "% asistencia vs registro",
+      valor: `${porcentajeAsistencia}%`,
+      descripcion: `${estadisticas.acceso_concedido} asistencias de ${total} registros`,
       accentClass: "border-t-violet-500",
-      progressPercent:
-        estadisticas.total_registros > 0
-          ? Math.round((estadisticas.dieta / estadisticas.total_registros) * 100)
-          : 0,
+      progressPercent: porcentajeAsistencia,
     },
   ];
 }
@@ -978,12 +1009,16 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         paint();
         return;
       }
-      const [comedores, estadisticas] = await Promise.all([
-        getComedoresActivos(),
-        getComedorEstadisticas(getCurrentWeekStartIso()),
+      const currentWeekStartIso = getCurrentWeekStartIso();
+      const nextWeekStartIso = shiftWeekStartIso(currentWeekStartIso, 1);
+      const [estadisticasActual, estadisticasProxima] = await Promise.all([
+        getComedorEstadisticas(currentWeekStartIso),
+        getComedorEstadisticas(nextWeekStartIso),
       ]);
-      const capacidad = comedores.find((c) => c.id === comedorId)?.capacidad ?? null;
-      const rows = mapEstadisticasToRhKpis(estadisticas, capacidad);
+      const rows = mapEstadisticasToRhKpis(
+        estadisticasActual,
+        estadisticasProxima.total_registros ?? 0,
+      );
       if (signal.aborted) return;
       state.stats = rows;
       state.statsState = rows.length > 0 ? "ready" : "empty";
@@ -1002,19 +1037,10 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     state.calendarError = null;
     paint();
     try {
-      const comedorId = await resolveComedorId();
-      if (comedorId == null) {
-        state.calendar = emptyCalendarMonth(state.year, state.monthIndex);
-        state.calendarState = "ready";
-        paint();
-        return;
-      }
-      const weeks = weekStartsForVisibleRange(state.year, state.monthIndex);
-      const menus = await Promise.all(
-        weeks.map(async (weekStartIso) => [weekStartIso, await getComedorMenuSemana(comedorId, weekStartIso)] as const),
-      );
+      const visible = calendarVisibleDateRange(state.year, state.monthIndex);
+      const resumen = await getComedorRhResumenDiario(visible.startIso, visible.endIso);
       if (signal.aborted || requestVersion !== calendarRequestVersion) return;
-      const month = mapMenusToCalendarMonth(state.year, state.monthIndex, Object.fromEntries(menus));
+      const month = mapResumenRhToCalendarMonth(state.year, state.monthIndex, resumen);
       state.calendar = month;
       state.calendarState = "ready";
     } catch (error) {

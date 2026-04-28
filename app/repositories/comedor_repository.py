@@ -415,6 +415,52 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             "total_saludables": int(row.total_saludables or 0),
         }
 
+    async def list_resumen_diario_global(
+        self,
+        desde: date,
+        hasta: date,
+    ) -> list[dict[str, int | date]]:
+        estado_activo = (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+        stmt = (
+            select(
+                ComedorAcceso.fecha_servicio.label("fecha"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (ComedorAcceso.tipo_comida == ComedorTipoComida.casera, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("caseras"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (ComedorAcceso.tipo_comida == ComedorTipoComida.saludable, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("saludables"),
+            )
+            .where(
+                ComedorAcceso.fecha_servicio >= desde,
+                ComedorAcceso.fecha_servicio <= hasta,
+                ComedorAcceso.estado_acceso.in_(estado_activo),
+            )
+            .group_by(ComedorAcceso.fecha_servicio)
+            .order_by(ComedorAcceso.fecha_servicio.asc())
+        )
+        rows = (await self.db.execute(stmt)).all()
+        return [
+            {
+                "fecha": row.fecha,
+                "caseras": int(row.caseras or 0),
+                "saludables": int(row.saludables or 0),
+            }
+            for row in rows
+        ]
+
     async def get_by_id_empleado(
         self,
         acceso_id: int,

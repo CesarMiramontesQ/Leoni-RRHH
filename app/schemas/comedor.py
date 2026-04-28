@@ -148,6 +148,12 @@ class ComedorEquipoReservaItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ComedorResumenDiarioItem(BaseModel):
+    fecha: date
+    caseras: int
+    saludables: int
+
+
 class ComedorEquipoBeneficiarioItem(BaseModel):
     empleado_id: int
     no_empleado: str

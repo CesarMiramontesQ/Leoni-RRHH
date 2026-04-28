@@ -9,6 +9,7 @@ PROXIMAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/mis-proximas-reservas"
 RESERVAS_EQUIPO_MES_URL = "/api/v1/comedor/accesos/equipo/mis-reservas"
 BENEFICIARIOS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/beneficiarios"
 METRICAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/metricas"
+RESUMEN_RH_URL = "/api/v1/comedor/accesos/rh/resumen-diario"
 RESERVAR_URL = "/api/v1/comedor/accesos/reservar"
 EDITAR_ACCESO_URL = "/api/v1/comedor/accesos/{acceso_id}"
 
@@ -471,3 +472,98 @@ async def test_supervisor_metricas_dashboard(client: AsyncClient, db, monkeypatc
     assert data["total_activas"] == 2
     assert data["porcentaje_caseras"] == 50
     assert data["porcentaje_saludables"] == 50
+
+
+@pytest.mark.asyncio
+async def test_rh_resumen_diario_global_excluye_expirados(client: AsyncClient, db):
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+
+    comedor = Comedor(nombre="Comedor RH", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        nombre="RH, ANA",
+        email="rh_resumen@test.leoni",
+        password="RhResumen1!",
+    )
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="LOPEZ, CARLOS",
+        email="emp_resumen@test.leoni",
+        password="EmpResumen1!",
+    )
+    empleado_2 = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="PEREZ, MARIA",
+        email="emp2_resumen@test.leoni",
+        password="Emp2Resumen1!",
+    )
+    registro = ComedorRegistro(
+        empleado_id=empleado.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 20),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    registro_2 = ComedorRegistro(
+        empleado_id=empleado_2.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 20),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add_all([registro, registro_2])
+    await db.flush()
+
+    db.add_all(
+        [
+            ComedorAcceso(
+                empleado_id=empleado.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=registro.id,
+                fecha_servicio=date(2026, 4, 28),
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.PENDIENTE,
+            ),
+            ComedorAcceso(
+                empleado_id=empleado_2.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=registro_2.id,
+                fecha_servicio=date(2026, 4, 28),
+                tipo_comida=ComedorTipoComida.saludable,
+                estado_acceso=ComedorAccesoEstado.ACCEDIDO,
+            ),
+            ComedorAcceso(
+                empleado_id=empleado.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=registro.id,
+                fecha_servicio=date(2026, 4, 29),
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.EXPIRADO,
+            ),
+        ]
+    )
+    await db.flush()
+
+    headers_rh = await auth_headers(client, rh, password="RhResumen1!")
+    response = await client.get(
+        f"{RESUMEN_RH_URL}?desde=2026-04-01&hasta=2026-04-30",
+        headers=headers_rh,
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["fecha"] == "2026-04-28"
+    assert data[0]["caseras"] == 1
+    assert data[0]["saludables"] == 1
