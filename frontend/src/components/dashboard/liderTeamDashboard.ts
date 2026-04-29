@@ -105,6 +105,8 @@ function renderLiderDashboardSectionHeader(title: string, subtitle: string): str
 
 export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
   const t = team;
+  const rolLider = getRolFromAccessToken();
+  const esGerente = rolLider === "gerente";
   const cards = [
     {
       label: "Incidencias activas",
@@ -131,12 +133,14 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Home Office por aprobar",
     },
     {
-      label: "Total colaboradores",
+      label: esGerente ? "Total estructura" : "Total colaboradores",
       labelCls: "text-leoni-blue",
       iconWrap: "bg-leoni-blue/10 text-leoni-blue",
       icon: iconColaboradores(),
       value: fmtPersonas(t?.team_collaborators_count ?? null),
-      sub: "Personas a cargo",
+      sub: esGerente
+        ? "Todos los niveles bajo tu mando"
+        : "Equipo directo",
     },
   ];
 
