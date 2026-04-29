@@ -24,6 +24,9 @@ from app.schemas.comedor import (
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
     ComedorResumenDiarioItem,
+    ComedorRhRegistroCreate,
+    ComedorRhRegistroResponse,
+    ComedorCodigoExternoItem,
     ComedorPrimeraFechaReservaResponse,
     ComedorRegistroCreate,
     ComedorRegistroResponse,
@@ -278,6 +281,38 @@ async def reservar_acceso_dia(
         background_tasks=background_tasks,
     )
     return reservas[0] if len(reservas) == 1 else reservas
+
+
+@router.post("/accesos/rh/registro", response_model=ComedorRhRegistroResponse)
+async def registrar_acceso_rh(
+    body: ComedorRhRegistroCreate,
+    background_tasks: BackgroundTasks,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.crear_registro_rh(
+        data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.get("/accesos/rh/codigos-externos", response_model=list[ComedorCodigoExternoItem])
+async def listar_codigos_externos_rh(
+    desde: date | None = Query(None),
+    hasta: date | None = Query(None),
+    estatus: str | None = Query(None, description="ACTIVO|USADO_PARCIAL|USADO_TOTAL|VENCIDO"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.list_codigos_externos_rh(
+        current_user=current_user,
+        desde=desde,
+        hasta=hasta,
+        estatus=estatus,
+    )
 
 
 @router.put("/accesos/{acceso_id}", response_model=ComedorAccesoReservaResponse)

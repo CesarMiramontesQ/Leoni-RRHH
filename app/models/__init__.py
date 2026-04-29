@@ -12,7 +12,14 @@ from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
-from app.models.comedor import Comedor, ComedorAcceso, ComedorRegistro, MenuSemanal
+from app.models.comedor import (
+    Comedor,
+    ComedorAcceso,
+    ComedorCodigoExterno,
+    ComedorExternoCorrelativo,
+    ComedorRegistro,
+    MenuSemanal,
+)
 from app.models.notificaciones import Notificacion
 from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
@@ -35,6 +42,8 @@ __all__ = [
     "ActaAprobacion",
     "Comedor",
     "ComedorAcceso",
+    "ComedorCodigoExterno",
+    "ComedorExternoCorrelativo",
     "MenuSemanal",
     "ComedorRegistro",
     "Notificacion",

@@ -266,7 +266,7 @@ async def test_reserva_batch_falla_si_alguna_fecha_ya_esta_ocupada(client: Async
 
 
 @pytest.mark.asyncio
-async def test_reserva_batch_rechaza_fin_de_semana(client: AsyncClient, db, monkeypatch):
+async def test_reserva_batch_permite_fin_de_semana(client: AsyncClient, db, monkeypatch):
     from app.models.comedor import Comedor, ComedorRegistro
     from app.services import comedor_service as cs
 
@@ -292,13 +292,16 @@ async def test_reserva_batch_rechaza_fin_de_semana(client: AsyncClient, db, monk
         RESERVAR_URL,
         json={
             "comedor_id": comedor.id,
-            "fechas_servicio": ["2026-05-02"],
+            "fechas_servicio": ["2026-05-02", "2026-05-03"],
             "tipo_comida": "casera",
         },
         headers=hdrs,
     )
-    assert r.status_code == 409
-    assert "fines de semana" in (r.json().get("detail") or "").lower()
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert isinstance(body, list)
+    assert len(body) == 2
+    assert [item["fecha_servicio"] for item in body] == ["2026-05-02", "2026-05-03"]
 
 
 @pytest.mark.asyncio

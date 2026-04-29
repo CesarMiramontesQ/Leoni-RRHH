@@ -126,6 +126,51 @@ class ComedorAccesoReservaResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ComedorRhRegistroCreate(BaseModel):
+    person_type: Literal["interno", "externo"]
+    comedor_id: int
+    fechas_servicio: list[date] = Field(..., min_length=1)
+    tipo_comida: ComedorTipoComidaLiteral
+    target_user_id: int | None = None
+    external_people_count: int | None = Field(default=None, ge=1, le=300)
+    observaciones: str | None = None
+
+
+class ComedorRhPaseExternoItem(BaseModel):
+    """Un código/contraseña por comensal externo; usuario de terminal = codigo_acceso."""
+
+    empleado_id: int
+    codigo_acceso: str
+    password_temporal: str
+
+
+class ComedorRhCredencialTemporal(BaseModel):
+    lote_id: str
+    valido_desde: date
+    valido_hasta: date
+    pases: list[ComedorRhPaseExternoItem]
+
+
+class ComedorRhRegistroResponse(BaseModel):
+    total_registros_creados: int
+    modo: Literal["interno", "externo"]
+    credenciales_temporales: ComedorRhCredencialTemporal | None = None
+
+
+class ComedorCodigoExternoItem(BaseModel):
+    id: int
+    fecha_inicio: date
+    fecha_fin: date
+    cantidad_personas: int
+    tipo_comida: str
+    codigo_acceso: str
+    password_temporal: str
+    estatus: Literal["ACTIVO", "USADO_PARCIAL", "USADO_TOTAL", "VENCIDO"]
+    usados: int
+    empleado_id: Optional[int] = None
+    lote_id: Optional[str] = None
+
+
 class ComedorMisReservaItem(BaseModel):
     id: int
     comedor_id: int

@@ -234,6 +234,39 @@ export type ComedorResumenDiarioApiItem = {
   saludables: number;
 };
 
+export type ComedorRhPaseExternoApiItem = {
+  empleado_id: number;
+  codigo_acceso: string;
+  password_temporal: string;
+};
+
+export type ComedorRhCredencialTemporalApi = {
+  lote_id: string;
+  valido_desde: string;
+  valido_hasta: string;
+  pases: ComedorRhPaseExternoApiItem[];
+};
+
+export type ComedorRhRegistroResponseApi = {
+  total_registros_creados: number;
+  modo: "interno" | "externo";
+  credenciales_temporales: ComedorRhCredencialTemporalApi | null;
+};
+
+export type ComedorCodigoExternoApiItem = {
+  id: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  cantidad_personas: number;
+  tipo_comida: string;
+  codigo_acceso: string;
+  password_temporal: string;
+  estatus: "ACTIVO" | "USADO_PARCIAL" | "USADO_TOTAL" | "VENCIDO";
+  usados: number;
+  empleado_id?: number | null;
+  lote_id?: string | null;
+};
+
 export type ComedorPrimeraFechaApi = {
   fecha_iso: string;
 };
@@ -319,6 +352,47 @@ export async function getComedorRhResumenDiario(
   const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/resumen-diario?${params.toString()}`);
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorResumenDiarioApiItem[];
+}
+
+export async function crearComedorRhRegistro(payload: {
+  personType: "interno" | "externo";
+  comedorId: number;
+  fechasIso: string[];
+  tipoComida: string;
+  employeeId?: number | null;
+  externalPeopleCount?: number | null;
+  observaciones?: string;
+}): Promise<ComedorRhRegistroResponseApi> {
+  const res = await fetchWithAuth("/api/v1/comedor/accesos/rh/registro", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      person_type: payload.personType,
+      comedor_id: payload.comedorId,
+      fechas_servicio: payload.fechasIso,
+      tipo_comida: payload.tipoComida,
+      target_user_id: payload.employeeId ?? null,
+      external_people_count: payload.externalPeopleCount ?? null,
+      observaciones: payload.observaciones ?? "",
+    }),
+  });
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorRhRegistroResponseApi;
+}
+
+export async function getComedorRhCodigosExternos(params: {
+  desdeIso?: string;
+  hastaIso?: string;
+  estatus?: "ACTIVO" | "USADO_PARCIAL" | "USADO_TOTAL" | "VENCIDO" | "todos";
+}): Promise<ComedorCodigoExternoApiItem[]> {
+  const q = new URLSearchParams();
+  if (params.desdeIso) q.set("desde", params.desdeIso);
+  if (params.hastaIso) q.set("hasta", params.hastaIso);
+  if (params.estatus && params.estatus !== "todos") q.set("estatus", params.estatus);
+  const suffix = q.toString() ? `?${q.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/codigos-externos${suffix}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorCodigoExternoApiItem[];
 }
 
 export async function reservarComedorAcceso(payload: {

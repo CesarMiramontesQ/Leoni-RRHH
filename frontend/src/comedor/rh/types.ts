@@ -60,6 +60,14 @@ export type ComedorSuggestion = {
   titulo: string;
   mensaje: string;
   ctaLabel: string;
+  ctaRoute?: string;
+};
+
+export type ComedorExternalCodesCard = {
+  titulo: string;
+  mensaje: string;
+  ctaLabel: string;
+  ctaRoute: string;
 };
 
 export type ComedorSidebarDataset = {
@@ -67,6 +75,7 @@ export type ComedorSidebarDataset = {
   weeklyOccupancy: ComedorWeekOccupancyPoint[];
   dietDistribution: ComedorDietDistribution;
   suggestion: ComedorSuggestion;
+  externalCodesCard: ComedorExternalCodesCard;
 };
 
 export type ComedorReservationStatus = "confirmado" | "cancelado" | "pendiente";

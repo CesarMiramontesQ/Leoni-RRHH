@@ -5,7 +5,7 @@ Repositorio de Comedor: menus semanales, registros de seleccion y validacion de 
 
 from datetime import date
 
-from sqlalchemy import and_, case, delete, func, select, update
+from sqlalchemy import and_, case, delete, func, select, text, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,9 @@ from app.models.comedor import (
     Comedor,
     ComedorAcceso,
     ComedorAccesoEstado,
+    ComedorCodigoExterno,
+    ComedorCodigoExternoEstado,
+    ComedorExternoCorrelativo,
     ComedorRegistro,
     ComedorTipoComida,
     MenuSemanal,
@@ -175,6 +178,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             )
         )
         return list(result.scalars().all())
+
 
     async def list_fechas_reserva_activa(
         self,
@@ -530,3 +534,98 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         result = await self.db.execute(stmt)
         await self.db.flush()
         return result.rowcount
+
+
+class ComedorExternoCorrelativoRepository:
+    """Contador global atómico para códigos CEXT{n} (personal externo)."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def reservar_siguientes(self, cantidad: int) -> list[int]:
+        if cantidad <= 0:
+            return []
+        await self.db.execute(
+            text(
+                "INSERT INTO comedor_externo_correlativo (id, siguiente) "
+                "VALUES (1, 0) ON CONFLICT (id) DO NOTHING",
+            ),
+        )
+        stmt = (
+            update(ComedorExternoCorrelativo)
+            .where(ComedorExternoCorrelativo.id == 1)
+            .values(siguiente=ComedorExternoCorrelativo.siguiente + cantidad)
+            .returning(ComedorExternoCorrelativo.siguiente)
+        )
+        res = await self.db.execute(stmt)
+        nuevo = res.scalar_one()
+        inicio = nuevo - cantidad + 1
+        return list(range(inicio, nuevo + 1))
+
+
+class ComedorCodigoExternoRepository(BaseRepository[ComedorCodigoExterno]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(ComedorCodigoExterno, db)
+
+    async def list_codigos_externos(
+        self,
+        desde: date | None = None,
+        hasta: date | None = None,
+        estatus: str | None = None,
+    ) -> list[dict]:
+        stmt = select(ComedorCodigoExterno).order_by(
+            ComedorCodigoExterno.fecha_inicio.desc(),
+            ComedorCodigoExterno.created_at.desc(),
+        )
+        if desde:
+            stmt = stmt.where(ComedorCodigoExterno.fecha_fin >= desde)
+        if hasta:
+            stmt = stmt.where(ComedorCodigoExterno.fecha_inicio <= hasta)
+        rows = list((await self.db.execute(stmt)).scalars().all())
+
+        result: list[dict] = []
+        hoy = date.today()
+        for row in rows:
+            if row.empleado_id is not None:
+                usados_stmt = select(func.count(ComedorAcceso.id)).where(
+                    ComedorAcceso.empleado_id == row.empleado_id,
+                    ComedorAcceso.comedor_id == row.comedor_id,
+                    ComedorAcceso.fecha_servicio == hoy,
+                    ComedorAcceso.estado_acceso == ComedorAccesoEstado.ACCEDIDO,
+                )
+            else:
+                prefix = f"{row.codigo_acceso}-"
+                usados_stmt = (
+                    select(func.count(ComedorAcceso.id))
+                    .join(Empleado, Empleado.id == ComedorAcceso.empleado_id)
+                    .where(
+                        ComedorAcceso.fecha_servicio == hoy,
+                        ComedorAcceso.estado_acceso == ComedorAccesoEstado.ACCEDIDO,
+                        Empleado.no_empleado.like(f"{prefix}%"),
+                    )
+                )
+            usados = int((await self.db.execute(usados_stmt)).scalar() or 0)
+            if hoy > row.fecha_fin:
+                estado = ComedorCodigoExternoEstado.VENCIDO.value
+            elif usados <= 0:
+                estado = ComedorCodigoExternoEstado.ACTIVO.value
+            elif usados >= row.cantidad_personas:
+                estado = ComedorCodigoExternoEstado.USADO_TOTAL.value
+            else:
+                estado = ComedorCodigoExternoEstado.USADO_PARCIAL.value
+            if estatus and estado != estatus:
+                continue
+            result.append({
+                "id": row.id,
+                "fecha_inicio": row.fecha_inicio,
+                "fecha_fin": row.fecha_fin,
+                "cantidad_personas": row.cantidad_personas,
+                "tipo_comida": row.tipo_comida.value if hasattr(row.tipo_comida, "value") else str(row.tipo_comida),
+                "codigo_acceso": row.codigo_acceso,
+                "password_temporal": row.password_temporal,
+                "estatus": estado,
+                "usados": usados,
+                "empleado_id": row.empleado_id,
+                "lote_id": row.lote_id,
+            })
+        return result

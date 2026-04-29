@@ -19,7 +19,9 @@ import {
 } from "../utils/comedorReservaFechas.ts";
 import {
   cancelarComedorAcceso,
+  crearComedorRhRegistro,
   editarComedorAcceso,
+  getComedorRhCodigosExternos,
   getComedorEstadisticas,
   getComedorMenuSemana,
   getComedorMisFechasOcupadas,
@@ -37,6 +39,7 @@ import {
   registrarComedorSeleccion,
   reservarComedorAcceso,
   isComedorApiError,
+  type ComedorRhRegistroResponseApi,
   type ComedorMisReservaApiItem,
   type MenuSemanalApiItem,
 } from "../api/comedor.ts";
@@ -45,7 +48,6 @@ import type {
   ComedorCalendarMonth,
   ComedorEmployeeOption,
   ComedorKpi,
-  ComedorMenuOption,
   ComedorPanelState,
   ComedorReservationsPage,
   ComedorTeamReservationsPage,
@@ -337,23 +339,6 @@ function createBlankWeekByStartIso(weekStartIso: string): ComedorWeekPlanner {
   };
 }
 
-const DEFAULT_MENU_OPTIONS: readonly ComedorMenuOption[] = [
-  { id: "normal", label: "Normal" },
-  { id: "dieta", label: "Dieta" },
-];
-
-const DIA_TO_INDEX: Record<string, number> = {
-  lunes: 0,
-  martes: 1,
-  miercoles: 2,
-  miércoles: 2,
-  jueves: 3,
-  viernes: 4,
-  sabado: 5,
-  sábado: 5,
-  domingo: 6,
-};
-
 function normalizeDayLabel(raw: string): string {
   return raw
     .normalize("NFD")
@@ -364,15 +349,6 @@ function normalizeDayLabel(raw: string): string {
 
 function startOfWeekIsoFromDateIso(dateIso: string): string {
   return dateToIso(mondayOf(isoToDate(dateIso)));
-}
-
-function weekStartsForVisibleRange(year: number, monthIndex: number): string[] {
-  const { start, end } = calendarVisibleDateRange(year, monthIndex);
-  const unique = new Set<string>();
-  for (let cursor = new Date(start); cursor <= end; cursor = addDays(cursor, 1)) {
-    unique.add(startOfWeekIsoFromDateIso(dateToIso(cursor)));
-  }
-  return Array.from(unique.values()).sort((a, b) => a.localeCompare(b));
 }
 
 function calendarVisibleDateRange(year: number, monthIndex: number): {
@@ -404,51 +380,6 @@ function monthsCoveredByVisibleRange(year: number, monthIndex: number): Array<{ 
     cursor.setMonth(cursor.getMonth() + 1);
   }
   return out;
-}
-
-function mapMenusToCalendarMonth(
-  year: number,
-  monthIndex: number,
-  menusByWeek: Record<string, MenuSemanalApiItem[]>,
-): ComedorCalendarMonth {
-  const visible = calendarVisibleDateRange(year, monthIndex);
-  const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
-
-  for (const [weekStartIso, menus] of Object.entries(menusByWeek)) {
-    const monday = isoToDate(weekStartIso);
-    for (const menu of menus) {
-      const dayIndex = DIA_TO_INDEX[normalizeDayLabel(menu.dia)];
-      if (dayIndex == null) continue;
-      const dayDate = addDays(monday, dayIndex);
-      if (dayDate < visible.start || dayDate > visible.end) continue;
-      const iso = dateToIso(dayDate);
-      const tipo = normalizeDayLabel(menu.tipo);
-      const tone = tipo.includes("diet") ? "dieta" : "normal";
-      if (!dayMetrics[iso]) {
-        dayMetrics[iso] = {
-          isoDate: iso,
-          reservas: 0,
-          tags: [],
-        };
-      }
-      dayMetrics[iso].reservas += 1;
-      dayMetrics[iso].tags.push({
-        id: `${menu.id}`,
-        label: menu.tipo,
-        tone,
-      });
-    }
-  }
-
-  return {
-    year,
-    monthIndex,
-    legend: [
-      { id: "normal", label: "Normal", dotClass: "bg-leoni-blue" },
-      { id: "dieta", label: "Dieta", dotClass: "bg-emerald-500" },
-    ],
-    dayMetrics,
-  };
 }
 
 function mapReservasEmpleadoToCalendarMonth(
@@ -692,6 +623,13 @@ function mapProyeccionesToSidebar(
       titulo: "Proyección semanal",
       mensaje: `Promedio semanal: ${proyecciones.promedio_semanal}.`,
       ctaLabel: "Actualizar",
+      ctaRoute: "",
+    },
+    externalCodesCard: {
+      titulo: "Códigos externos",
+      mensaje: "Consulta y rastrea credenciales temporales de personal externo.",
+      ctaLabel: "Listado de códigos externos",
+      ctaRoute: "#/comedor/codigos-externos",
     },
   };
 }
@@ -1112,30 +1050,51 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     modalHost ?
       mountComedorNewRequestModal(modalHost, {
         toastContainer: container,
-        allowExternalPeople: false,
-        allowEmployeeSearch: false,
+        allowExternalPeople: true,
+        allowEmployeeSearch: true,
+        menuFieldLabel: "Tipo de comida",
         loadMenuOptions: async () => {
-          const comedorId = await resolveComedorId();
-          if (comedorId == null) return DEFAULT_MENU_OPTIONS;
-          const rows = await getComedorMenuSemana(comedorId, getCurrentWeekStartIso());
-          const tipos = Array.from(new Set(rows.map((row) => normalizeDayLabel(row.tipo))));
-          if (tipos.length === 0) return DEFAULT_MENU_OPTIONS;
-          return tipos.map((tipo) => ({
-            id: tipo,
-            label: tipo === "dieta" ? "Dieta" : "Normal",
-          }));
+          return [
+            { id: "casera", label: "Casera" },
+            { id: "saludable", label: "Saludable" },
+          ];
         },
         searchEmployees: searchComedorEmployeesFromDb,
         onSubmit: async (payload) => {
-          const firstDate = payload.fechas[0];
-          if (!firstDate) throw new Error("Selecciona al menos un día hábil.");
           const comedorId = await resolveComedorId();
           if (comedorId == null) throw new Error("No hay comedor activo configurado.");
-          await registrarComedorSeleccion({
+          const employeeId =
+            payload.personType === "interno" && payload.employeeId
+              ? Number.parseInt(payload.employeeId, 10)
+              : null;
+          return await crearComedorRhRegistro({
+            personType: payload.personType,
             comedorId,
-            semanaIso: startOfWeekIsoFromDateIso(firstDate),
-            tipoPlatillo: payload.menuId,
+            fechasIso: payload.fechas,
+            tipoComida: payload.menuId,
+            employeeId,
+            externalPeopleCount: payload.externalPeopleCount,
+            observaciones: payload.observaciones,
           });
+        },
+        onSuccess: async (result, payload) => {
+          const data = result as ComedorRhRegistroResponseApi | null;
+          await Promise.all([loadKpis(), loadCalendar(), loadSidebar()]);
+          if (!data || payload.personType !== "externo" || !data.credenciales_temporales) return;
+          const cred = data.credenciales_temporales;
+          const lineasPases = cred.pases.map(
+            (p, i) =>
+              `  ${i + 1}. Usuario/código: ${p.codigo_acceso}  |  Contraseña: ${p.password_temporal}`,
+          );
+          window.alert(
+            [
+              "Credenciales temporales generadas (una por persona):",
+              `Lote: ${cred.lote_id}`,
+              `Vigencia: ${cred.valido_desde} al ${cred.valido_hasta}`,
+              "En terminal de comedor: usuario = código mostrado, contraseña = la de cada fila.",
+              ...lineasPases,
+            ].join("\n"),
+          );
         },
       })
     : null;
@@ -1150,6 +1109,18 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       }
       if (target.closest("[data-comedor-planear]")) {
         window.location.hash = "#/comedor/planear";
+        return;
+      }
+      const suggestionRouteBtn = target.closest<HTMLButtonElement>("[data-comedor-suggestion-route]");
+      if (suggestionRouteBtn) {
+        const route = suggestionRouteBtn.getAttribute("data-comedor-suggestion-route");
+        if (route) window.location.hash = route;
+        return;
+      }
+      const externalCodesRouteBtn = target.closest<HTMLButtonElement>("[data-comedor-external-codes-route]");
+      if (externalCodesRouteBtn) {
+        const route = externalCodesRouteBtn.getAttribute("data-comedor-external-codes-route");
+        if (route) window.location.hash = route;
         return;
       }
       if (target.closest("[data-comedor-rh-crear-comedor]")) {
@@ -1257,6 +1228,168 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   void loadCalendar();
   void loadSidebar();
   void loadTable();
+}
+
+function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSignal): void {
+  type CodigoEstatus = "todos" | "ACTIVO" | "USADO_PARCIAL" | "USADO_TOTAL" | "VENCIDO";
+  const state: {
+    panelState: ComedorPanelState;
+    errorMessage: string | null;
+    desdeIso: string;
+    hastaIso: string;
+    estatus: CodigoEstatus;
+    rows: Awaited<ReturnType<typeof getComedorRhCodigosExternos>>;
+  } = {
+    panelState: "loading",
+    errorMessage: null,
+    desdeIso: "",
+    hastaIso: "",
+    estatus: "todos",
+    rows: [],
+  };
+
+  function render(): string {
+    const statusChip = (status: CodigoEstatus | string): string => {
+      if (status === "VENCIDO") return "bg-slate-100 text-slate-500";
+      if (status === "USADO_TOTAL") return "bg-emerald-100 text-emerald-700";
+      if (status === "USADO_PARCIAL") return "bg-amber-100 text-amber-700";
+      return "bg-blue-100 text-blue-700";
+    };
+    const tableRows = state.rows
+      .map(
+        (row) => `
+        <tr class="${row.estatus === "VENCIDO" ? "text-slate-400" : "text-slate-700"}">
+          <td class="px-3 py-2">${row.fecha_inicio}</td>
+          <td class="px-3 py-2">${row.fecha_fin}</td>
+          <td class="px-3 py-2">${row.cantidad_personas}</td>
+          <td class="px-3 py-2">${row.tipo_comida === "casera" ? "Casera" : "Saludable"}</td>
+          <td class="px-3 py-2 font-mono text-xs">${row.codigo_acceso}</td>
+          <td class="px-3 py-2 font-mono text-xs">${row.password_temporal}</td>
+          <td class="px-3 py-2">${row.usados}/${row.cantidad_personas}</td>
+          <td class="px-3 py-2"><span class="rounded px-2 py-1 text-xs font-semibold ${statusChip(row.estatus)}">${row.estatus}</span></td>
+        </tr>`,
+      )
+      .join("");
+    if (state.panelState === "loading") {
+      return `<div class="rounded-xl border border-border bg-white p-4 text-sm text-slate-500">Cargando códigos externos...</div>`;
+    }
+    if (state.panelState === "error") {
+      return `<div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <p>${state.errorMessage ?? "No se pudo cargar el listado."}</p>
+        <button type="button" data-comedor-codigos-retry class="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-xs font-semibold">Reintentar</button>
+      </div>`;
+    }
+    return `
+      <section class="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <div class="mb-3 flex flex-wrap items-end gap-3">
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">Desde</label>
+            <input type="date" value="${state.desdeIso}" data-comedor-codigos-desde class="rounded border border-slate-200 px-2 py-1 text-sm"/>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">Hasta</label>
+            <input type="date" value="${state.hastaIso}" data-comedor-codigos-hasta class="rounded border border-slate-200 px-2 py-1 text-sm"/>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">Estatus</label>
+            <select data-comedor-codigos-estatus class="rounded border border-slate-200 px-2 py-1 text-sm">
+              <option value="todos" ${state.estatus === "todos" ? "selected" : ""}>Todos</option>
+              <option value="ACTIVO" ${state.estatus === "ACTIVO" ? "selected" : ""}>ACTIVO</option>
+              <option value="USADO_PARCIAL" ${state.estatus === "USADO_PARCIAL" ? "selected" : ""}>USADO_PARCIAL</option>
+              <option value="USADO_TOTAL" ${state.estatus === "USADO_TOTAL" ? "selected" : ""}>USADO_TOTAL</option>
+              <option value="VENCIDO" ${state.estatus === "VENCIDO" ? "selected" : ""}>VENCIDO</option>
+            </select>
+          </div>
+          <button type="button" data-comedor-codigos-filtrar class="rounded bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white">Filtrar</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="border-b text-left text-xs text-slate-500">
+                <th class="px-3 py-2">Inicio</th><th class="px-3 py-2">Fin</th><th class="px-3 py-2">Cantidad</th><th class="px-3 py-2">Tipo</th><th class="px-3 py-2">Código</th><th class="px-3 py-2">Contraseña</th><th class="px-3 py-2">Uso (hoy)</th><th class="px-3 py-2">Estatus</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows || `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">Sin resultados.</td></tr>`}</tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function paint(): void {
+    const root = container.querySelector<HTMLElement>("#comedor-codigos-root");
+    if (!root) return;
+    root.innerHTML = render();
+  }
+
+  async function load(): Promise<void> {
+    state.panelState = "loading";
+    state.errorMessage = null;
+    paint();
+    try {
+      const rows = await getComedorRhCodigosExternos({
+        desdeIso: state.desdeIso || undefined,
+        hastaIso: state.hastaIso || undefined,
+        estatus: state.estatus,
+      });
+      if (signal.aborted) return;
+      state.rows = rows;
+      state.panelState = "ready";
+    } catch (error) {
+      if (signal.aborted) return;
+      state.panelState = "error";
+      state.errorMessage = error instanceof Error ? error.message : "Error al cargar códigos externos";
+    }
+    paint();
+  }
+
+  mountAppShell(container, {
+    pageTitle: "Códigos externos",
+    activeNav: "comedor",
+    mainClass: "py-5 sm:py-6",
+    mainHtml: `<div class="flex flex-col gap-4">
+      <nav aria-label="Navegación comedor">
+        <button type="button" data-comedor-codigos-volver class="inline-flex items-center gap-x-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-yellow-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-600">
+          <svg viewBox="0 0 20 20" fill="currentColor" data-slot="icon" aria-hidden="true" class="-ml-0.5 size-5">
+            <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" />
+          </svg>
+          Volver a Comedor
+        </button>
+      </nav>
+      <div id="comedor-codigos-root"></div>
+    </div>`,
+  });
+  container.querySelector<HTMLButtonElement>("[data-comedor-codigos-volver]")?.addEventListener(
+    "click",
+    () => {
+      window.location.hash = "#/comedor";
+    },
+    { signal },
+  );
+  const root = container.querySelector<HTMLElement>("#comedor-codigos-root");
+  root?.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-comedor-codigos-retry]") || target.closest("[data-comedor-codigos-filtrar]")) {
+        void load();
+      }
+    },
+    { signal },
+  );
+  root?.addEventListener(
+    "change",
+    (event) => {
+      const target = event.target as HTMLElement;
+      const desde = target.closest<HTMLInputElement>("[data-comedor-codigos-desde]");
+      if (desde) state.desdeIso = desde.value;
+      const hasta = target.closest<HTMLInputElement>("[data-comedor-codigos-hasta]");
+      if (hasta) state.hastaIso = hasta.value;
+      const estatus = target.closest<HTMLSelectElement>("[data-comedor-codigos-estatus]");
+      if (estatus) state.estatus = (estatus.value as CodigoEstatus) || "todos";
+    },
+    { signal },
+  );
+  void load();
 }
 
 function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): void {
@@ -2173,7 +2306,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           searchEmployees: async () => [],
           onSubmit: async (payload) => {
             const firstDate = payload.fechas[0];
-            if (!firstDate) throw new Error("Selecciona al menos un día hábil.");
+            if (!firstDate) throw new Error("Selecciona al menos una fecha.");
             const comedorId = await resolveComedorId();
             if (comedorId == null) throw new Error("No hay comedor activo configurado.");
             const semanaIso = startOfWeekIsoFromDateIso(firstDate);
@@ -2680,6 +2813,15 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
   if (isReporteRoute) {
     if (canAccessComedorReportePage()) {
       mountComedorReporte(container, signal);
+      return;
+    }
+    history.replaceState(null, "", "#/comedor");
+  }
+
+  const isCodigosExternosRoute = hash.startsWith("#/comedor/codigos-externos");
+  if (isCodigosExternosRoute) {
+    if (canAccessComedorRhPage()) {
+      mountComedorRhCodigosExternos(container, signal);
       return;
     }
     history.replaceState(null, "", "#/comedor");

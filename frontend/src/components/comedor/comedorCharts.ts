@@ -1,5 +1,6 @@
 import type {
   ComedorDietDistribution,
+  ComedorExternalCodesCard,
   ComedorPanelState,
   ComedorSuggestion,
   ComedorWeekOccupancyPoint,
@@ -73,17 +74,37 @@ export function renderComedorSuggestion(
 ): string {
   if (state !== "ready" || !suggestion) {
     return `
-      <article class="rounded-2xl border border-border bg-gradient-to-br from-blue-700 to-blue-800 p-4 text-white shadow-sm">
+      <article class="rounded-2xl border border-border bg-linear-to-br from-blue-700 to-blue-800 p-4 text-white shadow-sm">
         <div class="h-20 animate-pulse rounded bg-white/10"></div>
       </article>`;
   }
 
   return `
-    <article class="rounded-2xl border border-blue-500 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 p-4 text-white shadow-sm">
+    <article class="rounded-2xl border border-blue-500 bg-linear-to-br from-blue-700 via-blue-600 to-indigo-700 p-4 text-white shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wide text-blue-100">${escapeComedorHtml(suggestion.titulo)}</p>
       <p class="mt-2 text-sm leading-snug text-blue-50">${escapeComedorHtml(suggestion.mensaje)}</p>
-      <button type="button" class="mt-3 inline-flex items-center rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
+      <button type="button" data-comedor-suggestion-route="${escapeComedorHtml(suggestion.ctaRoute ?? "")}" class="mt-3 inline-flex items-center rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
         ${escapeComedorHtml(suggestion.ctaLabel)}
+      </button>
+    </article>`;
+}
+
+export function renderComedorExternalCodesCard(
+  state: ComedorPanelState,
+  card: ComedorExternalCodesCard | null,
+): string {
+  if (state !== "ready" || !card) {
+    return `
+      <article class="rounded-2xl border border-border bg-white p-4 shadow-sm">
+        <div class="h-20 animate-pulse rounded bg-slate-100"></div>
+      </article>`;
+  }
+  return `
+    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">${escapeComedorHtml(card.titulo)}</p>
+      <p class="mt-2 text-sm leading-snug text-slate-600">${escapeComedorHtml(card.mensaje)}</p>
+      <button type="button" data-comedor-external-codes-route="${escapeComedorHtml(card.ctaRoute)}" class="mt-3 inline-flex items-center rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+        ${escapeComedorHtml(card.ctaLabel)}
       </button>
     </article>`;
 }

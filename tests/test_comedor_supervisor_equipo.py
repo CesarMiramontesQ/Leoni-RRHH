@@ -10,6 +10,7 @@ RESERVAS_EQUIPO_MES_URL = "/api/v1/comedor/accesos/equipo/mis-reservas"
 BENEFICIARIOS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/beneficiarios"
 METRICAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/metricas"
 RESUMEN_RH_URL = "/api/v1/comedor/accesos/rh/resumen-diario"
+REGISTRO_RH_URL = "/api/v1/comedor/accesos/rh/registro"
 RESERVAR_URL = "/api/v1/comedor/accesos/reservar"
 EDITAR_ACCESO_URL = "/api/v1/comedor/accesos/{acceso_id}"
 
@@ -567,3 +568,124 @@ async def test_rh_resumen_diario_global_excluye_expirados(client: AsyncClient, d
     assert data[0]["fecha"] == "2026-04-28"
     assert data[0]["caseras"] == 1
     assert data[0]["saludables"] == 1
+
+
+@pytest.mark.asyncio
+async def test_rh_puede_crear_registro_externo_y_recibir_credenciales(client: AsyncClient, db):
+    import re
+
+    from app.models.comedor import Comedor
+
+    comedor = Comedor(nombre="Comedor RH Externo", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        nombre="RH, OPERADOR",
+        email="rh_externo@test.leoni",
+        password="RhExterno1!",
+    )
+    headers_rh = await auth_headers(client, rh, password="RhExterno1!")
+    response = await client.post(
+        REGISTRO_RH_URL,
+        json={
+            "person_type": "externo",
+            "comedor_id": comedor.id,
+            "fechas_servicio": ["2026-04-28", "2026-04-29", "2026-04-30"],
+            "tipo_comida": "casera",
+            "external_people_count": 2,
+            "observaciones": "Visitas proveedor",
+        },
+        headers=headers_rh,
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["modo"] == "externo"
+    assert data["total_registros_creados"] == 6
+    assert data["credenciales_temporales"] is not None
+    cred = data["credenciales_temporales"]
+    assert cred["lote_id"]
+    assert cred["valido_desde"] == "2026-04-28"
+    assert cred["valido_hasta"] == "2026-04-30"
+    pases = cred["pases"]
+    assert len(pases) == 2
+    assert pases[0]["codigo_acceso"] != pases[1]["codigo_acceso"]
+    assert pases[0]["password_temporal"] != pases[1]["password_temporal"]
+    for p in pases:
+        assert re.match(r"^CEXT\d+$", p["codigo_acceso"])
+    n0 = int(re.match(r"^CEXT(\d+)$", pases[0]["codigo_acceso"]).group(1))
+    n1 = int(re.match(r"^CEXT(\d+)$", pases[1]["codigo_acceso"]).group(1))
+    assert n1 == n0 + 1
+
+    resumen = await client.get(
+        f"{RESUMEN_RH_URL}?desde=2026-04-01&hasta=2026-04-30",
+        headers=headers_rh,
+    )
+    assert resumen.status_code == 200, resumen.text
+    rows = resumen.json()
+    fila = next((row for row in rows if row["fecha"] == "2026-04-28"), None)
+    assert fila is not None
+    assert fila["caseras"] == 2
+    assert fila["saludables"] == 0
+
+    listado = await client.get(
+        "/api/v1/comedor/accesos/rh/codigos-externos?desde=2026-04-01&hasta=2026-04-30",
+        headers=headers_rh,
+    )
+    assert listado.status_code == 200, listado.text
+    codigos = listado.json()
+    lote = cred["lote_id"]
+    mismo_lote = [r for r in codigos if r.get("lote_id") == lote]
+    assert len(mismo_lote) == 2
+    for row in mismo_lote:
+        assert row["fecha_inicio"] == "2026-04-28"
+        assert row["fecha_fin"] == "2026-04-30"
+        assert row["cantidad_personas"] == 1
+        assert row["tipo_comida"] == "casera"
+        assert re.match(r"^CEXT\d+$", row["codigo_acceso"])
+        assert row["password_temporal"]
+        assert row.get("empleado_id")
+
+
+@pytest.mark.asyncio
+async def test_rh_puede_crear_registro_interno_fin_de_semana(client: AsyncClient, db):
+    from app.models.comedor import Comedor
+
+    comedor = Comedor(nombre="Comedor RH interno finde", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        nombre="RH, Finde",
+        email="rh_finde_interno@test.leoni",
+        password="RhFinde1!",
+    )
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Colaborador Interno",
+        email="colab_finde@test.leoni",
+        password="ColabFinde1!",
+    )
+    headers_rh = await auth_headers(client, rh, password="RhFinde1!")
+    response = await client.post(
+        REGISTRO_RH_URL,
+        json={
+            "person_type": "interno",
+            "comedor_id": comedor.id,
+            "fechas_servicio": ["2026-05-01", "2026-05-02", "2026-05-03"],
+            "tipo_comida": "casera",
+            "target_user_id": empleado.id,
+            "observaciones": "Turno fin de semana",
+        },
+        headers=headers_rh,
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["modo"] == "interno"
+    assert data["total_registros_creados"] == 3
+    assert data.get("credenciales_temporales") is None

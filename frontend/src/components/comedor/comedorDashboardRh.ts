@@ -7,7 +7,11 @@ import type {
 } from "../../comedor/rh/types.ts";
 import { renderComedorAlerts } from "./comedorAlerts.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
-import { renderComedorCharts, renderComedorSuggestion } from "./comedorCharts.ts";
+import {
+  renderComedorCharts,
+  renderComedorExternalCodesCard,
+  renderComedorSuggestion,
+} from "./comedorCharts.ts";
 import { renderComedorReservationsTable, type ComedorTableFiltersState } from "./comedorReservationsTable.ts";
 import { renderComedorStats } from "./comedorStats.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
@@ -60,6 +64,7 @@ export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): st
           ${renderComedorAlerts(state.sidebarState, sidebar?.alerts ?? null, state.sidebarError)}
           ${renderComedorCharts(state.sidebarState, sidebar?.weeklyOccupancy ?? null, sidebar?.dietDistribution ?? null)}
           ${renderComedorSuggestion(state.sidebarState, sidebar?.suggestion ?? null)}
+          ${renderComedorExternalCodesCard(state.sidebarState, sidebar?.externalCodesCard ?? null)}
         </div>
       </section>
       ${renderComedorReservationsTable(state.tableState, state.table, state.tableFilters, state.tableError)}

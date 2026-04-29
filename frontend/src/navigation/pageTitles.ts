@@ -6,6 +6,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => /^#\/empleados\/\d+/.test(h), titulo: "Vista 360" },
   { match: (h) => /^#\/actas\/\d+/.test(h), titulo: "Detalle de acta" },
   { match: (h) => h.startsWith("#/comedor/reporte"), titulo: "Reporte comedor" },
+  { match: (h) => h.startsWith("#/comedor/codigos-externos"), titulo: "Listado de códigos externos" },
   { match: (h) => h.startsWith("#/comedor/planear"), titulo: "Configuración de Menú Semanal" },
   { match: (h) => h.startsWith("#/organigrama"), titulo: "Organigrama empresarial" },
   { match: (h) => h.startsWith("#/empleados"), titulo: "Empleados" },

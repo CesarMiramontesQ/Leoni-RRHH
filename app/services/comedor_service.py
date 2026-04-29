@@ -11,10 +11,14 @@ Responsabilidades:
 
 import calendar
 import logging
+import secrets
+import string
+import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import BackgroundTasks, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -25,8 +29,12 @@ from app.core.exceptions import (
 )
 from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
+from app.models.roles import Rol
+from app.core.security import hash_password
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
+    ComedorCodigoExternoRepository,
+    ComedorExternoCorrelativoRepository,
     ComedorRegistroRepository,
     ComedorRepository,
     MenuSemanalRepository,
@@ -45,6 +53,11 @@ from app.schemas.comedor import (
     ComedorEquipoBeneficiarioItem,
     ComedorMisReservaItem,
     ComedorResumenDiarioItem,
+    ComedorRhCredencialTemporal,
+    ComedorRhPaseExternoItem,
+    ComedorRhRegistroCreate,
+    ComedorRhRegistroResponse,
+    ComedorCodigoExternoItem,
     ComedorPrimeraFechaReservaResponse,
     ComedorRegistroCreate,
     ComedorRegistroResponse,
@@ -77,10 +90,17 @@ class ComedorService:
         self.menu_repo = MenuSemanalRepository(db)
         self.registro_repo = ComedorRegistroRepository(db)
         self.acceso_repo = ComedorAccesoRepository(db)
+        self.codigo_externo_repo = ComedorCodigoExternoRepository(db)
+        self.externo_corr_repo = ComedorExternoCorrelativoRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
 
     def _get_rol(self, user: Empleado) -> str:
         return user.rol.nombre if user.rol else ""
+
+    @staticmethod
+    def _generar_password_temporal(longitud: int = 10) -> str:
+        alfabeto = string.ascii_uppercase + string.digits
+        return "".join(secrets.choice(alfabeto) for _ in range(longitud))
 
     @staticmethod
     def _nombre_corto(nombre_completo: str | None) -> str:
@@ -497,6 +517,250 @@ class ComedorService:
         rows = await self.acceso_repo.list_resumen_diario_global(desde=desde, hasta=hasta)
         return [ComedorResumenDiarioItem(**row) for row in rows]
 
+    async def _crear_empleados_externos_temporales(
+        self,
+        cantidad: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> tuple[list[Empleado], ComedorRhCredencialTemporal]:
+        rol_empleado = (
+            await self.db.execute(select(Rol).where(Rol.nombre == "empleado"))
+        ).scalar_one_or_none()
+        if rol_empleado is None:
+            rol_empleado = Rol(nombre="empleado", permisos={})
+            self.db.add(rol_empleado)
+            await self.db.flush()
+        if not settings.ESTADOS_ACTIVOS_IDS:
+            raise ConflictError(detail="No hay estados activos configurados para empleados")
+
+        estado_activo_id = settings.ESTADOS_ACTIVOS_IDS[0]
+        lote_id = str(uuid.uuid4())
+
+        numeros = await self.externo_corr_repo.reservar_siguientes(cantidad)
+
+        ultimo_id = (await self.db.execute(select(func.max(Empleado.empleado_id)))).scalar() or 0
+        empleados_creados: list[Empleado] = []
+        pases: list[ComedorRhPaseExternoItem] = []
+
+        for idx, num in enumerate(numeros, start=1):
+            token = f"CEXT{num}"
+            password_temporal = self._generar_password_temporal()
+            password_hash = hash_password(password_temporal)
+            ultimo_id += 1
+            emp = await self.empleado_repo.create({
+                "empleado_id": ultimo_id,
+                "no_empleado": token,
+                "nombre": f"EXTERNO visita #{idx:02d} (lote {lote_id[:8]})",
+                "email": None,
+                "usuario": token.lower(),
+                "password_hash": password_hash,
+                "rol_id": rol_empleado.id,
+                "estado_id": estado_activo_id,
+                "requiere_cambio_password": False,
+            })
+            empleados_creados.append(emp)
+            pases.append(
+                ComedorRhPaseExternoItem(
+                    empleado_id=emp.id,
+                    codigo_acceso=token,
+                    password_temporal=password_temporal,
+                ),
+            )
+
+        credenciales = ComedorRhCredencialTemporal(
+            lote_id=lote_id,
+            valido_desde=fecha_inicio,
+            valido_hasta=fecha_fin,
+            pases=pases,
+        )
+        return empleados_creados, credenciales
+
+    async def _crear_reservas_para_empleados(
+        self,
+        empleado_ids: list[int],
+        comedor_id: int,
+        fechas: list[date],
+        tipo_enum: ComedorTipoComida,
+    ) -> int:
+        creados = 0
+        for empleado_id in empleado_ids:
+            semanas = sorted({f - timedelta(days=f.weekday()) for f in fechas})
+            registros_por_semana: dict[date, object] = {}
+            for inicio_semana in semanas:
+                registro = await self.registro_repo.get_registro_semana_comedor(
+                    empleado_id=empleado_id,
+                    comedor_id=comedor_id,
+                    semana=inicio_semana,
+                )
+                if not registro:
+                    registro = await self.registro_repo.create({
+                        "empleado_id": empleado_id,
+                        "comedor_id": comedor_id,
+                        "semana": inicio_semana,
+                        "tipo_platillo": "normal",
+                        "acceso_concedido": False,
+                    })
+                    await self.db.flush()
+                registros_por_semana[inicio_semana] = registro
+
+            existentes = await self.acceso_repo.list_accesos_por_empleado_y_fechas(
+                empleado_id=empleado_id,
+                fechas_servicio=fechas,
+            )
+            existentes_por_fecha = {row.fecha_servicio: row for row in existentes}
+            for fecha_servicio in fechas:
+                existente = existentes_por_fecha.get(fecha_servicio)
+                if existente and existente.estado_acceso in (
+                    ComedorAccesoEstado.PENDIENTE,
+                    ComedorAccesoEstado.ACCEDIDO,
+                ):
+                    raise ConflictError(detail="Ya existe un registro activo para una de las fechas seleccionadas")
+                if existente and existente.estado_acceso == ComedorAccesoEstado.EXPIRADO:
+                    await self.acceso_repo.update(
+                        existente.id,
+                        {
+                            "comedor_id": comedor_id,
+                            "comedor_registro_id": registros_por_semana[
+                                fecha_servicio - timedelta(days=fecha_servicio.weekday())
+                            ].id,
+                            "tipo_comida": tipo_enum,
+                            "estado_acceso": ComedorAccesoEstado.PENDIENTE,
+                            "hora_entrada": None,
+                        },
+                    )
+                    await self.db.flush()
+                    creados += 1
+                    continue
+                await self.acceso_repo.create({
+                    "empleado_id": empleado_id,
+                    "comedor_id": comedor_id,
+                    "comedor_registro_id": registros_por_semana[
+                        fecha_servicio - timedelta(days=fecha_servicio.weekday())
+                    ].id,
+                    "fecha_servicio": fecha_servicio,
+                    "tipo_comida": tipo_enum,
+                    "estado_acceso": ComedorAccesoEstado.PENDIENTE,
+                })
+                await self.db.flush()
+                creados += 1
+        return creados
+
+    async def crear_registro_rh(
+        self,
+        data: ComedorRhRegistroCreate,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> ComedorRhRegistroResponse:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede crear registros de este tipo")
+        comedor = await self.comedor_repo.get(data.comedor_id)
+        if not comedor:
+            raise NotFoundError(entidad="Comedor", id=data.comedor_id)
+
+        fechas = sorted(set(data.fechas_servicio))
+        if not fechas:
+            raise ConflictError(detail="Debes enviar al menos una fecha")
+
+        tipo_enum = ComedorTipoComida(data.tipo_comida)
+        if data.person_type == "interno":
+            if not data.target_user_id:
+                raise ConflictError(detail="Debes seleccionar un empleado válido")
+            empleado = await self.empleado_repo.get_with_rol(data.target_user_id)
+            if not empleado:
+                raise NotFoundError(entidad="Empleado", id=data.target_user_id)
+            creados = await self._crear_reservas_para_empleados(
+                empleado_ids=[empleado.id],
+                comedor_id=data.comedor_id,
+                fechas=fechas,
+                tipo_enum=tipo_enum,
+            )
+            audit_background(
+                background_tasks,
+                self.db,
+                accion="COMEDOR_RH_REGISTRO_INTERNO",
+                modulo="comedor",
+                usuario_id=current_user.id,
+                entidad_id=empleado.id,
+                datos_despues={
+                    "fechas": [str(f) for f in fechas],
+                    "tipo_comida": data.tipo_comida,
+                    "observaciones": data.observaciones or "",
+                },
+            )
+            return ComedorRhRegistroResponse(
+                total_registros_creados=creados,
+                modo="interno",
+                credenciales_temporales=None,
+            )
+
+        cantidad = data.external_people_count or 0
+        if cantidad <= 0:
+            raise ConflictError(detail="Debes indicar una cantidad válida de personal externo")
+        empleados_ext, credenciales = await self._crear_empleados_externos_temporales(
+            cantidad=cantidad,
+            fecha_inicio=fechas[0],
+            fecha_fin=fechas[-1],
+        )
+        creados = await self._crear_reservas_para_empleados(
+            empleado_ids=[emp.id for emp in empleados_ext],
+            comedor_id=data.comedor_id,
+            fechas=fechas,
+            tipo_enum=tipo_enum,
+        )
+        audit_background(
+            background_tasks,
+            self.db,
+            accion="COMEDOR_RH_REGISTRO_EXTERNO",
+            modulo="comedor",
+            usuario_id=current_user.id,
+            entidad_id=data.comedor_id,
+            datos_despues={
+                "cantidad_externos": cantidad,
+                "fechas": [str(f) for f in fechas],
+                "tipo_comida": data.tipo_comida,
+                "lote_id": credenciales.lote_id,
+                "pases_generados": len(credenciales.pases),
+                "observaciones": data.observaciones or "",
+            },
+        )
+        for pase in credenciales.pases:
+            await self.codigo_externo_repo.create({
+                "comedor_id": data.comedor_id,
+                "created_by": current_user.id,
+                "empleado_id": pase.empleado_id,
+                "lote_id": credenciales.lote_id,
+                "fecha_inicio": fechas[0],
+                "fecha_fin": fechas[-1],
+                "cantidad_personas": 1,
+                "tipo_comida": tipo_enum,
+                "codigo_acceso": pase.codigo_acceso,
+                "password_temporal": pase.password_temporal,
+            })
+        await self.db.flush()
+        return ComedorRhRegistroResponse(
+            total_registros_creados=creados,
+            modo="externo",
+            credenciales_temporales=credenciales,
+        )
+
+    async def list_codigos_externos_rh(
+        self,
+        current_user: Empleado,
+        desde: date | None = None,
+        hasta: date | None = None,
+        estatus: str | None = None,
+    ) -> list[ComedorCodigoExternoItem]:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede consultar códigos externos")
+        if desde and hasta and hasta < desde:
+            raise ConflictError(detail="El rango de fechas es inválido")
+        rows = await self.codigo_externo_repo.list_codigos_externos(
+            desde=desde,
+            hasta=hasta,
+            estatus=estatus,
+        )
+        return [ComedorCodigoExternoItem(**row) for row in rows]
+
     async def reservar_acceso_dia(
         self,
         data: ComedorAccesoReservaCreate,
@@ -521,10 +785,6 @@ class ComedorService:
             if fecha_servicio < primer_lunes:
                 raise ForbiddenError(
                     detail="Solo puedes agendar comidas a partir del lunes de la semana siguiente",
-                )
-            if fecha_servicio.weekday() >= 5:
-                raise ConflictError(
-                    detail="No se permiten reservaciones de comedor en fines de semana",
                 )
 
         tipo_enum = ComedorTipoComida(data.tipo_comida)
