@@ -35,6 +35,13 @@ import {
 
 type SolicitudesRenderScope = "main" | "personal" | "equipo";
 
+/** Cabecera de tabla: legibilidad alta sin azul marino pleno. */
+const TABLE_TH =
+  "sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-3 py-2.5 text-left text-xs font-semibold text-slate-800 sm:px-4 sm:text-sm";
+
+const ACT_ICON_BTN =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-leoni-blue/45 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-400";
+
 function scopeAttr(scope: SolicitudesRenderScope): string {
   return `data-rh-sol-scope="${scope}"`;
 }
@@ -68,6 +75,49 @@ function badgeEstado(e: RhSolicitudEstadoCodigo): string {
     case "overridden":        return badgeOverridden("Override");
     default:                  return escapeHtml(e);
   }
+}
+
+function iconActionVer(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`;
+}
+
+function iconActionEditar(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>`;
+}
+
+function iconActionEliminar(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>`;
+}
+
+/** Botones de acción rápida (solo UI; mismos handlers que fila / ver). */
+function renderAccionesCeldaEmpleado(
+  row: RhSolicitudTablaFila,
+  scope: SolicitudesRenderScope,
+  opts: { verActivo: boolean; editarActivo: boolean },
+): string {
+  const verBtn = opts.verActivo
+    ? `<button type="button" class="${ACT_ICON_BTN}" data-rh-sol-ver="${row.id}" ${scopeAttr(scope)} title="Ver detalle" aria-label="Ver detalle">${iconActionVer()}</button>`
+    : `<span class="inline-flex size-8 items-center justify-center text-slate-300" aria-hidden="true">${iconActionVer()}</span>`;
+  const editBtn = opts.editarActivo
+    ? `<button type="button" class="${ACT_ICON_BTN}" data-rh-sol-editar="${row.id}" ${scopeAttr(scope)} title="Corregir solicitud" aria-label="Corregir solicitud">${iconActionEditar()}</button>`
+    : `<button type="button" class="${ACT_ICON_BTN}" disabled title="Corregir no disponible para este estado" aria-label="Corregir no disponible">${iconActionEditar()}</button>`;
+  const delBtn = `<button type="button" class="${ACT_ICON_BTN}" disabled title="Eliminar no disponible" aria-label="Eliminar no disponible">${iconActionEliminar()}</button>`;
+  return `<div class="flex flex-wrap items-center justify-end gap-1">${verBtn}${editBtn}${delBtn}</div>`;
+}
+
+function renderAccionesCeldaGestor(
+  row: RhSolicitudTablaFila,
+  scope: SolicitudesRenderScope,
+  opts: { verActivo: boolean; editarActivo: boolean },
+): string {
+  const verBtn = opts.verActivo
+    ? `<button type="button" class="${ACT_ICON_BTN}" data-rh-sol-ver="${row.id}" ${scopeAttr(scope)} title="Ver detalle" aria-label="Ver detalle">${iconActionVer()}</button>`
+    : `<span class="inline-flex size-8 items-center justify-center text-slate-300" aria-hidden="true">${iconActionVer()}</span>`;
+  const editBtn = opts.editarActivo
+    ? `<button type="button" class="${ACT_ICON_BTN}" data-rh-sol-editar="${row.id}" ${scopeAttr(scope)} title="Gestionar corrección" aria-label="Gestionar corrección">${iconActionEditar()}</button>`
+    : `<button type="button" class="${ACT_ICON_BTN}" disabled title="Edición solo en flujo de corrección del colaborador" aria-label="Editar no disponible">${iconActionEditar()}</button>`;
+  const delBtn = `<button type="button" class="${ACT_ICON_BTN}" disabled title="Eliminar no disponible" aria-label="Eliminar no disponible">${iconActionEliminar()}</button>`;
+  return `<div class="flex flex-wrap items-center justify-end gap-1">${verBtn}${editBtn}${delBtn}</div>`;
 }
 
 function celdaEmpleado(row: RhSolicitudTablaFila): string {
@@ -251,36 +301,68 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   }
 
   const s = vm.stats;
-  const cards: { title: string; value: number; borderTop: string }[] = [
+  const iconStatReloj = (): string =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+  const iconStatVacaciones = (): string =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>`;
+  const iconStatCasa = (): string =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
+  const iconStatCheck = (): string =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+
+  const cards: {
+    title: string;
+    subtitle: string;
+    value: number;
+    icon: () => string;
+    wrap: string;
+    numCls: string;
+  }[] = [
     {
       title: "Pendientes",
+      subtitle: "Por revisar",
       value: s.pendientes,
-      borderTop: "border-t-leoni-blue",
+      icon: iconStatReloj,
+      wrap: "border-amber-200/80 bg-amber-50/90 text-amber-800",
+      numCls: "text-amber-950",
     },
     {
       title: "Vacaciones",
+      subtitle: "En proceso",
       value: s.vacaciones,
-      borderTop: "border-t-orange-500",
+      icon: iconStatVacaciones,
+      wrap: "border-orange-200/80 bg-orange-50/90 text-orange-800",
+      numCls: "text-orange-950",
     },
     {
       title: "Home Office",
+      subtitle: "Registradas",
       value: s.home_office,
-      borderTop: "border-t-violet-600",
+      icon: iconStatCasa,
+      wrap: "border-violet-200/80 bg-violet-50/90 text-violet-800",
+      numCls: "text-violet-950",
     },
     {
       title: "Aprobadas hoy",
+      subtitle: "Últimas gestiones",
       value: s.aprobadas_hoy,
-      borderTop: "border-t-emerald-500",
+      icon: iconStatCheck,
+      wrap: "border-emerald-200/80 bg-emerald-50/90 text-emerald-800",
+      numCls: "text-emerald-950",
     },
   ];
 
   const html = cards
     .map(
       (c) => `
-    <article class="flex h-full flex-col justify-center rounded-xl border border-border border-t-4 ${c.borderTop} bg-white p-3 shadow-sm sm:p-4">
-      <div class="flex items-center justify-between gap-2">
-        <h2 class="min-w-0 text-xs font-medium text-text-muted sm:text-sm">${escapeHtml(c.title)}</h2>
-        <p class="shrink-0 text-2xl font-bold tabular-nums tracking-tight text-text-primary sm:text-3xl">${escapeHtml(String(c.value))}</p>
+    <article class="rounded-xl border ${c.wrap} p-3 shadow-sm sm:p-4">
+      <div class="flex items-start gap-2.5">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5" aria-hidden="true">${c.icon()}</div>
+        <div class="min-w-0 flex-1">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-600/90">${escapeHtml(c.title)}</p>
+          <p class="mt-0.5 text-xs text-slate-600/85">${escapeHtml(c.subtitle)}</p>
+          <p class="mt-1.5 text-3xl font-bold tabular-nums tracking-tight ${c.numCls} sm:text-4xl">${escapeHtml(String(c.value))}</p>
+        </div>
       </div>
     </article>`,
     )
@@ -289,11 +371,17 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-4">${html}</div>`;
 }
 
-function renderFilters(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
+function renderFilters(
+  vm: RhSolicitudesAdminViewModel,
+  scope: SolicitudesRenderScope,
+  opts?: { clusterEquipo?: boolean },
+): string {
+  const clusterEquipo = Boolean(opts?.clusterEquipo);
   const f = vm.filters;
   const opt = vm.filterOptions;
   const keys = vm.ui.visibleFilterKeys;
   const wrapCls = FILTER_FIELD_WRAP;
+  const wrapTipoEstadoEquipo = clusterEquipo ? " sm:min-w-[12rem] sm:max-w-[14rem] sm:flex-none" : "";
 
   const tipoOpts =
     `<option value="" ${f.tipo === "" ? "selected" : ""}>Todos los tipos</option>` +
@@ -343,18 +431,23 @@ function renderFilters(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRender
   const fields: string[] = [];
   for (const key of keys) {
     if (key === "type") {
-      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts, scope)}</div>`);
+      fields.push(
+        `<div class="${wrapCls}${wrapTipoEstadoEquipo}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts, scope)}</div>`,
+      );
     } else if (key === "area") {
       fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-area", "Área", "area", areaOpts, scope)}</div>`);
     } else if (key === "supervisor") {
       fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts, scope)}</div>`);
     } else if (key === "employee") {
+      const empWrap = clusterEquipo ? `${wrapCls} min-w-[min(100%,18rem)] flex-[1_1_18rem]` : wrapCls;
       const empField = solicitudesUsaFiltroEmpleadoTexto(vm.ui.role)
         ? empleadoTextoBusquedaFilterField(f, scope)
         : selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts, scope);
-      fields.push(`<div class="${wrapCls}">${empField}</div>`);
+      fields.push(`<div class="${empWrap}">${empField}</div>`);
     } else if (key === "status") {
-      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts, scope)}</div>`);
+      fields.push(
+        `<div class="${wrapCls}${wrapTipoEstadoEquipo}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts, scope)}</div>`,
+      );
     }
   }
 
@@ -372,12 +465,23 @@ function renderFilters(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRender
       </div>`
     : "";
 
-  return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de solicitudes">
+  const inner = `
       <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
         ${fields.join("")}
         ${clearBtn}
-      </div>
+      </div>`;
+
+  if (clusterEquipo) {
+    return `
+    <section class="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros del equipo">
+      <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buscar y filtrar equipo</p>
+      ${inner}
+    </section>`;
+  }
+
+  return `
+    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de solicitudes">
+      ${inner}
     </section>`;
 }
 
@@ -414,7 +518,7 @@ function renderFiltersSection(vm: RhSolicitudesAdminViewModel, scope: Solicitude
   if (filtersLoading) {
     return renderFiltersSkeleton(n);
   }
-  return renderFilters(vm, scope);
+  return renderFilters(vm, scope, { clusterEquipo: scope === "equipo" });
 }
 
 function renderEmpleadoSolicitudesTableFooter(
@@ -517,9 +621,10 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: 
                 : resueltaConsulta
                   ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
                   : "";
-            const verBtn = clickable
-              ? `<button type="button" class="rounded-lg px-2 py-1 text-xs font-semibold text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" data-rh-sol-ver="${row.id}" ${scopeAttr(scope)}>Ver</button>`
-              : `<span class="text-xs text-slate-400">—</span>`;
+            const acciones = renderAccionesCeldaEmpleado(row, scope, {
+              verActivo: clickable,
+              editarActivo: cambiosSolicitados,
+            });
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
       <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeHtml(num)}</td>
@@ -529,7 +634,7 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: 
       <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-800 sm:px-4">${escapeHtml(dias)}</td>
       <td class="px-3 py-2.5 align-middle sm:px-4">${badgeEstado(row.estado)}</td>
       <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha_solicitud))}</td>
-      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-right sm:px-4">${verBtn}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-right sm:px-4">${acciones}</td>
     </tr>`;
           })
           .join("")
@@ -554,17 +659,17 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: 
     <section class="${sectionLayoutCls} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
       <div class="${tablaBodyWrapCls}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
-        <table class="min-w-[720px] w-full text-left">
-          <thead class="border-b border-leoni-blue-light shadow-sm">
-            <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Folio</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Tipo</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Inicio</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Fin</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Días</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Estatus</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Creación</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-right text-xs font-semibold sm:px-4 sm:text-sm">Detalle</th>
+        <table class="min-w-[760px] w-full text-left">
+          <thead class="border-b border-slate-200 shadow-sm">
+            <tr>
+              <th scope="col" class="${TABLE_TH}">Folio</th>
+              <th scope="col" class="${TABLE_TH}">Tipo</th>
+              <th scope="col" class="${TABLE_TH}">Inicio</th>
+              <th scope="col" class="${TABLE_TH}">Fin</th>
+              <th scope="col" class="${TABLE_TH}">Días</th>
+              <th scope="col" class="${TABLE_TH}">Estatus</th>
+              <th scope="col" class="${TABLE_TH}">Creación</th>
+              <th scope="col" class="${TABLE_TH} text-right">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -575,6 +680,8 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: 
 }
 
 function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
+  const hideEmpleadoColumn = scope === "personal";
+
   if (vm.tableStatus === "loading") {
     return `
       <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Solicitudes">
@@ -600,9 +707,10 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
     solicitudesUsaFiltroEmpleadoTexto(vm.ui.role) && vm.filters.empleado_busqueda.trim()
       ? `<span class="mt-2 block text-xs text-slate-400">Prueba con otro nombre, identificador o folio.</span>`
       : "";
+  const colCount = hideEmpleadoColumn ? 7 : 8;
   const emptyRow =
     vm.tableStatus === "empty" || !tbl || tbl.total === 0
-      ? `<tr><td colspan="7" class="px-3 py-10 text-center text-sm text-slate-500 sm:px-4">No hay solicitudes con los filtros actuales.${emptyExtraEmpTexto}</td></tr>`
+      ? `<tr><td colspan="${colCount}" class="px-3 py-10 text-center text-sm text-slate-500 sm:px-4">No hay solicitudes con los filtros actuales.${emptyExtraEmpTexto}</td></tr>`
       : "";
 
   const rows =
@@ -625,9 +733,16 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
                 : resueltaConsulta
                   ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
                   : "";
+            const empleadoTd = hideEmpleadoColumn
+              ? ""
+              : `<td class="px-3 py-2.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>`;
+            const acciones = renderAccionesCeldaGestor(row, scope, {
+              verActivo: clickable,
+              editarActivo: cambiosSolicitados,
+            });
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
-      <td class="px-3 py-2.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>
+      ${empleadoTd}
       <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeHtml(num)}</td>
       <td class="max-w-40 px-3 py-2.5 align-middle text-sm text-slate-700 sm:px-4">
         <span class="block truncate" title="${escapeHtml(row.area)}">${escapeHtml(row.area)}</span>
@@ -638,6 +753,7 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
         <span class="block truncate" title="${escapeHtml(fmtPeriodo(row))}">${escapeHtml(fmtPeriodo(row))}</span>
       </td>
       <td class="px-3 py-2.5 align-middle sm:px-4">${badgeEstado(row.estado)}</td>
+      <td class="whitespace-nowrap px-3 py-2.5 align-middle text-right sm:px-4">${acciones}</td>
     </tr>`;
           })
           .join("")
@@ -704,20 +820,25 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
   const { sectionLayoutCls: sectionLayoutClsGestor, bodyWrapCls: tablaBodyWrapClsGestor } =
     rhListadoTablaClasesLayoutScroll(rhListadoTablaUsaScrollVerticalViewport(visibleRowCountGestor));
 
+  const thEmpleado = hideEmpleadoColumn
+    ? ""
+    : `<th scope="col" class="${TABLE_TH}">Empleado</th>`;
+
   return `
     <section class="${sectionLayoutClsGestor} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Listado de solicitudes">
       <div class="${tablaBodyWrapClsGestor}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
-        <table class="min-w-[880px] w-full text-left">
-          <thead class="border-b border-leoni-blue-light shadow-sm">
-            <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Empleado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Número</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Área</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Tipo</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Fecha solicitud</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Periodo solicitado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold sm:px-4 sm:text-sm">Estado</th>
+        <table class="${hideEmpleadoColumn ? "min-w-[820px]" : "min-w-[920px]"} w-full text-left">
+          <thead class="border-b border-slate-200 shadow-sm">
+            <tr>
+              ${thEmpleado}
+              <th scope="col" class="${TABLE_TH}">Número</th>
+              <th scope="col" class="${TABLE_TH}">Área</th>
+              <th scope="col" class="${TABLE_TH}">Tipo</th>
+              <th scope="col" class="${TABLE_TH}">Fecha solicitud</th>
+              <th scope="col" class="${TABLE_TH}">Periodo solicitado</th>
+              <th scope="col" class="${TABLE_TH}">Estado</th>
+              <th scope="col" class="${TABLE_TH} text-right">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -799,11 +920,21 @@ export function renderRhSolicitudesScopedSection(
   options: { scope: Exclude<SolicitudesRenderScope, "main">; title: string; subtitle: string },
 ): string {
   const tableHtml = vm.ui.variant === "empleado" ? renderEmpleadoSolicitudesTable(vm, options.scope) : renderTable(vm, options.scope);
+  const sectionShell =
+    options.scope === "personal"
+      ? "rounded-xl border border-slate-200/95 border-l-[6px] border-l-leoni-blue bg-white p-3 shadow-md ring-1 ring-slate-900/[0.06] sm:p-5"
+      : "rounded-xl border border-emerald-900/15 border-l-[6px] border-l-emerald-600 bg-gradient-to-br from-emerald-50/50 via-white to-white p-3 shadow-md ring-1 ring-emerald-900/10 sm:p-5";
+  const chip =
+    options.scope === "personal"
+      ? `<span class="ml-2 inline-flex shrink-0 rounded-full bg-leoni-blue/12 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-leoni-blue">Personal</span>`
+      : `<span class="ml-2 inline-flex shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Equipo</span>`;
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-slate-50/40 p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4">
-      <header class="mb-3">
-        <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}</h2>
-        <p class="mt-0.5 text-xs text-text-muted sm:text-sm">${escapeHtml(options.subtitle)}</p>
+    <section class="${sectionShell}">
+      <header class="mb-4 border-b border-slate-200/90 pb-3">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}${chip}</h2>
+        </div>
+        <p class="mt-1.5 text-xs leading-snug text-text-muted sm:text-sm">${escapeHtml(options.subtitle)}</p>
       </header>
       <div class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
         <div class="shrink-0">${renderStatCards(vm)}</div>

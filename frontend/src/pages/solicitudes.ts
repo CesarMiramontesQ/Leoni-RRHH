@@ -481,6 +481,18 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         return;
       }
 
+      const editar = t.closest<HTMLElement>("[data-rh-sol-editar]");
+      if (editar && !editar.hasAttribute("disabled")) {
+        const edScope = scopeFromInteractiveElement(editar);
+        const raw = editar.getAttribute("data-rh-sol-editar");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        if (!Number.isFinite(id)) return;
+        const fila = rowsForScope(edScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
+        if (!fila) return;
+        abrirSolicitudSegunEstado(fila, id);
+        return;
+      }
+
       if (t.closest("#rh-sol-nueva")) {
         void rhNuevaSolicitudModal?.open();
         return;
