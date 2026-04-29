@@ -12,30 +12,34 @@ Respond always in Spanish. Keep answers short and actionable.
 
 ## Commands
 
-### Backend
+Everything runs in Docker — no Python or Node installed locally.
+
+### Development (levantar todo)
 ```bash
-# Start dev server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+docker-compose up -d              # postgres + backend + frontend
+docker-compose logs -f backend    # ver logs del backend
+```
+- Backend: http://localhost:8000 (con reload automático)
+- Frontend: http://localhost:5173 (Vite con HMR)
+- API docs: http://localhost:8000/docs
 
-# Run all tests (SQLite in-memory, no Docker needed)
-pytest
-
-# Run a single test
-pytest tests/test_auth.py -k "test_login"
-
-# Database (requires Docker postgres running)
-docker compose up -d
-alembic upgrade head
-alembic revision --autogenerate -m "description"
+### Tests
+```bash
+docker-compose run --rm test                          # correr toda la suite
+docker-compose run --rm test pytest tests/test_auth.py -k "test_login"  # un solo test
 ```
 
-### Frontend
+### Database / Migraciones
 ```bash
-cd frontend
-npm install
-npm run dev      # Vite dev server
-npm run build    # tsc + vite build
-npm run test     # vitest
+docker-compose exec backend alembic upgrade head
+docker-compose exec backend alembic revision --autogenerate -m "description"
+docker-compose exec backend python -m app.utils.seed  # crear roles + admin inicial
+```
+
+### Frontend (build, lint)
+```bash
+docker-compose exec frontend npm run build
+docker-compose exec frontend npm run test
 ```
 
 ## Architecture
