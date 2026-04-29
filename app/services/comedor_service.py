@@ -16,6 +16,7 @@ import string
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import func, select
@@ -53,6 +54,8 @@ from app.schemas.comedor import (
     ComedorEquipoBeneficiarioItem,
     ComedorMisReservaItem,
     ComedorResumenDiarioItem,
+    ComedorRhProximoRegistroItem,
+    ComedorRhProximosRegistrosPage,
     ComedorRhCredencialTemporal,
     ComedorRhPaseExternoItem,
     ComedorRhRegistroCreate,
@@ -516,6 +519,76 @@ class ComedorService:
             raise ConflictError(detail="El rango de fechas es inválido")
         rows = await self.acceso_repo.list_resumen_diario_global(desde=desde, hasta=hasta)
         return [ComedorResumenDiarioItem(**row) for row in rows]
+
+    def _estados_proximos_rh_filtro(
+        self, filtro_estado: Literal["todos", "confirmado", "cancelado"]
+    ) -> tuple[ComedorAccesoEstado, ...]:
+        if filtro_estado == "confirmado":
+            return (ComedorAccesoEstado.ACCEDIDO,)
+        if filtro_estado == "cancelado":
+            return (ComedorAccesoEstado.EXPIRADO,)
+        return (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+
+    async def list_proximos_registros_rh_paginated(
+        self,
+        current_user: Empleado,
+        page: int,
+        page_size: int,
+        buscar: str | None = None,
+        filtro_estado: Literal["todos", "confirmado", "cancelado"] = "todos",
+    ) -> ComedorRhProximosRegistrosPage:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede consultar próximos registros de comedor")
+        if page_size not in (10, 50):
+            raise ConflictError(detail="page_size debe ser 10 o 50")
+        desde = business_today()
+        offset = (page - 1) * page_size
+        estados = self._estados_proximos_rh_filtro(filtro_estado)
+        buscar_norm = buscar.strip() if buscar else None
+        if buscar_norm == "":
+            buscar_norm = None
+        total = await self.acceso_repo.count_proximos_accesos_global_rh(
+            desde=desde, estados=estados, buscar=buscar_norm
+        )
+        rows = await self.acceso_repo.list_proximos_accesos_global_rh(
+            desde=desde,
+            offset=offset,
+            limit=page_size,
+            estados=estados,
+            buscar=buscar_norm,
+        )
+        items: list[ComedorRhProximoRegistroItem] = []
+        for row in rows:
+            emp = row.empleado
+            nombre = (emp.nombre if emp else "") or "Sin nombre"
+            no_emp = (emp.no_empleado if emp else "") or ""
+            area_txt = ""
+            if emp and emp.area and getattr(emp.area, "descripcion", None):
+                area_txt = str(emp.area.descripcion).strip()
+            comedor_nombre = (row.comedor.nombre if row.comedor else "") or ""
+            tipo = row.tipo_comida.value if hasattr(row.tipo_comida, "value") else str(row.tipo_comida)
+            estado = (
+                row.estado_acceso.value if hasattr(row.estado_acceso, "value") else str(row.estado_acceso)
+            )
+            items.append(
+                ComedorRhProximoRegistroItem(
+                    id=row.id,
+                    empleado_id=row.empleado_id,
+                    empleado_nombre=nombre,
+                    no_empleado=no_emp,
+                    area=area_txt,
+                    comedor_nombre=comedor_nombre,
+                    fecha_servicio=row.fecha_servicio,
+                    tipo_comida=tipo,
+                    estado_acceso=estado,
+                )
+            )
+        return ComedorRhProximosRegistrosPage(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
 
     async def _crear_empleados_externos_temporales(
         self,

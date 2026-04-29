@@ -5,7 +5,7 @@ Repositorio de Comedor: menus semanales, registros de seleccion y validacion de 
 
 from datetime import date
 
-from sqlalchemy import and_, case, delete, func, select, text, update
+from sqlalchemy import and_, case, delete, func, or_, select, text, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -307,6 +307,54 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             .limit(limite)
         )
         return list(result.scalars().all())
+
+    async def count_proximos_accesos_global_rh(
+        self,
+        desde: date,
+        estados: tuple[ComedorAccesoEstado, ...],
+        buscar: str | None = None,
+    ) -> int:
+        stmt = select(func.count(ComedorAcceso.id)).where(
+            ComedorAcceso.fecha_servicio >= desde,
+            ComedorAcceso.estado_acceso.in_(estados),
+        )
+        if buscar and (t := buscar.strip()):
+            pattern = f"%{t}%"
+            emp_ids = select(Empleado.id).where(
+                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+            )
+            stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
+        return int((await self.db.execute(stmt)).scalar_one() or 0)
+
+    async def list_proximos_accesos_global_rh(
+        self,
+        desde: date,
+        offset: int,
+        limit: int,
+        estados: tuple[ComedorAccesoEstado, ...],
+        buscar: str | None = None,
+    ) -> list[ComedorAcceso]:
+        stmt = (
+            select(ComedorAcceso)
+            .options(
+                selectinload(ComedorAcceso.empleado).selectinload(Empleado.area),
+                selectinload(ComedorAcceso.comedor),
+            )
+            .where(
+                ComedorAcceso.fecha_servicio >= desde,
+                ComedorAcceso.estado_acceso.in_(estados),
+            )
+        )
+        if buscar and (t := buscar.strip()):
+            pattern = f"%{t}%"
+            emp_ids = select(Empleado.id).where(
+                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+            )
+            stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
+        stmt = stmt.order_by(ComedorAcceso.fecha_servicio.asc(), ComedorAcceso.id.asc()).offset(offset).limit(
+            limit
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
 
     async def list_accesos_equipo_mes(
         self,

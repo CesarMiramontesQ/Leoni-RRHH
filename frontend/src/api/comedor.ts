@@ -344,6 +344,42 @@ export async function getComedorEquipoMetricas(): Promise<ComedorEquipoMetricasA
   return (await res.json()) as ComedorEquipoMetricasApi;
 }
 
+export type ComedorRhProximoRegistroApi = {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string;
+  no_empleado: string;
+  area: string;
+  comedor_nombre: string;
+  fecha_servicio: string;
+  tipo_comida: string;
+  estado_acceso: string;
+};
+
+export type ComedorRhProximosRegistrosPageApi = {
+  items: ComedorRhProximoRegistroApi[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type ComedorRhProximosFiltroEstado = "todos" | "confirmado" | "cancelado";
+
+export async function getComedorRhProximosRegistros(
+  page: number,
+  pageSize: 10 | 50,
+  opts?: { buscar?: string; filtroEstado?: ComedorRhProximosFiltroEstado },
+): Promise<ComedorRhProximosRegistrosPageApi> {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  params.set("filtro_estado", opts?.filtroEstado ?? "todos");
+  if (opts?.buscar?.trim()) params.set("buscar", opts.buscar.trim());
+  const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/proximos-registros?${params.toString()}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorRhProximosRegistrosPageApi;
+}
+
 export async function getComedorRhResumenDiario(
   desdeIso: string,
   hastaIso: string,

@@ -199,6 +199,27 @@ class ComedorResumenDiarioItem(BaseModel):
     saludables: int
 
 
+class ComedorRhProximoRegistroItem(BaseModel):
+    """Fila de acceso futuro (desde hoy) para supervisión RH."""
+
+    id: int
+    empleado_id: int
+    empleado_nombre: str
+    no_empleado: str
+    area: str
+    comedor_nombre: str
+    fecha_servicio: date
+    tipo_comida: str
+    estado_acceso: str
+
+
+class ComedorRhProximosRegistrosPage(BaseModel):
+    items: list[ComedorRhProximoRegistroItem]
+    total: int
+    page: int
+    page_size: int
+
+
 class ComedorEquipoBeneficiarioItem(BaseModel):
     empleado_id: int
     no_empleado: str

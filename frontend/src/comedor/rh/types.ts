@@ -118,6 +118,25 @@ export type ComedorReservationsPage = {
   pageSize: number;
 };
 
+export type ComedorRhProximoRegistroRow = {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string;
+  no_empleado: string;
+  area: string;
+  comedor_nombre: string;
+  fecha_servicio: string;
+  tipo_comida: string;
+  estado_acceso: string;
+};
+
+export type ComedorRhProximosRegistrosPage = {
+  items: readonly ComedorRhProximoRegistroRow[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type ComedorTeamReservationRow = {
   id: number;
   empleadoId: number;

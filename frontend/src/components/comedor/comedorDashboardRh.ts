@@ -2,9 +2,10 @@ import type {
   ComedorCalendarMonth,
   ComedorKpi,
   ComedorPanelState,
-  ComedorReservationsPage,
+  ComedorRhProximosRegistrosPage,
   ComedorSidebarDataset,
 } from "../../comedor/rh/types.ts";
+import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import { renderComedorAlerts } from "./comedorAlerts.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
 import {
@@ -12,7 +13,8 @@ import {
   renderComedorExternalCodesCard,
   renderComedorSuggestion,
 } from "./comedorCharts.ts";
-import { renderComedorReservationsTable, type ComedorTableFiltersState } from "./comedorReservationsTable.ts";
+import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
+import type { ComedorTableFiltersState } from "./comedorReservationsTable.ts";
 import { renderComedorStats } from "./comedorStats.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 
@@ -26,10 +28,10 @@ export type ComedorDashboardRhViewState = {
   sidebarState: ComedorPanelState;
   sidebar: ComedorSidebarDataset | null;
   sidebarError: string | null;
-  tableState: ComedorPanelState;
-  table: ComedorReservationsPage | null;
-  tableError: string | null;
   tableFilters: ComedorTableFiltersState;
+  futurosRhState: ComedorPanelState;
+  futurosRh: ComedorRhProximosRegistrosPage | null;
+  futurosRhError: string | null;
 };
 
 function renderHeader(): string {
@@ -54,6 +56,15 @@ function renderHeader(): string {
 
 export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): string {
   const sidebar = state.sidebar;
+  const esRh = getRolFromAccessToken() === "rh";
+  const bloqueFuturosRh = esRh
+    ? renderComedorRhProximosRegistrosTable(
+        state.futurosRhState,
+        state.futurosRh,
+        state.futurosRhError,
+        state.tableFilters,
+      )
+    : "";
   return `
     <div class="flex min-h-[calc(100dvh-11rem)] flex-col gap-4 sm:gap-5">
       ${renderHeader()}
@@ -67,7 +78,7 @@ export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): st
           ${renderComedorExternalCodesCard(state.sidebarState, sidebar?.externalCodesCard ?? null)}
         </div>
       </section>
-      ${renderComedorReservationsTable(state.tableState, state.table, state.tableFilters, state.tableError)}
+      ${bloqueFuturosRh}
     </div>`;
 }
 

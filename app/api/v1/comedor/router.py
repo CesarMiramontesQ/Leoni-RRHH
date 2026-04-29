@@ -1,5 +1,6 @@
 # app/api/v1/comedor/router.py
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,7 @@ from app.schemas.comedor import (
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
     ComedorResumenDiarioItem,
+    ComedorRhProximosRegistrosPage,
     ComedorRhRegistroCreate,
     ComedorRhRegistroResponse,
     ComedorCodigoExternoItem,
@@ -260,6 +262,26 @@ async def rh_resumen_diario_comedor(
         current_user=current_user,
         desde=desde,
         hasta=hasta,
+    )
+
+
+@router.get("/accesos/rh/proximos-registros", response_model=ComedorRhProximosRegistrosPage)
+async def rh_proximos_registros_comedor(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    buscar: str | None = Query(None, max_length=200),
+    filtro_estado: Literal["todos", "confirmado", "cancelado"] = Query("todos"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Accesos futuros (fecha_servicio >= hoy), filtrables por estado y búsqueda por empleado."""
+    service = ComedorService(db)
+    return await service.list_proximos_registros_rh_paginated(
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+        buscar=buscar,
+        filtro_estado=filtro_estado,
     )
 
 

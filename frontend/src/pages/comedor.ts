@@ -29,6 +29,7 @@ import {
   getComedorMisReservasMes,
   getComedorEquipoProximasReservas,
   getComedorEquipoReservasMes,
+  getComedorRhProximosRegistros,
   getComedorRhResumenDiario,
   getComedorEquipoMetricas,
   getComedorEquipoBeneficiarios,
@@ -49,7 +50,7 @@ import type {
   ComedorEmployeeOption,
   ComedorKpi,
   ComedorPanelState,
-  ComedorReservationsPage,
+  ComedorRhProximosRegistrosPage,
   ComedorRhSemanaPlatilloPorSemana,
   ComedorTeamReservationsPage,
   ComedorSidebarDataset,
@@ -92,14 +93,15 @@ type RhComedorState = {
   calendarError: string | null;
   sidebarState: ComedorPanelState;
   sidebarError: string | null;
-  tableState: ComedorPanelState;
-  tableError: string | null;
   statusFilter: "todos" | "confirmado" | "cancelado";
   search: string;
-  page: number;
-  pageSize: number;
   year: number;
   monthIndex: number;
+  futurosRhState: ComedorPanelState;
+  futurosRhError: string | null;
+  futurosRh: ComedorRhProximosRegistrosPage | null;
+  futurosRhPage: number;
+  futurosRhPageSize: 10 | 50;
 } & Omit<
   ComedorDashboardRhViewState,
   | "statsState"
@@ -108,9 +110,10 @@ type RhComedorState = {
   | "calendarError"
   | "sidebarState"
   | "sidebarError"
-  | "tableState"
-  | "tableError"
   | "tableFilters"
+  | "futurosRhState"
+  | "futurosRhError"
+  | "futurosRh"
 >;
 
 function toViewState(state: RhComedorState): ComedorDashboardRhViewState {
@@ -124,10 +127,10 @@ function toViewState(state: RhComedorState): ComedorDashboardRhViewState {
     sidebarState: state.sidebarState,
     sidebar: state.sidebar,
     sidebarError: state.sidebarError,
-    tableState: state.tableState,
-    table: state.table,
-    tableError: state.tableError,
     tableFilters: { statusFilter: state.statusFilter, search: state.search },
+    futurosRhState: state.futurosRhState,
+    futurosRh: state.futurosRh,
+    futurosRhError: state.futurosRhError,
   };
 }
 
@@ -222,15 +225,6 @@ function emptyCalendarMonth(year: number, monthIndex: number): ComedorCalendarMo
     monthIndex,
     legend: [],
     dayMetrics: {},
-  };
-}
-
-function emptyReservationsPage(page: number, pageSize: number): ComedorReservationsPage {
-  return {
-    items: [],
-    total: 0,
-    page,
-    pageSize,
   };
 }
 
@@ -966,15 +960,15 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     sidebarState: "loading",
     sidebar: null,
     sidebarError: null,
-    tableState: "loading",
-    table: null,
-    tableError: null,
     statusFilter: "todos",
     search: "",
-    page: 1,
-    pageSize: 10,
     year: now.getFullYear(),
     monthIndex: now.getMonth(),
+    futurosRhState: "loading",
+    futurosRhError: null,
+    futurosRh: null,
+    futurosRhPage: 1,
+    futurosRhPageSize: 10,
   };
   let calendarRequestVersion = 0;
 
@@ -1076,14 +1070,31 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     paint();
   }
 
-  async function loadTable(): Promise<void> {
-    state.tableState = "loading";
-    state.tableError = null;
+  async function loadFuturosRegistrosRh(): Promise<void> {
+    if (getRolFromAccessToken() !== "rh") return;
+    state.futurosRhState = "loading";
+    state.futurosRhError = null;
     paint();
-    const page = emptyReservationsPage(state.page, state.pageSize);
-    if (signal.aborted) return;
-    state.table = page;
-    state.tableState = "empty";
+    try {
+      const raw = await getComedorRhProximosRegistros(state.futurosRhPage, state.futurosRhPageSize, {
+        buscar: state.search.trim() || undefined,
+        filtroEstado: state.statusFilter,
+      });
+      if (signal.aborted) return;
+      const mapped: ComedorRhProximosRegistrosPage = {
+        items: raw.items,
+        total: raw.total,
+        page: raw.page,
+        page_size: raw.page_size,
+      };
+      state.futurosRh = mapped;
+      state.futurosRhState = "ready";
+    } catch (error) {
+      if (signal.aborted) return;
+      state.futurosRh = null;
+      state.futurosRhState = "error";
+      state.futurosRhError = error instanceof Error ? error.message : "Error al cargar próximos registros.";
+    }
     paint();
   }
 
@@ -1103,7 +1114,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         toastContainer: container,
         onCreated: async () => {
           comedorIdResolver.invalidate();
-          await Promise.all([loadKpis(), loadCalendar(), loadSidebar(), loadTable()]);
+          await Promise.all([loadKpis(), loadCalendar(), loadSidebar(), loadFuturosRegistrosRh()]);
         },
       })
     : null;
@@ -1140,7 +1151,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         },
         onSuccess: async (result, payload) => {
           const data = result as ComedorRhRegistroResponseApi | null;
-          await Promise.all([loadKpis(), loadCalendar(), loadSidebar()]);
+          await Promise.all([loadKpis(), loadCalendar(), loadSidebar(), loadFuturosRegistrosRh()]);
           if (!data || payload.personType !== "externo" || !data.credenciales_temporales) return;
           const cred = data.credenciales_temporales;
           const lineasPases = cred.pases.map(
@@ -1159,7 +1170,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         },
       })
     : null;
-  let tableSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let futurosRhSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   root?.addEventListener(
     "click",
     (event) => {
@@ -1204,18 +1215,29 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         void loadSidebar();
         return;
       }
-      if (target.closest("[data-comedor-retry-table]")) {
-        void loadTable();
+      if (target.closest("[data-comedor-rh-futuros-retry]")) {
+        void loadFuturosRegistrosRh();
         return;
       }
 
-      const pageBtn = target.closest<HTMLButtonElement>("[data-comedor-page]");
-      if (pageBtn && !pageBtn.disabled) {
-        const raw = pageBtn.getAttribute("data-comedor-page");
-        const page = raw ? Number.parseInt(raw, 10) : NaN;
-        if (Number.isFinite(page) && page > 0) {
-          state.page = page;
-          void loadTable();
+      const futurosPageBtn = target.closest<HTMLButtonElement>("[data-comedor-rh-futuros-page]");
+      if (futurosPageBtn && !futurosPageBtn.disabled) {
+        const raw = futurosPageBtn.getAttribute("data-comedor-rh-futuros-page");
+        const p = raw ? Number.parseInt(raw, 10) : NaN;
+        if (Number.isFinite(p) && p > 0) {
+          state.futurosRhPage = p;
+          void loadFuturosRegistrosRh();
+        }
+        return;
+      }
+
+      const rhFuturosFilterBtn = target.closest<HTMLButtonElement>("[data-comedor-rh-futuros-filter-status]");
+      if (rhFuturosFilterBtn) {
+        const v = rhFuturosFilterBtn.getAttribute("data-comedor-rh-futuros-filter-status");
+        if (v === "todos" || v === "confirmado" || v === "cancelado") {
+          state.statusFilter = v;
+          state.futurosRhPage = 1;
+          void loadFuturosRegistrosRh();
         }
         return;
       }
@@ -1259,27 +1281,42 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   );
 
   root?.addEventListener(
+    "change",
+    (event) => {
+      const sel = (event.target as HTMLElement).closest<HTMLSelectElement>("[data-comedor-rh-futuros-page-size]");
+      if (!sel) return;
+      const v = Number.parseInt(sel.value, 10);
+      if (v === 10 || v === 50) {
+        state.futurosRhPageSize = v;
+        state.futurosRhPage = 1;
+        void loadFuturosRegistrosRh();
+      }
+    },
+    { signal },
+  );
+
+  root?.addEventListener(
     "input",
     (event) => {
-      const input = (event.target as HTMLElement).closest<HTMLInputElement>("[data-comedor-search]");
+      const input = (event.target as HTMLElement).closest<HTMLInputElement>("[data-comedor-rh-futuros-search]");
       if (!input) return;
       state.search = input.value;
-      state.page = 1;
-      if (tableSearchDebounceTimer != null) {
-        window.clearTimeout(tableSearchDebounceTimer);
+      state.futurosRhPage = 1;
+      if (futurosRhSearchDebounceTimer != null) {
+        window.clearTimeout(futurosRhSearchDebounceTimer);
       }
-      tableSearchDebounceTimer = window.setTimeout(() => {
-        tableSearchDebounceTimer = null;
-        void loadTable();
+      futurosRhSearchDebounceTimer = window.setTimeout(() => {
+        futurosRhSearchDebounceTimer = null;
+        void loadFuturosRegistrosRh();
       }, 220);
     },
     { signal },
   );
 
   signal.addEventListener("abort", () => {
-    if (tableSearchDebounceTimer != null) {
-      window.clearTimeout(tableSearchDebounceTimer);
-      tableSearchDebounceTimer = null;
+    if (futurosRhSearchDebounceTimer != null) {
+      window.clearTimeout(futurosRhSearchDebounceTimer);
+      futurosRhSearchDebounceTimer = null;
     }
     newRequestModal?.destroy();
     crearComedorModal?.destroy();
@@ -1288,7 +1325,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   void loadKpis();
   void loadCalendar();
   void loadSidebar();
-  void loadTable();
+  void loadFuturosRegistrosRh();
 }
 
 function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSignal): void {
