@@ -103,17 +103,24 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_ids_subarbol(self, lider_id: int, estados_activos: list[int]) -> set[int]:
         """
         Todos los empleados activos bajo `lider_id` (subordinados directos e indirectos).
-        Usado para que un gerente solo vea solicitudes de su linea del organigrama.
+        No incluye a `lider_id`. Una consulta por nivel de profundidad (mejor que un query por persona).
         """
+        if not estados_activos:
+            return set()
         collected: set[int] = set()
-        frontier: list[int] = [lider_id]
+        frontier: set[int] = {lider_id}
         while frontier:
-            pid = frontier.pop()
-            subs = await self.get_subordinados(pid, estados_activos)
-            for s in subs:
-                if s.id not in collected:
-                    collected.add(s.id)
-                    frontier.append(s.id)
+            result = await self.db.execute(
+                select(Empleado.id).where(
+                    Empleado.lider_id.in_(frontier),
+                    Empleado.estado_id.in_(estados_activos),
+                )
+            )
+            next_ids = {row[0] for row in result.all()}
+            if not next_ids:
+                break
+            collected.update(next_ids)
+            frontier = next_ids
         return collected
 
     async def get_primer_gerente_en_cadena(self, empleado_id: int) -> Empleado | None:

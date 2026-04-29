@@ -32,6 +32,7 @@ import {
 } from "../components/dashboard/liderTeamDashboard.ts";
 import { fetchLiderDashboard } from "../dashboard/lider/fetchLiderDashboard.ts";
 import { emptyLiderDashboardPayload } from "../dashboard/lider/mock.ts";
+import { approveSolicitud, rejectSolicitud } from "../api/solicitudes.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 
@@ -227,6 +228,36 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth, {
     loadMonthData: async (target) => fetchLiderDashboard(target).catch(() => null),
   });
+
+  if (root.dataset.liderApprovalBound !== "1") {
+    root.dataset.liderApprovalBound = "1";
+    root.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      const approveBtn = target.closest<HTMLButtonElement>("[data-lider-approve]");
+      const rejectBtn = target.closest<HTMLButtonElement>("[data-lider-reject]");
+      const actionBtn = approveBtn ?? rejectBtn;
+      if (!actionBtn) return;
+
+      const solicitudIdRaw = actionBtn.getAttribute("data-lider-approve") ?? actionBtn.getAttribute("data-lider-reject");
+      const solicitudId = Number(solicitudIdRaw);
+      if (!Number.isFinite(solicitudId)) return;
+
+      const isApprove = Boolean(approveBtn);
+      actionBtn.disabled = true;
+      void (async () => {
+        try {
+          if (isApprove) {
+            await approveSolicitud(solicitudId, { nivel: 1, comentario: null });
+          } else {
+            await rejectSolicitud(solicitudId, { nivel: 1, comentario: null });
+          }
+          await loadLiderTeamDashboard(container);
+        } finally {
+          actionBtn.disabled = false;
+        }
+      })();
+    });
+  }
 }
 
 function mountLiderTeamDashboardShell(container: HTMLElement): void {

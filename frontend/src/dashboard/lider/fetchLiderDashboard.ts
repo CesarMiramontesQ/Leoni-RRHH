@@ -1,5 +1,6 @@
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
+import { getEmpleadosPage } from "../../api/empleados.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
@@ -104,6 +105,21 @@ function mealLineFromReserva(reserva: ComedorEquipoReservaApiItem): TeamCalendar
   };
 }
 
+function capitalizeFirst(raw: string): string {
+  if (!raw) return "";
+  return `${raw.slice(0, 1).toUpperCase()}${raw.slice(1)}`;
+}
+
+function formatApprovalDateRange(startIso: string, endIso: string): string {
+  const fmt = (iso: string): string => {
+    const d = new Date(`${iso}T00:00:00`);
+    if (!Number.isFinite(d.getTime())) return iso;
+    return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(d);
+  };
+  if (startIso === endIso) return fmt(startIso);
+  return `${fmt(startIso)} - ${fmt(endIso)}`;
+}
+
 /**
  * Dashboard de supervisor/gerente:
  * construye el calendario de equipo con solicitudes propias+equipo (API scoped por rol).
@@ -128,16 +144,21 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
   try {
     // API `/api/v1/solicitudes` admite máximo `limit=100`.
     const mealMonths = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
-    const [rows, mealRowsByMonth] = await Promise.all([
+    const [rows, mealRowsByMonth, empleadosPage] = await Promise.all([
       getSolicitudesRows(100),
       role === "supervisor"
         ? Promise.all(mealMonths.map(({ year, month }) => getComedorEquipoReservasMes(year, month)))
         : Promise.resolve([]),
+      getEmpleadosPage({ page: 1, page_size: 1, activo: true }).catch(() => null),
     ]);
-    const solicitudesCalendario = rows.filter(
+    const solicitudesGestion = rows.filter(
       (r) =>
         (r.tipo === "vacaciones" || r.tipo === "home_office") &&
-        (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE) &&
+        (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE),
+    );
+
+    const solicitudesCalendario = solicitudesGestion.filter(
+      (r) =>
         !(r.fecha_fin.slice(0, 10) < rangeStartIso || r.fecha_inicio.slice(0, 10) > rangeEndIso),
     );
 
@@ -162,8 +183,36 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       }
     }
 
-    const ownRows = myId ? solicitudesCalendario.filter((r) => r.empleado_id === myId) : [];
-    const teamRows = myId ? solicitudesCalendario.filter((r) => r.empleado_id !== myId) : solicitudesCalendario;
+    const ownRows = myId ? solicitudesGestion.filter((r) => r.empleado_id === myId) : [];
+    const teamRows = myId ? solicitudesGestion.filter((r) => r.empleado_id !== myId) : solicitudesGestion;
+    const teamPendingRows = teamRows.filter((r) => r.estado === SOLICITUD_ESTADO_API.PENDIENTE);
+    const fallbackTeamCount = new Set(teamRows.map((r) => r.empleado_id)).size;
+    const teamCollaboratorsCount = empleadosPage
+      ? Math.max(0, (empleadosPage.total ?? 0) - 1)
+      : fallbackTeamCount;
+    const approvalRequests = teamPendingRows
+      .map((r) => {
+        const tipo = r.tipo === "vacaciones" ? "vacation" : "home_office";
+        const name = r.empleado_nombre_raw.trim() || `Empleado ${r.empleado_id}`;
+        const initials = name
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0] ?? "")
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+        return {
+          id: String(r.id),
+          collaborator_name: name,
+          collaborator_initials: initials || null,
+          request_type: tipo,
+          date_range: formatApprovalDateRange(r.fecha_inicio, r.fecha_fin),
+          detail: (r.comentarios ?? "").trim() || `${capitalizeFirst(r.tipo.replace("_", " "))} pendiente`,
+          status: "Pendiente",
+        } satisfies LiderDashboardPayload["approval_requests"][number];
+      })
+      .sort((a, b) => Number.parseInt(a.id, 10) - Number.parseInt(b.id, 10));
 
     const initial = solicitudesCalendario
       .map((r) => r.fecha_inicio.slice(0, 10))
@@ -190,7 +239,9 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         team_pending_home_office_requests: teamRows.filter(
           (r) => r.tipo === "home_office" && r.estado === SOLICITUD_ESTADO_API.PENDIENTE,
         ).length,
+        team_collaborators_count: teamCollaboratorsCount,
       },
+      approval_requests: approvalRequests,
       team_calendar: {
         ...base.team_calendar,
         initial_year: initialYear,
