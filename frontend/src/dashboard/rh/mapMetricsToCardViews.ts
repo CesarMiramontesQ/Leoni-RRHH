@@ -93,12 +93,7 @@ export function mapMetricsToCardViews(
     </p>`,
   ];
 
-  const personalPrimary =
-    p.por_registrar !== null && p.por_registrar !== undefined && p.por_registrar > 0
-      ? `${fmtInt(p.por_registrar)} ${p.por_registrar === 1 ? "persona" : "personas"} por registrar`
-      : p.por_registrar === 0
-        ? "0 personas por registrar"
-        : "Sin datos disponibles";
+  const personalPrimary = fmtInt(p.por_registrar);
 
   const incSecondary =
     i.con_seguimiento_hoy !== null && i.con_seguimiento_hoy !== undefined
@@ -118,7 +113,7 @@ export function mapMetricsToCardViews(
   const cards: RhOperationalCardView[] = [
     {
       id: "almuerzos_hoy",
-      title: "Total Almuerzos Hoy",
+      title: "Total de comidas hoy",
       primaryText: fmtInt(a.total),
       primaryClass: "text-3xl font-bold tracking-tight text-text-primary",
       primarySuffix:
@@ -137,17 +132,17 @@ export function mapMetricsToCardViews(
         a.normal !== null || a.dieta !== null
           ? [
               {
-                text: `NORMAL: ${fmtInt(a.normal)}`,
+                text: `Caseras: ${fmtInt(a.normal)}`,
                 dotClass: "bg-blue-500",
               },
               {
-                text: `DIETA: ${fmtInt(a.dieta)}`,
+                text: `Saludables: ${fmtInt(a.dieta)}`,
                 dotClass: "bg-emerald-500",
               },
             ]
           : [
-              { text: "NORMAL: —", dotClass: "bg-slate-300" },
-              { text: "DIETA: —", dotClass: "bg-slate-300" },
+              { text: "Caseras: —", dotClass: "bg-slate-300" },
+              { text: "Saludables: —", dotClass: "bg-slate-300" },
             ],
       badgeUrgente: false,
       actionLink: null,
@@ -199,9 +194,9 @@ export function mapMetricsToCardViews(
     },
     {
       id: "personal_externo",
-      title: "Personal Externo",
+      title: "Total de comidas hoy personal externo",
       primaryText: personalPrimary,
-      primaryClass: "text-xl font-bold tracking-tight text-text-primary",
+      primaryClass: "text-3xl font-bold tracking-tight text-text-primary",
       primarySuffix: null,
       secondaryHtml: [],
       icon: "credencial",
@@ -214,7 +209,7 @@ export function mapMetricsToCardViews(
       footerPills: null,
       badgeUrgente: false,
       actionLink: null,
-      showWarningGlyph: p.mostrar_alerta,
+      showWarningGlyph: false,
     },
     {
       id: "incidencias",
