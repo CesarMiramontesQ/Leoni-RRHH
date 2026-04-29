@@ -106,6 +106,12 @@ export function canAccessEmpleadosPage(): boolean {
   return canAccessDirectorioEmpleados();
 }
 
+/** KPIs de gestión (colaboradores + contratos) en #/empleados; no aplica a director ni RH. */
+export function canAccessEmpleadosKpiGestionEquipo(): boolean {
+  const r = getRolFromAccessToken();
+  return r === "supervisor" || r === "gerente";
+}
+
 /** Vista administrativa global de solicitudes (`#/solicitudes`). Solo RH (catálogo completo de filtros). */
 export function canAccessRhSolicitudesAdminPage(): boolean {
   return getRolFromAccessToken() === "rh";

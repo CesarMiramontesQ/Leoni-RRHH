@@ -13,7 +13,11 @@ import {
   type UsuarioPage,
   type UsuarioResumen,
 } from "../api/usuarios.ts";
-import { canAccessEmpleadosPage, canAccessUsuariosAdmin } from "../auth/jwt.ts";
+import {
+  canAccessEmpleadosKpiGestionEquipo,
+  canAccessEmpleadosPage,
+  canAccessUsuariosAdmin,
+} from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountEditarAsignacionModal } from "../components/empleados/editarAsignacionModal.ts";
 import type { EditarAsignacionModalHandle } from "../components/empleados/editarAsignacionModal.ts";
@@ -89,7 +93,7 @@ function textoLiderMostrar(val: string | null | undefined): string {
   return f || "Sin asignar";
 }
 
-type KpiMetricSemantic = "total" | "activo" | "inactivo" | "sinLider";
+type KpiMetricSemantic = "total" | "activo" | "inactivo" | "sinLider" | "contrato";
 
 /** Contenedor homogéneo: tinte suave, icono 600, borde y anillo inset para definición. */
 function kpiMetricIconBox(semantic: KpiMetricSemantic, svgHtml: string): string {
@@ -102,6 +106,8 @@ function kpiMetricIconBox(semantic: KpiMetricSemantic, svgHtml: string): string 
       "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-kpi-metric-inactivo-bg text-kpi-metric-inactivo-icon border-kpi-metric-inactivo-icon/25 ring-kpi-metric-inactivo-icon/10",
     sinLider:
       "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-amber-50 text-amber-700 border-amber-300/60 ring-amber-200/60",
+    contrato:
+      "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-orange-50 text-orange-700 border-orange-300/60 ring-orange-200/60",
   };
   return `<span class="${cls[semantic]}" aria-hidden="true">${svgHtml}</span>`;
 }
@@ -128,12 +134,47 @@ function svgKpiSinLider(): string {
   </svg>`;
 }
 
+function svgKpiContratoCalendario(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5a2.25 2.25 0 0 0 2.25-2.25m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5a2.25 2.25 0 0 1 2.25 2.25v7.5" />
+  </svg>`;
+}
+
 const KPI_NUM_CLS =
   "mt-3 text-4xl font-extrabold tabular-nums tracking-tight text-slate-900 sm:text-[2.125rem]";
 const KPI_SUB_CLS = "mt-2 text-sm font-medium leading-snug text-slate-500";
 const KPI_MICRO_CLS = "mt-1 text-xs text-slate-400";
 
-function renderKpis(r: UsuarioResumen, isRh: boolean): string {
+function renderKpis(r: UsuarioResumen, isRh: boolean, kpiGestionEquipo: boolean): string {
+  if (!isRh && kpiGestionEquipo) {
+    return `
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-sm font-semibold text-slate-600">Número de colaboradores</p>
+          ${kpiMetricIconBox(
+            "activo",
+            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
+              <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>`,
+          )}
+        </div>
+        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.colaboradores_total))}</p>
+        <p class="${KPI_SUB_CLS}">Colaboradores activos en tu alcance de consulta</p>
+        <p class="${KPI_MICRO_CLS}">Misma cobertura que el listado de esta página</p>
+      </article>
+      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-sm font-semibold text-slate-600">Contratos por vencer</p>
+          ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
+        </div>
+        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.contratos_por_vencer))}</p>
+        <p class="${KPI_SUB_CLS}">Finalización de contrato en los próximos 30 días</p>
+        <p class="${KPI_MICRO_CLS}">Según fecha de fin de contrato registrada en el sistema</p>
+      </article>
+    </div>`;
+  }
+
   if (!isRh) {
     return `
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -507,6 +548,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   }
 
   const isRh = canAccessUsuariosAdmin();
+  const kpiGestionEquipo = canAccessEmpleadosKpiGestionEquipo();
 
   const state: State = {
     page: 1,
@@ -704,7 +746,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         }),
       ]);
       catalogo = cat;
-      if (kpis) kpis.innerHTML = renderKpis(res, isRh);
+      if (kpis) kpis.innerHTML = renderKpis(res, isRh, kpiGestionEquipo);
       currentPageItems = pg.items;
       const panel = panelEl();
       if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, isRh);

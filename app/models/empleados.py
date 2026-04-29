@@ -66,6 +66,7 @@ class Empleado(Base):
     recibe_bono: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     brigada: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     registro: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_fin_contrato: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     a_restringido: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     requiere_cambio_password: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 

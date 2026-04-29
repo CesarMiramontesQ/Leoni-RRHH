@@ -64,6 +64,21 @@ class UsuarioService:
                 detail="Se requiere rol gerente, director o supervisor para esta operacion"
             )
 
+    async def _ids_permitidos_directorio(
+        self, current_user: Empleado, rol: str, estados: list[int]
+    ) -> list[int] | None:
+        if rol == "gerente":
+            subarbol = await self.empleado_repo.get_ids_subarbol(
+                current_user.id, estados
+            )
+            return list(subarbol) + [current_user.id]
+        if rol == "supervisor":
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, estados
+            )
+            return [e.id for e in subordinados] + [current_user.id]
+        return None
+
     async def _ensure_puede_ver_empleado(
         self,
         current_user: Empleado,
@@ -136,17 +151,9 @@ class UsuarioService:
         offset = (page - 1) * page_size
         estados = settings.ESTADOS_ACTIVOS_IDS
         rol = self._get_rol(current_user)
-        ids_permitidos: list[int] | None = None
-        if rol == "gerente":
-            subarbol = await self.empleado_repo.get_ids_subarbol(
-                current_user.id, estados
-            )
-            ids_permitidos = list(subarbol) + [current_user.id]
-        elif rol == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, estados
-            )
-            ids_permitidos = [e.id for e in subordinados] + [current_user.id]
+        ids_permitidos = await self._ids_permitidos_directorio(
+            current_user, rol, estados
+        )
         total = await self.repo.count_filtered(
             q, area_id, puesto_id, "activos", estados, ids_permitidos=ids_permitidos
         )
@@ -175,6 +182,10 @@ class UsuarioService:
         inactivos = await self.repo.count_inactivos(estados)
         sin_lider_asignado = await self.repo.count_sin_lider_asignado(estados)
         pct = round((activos / total) * 100, 1) if total else 0.0
+        hoy = date.today()
+        contratos_pv = await self.repo.count_contratos_por_vencer(
+            estados, None, hoy, dias_ventana=30
+        )
         return UsuarioResumenResponse(
             total_plantilla=total,
             activos=activos,
@@ -182,12 +193,25 @@ class UsuarioService:
             sin_lider_asignado=sin_lider_asignado,
             practicantes=0,
             porcentaje_operatividad=pct,
+            colaboradores_total=activos,
+            contratos_por_vencer=contratos_pv,
         )
 
     async def resumen_directorio(self, current_user: Empleado) -> UsuarioResumenResponse:
         self._require_directorio(current_user)
         estados_activos = settings.ESTADOS_ACTIVOS_IDS
+        rol = self._get_rol(current_user)
+        ids_permitidos = await self._ids_permitidos_directorio(
+            current_user, rol, estados_activos
+        )
+        hoy = date.today()
         activos = await self.repo.count_activos(estados_activos)
+        colaboradores_total = await self.repo.count_filtered(
+            None, None, None, "activos", estados_activos, ids_permitidos
+        )
+        contratos_pv = await self.repo.count_contratos_por_vencer(
+            estados_activos, ids_permitidos, hoy, dias_ventana=30
+        )
         sin_lider_asignado = await self.repo.count_sin_lider_asignado(estados_activos)
         return UsuarioResumenResponse(
             total_plantilla=activos,
@@ -196,6 +220,8 @@ class UsuarioService:
             sin_lider_asignado=sin_lider_asignado,
             practicantes=0,
             porcentaje_operatividad=100.0 if activos else 0.0,
+            colaboradores_total=colaboradores_total,
+            contratos_por_vencer=contratos_pv,
         )
 
     async def catalogo_filtros(self, current_user: Empleado) -> CatalogoFiltrosResponse:

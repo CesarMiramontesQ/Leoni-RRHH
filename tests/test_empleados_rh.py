@@ -32,6 +32,8 @@ async def test_resumen_rh_devuelve_inactivos(client: AsyncClient, db, empleado_r
     assert response.status_code == 200
     data = response.json()
     assert "inactivos" in data
+    assert data["colaboradores_total"] == data["activos"]
+    assert "contratos_por_vencer" in data
     assert "capacitacion_pendiente" not in data
     assert data["inactivos"] >= 1
     assert data["activos"] >= 1

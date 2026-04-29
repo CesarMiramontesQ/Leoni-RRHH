@@ -109,6 +109,8 @@ class UsuarioResumenResponse(BaseModel):
     sin_lider_asignado: int
     practicantes: int
     porcentaje_operatividad: float
+    colaboradores_total: int
+    contratos_por_vencer: int
 
 
 class CatalogoFiltrosResponse(BaseModel):

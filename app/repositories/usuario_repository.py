@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from datetime import date, timedelta
 from typing import Literal
 
 from sqlalchemy import String, and_, cast, func, or_, select
@@ -220,5 +221,29 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = select(func.count()).select_from(Empleado).where(Empleado.lider_id.is_(None))
         if estados_activos:
             query = query.where(Empleado.estado_id.in_(estados_activos))
+        result = await self.db.execute(query)
+        return result.scalar_one()
+
+    async def count_contratos_por_vencer(
+        self,
+        estados_activos: list[int],
+        ids_permitidos: list[int] | None,
+        hoy: date,
+        dias_ventana: int = 30,
+    ) -> int:
+        if not estados_activos:
+            return 0
+        hasta = hoy + timedelta(days=dias_ventana)
+        conditions = [
+            Empleado.estado_id.in_(estados_activos),
+            Empleado.fecha_fin_contrato.isnot(None),
+            Empleado.fecha_fin_contrato >= hoy,
+            Empleado.fecha_fin_contrato <= hasta,
+        ]
+        if ids_permitidos is not None:
+            if not ids_permitidos:
+                return 0
+            conditions.append(Empleado.id.in_(ids_permitidos))
+        query = select(func.count()).select_from(Empleado).where(*conditions)
         result = await self.db.execute(query)
         return result.scalar_one()

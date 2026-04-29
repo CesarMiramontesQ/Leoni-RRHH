@@ -7,6 +7,10 @@ export type UsuarioResumen = {
   sin_lider_asignado: number;
   practicantes: number;
   porcentaje_operatividad: number;
+  /** Activos en el alcance del rol (plantilla completa para RH; equipo para supervisor/gerente). */
+  colaboradores_total: number;
+  /** Contratos con fin en los próximos 30 días (mismo alcance). */
+  contratos_por_vencer: number;
 };
 
 export type RolBrief = { id: number; nombre: string };
