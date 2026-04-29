@@ -33,6 +33,16 @@ import {
   badgeOverridden,
 } from "../../ui/uiTokens.ts";
 
+type SolicitudesRenderScope = "main" | "personal" | "equipo";
+
+function scopeAttr(scope: SolicitudesRenderScope): string {
+  return `data-rh-sol-scope="${scope}"`;
+}
+
+function scopeId(base: string, scope: SolicitudesRenderScope): string {
+  return scope === "main" ? base : `${base}-${scope}`;
+}
+
 function fmtPeriodo(row: RhSolicitudTablaFila): string {
   if (row.periodo_etiqueta?.trim()) return row.periodo_etiqueta.trim();
   const a = fmtFechaCorta(row.fecha_inicio);
@@ -88,15 +98,17 @@ function filtrosActivos(f: RhSolicitudFilterState, keys: readonly RequestFilterK
 }
 
 /** Filtro de empleado por texto (`rh`, `supervisor`, `gerente`). */
-function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState): string {
+function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState, scope: SolicitudesRenderScope): string {
+  const inputId = scopeId("rh-sol-f-emp-q", scope);
   return `<div class="min-w-0">
-  <label for="rh-sol-f-emp-q" class="mb-1 block text-xs font-medium text-gray-800">Empleado</label>
+  <label for="${inputId}" class="mb-1 block text-xs font-medium text-gray-800">Empleado</label>
   <div>
     <input
       type="search"
-      id="rh-sol-f-emp-q"
+      id="${inputId}"
       name="empleado_busqueda"
       data-rh-sol-empleado-busqueda
+      ${scopeAttr(scope)}
       autocomplete="off"
       enterkeyhint="search"
       placeholder="Buscar empleado..."
@@ -112,11 +124,13 @@ function selectFilter(
   label: string,
   name: string,
   optionsHtml: string,
+  scope: SolicitudesRenderScope,
 ): string {
+  const selectId = scopeId(id, scope);
   return `<div class="min-w-0">
-  <label for="${id}" class="mb-1 block text-xs font-medium text-gray-800">${escapeHtml(label)}</label>
+  <label for="${selectId}" class="mb-1 block text-xs font-medium text-gray-800">${escapeHtml(label)}</label>
   <div class="grid grid-cols-1">
-    <select id="${id}" name="${name}" data-rh-sol-filter="${name}" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-2.5 text-base text-gray-900 sm:text-sm/6 ${FIELD_FOCUS}">
+    <select id="${selectId}" name="${name}" data-rh-sol-filter="${name}" ${scopeAttr(scope)} class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-2.5 text-base text-gray-900 sm:text-sm/6 ${FIELD_FOCUS}">
       ${optionsHtml}
     </select>
     ${SELECT_CHEVRON}
@@ -275,7 +289,7 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
   return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-4">${html}</div>`;
 }
 
-function renderFilters(vm: RhSolicitudesAdminViewModel): string {
+function renderFilters(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
   const f = vm.filters;
   const opt = vm.filterOptions;
   const keys = vm.ui.visibleFilterKeys;
@@ -329,20 +343,18 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
   const fields: string[] = [];
   for (const key of keys) {
     if (key === "type") {
-      fields.push(
-        `<div class="${wrapCls}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts)}</div>`,
-      );
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts, scope)}</div>`);
     } else if (key === "area") {
-      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-area", "Área", "area", areaOpts)}</div>`);
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-area", "Área", "area", areaOpts, scope)}</div>`);
     } else if (key === "supervisor") {
-      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts)}</div>`);
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts, scope)}</div>`);
     } else if (key === "employee") {
       const empField = solicitudesUsaFiltroEmpleadoTexto(vm.ui.role)
-        ? empleadoTextoBusquedaFilterField(f)
-        : selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts);
+        ? empleadoTextoBusquedaFilterField(f, scope)
+        : selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts, scope);
       fields.push(`<div class="${wrapCls}">${empField}</div>`);
     } else if (key === "status") {
-      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts)}</div>`);
+      fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts, scope)}</div>`);
     }
   }
 
@@ -352,6 +364,7 @@ function renderFilters(vm: RhSolicitudesAdminViewModel): string {
         <button
           type="button"
           data-rh-sol-clear-filters
+          ${scopeAttr(scope)}
           class="${BTN_GHOST} w-full sm:w-auto"
         >
           Limpiar filtros
@@ -386,7 +399,7 @@ function renderFiltersSkeleton(visibleCount: number): string {
     </section>`;
 }
 
-function renderFiltersSection(vm: RhSolicitudesAdminViewModel): string {
+function renderFiltersSection(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
   const statsFallo = vm.ui.showEmployeePersonalStats
     ? vm.empleadoPersonalStatsStatus === "error"
     : vm.statsStatus === "error";
@@ -401,10 +414,13 @@ function renderFiltersSection(vm: RhSolicitudesAdminViewModel): string {
   if (filtersLoading) {
     return renderFiltersSkeleton(n);
   }
-  return renderFilters(vm);
+  return renderFilters(vm, scope);
 }
 
-function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdminViewModel["table"]>): string {
+function renderEmpleadoSolicitudesTableFooter(
+  tbl: NonNullable<RhSolicitudesAdminViewModel["table"]>,
+  scope: SolicitudesRenderScope,
+): string {
   const totalPages = Math.max(1, Math.ceil(tbl.total / tbl.page_size) || 1);
   const from = (tbl.page - 1) * tbl.page_size + 1;
   const to = Math.min(tbl.page * tbl.page_size, tbl.total);
@@ -418,7 +434,7 @@ function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdmi
       const cls = active
         ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
         : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
-      return `<button type="button" data-rh-sol-page="${x}" class="${cls}">${x}</button>`;
+      return `<button type="button" data-rh-sol-page="${x}" ${scopeAttr(scope)} class="${cls}">${x}</button>`;
     })
     .join("");
   const pageSizeOpts = [5, 10, 25, 50]
@@ -431,20 +447,20 @@ function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdmi
             Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${tbl.total}</span> solicitudes
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
-            <label for="rh-sol-emp-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
-            <select id="rh-sol-emp-page-size" name="rh-sol-emp-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
+            <label for="${scopeId("rh-sol-emp-page-size", scope)}" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
+            <select id="${scopeId("rh-sol-emp-page-size", scope)}" name="${scopeId("rh-sol-emp-page-size", scope)}" data-rh-sol-page-size ${scopeAttr(scope)} class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
-          <button type="button" data-rh-sol-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
+          <button type="button" data-rh-sol-page="${tbl.page - 1}" ${scopeAttr(scope)} ${tbl.page <= 1 ? "disabled" : ""}
             class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
-          <button type="button" data-rh-sol-page="${tbl.page + 1}" ${tbl.page >= totalPages ? "disabled" : ""}
+          <button type="button" data-rh-sol-page="${tbl.page + 1}" ${scopeAttr(scope)} ${tbl.page >= totalPages ? "disabled" : ""}
             class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
@@ -453,7 +469,7 @@ function renderEmpleadoSolicitudesTableFooter(tbl: NonNullable<RhSolicitudesAdmi
       </div>`;
 }
 
-function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string {
+function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
   if (vm.tableStatus === "loading") {
     return `
       <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Tus solicitudes">
@@ -495,14 +511,14 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
               ? "cursor-pointer hover:bg-slate-100/90 focus-within:bg-slate-50/90"
               : "";
             const trDataAttrs = pending
-              ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
+              ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
               : cambiosSolicitados
-                ? ` tabindex="0" role="button" data-rh-sol-row-changes="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaCambiosSolicitados)}"`
+                ? ` tabindex="0" role="button" data-rh-sol-row-changes="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SD_COPY.tituloFilaCambiosSolicitados)}"`
                 : resueltaConsulta
-                  ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
+                  ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
                   : "";
             const verBtn = clickable
-              ? `<button type="button" class="rounded-lg px-2 py-1 text-xs font-semibold text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" data-rh-sol-ver="${row.id}">Ver</button>`
+              ? `<button type="button" class="rounded-lg px-2 py-1 text-xs font-semibold text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" data-rh-sol-ver="${row.id}" ${scopeAttr(scope)}>Ver</button>`
               : `<span class="text-xs text-slate-400">—</span>`;
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
@@ -521,7 +537,7 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
 
   const footer =
     tbl && tbl.total > 0
-      ? renderEmpleadoSolicitudesTableFooter(tbl)
+      ? renderEmpleadoSolicitudesTableFooter(tbl, scope)
       : tbl
         ? `
       <div class="shrink-0 border-t border-slate-100 px-3 py-2.5 text-center text-sm text-slate-500 sm:px-4">
@@ -558,7 +574,7 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel): string
     </section>`;
 }
 
-function renderTable(vm: RhSolicitudesAdminViewModel): string {
+function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
   if (vm.tableStatus === "loading") {
     return `
       <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Solicitudes">
@@ -603,11 +619,11 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
               ? "cursor-pointer hover:bg-slate-100/90 focus-within:bg-slate-50/90"
               : "";
             const trDataAttrs = pending
-              ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
+              ? ` tabindex="0" role="button" data-rh-sol-row-pending="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SD_COPY.tituloFilaPendiente)}"`
               : cambiosSolicitados
-                ? ` tabindex="0" role="button" data-rh-sol-row-changes="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SD_COPY.tituloFilaCambiosSolicitados)}"`
+                ? ` tabindex="0" role="button" data-rh-sol-row-changes="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SD_COPY.tituloFilaCambiosSolicitados)}"`
                 : resueltaConsulta
-                  ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
+                  ? ` tabindex="0" role="button" data-rh-sol-row-resuelta="1" data-rh-sol-id="${row.id}" ${scopeAttr(scope)} title="${escapeHtml(SR_COPY.tituloFilaResuelta)}"`
                   : "";
             return `
     <tr class="transition-colors hover:bg-slate-50/90 ${trClickCls}"${trDataAttrs}>
@@ -643,7 +659,7 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
               const cls = active
                 ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
                 : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
-              return `<button type="button" data-rh-sol-page="${x}" class="${cls}">${x}</button>`;
+              return `<button type="button" data-rh-sol-page="${x}" ${scopeAttr(scope)} class="${cls}">${x}</button>`;
             })
             .join("");
           const pageSizeOpts = [5, 10, 25, 50]
@@ -656,20 +672,20 @@ function renderTable(vm: RhSolicitudesAdminViewModel): string {
             Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${tbl.total}</span> solicitudes
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
-            <label for="rh-sol-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
-            <select id="rh-sol-page-size" name="rh-sol-page-size" data-rh-sol-page-size class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
+            <label for="${scopeId("rh-sol-page-size", scope)}" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
+            <select id="${scopeId("rh-sol-page-size", scope)}" name="${scopeId("rh-sol-page-size", scope)}" data-rh-sol-page-size ${scopeAttr(scope)} class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
-          <button type="button" data-rh-sol-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
+          <button type="button" data-rh-sol-page="${tbl.page - 1}" ${scopeAttr(scope)} ${tbl.page <= 1 ? "disabled" : ""}
             class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
-          <button type="button" data-rh-sol-page="${tbl.page + 1}" ${tbl.page >= totalPages ? "disabled" : ""}
+          <button type="button" data-rh-sol-page="${tbl.page + 1}" ${scopeAttr(scope)} ${tbl.page >= totalPages ? "disabled" : ""}
             class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
@@ -733,8 +749,8 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
         ${nuevaBtn}
       </header>
       <div id="rh-sol-emp-stats" class="shrink-0">${renderEmployeePersonalStatCards(vm)}</div>
-      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm)}</div>
-      <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderEmpleadoSolicitudesTable(vm)}</div>
+      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
+      <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderEmpleadoSolicitudesTable(vm, "main")}</div>
     </div>`;
   }
 
@@ -773,7 +789,26 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       </div>
 
       <div id="rh-sol-stats" class="shrink-0">${renderStatCards(vm)}</div>
-      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm)}</div>
-      <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderTable(vm)}</div>
+      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
+      <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderTable(vm, "main")}</div>
     </div>`;
+}
+
+export function renderRhSolicitudesScopedSection(
+  vm: RhSolicitudesAdminViewModel,
+  options: { scope: Exclude<SolicitudesRenderScope, "main">; title: string; subtitle: string },
+): string {
+  const tableHtml = vm.ui.variant === "empleado" ? renderEmpleadoSolicitudesTable(vm, options.scope) : renderTable(vm, options.scope);
+  return `
+    <section class="rounded-xl border border-slate-200/90 bg-slate-50/40 p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4">
+      <header class="mb-3">
+        <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}</h2>
+        <p class="mt-0.5 text-xs text-text-muted sm:text-sm">${escapeHtml(options.subtitle)}</p>
+      </header>
+      <div class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
+        <div class="shrink-0">${renderStatCards(vm)}</div>
+        <div class="shrink-0">${renderFiltersSection(vm, options.scope)}</div>
+        <div class="flex min-h-0 flex-1 flex-col">${tableHtml}</div>
+      </div>
+    </section>`;
 }
