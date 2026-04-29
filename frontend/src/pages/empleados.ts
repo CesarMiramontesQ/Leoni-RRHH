@@ -76,10 +76,6 @@ function parseActivoRh(s: State["activo_rh"]): boolean | undefined {
   return undefined;
 }
 
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
 function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   if (state.q.trim()) return true;
   if (state.area_id) return true;
@@ -289,8 +285,20 @@ function renderKpis(
     </div>`;
   }
 
-  const pctInactivosPlantilla =
-    r.total_plantilla > 0 ? round1((r.inactivos / r.total_plantilla) * 100) : 0;
+  const nContratosPv = r.contratos_por_vencer;
+  const contratosRhResaltar = nContratosPv > 0;
+  const kpiNumContratosRhCls = contratosRhResaltar
+    ? `${KPI_NUM_CLS} text-orange-700`
+    : KPI_NUM_CLS;
+  const bordeContratosRh = contratosRhResaltar
+    ? " border-orange-300/60 ring-1 ring-orange-200/50"
+    : "";
+  const estadoContratosRh = contratosRhResaltar
+    ? `<p class="mt-2 text-sm font-semibold text-orange-800">Requieren seguimiento preventivo</p>`
+    : `<p class="mt-2 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
+        Sin vencimientos en la ventana
+      </p>`;
 
   return `
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -320,13 +328,14 @@ function renderKpis(
         </p>
         <p class="${KPI_MICRO_CLS}">Comparación vs mes anterior: no disponible</p>
       </article>
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm${bordeContratosRh}">
         <div class="flex items-start justify-between gap-3">
-          <p class="text-sm font-semibold text-slate-600">No activos</p>
-          ${kpiMetricIconBox("inactivo", svgKpiNoActivo())}
+          <p class="text-sm font-semibold text-slate-600">Contratos por vencer</p>
+          ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
         </div>
-        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.inactivos))}</p>
-        <p class="mt-2 text-sm font-semibold text-red-700">${escapeHtml(String(pctInactivosPlantilla))}% de la plantilla</p>
+        <p class="${kpiNumContratosRhCls}">${escapeHtml(String(nContratosPv))}</p>
+        <p class="${KPI_SUB_CLS}">Activos con fin de contrato en los próximos 30 días</p>
+        ${estadoContratosRh}
         <p class="${KPI_MICRO_CLS}">Comparación vs mes anterior: no disponible</p>
       </article>
       <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
