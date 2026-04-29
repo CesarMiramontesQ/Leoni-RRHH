@@ -16,7 +16,10 @@ import {
   mountRhNewRequestModal,
   type RhNewRequestModalHandle,
 } from "../components/solicitudes/rhNewRequestModal.ts";
-import { renderRhSolicitudesAdminView } from "../components/solicitudes/rhSolicitudesAdminView.ts";
+import {
+  renderRhSolicitudesAdminView,
+  renderRhSolicitudesScopedSection,
+} from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
@@ -32,6 +35,9 @@ import type {
   RhSolicitudesAdminViewModel,
   RhSolicitudTablaFila,
 } from "../solicitudes/rh/types.ts";
+import { BTN_PRIMARY, BTN_SECONDARY } from "../ui/uiTokens.ts";
+
+type SolicitudesScope = "main" | "personal" | "equipo";
 
 function forbiddenHtml(): string {
   return `
@@ -121,6 +127,67 @@ function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "est
   };
 }
 
+function scopeFromInteractiveElement(el: Element | null): SolicitudesScope {
+  const raw = el?.getAttribute("data-rh-sol-scope");
+  return raw === "personal" || raw === "equipo" ? raw : "main";
+}
+
+function rowMatchesEmpleadoId(row: RhSolicitudTablaFila, empleadoDirId: number): boolean {
+  const fid = Number.parseInt(row.empleado_id, 10);
+  return Number.isFinite(fid) && fid === empleadoDirId;
+}
+
+function rowMatchesSupervisorId(row: RhSolicitudTablaFila, empleadoDirId: number): boolean {
+  const sid = Number.parseInt(row.supervisor_id, 10);
+  return Number.isFinite(sid) && sid === empleadoDirId;
+}
+
+function renderSplitSolicitudesView(
+  personalVm: RhSolicitudesAdminViewModel,
+  equipoVm: RhSolicitudesAdminViewModel,
+  options: { showExportButton: boolean; showNewRequestButton: boolean },
+): string {
+  const exportBtn = options.showExportButton
+    ? `<button
+          type="button"
+          id="rh-sol-export"
+          class="${BTN_SECONDARY}"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Exportar solicitudes
+        </button>`
+    : "";
+  const nuevaBtn = options.showNewRequestButton
+    ? `<button
+          type="button"
+          id="rh-sol-nueva"
+          class="${BTN_PRIMARY}"
+        >
+          <span aria-hidden="true">+</span> Nueva solicitud
+        </button>`
+    : "";
+
+  return `
+    <div id="rh-solicitudes-root" class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
+      <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
+        <p class="min-w-0 max-w-2xl text-xs leading-snug text-text-muted sm:max-w-none sm:text-sm">Gestión y aprobación de vacaciones y home office</p>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-2.5">${exportBtn}${nuevaBtn}</div>
+      </div>
+      ${renderRhSolicitudesScopedSection(personalVm, {
+        scope: "personal",
+        title: "Mis Solicitudes",
+        subtitle: "Tus trámites personales y su estado actual",
+      })}
+      ${renderRhSolicitudesScopedSection(equipoVm, {
+        scope: "equipo",
+        title: "Solicitudes del Equipo",
+        subtitle: "Trámites del personal a tu cargo",
+      })}
+    </div>`;
+}
+
 export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): void {
   const solicitudesMainClass = "py-5 sm:py-6";
 
@@ -146,11 +213,31 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   }
 
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
+  const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const initialFilters = getInitialFiltersFromHash();
+  const personalSectionUi = {
+    ...pageUi,
+    role: "empleado" as const,
+    variant: "gestor" as const,
+    visibleFilterKeys: ["type", "status"] as const,
+    showExportButton: false,
+    showNewRequestButton: false,
+    showGestorToolbar: false,
+  };
+  const equipoSectionUi = {
+    ...pageUi,
+    showExportButton: false,
+    showNewRequestButton: false,
+    showGestorToolbar: false,
+  };
 
   let allRows: RhSolicitudTablaFila[] = [];
+  let personalRows: RhSolicitudTablaFila[] = [];
+  let teamRows: RhSolicitudTablaFila[] = [];
   let filterOpts = buildRhSolicitudFilterOptions([]);
+  let personalFilterOpts = buildRhSolicitudFilterOptions([]);
+  let teamFilterOpts = buildRhSolicitudFilterOptions([]);
   let empleadoVacacionesDisponibles: number | null = null;
 
   const state: RhSolicitudFilterState = {
@@ -163,30 +250,71 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     page: 1,
     page_size: 10,
   };
+  const personalState: RhSolicitudFilterState = { ...state };
+  const teamState: RhSolicitudFilterState = { ...state };
 
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function recargarSolicitudesDesdeApi(): Promise<void> {
     allRows = await getSolicitudesRows();
     filterOpts = buildRhSolicitudFilterOptions(allRows);
+    if (isSplitGestorRole && sessionEmpleadoDirId != null) {
+      personalRows = allRows.filter((row) => rowMatchesEmpleadoId(row, sessionEmpleadoDirId));
+      const teamWithoutSelf = allRows.filter((row) => !rowMatchesEmpleadoId(row, sessionEmpleadoDirId));
+      const teamBySupervisor = teamWithoutSelf.filter((row) => rowMatchesSupervisorId(row, sessionEmpleadoDirId));
+      teamRows = teamBySupervisor.length > 0 ? teamBySupervisor : teamWithoutSelf;
+      personalFilterOpts = buildRhSolicitudFilterOptions(personalRows);
+      teamFilterOpts = buildRhSolicitudFilterOptions(teamRows);
+    } else {
+      personalRows = [];
+      teamRows = [];
+      personalFilterOpts = buildRhSolicitudFilterOptions([]);
+      teamFilterOpts = buildRhSolicitudFilterOptions([]);
+    }
     empleadoVacacionesDisponibles = null;
     paint();
   }
 
-  function clampPage(): void {
-    const filtered = filterRhSolicitudRows(allRows, state);
-    const totalPages = Math.max(1, Math.ceil(filtered.length / state.page_size) || 1);
-    if (state.page > totalPages) state.page = totalPages;
-    if (state.page < 1) state.page = 1;
+  function stateForScope(scope: SolicitudesScope): RhSolicitudFilterState {
+    if (scope === "personal") return personalState;
+    if (scope === "equipo") return teamState;
+    return state;
+  }
+
+  function rowsForScope(scope: SolicitudesScope): RhSolicitudTablaFila[] {
+    if (scope === "personal") return personalRows;
+    if (scope === "equipo") return teamRows;
+    return allRows;
+  }
+
+  function clampPage(scope: SolicitudesScope): void {
+    const selectedState = stateForScope(scope);
+    const filtered = filterRhSolicitudRows(rowsForScope(scope), selectedState);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / selectedState.page_size) || 1);
+    if (selectedState.page > totalPages) selectedState.page = totalPages;
+    if (selectedState.page < 1) selectedState.page = 1;
   }
 
   function paint(): void {
-    clampPage();
-    const vm = buildRhSolicitudesAdminViewModel(
-      allRows,
-      filterOpts,
-      state,
-      pageUi,
+    clampPage("main");
+    if (isSplitGestorRole) {
+      clampPage("personal");
+      clampPage("equipo");
+    }
+    const vm = buildRhSolicitudesAdminViewModel(allRows, filterOpts, state, pageUi, null, empleadoVacacionesDisponibles);
+    const personalVm = buildRhSolicitudesAdminViewModel(
+      personalRows,
+      personalFilterOpts,
+      personalState,
+      personalSectionUi,
+      null,
+      empleadoVacacionesDisponibles,
+    );
+    const equipoVm = buildRhSolicitudesAdminViewModel(
+      teamRows,
+      teamFilterOpts,
+      teamState,
+      equipoSectionUi,
       null,
       empleadoVacacionesDisponibles,
     );
@@ -200,9 +328,20 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         dir: active.selectionDirection === "backward" ? "backward" : active.selectionDirection === "none" ? "none" : "forward",
       };
     }
-    if (inner) inner.innerHTML = renderRhSolicitudesAdminView(vm);
+    if (inner) {
+      inner.innerHTML =
+        isSplitGestorRole ?
+          renderSplitSolicitudesView(personalVm, equipoVm, {
+            showExportButton: pageUi.showExportButton,
+            showNewRequestButton: pageUi.showNewRequestButton,
+          })
+        : renderRhSolicitudesAdminView(vm);
+    }
     if (restoreEmpSearch) {
-      const el = container.querySelector<HTMLInputElement>("[data-rh-sol-empleado-busqueda]");
+      const scope = active instanceof Element ? scopeFromInteractiveElement(active) : "main";
+      const el = container.querySelector<HTMLInputElement>(
+        `[data-rh-sol-empleado-busqueda][data-rh-sol-scope="${scope}"]`,
+      );
       if (el) {
         el.focus();
         try {
@@ -225,7 +364,18 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     activeNav: "solicitudes",
     mainClass: solicitudesMainClass,
     mainHtml: `<div id="rh-solicitudes-page" class="relative flex min-h-[calc(100dvh-11rem)] flex-col">
-      <div id="rh-solicitudes-inner" class="flex min-h-0 flex-1 flex-col">${renderRhSolicitudesAdminView(loadingViewModel(pageUi))}</div>
+      <div id="rh-solicitudes-inner" class="flex min-h-0 flex-1 flex-col">${
+        isSplitGestorRole ?
+          renderSplitSolicitudesView(
+            loadingViewModel(personalSectionUi),
+            loadingViewModel(equipoSectionUi),
+            {
+              showExportButton: pageUi.showExportButton,
+              showNewRequestButton: pageUi.showNewRequestButton,
+            },
+          )
+        : renderRhSolicitudesAdminView(loadingViewModel(pageUi))
+      }</div>
       <div id="rh-nueva-solicitud-modal-host" class="shrink-0"></div>
       <div id="rh-solicitud-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-solicitud-resuelta-modal-host" class="shrink-0"></div>
@@ -336,10 +486,23 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
       const ver = t.closest<HTMLElement>("[data-rh-sol-ver]");
       if (ver) {
+        const verScope = scopeFromInteractiveElement(ver);
         const raw = ver.getAttribute("data-rh-sol-ver");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
         if (!Number.isFinite(id)) return;
-        const fila = allRows.find((r) => r.id === id);
+        const fila = rowsForScope(verScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
+        if (!fila) return;
+        abrirSolicitudSegunEstado(fila, id);
+        return;
+      }
+
+      const editar = t.closest<HTMLElement>("[data-rh-sol-editar]");
+      if (editar && !editar.hasAttribute("disabled")) {
+        const edScope = scopeFromInteractiveElement(editar);
+        const raw = editar.getAttribute("data-rh-sol-editar");
+        const id = raw ? Number.parseInt(raw, 10) : NaN;
+        if (!Number.isFinite(id)) return;
+        const fila = rowsForScope(edScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
         if (!fila) return;
         abrirSolicitudSegunEstado(fila, id);
         return;
@@ -353,13 +516,15 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         return;
       }
       if (t.closest("[data-rh-sol-clear-filters]")) {
-        state.tipo = "";
-        state.area_id = "";
-        state.supervisor_id = "";
-        state.empleado_id = "";
-        state.empleado_busqueda = "";
-        state.estado = "";
-        state.page = 1;
+        const clearScope = scopeFromInteractiveElement(t.closest("[data-rh-sol-clear-filters]"));
+        const selectedState = stateForScope(clearScope);
+        selectedState.tipo = "";
+        selectedState.area_id = "";
+        selectedState.supervisor_id = "";
+        selectedState.empleado_id = "";
+        selectedState.empleado_busqueda = "";
+        selectedState.estado = "";
+        selectedState.page = 1;
         paint();
         return;
       }
@@ -368,7 +533,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         const raw = pendingRow.getAttribute("data-rh-sol-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
         if (Number.isFinite(id)) {
-          const fila = allRows.find((r) => r.id === id);
+          const pendingScope = scopeFromInteractiveElement(pendingRow);
+          const fila = rowsForScope(pendingScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
           if (fila) abrirSolicitudSegunEstado(fila, id);
         }
         return;
@@ -378,7 +544,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         const raw = changesRow.getAttribute("data-rh-sol-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
         if (Number.isFinite(id)) {
-          const fila = allRows.find((r) => r.id === id);
+          const changesScope = scopeFromInteractiveElement(changesRow);
+          const fila = rowsForScope(changesScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
           if (fila) abrirSolicitudSegunEstado(fila, id);
         }
         return;
@@ -388,17 +555,20 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         const raw = resueltaRow.getAttribute("data-rh-sol-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
         if (Number.isFinite(id)) {
-          const fila = allRows.find((r) => r.id === id);
+          const resueltaScope = scopeFromInteractiveElement(resueltaRow);
+          const fila = rowsForScope(resueltaScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
           if (fila) abrirSolicitudSegunEstado(fila, id);
         }
         return;
       }
       const pageBtn = t.closest<HTMLButtonElement>("[data-rh-sol-page]");
       if (pageBtn) {
+        const pageScope = scopeFromInteractiveElement(pageBtn);
+        const selectedState = stateForScope(pageScope);
         const raw = pageBtn.getAttribute("data-rh-sol-page");
         const n = raw ? Number.parseInt(raw, 10) : NaN;
         if (!Number.isNaN(n)) {
-          state.page = n;
+          selectedState.page = n;
           paint();
         }
       }
@@ -420,7 +590,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       const raw = tr.getAttribute("data-rh-sol-id");
       const id = raw ? Number.parseInt(raw, 10) : NaN;
       if (!Number.isFinite(id)) return;
-      const fila = allRows.find((r) => r.id === id);
+      const rowScope = scopeFromInteractiveElement(tr);
+      const fila = rowsForScope(rowScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
       if (!fila) return;
       abrirSolicitudSegunEstado(fila, id);
     },
@@ -432,8 +603,10 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     (e) => {
       const inp = (e.target as HTMLElement).closest<HTMLInputElement>("[data-rh-sol-empleado-busqueda]");
       if (!inp) return;
-      state.empleado_busqueda = inp.value;
-      state.page = 1;
+      const inputScope = scopeFromInteractiveElement(inp);
+      const selectedState = stateForScope(inputScope);
+      selectedState.empleado_busqueda = inp.value;
+      selectedState.page = 1;
       if (empleadoBusquedaDebounceTimer != null) window.clearTimeout(empleadoBusquedaDebounceTimer);
       empleadoBusquedaDebounceTimer = window.setTimeout(() => {
         empleadoBusquedaDebounceTimer = null;
@@ -448,22 +621,26 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     (e) => {
       const sel = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-filter]");
       if (sel) {
+        const selectScope = scopeFromInteractiveElement(sel);
+        const selectedState = stateForScope(selectScope);
         const name = sel.getAttribute("data-rh-sol-filter");
         const value = sel.value;
-        state.page = 1;
-        if (name === "tipo") state.tipo = value === "" ? "" : isTipo(value) ? value : "";
-        else if (name === "area") state.area_id = value;
-        else if (name === "supervisor") state.supervisor_id = value;
-        else if (name === "empleado") state.empleado_id = value;
-        else if (name === "estado") state.estado = value === "" ? "" : isEstado(value) ? value : "";
+        selectedState.page = 1;
+        if (name === "tipo") selectedState.tipo = value === "" ? "" : isTipo(value) ? value : "";
+        else if (name === "area") selectedState.area_id = value;
+        else if (name === "supervisor") selectedState.supervisor_id = value;
+        else if (name === "empleado") selectedState.empleado_id = value;
+        else if (name === "estado") selectedState.estado = value === "" ? "" : isEstado(value) ? value : "";
         paint();
         return;
       }
       const ps = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-page-size]");
       if (ps) {
+        const pageSizeScope = scopeFromInteractiveElement(ps);
+        const selectedState = stateForScope(pageSizeScope);
         const n = Number.parseInt(ps.value, 10);
-        state.page_size = Number.isNaN(n) ? 10 : n;
-        state.page = 1;
+        selectedState.page_size = Number.isNaN(n) ? 10 : n;
+        selectedState.page = 1;
         paint();
       }
     },
@@ -486,12 +663,23 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       allRows = [];
       filterOpts = buildRhSolicitudFilterOptions([]);
       empleadoVacacionesDisponibles = null;
-      const errVm = errorViewModel(
-        fetchError?.detail || "Error inesperado al cargar solicitudes.",
-        pageUi,
-      );
       const inner = container.querySelector("#rh-solicitudes-inner");
-      if (inner) inner.innerHTML = renderRhSolicitudesAdminView(errVm);
+      if (inner) {
+        if (isSplitGestorRole) {
+          inner.innerHTML = renderSplitSolicitudesView(
+            errorViewModel(fetchError?.detail || "Error inesperado al cargar solicitudes.", personalSectionUi),
+            errorViewModel(fetchError?.detail || "Error inesperado al cargar solicitudes.", equipoSectionUi),
+            {
+              showExportButton: pageUi.showExportButton,
+              showNewRequestButton: pageUi.showNewRequestButton,
+            },
+          );
+        } else {
+          inner.innerHTML = renderRhSolicitudesAdminView(
+            errorViewModel(fetchError?.detail || "Error inesperado al cargar solicitudes.", pageUi),
+          );
+        }
+      }
     }
   })();
 }
