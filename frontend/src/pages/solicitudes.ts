@@ -113,6 +113,20 @@ function isEstado(v: string): v is RhSolicitudEstadoCodigo {
   );
 }
 
+function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "estado"> {
+  const hash = window.location.hash || "";
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex < 0) return { tipo: "", estado: "" };
+  const rawQuery = hash.slice(queryIndex + 1);
+  const params = new URLSearchParams(rawQuery);
+  const tipo = params.get("tipo") ?? "";
+  const estado = params.get("estado") ?? "";
+  return {
+    tipo: isTipo(tipo) ? tipo : "",
+    estado: isEstado(estado) ? estado : "",
+  };
+}
+
 function scopeFromInteractiveElement(el: Element | null): SolicitudesScope {
   const raw = el?.getAttribute("data-rh-sol-scope");
   return raw === "personal" || raw === "equipo" ? raw : "main";
@@ -201,6 +215,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
+  const initialFilters = getInitialFiltersFromHash();
   const personalSectionUi = {
     ...pageUi,
     role: "empleado" as const,
@@ -226,12 +241,12 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   let empleadoVacacionesDisponibles: number | null = null;
 
   const state: RhSolicitudFilterState = {
-    tipo: "",
+    tipo: initialFilters.tipo,
     area_id: "",
     supervisor_id: "",
     empleado_id: "",
     empleado_busqueda: "",
-    estado: "",
+    estado: initialFilters.estado,
     page: 1,
     page_size: 10,
   };

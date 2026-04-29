@@ -137,7 +137,12 @@ class UsuarioService:
         estados = settings.ESTADOS_ACTIVOS_IDS
         rol = self._get_rol(current_user)
         ids_permitidos: list[int] | None = None
-        if rol in ("gerente", "supervisor"):
+        if rol == "gerente":
+            subarbol = await self.empleado_repo.get_ids_subarbol(
+                current_user.id, estados
+            )
+            ids_permitidos = list(subarbol) + [current_user.id]
+        elif rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
                 current_user.id, estados
             )

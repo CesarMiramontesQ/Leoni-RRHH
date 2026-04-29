@@ -1,5 +1,6 @@
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { getComedorMisReservasMes } from "../../api/comedor.ts";
+import { getEmpleadoVista360 } from "../../api/vista360.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { etiquetaTipoComida } from "../../utils/comedorReservaFechas.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
@@ -66,6 +67,22 @@ function monthsCoveredByIsoRange(startIso: string, endIso: string): Array<{ year
   return out;
 }
 
+function parseIsoDateAsUtcDay(isoDate: string): number | null {
+  const [yearRaw, monthRaw, dayRaw] = isoDate.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  return Date.UTC(year, month - 1, day);
+}
+
+function calcVacationDaysInclusive(fechaInicio: string, fechaFin: string): number {
+  const startUtc = parseIsoDateAsUtcDay(fechaInicio.slice(0, 10));
+  const endUtc = parseIsoDateAsUtcDay(fechaFin.slice(0, 10));
+  if (startUtc === null || endUtc === null || endUtc < startUtc) return 0;
+  return (endUtc - startUtc) / (24 * 60 * 60 * 1000) + 1;
+}
+
 /**
  * Dashboard personal (rol `empleado`): KPIs siguen sin endpoint dedicado;
  * el calendario marca solicitudes propias pendientes (amarillo) y aprobadas (verde).
@@ -78,6 +95,8 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
     target ? new Date(target.year, target.monthIndex, 1) : now;
   const base = emptyEmpleadoDashboardPayload(referenceDate);
   const myId = getEmpleadoIdFromAccessToken();
+  const myIdNum = myId !== null ? Number(myId) : null;
+  const myVista360Id = myIdNum !== null && Number.isFinite(myIdNum) ? myIdNum : null;
   const visibleRange = computeVisibleRange(
     base.calendar.initial_year,
     base.calendar.initial_month_index,
@@ -88,11 +107,12 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
   const monthsToLoad = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
 
   try {
-    const [rows, reservasPorMes] = await Promise.all([
+    const [rows, reservasPorMes, vista360] = await Promise.all([
       getSolicitudesRows(100),
       Promise.all(
         monthsToLoad.map(({ year, month }) => getComedorMisReservasMes(year, month).catch(() => [])),
       ),
+      myVista360Id !== null ? getEmpleadoVista360(myVista360Id).catch(() => null) : Promise.resolve(null),
     ]);
     const comedorReservas = reservasPorMes
       .flat()
@@ -109,6 +129,17 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
       if (endIso < rangeStartIso || startIso > rangeEndIso) return false;
       return true;
     });
+
+    const todayIso = rhIsoLocalDate(now);
+    const vacationUsedDays = rows
+      .filter(
+        (r) =>
+          r.tipo === "vacaciones" &&
+          r.estado === SOLICITUD_ESTADO_API.APROBADO &&
+          (myId == null || r.empleado_id === myId) &&
+          r.fecha_fin.slice(0, 10) < todayIso,
+      )
+      .reduce((acc, r) => acc + calcVacationDaysInclusive(r.fecha_inicio, r.fecha_fin), 0);
 
     const day_entries: Record<string, EmpleadoCalendarDayEntry> = { ...base.calendar.day_entries };
     for (const reserva of comedorReservas) {
@@ -134,6 +165,8 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
 
     return {
       ...base,
+      vacation_available_days: vista360?.saldo_vacaciones ?? base.vacation_available_days,
+      vacation_used_days: vacationUsedDays,
       calendar: {
         ...base.calendar,
         day_entries,
