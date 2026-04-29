@@ -7,6 +7,10 @@ export type UsuarioResumen = {
   sin_lider_asignado: number;
   practicantes: number;
   porcentaje_operatividad: number;
+  /** Activos en el alcance del rol (plantilla completa para RH; equipo para supervisor/gerente). */
+  colaboradores_total: number;
+  /** Contratos con fin en los próximos 30 días (mismo alcance). */
+  contratos_por_vencer: number;
 };
 
 export type RolBrief = { id: number; nombre: string };
@@ -49,6 +53,8 @@ export type UsuarioListItem = {
   categoria: CategoriaResponse | null;
   clasificacion: ClasificacionEmpleadoResponse | null;
   lider_id: number | null;
+  /** URL o ruta de foto de perfil (listado directorio). */
+  foto?: string | null;
   /** Solo en GET /empleados (listado). */
   lider_nombre?: string | null;
   registro: string | null;

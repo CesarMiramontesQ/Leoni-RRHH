@@ -8,7 +8,7 @@ Directorio y consulta de empleados — RH, gerente, director y supervisor.
 CRUD de cuentas: /api/v1/usuarios (solo RH).
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -70,6 +70,14 @@ async def list_empleados(
         None,
         description="Solo RH: true=activos, false=no activos, omitir=todos",
     ),
+    estatus: str | None = Query(
+        None,
+        description="Solo supervisor/gerente: activo | inactivo | permiso (omitir=activos)",
+    ),
+    solo_contratos_por_vencer: bool = Query(
+        False,
+        description="Solo supervisor/gerente: filtra por contrato en ventana 30 días",
+    ),
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
     svc: UsuarioService = Depends(_svc),
 ):
@@ -84,6 +92,15 @@ async def list_empleados(
             current_user=current_user,
             activo=activo,
         )
+    if estatus is not None and estatus.strip():
+        v = estatus.strip().lower()
+        allowed = {"activo", "activos", "inactivo", "inactivos", "permiso"}
+        if v not in allowed:
+            raise HTTPException(
+                status_code=422,
+                detail="estatus debe ser activo, inactivo o permiso",
+            )
+    use_lider_filtros = r in ("supervisor", "gerente")
     return await svc.list_directorio_empleados_page(
         page=page,
         page_size=page_size,
@@ -91,6 +108,8 @@ async def list_empleados(
         area_id=area_id,
         puesto_id=puesto_id,
         current_user=current_user,
+        estatus_filtro=estatus if use_lider_filtros else None,
+        solo_contratos_por_vencer=solo_contratos_por_vencer if use_lider_filtros else False,
     )
 
 

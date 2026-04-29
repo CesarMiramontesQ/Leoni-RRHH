@@ -179,6 +179,7 @@ async def make_empleado(
     password: str = "Passw0rd!Seguro",
     lider_id: int | None = None,
     estado_id: int = 1,
+    fecha_fin_contrato: date | None = None,
 ):
     """
     Factory para crear un Empleado con Rol asociado.
@@ -204,6 +205,7 @@ async def make_empleado(
         rol_id=rol_obj.id,
         lider_id=lider_id,
         estado_id=estado_id,
+        fecha_fin_contrato=fecha_fin_contrato,
     )
     db.add(empleado)
     await db.flush()

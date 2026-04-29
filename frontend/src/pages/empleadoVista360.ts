@@ -10,6 +10,18 @@ import { escapeHtml } from "../components/vista360/html.ts";
 import { vista360CompetenciasCardHtml } from "../components/vista360/progressBar.ts";
 import { vista360ProfileHeaderHtml } from "../components/vista360/profileHeader.ts";
 import { vista360TabButtonClass, vista360TabsHtml, type Vista360TabId } from "../components/vista360/tabs.ts";
+
+const VISTA360_TAB_IDS: Vista360TabId[] = ["resumen", "incidencias", "historial", "beneficios"];
+
+/** Lee `?tab=` del hash `#/empleados/{id}?tab=historial`. */
+export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
+  const q = hash.indexOf("?");
+  if (q < 0) return "resumen";
+  const params = new URLSearchParams(hash.slice(q + 1));
+  const t = params.get("tab");
+  if (t && (VISTA360_TAB_IDS as readonly string[]).includes(t)) return t as Vista360TabId;
+  return "resumen";
+}
 import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
 import { loadEmpleadoVista360 } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
@@ -313,7 +325,13 @@ function bindVista360TabDelegation(v360Root: HTMLElement, getContent: () => HTML
   );
 }
 
-export function mountEmployeeVista360(container: HTMLElement, empleadoId: number, signal: AbortSignal): void {
+export function mountEmployeeVista360(
+  container: HTMLElement,
+  empleadoId: number,
+  signal: AbortSignal,
+  opts?: { initialTab?: Vista360TabId },
+): void {
+  const initialTab: Vista360TabId = opts?.initialTab ?? "resumen";
   if (!canAccessEmpleadosPage()) {
     mountAppShell(container, {
       pageTitle: "Vista 360",
@@ -348,7 +366,7 @@ export function mountEmployeeVista360(container: HTMLElement, empleadoId: number
         const r = await loadEmpleadoVista360(empleadoId, signal);
         if (!r.ok && r.aborted) return;
         if (r.ok) {
-          contentEl.innerHTML = renderVista360Content(r.data, "resumen");
+          contentEl.innerHTML = renderVista360Content(r.data, initialTab);
         } else {
           contentEl.innerHTML = `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(r.message)}</div>`;
         }
@@ -372,7 +390,7 @@ export function mountEmployeeVista360(container: HTMLElement, empleadoId: number
     if (!r.ok && r.aborted) return;
     if (!contentEl) return;
     if (r.ok) {
-      contentEl.innerHTML = renderVista360Content(r.data, "resumen");
+      contentEl.innerHTML = renderVista360Content(r.data, initialTab);
       return;
     }
     if (r.status === 401) {
