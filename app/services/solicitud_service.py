@@ -36,6 +36,7 @@ from app.core.exceptions import (
 from app.integrations.tress.queue import encolar_tress
 from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud
+from app.repositories.comedor_repository import ComedorAccesoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.solicitud_repository import (
     SolicitudAprobacionRepository,
@@ -237,7 +238,44 @@ class SolicitudService:
         self.repo = SolicitudRepository(db)
         self.aprobacion_repo = SolicitudAprobacionRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
+        self.comedor_acceso_repo = ComedorAccesoRepository(db)
         self.db = db
+
+    async def _cancelar_reservas_comedor_si_vacaciones_aprobadas(
+        self,
+        *,
+        solicitud: Solicitud,
+        solicitud_id: int,
+    ) -> int:
+        if solicitud.tipo != "vacaciones":
+            return 0
+        canceladas = await self.comedor_acceso_repo.expirar_pendientes_en_rango_por_empleado(
+            empleado_id=solicitud.empleado_id,
+            desde=solicitud.fecha_inicio,
+            hasta=solicitud.fecha_fin,
+        )
+        if canceladas > 0:
+            notif_svc = NotificacionService(self.db)
+            await notif_svc.enviar(
+                destinatario_id=solicitud.empleado_id,
+                asunto="Comidas canceladas por vacaciones aprobadas",
+                cuerpo=(
+                    f"Se cancelaron <b>{canceladas}</b> reserva(s) de comedor entre "
+                    f"{solicitud.fecha_inicio} y {solicitud.fecha_fin} debido a la aprobación "
+                    "de tus vacaciones."
+                ),
+                canal="in_app",
+                target_url="#/comedor",
+                metadata={
+                    "entidad": "comedor_acceso",
+                    "tipo_evento": "comedor_reservas_canceladas_por_vacaciones",
+                    "solicitud_id": solicitud_id,
+                    "fecha_inicio": str(solicitud.fecha_inicio),
+                    "fecha_fin": str(solicitud.fecha_fin),
+                    "comidas_canceladas": canceladas,
+                },
+            )
+        return canceladas
 
     async def _build_solicitud_response_con_flujo(self, solicitud: Solicitud) -> SolicitudResponse:
         base = _solicitud_to_response(solicitud)
@@ -516,6 +554,11 @@ class SolicitudService:
                 "fecha_fin": str(solicitud.fecha_fin),
                 "referencia_id": solicitud.id,
             },
+        )
+
+        await self._cancelar_reservas_comedor_si_vacaciones_aprobadas(
+            solicitud=solicitud,
+            solicitud_id=solicitud_id,
         )
 
         requisitor_id = solicitud.empleado_id

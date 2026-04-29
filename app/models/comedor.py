@@ -32,6 +32,22 @@ class ComedorTipoComida(str, enum.Enum):
     saludable = "saludable"
 
 
+class ComedorCodigoExternoEstado(str, enum.Enum):
+    ACTIVO = "ACTIVO"
+    USADO_PARCIAL = "USADO_PARCIAL"
+    USADO_TOTAL = "USADO_TOTAL"
+    VENCIDO = "VENCIDO"
+
+
+class ComedorExternoCorrelativo(Base):
+    """Fila única (id=1): último número usado en códigos CEXT{n} para externos."""
+
+    __tablename__ = "comedor_externo_correlativo"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    siguiente: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
 class Comedor(Base):
     __tablename__ = "comedores"
 
@@ -49,6 +65,10 @@ class Comedor(Base):
     )
     accesos: Mapped[list["ComedorAcceso"]] = relationship(
         "ComedorAcceso", back_populates="comedor"
+    )
+    codigos_externos: Mapped[list["ComedorCodigoExterno"]] = relationship(
+        "ComedorCodigoExterno",
+        back_populates="comedor",
     )
 
     def __repr__(self) -> str:
@@ -161,3 +181,45 @@ class ComedorAcceso(Base):
 
     def __repr__(self) -> str:
         return f"<ComedorAcceso id={self.id} empleado_id={self.empleado_id} fecha={self.fecha_servicio}>"
+
+
+class ComedorCodigoExterno(Base):
+    __tablename__ = "comedor_codigos_externos"
+    __table_args__ = (
+        Index("ix_comedor_codigos_externos_fecha_inicio", "fecha_inicio"),
+        Index("ix_comedor_codigos_externos_fecha_fin", "fecha_fin"),
+        Index("ix_comedor_codigos_externos_codigo_acceso", "codigo_acceso", unique=True),
+        Index("ix_comedor_codigos_externos_empleado_id", "empleado_id"),
+        Index("ix_comedor_codigos_externos_lote_id", "lote_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    comedor_id: Mapped[int] = mapped_column(ForeignKey("comedores.id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"),
+        nullable=True,
+    )
+    lote_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
+    cantidad_personas: Mapped[int] = mapped_column(Integer, nullable=False)
+    tipo_comida: Mapped[ComedorTipoComida] = mapped_column(
+        Enum(ComedorTipoComida, name="comedor_tipo_comida_enum"),
+        nullable=False,
+    )
+    codigo_acceso: Mapped[str] = mapped_column(String(80), nullable=False)
+    password_temporal: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    comedor: Mapped["Comedor"] = relationship("Comedor", back_populates="codigos_externos")
+    creador = relationship("Empleado", foreign_keys=[created_by])
+    empleado_externo = relationship("Empleado", foreign_keys=[empleado_id])
+
+    def __repr__(self) -> str:
+        return (
+            f"<ComedorCodigoExterno id={self.id} codigo={self.codigo_acceso} "
+            f"rango={self.fecha_inicio}:{self.fecha_fin}>"
+        )

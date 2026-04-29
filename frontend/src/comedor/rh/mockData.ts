@@ -104,6 +104,12 @@ const SIDEBAR_DATASET: ComedorSidebarDataset = {
       "Con base en histórico y tendencias, adelantar el turno 2 quince minutos reduce filas y mejora cobertura.",
     ctaLabel: "Optimizar flujo",
   },
+  externalCodesCard: {
+    titulo: "Códigos externos",
+    mensaje: "Consulta y rastrea credenciales temporales de personal externo.",
+    ctaLabel: "Listado de códigos externos",
+    ctaRoute: "#/comedor/codigos-externos",
+  },
 };
 
 const RESERVATIONS: readonly ComedorReservationRow[] = [

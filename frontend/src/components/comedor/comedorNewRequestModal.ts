@@ -34,7 +34,8 @@ export type ComedorNewRequestModalOptions = {
   menuFieldLabel?: string;
   loadMenuOptions: () => Promise<readonly ComedorMenuOption[]>;
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
-  onSubmit: (payload: ComedorCreateRequestPayload) => Promise<void> | void;
+  onSubmit: (payload: ComedorCreateRequestPayload) => Promise<unknown> | unknown;
+  onSuccess?: (result: unknown, payload: ComedorCreateRequestPayload) => void;
 };
 
 export type ComedorNewRequestModalHandle = {
@@ -58,9 +59,28 @@ function initialState(initialEmployeeId: string | null): ComedorNewRequestFormSt
     selectedEmployeeId: initialEmployeeId,
     externalPeopleCount: "1",
     menuId: "",
-    fecha: "",
+    fechaInicio: "",
+    fechaFin: "",
     observaciones: "",
   };
+}
+
+/** Todas las fechas del rango [inicio, fin] en ISO yyyy-mm-dd (incluye sábados y domingos). */
+function buildDatesInRangeInclusive(startIso: string, endIso: string): string[] {
+  const [startY, startM, startD] = startIso.split("-").map((part) => Number.parseInt(part, 10));
+  const [endY, endM, endD] = endIso.split("-").map((part) => Number.parseInt(part, 10));
+  const start = new Date(startY, (startM ?? 1) - 1, startD ?? 1);
+  const end = new Date(endY, (endM ?? 1) - 1, endD ?? 1);
+  const dates: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const y = String(cursor.getFullYear()).padStart(4, "0");
+    const m = String(cursor.getMonth() + 1).padStart(2, "0");
+    const d = String(cursor.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
 }
 
 function validateForm(
@@ -91,12 +111,25 @@ function validateForm(
   if (!state.menuId.trim()) {
     errors.menuId = "Selecciona un menú.";
   }
-  if (!state.fecha.trim()) {
-    errors.fecha = "Selecciona una fecha.";
-  } else if (fechaMinReservaIso && state.fecha < fechaMinReservaIso) {
-    errors.fecha = "Solo puedes agendar a partir del lunes de la semana siguiente.";
-  } else if (fechasBloqueadas?.has(state.fecha)) {
-    errors.fecha = "Ya tienes un registro para este día";
+  if (!state.fechaInicio.trim()) {
+    errors.fechaInicio = "Selecciona una fecha inicial.";
+  } else if (fechaMinReservaIso && state.fechaInicio < fechaMinReservaIso) {
+    errors.fechaInicio = "Solo puedes agendar a partir del lunes de la semana siguiente.";
+  }
+  if (!state.fechaFin.trim()) {
+    errors.fechaFin = "Selecciona una fecha final.";
+  } else if (fechaMinReservaIso && state.fechaFin < fechaMinReservaIso) {
+    errors.fechaFin = "Solo puedes agendar a partir del lunes de la semana siguiente.";
+  }
+  if (!errors.fechaInicio && !errors.fechaFin && state.fechaFin < state.fechaInicio) {
+    errors.fechaFin = "La fecha final debe ser mayor o igual a la fecha inicial.";
+  }
+  if (!errors.fechaInicio && !errors.fechaFin) {
+    const fechas = buildDatesInRangeInclusive(state.fechaInicio, state.fechaFin);
+    const bloqueada = fechas.find((iso) => fechasBloqueadas?.has(iso));
+    if (bloqueada) {
+      errors.fechaFin = "Ya tienes un registro para uno o más días del rango.";
+    }
   }
   return errors;
 }
@@ -109,7 +142,8 @@ function firstInvalidSelector(
   if (errors.employee) return "#comedor-modal-employee-search";
   if (allowExternalPeople && errors.externalPeopleCount) return "#comedor-modal-external-count";
   if (errors.menuId) return "#comedor-modal-menu";
-  if (errors.fecha) return "#comedor-modal-date";
+  if (errors.fechaInicio) return "#comedor-modal-date-start";
+  if (errors.fechaFin) return "#comedor-modal-date-end";
   return null;
 }
 
@@ -375,13 +409,19 @@ export function mountComedorNewRequestModal(
       errors.menuId = undefined;
     });
 
-    const dateInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-date]");
-    dateInput?.addEventListener("change", () => {
-      formState.fecha = dateInput.value;
-      errors.fecha = undefined;
-      if (formState.fecha && fechasBloqueadasSet?.has(formState.fecha)) {
-        errors.fecha = "Ya tienes un registro para este día";
-      }
+    const dateInputStart = form.querySelector<HTMLInputElement>("[data-comedor-modal-date-start]");
+    dateInputStart?.addEventListener("change", () => {
+      formState.fechaInicio = dateInputStart.value;
+      errors.fechaInicio = undefined;
+      errors.fechaFin = undefined;
+      renderForm();
+    });
+
+    const dateInputEnd = form.querySelector<HTMLInputElement>("[data-comedor-modal-date-end]");
+    dateInputEnd?.addEventListener("change", () => {
+      formState.fechaFin = dateInputEnd.value;
+      errors.fechaInicio = undefined;
+      errors.fechaFin = undefined;
       renderForm();
     });
 
@@ -426,7 +466,7 @@ export function mountComedorNewRequestModal(
           formState.personType === "interno"
             ? (formState.selectedEmployeeId || fixedEmployeeId)
             : null;
-        await options.onSubmit({
+        const payload: ComedorCreateRequestPayload = {
           personType: formState.personType,
           employeeId: formState.personType === "interno" ? employeeId : null,
           externalPeopleCount:
@@ -434,9 +474,11 @@ export function mountComedorNewRequestModal(
               ? Math.max(1, Number.parseInt(formState.externalPeopleCount, 10))
               : null,
           menuId: formState.menuId,
-          fecha: formState.fecha,
+          fechas: buildDatesInRangeInclusive(formState.fechaInicio, formState.fechaFin),
           observaciones: formState.observaciones.trim(),
-        });
+        };
+        const result = await options.onSubmit(payload);
+        await Promise.resolve(options.onSuccess?.(result, payload));
         showEmpleadosToast(options.toastContainer, "Solicitud de comida registrada correctamente.", "success");
         close();
       } catch (error: unknown) {

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 ComedorTipoComidaLiteral = Literal["casera", "saludable"]
 
@@ -80,7 +80,14 @@ class HuellaValidarResponse(BaseModel):
 
 class ComedorAccesoReservaCreate(BaseModel):
     comedor_id: int
-    fecha_servicio: date
+    fecha_servicio: date | None = Field(
+        default=None,
+        description="Compatibilidad: fecha única de servicio.",
+    )
+    fechas_servicio: list[date] | None = Field(
+        default=None,
+        description="Fechas de servicio para reserva batch.",
+    )
     target_user_id: int | None = Field(
         default=None,
         description="Empleado beneficiario de la reserva (solo supervisor/gerente).",
@@ -89,6 +96,14 @@ class ComedorAccesoReservaCreate(BaseModel):
         ...,
         description="Opción de comedor: casera o saludable",
     )
+
+    @model_validator(mode="after")
+    def validate_fechas_payload(self) -> "ComedorAccesoReservaCreate":
+        if self.fecha_servicio is None and not self.fechas_servicio:
+            raise ValueError("Debes enviar fecha_servicio o fechas_servicio.")
+        if self.fechas_servicio is not None and len(self.fechas_servicio) == 0:
+            raise ValueError("fechas_servicio no puede ser un arreglo vacío.")
+        return self
 
 
 class ComedorAccesoReservaUpdate(BaseModel):
@@ -111,6 +126,51 @@ class ComedorAccesoReservaResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ComedorRhRegistroCreate(BaseModel):
+    person_type: Literal["interno", "externo"]
+    comedor_id: int
+    fechas_servicio: list[date] = Field(..., min_length=1)
+    tipo_comida: ComedorTipoComidaLiteral
+    target_user_id: int | None = None
+    external_people_count: int | None = Field(default=None, ge=1, le=300)
+    observaciones: str | None = None
+
+
+class ComedorRhPaseExternoItem(BaseModel):
+    """Un código/contraseña por comensal externo; usuario de terminal = codigo_acceso."""
+
+    empleado_id: int
+    codigo_acceso: str
+    password_temporal: str
+
+
+class ComedorRhCredencialTemporal(BaseModel):
+    lote_id: str
+    valido_desde: date
+    valido_hasta: date
+    pases: list[ComedorRhPaseExternoItem]
+
+
+class ComedorRhRegistroResponse(BaseModel):
+    total_registros_creados: int
+    modo: Literal["interno", "externo"]
+    credenciales_temporales: ComedorRhCredencialTemporal | None = None
+
+
+class ComedorCodigoExternoItem(BaseModel):
+    id: int
+    fecha_inicio: date
+    fecha_fin: date
+    cantidad_personas: int
+    tipo_comida: str
+    codigo_acceso: str
+    password_temporal: str
+    estatus: Literal["ACTIVO", "USADO_PARCIAL", "USADO_TOTAL", "VENCIDO"]
+    usados: int
+    empleado_id: Optional[int] = None
+    lote_id: Optional[str] = None
+
+
 class ComedorMisReservaItem(BaseModel):
     id: int
     comedor_id: int
@@ -131,6 +191,33 @@ class ComedorEquipoReservaItem(BaseModel):
     estado_acceso: str
 
     model_config = {"from_attributes": True}
+
+
+class ComedorResumenDiarioItem(BaseModel):
+    fecha: date
+    caseras: int
+    saludables: int
+
+
+class ComedorRhProximoRegistroItem(BaseModel):
+    """Fila de acceso futuro (desde hoy) para supervisión RH."""
+
+    id: int
+    empleado_id: int
+    empleado_nombre: str
+    no_empleado: str
+    area: str
+    comedor_nombre: str
+    fecha_servicio: date
+    tipo_comida: str
+    estado_acceso: str
+
+
+class ComedorRhProximosRegistrosPage(BaseModel):
+    items: list[ComedorRhProximoRegistroItem]
+    total: int
+    page: int
+    page_size: int
 
 
 class ComedorEquipoBeneficiarioItem(BaseModel):

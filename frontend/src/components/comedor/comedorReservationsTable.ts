@@ -17,6 +17,9 @@ export type ComedorTableFiltersState = {
   search: string;
 };
 
+/** Misma barra de filtros; `rh-futuros` usa `data-comedor-rh-futuros-*` para no chocar con la tabla de líder. */
+export type ComedorFiltersToolbarVariant = "reservas" | "rh-futuros";
+
 function tabClass(active: boolean): string {
   return active
     ? "inline-flex min-h-10 items-center rounded-lg bg-leoni-blue px-4 py-2 text-sm font-semibold text-white shadow-sm"
@@ -27,12 +30,14 @@ function th(label: string): string {
   return `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold text-white sm:px-4 sm:text-sm">${escapeComedorHtml(label)}</th>`;
 }
 
-export function renderComedorReservationsTable(
-  state: ComedorPanelState,
-  tableData: ComedorReservationsPage | null,
+export function renderComedorReservationsFiltersToolbar(
   filters: ComedorTableFiltersState,
-  errorMessage: string | null,
+  variant: ComedorFiltersToolbarVariant,
 ): string {
+  const searchAttr =
+    variant === "rh-futuros" ? "data-comedor-rh-futuros-search" : "data-comedor-search";
+  const filterAttr =
+    variant === "rh-futuros" ? "data-comedor-rh-futuros-filter-status" : "data-comedor-filter-status";
   const chips = (
     [
       { id: "todos", label: "Todos" },
@@ -42,17 +47,17 @@ export function renderComedorReservationsTable(
   )
     .map(
       (chip) =>
-        `<button type="button" data-comedor-filter-status="${chip.id}" class="${tabClass(filters.statusFilter === chip.id)}">${chip.label}</button>`,
+        `<button type="button" ${filterAttr}="${chip.id}" class="${tabClass(filters.statusFilter === chip.id)}">${chip.label}</button>`,
     )
     .join("");
 
-  const toolbar = `
+  return `
     <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="Filtros de la tabla de comedor">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="search"
           value="${escapeComedorHtml(filters.search)}"
-          data-comedor-search
+          ${searchAttr}=""
           placeholder="Buscar por nombre o número"
           autocomplete="off"
           class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} sm:w-88"
@@ -64,6 +69,15 @@ export function renderComedorReservationsTable(
         </div>
       </div>
     </section>`;
+}
+
+export function renderComedorReservationsTable(
+  state: ComedorPanelState,
+  tableData: ComedorReservationsPage | null,
+  filters: ComedorTableFiltersState,
+  errorMessage: string | null,
+): string {
+  const toolbar = renderComedorReservationsFiltersToolbar(filters, "reservas");
 
   if (state === "loading") {
     return `

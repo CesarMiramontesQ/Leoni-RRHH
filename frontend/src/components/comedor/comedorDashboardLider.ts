@@ -45,7 +45,7 @@ export function renderComedorDashboardLider(state: ComedorDashboardLiderViewStat
         state.statsState,
         state.stats,
         state.statsError,
-        "grid grid-cols-1 gap-3 sm:grid-cols-2",
+        "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4",
       )}
       ${renderComedorCalendar(state.calendarState, state.calendar, state.calendarError)}
       ${renderComedorTeamReservationsTable(state.tableState, state.table, state.tableFilters, state.tableError)}

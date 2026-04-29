@@ -1,7 +1,7 @@
 export type ComedorPanelState = "loading" | "ready" | "empty" | "error";
 
 export type ComedorKpi = {
-  id: "reservas_hoy" | "capacidad_total" | "ocupacion_actual" | "dietas_especiales";
+  id: string;
   titulo: string;
   valor: string;
   descripcion: string;
@@ -51,6 +51,15 @@ export type ComedorWeekOccupancyPoint = {
   percent: number;
 };
 
+/** Una columna de la gráfica RH: totales caseras / saludables en una semana (lunes–domingo). */
+export type ComedorRhSemanaPlatilloPorSemana = {
+  weekStartIso: string;
+  label: string;
+  caseras: number;
+  saludables: number;
+  total: number;
+};
+
 export type ComedorDietDistribution = {
   saludablePercent: number;
   regularPercent: number;
@@ -60,6 +69,14 @@ export type ComedorSuggestion = {
   titulo: string;
   mensaje: string;
   ctaLabel: string;
+  ctaRoute?: string;
+};
+
+export type ComedorExternalCodesCard = {
+  titulo: string;
+  mensaje: string;
+  ctaLabel: string;
+  ctaRoute: string;
 };
 
 export type ComedorSidebarDataset = {
@@ -67,6 +84,9 @@ export type ComedorSidebarDataset = {
   weeklyOccupancy: ComedorWeekOccupancyPoint[];
   dietDistribution: ComedorDietDistribution;
   suggestion: ComedorSuggestion;
+  externalCodesCard: ComedorExternalCodesCard;
+  /** Solo rol RH: agregado por semana (últimas 4) para gráfica caseras vs saludables. */
+  rhPlatillosPorSemana?: readonly ComedorRhSemanaPlatilloPorSemana[];
 };
 
 export type ComedorReservationStatus = "confirmado" | "cancelado" | "pendiente";
@@ -96,6 +116,25 @@ export type ComedorReservationsPage = {
   total: number;
   page: number;
   pageSize: number;
+};
+
+export type ComedorRhProximoRegistroRow = {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string;
+  no_empleado: string;
+  area: string;
+  comedor_nombre: string;
+  fecha_servicio: string;
+  tipo_comida: string;
+  estado_acceso: string;
+};
+
+export type ComedorRhProximosRegistrosPage = {
+  items: readonly ComedorRhProximoRegistroRow[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type ComedorTeamReservationRow = {
@@ -135,7 +174,7 @@ export type ComedorCreateRequestPayload = {
   employeeId: string | null;
   externalPeopleCount: number | null;
   menuId: string;
-  fecha: string;
+  fechas: string[];
   observaciones: string;
 };
 

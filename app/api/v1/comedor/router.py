@@ -1,5 +1,6 @@
 # app/api/v1/comedor/router.py
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,11 @@ from app.schemas.comedor import (
     ComedorMisReservaItem,
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
+    ComedorResumenDiarioItem,
+    ComedorRhProximosRegistrosPage,
+    ComedorRhRegistroCreate,
+    ComedorRhRegistroResponse,
+    ComedorCodigoExternoItem,
     ComedorPrimeraFechaReservaResponse,
     ComedorRegistroCreate,
     ComedorRegistroResponse,
@@ -234,7 +240,55 @@ async def equipo_reservas_mes_comedor(
     )
 
 
-@router.post("/accesos/reservar", response_model=ComedorAccesoReservaResponse)
+@router.get("/accesos/equipo/metricas")
+async def equipo_metricas_comedor(
+    current_user: Empleado = Depends(role_checker(["supervisor", "gerente"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tarjetas de métricas para dashboard de supervisor/gerente."""
+    service = ComedorService(db)
+    return await service.get_equipo_metricas_dashboard(current_user=current_user)
+
+
+@router.get("/accesos/rh/resumen-diario", response_model=list[ComedorResumenDiarioItem])
+async def rh_resumen_diario_comedor(
+    desde: date = Query(..., description="Inicio del rango (inclusive)"),
+    hasta: date = Query(..., description="Fin del rango (inclusive)"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.list_resumen_diario_rh(
+        current_user=current_user,
+        desde=desde,
+        hasta=hasta,
+    )
+
+
+@router.get("/accesos/rh/proximos-registros", response_model=ComedorRhProximosRegistrosPage)
+async def rh_proximos_registros_comedor(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    buscar: str | None = Query(None, max_length=200),
+    filtro_estado: Literal["todos", "confirmado", "cancelado"] = Query("todos"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Accesos futuros (fecha_servicio >= hoy), filtrables por estado y búsqueda por empleado."""
+    service = ComedorService(db)
+    return await service.list_proximos_registros_rh_paginated(
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+        buscar=buscar,
+        filtro_estado=filtro_estado,
+    )
+
+
+@router.post(
+    "/accesos/reservar",
+    response_model=ComedorAccesoReservaResponse | list[ComedorAccesoReservaResponse],
+)
 async def reservar_acceso_dia(
     body: ComedorAccesoReservaCreate,
     background_tasks: BackgroundTasks,
@@ -243,10 +297,43 @@ async def reservar_acceso_dia(
 ):
     """Pre-autorización por día y tipo de comida (empleado, supervisor y gerente)."""
     service = ComedorService(db)
-    return await service.reservar_acceso_dia(
+    reservas = await service.reservar_acceso_dia(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
+    )
+    return reservas[0] if len(reservas) == 1 else reservas
+
+
+@router.post("/accesos/rh/registro", response_model=ComedorRhRegistroResponse)
+async def registrar_acceso_rh(
+    body: ComedorRhRegistroCreate,
+    background_tasks: BackgroundTasks,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.crear_registro_rh(
+        data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.get("/accesos/rh/codigos-externos", response_model=list[ComedorCodigoExternoItem])
+async def listar_codigos_externos_rh(
+    desde: date | None = Query(None),
+    hasta: date | None = Query(None),
+    estatus: str | None = Query(None, description="ACTIVO|USADO_PARCIAL|USADO_TOTAL|VENCIDO"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.list_codigos_externos_rh(
+        current_user=current_user,
+        desde=desde,
+        hasta=hasta,
+        estatus=estatus,
     )
 
 

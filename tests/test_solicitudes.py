@@ -474,6 +474,173 @@ async def test_aprobar_solicitud_persiste_notificacion_in_app_para_requisitor(cl
     assert meta.get("estado") == "approved"
 
 
+@pytest.mark.asyncio
+async def test_aprobar_vacaciones_expira_accesos_comedor_en_rango(client: AsyncClient, db):
+    from sqlalchemy import select
+
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+
+    supervisor = await make_empleado(db, rol="supervisor", email="sol_vac_com_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol_vac_com_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=subordinado.id,
+        tipo="vacaciones",
+        estado="pending",
+        fecha_inicio=date(2026, 5, 5),
+        fecha_fin=date(2026, 5, 9),
+    )
+
+    comedor = Comedor(nombre="Comedor Vac", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    registro = ComedorRegistro(
+        empleado_id=subordinado.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 5, 4),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add(registro)
+    await db.flush()
+
+    acceso_fuera = ComedorAcceso(
+        empleado_id=subordinado.id,
+        comedor_id=comedor.id,
+        comedor_registro_id=registro.id,
+        fecha_servicio=date(2026, 5, 3),
+        tipo_comida=ComedorTipoComida.casera,
+        estado_acceso=ComedorAccesoEstado.PENDIENTE,
+    )
+    acceso_en_rango_1 = ComedorAcceso(
+        empleado_id=subordinado.id,
+        comedor_id=comedor.id,
+        comedor_registro_id=registro.id,
+        fecha_servicio=date(2026, 5, 6),
+        tipo_comida=ComedorTipoComida.casera,
+        estado_acceso=ComedorAccesoEstado.PENDIENTE,
+    )
+    acceso_en_rango_2 = ComedorAcceso(
+        empleado_id=subordinado.id,
+        comedor_id=comedor.id,
+        comedor_registro_id=registro.id,
+        fecha_servicio=date(2026, 5, 9),
+        tipo_comida=ComedorTipoComida.saludable,
+        estado_acceso=ComedorAccesoEstado.PENDIENTE,
+    )
+    db.add_all([acceso_fuera, acceso_en_rango_1, acceso_en_rango_2])
+    await db.flush()
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert response.status_code == 200
+
+    result = await db.execute(
+        select(ComedorAcceso)
+        .where(ComedorAcceso.empleado_id == subordinado.id)
+        .order_by(ComedorAcceso.fecha_servicio.asc())
+    )
+    rows = list(result.scalars().all())
+    estados_por_fecha = {row.fecha_servicio.isoformat(): row.estado_acceso.value for row in rows}
+    assert estados_por_fecha["2026-05-03"] == "PENDIENTE"
+    assert estados_por_fecha["2026-05-06"] == "EXPIRADO"
+    assert estados_por_fecha["2026-05-09"] == "EXPIRADO"
+
+
+@pytest.mark.asyncio
+async def test_aprobar_vacaciones_crea_notificacion_cancelacion_comidas(client: AsyncClient, db):
+    from sqlalchemy import select
+
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+    from app.models.notificaciones import Notificacion
+
+    supervisor = await make_empleado(db, rol="supervisor", email="sol_vac_notif_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol_vac_notif_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=subordinado.id,
+        tipo="vacaciones",
+        estado="pending",
+        fecha_inicio=date(2026, 6, 2),
+        fecha_fin=date(2026, 6, 6),
+    )
+
+    comedor = Comedor(nombre="Comedor Notif", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    registro = ComedorRegistro(
+        empleado_id=subordinado.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 6, 1),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add(registro)
+    await db.flush()
+
+    db.add(
+        ComedorAcceso(
+            empleado_id=subordinado.id,
+            comedor_id=comedor.id,
+            comedor_registro_id=registro.id,
+            fecha_servicio=date(2026, 6, 4),
+            tipo_comida=ComedorTipoComida.casera,
+            estado_acceso=ComedorAccesoEstado.PENDIENTE,
+        )
+    )
+    await db.flush()
+
+    headers_sup = await auth_headers(client, supervisor)
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_sup,
+    )
+    assert response.status_code == 200
+
+    result = await db.execute(select(Notificacion).where(Notificacion.user_id == subordinado.id))
+    notifs = list(result.scalars().all())
+    cancelaciones = [
+        n
+        for n in notifs
+        if (n.metadata_json or {}).get("tipo_evento") == "comedor_reservas_canceladas_por_vacaciones"
+    ]
+    assert len(cancelaciones) == 1
+    meta = cancelaciones[0].metadata_json or {}
+    assert meta.get("solicitud_id") == solicitud.id
+    assert meta.get("comidas_canceladas") == 1
+    assert meta.get("fecha_inicio") == "2026-06-02"
+    assert meta.get("fecha_fin") == "2026-06-06"
+
+
 # ---------------------------------------------------------------------------
 # TC-SOL-011: Aprobar solicitud — empleado intenta aprobar → 403 por rol
 # ---------------------------------------------------------------------------

@@ -11,12 +11,13 @@ export type ComedorNewRequestFormState = {
   selectedEmployeeId: string | null;
   externalPeopleCount: string;
   menuId: string;
-  fecha: string;
+  fechaInicio: string;
+  fechaFin: string;
   observaciones: string;
 };
 
 export type ComedorNewRequestFormErrors = Partial<
-  Record<"personType" | "employee" | "externalPeopleCount" | "menuId" | "fecha", string>
+  Record<"personType" | "employee" | "externalPeopleCount" | "menuId" | "fechaInicio" | "fechaFin", string>
 >;
 
 export type BuildComedorNewRequestFormParams = {
@@ -188,7 +189,8 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     "min-h-[7.5rem] w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20";
   const errorClass = "border-red-300 focus:border-red-500 focus:ring-red-500/20";
   const menuClass = `${fieldClass} ${errors.menuId ? errorClass : ""}`;
-  const dateClass = `${fieldClass} pr-10 ${errors.fecha ? errorClass : ""}`;
+  const dateClassStart = `${fieldClass} pr-10 ${errors.fechaInicio ? errorClass : ""}`;
+  const dateClassEnd = `${fieldClass} pr-10 ${errors.fechaFin ? errorClass : ""}`;
   const employeeClass = `${fieldClass} ${errors.employee ? errorClass : ""}`;
   const externalPeopleClass = `${fieldClass} ${errors.externalPeopleCount ? errorClass : ""}`;
   const submitText = isSubmitting ? "Guardando..." : "Confirmar registro";
@@ -298,16 +300,21 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
         </div>
 
         <div>
-          <label for="comedor-modal-date" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Selector de fecha</label>
+          <label for="comedor-modal-date-start" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Rango de fechas</label>
+          ${
+            fechaMinIso
+              ? `<p class="mb-1.5 text-xs text-slate-500">Reservas con al menos una semana de anticipación. Puedes seleccionar desde ${escapeHtml(fechaMinIso)}.</p>`
+              : ""
+          }
           <div class="relative">
             <input
-              id="comedor-modal-date"
+              id="comedor-modal-date-start"
               type="date"
-              data-comedor-modal-date
-              value="${escapeHtml(state.fecha)}"
+              data-comedor-modal-date-start
+              value="${escapeHtml(state.fechaInicio)}"
               ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
-              class="${dateClass}"
-              aria-invalid="${errors.fecha ? "true" : "false"}"
+              class="${dateClassStart}"
+              aria-invalid="${errors.fechaInicio ? "true" : "false"}"
             />
             <span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-slate-400" aria-hidden="true">
               <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
@@ -315,6 +322,24 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
               </svg>
             </span>
           </div>
+          ${fieldError(errors.fechaInicio)}
+          <div class="relative mt-2">
+            <input
+              id="comedor-modal-date-end"
+              type="date"
+              data-comedor-modal-date-end
+              value="${escapeHtml(state.fechaFin)}"
+              ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
+              class="${dateClassEnd}"
+              aria-invalid="${errors.fechaFin ? "true" : "false"}"
+            />
+            <span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-slate-400" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
+                <path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.75A2.25 2.25 0 0 1 18 6.25v9.5A2.25 2.25 0 0 1 15.75 18h-11.5A2.25 2.25 0 0 1 2 15.75v-9.5A2.25 2.25 0 0 1 4.25 4H5V2.75A.75.75 0 0 1 5.75 2Zm10.75 6H3.5v7.75c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V8Z" clip-rule="evenodd" />
+              </svg>
+            </span>
+          </div>
+          ${fieldError(errors.fechaFin)}
           ${
             fechasBloqueadasCount > 0
               ? `<p class="mt-1.5 text-xs text-slate-500" id="comedor-modal-date-hint">Ya tienes reservas en ${fechasBloqueadasCount} día${
@@ -322,7 +347,6 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
                 } de este rango. Si intentas reservar de nuevo, verás un aviso.</p>`
               : ""
           }
-          ${fieldError(errors.fecha)}
         </div>
       </section>
 
