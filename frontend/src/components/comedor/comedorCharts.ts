@@ -1,11 +1,43 @@
 import type {
-  ComedorDietDistribution,
   ComedorExternalCodesCard,
   ComedorPanelState,
+  ComedorRhSemanaPlatilloPorSemana,
   ComedorSuggestion,
   ComedorWeekOccupancyPoint,
 } from "../../comedor/rh/types.ts";
+import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
+
+/** Barras apiladas por semana: parte inferior caseras, superior saludables (misma escala entre columnas). */
+function renderRhPlatillosPorSemanaChart(rows: readonly ComedorRhSemanaPlatilloPorSemana[]): string {
+  const maxTotal = Math.max(1, ...rows.map((r) => r.total));
+  const cols = rows
+    .map((p) => {
+      const barPct = p.total === 0 ? 6 : Math.max(10, Math.round((p.total / maxTotal) * 100));
+      const stack =
+        p.total === 0 ?
+          `<div class="w-[85%] rounded bg-slate-200" style="height:4px" aria-hidden="true"></div>`
+        : `<div class="flex w-[85%] max-w-15 flex-col overflow-hidden rounded-md border border-slate-100 bg-slate-50 shadow-inner" style="height:${barPct}%">
+            <div class="min-h-0 w-full bg-emerald-500" style="flex:${Math.max(0, p.saludables)} 1 0"></div>
+            <div class="min-h-0 w-full bg-leoni-blue" style="flex:${Math.max(0, p.caseras)} 1 0"></div>
+          </div>`;
+      return `
+        <div class="flex min-w-0 flex-col items-center gap-1">
+          <div class="flex h-24 w-full items-end justify-center px-0.5">${stack}</div>
+          <p class="max-w-full truncate px-0.5 text-center text-[10px] font-medium leading-tight text-slate-600" title="${escapeComedorHtml(p.label)}">${escapeComedorHtml(p.label)}</p>
+          <p class="text-[9px] tabular-nums text-slate-500">${p.total} comidas</p>
+        </div>`;
+    })
+    .join("");
+  return `
+    <div class="mt-3 space-y-2">
+      <div class="grid grid-cols-4 gap-1 sm:gap-2">${cols}</div>
+      <div class="flex flex-wrap justify-center gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-[10px] text-slate-600">
+        <span class="inline-flex items-center gap-1"><span class="size-2 rounded-sm bg-leoni-blue"></span>Caseras</span>
+        <span class="inline-flex items-center gap-1"><span class="size-2 rounded-sm bg-emerald-500"></span>Saludables</span>
+      </div>
+    </div>`;
+}
 
 function renderOccupancyBars(points: readonly ComedorWeekOccupancyPoint[]): string {
   return `
@@ -24,47 +56,41 @@ function renderOccupancyBars(points: readonly ComedorWeekOccupancyPoint[]): stri
     </div>`;
 }
 
-function renderDonut(distribution: ComedorDietDistribution): string {
-  const healthy = Math.max(0, Math.min(100, Math.round(distribution.saludablePercent)));
-  const regular = Math.max(0, Math.min(100, Math.round(distribution.regularPercent)));
-  const gradient = `conic-gradient(#2563eb 0 ${healthy}%, #93c5fd ${healthy}% 100%)`;
-  return `
-    <div class="mt-3 flex items-center gap-3">
-      <div class="relative grid size-20 place-items-center rounded-full" style="background:${gradient}">
-        <div class="grid size-14 place-items-center rounded-full bg-white text-xs font-bold text-slate-700">${healthy}%</div>
-      </div>
-      <div class="space-y-1 text-xs">
-        <p class="flex items-center gap-2 text-slate-600"><span class="size-2 rounded-full bg-blue-600"></span>Saludable ${healthy}%</p>
-        <p class="flex items-center gap-2 text-slate-600"><span class="size-2 rounded-full bg-blue-300"></span>Regular ${regular}%</p>
-      </div>
-    </div>`;
-}
-
 export function renderComedorCharts(
   state: ComedorPanelState,
   weeklyOccupancy: readonly ComedorWeekOccupancyPoint[] | null,
-  dietDistribution: ComedorDietDistribution | null,
+  rhPlatillosPorSemana: readonly ComedorRhSemanaPlatilloPorSemana[] | null | undefined,
 ): string {
-  if (state !== "ready" || !weeklyOccupancy || !dietDistribution) {
+  const esRhGraficaPlatillosSemana =
+    getRolFromAccessToken() === "rh" &&
+    rhPlatillosPorSemana != null &&
+    rhPlatillosPorSemana.length > 0;
+
+  if (state !== "ready" || (!esRhGraficaPlatillosSemana && !weeklyOccupancy)) {
+    const tituloCarga =
+      getRolFromAccessToken() === "rh" ? "Distribución semanal de platillos" : "Ocupación por semana";
     return `
       <article class="rounded-2xl border border-border bg-white p-4 shadow-sm">
-        <h3 class="text-sm font-semibold text-text-primary">Ocupación por semana</h3>
+        <h3 class="text-sm font-semibold text-text-primary">${tituloCarga}</h3>
         <div class="mt-3 h-28 rounded bg-slate-100"></div>
-        <h3 class="mt-4 text-sm font-semibold text-text-primary">Distribución dieta</h3>
-        <div class="mt-3 h-20 rounded bg-slate-100"></div>
       </article>`;
   }
 
-  return `
-    <article class="space-y-4 rounded-2xl border border-border bg-white p-4 shadow-sm">
+  const seccionOcupacion = esRhGraficaPlatillosSemana
+    ? `
+      <section>
+        <h3 class="text-sm font-semibold text-text-primary">Distribución semanal de platillos</h3>
+        <p class="mt-0.5 text-xs text-text-muted">Últimas cuatro semanas: comidas caseras vs saludables (barras apiladas por semana).</p>
+        ${renderRhPlatillosPorSemanaChart(rhPlatillosPorSemana!)}
+      </section>`
+    : `
       <section>
         <h3 class="text-sm font-semibold text-text-primary">Ocupación por semana</h3>
-        ${renderOccupancyBars(weeklyOccupancy)}
-      </section>
-      <section class="border-t border-slate-100 pt-3">
-        <h3 class="text-sm font-semibold text-text-primary">Distribución dieta</h3>
-        ${renderDonut(dietDistribution)}
-      </section>
+        ${renderOccupancyBars(weeklyOccupancy!)}</section>`;
+
+  return `
+    <article class="rounded-2xl border border-border bg-white p-4 shadow-sm">
+      ${seccionOcupacion}
     </article>`;
 }
 

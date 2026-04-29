@@ -50,6 +50,7 @@ import type {
   ComedorKpi,
   ComedorPanelState,
   ComedorReservationsPage,
+  ComedorRhSemanaPlatilloPorSemana,
   ComedorTeamReservationsPage,
   ComedorSidebarDataset,
   ComedorWeekPlanner,
@@ -613,6 +614,39 @@ function mapMetricasLiderToKpis(metricas: Awaited<ReturnType<typeof getComedorEq
   ];
 }
 
+/** Agrupa filas diarias del resumen RH en las 4 semanas calendario que terminan en `currentWeekStartIso` (lunes). */
+function buildRhPlatillosPorSemana(
+  items: Awaited<ReturnType<typeof getComedorRhResumenDiario>>,
+  currentWeekStartIso: string,
+): readonly ComedorRhSemanaPlatilloPorSemana[] {
+  const currentMonday = isoToDate(currentWeekStartIso);
+  const weekStarts: Date[] = [0, 1, 2, 3].map((i) => addDays(currentMonday, -21 + i * 7));
+  const bucket = new Map<string, { caseras: number; saludables: number }>();
+  for (const ws of weekStarts) {
+    bucket.set(dateToIso(ws), { caseras: 0, saludables: 0 });
+  }
+  for (const row of items) {
+    const mondayIso = dateToIso(mondayOf(isoToDate(row.fecha)));
+    const cell = bucket.get(mondayIso);
+    if (!cell) continue;
+    cell.caseras += Number.isFinite(row.caseras) ? Math.max(0, row.caseras) : 0;
+    cell.saludables += Number.isFinite(row.saludables) ? Math.max(0, row.saludables) : 0;
+  }
+  return weekStarts.map((ws) => {
+    const iso = dateToIso(ws);
+    const c = bucket.get(iso)!;
+    const end = addDays(ws, 6);
+    const label = `${formatWeekShortDate(ws)}–${formatWeekShortDate(end)}`;
+    return {
+      weekStartIso: iso,
+      label,
+      caseras: c.caseras,
+      saludables: c.saludables,
+      total: c.caseras + c.saludables,
+    };
+  });
+}
+
 function mapProyeccionesToSidebar(
   proyecciones: Awaited<ReturnType<typeof getComedorProyecciones>>,
   estadisticas: Awaited<ReturnType<typeof getComedorEstadisticas>>,
@@ -1008,15 +1042,29 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     state.sidebarError = null;
     paint();
     try {
-      const [proyecciones, estadisticas] = await Promise.all([
+      const weekStartIso = getCurrentWeekStartIso();
+      const desde4SemanasIso = dateToIso(addDays(isoToDate(weekStartIso), -21));
+      const weekEndIso = dateToIso(addDays(isoToDate(weekStartIso), 6));
+      const incluirResumenRh = getRolFromAccessToken() === "rh";
+      const [proyecciones, estadisticas, resumenSemanaRh] = await Promise.all([
         getComedorProyecciones(),
-        getComedorEstadisticas(getCurrentWeekStartIso()),
+        getComedorEstadisticas(weekStartIso),
+        incluirResumenRh ? getComedorRhResumenDiario(desde4SemanasIso, weekEndIso) : Promise.resolve([]),
       ]);
-      const dataset = mapProyeccionesToSidebar(proyecciones, estadisticas);
+      let dataset: ComedorSidebarDataset = mapProyeccionesToSidebar(proyecciones, estadisticas);
+      if (incluirResumenRh) {
+        dataset = {
+          ...dataset,
+          rhPlatillosPorSemana: buildRhPlatillosPorSemana(resumenSemanaRh, weekStartIso),
+        };
+      }
       if (signal.aborted) return;
       state.sidebar = dataset;
       state.sidebarState =
-        dataset.alerts.length > 0 || dataset.weeklyOccupancy.length > 0 || dataset.dietDistribution.saludablePercent > 0
+        dataset.alerts.length > 0 ||
+        dataset.weeklyOccupancy.length > 0 ||
+        dataset.dietDistribution.saludablePercent > 0 ||
+        (dataset.rhPlatillosPorSemana?.length ?? 0) > 0
           ? "ready"
           : "empty";
     } catch (error) {

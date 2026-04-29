@@ -51,6 +51,15 @@ export type ComedorWeekOccupancyPoint = {
   percent: number;
 };
 
+/** Una columna de la gráfica RH: totales caseras / saludables en una semana (lunes–domingo). */
+export type ComedorRhSemanaPlatilloPorSemana = {
+  weekStartIso: string;
+  label: string;
+  caseras: number;
+  saludables: number;
+  total: number;
+};
+
 export type ComedorDietDistribution = {
   saludablePercent: number;
   regularPercent: number;
@@ -76,6 +85,8 @@ export type ComedorSidebarDataset = {
   dietDistribution: ComedorDietDistribution;
   suggestion: ComedorSuggestion;
   externalCodesCard: ComedorExternalCodesCard;
+  /** Solo rol RH: agregado por semana (últimas 4) para gráfica caseras vs saludables. */
+  rhPlatillosPorSemana?: readonly ComedorRhSemanaPlatilloPorSemana[];
 };
 
 export type ComedorReservationStatus = "confirmado" | "cancelado" | "pendiente";

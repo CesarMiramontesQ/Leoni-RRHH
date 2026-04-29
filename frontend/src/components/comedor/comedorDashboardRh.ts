@@ -62,7 +62,7 @@ export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): st
         ${renderComedorCalendar(state.calendarState, state.calendar, state.calendarError)}
         <div class="space-y-4">
           ${renderComedorAlerts(state.sidebarState, sidebar?.alerts ?? null, state.sidebarError)}
-          ${renderComedorCharts(state.sidebarState, sidebar?.weeklyOccupancy ?? null, sidebar?.dietDistribution ?? null)}
+          ${renderComedorCharts(state.sidebarState, sidebar?.weeklyOccupancy ?? null, sidebar?.rhPlatillosPorSemana)}
           ${renderComedorSuggestion(state.sidebarState, sidebar?.suggestion ?? null)}
           ${renderComedorExternalCodesCard(state.sidebarState, sidebar?.externalCodesCard ?? null)}
         </div>
