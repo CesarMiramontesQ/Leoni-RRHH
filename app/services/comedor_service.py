@@ -1105,18 +1105,23 @@ class ComedorService:
             raise ForbiddenError(detail="No tienes permiso para ver estadisticas de comedor")
 
         semana_ref = semana or date.today()
-        from datetime import timedelta
         inicio_semana = semana_ref - timedelta(days=semana_ref.weekday())
+        fin_semana = inicio_semana + timedelta(days=6)
 
         registros = await self.registro_repo.get_registros_semana(semana=inicio_semana)
         total = len(registros)
         normal = sum(1 for r in registros if r.tipo_platillo == "normal")
         dieta = sum(1 for r in registros if r.tipo_platillo == "dieta")
         acceso = sum(1 for r in registros if r.acceso_concedido)
+        total_comidas = await self.acceso_repo.count_comidas_activas_en_rango(
+            inicio_semana,
+            fin_semana,
+        )
 
         return {
             "semana": str(inicio_semana),
             "total_registros": total,
+            "total_comidas": total_comidas,
             "normal": normal,
             "dieta": dieta,
             "acceso_concedido": acceso,

@@ -465,6 +465,16 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             for row in rows
         ]
 
+    async def count_comidas_activas_en_rango(self, desde: date, hasta: date) -> int:
+        """Cuenta accesos PENDIENTE/ACCEDIDO por fecha_servicio (una comida por fila)."""
+        estado_activo = (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+        stmt = select(func.count(ComedorAcceso.id)).where(
+            ComedorAcceso.fecha_servicio >= desde,
+            ComedorAcceso.fecha_servicio <= hasta,
+            ComedorAcceso.estado_acceso.in_(estado_activo),
+        )
+        return int((await self.db.execute(stmt)).scalar_one() or 0)
+
     async def get_by_id_empleado(
         self,
         acceso_id: int,

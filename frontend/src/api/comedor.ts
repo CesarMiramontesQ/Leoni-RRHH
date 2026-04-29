@@ -28,6 +28,8 @@ export type MenuSemanalApiItem = {
 export type ComedorEstadisticasApi = {
   semana: string;
   total_registros: number;
+  /** Accesos activos (PENDIENTE/ACCEDIDO) en la semana; puede ser mayor que `total_registros`. */
+  total_comidas: number;
   normal: number;
   dieta: number;
   acceso_concedido: number;

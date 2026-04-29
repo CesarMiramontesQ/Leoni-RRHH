@@ -522,24 +522,39 @@ function createComedorIdResolver(): {
 
 function mapEstadisticasToRhKpis(
   estadisticas: Awaited<ReturnType<typeof getComedorEstadisticas>>,
-  proximaSemanaTotal: number,
+  estadisticasProximaSemana: Awaited<ReturnType<typeof getComedorEstadisticas>>,
+  vistaComidasRh: boolean,
 ): readonly ComedorKpi[] {
-  const total = estadisticas.total_registros;
+  const totalRegistros = estadisticas.total_registros;
+  const totalComidasSemana =
+    typeof estadisticas.total_comidas === "number" && Number.isFinite(estadisticas.total_comidas) ?
+      Math.max(0, estadisticas.total_comidas)
+    : Math.max(0, estadisticas.normal + estadisticas.dieta);
+  const totalComidasProxima =
+    typeof estadisticasProximaSemana.total_comidas === "number"
+    && Number.isFinite(estadisticasProximaSemana.total_comidas) ?
+      Math.max(0, estadisticasProximaSemana.total_comidas)
+    : Math.max(0, estadisticasProximaSemana.normal + estadisticasProximaSemana.dieta);
+
+  const valorSemana = vistaComidasRh ? totalComidasSemana : totalRegistros;
+  const valorProximaSemana = vistaComidasRh ? totalComidasProxima : estadisticasProximaSemana.total_registros;
+
   const porcentajeAsistencia =
-    total > 0 ? Math.round((estadisticas.acceso_concedido / total) * 100) : 0;
+    totalRegistros > 0 ? Math.round((estadisticas.acceso_concedido / totalRegistros) * 100) : 0;
   return [
     {
       id: "reservas_hoy",
-      titulo: "Registros de la semana",
-      valor: String(total),
+      titulo: vistaComidasRh ? "Comidas registradas de la semana" : "Registros de la semana",
+      valor: String(valorSemana),
       descripcion: `Semana ${estadisticas.semana}`,
       accentClass: "border-t-leoni-blue",
       progressPercent: undefined,
     },
     {
       id: "registros_proxima_semana",
-      titulo: "Registros de la próxima semana",
-      valor: String(proximaSemanaTotal),
+      titulo:
+        vistaComidasRh ? "Comidas registradas de la próxima semana" : "Registros de la próxima semana",
+      valor: String(valorProximaSemana),
       descripcion: "Planeación operativa para la semana siguiente",
       accentClass: "border-t-sky-500",
       progressPercent: undefined,
@@ -547,7 +562,7 @@ function mapEstadisticasToRhKpis(
     {
       id: "ocupacion_actual",
       titulo: "Registros activos",
-      valor: String(total),
+      valor: String(totalRegistros),
       descripcion: "Total de registros confirmados en la semana actual",
       accentClass: "border-t-emerald-500",
       progressPercent: undefined,
@@ -556,7 +571,7 @@ function mapEstadisticasToRhKpis(
       id: "porcentaje_asistencia",
       titulo: "% asistencia vs registro",
       valor: `${porcentajeAsistencia}%`,
-      descripcion: `${estadisticas.acceso_concedido} asistencias de ${total} registros`,
+      descripcion: `${estadisticas.acceso_concedido} asistencias de ${totalRegistros} registros`,
       accentClass: "border-t-violet-500",
       progressPercent: porcentajeAsistencia,
     },
@@ -953,10 +968,8 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         getComedorEstadisticas(currentWeekStartIso),
         getComedorEstadisticas(nextWeekStartIso),
       ]);
-      const rows = mapEstadisticasToRhKpis(
-        estadisticasActual,
-        estadisticasProxima.total_registros ?? 0,
-      );
+      const vistaComidasRh = getRolFromAccessToken() === "rh";
+      const rows = mapEstadisticasToRhKpis(estadisticasActual, estadisticasProxima, vistaComidasRh);
       if (signal.aborted) return;
       state.stats = rows;
       state.statsState = rows.length > 0 ? "ready" : "empty";
