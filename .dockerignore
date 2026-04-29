@@ -1,0 +1,11 @@
+.git
+.cursor
+.claude
+__pycache__
+*.pyc
+.env
+node_modules
+frontend/node_modules
+frontend/dist
+.pytest_cache
+postgres_data
