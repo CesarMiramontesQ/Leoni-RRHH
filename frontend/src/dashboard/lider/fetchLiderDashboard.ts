@@ -1,5 +1,6 @@
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
+import { getEmpleadosPage } from "../../api/empleados.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
@@ -128,16 +129,21 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
   try {
     // API `/api/v1/solicitudes` admite máximo `limit=100`.
     const mealMonths = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
-    const [rows, mealRowsByMonth] = await Promise.all([
+    const [rows, mealRowsByMonth, empleadosPage] = await Promise.all([
       getSolicitudesRows(100),
       role === "supervisor"
         ? Promise.all(mealMonths.map(({ year, month }) => getComedorEquipoReservasMes(year, month)))
         : Promise.resolve([]),
+      getEmpleadosPage({ page: 1, page_size: 1, activo: true }).catch(() => null),
     ]);
-    const solicitudesCalendario = rows.filter(
+    const solicitudesGestion = rows.filter(
       (r) =>
         (r.tipo === "vacaciones" || r.tipo === "home_office") &&
-        (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE) &&
+        (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE),
+    );
+
+    const solicitudesCalendario = solicitudesGestion.filter(
+      (r) =>
         !(r.fecha_fin.slice(0, 10) < rangeStartIso || r.fecha_inicio.slice(0, 10) > rangeEndIso),
     );
 
@@ -162,8 +168,12 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       }
     }
 
-    const ownRows = myId ? solicitudesCalendario.filter((r) => r.empleado_id === myId) : [];
-    const teamRows = myId ? solicitudesCalendario.filter((r) => r.empleado_id !== myId) : solicitudesCalendario;
+    const ownRows = myId ? solicitudesGestion.filter((r) => r.empleado_id === myId) : [];
+    const teamRows = myId ? solicitudesGestion.filter((r) => r.empleado_id !== myId) : solicitudesGestion;
+    const fallbackTeamCount = new Set(teamRows.map((r) => r.empleado_id)).size;
+    const teamCollaboratorsCount = empleadosPage
+      ? Math.max(0, (empleadosPage.total ?? 0) - 1)
+      : fallbackTeamCount;
 
     const initial = solicitudesCalendario
       .map((r) => r.fecha_inicio.slice(0, 10))
@@ -190,6 +200,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         team_pending_home_office_requests: teamRows.filter(
           (r) => r.tipo === "home_office" && r.estado === SOLICITUD_ESTADO_API.PENDIENTE,
         ).length,
+        team_collaborators_count: teamCollaboratorsCount,
       },
       team_calendar: {
         ...base.team_calendar,

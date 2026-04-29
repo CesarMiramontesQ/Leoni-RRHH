@@ -115,12 +115,12 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Incidencias del equipo",
     },
     {
-      label: "Vacaciones pendientes",
+      label: "Vacaciones por aprobar",
       labelCls: "text-orange-600",
       iconWrap: "bg-orange-500/12 text-orange-600",
       icon: iconVacPend(),
       value: fmtPendientes(t?.team_pending_vacation_requests ?? null),
-      sub: "Vacaciones por aprobar",
+      sub: "Pendientes de aprobación",
     },
     {
       label: "Home Office pendientes",
@@ -712,16 +712,16 @@ export function renderLiderTeamDashboard(
 
   return `
     <div class="space-y-0">
-      <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-del-equipo">
-        ${teamHeading}
-        ${teamHtml}
-      </section>
-      <div class="my-10 border-t border-border/40" aria-hidden="true"></div>
       <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-personal">
         ${personalHeading}
         ${personalHtml}
       </section>
-      ${approvalsHtml}
+      <div class="my-10 border-t border-border/40" aria-hidden="true"></div>
+      <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-del-equipo">
+        ${teamHeading}
+        ${teamHtml}
+        ${approvalsHtml}
+      </section>
       ${calHtml}
     </div>`;
 }

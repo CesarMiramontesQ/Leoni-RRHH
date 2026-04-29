@@ -26,8 +26,12 @@ import { getRolFromAccessToken } from "../../auth/jwt.ts";
 
 function fmtDays(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "0 días";
-  const n = Math.trunc(value);
-  return `${n} ${n === 1 ? "día" : "días"}`;
+  const safe = Math.max(0, value);
+  const rounded = Math.round(safe * 10) / 10;
+  const shown = Number.isInteger(rounded)
+    ? String(rounded)
+    : new Intl.NumberFormat("es-MX", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(rounded);
+  return `${shown} ${rounded === 1 ? "día" : "días"}`;
 }
 
 function fmtPendingCount(value: number | null): string {
