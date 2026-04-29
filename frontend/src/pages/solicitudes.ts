@@ -113,17 +113,20 @@ function isEstado(v: string): v is RhSolicitudEstadoCodigo {
   );
 }
 
-function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "estado"> {
+function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "estado" | "empleado_id"> {
   const hash = window.location.hash || "";
   const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return { tipo: "", estado: "" };
+  if (queryIndex < 0) return { tipo: "", estado: "", empleado_id: "" };
   const rawQuery = hash.slice(queryIndex + 1);
   const params = new URLSearchParams(rawQuery);
   const tipo = params.get("tipo") ?? "";
   const estado = params.get("estado") ?? "";
+  const empleadoDir = params.get("empleado_dir") ?? "";
+  const empleado_id = /^\d+$/.test(empleadoDir.trim()) ? empleadoDir.trim() : "";
   return {
     tipo: isTipo(tipo) ? tipo : "",
     estado: isEstado(estado) ? estado : "",
+    empleado_id,
   };
 }
 
@@ -216,6 +219,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const initialFilters = getInitialFiltersFromHash();
+  const initialEmpleadoDirFromHash = initialFilters.empleado_id;
   const personalSectionUi = {
     ...pageUi,
     role: "empleado" as const,
@@ -251,7 +255,10 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     page_size: 10,
   };
   const personalState: RhSolicitudFilterState = { ...state };
-  const teamState: RhSolicitudFilterState = { ...state };
+  const teamState: RhSolicitudFilterState = {
+    ...state,
+    ...(initialEmpleadoDirFromHash ? { empleado_id: initialEmpleadoDirFromHash } : {}),
+  };
 
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 

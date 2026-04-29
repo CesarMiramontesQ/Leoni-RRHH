@@ -49,6 +49,7 @@ class UsuarioResponse(BaseModel):
     categoria: Optional[CategoriaResponse] = None
     clasificacion: Optional[ClasificacionEmpleadoResponse] = None
     lider_id: Optional[int] = None
+    foto: Optional[str] = None
     registro: Optional[date] = None
     created_at: datetime
 
@@ -82,6 +83,7 @@ class UsuarioResponse(BaseModel):
                 "categoria": value.categoria,
                 "clasificacion": value.clasificacion,
                 "lider_id": value.lider_id,
+                "foto": getattr(value, "foto", None),
                 "registro": value.registro,
                 "created_at": value.created_at,
             }

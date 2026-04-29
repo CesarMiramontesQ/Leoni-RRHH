@@ -2,6 +2,7 @@ import {
   getEmpleadosCatalogoFiltros,
   getEmpleadosPage,
   getEmpleadosResumen,
+  type EmpleadosListParams,
 } from "../api/empleados.ts";
 import {
   isUsuariosFetchError,
@@ -17,11 +18,13 @@ import {
   canAccessEmpleadosKpiGestionEquipo,
   canAccessEmpleadosPage,
   canAccessUsuariosAdmin,
+  getRolFromAccessToken,
 } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountEditarAsignacionModal } from "../components/empleados/editarAsignacionModal.ts";
 import type { EditarAsignacionModalHandle } from "../components/empleados/editarAsignacionModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { antiguedadAniosMeses, formatFechaIngreso } from "../utils/vista360Domain.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
@@ -44,6 +47,10 @@ type State = {
   puesto_id: string;
   /** RH: "" = todos, "true" = activos, "false" = no activos */
   activo_rh: "" | "true" | "false";
+  /** Supervisor/gerente: vacío = activos API; inactivo | permiso. */
+  estatus_lider: "" | "inactivo" | "permiso";
+  /** KPI: tabla solo colaboradores con contrato por vencer (30 días). */
+  kpi_filtrar_contratos: boolean;
 };
 
 function parseOptionalInt(s: string): number | undefined {
@@ -73,12 +80,60 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-function filtrosActivos(state: State, rh: boolean): boolean {
+function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   if (state.q.trim()) return true;
   if (state.area_id) return true;
   if (state.puesto_id) return true;
   if (rh && state.activo_rh) return true;
+  if (liderUi) {
+    if (state.estatus_lider) return true;
+    if (state.kpi_filtrar_contratos) return true;
+  }
   return false;
+}
+
+type PanelMode = "rh" | "lider" | "director";
+
+function panelMode(isRh: boolean, kpiGestionEquipo: boolean): PanelMode {
+  if (isRh) return "rh";
+  if (kpiGestionEquipo) return "lider";
+  return "director";
+}
+
+function buildEmpleadosListParams(state: State, isRh: boolean, kpiGestionEquipo: boolean): EmpleadosListParams {
+  const base: EmpleadosListParams = {
+    page: state.page,
+    page_size: state.page_size,
+    q: state.q,
+    area_id: parseOptionalInt(state.area_id),
+    puesto_id: parseOptionalIntList(state.puesto_id),
+    ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
+  };
+  if (!kpiGestionEquipo || isRh) return base;
+  if (state.kpi_filtrar_contratos) base.solo_contratos_por_vencer = true;
+  if (state.estatus_lider) base.estatus = state.estatus_lider;
+  return base;
+}
+
+function empleadoAvatarCellHtml(foto: string | null | undefined, iniciales: string): string {
+  const url = foto?.trim();
+  if (url) {
+    return `<img src="${escapeHtml(url)}" alt="" class="size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`;
+  }
+  return `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(iniciales)}</span>`;
+}
+
+function antiguedadCeldaHtml(registro: string | null): string {
+  const ing = formatFechaIngreso(registro);
+  const ant = antiguedadAniosMeses(registro);
+  const sub =
+    ant === null
+      ? "—"
+      : `${ant.years} año${ant.years === 1 ? "" : "s"} · ${ant.months} mes${ant.months === 1 ? "" : "es"}`;
+  return `<div class="min-w-0 text-sm">
+    <p class="font-medium tabular-nums text-slate-800">${escapeHtml(ing)}</p>
+    <p class="text-xs text-slate-500">${escapeHtml(sub)}</p>
+  </div>`;
 }
 
 /** Texto de celda cuando no hay dato (evita "—"). */
@@ -145,11 +200,40 @@ const KPI_NUM_CLS =
 const KPI_SUB_CLS = "mt-2 text-sm font-medium leading-snug text-slate-500";
 const KPI_MICRO_CLS = "mt-1 text-xs text-slate-400";
 
-function renderKpis(r: UsuarioResumen, isRh: boolean, kpiGestionEquipo: boolean): string {
-  if (!isRh && kpiGestionEquipo) {
+type LiderKpiResaltado = { resaltarEquipo: boolean; resaltarContratos: boolean };
+
+function liderKpiUiDesdeState(s: State): LiderKpiResaltado {
+  return {
+    resaltarEquipo: !s.kpi_filtrar_contratos && !s.estatus_lider,
+    resaltarContratos: s.kpi_filtrar_contratos,
+  };
+}
+
+function kpiLiderCardRing(on: boolean): string {
+  return on
+    ? "ring-2 ring-leoni-blue ring-offset-2 ring-offset-slate-50 border-leoni-blue/35"
+    : "border-border hover:border-slate-300/90";
+}
+
+function renderKpis(
+  r: UsuarioResumen,
+  isRh: boolean,
+  kpiGestionEquipo: boolean,
+  liderKpi: LiderKpiResaltado | null,
+): string {
+  if (!isRh && kpiGestionEquipo && liderKpi) {
+    const ringEq = kpiLiderCardRing(liderKpi.resaltarEquipo);
+    const ringCt = kpiLiderCardRing(liderKpi.resaltarContratos);
+    const todoAlDia =
+      r.contratos_por_vencer === 0
+        ? `<p class="mt-2 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
+            Todo al día
+          </p>`
+        : "";
     return `
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+      <button type="button" data-emp-kpi="equipo" class="group flex min-h-[9.5rem] w-full flex-col rounded-xl border bg-white p-5 text-left shadow-sm transition ${ringEq}">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Número de colaboradores</p>
           ${kpiMetricIconBox(
@@ -160,18 +244,19 @@ function renderKpis(r: UsuarioResumen, isRh: boolean, kpiGestionEquipo: boolean)
           )}
         </div>
         <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.colaboradores_total))}</p>
-        <p class="${KPI_SUB_CLS}">Colaboradores activos en tu alcance de consulta</p>
-        <p class="${KPI_MICRO_CLS}">Misma cobertura que el listado de esta página</p>
-      </article>
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+        <p class="${KPI_SUB_CLS}">Activo(s) en tu alcance · quita el filtro de contratos</p>
+        <p class="${KPI_MICRO_CLS}">Clic para restablecer vista de equipo</p>
+      </button>
+      <button type="button" data-emp-kpi="contratos" class="group flex min-h-[9.5rem] w-full flex-col rounded-xl border bg-white p-5 text-left shadow-sm transition ${ringCt}">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Contratos por vencer</p>
           ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
         </div>
         <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.contratos_por_vencer))}</p>
-        <p class="${KPI_SUB_CLS}">Finalización de contrato en los próximos 30 días</p>
-        <p class="${KPI_MICRO_CLS}">Según fecha de fin de contrato registrada en el sistema</p>
-      </article>
+        <p class="${KPI_SUB_CLS}">Fin de contrato en 30 días · filtra la tabla</p>
+        <p class="${KPI_MICRO_CLS}">Clic otra vez para quitar</p>
+        ${todoAlDia}
+      </button>
     </div>`;
   }
 
@@ -324,7 +409,26 @@ function estadoPill(estado: EstadoEmpleadoResponse | null): string {
       ${escapeHtml(label)}</span>`;
 }
 
-function rowHtml(u: UsuarioListItem, isRh: boolean): string {
+function rowAccionesLiderHtml(u: UsuarioListItem, name: string): string {
+  const empDir = String(u.empleado_id);
+  return `<td class="relative w-px px-2 py-3 align-middle" data-emp-row-nolink>
+    <details class="group/act relative">
+      <summary
+        class="inline-flex list-none cursor-pointer items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue [&::-webkit-details-marker]:hidden"
+        aria-label="Acciones para ${escapeHtml(name)}"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" class="size-5" aria-hidden="true"><path d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg>
+      </summary>
+      <div class="absolute right-0 z-30 mt-1 w-52 rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-900/5">
+        <a href="#/empleados/${u.id}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Ver perfil</a>
+        <a href="#/empleados/${u.id}?tab=historial" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Editar</a>
+        <a href="#/solicitudes?empleado_dir=${escapeHtml(empDir)}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Historial de solicitudes</a>
+      </div>
+    </details>
+  </td>`;
+}
+
+function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
   const name = nombreEmpleadoTablaMostrar(u.nombre);
   const ini = inicialesEmpleadoTabla(u.nombre);
   const sup = textoLiderMostrar(u.lider_nombre);
@@ -333,6 +437,37 @@ function rowHtml(u: UsuarioListItem, isRh: boolean): string {
   const puesto = puestoRaw || "Sin asignar";
   const email = u.email?.trim() ? u.email : "Sin correo";
   const puestoTitle = escapeHtml(puestoRaw || "Sin asignar");
+  const isRh = mode === "rh";
+  const isLider = mode === "lider";
+  const jefeRol = getRolFromAccessToken();
+  const ocultarLider = isLider && jefeRol === "supervisor";
+  const avatar = isLider
+    ? empleadoAvatarCellHtml(u.foto ?? null, ini)
+    : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
+  const nombreCls = isLider
+    ? "text-sm font-bold text-slate-900 group-hover:text-leoni-blue"
+    : "text-sm font-semibold text-slate-900 group-hover:text-leoni-blue";
+  const emailCls = isLider ? "mt-0.5 text-xs leading-tight text-slate-500" : "text-xs text-slate-400";
+  const userStack = isLider
+    ? `<div class="min-w-0 flex-1">
+          <p class="${nombreCls}">${escapeHtml(name)}</p>
+          <p class="${emailCls}">${escapeHtml(email)}</p>
+        </div>`
+    : `<div class="min-w-0">
+          <p class="${nombreCls}">${escapeHtml(name)}</p>
+          <p class="${emailCls}">${escapeHtml(email)}</p>
+        </div>`;
+
+  const colLider = ocultarLider
+    ? ""
+    : `<td class="max-w-[10rem] px-4 py-4 align-middle text-sm text-slate-600">
+        <span class="block truncate" title="${escapeHtml(sup)}">${escapeHtml(sup)}</span>
+      </td>`;
+  const colAntiguedad = isLider
+    ? `<td class="whitespace-nowrap px-4 py-4 align-middle">${antiguedadCeldaHtml(u.registro)}</td>`
+    : "";
+  const colAccionesLider = isLider ? rowAccionesLiderHtml(u, name) : "";
+
   return `
     <tr
       data-empleado-row-id="${u.id}"
@@ -342,11 +477,8 @@ function rowHtml(u: UsuarioListItem, isRh: boolean): string {
     >
       <td class="px-4 py-4 align-middle">
         <div class="flex min-w-0 items-center gap-3">
-          <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-slate-900 group-hover:text-leoni-blue">${escapeHtml(name)}</p>
-            <p class="text-xs text-slate-400">${escapeHtml(email)}</p>
-          </div>
+          ${avatar}
+          ${userStack}
         </div>
       </td>
       <td class="whitespace-nowrap px-4 py-4 text-right align-middle text-sm tabular-nums text-slate-500">#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</td>
@@ -356,9 +488,8 @@ function rowHtml(u: UsuarioListItem, isRh: boolean): string {
       <td class="max-w-[14rem] px-4 py-4 align-middle text-sm text-slate-700">
         <span class="block truncate" title="${puestoTitle}">${escapeHtml(puesto)}</span>
       </td>
-      <td class="max-w-[10rem] px-4 py-4 align-middle text-sm text-slate-600">
-        <span class="block truncate" title="${escapeHtml(sup)}">${escapeHtml(sup)}</span>
-      </td>
+      ${colLider}
+      ${colAntiguedad}
       <td class="px-4 py-4 align-middle">${estadoPill(u.estado)}</td>
       ${isRh ? `<td class="cursor-default px-4 py-4 text-right align-middle" data-empleado-row-actions>
         <button
@@ -374,6 +505,7 @@ function rowHtml(u: UsuarioListItem, isRh: boolean): string {
           </svg>
         </button>
       </td>` : ""}
+      ${colAccionesLider}
     </tr>`;
 }
 
@@ -416,12 +548,58 @@ function empleadosSearchInput(value: string): string {
           </div>`;
 }
 
+function empleadosSearchFieldLiderCompact(value: string): string {
+  return `<div class="min-w-0 min-w-[11rem] flex-[2]">
+    <label for="emp-search" class="block text-xs font-semibold text-slate-700">Búsqueda</label>
+    <div class="mt-1 relative">
+      <input
+        id="emp-search"
+        type="text"
+        name="emp-search"
+        autocomplete="off"
+        placeholder="Nombre, ID o número…"
+        value="${escapeHtml(value)}"
+        class="block h-9 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1 pr-9 text-sm text-slate-900 placeholder:text-slate-400 ${FIELD_FOCUS}"
+      />
+      <span
+        data-emp-search-loading
+        class="pointer-events-none absolute inset-y-0 right-2 hidden items-center text-text-muted"
+        aria-hidden="true"
+      >
+        <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+      </span>
+    </div>
+  </div>`;
+}
+
+function empleadosSelectFilterCompact(id: string, name: string, labelText: string, optionsHtml: string): string {
+  return `<div class="min-w-0 min-w-[9rem] flex-1">
+  <label for="${id}" class="block text-xs font-semibold text-slate-700">${escapeHtml(labelText)}</label>
+  <div class="mt-1 grid grid-cols-1">
+    <select id="${id}" name="${name}" class="col-start-1 row-start-1 h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pr-8 pl-2 text-sm text-slate-900 ${FIELD_FOCUS}">
+      ${optionsHtml}
+    </select>
+    ${SELECT_CHEVRON}
+  </div>
+</div>`;
+}
+
 function renderPanel(
   state: State,
   catalogo: CatalogoFiltros,
   pg: UsuarioPage,
-  isRh: boolean,
+  mode: PanelMode,
+  liderUiForFilters: boolean,
 ): string {
+  const isRh = mode === "rh";
+  const isLider = mode === "lider";
+  const jefeRol = getRolFromAccessToken();
+  const ocultarLiderCol = isLider && jefeRol === "supervisor";
+  const colCount = isRh ? 7 : isLider ? (ocultarLiderCol ? 7 : 8) : 6;
+
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
   const from = pg.total === 0 ? 0 : (pg.page - 1) * pg.page_size + 1;
   const to = Math.min(pg.page * pg.page_size, pg.total);
@@ -429,8 +607,8 @@ function renderPanel(
 
   const rows =
     pg.items.length === 0
-      ? `<tr><td colspan="${isRh ? 7 : 6}" class="px-4 py-14 text-center text-sm text-slate-500">No hay empleados con los filtros actuales.</td></tr>`
-      : pg.items.map((u) => rowHtml(u, isRh)).join("");
+      ? `<tr><td colspan="${colCount}" class="px-4 py-14 text-center text-sm text-slate-500">No hay empleados con los filtros actuales.</td></tr>`
+      : pg.items.map((u) => rowHtml(u, mode)).join("");
 
   const pageButtons = pages
     .map((x) => {
@@ -451,7 +629,11 @@ function renderPanel(
             <option value="true" ${state.activo_rh === "true" ? "selected" : ""}>Activos</option>
             <option value="false" ${state.activo_rh === "false" ? "selected" : ""}>No activos</option>`;
 
-  const clearBtn = filtrosActivos(state, isRh)
+  const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
+            <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
+            <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
+
+  const clearBtn = filtrosActivos(state, isRh, liderUiForFilters)
     ? `<button type="button" data-emp-clear-filters class="${BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
     : "";
 
@@ -466,11 +648,44 @@ function renderPanel(
         <div class="min-w-0 md:col-span-1 xl:col-span-2">${empleadosSelectFilter("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
         <div class="min-w-0 md:col-span-2 xl:col-span-2">${empleadosSelectFilter("emp-filter-status", "emp-filter-status", "Estatus", statusOpts)}</div>
       </div>`
-    : `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+    : isLider
+      ? `<div class="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-end xl:gap-x-3 xl:gap-y-2">
+        ${empleadosSearchFieldLiderCompact(state.q)}
+        ${empleadosSelectFilterCompact("emp-filter-area", "emp-filter-area", "Área", areaOpts)}
+        ${empleadosSelectFilterCompact("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}
+        ${empleadosSelectFilterCompact("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}
+      </div>`
+      : `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
         <div class="min-w-0 md:col-span-2 xl:col-span-6">${empleadosSearchInput(state.q)}</div>
         <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
         <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
       </div>`;
+
+  const theadLider = `
+            <tr class="text-slate-900">
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-bold">Empleado</th>
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-right text-sm font-bold">Número</th>
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-bold">Área</th>
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-bold">Puesto</th>
+              ${ocultarLiderCol ? "" : `<th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-bold">Líder</th>`}
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-bold">Ingreso / antigüedad</th>
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-left text-sm font-bold">Estatus</th>
+              <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-right text-sm font-bold">Acciones</th>
+            </tr>`;
+
+  const theadClassic = `
+            <tr class="text-white">
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Empleado</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Número</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Área</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Puesto</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Líder</th>
+              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estatus</th>
+              ${isRh ? `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Acción</th>` : ""}
+            </tr>`;
+
+  const theadInner = isLider ? theadLider : theadClassic;
+  const tableMinW = isLider ? "min-w-[880px]" : "min-w-[720px]";
 
   const pageSizeOpts = [10, 25, 50, 100]
     .map((n) => `<option value="${n}" ${n === state.page_size ? "selected" : ""}>${n}</option>`)
@@ -485,17 +700,9 @@ function renderPanel(
       <section data-emp-table-region class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5 transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
-        <table class="min-w-[720px] w-full text-left">
-          <thead class="border-b border-leoni-blue-light shadow-sm">
-            <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Empleado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Número</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Área</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Puesto</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Líder</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estatus</th>
-              ${isRh ? `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Acción</th>` : ""}
-            </tr>
+        <table class="${tableMinW} w-full text-left">
+          <thead class="${isLider ? "shadow-sm" : "border-b border-leoni-blue-light shadow-sm"}">
+            ${theadInner}
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
         </table>
@@ -557,9 +764,12 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     area_id: "",
     puesto_id: "",
     activo_rh: "",
+    estatus_lider: "",
+    kpi_filtrar_contratos: false,
   };
 
   let currentPageItems: UsuarioListItem[] = [];
+  let resumenGestion: UsuarioResumen | null = null;
 
   let catalogo: CatalogoFiltros = { areas: [], puestos: [] };
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -611,6 +821,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       (e) => {
         const t = e.target as HTMLElement;
         if (t.closest("[data-edit-empleado-id]")) return;
+        if (t.closest("details") || t.closest("summary") || t.closest("a[href]")) return;
         const tr = t.closest<HTMLTableRowElement>("tr[data-empleado-row-id]");
         if (!tr) return;
         const id = tr.getAttribute("data-empleado-row-id");
@@ -685,17 +896,15 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       panel.innerHTML = `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
     }
     try {
-      const pg = await getEmpleadosPage({
-        page: state.page,
-        page_size: state.page_size,
-        q: state.q,
-        area_id: parseOptionalInt(state.area_id),
-        puesto_id: parseOptionalIntList(state.puesto_id),
-        ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
-      });
+      const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRh, kpiGestionEquipo));
       if (requestId !== latestLoadRequestId) return;
       currentPageItems = pg.items;
-      panel.innerHTML = renderPanel(state, catalogo, pg, isRh);
+      const pm = panelMode(isRh, kpiGestionEquipo);
+      panel.innerHTML = renderPanel(state, catalogo, pg, pm, kpiGestionEquipo);
+      const kEl = kpisEl();
+      if (kpiGestionEquipo && resumenGestion && kEl) {
+        kEl.innerHTML = renderKpis(resumenGestion, isRh, true, liderKpiUiDesdeState(state));
+      }
       if (shouldRestoreSearch) {
         const nextSearch = container.querySelector<HTMLInputElement>("#emp-search");
         if (nextSearch) {
@@ -736,20 +945,21 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       const [res, cat, pg] = await Promise.all([
         getEmpleadosResumen(),
         getEmpleadosCatalogoFiltros(),
-        getEmpleadosPage({
-          page: state.page,
-          page_size: state.page_size,
-          q: state.q,
-          area_id: parseOptionalInt(state.area_id),
-          puesto_id: parseOptionalIntList(state.puesto_id),
-          ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
-        }),
+        getEmpleadosPage(buildEmpleadosListParams(state, isRh, kpiGestionEquipo)),
       ]);
       catalogo = cat;
-      if (kpis) kpis.innerHTML = renderKpis(res, isRh, kpiGestionEquipo);
+      resumenGestion = res;
+      if (kpis) {
+        kpis.innerHTML = renderKpis(
+          res,
+          isRh,
+          kpiGestionEquipo,
+          kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
+        );
+      }
       currentPageItems = pg.items;
       const panel = panelEl();
-      if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, isRh);
+      if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, panelMode(isRh, kpiGestionEquipo), kpiGestionEquipo);
     } catch (e: unknown) {
       if (isUsuariosFetchError(e) && e.status === 401) {
         clearAuth();
@@ -770,11 +980,28 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     "click",
     (e) => {
       const t = e.target as HTMLElement;
+      const kpiBtn = t.closest<HTMLButtonElement>("[data-emp-kpi]");
+      if (kpiBtn && kpiGestionEquipo) {
+        const kind = kpiBtn.getAttribute("data-emp-kpi");
+        if (kind === "equipo") {
+          state.kpi_filtrar_contratos = false;
+          state.estatus_lider = "";
+          state.page = 1;
+        } else if (kind === "contratos") {
+          state.kpi_filtrar_contratos = !state.kpi_filtrar_contratos;
+          if (state.kpi_filtrar_contratos) state.estatus_lider = "";
+          state.page = 1;
+        }
+        void loadPage();
+        return;
+      }
       if (t.closest("[data-emp-clear-filters]")) {
         state.q = "";
         state.area_id = "";
         state.puesto_id = "";
         state.activo_rh = "";
+        state.estatus_lider = "";
+        state.kpi_filtrar_contratos = false;
         state.page = 1;
         void loadPage();
         return;
@@ -819,6 +1046,14 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       if (isRh && t.id === "emp-filter-status") {
         const v = (t as HTMLSelectElement).value;
         state.activo_rh = v === "true" ? "true" : v === "false" ? "false" : "";
+        state.page = 1;
+        void loadPage();
+        return;
+      }
+      if (kpiGestionEquipo && t.id === "emp-filter-lider-estatus") {
+        const v = (t as HTMLSelectElement).value;
+        state.estatus_lider = v === "inactivo" || v === "permiso" ? v : "";
+        state.kpi_filtrar_contratos = false;
         state.page = 1;
         void loadPage();
       }

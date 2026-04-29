@@ -65,14 +65,29 @@ class UsuarioService:
             )
 
     async def _ids_permitidos_directorio(
-        self, current_user: Empleado, rol: str, estados: list[int]
+        self,
+        current_user: Empleado,
+        rol: str,
+        estados: list[int],
+        *,
+        alcance_todos_los_estados: bool = False,
     ) -> list[int] | None:
         if rol == "gerente":
-            subarbol = await self.empleado_repo.get_ids_subarbol(
-                current_user.id, estados
-            )
+            if alcance_todos_los_estados:
+                subarbol = await self.empleado_repo.get_ids_subarbol_sin_filtro_estado(
+                    current_user.id
+                )
+            else:
+                subarbol = await self.empleado_repo.get_ids_subarbol(
+                    current_user.id, estados
+                )
             return list(subarbol) + [current_user.id]
         if rol == "supervisor":
+            if alcance_todos_los_estados:
+                directos = await self.empleado_repo.get_subordinados_directos_ids(
+                    current_user.id
+                )
+                return directos + [current_user.id]
             subordinados = await self.empleado_repo.get_subordinados(
                 current_user.id, estados
             )
@@ -146,16 +161,46 @@ class UsuarioService:
         area_id: int | None,
         puesto_id: list[int] | None,
         current_user: Empleado,
+        *,
+        estatus_filtro: str | None = None,
+        solo_contratos_por_vencer: bool = False,
     ) -> UsuarioPageResponse:
         self._require_directorio(current_user)
         offset = (page - 1) * page_size
         estados = settings.ESTADOS_ACTIVOS_IDS
+        permiso_ids = settings.ESTADOS_PERMISO_IDS
         rol = self._get_rol(current_user)
+        ef = (estatus_filtro or "activo").strip().lower()
+        if ef in ("", "activo", "activos"):
+            modo: ModoEstadoListado = "activos"
+            ep_arg: list[int] | None = None
+        elif ef in ("inactivo", "inactivos"):
+            modo = "inactivos"
+            ep_arg = None
+        elif ef == "permiso":
+            modo = "permiso"
+            ep_arg = permiso_ids
+        else:
+            modo = "activos"
+            ep_arg = None
+
+        alcance_todos = modo != "activos"
         ids_permitidos = await self._ids_permitidos_directorio(
-            current_user, rol, estados
+            current_user, rol, estados, alcance_todos_los_estados=alcance_todos
         )
+
+        hoy = date.today()
+        solo_c = bool(solo_contratos_por_vencer)
         total = await self.repo.count_filtered(
-            q, area_id, puesto_id, "activos", estados, ids_permitidos=ids_permitidos
+            q,
+            area_id,
+            puesto_id,
+            modo,
+            estados,
+            ids_permitidos=ids_permitidos,
+            estados_permiso_ids=ep_arg,
+            solo_contrato_por_vencer=solo_c,
+            hoy_contrato=hoy if solo_c else None,
         )
         items = await self.repo.list_page(
             offset,
@@ -163,9 +208,12 @@ class UsuarioService:
             q,
             area_id,
             puesto_id,
-            "activos",
+            modo,
             estados,
             ids_permitidos=ids_permitidos,
+            estados_permiso_ids=ep_arg,
+            solo_contrato_por_vencer=solo_c,
+            hoy_contrato=hoy if solo_c else None,
         )
         return UsuarioPageResponse(
             items=[self._to_list_item(u) for u in items],

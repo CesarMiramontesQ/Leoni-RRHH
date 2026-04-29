@@ -12,7 +12,7 @@ from app.models.empleados import Empleado
 from app.models.catalogos import Area, Puesto
 from app.repositories.base import BaseRepository
 
-ModoEstadoListado = Literal["todos", "activos", "inactivos"]
+ModoEstadoListado = Literal["todos", "activos", "inactivos", "permiso"]
 
 
 class UsuarioRepository(BaseRepository[Empleado]):
@@ -57,9 +57,15 @@ class UsuarioRepository(BaseRepository[Empleado]):
     def _estado_condition(
         modo_estado: ModoEstadoListado,
         estados_activos: list[int],
+        estados_permiso_ids: list[int] | None = None,
     ):
         if modo_estado == "todos":
             return None
+        if modo_estado == "permiso":
+            ep = estados_permiso_ids or []
+            if not ep:
+                return Empleado.id == -1
+            return Empleado.estado_id.in_(ep)
         if not estados_activos:
             return None
         if modo_estado == "activos":
@@ -77,9 +83,16 @@ class UsuarioRepository(BaseRepository[Empleado]):
         modo_estado: ModoEstadoListado,
         estados_activos: list[int],
         ids_permitidos: list[int] | None = None,
+        *,
+        estados_permiso_ids: list[int] | None = None,
+        solo_contrato_por_vencer: bool = False,
+        hoy_contrato: date | None = None,
+        dias_ventana_contrato: int = 30,
     ) -> list:
         conditions: list = []
-        est = UsuarioRepository._estado_condition(modo_estado, estados_activos)
+        est = UsuarioRepository._estado_condition(
+            modo_estado, estados_activos, estados_permiso_ids
+        )
         if est is not None:
             conditions.append(est)
         if area_id is not None:
@@ -114,6 +127,15 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 ]
                 # Cada token debe existir en alguno de los campos (AND entre tokens).
                 conditions.append(or_(*token_like))
+        if solo_contrato_por_vencer and hoy_contrato is not None:
+            hasta = hoy_contrato + timedelta(days=dias_ventana_contrato)
+            conditions.extend(
+                [
+                    Empleado.fecha_fin_contrato.isnot(None),
+                    Empleado.fecha_fin_contrato >= hoy_contrato,
+                    Empleado.fecha_fin_contrato <= hasta,
+                ]
+            )
         return conditions
 
     async def list_page(
@@ -126,9 +148,23 @@ class UsuarioRepository(BaseRepository[Empleado]):
         modo_estado: ModoEstadoListado = "todos",
         estados_activos: list[int] | None = None,
         ids_permitidos: list[int] | None = None,
+        *,
+        estados_permiso_ids: list[int] | None = None,
+        solo_contrato_por_vencer: bool = False,
+        hoy_contrato: date | None = None,
     ) -> list[Empleado]:
         ea = estados_activos or []
-        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea, ids_permitidos)
+        conditions = self._list_filters(
+            q,
+            area_id,
+            puesto_id,
+            modo_estado,
+            ea,
+            ids_permitidos,
+            estados_permiso_ids=estados_permiso_ids,
+            solo_contrato_por_vencer=solo_contrato_por_vencer,
+            hoy_contrato=hoy_contrato,
+        )
         query = select(Empleado).options(
             selectinload(Empleado.rol),
             selectinload(Empleado.lider),
@@ -155,9 +191,23 @@ class UsuarioRepository(BaseRepository[Empleado]):
         modo_estado: ModoEstadoListado = "todos",
         estados_activos: list[int] | None = None,
         ids_permitidos: list[int] | None = None,
+        *,
+        estados_permiso_ids: list[int] | None = None,
+        solo_contrato_por_vencer: bool = False,
+        hoy_contrato: date | None = None,
     ) -> int:
         ea = estados_activos or []
-        conditions = self._list_filters(q, area_id, puesto_id, modo_estado, ea, ids_permitidos)
+        conditions = self._list_filters(
+            q,
+            area_id,
+            puesto_id,
+            modo_estado,
+            ea,
+            ids_permitidos,
+            estados_permiso_ids=estados_permiso_ids,
+            solo_contrato_por_vencer=solo_contrato_por_vencer,
+            hoy_contrato=hoy_contrato,
+        )
         query = (
             select(func.count())
             .select_from(Empleado)

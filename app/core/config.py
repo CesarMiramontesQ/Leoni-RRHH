@@ -55,6 +55,8 @@ class Settings(BaseSettings):
 
     # Estados que se consideran "empleado activo" — ajustar en producción
     ESTADOS_ACTIVOS_IDS: List[int] = [1]
+    # Estados mostrados como "Permiso" en filtros de líderes (p. ej. Suspendido)
+    ESTADOS_PERMISO_IDS: List[int] = [3]
 
     @field_validator("ESTADOS_ACTIVOS_IDS", mode="before")
     @classmethod
@@ -62,6 +64,15 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             if not v.strip():
                 return [1]
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+        return v
+
+    @field_validator("ESTADOS_PERMISO_IDS", mode="before")
+    @classmethod
+    def parse_estados_permiso(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return [3]
             return [int(x.strip()) for x in v.split(",") if x.strip()]
         return v
 

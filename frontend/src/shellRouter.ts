@@ -1,7 +1,7 @@
 import { getRolFromAccessToken } from "./auth/jwt.ts";
 import { empleadoMayAccessHash, supervisorMayAccessHash } from "./navigation/shellNavPolicy.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
-import { mountEmployeeVista360 } from "./pages/empleadoVista360.ts";
+import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
 import { mountActaDetalle } from "./pages/actaDetalle.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
@@ -76,11 +76,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
-    const vistaMatch = h.match(/^#\/empleados\/(\d+)\/?/);
+    const vistaMatch = h.match(/^#\/empleados\/(\d+)/);
     if (vistaMatch) {
       const id = Number.parseInt(vistaMatch[1] ?? "", 10);
       if (!Number.isNaN(id)) {
-        mountEmployeeVista360(container, id, signal);
+        mountEmployeeVista360(container, id, signal, { initialTab: parseVista360InitialTabFromHash(h) });
         return;
       }
     }

@@ -123,6 +123,31 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             frontier = next_ids
         return collected
 
+    async def get_subordinados_directos_ids(self, lider_id: int) -> list[int]:
+        """IDs de reportes directos con cualquier estado (para filtros inactivo/permiso)."""
+        result = await self.db.execute(
+            select(Empleado.id).where(Empleado.lider_id == lider_id)
+        )
+        return [row[0] for row in result.all()]
+
+    async def get_ids_subarbol_sin_filtro_estado(self, lider_id: int) -> set[int]:
+        """
+        Subárbol bajo `lider_id` (directos e indirectos), cualquier estado.
+        No incluye a `lider_id`.
+        """
+        collected: set[int] = set()
+        frontier: set[int] = {lider_id}
+        while frontier:
+            result = await self.db.execute(
+                select(Empleado.id).where(Empleado.lider_id.in_(frontier))
+            )
+            next_ids = {row[0] for row in result.all()}
+            if not next_ids:
+                break
+            collected.update(next_ids)
+            frontier = next_ids
+        return collected
+
     async def get_primer_gerente_en_cadena(self, empleado_id: int) -> Empleado | None:
         """
         Recorre lider_id hacia arriba desde el empleado y devuelve el primer jefe con rol 'gerente'.
