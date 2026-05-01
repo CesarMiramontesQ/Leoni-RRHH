@@ -139,7 +139,6 @@ class ComedorRhRegistroCreate(BaseModel):
 class ComedorRhPaseExternoItem(BaseModel):
     """Un código/contraseña por comensal externo; usuario de terminal = codigo_acceso."""
 
-    empleado_id: int
     codigo_acceso: str
     password_temporal: str
 
