@@ -19,7 +19,6 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import BackgroundTasks, HTTPException
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -30,8 +29,6 @@ from app.core.exceptions import (
 )
 from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
-from app.models.roles import Rol
-from app.core.security import hash_password
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
@@ -518,7 +515,51 @@ class ComedorService:
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
         rows = await self.acceso_repo.list_resumen_diario_global(desde=desde, hasta=hasta)
-        return [ComedorResumenDiarioItem(**row) for row in rows]
+        resumen_por_fecha: dict[date, dict[str, int | date]] = {
+            row["fecha"]: {
+                "fecha": row["fecha"],
+                "caseras": int(row["caseras"]),
+                "saludables": int(row["saludables"]),
+            }
+            for row in rows
+        }
+
+        codigos_externos = await self.codigo_externo_repo.list_codigos_externos(
+            desde=desde,
+            hasta=hasta,
+        )
+        for codigo in codigos_externos:
+            fecha_inicio = codigo.get("fecha_inicio")
+            fecha_fin = codigo.get("fecha_fin")
+            if not isinstance(fecha_inicio, date) or not isinstance(fecha_fin, date):
+                continue
+            inicio = max(desde, fecha_inicio)
+            fin = min(hasta, fecha_fin)
+            if fin < inicio:
+                continue
+            cantidad_personas = int(codigo.get("cantidad_personas") or 0)
+            if cantidad_personas <= 0:
+                continue
+            tipo_comida_raw = codigo.get("tipo_comida")
+            tipo_comida = (
+                tipo_comida_raw.value
+                if hasattr(tipo_comida_raw, "value")
+                else str(tipo_comida_raw or "").strip().lower()
+            )
+            dia = inicio
+            while dia <= fin:
+                celda = resumen_por_fecha.setdefault(
+                    dia,
+                    {"fecha": dia, "caseras": 0, "saludables": 0},
+                )
+                if tipo_comida == ComedorTipoComida.saludable.value:
+                    celda["saludables"] = int(celda["saludables"]) + cantidad_personas
+                else:
+                    celda["caseras"] = int(celda["caseras"]) + cantidad_personas
+                dia += timedelta(days=1)
+
+        ordenado = [resumen_por_fecha[k] for k in sorted(resumen_por_fecha.keys())]
+        return [ComedorResumenDiarioItem(**row) for row in ordenado]
 
     def _estados_proximos_rh_filtro(
         self, filtro_estado: Literal["todos", "confirmado", "cancelado"]
@@ -590,63 +631,32 @@ class ComedorService:
             page_size=page_size,
         )
 
-    async def _crear_empleados_externos_temporales(
+    async def _crear_codigos_externos_temporales(
         self,
         cantidad: int,
         fecha_inicio: date,
         fecha_fin: date,
-    ) -> tuple[list[Empleado], ComedorRhCredencialTemporal]:
-        rol_empleado = (
-            await self.db.execute(select(Rol).where(Rol.nombre == "empleado"))
-        ).scalar_one_or_none()
-        if rol_empleado is None:
-            rol_empleado = Rol(nombre="empleado", permisos={})
-            self.db.add(rol_empleado)
-            await self.db.flush()
-        if not settings.ESTADOS_ACTIVOS_IDS:
-            raise ConflictError(detail="No hay estados activos configurados para empleados")
-
-        estado_activo_id = settings.ESTADOS_ACTIVOS_IDS[0]
+    ) -> ComedorRhCredencialTemporal:
         lote_id = str(uuid.uuid4())
-
         numeros = await self.externo_corr_repo.reservar_siguientes(cantidad)
-
-        ultimo_id = (await self.db.execute(select(func.max(Empleado.empleado_id)))).scalar() or 0
-        empleados_creados: list[Empleado] = []
         pases: list[ComedorRhPaseExternoItem] = []
 
-        for idx, num in enumerate(numeros, start=1):
+        for num in numeros:
             token = f"CEXT{num}"
             password_temporal = self._generar_password_temporal()
-            password_hash = hash_password(password_temporal)
-            ultimo_id += 1
-            emp = await self.empleado_repo.create({
-                "empleado_id": ultimo_id,
-                "no_empleado": token,
-                "nombre": f"EXTERNO visita #{idx:02d} (lote {lote_id[:8]})",
-                "email": None,
-                "usuario": token.lower(),
-                "password_hash": password_hash,
-                "rol_id": rol_empleado.id,
-                "estado_id": estado_activo_id,
-                "requiere_cambio_password": False,
-            })
-            empleados_creados.append(emp)
             pases.append(
                 ComedorRhPaseExternoItem(
-                    empleado_id=emp.id,
                     codigo_acceso=token,
                     password_temporal=password_temporal,
                 ),
             )
 
-        credenciales = ComedorRhCredencialTemporal(
+        return ComedorRhCredencialTemporal(
             lote_id=lote_id,
             valido_desde=fecha_inicio,
             valido_hasta=fecha_fin,
             pases=pases,
         )
-        return empleados_creados, credenciales
 
     async def _crear_reservas_para_empleados(
         self,
@@ -769,17 +779,12 @@ class ComedorService:
         cantidad = data.external_people_count or 0
         if cantidad <= 0:
             raise ConflictError(detail="Debes indicar una cantidad válida de personal externo")
-        empleados_ext, credenciales = await self._crear_empleados_externos_temporales(
+        credenciales = await self._crear_codigos_externos_temporales(
             cantidad=cantidad,
             fecha_inicio=fechas[0],
             fecha_fin=fechas[-1],
         )
-        creados = await self._crear_reservas_para_empleados(
-            empleado_ids=[emp.id for emp in empleados_ext],
-            comedor_id=data.comedor_id,
-            fechas=fechas,
-            tipo_enum=tipo_enum,
-        )
+        codigos_creados = len(credenciales.pases)
         audit_background(
             background_tasks,
             self.db,
@@ -792,7 +797,7 @@ class ComedorService:
                 "fechas": [str(f) for f in fechas],
                 "tipo_comida": data.tipo_comida,
                 "lote_id": credenciales.lote_id,
-                "pases_generados": len(credenciales.pases),
+                "pases_generados": codigos_creados,
                 "observaciones": data.observaciones or "",
             },
         )
@@ -800,7 +805,7 @@ class ComedorService:
             await self.codigo_externo_repo.create({
                 "comedor_id": data.comedor_id,
                 "created_by": current_user.id,
-                "empleado_id": pase.empleado_id,
+                "empleado_id": None,
                 "lote_id": credenciales.lote_id,
                 "fecha_inicio": fechas[0],
                 "fecha_fin": fechas[-1],
@@ -811,7 +816,7 @@ class ComedorService:
             })
         await self.db.flush()
         return ComedorRhRegistroResponse(
-            total_registros_creados=creados,
+            total_registros_creados=codigos_creados,
             modo="externo",
             credenciales_temporales=credenciales,
         )
@@ -1190,11 +1195,30 @@ class ComedorService:
             inicio_semana,
             fin_semana,
         )
+        codigos_externos = await self.codigo_externo_repo.list_codigos_externos(
+            desde=inicio_semana,
+            hasta=fin_semana,
+        )
+        total_comidas_externas = 0
+        for codigo in codigos_externos:
+            fecha_inicio = codigo.get("fecha_inicio")
+            fecha_fin = codigo.get("fecha_fin")
+            if not isinstance(fecha_inicio, date) or not isinstance(fecha_fin, date):
+                continue
+            inicio = max(inicio_semana, fecha_inicio)
+            fin = min(fin_semana, fecha_fin)
+            if fin < inicio:
+                continue
+            cantidad_personas = int(codigo.get("cantidad_personas") or 0)
+            if cantidad_personas <= 0:
+                continue
+            dias_vigencia = (fin - inicio).days + 1
+            total_comidas_externas += cantidad_personas * dias_vigencia
 
         return {
             "semana": str(inicio_semana),
             "total_registros": total,
-            "total_comidas": total_comidas,
+            "total_comidas": total_comidas + total_comidas_externas,
             "normal": normal,
             "dieta": dieta,
             "acceso_concedido": acceso,

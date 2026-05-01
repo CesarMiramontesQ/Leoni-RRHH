@@ -17,6 +17,7 @@ async def test_estadisticas_total_comidas_suma_accesos_activos(client: AsyncClie
         Comedor,
         ComedorAcceso,
         ComedorAccesoEstado,
+        ComedorCodigoExterno,
         ComedorRegistro,
         ComedorTipoComida,
     )
@@ -53,6 +54,19 @@ async def test_estadisticas_total_comidas_suma_accesos_activos(client: AsyncClie
                 estado_acceso=ComedorAccesoEstado.PENDIENTE,
             )
         )
+    db.add(
+        ComedorCodigoExterno(
+            comedor_id=comedor.id,
+            created_by=rh.id,
+            empleado_id=None,
+            fecha_inicio=date(2026, 4, 29),
+            fecha_fin=date(2026, 4, 30),
+            cantidad_personas=2,
+            tipo_comida=ComedorTipoComida.casera,
+            codigo_acceso="CEXT999",
+            password_temporal="Tmp123456",
+        )
+    )
     await db.commit()
 
     hdrs = await auth_headers(client, rh, password="RhStats!!")
@@ -60,4 +74,4 @@ async def test_estadisticas_total_comidas_suma_accesos_activos(client: AsyncClie
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["total_registros"] == 1
-    assert data["total_comidas"] == 2
+    assert data["total_comidas"] == 6

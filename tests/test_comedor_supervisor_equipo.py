@@ -603,7 +603,7 @@ async def test_rh_puede_crear_registro_externo_y_recibir_credenciales(client: As
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["modo"] == "externo"
-    assert data["total_registros_creados"] == 6
+    assert data["total_registros_creados"] == 2
     assert data["credenciales_temporales"] is not None
     cred = data["credenciales_temporales"]
     assert cred["lote_id"]
@@ -646,7 +646,7 @@ async def test_rh_puede_crear_registro_externo_y_recibir_credenciales(client: As
         assert row["tipo_comida"] == "casera"
         assert re.match(r"^CEXT\d+$", row["codigo_acceso"])
         assert row["password_temporal"]
-        assert row.get("empleado_id")
+        assert row.get("empleado_id") is None
 
 
 @pytest.mark.asyncio

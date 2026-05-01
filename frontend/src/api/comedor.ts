@@ -237,7 +237,6 @@ export type ComedorResumenDiarioApiItem = {
 };
 
 export type ComedorRhPaseExternoApiItem = {
-  empleado_id: number;
   codigo_acceso: string;
   password_temporal: string;
 };
