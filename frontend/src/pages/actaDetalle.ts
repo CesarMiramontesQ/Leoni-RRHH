@@ -38,16 +38,13 @@ function fechaHora(iso: string): string {
 }
 
 function badgeEstadoHtml(estado: ActaEstadoCodigo): string {
-  if (estado === "abierta") {
-    return `<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">En revisión</span>`;
-  }
-  if (estado === "en_proceso") {
-    return `<span class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800">En proceso</span>`;
+  if (estado === "abierta" || estado === "en_proceso") {
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-300/50"><span aria-hidden="true">🕐</span>En revisión</span>`;
   }
   if (estado === "firmada") {
-    return `<span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Firmada</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-300/50"><span aria-hidden="true">✅</span>Aprobado</span>`;
   }
-  return `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">Cerrada</span>`;
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-3 py-1 text-xs font-semibold text-red-900 ring-1 ring-red-300/50"><span aria-hidden="true">❌</span>Rechazado</span>`;
 }
 
 function skeletonHtml(): string {
@@ -209,7 +206,26 @@ function buildActaDetalleFromApi(data: {
 
 function renderAdjuntos(adjuntos: readonly ActaAdjunto[]): string {
   if (adjuntos.length === 0) {
-    return `<p class="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">Sin archivos adjuntos para esta acta.</p>`;
+    return `
+      <div
+        data-rh-acta-dropzone-trigger
+        role="button"
+        tabindex="0"
+        class="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/80 px-4 py-8 text-center transition hover:border-leoni-blue/50 hover:bg-leoni-blue/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+      >
+        <div class="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0 4 4m-4-4L8 8M4 16.5v.75A2.75 2.75 0 0 0 6.75 20h10.5A2.75 2.75 0 0 0 20 17.25v-.75" /></svg>
+        </div>
+        <p class="mt-3 text-sm font-medium text-slate-700">Arrastra archivos aquí o haz clic para seleccionar</p>
+        <button
+          type="button"
+          data-rh-acta-dropzone-trigger
+          class="mt-3 inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue"
+        >
+          Agregar archivo
+        </button>
+        <input data-rh-acta-adjuntos-input type="file" class="hidden" multiple />
+      </div>`;
   }
   return `
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -231,6 +247,49 @@ function renderAdjuntos(adjuntos: readonly ActaAdjunto[]): string {
         })
         .join("")}
     </div>`;
+}
+
+function renderEmptyAwareEmpleadoValue(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "sin puesto" ||
+    normalized === "sin área" ||
+    normalized === "sin area" ||
+    normalized === "sin supervisor" ||
+    normalized === "sin supervisor directo"
+  ) {
+    return `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs italic text-slate-500">Sin asignar</span>`;
+  }
+  return `<span class="font-semibold text-slate-800">${escapeHtml(value)}</span>`;
+}
+
+function historialEventVisual(evento: { titulo: string; descripcion: string }): {
+  iconHtml: string;
+  dotToneClass: string;
+} {
+  const source = `${evento.titulo} ${evento.descripcion}`.toLowerCase();
+  if (source.includes("anul")) {
+    return {
+      iconHtml: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l8 8M14 6l-8 8" /></svg>`,
+      dotToneClass: "border-red-200 bg-red-100 text-red-700",
+    };
+  }
+  if (source.includes("firm")) {
+    return {
+      iconHtml: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 10 3.5 3.5L15.5 6" /></svg>`,
+      dotToneClass: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    };
+  }
+  if (source.includes("edit") || source.includes("actualiz")) {
+    return {
+      iconHtml: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m13.8 3.2 3 3L7 16H4v-3l9.8-9.8Z" /></svg>`,
+      dotToneClass: "border-sky-200 bg-sky-100 text-sky-700",
+    };
+  }
+  return {
+    iconHtml: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 4v6h6" /></svg>`,
+    dotToneClass: "border-amber-200 bg-amber-100 text-amber-700",
+  };
 }
 
 function renderDetalleHtml(acta: ActaDetalle): string {
@@ -264,16 +323,21 @@ function renderDetalleHtml(acta: ActaDetalle): string {
 
   const historial = acta.historial.length
     ? acta.historial
-        .map(
-          (evento, idx) => `
-            <li class="relative pl-6 ${idx < acta.historial.length - 1 ? "pb-4" : ""}">
-              <span class="absolute left-0 top-1.5 size-2 rounded-full bg-leoni-blue"></span>
-              ${idx < acta.historial.length - 1 ? '<span class="absolute left-[3px] top-3.5 h-[calc(100%-0.25rem)] w-px bg-slate-200"></span>' : ""}
-              <p class="text-sm font-semibold text-slate-900">${escapeHtml(evento.titulo)}</p>
-              <p class="mt-0.5 text-xs text-slate-500">${escapeHtml(fechaHora(evento.fecha_hora))}</p>
-              <p class="mt-1 text-sm text-slate-700">${escapeHtml(evento.descripcion)}</p>
-            </li>`,
-        )
+        .map((evento, idx) => {
+          const visual = historialEventVisual(evento);
+          return `
+            <li class="relative pl-10 ${idx < acta.historial.length - 1 ? "pb-5" : ""}">
+              <span class="absolute left-0 top-0.5 inline-flex size-7 items-center justify-center rounded-full border ${visual.dotToneClass}">
+                ${visual.iconHtml}
+              </span>
+              ${idx < acta.historial.length - 1 ? '<span class="absolute left-3.5 top-8 h-[calc(100%-0.25rem)] w-px bg-slate-200"></span>' : ""}
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-900">${escapeHtml(evento.titulo)}</p>
+                <time class="whitespace-nowrap text-xs text-slate-500">${escapeHtml(fechaHora(evento.fecha_hora))}</time>
+              </div>
+              <p class="mt-1 text-sm text-slate-600">${escapeHtml(evento.descripcion)}</p>
+            </li>`;
+        })
         .join("")
     : `<li class="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">Sin historial registrado.</li>`;
 
@@ -289,7 +353,7 @@ function renderDetalleHtml(acta: ActaDetalle): string {
       <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div class="min-w-0">
-            <h1 class="truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">${escapeHtml(acta.titulo_documento)} <span class="text-leoni-blue">#${escapeHtml(acta.folio)}</span></h1>
+            <h1 class="truncate text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">${escapeHtml(acta.titulo_documento)} <span class="text-leoni-blue">#${escapeHtml(acta.folio)}</span></h1>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 sm:text-sm">
               ${badgeEstadoHtml(acta.estado)}
               <span>Creado el ${escapeHtml(fechaCorta(acta.fecha_creacion))}</span>
@@ -308,8 +372,8 @@ function renderDetalleHtml(acta: ActaDetalle): string {
         </div>
       </section>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div class="space-y-4 lg:col-span-8">
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+        <div class="space-y-5">
           <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
             <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Información del Empleado</h2>
             <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -320,21 +384,21 @@ function renderDetalleHtml(acta: ActaDetalle): string {
               </div>
             </div>
             <dl class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase text-slate-500">Área</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.empleado.area)}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase text-slate-500">Puesto</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.empleado.puesto)}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase text-slate-500">Supervisor directo</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.empleado.supervisor_directo)}</dd></div>
+              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Area</dt><dd class="mt-0.5">${renderEmptyAwareEmpleadoValue(acta.empleado.area)}</dd></div>
+              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Puesto</dt><dd class="mt-0.5">${renderEmptyAwareEmpleadoValue(acta.empleado.puesto)}</dd></div>
+              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Supervisor directo</dt><dd class="mt-0.5">${renderEmptyAwareEmpleadoValue(acta.empleado.supervisor_directo)}</dd></div>
             </dl>
           </section>
 
           <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
             <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Detalle del Evento</h2>
             <dl class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase text-slate-500">Tipo de incidencia</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase text-slate-500">Fecha y hora</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase text-slate-500">Ubicación</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
+              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Tipo de incidencia</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
+              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Fecha y hora</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
+              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Ubicacion</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
             </dl>
             <div class="mt-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2.5">
-              <p class="text-[11px] font-semibold uppercase text-slate-500">Descripción de los hechos</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Descripcion de los hechos</p>
               <p class="mt-1 text-sm leading-relaxed text-slate-700">${escapeHtml(acta.evento.descripcion)}</p>
             </div>
           </section>
@@ -342,13 +406,13 @@ function renderDetalleHtml(acta: ActaDetalle): string {
           <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Evidencias y Adjuntos</h2>
-              <p class="text-xs text-slate-500">${escapeHtml(String(acta.adjuntos.length))} archivo(s)</p>
+              <p data-rh-acta-adjuntos-count class="text-xs text-slate-500">${escapeHtml(String(acta.adjuntos.length))} archivo(s)</p>
             </div>
             <div class="mt-3">${renderAdjuntos(acta.adjuntos)}</div>
           </section>
         </div>
 
-        <aside class="space-y-4 lg:col-span-4">
+        <aside class="space-y-5">
           <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
             <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Personas Involucradas</h2>
             <ul class="mt-3 space-y-2">${involucrados}</ul>
@@ -361,8 +425,8 @@ function renderDetalleHtml(acta: ActaDetalle): string {
 
           <section class="rounded-xl border border-red-200/80 bg-white p-4 shadow-sm ring-1 ring-red-500/10 sm:p-5">
             <h2 class="text-sm font-semibold text-red-700 sm:text-base">Acciones de Control</h2>
-            <div class="mt-3 space-y-2">
-              <button type="button" class="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Anular Acta</button>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" data-rh-acta-open-cancel-modal class="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Anular Acta</button>
               <button type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue">Solicitar Firma Digital</button>
             </div>
           </section>
@@ -373,11 +437,13 @@ function renderDetalleHtml(acta: ActaDetalle): string {
               <button
                 type="button"
                 data-rh-acta-ia-improve
-                class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue"
+                title="Usa IA para mejorar la redacción de los hechos descritos en el acta"
+                class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:via-blue-600 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
               >
                 <span aria-hidden="true">✨</span>
                 Mejorar con IA
               </button>
+              <p class="text-xs text-slate-500">Usa IA para mejorar la redaccion de los hechos descritos en el acta.</p>
               <p data-rh-acta-ia-status class="hidden rounded-lg border px-3 py-2 text-sm"></p>
               <div data-rh-acta-ia-result class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div class="flex items-center justify-between gap-2">
@@ -395,6 +461,18 @@ function renderDetalleHtml(acta: ActaDetalle): string {
             </div>
           </section>
         </aside>
+      </div>
+
+      <div data-rh-acta-cancel-modal class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div data-rh-acta-cancel-overlay class="absolute inset-0 bg-slate-900/40"></div>
+        <div class="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+          <h3 class="text-base font-semibold text-slate-900">Confirmar anulacion</h3>
+          <p class="mt-2 text-sm text-slate-600">¿Estás seguro de que deseas anular esta acta? Esta acción no se puede deshacer.</p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" data-rh-acta-cancel-close class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Cancelar</button>
+            <button type="button" data-rh-acta-cancel-confirm class="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Confirmar anulacion</button>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -427,7 +505,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     Mejorar con IA
   `;
   const improveBtnLoadingHtml = `
-    <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg class="size-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path>
     </svg>
@@ -496,6 +574,37 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   page.addEventListener(
     "click",
     (event) => {
+      const dropzoneTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
+      if (dropzoneTrigger) {
+        const input = page.querySelector<HTMLInputElement>("[data-rh-acta-adjuntos-input]");
+        input?.click();
+        return;
+      }
+
+      const openCancelModalBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-open-cancel-modal]");
+      if (openCancelModalBtn) {
+        const modal = page.querySelector<HTMLElement>("[data-rh-acta-cancel-modal]");
+        modal?.classList.remove("hidden");
+        modal?.classList.add("flex");
+        return;
+      }
+
+      const closeCancelModalTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-cancel-close], [data-rh-acta-cancel-overlay]");
+      if (closeCancelModalTrigger) {
+        const modal = page.querySelector<HTMLElement>("[data-rh-acta-cancel-modal]");
+        modal?.classList.remove("flex");
+        modal?.classList.add("hidden");
+        return;
+      }
+
+      const confirmCancelModalBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-cancel-confirm]");
+      if (confirmCancelModalBtn) {
+        const modal = page.querySelector<HTMLElement>("[data-rh-acta-cancel-modal]");
+        modal?.classList.remove("flex");
+        modal?.classList.add("hidden");
+        return;
+      }
+
       const improveBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-improve]");
       if (improveBtn) {
         if (isImprovingWithIa) return;
@@ -545,6 +654,69 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       if (!retryBtn) return;
       retryBtn.disabled = true;
       window.location.hash = `#/actas/${actaId}`;
+    },
+    { signal },
+  );
+
+  page.addEventListener(
+    "keydown",
+    (event) => {
+      const target = event.target as HTMLElement;
+      if (!target.matches("[data-rh-acta-dropzone-trigger]")) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      const input = page.querySelector<HTMLInputElement>("[data-rh-acta-adjuntos-input]");
+      input?.click();
+    },
+    { signal },
+  );
+
+  page.addEventListener(
+    "change",
+    (event) => {
+      const input = (event.target as HTMLElement).closest<HTMLInputElement>("[data-rh-acta-adjuntos-input]");
+      if (!input) return;
+      const countLabel = page.querySelector<HTMLElement>("[data-rh-acta-adjuntos-count]");
+      if (!countLabel) return;
+      countLabel.textContent = `${String(input.files?.length ?? 0)} archivo(s)`;
+    },
+    { signal },
+  );
+
+  page.addEventListener(
+    "dragover",
+    (event) => {
+      const target = event.target as HTMLElement;
+      const dropzone = target.closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
+      if (!dropzone) return;
+      event.preventDefault();
+      dropzone.classList.add("border-leoni-blue", "bg-leoni-blue/5");
+    },
+    { signal },
+  );
+
+  page.addEventListener(
+    "dragleave",
+    (event) => {
+      const target = event.target as HTMLElement;
+      const dropzone = target.closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
+      if (!dropzone) return;
+      dropzone.classList.remove("border-leoni-blue", "bg-leoni-blue/5");
+    },
+    { signal },
+  );
+
+  page.addEventListener(
+    "drop",
+    (event) => {
+      const target = event.target as HTMLElement;
+      const dropzone = target.closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
+      if (!dropzone) return;
+      event.preventDefault();
+      dropzone.classList.remove("border-leoni-blue", "bg-leoni-blue/5");
+      const fileCount = event.dataTransfer?.files?.length ?? 0;
+      const countLabel = page.querySelector<HTMLElement>("[data-rh-acta-adjuntos-count]");
+      if (countLabel) countLabel.textContent = `${String(fileCount)} archivo(s)`;
     },
     { signal },
   );
