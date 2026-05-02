@@ -29,6 +29,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://leoni:leoni_dev_pass@postgres:5432/leoni_rh
       APP_ENV: development
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
+      OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.3}
     depends_on:
       postgres:
         condition: service_healthy
