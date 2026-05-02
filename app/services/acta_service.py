@@ -245,7 +245,15 @@ class ActaService:
             "personas_involucradas": acta.personas_involucradas or "",
             "testigos": acta.testigos or "",
         }
-        return await _mejorar_redaccion_acta(contexto)
+        texto_mejorado = await _mejorar_redaccion_acta(contexto)
+        texto_mejorado = texto_mejorado.strip()
+
+        # Persistir recomendacion por acta para recuperarla entre sesiones.
+        await self.repo.update(
+            id,
+            {"ia_recomendacion": texto_mejorado},
+        )
+        return texto_mejorado
 
     # ── Generar ───────────────────────────────────────────────────────────────
 

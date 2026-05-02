@@ -85,6 +85,7 @@ class ActaResponse(BaseModel):
     evidencia: Optional[str] = None
     incidencia_id: Optional[int] = None
     contenido_ia: Optional[str] = None
+    ia_recomendacion: Optional[str] = None
     contenido_final: Optional[str] = None
     estado: str
     generado_por: int

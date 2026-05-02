@@ -292,7 +292,35 @@ function historialEventVisual(evento: { titulo: string; descripcion: string }): 
   };
 }
 
-function renderDetalleHtml(acta: ActaDetalle): string {
+function renderIaActionButton(hasRecommendation: boolean): string {
+  if (hasRecommendation) {
+    return `
+      <button
+        type="button"
+        data-rh-acta-ia-view
+        title="Ver recomendacion de IA guardada para esta acta"
+        class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-300/60 bg-gradient-to-r from-blue-50 to-cyan-50 px-3 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-100 hover:to-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50"
+      >
+        <span aria-hidden="true">📄</span>
+        Ver recomendacion
+      </button>
+    `;
+  }
+
+  return `
+    <button
+      type="button"
+      data-rh-acta-ia-improve
+      title="Usa IA para mejorar la redaccion de los hechos descritos en el acta"
+      class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:via-blue-600 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+    >
+      <span aria-hidden="true">✨</span>
+      Mejorar con IA
+    </button>
+  `;
+}
+
+function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): string {
   const nombreEmpleado = formatNombreEmpleadoUi(acta.empleado.nombre) || acta.empleado.nombre;
   const iniciales = inicialesDesdeNombreDisplay(nombreEmpleado);
   const avatar = acta.empleado.foto_url?.trim()
@@ -431,19 +459,29 @@ function renderDetalleHtml(acta: ActaDetalle): string {
             </div>
           </section>
 
-          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
+          <section class="rounded-xl border p-4 shadow-sm ring-1 sm:p-5 ${
+            hasIaRecommendation
+              ? "border-blue-200/80 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/70 ring-blue-200/40"
+              : "border-slate-200/90 bg-white ring-slate-900/5"
+          }">
             <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Asistencia de Redacción</h2>
             <div class="mt-3 space-y-3">
-              <button
-                type="button"
-                data-rh-acta-ia-improve
-                title="Usa IA para mejorar la redacción de los hechos descritos en el acta"
-                class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:via-blue-600 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
-              >
-                <span aria-hidden="true">✨</span>
-                Mejorar con IA
-              </button>
-              <p class="text-xs text-slate-500">Usa IA para mejorar la redaccion de los hechos descritos en el acta.</p>
+              ${
+                hasIaRecommendation
+                  ? `<p class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-100/80 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                       <span aria-hidden="true">✨</span>
+                       Recomendacion IA guardada
+                     </p>`
+                  : ""
+              }
+              <div data-rh-acta-ia-action-wrap>${renderIaActionButton(hasIaRecommendation)}</div>
+              <p class="text-xs ${hasIaRecommendation ? "text-blue-700" : "text-slate-500"}">
+                ${
+                  hasIaRecommendation
+                    ? "Esta acta ya cuenta con una recomendacion generada por IA. Puedes verla o regenerarla."
+                    : "Usa IA para mejorar la redaccion de los hechos descritos en el acta."
+                }
+              </p>
               <p data-rh-acta-ia-status class="hidden rounded-lg border px-3 py-2 text-sm"></p>
             </div>
           </section>
@@ -466,7 +504,7 @@ function renderDetalleHtml(acta: ActaDetalle): string {
         <div data-rh-acta-ia-modal-overlay class="absolute inset-0 bg-slate-900/40"></div>
         <div class="relative w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
           <div class="flex items-center justify-between gap-3">
-            <h3 class="text-base font-semibold text-slate-900">Recomendacion de redaccion con IA</h3>
+            <h3 class="text-base font-semibold text-slate-900">Recomendacion de IA</h3>
             <button
               type="button"
               data-rh-acta-ia-modal-close
@@ -478,13 +516,27 @@ function renderDetalleHtml(acta: ActaDetalle): string {
           <div class="mt-3 max-h-[58vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">Presiona "Mejorar con IA" para generar una recomendacion.</p>
           </div>
-          <div class="mt-4 flex justify-end gap-2">
+          <div class="mt-4 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              data-rh-acta-ia-regenerate
+              class="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:via-blue-600 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              🔄 Regenerar recomendacion
+            </button>
             <button
               type="button"
               data-rh-acta-ia-copy
               class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-60"
             >
               Copiar texto
+            </button>
+            <button
+              type="button"
+              data-rh-acta-ia-close-primary
+              class="inline-flex items-center rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white transition hover:bg-leoni-blue-light"
+            >
+              Cerrar
             </button>
           </div>
         </div>
@@ -513,7 +565,9 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   const page = container.querySelector("#rh-acta-detalle-page");
   if (!(page instanceof HTMLElement)) return;
   let isImprovingWithIa = false;
+  let isRegeneratingIa = false;
   let iaTextoMejorado = "";
+  let hasIaRecommendation = false;
 
   const improveBtnIdleHtml = `
     <span aria-hidden="true">✨</span>
@@ -526,6 +580,20 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     </svg>
     Procesando...
   `;
+  const regenerateBtnIdleHtml = "🔄 Regenerar recomendacion";
+  const regenerateBtnLoadingHtml = `
+    <svg class="size-4 animate-spin text-slate-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path>
+    </svg>
+    Regenerando...
+  `;
+
+  function setIaActionButton(): void {
+    const wrap = page.querySelector<HTMLElement>("[data-rh-acta-ia-action-wrap]");
+    if (!wrap) return;
+    wrap.innerHTML = renderIaActionButton(hasIaRecommendation);
+  }
 
   function setIaImproveLoading(loading: boolean): void {
     const btn = page.querySelector<HTMLButtonElement>("[data-rh-acta-ia-improve]");
@@ -564,7 +632,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   ): void {
     const text = page.querySelector<HTMLElement>("[data-rh-acta-ia-text]");
     if (!text) return;
-    text.classList.remove("text-slate-700", "text-red-700", "animate-pulse");
+    text.classList.remove("text-slate-700", "text-slate-600", "text-red-700", "animate-pulse");
     if (tone === "loading") {
       text.classList.add("text-slate-600", "animate-pulse");
     } else if (tone === "error") {
@@ -581,10 +649,42 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     copyBtn.disabled = !enabled;
   }
 
+  function setIaRegenerateLoading(loading: boolean): void {
+    const btn = page.querySelector<HTMLButtonElement>("[data-rh-acta-ia-regenerate]");
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.classList.toggle("cursor-not-allowed", loading);
+    btn.classList.toggle("opacity-70", loading);
+    btn.innerHTML = loading ? regenerateBtnLoadingHtml : regenerateBtnIdleHtml;
+  }
+
+  async function generateIaRecommendation(): Promise<void> {
+    setIaCopyEnabled(false);
+    setIaModalText("Generando recomendacion con IA...", "loading");
+    try {
+      const response = await improveActaWithIa(actaId, signal);
+      iaTextoMejorado = response.texto_mejorado.trim();
+      hasIaRecommendation = Boolean(iaTextoMejorado);
+      setIaActionButton();
+      setIaModalText(iaTextoMejorado || "No se recibio contenido para mostrar.");
+      setIaCopyEnabled(Boolean(iaTextoMejorado));
+      showIaStatus("Se genero y guardo una recomendacion de redaccion.", "success");
+    } catch (error: unknown) {
+      if (signal.aborted) return;
+      const err = error as { detail?: string } | null;
+      const message = err?.detail || "No se pudo generar la recomendacion. Intenta de nuevo.";
+      setIaModalText(message, "error");
+      setIaCopyEnabled(Boolean(iaTextoMejorado));
+      showIaStatus(message, "error");
+    }
+  }
+
   void (async () => {
     try {
       const data = await getActaById(actaId, signal);
-      page.innerHTML = renderDetalleHtml(buildActaDetalleFromApi(data));
+      iaTextoMejorado = (data.ia_recomendacion || "").trim();
+      hasIaRecommendation = Boolean(iaTextoMejorado);
+      page.innerHTML = renderDetalleHtml(buildActaDetalleFromApi(data), hasIaRecommendation);
       return;
     } catch (error: unknown) {
       if (signal.aborted) return;
@@ -650,42 +750,52 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         return;
       }
 
-      const closeIaModalTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-ia-modal-close], [data-rh-acta-ia-modal-overlay]");
+      const closeIaModalTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-ia-modal-close], [data-rh-acta-ia-modal-overlay], [data-rh-acta-ia-close-primary]");
       if (closeIaModalTrigger) {
         setIaModalOpen(false);
         return;
       }
 
+      const viewBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-view]");
+      if (viewBtn) {
+        setIaModalOpen(true);
+        if (iaTextoMejorado.trim()) {
+          setIaModalText(iaTextoMejorado);
+        } else {
+          setIaModalText("Aun no hay una recomendacion guardada para esta acta.");
+        }
+        setIaCopyEnabled(Boolean(iaTextoMejorado.trim()));
+        return;
+      }
+
       const improveBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-improve]");
       if (improveBtn) {
-        if (isImprovingWithIa) return;
+        if (isImprovingWithIa || isRegeneratingIa) return;
         setIaModalOpen(true);
-        setIaCopyEnabled(false);
-        setIaModalText("Generando recomendacion con IA...", "loading");
         isImprovingWithIa = true;
         setIaImproveLoading(true);
         void (async () => {
           try {
-            const response = await improveActaWithIa(actaId, signal);
-            iaTextoMejorado = response.texto_mejorado.trim();
-            setIaModalText(iaTextoMejorado || "No se recibio contenido para mostrar.");
-            setIaCopyEnabled(Boolean(iaTextoMejorado));
-            showIaStatus("Se genero una sugerencia de redaccion.", "success");
-          } catch (error: unknown) {
-            if (signal.aborted) return;
-            const err = error as { detail?: string } | null;
-            setIaModalText(
-              err?.detail || "No se pudo generar la mejora con IA. Intenta nuevamente.",
-              "error",
-            );
-            setIaCopyEnabled(false);
-            showIaStatus(
-              err?.detail || "No se pudo generar la mejora con IA. Intenta nuevamente.",
-              "error",
-            );
+            await generateIaRecommendation();
           } finally {
             isImprovingWithIa = false;
             setIaImproveLoading(false);
+          }
+        })();
+        return;
+      }
+
+      const regenerateBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-regenerate]");
+      if (regenerateBtn) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
+        isRegeneratingIa = true;
+        setIaRegenerateLoading(true);
+        void (async () => {
+          try {
+            await generateIaRecommendation();
+          } finally {
+            isRegeneratingIa = false;
+            setIaRegenerateLoading(false);
           }
         })();
         return;

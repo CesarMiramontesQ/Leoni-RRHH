@@ -56,6 +56,7 @@ export type ActaDetailResponse = {
   testigos: string | null;
   responsable_rh: string | null;
   evidencia: string | null;
+  ia_recomendacion: string | null;
   estado: "draft" | "pending_sign" | "signed" | "archived";
   created_at: string;
 };

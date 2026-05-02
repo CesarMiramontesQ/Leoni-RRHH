@@ -36,6 +36,7 @@ class ActaAdministrativa(Base):
     responsable_rh: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     evidencia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contenido_ia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ia_recomendacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contenido_final: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[str] = mapped_column(
         Enum("draft", "pending_sign", "signed", "archived", name="acta_estado_enum"),
