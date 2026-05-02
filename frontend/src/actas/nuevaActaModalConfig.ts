@@ -83,11 +83,9 @@ export function validateNuevaActaForm(data: NuevaActaFormData): NuevaActaFormErr
   if (!safeTrim(data.supervisorDirecto)) errors.supervisorDirecto = "Captura el supervisor directo.";
   if (!safeTrim(data.tipoFalta)) errors.tipoFalta = "Describe el tipo de falta disciplinaria.";
   if (!safeTrim(data.fundamentoLegal)) errors.fundamentoLegal = "Selecciona el fundamento legal.";
-  if (!safeTrim(data.articuloInciso)) errors.articuloInciso = "Captura el artículo o inciso.";
   if (!safeTrim(data.fechaEvento)) errors.fechaEvento = "Selecciona la fecha del evento.";
   if (!safeTrim(data.lugarIncidente)) errors.lugarIncidente = "Captura el lugar del incidente.";
   if (!safeTrim(data.descripcionHechos)) errors.descripcionHechos = "Describe los hechos.";
   if (!safeTrim(data.responsableRhId)) errors.responsableRhId = "Selecciona responsable de RH.";
-  if (data.evidencias.length === 0) errors.evidencias = "Adjunta al menos una evidencia.";
   return errors;
 }

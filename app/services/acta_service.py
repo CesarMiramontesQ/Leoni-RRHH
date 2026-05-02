@@ -31,6 +31,7 @@ from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas import PaginatedResponse
 from app.schemas.actas import (
     ActaAprobacionResponse,
+    ActaCreateRequest,
     ActaFirmarRequest,
     ActaGenerarRequest,
     ActaResponse,
@@ -221,6 +222,64 @@ class ActaService:
                 "empleado_id": acta.empleado_id,
                 "estado": acta.estado,
                 "incidencia_id": acta.incidencia_id,
+            },
+        )
+
+        acta = await self.repo.get_with_aprobaciones(acta.id)
+        return self._build_response(acta)
+
+    async def crear_acta_desde_formulario(
+        self,
+        data: ActaCreateRequest,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> ActaResponse:
+        rol = self._get_rol(current_user)
+        if rol != "rh":
+            raise ForbiddenError(detail="Solo RH puede crear actas")
+
+        result_emp = await self.db.execute(
+            select(Empleado).where(Empleado.id == data.empleado_id)
+        )
+        empleado = result_emp.scalar_one_or_none()
+        if not empleado:
+            raise NotFoundError(entidad="Empleado", id=data.empleado_id)
+
+        acta = await self.repo.create({
+            "empleado_id": data.empleado_id,
+            "numero_empleado": data.numero_empleado,
+            "area_departamento": data.area_departamento,
+            "supervisor_directo": data.supervisor_directo,
+            "tipo_falta": data.tipo_falta,
+            "fundamento_legal": data.fundamento_legal,
+            "articulo_inciso": data.articulo_inciso,
+            "fecha_evento": data.fecha_evento,
+            "lugar_incidente": data.lugar_incidente,
+            "descripcion_hechos": data.descripcion_hechos,
+            "personas_involucradas": data.personas_involucradas,
+            "testigos": data.testigos,
+            "responsable_rh": data.responsable_rh,
+            # Opcional por ahora: no bloquear guardado sin evidencia.
+            "evidencia": data.evidencia,
+            "incidencia_id": None,
+            "contenido_ia": None,
+            "contenido_final": None,
+            "estado": "draft",
+            "generado_por": current_user.id,
+        })
+
+        audit_background(
+            background_tasks=background_tasks,
+            db=self.db,
+            accion="ACTA_CREATED_FROM_FORM",
+            modulo="actas",
+            usuario_id=current_user.id,
+            entidad_id=acta.id,
+            datos_despues={
+                "empleado_id": acta.empleado_id,
+                "estado": acta.estado,
+                "fundamento_legal": acta.fundamento_legal,
+                "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else None,
             },
         )
 

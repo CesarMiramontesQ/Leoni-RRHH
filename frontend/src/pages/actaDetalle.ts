@@ -1,7 +1,7 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { getActaById } from "../api/actas.ts";
 import {
-  fetchActaDetalleMockById,
   type ActaAdjunto,
   type ActaDetalle,
   type ActaEstadoCodigo,
@@ -83,6 +83,118 @@ function adjuntoToneClass(adjunto: ActaAdjunto): string {
   if (adjunto.preview_color === "emerald") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (adjunto.preview_color === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
   return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
+function mapBackendEstadoToUi(
+  estado: "draft" | "pending_sign" | "signed" | "archived",
+): ActaEstadoCodigo {
+  if (estado === "pending_sign") return "en_proceso";
+  if (estado === "signed") return "firmada";
+  if (estado === "archived") return "cerrada";
+  return "abierta";
+}
+
+function parsePeopleList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildActaDetalleFromApi(data: {
+  id: number;
+  empleado_id: number;
+  numero_empleado: string | null;
+  area_departamento: string | null;
+  supervisor_directo: string | null;
+  tipo_falta: string | null;
+  fundamento_legal: "Ley Federal del Trabajo" | "Reglamento Interior de Trabajo" | null;
+  articulo_inciso: string | null;
+  fecha_evento: string | null;
+  lugar_incidente: string | null;
+  descripcion_hechos: string | null;
+  personas_involucradas: string | null;
+  testigos: string | null;
+  responsable_rh: string | null;
+  evidencia: string | null;
+  estado: "draft" | "pending_sign" | "signed" | "archived";
+  created_at: string;
+}): ActaDetalle {
+  const numero = data.numero_empleado?.trim() || String(data.empleado_id);
+  const nombre = `Empleado ${numero}`;
+  const created = data.created_at;
+  const eventoDate = data.fecha_evento
+    ? `${data.fecha_evento}T00:00:00`
+    : created;
+  const evidenciaArchivos = parsePeopleList(data.evidencia);
+
+  const involucrados: ActaDetalle["involucrados"] = [];
+  for (const persona of parsePeopleList(data.personas_involucradas)) {
+    involucrados.push({
+      id: `inv-${persona.toLowerCase().replace(/\s+/g, "-")}`,
+      nombre: persona,
+      rol: "Involucrado",
+    });
+  }
+  for (const persona of parsePeopleList(data.testigos)) {
+    involucrados.push({
+      id: `test-${persona.toLowerCase().replace(/\s+/g, "-")}`,
+      nombre: persona,
+      rol: "Testigo",
+    });
+  }
+  if (data.responsable_rh?.trim()) {
+    involucrados.push({
+      id: "rh-responsable",
+      nombre: data.responsable_rh,
+      rol: "Responsable RH",
+    });
+  }
+
+  return {
+    id: data.id,
+    folio: `ACT-${String(data.id).padStart(4, "0")}`,
+    titulo_documento: "Acta Administrativa",
+    estado: mapBackendEstadoToUi(data.estado),
+    fecha_creacion: created,
+    empleado: {
+      id: numero,
+      nombre,
+      foto_url: null,
+      area: data.area_departamento?.trim() || "Sin área",
+      puesto: "Sin puesto",
+      supervisor_directo: data.supervisor_directo?.trim() || "Sin supervisor",
+    },
+    evento: {
+      tipo_incidencia: data.tipo_falta?.trim() || "No especificado",
+      fecha_hora: eventoDate,
+      ubicacion: data.lugar_incidente?.trim() || "No especificada",
+      descripcion:
+        data.descripcion_hechos?.trim() ||
+        "Sin descripción registrada.",
+    },
+    involucrados,
+    historial: [
+      {
+        id: `h-created-${data.id}`,
+        titulo: "Acta creada",
+        descripcion: "Registro creado en la plataforma.",
+        fecha_hora: created,
+      },
+    ],
+    adjuntos: evidenciaArchivos.map((nombreArchivo, index) => {
+      const parts = nombreArchivo.split(".");
+      const ext = (parts[parts.length - 1] || "DOC").toUpperCase();
+      return {
+        id: `adj-${data.id}-${index + 1}`,
+        nombre: nombreArchivo,
+        extension: ext,
+        peso_mb: 0,
+        preview_color: "slate" as const,
+      };
+    }),
+  };
 }
 
 function renderAdjuntos(adjuntos: readonly ActaAdjunto[]): string {
@@ -271,30 +383,30 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   if (!(page instanceof HTMLElement)) return;
 
   void (async () => {
-    const res = await fetchActaDetalleMockById(actaId, signal);
-    if (!res.ok && res.aborted) return;
-
-    if (!res.ok && res.status === 404) {
-      page.innerHTML = `
-        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-          <p class="font-semibold">Acta no encontrada</p>
-          <p class="mt-1">${escapeHtml(res.message)}</p>
-          <a href="#/actas" class="mt-3 inline-flex items-center gap-1.5 font-semibold text-leoni-blue hover:underline">Volver al listado</a>
-        </div>`;
+    try {
+      const data = await getActaById(actaId, signal);
+      page.innerHTML = renderDetalleHtml(buildActaDetalleFromApi(data));
       return;
-    }
-
-    if (!res.ok) {
+    } catch (error: unknown) {
+      if (signal.aborted) return;
+      const err = error as { status?: number; detail?: string } | null;
+      if (err?.status === 404) {
+        page.innerHTML = `
+          <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+            <p class="font-semibold">Acta no encontrada</p>
+            <p class="mt-1">${escapeHtml(err.detail || "No se encontró el acta solicitada.")}</p>
+            <a href="#/actas" class="mt-3 inline-flex items-center gap-1.5 font-semibold text-leoni-blue hover:underline">Volver al listado</a>
+          </div>`;
+        return;
+      }
       page.innerHTML = `
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
           <p class="font-semibold">No se pudo cargar el detalle del acta.</p>
-          <p class="mt-1">${escapeHtml(res.message)}</p>
+          <p class="mt-1">${escapeHtml(err?.detail || "Ocurrió un error inesperado.")}</p>
           <button type="button" data-rh-acta-retry class="mt-3 inline-flex items-center rounded-lg border border-red-300 bg-white px-3 py-1.5 font-semibold text-red-700 transition hover:bg-red-100">Reintentar</button>
         </div>`;
       return;
     }
-
-    page.innerHTML = renderDetalleHtml(res.data);
   })().catch(() => {
     if (signal.aborted) return;
     page.innerHTML = `

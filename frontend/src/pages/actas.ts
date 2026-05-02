@@ -5,6 +5,11 @@ import {
 import { getEmpleadosPage } from "../api/empleados.ts";
 import { isUsuariosFetchError, type UsuarioListItem } from "../api/usuarios.ts";
 import {
+  createActaAdministrativa,
+  getActasPage,
+  type ActaListItem,
+} from "../api/actas.ts";
+import {
   mountNuevaActaModal,
   type NuevaActaSubmitPayload,
 } from "../components/actas/nuevaActaModal.ts";
@@ -237,13 +242,36 @@ function mapModalTipoToTableTipo(value: string): ActaTipoCodigo {
   return "administrativa";
 }
 
-function createNextActaFolio(rows: readonly ActaTablaFila[]): string {
-  const last = rows
-    .map((row) => Number.parseInt(row.folio.replace(/[^\d]/g, ""), 10))
-    .filter((value) => Number.isFinite(value))
-    .reduce((max, n) => Math.max(max, n), 0);
-  const next = last + 1;
-  return `ACT-${String(next).padStart(4, "0")}`;
+function createFolioFromId(id: number): string {
+  return `ACT-${String(id).padStart(4, "0")}`;
+}
+
+function mapBackendEstadoToTableEstado(
+  estado: "draft" | "pending_sign" | "signed" | "archived",
+): ActaEstadoCodigo {
+  if (estado === "pending_sign") return "en_proceso";
+  if (estado === "signed") return "firmada";
+  if (estado === "archived") return "cerrada";
+  return "abierta";
+}
+
+function mapActaListItemToRow(item: ActaListItem): ActaTablaFila {
+  const fecha = item.fecha_evento?.trim() || item.created_at.slice(0, 10);
+  const numeroEmpleado = item.numero_empleado?.trim() || String(item.empleado_id);
+  const supervisor = item.supervisor_directo?.trim() || "Sin supervisor";
+  return {
+    id: item.id,
+    folio: createFolioFromId(item.id),
+    empleado_id: numeroEmpleado,
+    empleado_nombre_raw: `Empleado ${numeroEmpleado}`,
+    foto_url: null,
+    area: item.area_departamento?.trim() || "Sin área",
+    supervisor_id: "sup-1",
+    supervisor_nombre: supervisor,
+    tipo: mapModalTipoToTableTipo(item.tipo_falta ?? ""),
+    fecha,
+    estado: mapBackendEstadoToTableEstado(item.estado),
+  };
 }
 
 function celdaEmpleado(row: ActaTablaFila): string {
@@ -603,22 +631,51 @@ export function mountActas(container: HTMLElement): void {
           onSubmit: async (payload: NuevaActaSubmitPayload) => {
             const empleado = modalEmpleadoOptions.find((item) => item.id === payload.formData.empleadoId);
             if (!empleado) throw new Error("Empleado no encontrado.");
-            const nextId = allRows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
             const supervisorId =
               ACTAS_SUPERVISORES.find((sup) => sup.label === payload.formData.supervisorDirecto)?.id ??
               ACTAS_SUPERVISORES[0]?.id ??
               "sup-1";
+
+            const empleadoId = Number.parseInt(payload.formData.empleadoId, 10);
+            if (!Number.isFinite(empleadoId)) {
+              throw new Error("El ID del empleado no es valido.");
+            }
+
+            const evidencia =
+              payload.formData.evidencias.length > 0
+                ? payload.formData.evidencias.map((file) => file.name).join(", ")
+                : null;
+
+            const created = await createActaAdministrativa({
+              empleado_id: empleadoId,
+              numero_empleado: payload.formData.numeroEmpleado,
+              area_departamento: payload.formData.areaDepartamento,
+              supervisor_directo: payload.formData.supervisorDirecto,
+              tipo_falta: payload.formData.tipoFalta,
+              fundamento_legal: payload.formData.fundamentoLegal as
+                | "Ley Federal del Trabajo"
+                | "Reglamento Interior de Trabajo",
+              articulo_inciso: payload.formData.articuloInciso.trim() || null,
+              fecha_evento: payload.formData.fechaEvento,
+              lugar_incidente: payload.formData.lugarIncidente,
+              descripcion_hechos: payload.formData.descripcionHechos,
+              personas_involucradas: payload.formData.personasInvolucradas.trim() || null,
+              testigos: payload.formData.testigos.trim() || null,
+              responsable_rh: payload.formData.responsableRhId,
+              evidencia,
+            });
+
             allRows.unshift({
-              id: nextId,
-              folio: createNextActaFolio(allRows),
+              id: created.id,
+              folio: createFolioFromId(created.id),
               empleado_id: empleado.id,
               empleado_nombre_raw: empleado.nombre,
               foto_url: null,
-              area: payload.formData.areaDepartamento,
+              area: created.area_departamento ?? payload.formData.areaDepartamento,
               supervisor_id: supervisorId,
-              supervisor_nombre: payload.formData.supervisorDirecto,
-              tipo: mapModalTipoToTableTipo(payload.formData.tipoFalta),
-              fecha: payload.formData.fechaEvento,
+              supervisor_nombre: created.supervisor_directo ?? payload.formData.supervisorDirecto,
+              tipo: mapModalTipoToTableTipo(created.tipo_falta ?? payload.formData.tipoFalta),
+              fecha: created.fecha_evento ?? payload.formData.fechaEvento,
               estado: "abierta",
             });
             state.page = 1;
@@ -631,6 +688,20 @@ export function mountActas(container: HTMLElement): void {
     if (isUsuariosFetchError(error) && error.status === 401) return;
     showEmpleadosToast(container, "No se pudo cargar la lista de empleados activos.", "error");
   });
+
+  async function loadActasFromBackend(): Promise<void> {
+    const items: ActaListItem[] = [];
+    let cursor: number | null = null;
+    while (true) {
+      const page = await getActasPage({ cursor, limit: 200 });
+      items.push(...page.items);
+      if (page.next_cursor == null) break;
+      cursor = page.next_cursor;
+    }
+    allRows.splice(0, allRows.length, ...items.map(mapActaListItemToRow));
+    state.page = 1;
+    paint();
+  }
 
   function paint(): void {
     const inner = container.querySelector("#rh-actas-inner");
@@ -766,5 +837,13 @@ export function mountActas(container: HTMLElement): void {
     if (Number.isFinite(id)) {
       window.location.hash = `#/actas/${id}`;
     }
+  });
+
+  void loadActasFromBackend().catch((error: unknown) => {
+    const msg =
+      typeof error === "object" && error !== null && "status" in error && (error as { status?: number }).status === 401
+        ? "Tu sesión expiró. Inicia sesión nuevamente."
+        : "No se pudieron cargar las actas guardadas.";
+    showEmpleadosToast(container, msg, "error");
   });
 }

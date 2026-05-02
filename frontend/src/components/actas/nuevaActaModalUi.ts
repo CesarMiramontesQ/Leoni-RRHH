@@ -381,7 +381,7 @@ export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): st
       <section class="rounded-2xl border border-slate-200/90 bg-slate-50/45 p-4 sm:p-5" aria-labelledby="rh-actas-sec-evidencia">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="md:col-span-2">
-            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Evidencias</label>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Evidencias (opcional)</label>
             <div
               class="${uploadZoneClass}"
               data-rh-actas-dropzone
