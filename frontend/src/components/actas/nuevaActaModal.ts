@@ -98,6 +98,7 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
   let errors: FormErrors = {};
   let isSubmitting = false;
   let dragActive = false;
+  let empleadoSearchQ = "";
 
   function isOpen(): boolean {
     return !overlayEl.classList.contains("hidden");
@@ -108,6 +109,7 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
     errors = {};
     isSubmitting = false;
     dragActive = false;
+    empleadoSearchQ = "";
   }
 
   function renderForm(): void {
@@ -115,6 +117,7 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
       formData,
       errors,
       empleados: options.empleados,
+      empleadoSearchQ,
       tiposFalta: options.tiposFalta,
       responsablesRh: options.responsablesRh,
       isSubmitting,
@@ -138,7 +141,7 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
     document.body.style.overflow = "hidden";
     renderForm();
     window.requestAnimationFrame(() => {
-      const first = bodyEl.querySelector<HTMLElement>("#rh-actas-form-empleado");
+      const first = bodyEl.querySelector<HTMLElement>("#rh-actas-form-empleado-busqueda");
       first?.focus();
     });
   }
@@ -201,11 +204,37 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
     const form = bodyEl.querySelector("#rh-actas-nueva-form");
     if (!(form instanceof HTMLFormElement)) return;
 
+    const empleadoSearchInput = form.querySelector("[data-rh-actas-form-empleado-search]");
     const empleadoSelect = form.querySelector("[data-rh-actas-form-empleado]");
+
+    if (empleadoSearchInput instanceof HTMLInputElement) {
+      empleadoSearchInput.addEventListener("input", () => {
+        empleadoSearchQ = empleadoSearchInput.value;
+        const start = empleadoSearchInput.selectionStart ?? empleadoSearchQ.length;
+        const end = empleadoSearchInput.selectionEnd ?? empleadoSearchQ.length;
+        const dir =
+          empleadoSearchInput.selectionDirection === "backward"
+            ? "backward"
+            : empleadoSearchInput.selectionDirection === "none"
+              ? "none"
+              : "forward";
+        renderForm();
+        const nextInput = bodyEl.querySelector<HTMLInputElement>("[data-rh-actas-form-empleado-search]");
+        if (!nextInput) return;
+        nextInput.focus();
+        try {
+          nextInput.setSelectionRange(start, end, dir);
+        } catch {
+          /* noop */
+        }
+      });
+    }
+
     if (empleadoSelect instanceof HTMLSelectElement) {
       empleadoSelect.addEventListener("change", () => {
         const selectedId = empleadoSelect.value;
         const empleado = options.empleados.find((item) => item.id === selectedId) ?? null;
+        if (empleado) empleadoSearchQ = empleado.nombre;
         formData = fillEmployeeSnapshot({ ...formData, empleadoId: selectedId }, empleado);
         errors = {
           ...errors,

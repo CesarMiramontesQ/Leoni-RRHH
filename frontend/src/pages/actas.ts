@@ -3,10 +3,13 @@ import {
   type NuevaActaEmpleadoOption,
   type NuevaActaSelectOption,
 } from "../actas/nuevaActaModalConfig.ts";
+import { getEmpleadosPage } from "../api/empleados.ts";
+import { isUsuariosFetchError, type UsuarioListItem } from "../api/usuarios.ts";
 import {
   mountNuevaActaModal,
   type NuevaActaSubmitPayload,
 } from "../components/actas/nuevaActaModal.ts";
+import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import {
   rhListadoTablaClasesLayoutScroll,
@@ -196,6 +199,21 @@ function buildNuevaActaEmpleados(rows: readonly ActaTablaFila[]): NuevaActaEmple
     });
   }
   return Array.from(dedup.values());
+}
+
+function mapUsuarioToNuevaActaEmpleado(item: UsuarioListItem): NuevaActaEmpleadoOption {
+  const empleadoId = String(item.empleado_id);
+  const nombre = formatNombreEmpleadoUi(item.nombre) || item.nombre || empleadoId;
+  const numeroEmpleado = item.no_empleado?.trim() || empleadoId;
+  const areaDepartamento = item.area?.descripcion?.trim() || "Sin área";
+  const supervisorDirecto = item.lider_nombre?.trim() || "Sin supervisor";
+  return {
+    id: empleadoId,
+    nombre,
+    numeroEmpleado,
+    areaDepartamento,
+    supervisorDirecto,
+  };
 }
 
 function mapModalTipoToTableTipo(value: string): ActaTipoCodigo {
@@ -504,8 +522,42 @@ export function mountActas(container: HTMLElement): void {
 
   const state: ActasFilterState = { ...DEFAULT_FILTERS };
   const allRows: ActaTablaFila[] = [];
-  const modalEmpleadoOptions = buildNuevaActaEmpleados(allRows);
+  const modalEmpleadoOptions: NuevaActaEmpleadoOption[] = buildNuevaActaEmpleados(allRows);
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let empleadosModalLoadingPromise: Promise<void> | null = null;
+
+  function setModalEmpleadoOptions(next: readonly NuevaActaEmpleadoOption[]): void {
+    modalEmpleadoOptions.splice(0, modalEmpleadoOptions.length, ...next);
+  }
+
+  async function ensureModalEmpleadoOptionsLoaded(): Promise<void> {
+    if (empleadosModalLoadingPromise) {
+      await empleadosModalLoadingPromise;
+      return;
+    }
+    empleadosModalLoadingPromise = (async () => {
+      const dedup = new Map<string, NuevaActaEmpleadoOption>();
+      for (const item of modalEmpleadoOptions) dedup.set(item.id, item);
+      let page = 1;
+      const pageSize = 100;
+      while (true) {
+        const pg = await getEmpleadosPage({ page, page_size: pageSize, activo: true });
+        for (const item of pg.items) {
+          const mapped = mapUsuarioToNuevaActaEmpleado(item);
+          dedup.set(mapped.id, mapped);
+        }
+        const loaded = pg.page * pg.page_size;
+        if (loaded >= pg.total || pg.items.length === 0) break;
+        page += 1;
+      }
+      setModalEmpleadoOptions(Array.from(dedup.values()));
+    })();
+    try {
+      await empleadosModalLoadingPromise;
+    } finally {
+      empleadosModalLoadingPromise = null;
+    }
+  }
 
   function tableFromState(): ActasTableData {
     const filtered = filterActasRows(allRows, state);
@@ -560,6 +612,11 @@ export function mountActas(container: HTMLElement): void {
           },
         })
       : null;
+
+  void ensureModalEmpleadoOptionsLoaded().catch((error: unknown) => {
+    if (isUsuariosFetchError(error) && error.status === 401) return;
+    showEmpleadosToast(container, "No se pudo cargar la lista de empleados activos.", "error");
+  });
 
   function paint(): void {
     const inner = container.querySelector("#rh-actas-inner");
@@ -633,7 +690,7 @@ export function mountActas(container: HTMLElement): void {
     }
   });
 
-  pageRoot?.addEventListener("click", (event) => {
+  pageRoot?.addEventListener("click", async (event) => {
     const target = event.target as HTMLElement;
     const openLink = target.closest<HTMLAnchorElement>("[data-rh-actas-open]");
     if (openLink) {
@@ -649,6 +706,16 @@ export function mountActas(container: HTMLElement): void {
       return;
     }
     if (target.closest("#rh-actas-nueva")) {
+      try {
+        await ensureModalEmpleadoOptionsLoaded();
+      } catch (error: unknown) {
+        const msg =
+          isUsuariosFetchError(error) && error.status === 401
+            ? "Tu sesión expiró. Inicia sesión nuevamente."
+            : "No se pudo cargar la lista de empleados activos.";
+        showEmpleadosToast(container, msg, "error");
+        return;
+      }
       nuevaActaModal?.open();
       return;
     }

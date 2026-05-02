@@ -5,11 +5,13 @@ import type {
   NuevaActaSelectOption,
 } from "../../actas/nuevaActaModalConfig.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import { normalizeTextoBusquedaEmpleado } from "../../utils/empleadoTextoBusqueda.ts";
 
 type BuildNuevaActaFormHtmlParams = {
   formData: NuevaActaFormData;
   errors: NuevaActaFormErrors;
   empleados: readonly NuevaActaEmpleadoOption[];
+  empleadoSearchQ: string;
   tiposFalta: readonly NuevaActaSelectOption[];
   responsablesRh: readonly NuevaActaSelectOption[];
   isSubmitting: boolean;
@@ -31,18 +33,44 @@ function renderSelectOptions(
   return `${first}${rest}`;
 }
 
+function filtrarEmpleados(
+  empleados: readonly NuevaActaEmpleadoOption[],
+  searchQ: string,
+): NuevaActaEmpleadoOption[] {
+  const query = normalizeTextoBusquedaEmpleado(searchQ);
+  if (!query) return [...empleados];
+  return empleados.filter((empleado) => {
+    const haystack = normalizeTextoBusquedaEmpleado(
+      `${empleado.nombre} ${empleado.numeroEmpleado} ${empleado.id}`,
+    );
+    return haystack.includes(query);
+  });
+}
+
 function renderEmpleadoOptions(
   empleados: readonly NuevaActaEmpleadoOption[],
+  filteredEmpleados: readonly NuevaActaEmpleadoOption[],
   selectedEmpleadoId: string,
 ): string {
   const first = `<option value="" ${selectedEmpleadoId === "" ? "selected" : ""}>Selecciona un empleado...</option>`;
-  const rest = empleados
+  const selectedEmpleado =
+    selectedEmpleadoId.trim() === ""
+      ? null
+      : empleados.find((empleado) => empleado.id === selectedEmpleadoId) ?? null;
+  const shouldInjectSelected =
+    selectedEmpleado != null && !filteredEmpleados.some((empleado) => empleado.id === selectedEmpleadoId);
+  const options = shouldInjectSelected ? [selectedEmpleado, ...filteredEmpleados] : [...filteredEmpleados];
+  const rest = options
     .map((empleado) => {
       const selectedAttr = empleado.id === selectedEmpleadoId ? "selected" : "";
       return `<option value="${escapeHtml(empleado.id)}" ${selectedAttr}>${escapeHtml(empleado.nombre)}</option>`;
     })
     .join("");
-  return `${first}${rest}`;
+  const emptyResults =
+    options.length === 0
+      ? `<option value="" disabled selected>Sin resultados para la búsqueda actual</option>`
+      : "";
+  return `${first}${emptyResults}${rest}`;
 }
 
 function renderFieldError(error: string | undefined): string {
@@ -101,7 +129,8 @@ export function nuevaActaModalShellHtml(): string {
 }
 
 export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): string {
-  const { formData, errors, empleados, tiposFalta, responsablesRh, isSubmitting, dragActive } = params;
+  const { formData, errors, empleados, empleadoSearchQ, tiposFalta, responsablesRh, isSubmitting, dragActive } = params;
+  const filteredEmpleados = filtrarEmpleados(empleados, empleadoSearchQ);
 
   const gridInputClass =
     "h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20";
@@ -149,6 +178,23 @@ export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): st
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label for="rh-actas-form-empleado" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Empleado</label>
+            <div class="mb-2">
+              <input
+                id="rh-actas-form-empleado-busqueda"
+                type="search"
+                value="${escapeHtml(empleadoSearchQ)}"
+                placeholder="Buscar por nombre o no. de empleado..."
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="rh-actas-form-empleado"
+                data-rh-actas-form-empleado-search
+                class="${gridInputClass}"
+              />
+              <p class="mt-1 text-xs text-slate-500">
+                ${escapeHtml(`Mostrando ${filteredEmpleados.length} de ${empleados.length} colaboradores`)}
+              </p>
+            </div>
             <select
               id="rh-actas-form-empleado"
               name="empleado_id"
@@ -156,7 +202,7 @@ export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): st
               data-rh-actas-form-empleado
               aria-invalid="${errors.empleadoId ? "true" : "false"}"
             >
-              ${renderEmpleadoOptions(empleados, formData.empleadoId)}
+              ${renderEmpleadoOptions(empleados, filteredEmpleados, formData.empleadoId)}
             </select>
             ${renderFieldError(errors.empleadoId)}
           </div>
