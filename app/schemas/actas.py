@@ -91,3 +91,7 @@ class ActaResponse(BaseModel):
     created_at: datetime
     aprobaciones: list[ActaAprobacionResponse] = []
     firmantes_pendientes: list[str] = []
+
+
+class ActaMejoraIaResponse(BaseModel):
+    texto_mejorado: str

@@ -1,6 +1,6 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import { getActaById } from "../api/actas.ts";
+import { getActaById, improveActaWithIa } from "../api/actas.ts";
 import {
   type ActaAdjunto,
   type ActaDetalle,
@@ -366,6 +366,34 @@ function renderDetalleHtml(acta: ActaDetalle): string {
               <button type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue">Solicitar Firma Digital</button>
             </div>
           </section>
+
+          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
+            <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Asistencia de Redacción</h2>
+            <div class="mt-3 space-y-3">
+              <button
+                type="button"
+                data-rh-acta-ia-improve
+                class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue"
+              >
+                <span aria-hidden="true">✨</span>
+                Mejorar con IA
+              </button>
+              <p data-rh-acta-ia-status class="hidden rounded-lg border px-3 py-2 text-sm"></p>
+              <div data-rh-acta-ia-result class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-semibold text-slate-900">Version mejorada por IA</h3>
+                  <button
+                    type="button"
+                    data-rh-acta-ia-copy
+                    class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue"
+                  >
+                    Copiar texto
+                  </button>
+                </div>
+                <p data-rh-acta-ia-text class="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700"></p>
+              </div>
+            </div>
+          </section>
         </aside>
       </div>
     </div>`;
@@ -391,6 +419,44 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
   const page = container.querySelector("#rh-acta-detalle-page");
   if (!(page instanceof HTMLElement)) return;
+  let isImprovingWithIa = false;
+  let iaTextoMejorado = "";
+
+  const improveBtnIdleHtml = `
+    <span aria-hidden="true">✨</span>
+    Mejorar con IA
+  `;
+  const improveBtnLoadingHtml = `
+    <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path>
+    </svg>
+    Procesando...
+  `;
+
+  function setIaImproveLoading(loading: boolean): void {
+    const btn = page.querySelector<HTMLButtonElement>("[data-rh-acta-ia-improve]");
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.classList.toggle("cursor-not-allowed", loading);
+    btn.classList.toggle("opacity-70", loading);
+    btn.innerHTML = loading ? improveBtnLoadingHtml : improveBtnIdleHtml;
+  }
+
+  function showIaStatus(
+    message: string,
+    tone: "error" | "success",
+  ): void {
+    const status = page.querySelector<HTMLElement>("[data-rh-acta-ia-status]");
+    if (!status) return;
+    status.classList.remove("hidden", "border-red-200", "bg-red-50", "text-red-800", "border-emerald-200", "bg-emerald-50", "text-emerald-800");
+    if (tone === "error") {
+      status.classList.add("border-red-200", "bg-red-50", "text-red-800");
+    } else {
+      status.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-800");
+    }
+    status.textContent = message;
+  }
 
   void (async () => {
     try {
@@ -430,6 +496,51 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   page.addEventListener(
     "click",
     (event) => {
+      const improveBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-improve]");
+      if (improveBtn) {
+        if (isImprovingWithIa) return;
+        isImprovingWithIa = true;
+        setIaImproveLoading(true);
+        void (async () => {
+          try {
+            const response = await improveActaWithIa(actaId, signal);
+            iaTextoMejorado = response.texto_mejorado.trim();
+            const result = page.querySelector<HTMLElement>("[data-rh-acta-ia-result]");
+            const text = page.querySelector<HTMLElement>("[data-rh-acta-ia-text]");
+            if (result && text) {
+              text.textContent = iaTextoMejorado;
+              result.classList.remove("hidden");
+            }
+            showIaStatus("Se genero una sugerencia de redaccion.", "success");
+          } catch (error: unknown) {
+            if (signal.aborted) return;
+            const err = error as { detail?: string } | null;
+            showIaStatus(
+              err?.detail || "No se pudo generar la mejora con IA. Intenta nuevamente.",
+              "error",
+            );
+          } finally {
+            isImprovingWithIa = false;
+            setIaImproveLoading(false);
+          }
+        })();
+        return;
+      }
+
+      const copyBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-copy]");
+      if (copyBtn) {
+        if (!iaTextoMejorado.trim()) return;
+        void navigator.clipboard
+          .writeText(iaTextoMejorado)
+          .then(() => {
+            showIaStatus("Texto copiado al portapapeles.", "success");
+          })
+          .catch(() => {
+            showIaStatus("No se pudo copiar el texto. Copialo manualmente.", "error");
+          });
+        return;
+      }
+
       const retryBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-retry]");
       if (!retryBtn) return;
       retryBtn.disabled = true;

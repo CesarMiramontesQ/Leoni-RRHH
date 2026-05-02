@@ -22,7 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceUnavailableError,
+)
 from app.integrations.tress.queue import encolar_tress
 from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.empleados import Empleado
@@ -71,6 +76,48 @@ async def _llamar_ollama(contexto: dict) -> str:
         f"Fecha: {contexto.get('fecha', '')}\n"
         f"Tipo: {contexto.get('tipo_incidencia', '')}\n"
     )
+
+
+async def _mejorar_redaccion_acta(contexto: dict) -> str:
+    prompt = (
+        "Mejora la redaccion de una acta administrativa manteniendo hechos, fechas, personas y "
+        "datos legales sin inventar informacion.\n"
+        "Requisitos:\n"
+        "1) Usa tono formal, claro y juridico-laboral mexicano.\n"
+        "2) Conserva el significado original y el orden logico.\n"
+        "3) Corrige ortografia, puntuacion y coherencia.\n"
+        "4) No uses markdown ni encabezados adicionales.\n"
+        "5) Devuelve solo el texto mejorado.\n\n"
+        f"Contexto del acta:\n{contexto}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                f"{settings.OLLAMA_URL}/api/generate",
+                json={
+                    "model": settings.OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "system": (
+                        "Eres un especialista legal laboral en Mexico. "
+                        "Redacta textos formales para actas administrativas de RH."
+                    ),
+                    "temperature": max(0.0, min(settings.OLLAMA_TEMPERATURE, 0.4)),
+                    "stream": False,
+                },
+            )
+            resp.raise_for_status()
+            texto = str(resp.json().get("response", "")).strip()
+            if not texto:
+                raise ValueError("Respuesta vacia de Ollama")
+            return texto
+    except Exception as exc:
+        logger.warning(
+            "No se pudo mejorar redaccion del acta con IA: %s",
+            exc,
+        )
+        raise ServiceUnavailableError(
+            detail="No fue posible generar la sugerencia con IA en este momento. Intenta nuevamente."
+        ) from exc
 
 
 class ActaService:
@@ -175,6 +222,30 @@ class ActaService:
                 raise ForbiddenError(detail="No tienes acceso a esta acta")
 
         return self._build_response(acta)
+
+    async def mejorar_redaccion_acta(
+        self,
+        id: int,
+        current_user: Empleado,
+    ) -> str:
+        acta = await self.get_acta(id=id, current_user=current_user)
+        texto_original = (acta.descripcion_hechos or "").strip()
+        if not texto_original:
+            raise ConflictError(
+                detail="El acta no tiene descripcion de hechos para mejorar con IA"
+            )
+
+        contexto = {
+            "tipo_falta": acta.tipo_falta or "",
+            "fundamento_legal": acta.fundamento_legal or "",
+            "articulo_inciso": acta.articulo_inciso or "",
+            "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else "",
+            "lugar_incidente": acta.lugar_incidente or "",
+            "descripcion_hechos": texto_original,
+            "personas_involucradas": acta.personas_involucradas or "",
+            "testigos": acta.testigos or "",
+        }
+        return await _mejorar_redaccion_acta(contexto)
 
     # ── Generar ───────────────────────────────────────────────────────────────
 

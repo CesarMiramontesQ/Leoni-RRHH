@@ -66,6 +66,10 @@ export type ActaPageResponse = {
   total: number;
 };
 
+export type ActaImproveWithIaResponse = {
+  texto_mejorado: string;
+};
+
 export type ActasFetchError = {
   status: number;
   detail: string;
@@ -119,4 +123,16 @@ export async function getActaById(
   const res = await fetchWithAuth(`/api/v1/actas/${id}`, { signal });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaDetailResponse;
+}
+
+export async function improveActaWithIa(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ActaImproveWithIaResponse> {
+  const res = await fetchWithAuth(`/api/v1/actas/${id}/mejorar-ia`, {
+    method: "POST",
+    signal,
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaImproveWithIaResponse;
 }
