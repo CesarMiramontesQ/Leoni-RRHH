@@ -34,10 +34,6 @@ import { escapeHtml, fmtFechaCorta, paginationRange } from "../ui/uiUtils.ts";
 import {
   FIELD_FOCUS,
   SELECT_CHEVRON,
-  FILTER_FIELD_WRAP,
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  BTN_GHOST,
   badgeOpen,
   badgeInProgress,
   badgeApproved,
@@ -52,10 +48,12 @@ type ActasTableData = {
 };
 
 type ActasStatCard = {
-  id: string;
+  id: ActaEstadoCodigo;
   titulo: string;
+  microcopy: string;
   valor: number;
-  borderTop: string;
+  toneClass: string;
+  icon: string;
 };
 
 type ActasFilterState = {
@@ -88,6 +86,13 @@ const DEFAULT_FILTERS: ActasFilterState = {
   page: 1,
   page_size: 10,
 };
+
+const ACTAS_BTN_PRIMARY =
+  "inline-flex items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+const ACTAS_BTN_SECONDARY =
+  "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+const ACTAS_BTN_GHOST =
+  "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
 
 function forbiddenHtml(): string {
   return `
@@ -180,12 +185,12 @@ function labelTipo(tipo: ActaTipoCodigo): string {
 function badgeTipo(tipo: ActaTipoCodigo): string {
   const text = escapeHtml(labelTipo(tipo));
   if (tipo === "suspension") {
-    return `<span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">${text}</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800"><span class="size-1.5 rounded-full bg-red-500" aria-hidden="true"></span>${text}</span>`;
   }
   if (tipo === "administrativa") {
-    return `<span class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900">${text}</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900"><span class="size-1.5 rounded-full bg-blue-500" aria-hidden="true"></span>${text}</span>`;
   }
-  return `<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">${text}</span>`;
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"><span class="size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>${text}</span>`;
 }
 
 function badgeEstado(estado: ActaEstadoCodigo): string {
@@ -286,43 +291,82 @@ function celdaEmpleado(row: ActaTablaFila): string {
     </div>`;
 }
 
-function renderStatsCards(rows: readonly ActaTablaFila[]): string {
+function renderStatsCards(rows: readonly ActaTablaFila[], filters: ActasFilterState, loading: boolean): string {
+  if (loading) {
+    const skeleton = Array.from({ length: 4 })
+      .map(
+        () => `
+        <article class="animate-pulse rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <div class="h-4 w-28 rounded bg-slate-200"></div>
+          <div class="mt-3 h-8 w-14 rounded bg-slate-200"></div>
+          <div class="mt-3 h-3 w-24 rounded bg-slate-100"></div>
+        </article>`,
+      )
+      .join("");
+    return `<section class="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-busy="true">${skeleton}</section>`;
+  }
+
   const cardsData: readonly ActasStatCard[] = [
     {
-      id: "abiertas",
+      id: "abierta",
       titulo: "Actas abiertas",
+      microcopy: "Requieren atención",
       valor: rows.filter((row) => row.estado === "abierta").length,
-      borderTop: "border-t-blue-600",
+      toneClass: "border-blue-200 bg-blue-50/50 text-blue-900",
+      icon: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 3.5v6.5l3.5 2.1M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" /></svg>`,
     },
     {
-      id: "proceso",
+      id: "en_proceso",
       titulo: "En proceso",
+      microcopy: "Pendientes de seguimiento",
       valor: rows.filter((row) => row.estado === "en_proceso").length,
-      borderTop: "border-t-amber-500",
+      toneClass: "border-amber-200 bg-amber-50/50 text-amber-900",
+      icon: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 3.5v3m0 7v3m6.5-6.5h-3m-7 0h-3m10.95 4.95-2.12-2.12m-4.66-4.66L5.05 5.05m9.9 0-2.12 2.12m-4.66 4.66-2.12 2.12" /></svg>`,
     },
     {
-      id: "firmadas",
+      id: "firmada",
       titulo: "Firmadas",
+      microcopy: "Completadas",
       valor: rows.filter((row) => row.estado === "firmada").length,
-      borderTop: "border-t-emerald-500",
+      toneClass: "border-emerald-200 bg-emerald-50/50 text-emerald-900",
+      icon: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 10 3.2 3.2 7.8-7.8" /></svg>`,
     },
     {
-      id: "cerradas",
+      id: "cerrada",
       titulo: "Cerradas",
+      microcopy: "Archivadas",
       valor: rows.filter((row) => row.estado === "cerrada").length,
-      borderTop: "border-t-slate-500",
+      toneClass: "border-slate-200 bg-slate-50 text-slate-800",
+      icon: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6.5h12m-10.5 3h9m-9 3h6M4 4.5h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" /></svg>`,
     },
   ];
   const cards = cardsData.map(
     (card) => `
-      <article class="rounded-xl border border-border border-t-4 ${card.borderTop} bg-white p-3 shadow-sm sm:p-4">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="min-w-0 text-xs font-medium text-text-muted sm:text-sm">${escapeHtml(card.titulo)}</h2>
-          <p class="shrink-0 text-2xl font-bold tabular-nums tracking-tight text-text-primary sm:text-3xl">${escapeHtml(String(card.valor))}</p>
-        </div>
+      <article>
+        <button
+          type="button"
+          data-rh-actas-metric="${card.id}"
+          aria-label="Filtrar actas por estado ${escapeHtml(card.titulo)}"
+          class="group w-full rounded-2xl border bg-white p-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30 ${
+            filters.estado === card.id
+              ? `${card.toneClass} ring-1 ring-current/20`
+              : "border-[#e5e7eb] text-slate-800 hover:border-slate-300"
+          }"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#667085]">${escapeHtml(card.titulo)}</p>
+              <p class="mt-2 text-3xl font-semibold leading-none tabular-nums text-[#111827]">${escapeHtml(String(card.valor))}</p>
+              <p class="mt-2 text-xs text-[#667085]">${escapeHtml(card.microcopy)}</p>
+            </div>
+            <span class="inline-flex size-9 items-center justify-center rounded-xl ${card.toneClass}">
+              ${card.icon}
+            </span>
+          </div>
+        </button>
       </article>`,
   ).join("");
-  return `<section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${cards}</section>`;
+  return `<section class="grid grid-cols-2 gap-3 xl:grid-cols-4">${cards}</section>`;
 }
 
 function renderSelectFilter(
@@ -342,12 +386,12 @@ function renderSelectFilter(
       )
       .join("");
   return `<div class="min-w-0">
-    <label for="${id}" class="mb-1 block text-xs font-medium text-gray-800">${escapeHtml(label)}</label>
+    <label for="${id}" class="mb-1 block text-xs font-medium text-[#667085]">${escapeHtml(label)}</label>
     <div class="grid grid-cols-1">
       <select
         id="${id}"
         data-rh-actas-filter="${field}"
-        class="col-start-1 row-start-1 w-full appearance-none rounded-md border border-slate-300 bg-white py-1.5 pr-8 pl-2.5 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
+        class="col-start-1 row-start-1 w-full appearance-none rounded-[10px] border border-[#e5e7eb] bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
       >
         ${optionsHtml}
       </select>
@@ -356,13 +400,27 @@ function renderSelectFilter(
   </div>`;
 }
 
-function renderActasFilters(filters: ActasFilterState): string {
+function renderActasFilters(filters: ActasFilterState, loading: boolean): string {
+  if (loading) {
+    return `
+      <section class="animate-pulse rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]" aria-busy="true">
+        <div class="h-4 w-16 rounded bg-slate-200"></div>
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div class="h-10 rounded bg-slate-100"></div>
+          <div class="h-10 rounded bg-slate-100"></div>
+          <div class="h-10 rounded bg-slate-100"></div>
+          <div class="h-10 rounded bg-slate-100"></div>
+          <div class="h-10 rounded bg-slate-100"></div>
+        </div>
+      </section>`;
+  }
+
   const clearBtn = hasActiveFilters(filters)
-    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
+    ? `<div class="w-full shrink-0 sm:w-auto">
       <button
         type="button"
         data-rh-actas-clear-filters
-        class="${BTN_GHOST} w-full sm:w-auto"
+        class="${ACTAS_BTN_GHOST} w-full sm:w-auto"
       >
         Limpiar filtros
       </button>
@@ -370,74 +428,146 @@ function renderActasFilters(filters: ActasFilterState): string {
     : "";
 
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de actas">
-      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
-        <div class="${FILTER_FIELD_WRAP}">
-          <label for="rh-actas-f-empleado" class="mb-1 block text-xs font-medium text-gray-800">Empleado</label>
-          <input
-            id="rh-actas-f-empleado"
-            type="search"
-            value="${escapeHtml(filters.empleado_busqueda)}"
-            placeholder="Buscar empleado..."
-            data-rh-actas-empleado-busqueda
-            autocomplete="off"
-            class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
-          />
+    <section class="rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]" aria-label="Filtros de actas">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold text-[#111827]">Filtros</h2>
+        ${clearBtn}
+      </div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="min-w-0">
+          <label for="rh-actas-f-empleado" class="mb-1 block text-xs font-medium text-[#667085]">Empleado</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center text-slate-400">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14 14 3 3m-1.5-8A6.5 6.5 0 1 1 2.5 9a6.5 6.5 0 0 1 13 0Z" /></svg>
+            </span>
+            <input
+              id="rh-actas-f-empleado"
+              type="search"
+              value="${escapeHtml(filters.empleado_busqueda)}"
+              placeholder="Buscar por nombre o número de empleado"
+              data-rh-actas-empleado-busqueda
+              autocomplete="off"
+              class="w-full rounded-[10px] border border-[#e5e7eb] bg-white py-2 pr-3 pl-9 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
+            />
+          </div>
         </div>
-        <div class="${FILTER_FIELD_WRAP}">
-          ${renderSelectFilter("rh-actas-f-sup", "Supervisor", "supervisor", filters.supervisor_id, ACTAS_SUPERVISORES, "Cualquier supervisor")}
+        <div class="min-w-0">
+          ${renderSelectFilter("rh-actas-f-sup", "Supervisor", "supervisor", filters.supervisor_id, ACTAS_SUPERVISORES, "Todos los supervisores")}
         </div>
-        <div class="${FILTER_FIELD_WRAP}">
+        <div class="min-w-0">
           ${renderSelectFilter("rh-actas-f-tipo", "Tipo", "tipo", filters.tipo, ACTAS_TIPOS, "Todos los tipos")}
         </div>
-        <div class="${FILTER_FIELD_WRAP}">
-          ${renderSelectFilter("rh-actas-f-estado", "Estado", "estado", filters.estado, ACTAS_ESTADOS, "Cualquier estado")}
+        <div class="min-w-0">
+          ${renderSelectFilter("rh-actas-f-estado", "Estado", "estado", filters.estado, ACTAS_ESTADOS, "Todos los estados")}
         </div>
-        <div class="${FILTER_FIELD_WRAP}">
-          ${renderSelectFilter("rh-actas-f-periodo", "Periodo", "periodo", filters.periodo, ACTAS_PERIODOS, "Periodo")}
+        <div class="min-w-0">
+          ${renderSelectFilter("rh-actas-f-periodo", "Periodo", "periodo", filters.periodo, ACTAS_PERIODOS, "Últimos 30 días")}
         </div>
-        ${clearBtn}
       </div>
     </section>`;
 }
 
-function renderActasTable(table: ActasTableData, filters: ActasFilterState): string {
-  const emptyHint =
-    filters.empleado_busqueda.trim() ?
-      `<span class="mt-2 block text-xs text-slate-400">Intenta limpiar la búsqueda o cambiar filtros.</span>`
-    : "";
-  const rows =
-    table.items.length === 0
-      ? `<tr><td colspan="7" class="px-3 py-10 text-center text-sm text-slate-500 sm:px-4">Sin actas para los filtros seleccionados.${emptyHint}</td></tr>`
-      : table.items
-          .map(
-            (row) => `
+function renderActasEmptyState(filters: ActasFilterState): string {
+  const showClear = hasActiveFilters(filters);
+  return `
+    <section class="rounded-2xl border border-[#e5e7eb] bg-white p-8 text-center shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+      <div class="mx-auto inline-flex size-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 15.75 4.5 4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+      </div>
+      <h3 class="mt-4 text-lg font-semibold text-[#111827]">No se encontraron actas</h3>
+      <p class="mt-2 text-sm text-[#667085]">Intenta ajustar los filtros o crea una nueva acta administrativa.</p>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+        ${showClear ? `<button type="button" data-rh-actas-clear-filters class="${ACTAS_BTN_GHOST}">Limpiar filtros</button>` : ""}
+        <button type="button" id="rh-actas-nueva-empty" class="${ACTAS_BTN_PRIMARY}">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10 4.25a.75.75 0 0 1 .75.75v4.25H15a.75.75 0 0 1 0 1.5h-4.25V15a.75.75 0 0 1-1.5 0v-4.25H5a.75.75 0 0 1 0-1.5h4.25V5a.75.75 0 0 1 .75-.75Z" /></svg>
+          Nueva acta administrativa
+        </button>
+      </div>
+    </section>`;
+}
+
+function renderActasTable(table: ActasTableData, filters: ActasFilterState, loading: boolean): string {
+  if (loading) {
+    return `
+      <section class="animate-pulse rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]" aria-busy="true">
+        <div class="h-5 w-40 rounded bg-slate-200"></div>
+        <div class="mt-2 h-4 w-28 rounded bg-slate-100"></div>
+        <div class="mt-4 space-y-2">
+          <div class="h-10 rounded bg-slate-100"></div>
+          <div class="h-12 rounded bg-slate-100"></div>
+          <div class="h-12 rounded bg-slate-100"></div>
+          <div class="h-12 rounded bg-slate-100"></div>
+        </div>
+      </section>`;
+  }
+
+  if (table.total === 0) return renderActasEmptyState(filters);
+
+  const rows = table.items
+    .map(
+      (row) => `
       <tr
-        class="cursor-pointer transition-colors hover:bg-slate-100/90 focus-within:bg-slate-50/90"
+        class="cursor-pointer transition-colors hover:bg-slate-50 focus-within:bg-slate-50"
         tabindex="0"
         role="button"
         data-rh-actas-row="1"
         data-rh-actas-id="${row.id}"
       >
-        <td class="px-3 py-2.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>
-        <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">
+        <td class="px-3 py-3.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>
+        <td class="whitespace-nowrap px-3 py-3.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">
           <a
             href="#/actas/${row.id}"
             data-rh-actas-open="${row.id}"
-            class="rounded text-leoni-blue underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            class="rounded text-[#1e40af] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2"
           >${escapeHtml(row.folio)}</a>
         </td>
-        <td class="max-w-40 px-3 py-2.5 align-middle text-sm text-slate-700 sm:px-4"><span class="block truncate" title="${escapeHtml(row.area)}">${escapeHtml(row.area)}</span></td>
-        <td class="px-3 py-2.5 align-middle sm:px-4">${badgeTipo(row.tipo)}</td>
-        <td class="whitespace-nowrap px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha))}</td>
-        <td class="px-3 py-2.5 align-middle sm:px-4">${badgeEstado(row.estado)}</td>
-        <td class="px-3 py-2.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(row.supervisor_nombre)}</td>
+        <td class="max-w-40 px-3 py-3.5 align-middle text-sm text-slate-700 sm:px-4"><span class="block truncate" title="${escapeHtml(row.area)}">${escapeHtml(row.area)}</span></td>
+        <td class="px-3 py-3.5 align-middle sm:px-4">${badgeTipo(row.tipo)}</td>
+        <td class="whitespace-nowrap px-3 py-3.5 align-middle text-sm text-slate-600 sm:px-4">${escapeHtml(fmtFechaCorta(row.fecha))}</td>
+        <td class="px-3 py-3.5 align-middle sm:px-4">${badgeEstado(row.estado)}</td>
+        <td class="max-w-48 px-3 py-3.5 align-middle text-sm text-slate-600 sm:px-4"><span class="block truncate" title="${escapeHtml(row.supervisor_nombre)}">${escapeHtml(row.supervisor_nombre)}</span></td>
+        <td class="whitespace-nowrap px-3 py-3.5 align-middle sm:px-4">
+          <div class="flex items-center gap-1">
+            <a
+              href="#/actas/${row.id}"
+              data-rh-actas-action="view"
+              class="rounded-md px-2 py-1 text-xs font-semibold text-[#1e40af] transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30"
+            >Ver detalle</a>
+            <a
+              href="#/actas/${row.id}"
+              data-rh-actas-action="edit"
+              class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+            >Editar</a>
+            <button
+              type="button"
+              data-rh-actas-action="pdf"
+              data-rh-actas-download="${row.id}"
+              aria-label="Descargar PDF del acta ${escapeHtml(row.folio)}"
+              class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+            >PDF</button>
+          </div>
+        </td>
       </tr>`,
-          )
-          .join("");
+    )
+    .join("");
 
-  const th = (label: string) =>
-    `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold text-white sm:px-4 sm:text-sm">${escapeHtml(label)}</th>`;
+  const th = (
+    label: string,
+    sortable = false,
+    edge: "first" | "last" | "none" = "none",
+  ) =>
+    `<th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 px-3 py-3 text-left text-[13px] font-semibold text-slate-700 sm:px-4 ${
+      edge === "first" ? "rounded-tl-2xl" : edge === "last" ? "rounded-tr-2xl" : ""
+    }">
+      <span class="inline-flex items-center gap-1">
+        ${escapeHtml(label)}
+        ${
+          sortable
+            ? `<svg viewBox="0 0 20 20" fill="currentColor" class="size-3.5 text-slate-300" aria-hidden="true"><path d="M10 4.5 7.25 7.25h5.5L10 4.5Zm0 11 2.75-2.75h-5.5L10 15.5Z" /></svg>`
+            : ""
+        }
+      </span>
+    </th>`;
 
   const totalPages = Math.max(1, Math.ceil(table.total / table.page_size) || 1);
   const from = table.total === 0 ? 0 : (table.page - 1) * table.page_size + 1;
@@ -449,8 +579,8 @@ function renderActasTable(table: ActasTableData, filters: ActasFilterState): str
       }
       const active = x === table.page;
       const cls = active
-        ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
-        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
+        ? "min-h-8 min-w-8 rounded-lg bg-[#1e40af] px-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] sm:px-2.5 sm:text-sm"
+        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
       return `<button type="button" data-rh-actas-page="${x}" class="${cls}">${x}</button>`;
     })
     .join("");
@@ -463,42 +593,75 @@ function renderActasTable(table: ActasTableData, filters: ActasFilterState): str
     rhListadoTablaUsaScrollVerticalViewport(visibleRowCount),
   );
 
+  const mobileCards = table.items
+    .map(
+      (row) => `
+      <article
+        class="rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-sm transition hover:border-slate-300"
+        data-rh-actas-row="1"
+        data-rh-actas-id="${row.id}"
+        role="button"
+        tabindex="0"
+      >
+        <div class="flex items-start justify-between gap-2">
+          ${celdaEmpleado(row)}
+          ${badgeEstado(row.estado)}
+        </div>
+        <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-[#667085]">
+          <div><dt>Folio</dt><dd class="mt-0.5 text-sm font-semibold text-[#111827]">${escapeHtml(row.folio)}</dd></div>
+          <div><dt>Fecha</dt><dd class="mt-0.5 text-sm font-semibold text-[#111827]">${escapeHtml(fmtFechaCorta(row.fecha))}</dd></div>
+          <div><dt>Área</dt><dd class="mt-0.5 truncate text-sm text-[#111827]" title="${escapeHtml(row.area)}">${escapeHtml(row.area)}</dd></div>
+          <div><dt>Supervisor</dt><dd class="mt-0.5 truncate text-sm text-[#111827]" title="${escapeHtml(row.supervisor_nombre)}">${escapeHtml(row.supervisor_nombre)}</dd></div>
+        </dl>
+        <div class="mt-3 flex items-center gap-1">
+          <a href="#/actas/${row.id}" data-rh-actas-action="view" class="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">Ver detalle</a>
+          <a href="#/actas/${row.id}" data-rh-actas-action="edit" class="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">Editar</a>
+          <button type="button" data-rh-actas-action="pdf" data-rh-actas-download="${row.id}" class="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">PDF</button>
+        </div>
+      </article>`,
+    )
+    .join("");
+
   return `
-    <section class="${sectionLayoutCls} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tabla de actas">
-      <div class="${bodyWrapCls}">
+    <section class="${sectionLayoutCls} gap-3 overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]" aria-label="Tabla de actas">
+      <div class="space-y-2 md:hidden">
+        ${mobileCards}
+      </div>
+      <div class="hidden overflow-hidden rounded-t-2xl md:block ${bodyWrapCls}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
-        <table class="min-w-[960px] w-full text-left">
-          <thead class="border-b border-leoni-blue-light shadow-sm">
+        <table class="min-w-[1080px] w-full border-separate border-spacing-0 text-left">
+          <thead class="bg-slate-50">
             <tr>
-              ${th("Empleado")}
-              ${th("Folio")}
+              ${th("Empleado", true, "first")}
+              ${th("Folio", true)}
               ${th("Área")}
               ${th("Tipo")}
-              ${th("Fecha")}
-              ${th("Estado")}
+              ${th("Fecha", true)}
+              ${th("Estado", true)}
               ${th("Supervisor")}
+              ${th("Acciones", false, "last")}
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
+          <tbody class="divide-y divide-slate-100">${rows}</tbody>
         </table>
       </div>
-      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+      <div class="flex shrink-0 flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p class="text-xs font-medium text-slate-600 sm:text-sm">Mostrando ${from}-${to} de ${table.total} actas</p>
           <div class="flex flex-wrap items-center gap-1.5">
             <label for="rh-actas-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
-            <select id="rh-actas-page-size" data-rh-actas-page-size class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40">
+            <select id="rh-actas-page-size" data-rh-actas-page-size class="rounded-[10px] border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm focus:border-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
-          <button type="button" data-rh-actas-page="${table.page - 1}" ${table.page <= 1 ? "disabled" : ""} class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+        <div class="flex flex-wrap items-center justify-start gap-1 sm:justify-end">
+          <button type="button" data-rh-actas-page="${table.page - 1}" ${table.page <= 1 ? "disabled" : ""} class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
-          <button type="button" data-rh-actas-page="${table.page + 1}" ${table.page >= totalPages ? "disabled" : ""} class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+          <button type="button" data-rh-actas-page="${table.page + 1}" ${table.page >= totalPages ? "disabled" : ""} class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
           </button>
@@ -511,38 +674,53 @@ function renderActasMain(
   filters: ActasFilterState,
   table: ActasTableData,
   allRows: readonly ActaTablaFila[],
+  loading: boolean,
 ): string {
+  const listadoHeading = loading
+    ? ""
+    : `<section class="mb-3">
+        <h2 class="text-lg font-semibold text-slate-900">Listado de actas</h2>
+        <p class="text-sm text-slate-500">${table.total} actas encontradas</p>
+      </section>`;
+
   return `
-    <div class="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5">
-      <section class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div class="min-w-0">
-          <p class="min-w-0 max-w-2xl text-xs leading-snug text-text-muted sm:max-w-none sm:text-sm">
+    <div class="mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 bg-[#f6f8fb] px-2 pb-2 sm:gap-6 sm:px-3">
+      <section class="rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-5">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div class="min-w-0">
+            <h1 class="text-[28px] font-semibold leading-tight tracking-tight text-[#111827]">Actas disciplinarias</h1>
+            <p class="mt-1 min-w-0 max-w-2xl text-sm leading-snug text-[#667085]">
             ${escapeHtml("Registro y seguimiento de actas disciplinarias del personal.")}
-          </p>
-        </div>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-2.5">
-          <button
-            type="button"
-            id="rh-actas-export"
-            class="${BTN_SECONDARY}"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            Exportar actas
-          </button>
-          <button
-            type="button"
-            id="rh-actas-nueva"
-            class="${BTN_PRIMARY}"
-          >
-            <span aria-hidden="true">+</span> Nueva acta administrativa
-          </button>
+            </p>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center justify-start gap-2 md:justify-end">
+            <button
+              type="button"
+              id="rh-actas-export"
+              class="${ACTAS_BTN_SECONDARY}"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Exportar actas
+            </button>
+            <button
+              type="button"
+              id="rh-actas-nueva"
+              class="${ACTAS_BTN_PRIMARY}"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10 4.25a.75.75 0 0 1 .75.75v4.25H15a.75.75 0 0 1 0 1.5h-4.25V15a.75.75 0 0 1-1.5 0v-4.25H5a.75.75 0 0 1 0-1.5h4.25V5a.75.75 0 0 1 .75-.75Z" /></svg>
+              Nueva acta administrativa
+            </button>
+          </div>
         </div>
       </section>
-      ${renderStatsCards(allRows)}
-      ${renderActasFilters(filters)}
-      ${renderActasTable(table, filters)}
+      ${renderStatsCards(allRows, filters, loading)}
+      ${renderActasFilters(filters, loading)}
+      <div>
+        ${listadoHeading}
+        ${renderActasTable(table, filters, loading)}
+      </div>
     </div>`;
 }
 
@@ -561,6 +739,7 @@ export function mountActas(container: HTMLElement): void {
 
   const state: ActasFilterState = { ...DEFAULT_FILTERS };
   const allRows: ActaTablaFila[] = [];
+  let isLoading = true;
   const modalEmpleadoOptions: NuevaActaEmpleadoOption[] = [];
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let empleadosModalLoadingPromise: Promise<void> | null = null;
@@ -612,7 +791,7 @@ export function mountActas(container: HTMLElement): void {
     activeNav: "actas",
     mainClass: actasMainClass,
     mainHtml: `<div id="rh-actas-page" class="flex min-h-[calc(100dvh-11rem)] flex-col">
-      <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable, allRows)}</div>
+      <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable, allRows, isLoading)}</div>
       <div id="rh-actas-nueva-modal-host" class="shrink-0"></div>
     </div>`,
   });
@@ -696,6 +875,7 @@ export function mountActas(container: HTMLElement): void {
     }
     allRows.splice(0, allRows.length, ...items.map(mapActaListItemToRow));
     state.page = 1;
+    isLoading = false;
     paint();
   }
 
@@ -716,7 +896,7 @@ export function mountActas(container: HTMLElement): void {
       };
     }
     const table = tableFromState();
-    if (inner) inner.innerHTML = renderActasMain(state, table, allRows);
+    if (inner) inner.innerHTML = renderActasMain(state, table, allRows, isLoading);
     if (restoreSearch) {
       const el = container.querySelector<HTMLInputElement>("[data-rh-actas-empleado-busqueda]");
       if (el) {
@@ -773,11 +953,30 @@ export function mountActas(container: HTMLElement): void {
 
   pageRoot?.addEventListener("click", async (event) => {
     const target = event.target as HTMLElement;
+    const actionBtn = target.closest<HTMLElement>("[data-rh-actas-action]");
+    if (actionBtn) {
+      if (actionBtn.getAttribute("data-rh-actas-action") === "pdf") {
+        showEmpleadosToast(container, "Descarga PDF disponible desde el detalle del acta.", "success");
+      }
+      return;
+    }
+
+    const metric = target.closest<HTMLButtonElement>("[data-rh-actas-metric]");
+    if (metric) {
+      const value = metric.getAttribute("data-rh-actas-metric");
+      if (value === "abierta" || value === "en_proceso" || value === "firmada" || value === "cerrada") {
+        state.estado = state.estado === value ? "" : value;
+        state.page = 1;
+        paint();
+      }
+      return;
+    }
+
     const openLink = target.closest<HTMLAnchorElement>("[data-rh-actas-open]");
     if (openLink) {
       return;
     }
-    const row = target.closest<HTMLTableRowElement>("tr[data-rh-actas-row]");
+    const row = target.closest<HTMLElement>("[data-rh-actas-row]");
     if (row) {
       const raw = row.getAttribute("data-rh-actas-id");
       const id = raw ? Number.parseInt(raw, 10) : NaN;
@@ -786,7 +985,7 @@ export function mountActas(container: HTMLElement): void {
       }
       return;
     }
-    if (target.closest("#rh-actas-nueva")) {
+    if (target.closest("#rh-actas-nueva") || target.closest("#rh-actas-nueva-empty")) {
       try {
         await ensureModalEmpleadoOptionsLoaded();
       } catch (error: unknown) {
@@ -824,7 +1023,7 @@ export function mountActas(container: HTMLElement): void {
 
   pageRoot?.addEventListener("keydown", (event: Event) => {
     const ke = event as KeyboardEvent;
-    const row = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-actas-row]");
+    const row = (ke.target as HTMLElement | null)?.closest?.("[data-rh-actas-row]");
     if (!row) return;
     if (ke.key !== "Enter" && ke.key !== " ") return;
     ke.preventDefault();
@@ -836,6 +1035,8 @@ export function mountActas(container: HTMLElement): void {
   });
 
   void loadActasFromBackend().catch((error: unknown) => {
+    isLoading = false;
+    paint();
     const msg =
       typeof error === "object" && error !== null && "status" in error && (error as { status?: number }).status === 401
         ? "Tu sesión expiró. Inicia sesión nuevamente."
