@@ -15,14 +15,16 @@ import secrets
 import string
 import uuid
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     ConflictError,
+    DomainValidationError,
     ForbiddenError,
     NotFoundError,
     UnauthorizedError,
@@ -77,10 +79,16 @@ from app.utils.business_time import (
     business_now,
     business_today,
     dentro_ventana_acceso_comedor,
+    primera_fecha_reserva_comedor_permitida,
     primer_lunes_reserva_comedor_permitido,
 )
 
 logger = logging.getLogger(__name__)
+
+_MENSAJE_FECHA_LIMITE_COMEDOR = (
+    "La fecha límite para modificar este servicio de comedor ya venció "
+    "(jueves de la semana anterior)."
+)
 
 
 class ComedorService:
@@ -135,6 +143,51 @@ class ComedorService:
         if len(tokens) == 1:
             return _title(tokens[0])
         return f"{_title(tokens[0])} {_title(tokens[1])}"
+
+    @staticmethod
+    def _normalizar_fecha_transaccion(fecha_transaccion: datetime) -> datetime:
+        if fecha_transaccion.tzinfo is not None:
+            return fecha_transaccion
+        tz = ZoneInfo(settings.APP_TIMEZONE)
+        return fecha_transaccion.replace(tzinfo=tz)
+
+    @staticmethod
+    def _calcular_deadline_modificacion(fecha_servicio: date, tz: tzinfo) -> datetime:
+        inicio_semana_servicio = fecha_servicio - timedelta(days=fecha_servicio.weekday())
+        jueves_semana_previa = inicio_semana_servicio - timedelta(days=4)
+        return datetime.combine(
+            jueves_semana_previa,
+            time(hour=23, minute=59, second=59),
+            tzinfo=tz,
+        )
+
+    def _validar_ventana_modificacion_reserva(
+        self,
+        fecha_servicio: date,
+        fecha_transaccion: datetime | None = None,
+    ) -> None:
+        transaccion = self._normalizar_fecha_transaccion(
+            fecha_transaccion or business_now()
+        )
+        tz = transaccion.tzinfo
+        if tz is None:
+            tz = ZoneInfo(settings.APP_TIMEZONE)
+            transaccion = transaccion.replace(tzinfo=tz)
+        deadline = self._calcular_deadline_modificacion(fecha_servicio, tz)
+        if transaccion > deadline:
+            raise DomainValidationError(detail=_MENSAJE_FECHA_LIMITE_COMEDOR)
+
+    def _validar_ventana_modificacion_reservas(
+        self,
+        fechas_servicio: list[date],
+        fecha_transaccion: datetime | None = None,
+    ) -> None:
+        transaccion = fecha_transaccion or business_now()
+        for fecha in fechas_servicio:
+            self._validar_ventana_modificacion_reserva(
+                fecha_servicio=fecha,
+                fecha_transaccion=transaccion,
+            )
 
     async def _resolver_beneficiario_reserva(
         self,
@@ -350,9 +403,8 @@ class ComedorService:
     # ── Reserva diaria (comedor_accesos) ───────────────────────
 
     def primera_fecha_reserva_permitida(self) -> ComedorPrimeraFechaReservaResponse:
-        hoy = business_today()
         return ComedorPrimeraFechaReservaResponse(
-            fecha_iso=primer_lunes_reserva_comedor_permitido(hoy),
+            fecha_iso=primera_fecha_reserva_comedor_permitida(business_now()),
         )
 
     async def list_mis_reservas_mes(
@@ -665,6 +717,7 @@ class ComedorService:
         fechas: list[date],
         tipo_enum: ComedorTipoComida,
     ) -> int:
+        self._validar_ventana_modificacion_reservas(fechas)
         creados = 0
         for empleado_id in empleado_ids:
             semanas = sorted({f - timedelta(days=f.weekday()) for f in fechas})
@@ -857,13 +910,7 @@ class ComedorService:
         if not fechas:
             raise ConflictError(detail="Debes seleccionar al menos una fecha de servicio")
 
-        hoy = business_today()
-        primer_lunes = primer_lunes_reserva_comedor_permitido(hoy)
-        for fecha_servicio in fechas:
-            if fecha_servicio < primer_lunes:
-                raise ForbiddenError(
-                    detail="Solo puedes agendar comidas a partir del lunes de la semana siguiente",
-                )
+        self._validar_ventana_modificacion_reservas(fechas)
 
         tipo_enum = ComedorTipoComida(data.tipo_comida)
 
@@ -1037,11 +1084,7 @@ class ComedorService:
         if not acceso:
             raise NotFoundError(entidad="Acceso comedor", id=acceso_id)
 
-        primer_lunes = primer_lunes_reserva_comedor_permitido(business_today())
-        if acceso.fecha_servicio < primer_lunes:
-            raise ConflictError(
-                detail="Solo puedes cancelar reservas de semanas futuras",
-            )
+        self._validar_ventana_modificacion_reserva(acceso.fecha_servicio)
         if acceso.estado_acceso != ComedorAccesoEstado.PENDIENTE:
             raise ConflictError(
                 detail="Solo puedes cancelar reservas pendientes",

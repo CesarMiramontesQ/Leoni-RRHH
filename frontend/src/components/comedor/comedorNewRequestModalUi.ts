@@ -303,7 +303,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
           <label for="comedor-modal-date-start" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Rango de fechas</label>
           ${
             fechaMinIso
-              ? `<p class="mb-1.5 text-xs text-slate-500">Reservas con al menos una semana de anticipación. Puedes seleccionar desde ${escapeHtml(fechaMinIso)}.</p>`
+              ? `<p class="mb-1.5 text-xs text-slate-500">Solo puedes registrar dentro de la ventana permitida (hasta jueves previo). Fechas disponibles desde ${escapeHtml(fechaMinIso)}.</p>`
               : ""
           }
           <div class="relative">

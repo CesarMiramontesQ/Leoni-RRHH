@@ -1,13 +1,23 @@
 /**
- * Alineado con `primer_lunes_reserva_comedor_permitido` en backend (semana calendario lunes–domingo).
+ * Alineado con `primera_fecha_reserva_comedor_permitida` en backend.
+ * Regla: si ya pasó el jueves 23:59:59, bloquea toda la semana siguiente.
  */
 export function primerLunesReservaComedorPermitido(ref: Date = new Date()): Date {
   const hoy = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   const weekday = (hoy.getDay() + 6) % 7;
   const lunesActual = new Date(hoy);
   lunesActual.setDate(hoy.getDate() - weekday);
+  const limiteJueves = new Date(
+    lunesActual.getFullYear(),
+    lunesActual.getMonth(),
+    lunesActual.getDate() + 3,
+    23,
+    59,
+    59,
+    999,
+  );
   const permitido = new Date(lunesActual);
-  permitido.setDate(lunesActual.getDate() + 7);
+  permitido.setDate(lunesActual.getDate() + (ref <= limiteJueves ? 7 : 14));
   return permitido;
 }
 

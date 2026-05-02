@@ -2463,7 +2463,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           if (row.fecha_servicio < fechaMinReservaIso) {
             showEmpleadosToast(
               container,
-              "Solo puedes editar reservas de semanas futuras.",
+              "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).",
               "error",
             );
             return;
@@ -2484,7 +2484,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           if (row.fecha_servicio < fechaMinReservaIso) {
             showEmpleadosToast(
               container,
-              "Solo puedes cancelar reservas de semanas futuras.",
+              "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).",
               "error",
             );
             return;
