@@ -102,9 +102,17 @@ function parsePeopleList(raw: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+function normalizeNumeroEmpleadoDisplay(value: string | null | undefined): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (/^\d+\.0+$/.test(raw)) return raw.replace(/\.0+$/, "");
+  return raw;
+}
+
 function buildActaDetalleFromApi(data: {
   id: number;
   empleado_id: number;
+  empleado_nombre: string | null;
   numero_empleado: string | null;
   area_departamento: string | null;
   supervisor_directo: string | null;
@@ -121,8 +129,10 @@ function buildActaDetalleFromApi(data: {
   estado: "draft" | "pending_sign" | "signed" | "archived";
   created_at: string;
 }): ActaDetalle {
-  const numero = data.numero_empleado?.trim() || String(data.empleado_id);
-  const nombre = `Empleado ${numero}`;
+  const numero =
+    normalizeNumeroEmpleadoDisplay(data.numero_empleado) ||
+    "Sin numero";
+  const nombre = data.empleado_nombre?.trim() || `Empleado ${numero}`;
   const created = data.created_at;
   const eventoDate = data.fecha_evento
     ? `${data.fecha_evento}T00:00:00`
@@ -306,7 +316,7 @@ function renderDetalleHtml(acta: ActaDetalle): string {
               ${avatar}
               <div class="min-w-0">
                 <p class="truncate text-base font-semibold text-slate-900">${escapeHtml(nombreEmpleado)}</p>
-                <p class="text-sm font-medium text-leoni-blue">ID: ${escapeHtml(acta.empleado.id)}</p>
+                <p class="text-sm font-medium text-leoni-blue">No. empleado: ${escapeHtml(acta.empleado.id)}</p>
               </div>
             </div>
             <dl class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">

@@ -29,6 +29,7 @@ export type ActaCreateResponse = {
 export type ActaListItem = {
   id: number;
   empleado_id: number;
+  empleado_nombre: string | null;
   numero_empleado: string | null;
   area_departamento: string | null;
   supervisor_directo: string | null;
@@ -41,6 +42,7 @@ export type ActaListItem = {
 export type ActaDetailResponse = {
   id: number;
   empleado_id: number;
+  empleado_nombre: string | null;
   numero_empleado: string | null;
   area_departamento: string | null;
   supervisor_directo: string | null;

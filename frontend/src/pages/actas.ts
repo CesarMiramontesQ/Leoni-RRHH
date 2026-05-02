@@ -246,6 +246,13 @@ function createFolioFromId(id: number): string {
   return `ACT-${String(id).padStart(4, "0")}`;
 }
 
+function normalizeNumeroEmpleadoDisplay(value: string | null | undefined): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (/^\d+\.0+$/.test(raw)) return raw.replace(/\.0+$/, "");
+  return raw;
+}
+
 function mapBackendEstadoToTableEstado(
   estado: "draft" | "pending_sign" | "signed" | "archived",
 ): ActaEstadoCodigo {
@@ -257,13 +264,16 @@ function mapBackendEstadoToTableEstado(
 
 function mapActaListItemToRow(item: ActaListItem): ActaTablaFila {
   const fecha = item.fecha_evento?.trim() || item.created_at.slice(0, 10);
-  const numeroEmpleado = item.numero_empleado?.trim() || String(item.empleado_id);
+  const numeroEmpleado =
+    normalizeNumeroEmpleadoDisplay(item.numero_empleado) ||
+    String(item.empleado_id);
+  const nombreEmpleado = item.empleado_nombre?.trim() || `Empleado ${numeroEmpleado}`;
   const supervisor = item.supervisor_directo?.trim() || "Sin supervisor";
   return {
     id: item.id,
     folio: createFolioFromId(item.id),
     empleado_id: numeroEmpleado,
-    empleado_nombre_raw: `Empleado ${numeroEmpleado}`,
+    empleado_nombre_raw: nombreEmpleado,
     foto_url: null,
     area: item.area_departamento?.trim() || "Sin área",
     supervisor_id: "sup-1",

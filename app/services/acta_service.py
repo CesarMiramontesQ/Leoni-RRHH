@@ -83,11 +83,29 @@ class ActaService:
     def _get_rol(self, current_user: Empleado) -> str:
         return current_user.rol.nombre if current_user.rol else "empleado"
 
+    @staticmethod
+    def _normalizar_numero_empleado(numero: str | None) -> str | None:
+        if numero is None:
+            return None
+        raw = str(numero).strip()
+        if not raw:
+            return None
+        if raw.endswith(".0"):
+            entero = raw[:-2]
+            if entero.isdigit():
+                return entero
+        return raw
+
     def _build_response(self, acta: ActaAdministrativa) -> ActaResponse:
         aprobaciones = getattr(acta, "aprobaciones", []) or []
         roles_firmados = {a.rol_firmante for a in aprobaciones if a.firma_timestamp}
         firmantes_pendientes = sorted(_ROLES_FIRMANTES_REQUERIDOS - roles_firmados)
         r = ActaResponse.model_validate(acta)
+        if getattr(acta, "empleado", None):
+            r.empleado_nombre = acta.empleado.nombre
+            # Fuente de verdad: siempre usar no_empleado del registro real de empleados.
+            r.numero_empleado = acta.empleado.no_empleado
+        r.numero_empleado = self._normalizar_numero_empleado(r.numero_empleado)
         r.aprobaciones = [ActaAprobacionResponse.model_validate(a) for a in aprobaciones]
         r.firmantes_pendientes = firmantes_pendientes
         return r
@@ -247,7 +265,7 @@ class ActaService:
 
         acta = await self.repo.create({
             "empleado_id": data.empleado_id,
-            "numero_empleado": data.numero_empleado,
+            "numero_empleado": self._normalizar_numero_empleado(data.numero_empleado),
             "area_departamento": data.area_departamento,
             "supervisor_directo": data.supervisor_directo,
             "tipo_falta": data.tipo_falta,

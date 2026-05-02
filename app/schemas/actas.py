@@ -69,6 +69,7 @@ class ActaResponse(BaseModel):
 
     id: int
     empleado_id: int
+    empleado_nombre: Optional[str] = None
     numero_empleado: Optional[str] = None
     area_departamento: Optional[str] = None
     supervisor_directo: Optional[str] = None
