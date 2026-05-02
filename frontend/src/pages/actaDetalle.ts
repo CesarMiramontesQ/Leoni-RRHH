@@ -1,6 +1,12 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import { getActaById, improveActaWithIa } from "../api/actas.ts";
+import {
+  getActaById,
+  improveActaWithIa,
+  updateActaAdministrativa,
+  type ActaDetailResponse,
+  type ActaUpdatePayload,
+} from "../api/actas.ts";
 import {
   type ActaAdjunto,
   type ActaDetalle,
@@ -382,9 +388,66 @@ function renderIaActionButton(hasRecommendation: boolean): string {
   `;
 }
 
-function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): string {
+type ActaEditDraft = {
+  tipo_falta: string;
+  fundamento_legal: "Ley Federal del Trabajo" | "Reglamento Interior de Trabajo";
+  articulo_inciso: string;
+  fecha_evento: string;
+  lugar_incidente: string;
+  descripcion_hechos: string;
+  personas_involucradas: string;
+  testigos: string;
+  responsable_rh: string;
+};
+
+type EditStatus = {
+  tone: "error" | "success";
+  message: string;
+};
+
+function toDateInputValue(value: string | null): string {
+  if (!value) return "";
+  const source = value.includes("T") ? value : `${value}T00:00:00`;
+  const date = new Date(source);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function buildEditDraftFromApi(data: ActaDetailResponse): ActaEditDraft {
+  return {
+    tipo_falta: data.tipo_falta?.trim() || "",
+    fundamento_legal: data.fundamento_legal || "Ley Federal del Trabajo",
+    articulo_inciso: data.articulo_inciso?.trim() || "",
+    fecha_evento: toDateInputValue(data.fecha_evento),
+    lugar_incidente: data.lugar_incidente?.trim() || "",
+    descripcion_hechos: data.descripcion_hechos?.trim() || "",
+    personas_involucradas: data.personas_involucradas?.trim() || "",
+    testigos: data.testigos?.trim() || "",
+    responsable_rh: data.responsable_rh?.trim() || "",
+  };
+}
+
+function normalizeNullable(value: string): string | null {
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function renderDetalleHtml(
+  acta: ActaDetalle,
+  hasIaRecommendation: boolean,
+  options: {
+    isEditMode: boolean;
+    isSavingEdit: boolean;
+    editDraft: ActaEditDraft | null;
+    editStatus: EditStatus | null;
+  },
+): string {
   const nombreEmpleado = formatNombreEmpleadoUi(acta.empleado.nombre) || acta.empleado.nombre;
   const iniciales = inicialesDesdeNombreDisplay(nombreEmpleado);
+  const isEditMode = options.isEditMode;
+  const isSavingEdit = options.isSavingEdit;
+  const editDraft = options.editDraft;
+  const editStatus = options.editStatus;
   const avatar = acta.empleado.foto_url?.trim()
     ? `<img src="${escapeHtml(acta.empleado.foto_url)}" alt="" class="size-14 shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />`
     : `<span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e40af] to-[#1d4ed8] text-sm font-semibold text-white shadow-sm">${escapeHtml(iniciales)}</span>`;
@@ -431,6 +494,24 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
         .join("")
     : `<li class="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">Sin historial registrado.</li>`;
 
+  const editStatusHtml = editStatus
+    ? `<p class="mt-3 rounded-lg border px-3 py-2 text-sm ${
+        editStatus.tone === "error"
+          ? "border-red-200 bg-red-50 text-red-800"
+          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+      }">${escapeHtml(editStatus.message)}</p>`
+    : "";
+
+  const tipoIncidenciaValue = editDraft?.tipo_falta ?? acta.evento.tipo_incidencia;
+  const fechaEventoValue = editDraft?.fecha_evento ?? toDateInputValue(acta.evento.fecha_hora);
+  const ubicacionValue = editDraft?.lugar_incidente ?? acta.evento.ubicacion;
+  const descripcionValue = editDraft?.descripcion_hechos ?? acta.evento.descripcion;
+  const fundamentoLegalValue = editDraft?.fundamento_legal ?? "Ley Federal del Trabajo";
+  const articuloValue = editDraft?.articulo_inciso ?? "";
+  const involucradosValue = editDraft?.personas_involucradas ?? "";
+  const testigosValue = editDraft?.testigos ?? "";
+  const responsableRhValue = editDraft?.responsable_rh ?? "";
+
   return `
     <div id="rh-acta-detalle-root" class="space-y-6">
       <div>
@@ -454,12 +535,44 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V3m0 13.5 4.5-4.5M12 16.5l-4.5-4.5M4.5 21h15" /></svg>
               Descargar PDF
             </button>
-            <button type="button" class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487ZM19.5 7.125 16.875 4.5" /></svg>
-              Editar Acta
-            </button>
+            ${
+              isEditMode
+                ? `<button
+                    type="button"
+                    data-rh-acta-cancel-edit
+                    ${isSavingEdit ? "disabled" : ""}
+                    class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    data-rh-acta-save-edit
+                    ${isSavingEdit ? "disabled" : ""}
+                    class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    ${
+                      isSavingEdit
+                        ? `<svg class="size-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                           </svg>
+                           Guardando...`
+                        : "Guardar"
+                    }
+                  </button>`
+                : `<button
+                    type="button"
+                    data-rh-acta-start-edit
+                    class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487ZM19.5 7.125 16.875 4.5" /></svg>
+                    Editar Acta
+                  </button>`
+            }
           </div>
         </div>
+        ${editStatusHtml}
       </section>
 
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
@@ -482,15 +595,61 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
 
           <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
             <h2 class="text-[17px] font-semibold text-[#111827]">Detalle del evento</h2>
-            <dl class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-              <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
-              <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Fecha y hora</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
-              <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Ubicación</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
-            </dl>
-            <div class="mt-4 rounded-xl border border-slate-200 bg-[#f8fafc] px-4 py-3">
-              <p class="text-[12px] font-medium text-[#667085]">Descripción de los hechos</p>
-              <p class="mt-2 text-[15px] leading-relaxed text-slate-700">${escapeHtml(acta.evento.descripcion)}</p>
-            </div>
+            ${
+              isEditMode
+                ? `<div class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                       <span class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</span>
+                       <input data-rh-acta-edit-tipo type="text" value="${escapeHtml(tipoIncidenciaValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                       <span class="text-[12px] font-medium text-[#667085]">Fundamento legal</span>
+                       <select data-rh-acta-edit-fundamento class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
+                         <option value="Ley Federal del Trabajo" ${fundamentoLegalValue === "Ley Federal del Trabajo" ? "selected" : ""}>Ley Federal del Trabajo</option>
+                         <option value="Reglamento Interior de Trabajo" ${fundamentoLegalValue === "Reglamento Interior de Trabajo" ? "selected" : ""}>Reglamento Interior de Trabajo</option>
+                       </select>
+                     </label>
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                       <span class="text-[12px] font-medium text-[#667085]">Artículo / inciso</span>
+                       <input data-rh-acta-edit-articulo type="text" value="${escapeHtml(articuloValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                       <span class="text-[12px] font-medium text-[#667085]">Fecha del evento</span>
+                       <input data-rh-acta-edit-fecha type="date" value="${escapeHtml(fechaEventoValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5 md:col-span-2">
+                       <span class="text-[12px] font-medium text-[#667085]">Ubicación</span>
+                       <input data-rh-acta-edit-ubicacion type="text" value="${escapeHtml(ubicacionValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                   </div>
+                   <label class="mt-4 block rounded-xl border border-slate-200 bg-[#f8fafc] px-4 py-3">
+                     <span class="text-[12px] font-medium text-[#667085]">Descripción de los hechos</span>
+                     <textarea data-rh-acta-edit-descripcion rows="4" class="mt-2 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] leading-relaxed text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">${escapeHtml(descripcionValue)}</textarea>
+                   </label>
+                   <div class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                       <span class="text-[12px] font-medium text-[#667085]">Personas involucradas (separadas por coma)</span>
+                       <input data-rh-acta-edit-involucradas type="text" value="${escapeHtml(involucradosValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                       <span class="text-[12px] font-medium text-[#667085]">Testigos (separados por coma)</span>
+                       <input data-rh-acta-edit-testigos type="text" value="${escapeHtml(testigosValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                     <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5 md:col-span-2">
+                       <span class="text-[12px] font-medium text-[#667085]">Responsable RH</span>
+                       <input data-rh-acta-edit-responsable type="text" value="${escapeHtml(responsableRhValue)}" class="mt-1.5 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[15px] text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30" />
+                     </label>
+                   </div>`
+                : `<dl class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+                     <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
+                     <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Fecha y hora</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
+                     <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Ubicación</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
+                   </dl>
+                   <div class="mt-4 rounded-xl border border-slate-200 bg-[#f8fafc] px-4 py-3">
+                     <p class="text-[12px] font-medium text-[#667085]">Descripción de los hechos</p>
+                     <p class="mt-2 text-[15px] leading-relaxed text-slate-700">${escapeHtml(acta.evento.descripcion)}</p>
+                   </div>`
+            }
           </section>
 
           <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
@@ -640,6 +799,58 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   let isRegeneratingIa = false;
   let iaTextoMejorado = "";
   let hasIaRecommendation = false;
+  let actaData: ActaDetailResponse | null = null;
+  let isEditMode = false;
+  let isSavingEdit = false;
+  let editDraft: ActaEditDraft | null = null;
+  let editStatus: EditStatus | null = null;
+
+  function renderPageContent(): void {
+    if (!actaData) return;
+    page.innerHTML = renderDetalleHtml(
+      buildActaDetalleFromApi(actaData),
+      hasIaRecommendation,
+      {
+        isEditMode,
+        isSavingEdit,
+        editDraft,
+        editStatus,
+      },
+    );
+  }
+
+  function getInputValue(selector: string): string {
+    const input = page.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(selector);
+    return input?.value.trim() || "";
+  }
+
+  function buildEditPayloadFromForm(): ActaUpdatePayload {
+    return {
+      tipo_falta: getInputValue("[data-rh-acta-edit-tipo]"),
+      fundamento_legal: (getInputValue("[data-rh-acta-edit-fundamento]") || "Ley Federal del Trabajo") as
+        | "Ley Federal del Trabajo"
+        | "Reglamento Interior de Trabajo",
+      articulo_inciso: normalizeNullable(getInputValue("[data-rh-acta-edit-articulo]")),
+      fecha_evento: getInputValue("[data-rh-acta-edit-fecha]"),
+      lugar_incidente: getInputValue("[data-rh-acta-edit-ubicacion]"),
+      descripcion_hechos: getInputValue("[data-rh-acta-edit-descripcion]"),
+      personas_involucradas: normalizeNullable(getInputValue("[data-rh-acta-edit-involucradas]")),
+      testigos: normalizeNullable(getInputValue("[data-rh-acta-edit-testigos]")),
+      responsable_rh: getInputValue("[data-rh-acta-edit-responsable]"),
+    };
+  }
+
+  function validateEditPayload(payload: ActaUpdatePayload): string | null {
+    if (!payload.tipo_falta) return "El tipo de incidencia es obligatorio.";
+    if (!payload.fundamento_legal) return "El fundamento legal es obligatorio.";
+    if (!payload.fecha_evento || !/^\d{4}-\d{2}-\d{2}$/.test(payload.fecha_evento)) {
+      return "La fecha del evento es obligatoria y debe tener formato válido.";
+    }
+    if (!payload.lugar_incidente) return "La ubicación es obligatoria.";
+    if (!payload.descripcion_hechos) return "La descripción de los hechos es obligatoria.";
+    if (!payload.responsable_rh) return "El responsable RH es obligatorio.";
+    return null;
+  }
 
   const improveBtnIdleHtml = `
     <span aria-hidden="true">✨</span>
@@ -754,9 +965,10 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   void (async () => {
     try {
       const data = await getActaById(actaId, signal);
+      actaData = data;
       iaTextoMejorado = (data.ia_recomendacion || "").trim();
       hasIaRecommendation = Boolean(iaTextoMejorado);
-      page.innerHTML = renderDetalleHtml(buildActaDetalleFromApi(data), hasIaRecommendation);
+      renderPageContent();
       return;
     } catch (error: unknown) {
       if (signal.aborted) return;
@@ -791,6 +1003,65 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   page.addEventListener(
     "click",
     (event) => {
+      const startEditBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-start-edit]");
+      if (startEditBtn) {
+        if (!actaData || isSavingEdit) return;
+        editDraft = buildEditDraftFromApi(actaData);
+        editStatus = null;
+        isEditMode = true;
+        renderPageContent();
+        return;
+      }
+
+      const cancelEditBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-cancel-edit]");
+      if (cancelEditBtn) {
+        if (isSavingEdit) return;
+        isEditMode = false;
+        editDraft = actaData ? buildEditDraftFromApi(actaData) : null;
+        editStatus = null;
+        renderPageContent();
+        return;
+      }
+
+      const saveEditBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-save-edit]");
+      if (saveEditBtn) {
+        if (!actaData || !isEditMode || isSavingEdit) return;
+        const payload = buildEditPayloadFromForm();
+        const validationError = validateEditPayload(payload);
+        if (validationError) {
+          editStatus = { tone: "error", message: validationError };
+          renderPageContent();
+          return;
+        }
+
+        isSavingEdit = true;
+        editStatus = null;
+        renderPageContent();
+
+        void (async () => {
+          try {
+            const updatedActa = await updateActaAdministrativa(actaId, payload, signal);
+            actaData = updatedActa;
+            isEditMode = false;
+            editDraft = buildEditDraftFromApi(actaData);
+            editStatus = { tone: "success", message: "Acta actualizada correctamente." };
+            renderPageContent();
+          } catch (error: unknown) {
+            if (signal.aborted) return;
+            const err = error as { detail?: string } | null;
+            editStatus = {
+              tone: "error",
+              message: err?.detail || "No se pudieron guardar los cambios. Intenta nuevamente.",
+            };
+            renderPageContent();
+          } finally {
+            isSavingEdit = false;
+            renderPageContent();
+          }
+        })();
+        return;
+      }
+
       const dropzoneTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
       if (dropzoneTrigger) {
         const input = page.querySelector<HTMLInputElement>("[data-rh-acta-adjuntos-input]");

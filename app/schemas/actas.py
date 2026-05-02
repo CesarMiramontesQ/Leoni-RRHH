@@ -16,12 +16,6 @@ class ActaGenerarRequest(BaseModel):
     incidencia_id: Optional[int] = None
 
 
-class ActaEditarRequest(BaseModel):
-    model_config = {"str_strip_whitespace": True}
-
-    contenido_final: str
-
-
 class ActaFirmarRequest(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
@@ -41,6 +35,21 @@ class ActaCreateRequest(BaseModel):
     numero_empleado: str
     area_departamento: str
     supervisor_directo: str
+    tipo_falta: str
+    fundamento_legal: FundamentoLegalActa
+    articulo_inciso: Optional[str] = None
+    fecha_evento: date
+    lugar_incidente: str
+    descripcion_hechos: str
+    personas_involucradas: Optional[str] = None
+    testigos: Optional[str] = None
+    responsable_rh: str
+    evidencia: Optional[str] = None
+
+
+class ActaEditarRequest(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
     tipo_falta: str
     fundamento_legal: FundamentoLegalActa
     articulo_inciso: Optional[str] = None

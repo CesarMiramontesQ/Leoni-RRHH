@@ -37,6 +37,7 @@ from app.schemas import PaginatedResponse
 from app.schemas.actas import (
     ActaAprobacionResponse,
     ActaCreateRequest,
+    ActaEditarRequest,
     ActaFirmarRequest,
     ActaGenerarRequest,
     ActaResponse,
@@ -143,15 +144,41 @@ class ActaService:
                 return entero
         return raw
 
-    def _build_response(self, acta: ActaAdministrativa) -> ActaResponse:
+    async def _build_response(self, acta: ActaAdministrativa) -> ActaResponse:
         aprobaciones = getattr(acta, "aprobaciones", []) or []
         roles_firmados = {a.rol_firmante for a in aprobaciones if a.firma_timestamp}
         firmantes_pendientes = sorted(_ROLES_FIRMANTES_REQUERIDOS - roles_firmados)
         r = ActaResponse.model_validate(acta)
-        if getattr(acta, "empleado", None):
-            r.empleado_nombre = acta.empleado.nombre
-            # Fuente de verdad: siempre usar no_empleado del registro real de empleados.
-            r.numero_empleado = acta.empleado.no_empleado
+
+        # En registros historicos puede existir desalineacion entre empleado_id y numero_empleado.
+        # Si el acta trae numero_empleado, priorizamos resolver el empleado por ese numero.
+        numero_acta = self._normalizar_numero_empleado(getattr(acta, "numero_empleado", None))
+        empleado_por_numero = None
+        if numero_acta:
+            candidatos = [numero_acta]
+            if numero_acta.isdigit():
+                # Compatibilidad con datos legacy que guardaron numero como decimal string.
+                candidatos.append(f"{numero_acta}.0")
+            result_emp = await self.db.execute(
+                select(Empleado).where(Empleado.no_empleado.in_(candidatos))
+            )
+            empleado_por_numero = result_emp.scalar_one_or_none()
+
+        if empleado_por_numero:
+            r.empleado_nombre = empleado_por_numero.nombre
+            r.numero_empleado = empleado_por_numero.no_empleado
+        else:
+            empleado_rel = getattr(acta, "empleado", None)
+            if empleado_rel:
+                r.empleado_nombre = empleado_rel.nombre
+                r.numero_empleado = empleado_rel.no_empleado
+
+        numero_rel = self._normalizar_numero_empleado(r.numero_empleado)
+        if numero_acta and numero_acta != numero_rel:
+            r.numero_empleado = numero_acta
+
+        if not r.numero_empleado and numero_acta:
+            r.numero_empleado = numero_acta
         r.numero_empleado = self._normalizar_numero_empleado(r.numero_empleado)
         r.aprobaciones = [ActaAprobacionResponse.model_validate(a) for a in aprobaciones]
         r.firmantes_pendientes = firmantes_pendientes
@@ -197,7 +224,7 @@ class ActaService:
         response_items = []
         for item in items:
             acta = await self.repo.get_with_aprobaciones(item.id)
-            response_items.append(self._build_response(acta))
+            response_items.append(await self._build_response(acta))
 
         return PaginatedResponse(
             items=response_items,
@@ -221,7 +248,7 @@ class ActaService:
             if acta.empleado_id != current_user.id:
                 raise ForbiddenError(detail="No tienes acceso a esta acta")
 
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     async def mejorar_redaccion_acta(
         self,
@@ -323,7 +350,7 @@ class ActaService:
         )
 
         acta = await self.repo.get_with_aprobaciones(acta.id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     async def crear_acta_desde_formulario(
         self,
@@ -381,14 +408,14 @@ class ActaService:
         )
 
         acta = await self.repo.get_with_aprobaciones(acta.id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     # ── Editar ────────────────────────────────────────────────────────────────
 
     async def editar_acta(
         self,
         id: int,
-        contenido_final: str,
+        data: ActaEditarRequest,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
@@ -405,10 +432,30 @@ class ActaService:
                 detail=f"Solo se pueden editar actas en estado 'draft', estado actual: '{acta.estado}'"
             )
 
-        datos_antes = {"contenido_final": acta.contenido_final, "estado": acta.estado}
+        datos_antes = {
+            "tipo_falta": acta.tipo_falta,
+            "fundamento_legal": acta.fundamento_legal,
+            "articulo_inciso": acta.articulo_inciso,
+            "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else None,
+            "lugar_incidente": acta.lugar_incidente,
+            "descripcion_hechos": acta.descripcion_hechos,
+            "personas_involucradas": acta.personas_involucradas,
+            "testigos": acta.testigos,
+            "responsable_rh": acta.responsable_rh,
+            "evidencia": acta.evidencia,
+            "estado": acta.estado,
+        }
         acta = await self.repo.update(id, {
-            "contenido_final": contenido_final,
-            "estado": "pending_sign",
+            "tipo_falta": data.tipo_falta,
+            "fundamento_legal": data.fundamento_legal,
+            "articulo_inciso": data.articulo_inciso,
+            "fecha_evento": data.fecha_evento,
+            "lugar_incidente": data.lugar_incidente,
+            "descripcion_hechos": data.descripcion_hechos,
+            "personas_involucradas": data.personas_involucradas,
+            "testigos": data.testigos,
+            "responsable_rh": data.responsable_rh,
+            "evidencia": data.evidencia,
         })
 
         audit_background(
@@ -419,11 +466,23 @@ class ActaService:
             usuario_id=current_user.id,
             entidad_id=id,
             datos_antes=datos_antes,
-            datos_despues={"estado": "pending_sign"},
+            datos_despues={
+                "tipo_falta": data.tipo_falta,
+                "fundamento_legal": data.fundamento_legal,
+                "articulo_inciso": data.articulo_inciso,
+                "fecha_evento": str(data.fecha_evento),
+                "lugar_incidente": data.lugar_incidente,
+                "descripcion_hechos": data.descripcion_hechos,
+                "personas_involucradas": data.personas_involucradas,
+                "testigos": data.testigos,
+                "responsable_rh": data.responsable_rh,
+                "evidencia": data.evidencia,
+                "estado": acta.estado,
+            },
         )
 
         acta = await self.repo.get_with_aprobaciones(id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     # ── Firmar ────────────────────────────────────────────────────────────────
 
@@ -519,7 +578,7 @@ class ActaService:
         )
 
         acta = await self.repo.get_with_aprobaciones(id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     # ── PDF ───────────────────────────────────────────────────────────────────
 

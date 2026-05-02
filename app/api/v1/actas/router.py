@@ -5,7 +5,12 @@ from app.core.database import get_db
 from app.core.dependencies import role_checker
 from app.models.empleados import Empleado
 from app.schemas import PaginatedResponse
-from app.schemas.actas import ActaCreateRequest, ActaMejoraIaResponse, ActaResponse
+from app.schemas.actas import (
+    ActaCreateRequest,
+    ActaEditarRequest,
+    ActaMejoraIaResponse,
+    ActaResponse,
+)
 from app.services.acta_service import ActaService
 
 router = APIRouter(prefix="/api/v1/actas", tags=["Actas Administrativas"])
@@ -82,12 +87,21 @@ async def mejorar_acta_con_ia(
     return ActaMejoraIaResponse(texto_mejorado=texto)
 
 
-@router.put("/{id}/editar")
+@router.put("/{id}/editar", response_model=ActaResponse)
 async def editar_acta(
     id: int,
+    body: ActaEditarRequest,
+    background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "Endpoint en desarrollo", "id": id}
+    service = ActaService(db)
+    return await service.editar_acta(
+        id=id,
+        data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
 
 
 @router.put("/{id}/firmar")

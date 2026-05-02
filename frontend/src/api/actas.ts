@@ -61,6 +61,19 @@ export type ActaDetailResponse = {
   created_at: string;
 };
 
+export type ActaUpdatePayload = {
+  tipo_falta: string;
+  fundamento_legal: "Ley Federal del Trabajo" | "Reglamento Interior de Trabajo";
+  articulo_inciso?: string | null;
+  fecha_evento: string;
+  lugar_incidente: string;
+  descripcion_hechos: string;
+  personas_involucradas?: string | null;
+  testigos?: string | null;
+  responsable_rh: string;
+  evidencia?: string | null;
+};
+
 export type ActaPageResponse = {
   items: ActaListItem[];
   next_cursor: number | null;
@@ -136,4 +149,21 @@ export async function improveActaWithIa(
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaImproveWithIaResponse;
+}
+
+export async function updateActaAdministrativa(
+  id: number,
+  payload: ActaUpdatePayload,
+  signal?: AbortSignal,
+): Promise<ActaDetailResponse> {
+  const res = await fetchWithAuth(`/api/v1/actas/${id}/editar`, {
+    method: "PUT",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaDetailResponse;
 }

@@ -198,23 +198,8 @@ function badgeEstado(estado: ActaEstadoCodigo): string {
   }
 }
 
-function buildNuevaActaEmpleados(rows: readonly ActaTablaFila[]): NuevaActaEmpleadoOption[] {
-  const dedup = new Map<string, NuevaActaEmpleadoOption>();
-  for (const row of rows) {
-    if (dedup.has(row.empleado_id)) continue;
-    dedup.set(row.empleado_id, {
-      id: row.empleado_id,
-      nombre: formatNombreEmpleadoUi(row.empleado_nombre_raw) || row.empleado_nombre_raw || row.empleado_id,
-      numeroEmpleado: row.empleado_id,
-      areaDepartamento: row.area,
-      supervisorDirecto: row.supervisor_nombre,
-    });
-  }
-  return Array.from(dedup.values());
-}
-
 function mapUsuarioToNuevaActaEmpleado(item: UsuarioListItem): NuevaActaEmpleadoOption {
-  const empleadoId = String(item.empleado_id);
+  const empleadoId = String(item.id);
   const nombre = formatNombreEmpleadoUi(item.nombre) || item.nombre || empleadoId;
   const numeroEmpleado = item.no_empleado?.trim() || empleadoId;
   const areaDepartamento = item.area?.descripcion?.trim() || "Sin área";
@@ -268,7 +253,8 @@ function mapActaListItemToRow(item: ActaListItem): ActaTablaFila {
     normalizeNumeroEmpleadoDisplay(item.numero_empleado) ||
     String(item.empleado_id);
   const nombreEmpleado = item.empleado_nombre?.trim() || `Empleado ${numeroEmpleado}`;
-  const supervisor = item.supervisor_directo?.trim() || "Sin supervisor";
+  const supervisorRaw = item.supervisor_directo?.trim() || "Sin supervisor";
+  const supervisor = formatNombreEmpleadoUi(supervisorRaw) || supervisorRaw;
   return {
     id: item.id,
     folio: createFolioFromId(item.id),
@@ -575,7 +561,7 @@ export function mountActas(container: HTMLElement): void {
 
   const state: ActasFilterState = { ...DEFAULT_FILTERS };
   const allRows: ActaTablaFila[] = [];
-  const modalEmpleadoOptions: NuevaActaEmpleadoOption[] = buildNuevaActaEmpleados(allRows);
+  const modalEmpleadoOptions: NuevaActaEmpleadoOption[] = [];
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let empleadosModalLoadingPromise: Promise<void> | null = null;
 
