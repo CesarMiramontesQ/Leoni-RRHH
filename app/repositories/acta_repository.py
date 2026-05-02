@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.actas import ActaAdministrativa, ActaAprobacion
+from app.models.empleados import Empleado
 from app.repositories.base import BaseRepository
 
 
@@ -20,7 +21,7 @@ class ActaRepository(BaseRepository[ActaAdministrativa]):
             select(ActaAdministrativa)
             .options(
                 selectinload(ActaAdministrativa.aprobaciones),
-                selectinload(ActaAdministrativa.empleado),
+                selectinload(ActaAdministrativa.empleado).selectinload(Empleado.puesto),
                 selectinload(ActaAdministrativa.generador),
                 selectinload(ActaAdministrativa.incidencia),
             )

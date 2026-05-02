@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -15,7 +15,28 @@ class ActaAdministrativa(Base):
         ForeignKey("incidencias.id"), nullable=True
     )
     empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    numero_empleado: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    area_departamento: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    supervisor_directo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    tipo_falta: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fundamento_legal: Mapped[Optional[str]] = mapped_column(
+        Enum(
+            "Ley Federal del Trabajo",
+            "Reglamento Interior de Trabajo",
+            name="acta_fundamento_legal_enum",
+        ),
+        nullable=True,
+    )
+    articulo_inciso: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_evento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    lugar_incidente: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    descripcion_hechos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    personas_involucradas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    testigos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    responsable_rh: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    evidencia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contenido_ia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ia_recomendacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contenido_final: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[str] = mapped_column(
         Enum("draft", "pending_sign", "signed", "archived", name="acta_estado_enum"),

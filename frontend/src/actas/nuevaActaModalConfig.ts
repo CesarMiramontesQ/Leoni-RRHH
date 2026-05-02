@@ -17,6 +17,8 @@ export type NuevaActaFormData = {
   areaDepartamento: string;
   supervisorDirecto: string;
   tipoFalta: string;
+  fundamentoLegal: string;
+  articuloInciso: string;
   fechaEvento: string;
   lugarIncidente: string;
   descripcionHechos: string;
@@ -28,13 +30,6 @@ export type NuevaActaFormData = {
 
 export type NuevaActaFormErrors = Partial<Record<keyof Omit<NuevaActaFormData, "evidencias"> | "evidencias", string>>;
 
-export const NUEVA_ACTA_TIPO_FALTA_OPTIONS: readonly NuevaActaSelectOption[] = [
-  { id: "falta_leve", label: "Falta leve" },
-  { id: "falta_moderada", label: "Falta moderada" },
-  { id: "falta_grave", label: "Falta grave" },
-  { id: "incumplimiento_politica", label: "Incumplimiento de política interna" },
-];
-
 export function createNuevaActaInitialData(): NuevaActaFormData {
   return {
     empleadoId: "",
@@ -42,6 +37,8 @@ export function createNuevaActaInitialData(): NuevaActaFormData {
     areaDepartamento: "",
     supervisorDirecto: "",
     tipoFalta: "",
+    fundamentoLegal: "",
+    articuloInciso: "",
     fechaEvento: "",
     lugarIncidente: "",
     descripcionHechos: "",
@@ -84,11 +81,11 @@ export function validateNuevaActaForm(data: NuevaActaFormData): NuevaActaFormErr
   if (!safeTrim(data.numeroEmpleado)) errors.numeroEmpleado = "No. de empleado no disponible.";
   if (!safeTrim(data.areaDepartamento)) errors.areaDepartamento = "Captura el área o departamento.";
   if (!safeTrim(data.supervisorDirecto)) errors.supervisorDirecto = "Captura el supervisor directo.";
-  if (!safeTrim(data.tipoFalta)) errors.tipoFalta = "Selecciona el tipo de falta.";
+  if (!safeTrim(data.tipoFalta)) errors.tipoFalta = "Describe el tipo de falta disciplinaria.";
+  if (!safeTrim(data.fundamentoLegal)) errors.fundamentoLegal = "Selecciona el fundamento legal.";
   if (!safeTrim(data.fechaEvento)) errors.fechaEvento = "Selecciona la fecha del evento.";
   if (!safeTrim(data.lugarIncidente)) errors.lugarIncidente = "Captura el lugar del incidente.";
   if (!safeTrim(data.descripcionHechos)) errors.descripcionHechos = "Describe los hechos.";
   if (!safeTrim(data.responsableRhId)) errors.responsableRhId = "Selecciona responsable de RH.";
-  if (data.evidencias.length === 0) errors.evidencias = "Adjunta al menos una evidencia.";
   return errors;
 }

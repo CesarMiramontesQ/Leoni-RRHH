@@ -22,7 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceUnavailableError,
+)
 from app.integrations.tress.queue import encolar_tress
 from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.empleados import Empleado
@@ -31,6 +36,8 @@ from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas import PaginatedResponse
 from app.schemas.actas import (
     ActaAprobacionResponse,
+    ActaCreateRequest,
+    ActaEditarRequest,
     ActaFirmarRequest,
     ActaGenerarRequest,
     ActaResponse,
@@ -72,6 +79,48 @@ async def _llamar_ollama(contexto: dict) -> str:
     )
 
 
+async def _mejorar_redaccion_acta(contexto: dict) -> str:
+    prompt = (
+        "Mejora la redaccion de una acta administrativa manteniendo hechos, fechas, personas y "
+        "datos legales sin inventar informacion.\n"
+        "Requisitos:\n"
+        "1) Usa tono formal, claro y juridico-laboral mexicano.\n"
+        "2) Conserva el significado original y el orden logico.\n"
+        "3) Corrige ortografia, puntuacion y coherencia.\n"
+        "4) No uses markdown ni encabezados adicionales.\n"
+        "5) Devuelve solo el texto mejorado.\n\n"
+        f"Contexto del acta:\n{contexto}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                f"{settings.OLLAMA_URL}/api/generate",
+                json={
+                    "model": settings.OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "system": (
+                        "Eres un especialista legal laboral en Mexico. "
+                        "Redacta textos formales para actas administrativas de RH."
+                    ),
+                    "temperature": max(0.0, min(settings.OLLAMA_TEMPERATURE, 0.4)),
+                    "stream": False,
+                },
+            )
+            resp.raise_for_status()
+            texto = str(resp.json().get("response", "")).strip()
+            if not texto:
+                raise ValueError("Respuesta vacia de Ollama")
+            return texto
+    except Exception as exc:
+        logger.warning(
+            "No se pudo mejorar redaccion del acta con IA: %s",
+            exc,
+        )
+        raise ServiceUnavailableError(
+            detail="No fue posible generar la sugerencia con IA en este momento. Intenta nuevamente."
+        ) from exc
+
+
 class ActaService:
     def __init__(self, db: AsyncSession):
         self.repo = ActaRepository(db)
@@ -82,11 +131,67 @@ class ActaService:
     def _get_rol(self, current_user: Empleado) -> str:
         return current_user.rol.nombre if current_user.rol else "empleado"
 
-    def _build_response(self, acta: ActaAdministrativa) -> ActaResponse:
+    @staticmethod
+    def _normalizar_numero_empleado(numero: str | None) -> str | None:
+        if numero is None:
+            return None
+        raw = str(numero).strip()
+        if not raw:
+            return None
+        if raw.endswith(".0"):
+            entero = raw[:-2]
+            if entero.isdigit():
+                return entero
+        return raw
+
+    async def _build_response(self, acta: ActaAdministrativa) -> ActaResponse:
         aprobaciones = getattr(acta, "aprobaciones", []) or []
         roles_firmados = {a.rol_firmante for a in aprobaciones if a.firma_timestamp}
         firmantes_pendientes = sorted(_ROLES_FIRMANTES_REQUERIDOS - roles_firmados)
         r = ActaResponse.model_validate(acta)
+
+        # En registros historicos puede existir desalineacion entre empleado_id y numero_empleado.
+        # Si el acta trae numero_empleado, priorizamos resolver el empleado por ese numero.
+        numero_acta = self._normalizar_numero_empleado(getattr(acta, "numero_empleado", None))
+        empleado_por_numero = None
+        if numero_acta:
+            candidatos = [numero_acta]
+            if numero_acta.isdigit():
+                # Compatibilidad con datos legacy que guardaron numero como decimal string.
+                candidatos.append(f"{numero_acta}.0")
+            result_emp = await self.db.execute(
+                select(Empleado)
+                .options(selectinload(Empleado.puesto))
+                .where(Empleado.no_empleado.in_(candidatos))
+            )
+            empleado_por_numero = result_emp.scalar_one_or_none()
+
+        if empleado_por_numero:
+            r.empleado_nombre = empleado_por_numero.nombre
+            r.numero_empleado = empleado_por_numero.no_empleado
+            r.puesto = (
+                empleado_por_numero.puesto.descripcion
+                if empleado_por_numero.puesto
+                else None
+            )
+        else:
+            empleado_rel = getattr(acta, "empleado", None)
+            if empleado_rel:
+                r.empleado_nombre = empleado_rel.nombre
+                r.numero_empleado = empleado_rel.no_empleado
+                r.puesto = (
+                    empleado_rel.puesto.descripcion
+                    if getattr(empleado_rel, "puesto", None)
+                    else None
+                )
+
+        numero_rel = self._normalizar_numero_empleado(r.numero_empleado)
+        if numero_acta and numero_acta != numero_rel:
+            r.numero_empleado = numero_acta
+
+        if not r.numero_empleado and numero_acta:
+            r.numero_empleado = numero_acta
+        r.numero_empleado = self._normalizar_numero_empleado(r.numero_empleado)
         r.aprobaciones = [ActaAprobacionResponse.model_validate(a) for a in aprobaciones]
         r.firmantes_pendientes = firmantes_pendientes
         return r
@@ -131,7 +236,7 @@ class ActaService:
         response_items = []
         for item in items:
             acta = await self.repo.get_with_aprobaciones(item.id)
-            response_items.append(self._build_response(acta))
+            response_items.append(await self._build_response(acta))
 
         return PaginatedResponse(
             items=response_items,
@@ -155,7 +260,39 @@ class ActaService:
             if acta.empleado_id != current_user.id:
                 raise ForbiddenError(detail="No tienes acceso a esta acta")
 
-        return self._build_response(acta)
+        return await self._build_response(acta)
+
+    async def mejorar_redaccion_acta(
+        self,
+        id: int,
+        current_user: Empleado,
+    ) -> str:
+        acta = await self.get_acta(id=id, current_user=current_user)
+        texto_original = (acta.descripcion_hechos or "").strip()
+        if not texto_original:
+            raise ConflictError(
+                detail="El acta no tiene descripcion de hechos para mejorar con IA"
+            )
+
+        contexto = {
+            "tipo_falta": acta.tipo_falta or "",
+            "fundamento_legal": acta.fundamento_legal or "",
+            "articulo_inciso": acta.articulo_inciso or "",
+            "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else "",
+            "lugar_incidente": acta.lugar_incidente or "",
+            "descripcion_hechos": texto_original,
+            "personas_involucradas": acta.personas_involucradas or "",
+            "testigos": acta.testigos or "",
+        }
+        texto_mejorado = await _mejorar_redaccion_acta(contexto)
+        texto_mejorado = texto_mejorado.strip()
+
+        # Persistir recomendacion por acta para recuperarla entre sesiones.
+        await self.repo.update(
+            id,
+            {"ia_recomendacion": texto_mejorado},
+        )
+        return texto_mejorado
 
     # ── Generar ───────────────────────────────────────────────────────────────
 
@@ -225,14 +362,72 @@ class ActaService:
         )
 
         acta = await self.repo.get_with_aprobaciones(acta.id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
+
+    async def crear_acta_desde_formulario(
+        self,
+        data: ActaCreateRequest,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> ActaResponse:
+        rol = self._get_rol(current_user)
+        if rol != "rh":
+            raise ForbiddenError(detail="Solo RH puede crear actas")
+
+        result_emp = await self.db.execute(
+            select(Empleado).where(Empleado.id == data.empleado_id)
+        )
+        empleado = result_emp.scalar_one_or_none()
+        if not empleado:
+            raise NotFoundError(entidad="Empleado", id=data.empleado_id)
+
+        acta = await self.repo.create({
+            "empleado_id": data.empleado_id,
+            "numero_empleado": self._normalizar_numero_empleado(data.numero_empleado),
+            "area_departamento": data.area_departamento,
+            "supervisor_directo": data.supervisor_directo,
+            "tipo_falta": data.tipo_falta,
+            "fundamento_legal": data.fundamento_legal,
+            "articulo_inciso": data.articulo_inciso,
+            "fecha_evento": data.fecha_evento,
+            "lugar_incidente": data.lugar_incidente,
+            "descripcion_hechos": data.descripcion_hechos,
+            "personas_involucradas": data.personas_involucradas,
+            "testigos": data.testigos,
+            "responsable_rh": data.responsable_rh,
+            # Opcional por ahora: no bloquear guardado sin evidencia.
+            "evidencia": data.evidencia,
+            "incidencia_id": None,
+            "contenido_ia": None,
+            "contenido_final": None,
+            "estado": "draft",
+            "generado_por": current_user.id,
+        })
+
+        audit_background(
+            background_tasks=background_tasks,
+            db=self.db,
+            accion="ACTA_CREATED_FROM_FORM",
+            modulo="actas",
+            usuario_id=current_user.id,
+            entidad_id=acta.id,
+            datos_despues={
+                "empleado_id": acta.empleado_id,
+                "estado": acta.estado,
+                "fundamento_legal": acta.fundamento_legal,
+                "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else None,
+            },
+        )
+
+        acta = await self.repo.get_with_aprobaciones(acta.id)
+        return await self._build_response(acta)
 
     # ── Editar ────────────────────────────────────────────────────────────────
 
     async def editar_acta(
         self,
         id: int,
-        contenido_final: str,
+        data: ActaEditarRequest,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
@@ -249,10 +444,30 @@ class ActaService:
                 detail=f"Solo se pueden editar actas en estado 'draft', estado actual: '{acta.estado}'"
             )
 
-        datos_antes = {"contenido_final": acta.contenido_final, "estado": acta.estado}
+        datos_antes = {
+            "tipo_falta": acta.tipo_falta,
+            "fundamento_legal": acta.fundamento_legal,
+            "articulo_inciso": acta.articulo_inciso,
+            "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else None,
+            "lugar_incidente": acta.lugar_incidente,
+            "descripcion_hechos": acta.descripcion_hechos,
+            "personas_involucradas": acta.personas_involucradas,
+            "testigos": acta.testigos,
+            "responsable_rh": acta.responsable_rh,
+            "evidencia": acta.evidencia,
+            "estado": acta.estado,
+        }
         acta = await self.repo.update(id, {
-            "contenido_final": contenido_final,
-            "estado": "pending_sign",
+            "tipo_falta": data.tipo_falta,
+            "fundamento_legal": data.fundamento_legal,
+            "articulo_inciso": data.articulo_inciso,
+            "fecha_evento": data.fecha_evento,
+            "lugar_incidente": data.lugar_incidente,
+            "descripcion_hechos": data.descripcion_hechos,
+            "personas_involucradas": data.personas_involucradas,
+            "testigos": data.testigos,
+            "responsable_rh": data.responsable_rh,
+            "evidencia": data.evidencia,
         })
 
         audit_background(
@@ -263,11 +478,23 @@ class ActaService:
             usuario_id=current_user.id,
             entidad_id=id,
             datos_antes=datos_antes,
-            datos_despues={"estado": "pending_sign"},
+            datos_despues={
+                "tipo_falta": data.tipo_falta,
+                "fundamento_legal": data.fundamento_legal,
+                "articulo_inciso": data.articulo_inciso,
+                "fecha_evento": str(data.fecha_evento),
+                "lugar_incidente": data.lugar_incidente,
+                "descripcion_hechos": data.descripcion_hechos,
+                "personas_involucradas": data.personas_involucradas,
+                "testigos": data.testigos,
+                "responsable_rh": data.responsable_rh,
+                "evidencia": data.evidencia,
+                "estado": acta.estado,
+            },
         )
 
         acta = await self.repo.get_with_aprobaciones(id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     # ── Firmar ────────────────────────────────────────────────────────────────
 
@@ -363,7 +590,7 @@ class ActaService:
         )
 
         acta = await self.repo.get_with_aprobaciones(id)
-        return self._build_response(acta)
+        return await self._build_response(acta)
 
     # ── PDF ───────────────────────────────────────────────────────────────────
 
