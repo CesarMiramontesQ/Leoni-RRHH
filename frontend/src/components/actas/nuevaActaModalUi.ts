@@ -12,18 +12,25 @@ type BuildNuevaActaFormHtmlParams = {
   errors: NuevaActaFormErrors;
   empleados: readonly NuevaActaEmpleadoOption[];
   empleadoSearchQ: string;
-  tiposFalta: readonly NuevaActaSelectOption[];
   responsablesRh: readonly NuevaActaSelectOption[];
   isSubmitting: boolean;
   dragActive: boolean;
 };
 
+const FUNDAMENTO_LEGAL_OPTIONS: readonly NuevaActaSelectOption[] = [
+  { id: "Ley Federal del Trabajo", label: "Ley Federal del Trabajo" },
+  { id: "Reglamento Interior de Trabajo", label: "Reglamento Interior de Trabajo" },
+];
+
 function renderSelectOptions(
   options: readonly NuevaActaSelectOption[],
   selected: string,
   emptyLabel: string,
+  includeEmptyOption = true,
 ): string {
-  const first = `<option value="" ${selected === "" ? "selected" : ""}>${escapeHtml(emptyLabel)}</option>`;
+  const first = includeEmptyOption
+    ? `<option value="" ${selected === "" ? "selected" : ""}>${escapeHtml(emptyLabel)}</option>`
+    : "";
   const rest = options
     .map((option) => {
       const selectedAttr = option.id === selected ? "selected" : "";
@@ -129,7 +136,7 @@ export function nuevaActaModalShellHtml(): string {
 }
 
 export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): string {
-  const { formData, errors, empleados, empleadoSearchQ, tiposFalta, responsablesRh, isSubmitting, dragActive } = params;
+  const { formData, errors, empleados, empleadoSearchQ, responsablesRh, isSubmitting, dragActive } = params;
   const filteredEmpleados = filtrarEmpleados(empleados, empleadoSearchQ);
 
   const gridInputClass =
@@ -142,7 +149,11 @@ export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): st
   const numeroControlClass = `${gridInputClass} bg-slate-50 ${errors.numeroEmpleado ? errorClass : ""}`;
   const areaControlClass = `${gridInputClass} ${errors.areaDepartamento ? errorClass : ""}`;
   const supervisorControlClass = `${gridInputClass} ${errors.supervisorDirecto ? errorClass : ""}`;
-  const tipoFaltaControlClass = `${gridInputClass} ${errors.tipoFalta ? errorClass : ""}`;
+  const tipoFaltaControlClass = `min-h-[7rem] w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20 ${
+    errors.tipoFalta ? errorClass : ""
+  }`;
+  const fundamentoLegalControlClass = `${gridInputClass} ${errors.fundamentoLegal ? errorClass : ""}`;
+  const articuloIncisoControlClass = `${gridInputClass} ${errors.articuloInciso ? errorClass : ""}`;
   const fechaControlClass = `${gridInputClass} ${errors.fechaEvento ? errorClass : ""}`;
   const lugarControlClass = `${gridInputClass} ${errors.lugarIncidente ? errorClass : ""}`;
   const descripcionControlClass = `${textareaClass} ${errors.descripcionHechos ? errorClass : ""}`;
@@ -255,44 +266,75 @@ export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): st
       )}
       <section class="rounded-2xl border border-slate-200/90 bg-slate-50/45 p-4 sm:p-5" aria-labelledby="rh-actas-sec-incidente">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
+          <div class="md:col-span-2">
             <label for="rh-actas-form-tipo-falta" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de falta disciplinaria</label>
-            <select
+            <textarea
               id="rh-actas-form-tipo-falta"
               name="tipo_falta"
               data-rh-actas-form-field="tipoFalta"
               class="${tipoFaltaControlClass}"
               aria-invalid="${errors.tipoFalta ? "true" : "false"}"
-            >
-              ${renderSelectOptions(tiposFalta, formData.tipoFalta, "Selecciona tipo de falta...")}
-            </select>
+              placeholder="Describe de forma detallada el tipo de falta disciplinaria..."
+            >${escapeHtml(formData.tipoFalta)}</textarea>
             ${renderFieldError(errors.tipoFalta)}
           </div>
           <div>
-            <label for="rh-actas-form-fecha-evento" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha del evento</label>
-            <input
-              id="rh-actas-form-fecha-evento"
-              name="fecha_evento"
-              type="date"
-              data-rh-actas-form-field="fechaEvento"
-              value="${escapeHtml(formData.fechaEvento)}"
-              class="${fechaControlClass}"
-              aria-invalid="${errors.fechaEvento ? "true" : "false"}"
-            />
-            ${renderFieldError(errors.fechaEvento)}
+            <label for="rh-actas-form-fundamento-legal" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Fundamento legal</label>
+            <select
+              id="rh-actas-form-fundamento-legal"
+              name="fundamento_legal"
+              data-rh-actas-form-field="fundamentoLegal"
+              class="${fundamentoLegalControlClass}"
+              aria-invalid="${errors.fundamentoLegal ? "true" : "false"}"
+            >
+              ${renderSelectOptions(FUNDAMENTO_LEGAL_OPTIONS, formData.fundamentoLegal, "Selecciona fundamento legal...")}
+            </select>
+            ${renderFieldError(errors.fundamentoLegal)}
           </div>
-          <div class="md:col-span-2">
-            <label for="rh-actas-form-lugar" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Lugar del incidente</label>
+          <div>
+            <label for="rh-actas-form-articulo-inciso" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Articulo / inciso</label>
             <input
-              id="rh-actas-form-lugar"
-              name="lugar_incidente"
+              id="rh-actas-form-articulo-inciso"
+              name="articulo_inciso"
               type="text"
-              data-rh-actas-form-field="lugarIncidente"
-              value="${escapeHtml(formData.lugarIncidente)}"
-              class="${lugarControlClass}"
-              aria-invalid="${errors.lugarIncidente ? "true" : "false"}"
+              data-rh-actas-form-field="articuloInciso"
+              value="${escapeHtml(formData.articuloInciso)}"
+              placeholder="Ej. Articulo 47, fraccion II"
+              class="${articuloIncisoControlClass}"
+              aria-invalid="${errors.articuloInciso ? "true" : "false"}"
             />
-            ${renderFieldError(errors.lugarIncidente)}
+            ${renderFieldError(errors.articuloInciso)}
+          </div>
+          <div class="col-span-1 md:col-span-2">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4">
+              <div class="min-w-0">
+                <label for="rh-actas-form-fecha-evento" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha del evento</label>
+                <input
+                  id="rh-actas-form-fecha-evento"
+                  name="fecha_evento"
+                  type="date"
+                  data-rh-actas-form-field="fechaEvento"
+                  value="${escapeHtml(formData.fechaEvento)}"
+                  class="${fechaControlClass}"
+                  aria-invalid="${errors.fechaEvento ? "true" : "false"}"
+                />
+                ${renderFieldError(errors.fechaEvento)}
+              </div>
+              <div class="min-w-0">
+                <label for="rh-actas-form-lugar" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Lugar del incidente</label>
+                <input
+                  id="rh-actas-form-lugar"
+                  name="lugar_incidente"
+                  type="text"
+                  data-rh-actas-form-field="lugarIncidente"
+                  value="${escapeHtml(formData.lugarIncidente)}"
+                  placeholder="Ej. Planta Leon"
+                  class="${lugarControlClass}"
+                  aria-invalid="${errors.lugarIncidente ? "true" : "false"}"
+                />
+                ${renderFieldError(errors.lugarIncidente)}
+              </div>
+            </div>
           </div>
           <div class="md:col-span-2">
             <label for="rh-actas-form-descripcion" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Descripcion de los hechos</label>
@@ -368,7 +410,7 @@ export function buildNuevaActaFormHtml(params: BuildNuevaActaFormHtmlParams): st
               class="${responsablesControlClass}"
               aria-invalid="${errors.responsableRhId ? "true" : "false"}"
             >
-              ${renderSelectOptions(responsablesRh, formData.responsableRhId, "Selecciona responsable...")}
+              ${renderSelectOptions(responsablesRh, formData.responsableRhId, "Selecciona responsable...", false)}
             </select>
             ${renderFieldError(errors.responsableRhId)}
           </div>

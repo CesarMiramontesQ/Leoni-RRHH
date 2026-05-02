@@ -1,5 +1,4 @@
 import {
-  NUEVA_ACTA_TIPO_FALTA_OPTIONS,
   type NuevaActaEmpleadoOption,
   type NuevaActaSelectOption,
 } from "../actas/nuevaActaModalConfig.ts";
@@ -64,8 +63,16 @@ type ActasFilterState = {
   page_size: number;
 };
 
-// TODO: reemplazar por catálogo real desde API de usuarios RH.
-const ACTAS_RESPONSABLES_RH: readonly NuevaActaSelectOption[] = [];
+const ACTAS_RESPONSABLES_RH: readonly NuevaActaSelectOption[] = [
+  {
+    id: "ALMA LIZBETH HERNANDEZ HERNANDEZ",
+    label: "ALMA LIZBETH HERNANDEZ HERNANDEZ",
+  },
+  {
+    id: "MARTHA VERONICA BARAY ARMENDARIZ",
+    label: "MARTHA VERONICA BARAY ARMENDARIZ",
+  },
+];
 
 const DEFAULT_FILTERS: ActasFilterState = {
   empleado_busqueda: "",
@@ -217,9 +224,17 @@ function mapUsuarioToNuevaActaEmpleado(item: UsuarioListItem): NuevaActaEmpleado
 }
 
 function mapModalTipoToTableTipo(value: string): ActaTipoCodigo {
-  if (value === "falta_leve") return "amonestacion";
-  if (value === "falta_moderada") return "administrativa";
-  return "suspension";
+  const normalized = normalizeText(value);
+  if (!normalized) return "administrativa";
+  if (normalized.includes("leve") || normalized.includes("amonest")) return "amonestacion";
+  if (
+    normalized.includes("grave") ||
+    normalized.includes("suspension") ||
+    normalized.includes("suspender")
+  ) {
+    return "suspension";
+  }
+  return "administrativa";
 }
 
 function createNextActaFolio(rows: readonly ActaTablaFila[]): string {
@@ -583,7 +598,6 @@ export function mountActas(container: HTMLElement): void {
     nuevaActaModalHost instanceof HTMLElement
       ? mountNuevaActaModal(nuevaActaModalHost, {
           empleados: modalEmpleadoOptions,
-          tiposFalta: NUEVA_ACTA_TIPO_FALTA_OPTIONS,
           responsablesRh: ACTAS_RESPONSABLES_RH,
           toastContainer: container,
           onSubmit: async (payload: NuevaActaSubmitPayload) => {

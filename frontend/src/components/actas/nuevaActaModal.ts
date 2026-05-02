@@ -17,7 +17,6 @@ export type NuevaActaSubmitPayload = {
 
 export type NuevaActaModalOptions = {
   empleados: readonly NuevaActaEmpleadoOption[];
-  tiposFalta: readonly NuevaActaSelectOption[];
   responsablesRh: readonly NuevaActaSelectOption[];
   toastContainer: HTMLElement;
   onSubmit: (payload: NuevaActaSubmitPayload) => Promise<void> | void;
@@ -33,6 +32,8 @@ type ControlledField =
   | "areaDepartamento"
   | "supervisorDirecto"
   | "tipoFalta"
+  | "fundamentoLegal"
+  | "articuloInciso"
   | "fechaEvento"
   | "lugarIncidente"
   | "descripcionHechos"
@@ -67,6 +68,8 @@ function firstInvalidSelector(errors: FormErrors): string | null {
   if (errors.areaDepartamento) return "#rh-actas-form-area";
   if (errors.supervisorDirecto) return "#rh-actas-form-supervisor";
   if (errors.tipoFalta) return "#rh-actas-form-tipo-falta";
+  if (errors.fundamentoLegal) return "#rh-actas-form-fundamento-legal";
+  if (errors.articuloInciso) return "#rh-actas-form-articulo-inciso";
   if (errors.fechaEvento) return "#rh-actas-form-fecha-evento";
   if (errors.lugarIncidente) return "#rh-actas-form-lugar";
   if (errors.descripcionHechos) return "#rh-actas-form-descripcion";
@@ -106,6 +109,12 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
 
   function resetForm(): void {
     formData = createNuevaActaInitialData();
+    if (options.responsablesRh.length > 0) {
+      formData = {
+        ...formData,
+        responsableRhId: options.responsablesRh[0]!.id,
+      };
+    }
     errors = {};
     isSubmitting = false;
     dragActive = false;
@@ -118,7 +127,6 @@ export function mountNuevaActaModal(host: HTMLElement, options: NuevaActaModalOp
       errors,
       empleados: options.empleados,
       empleadoSearchQ,
-      tiposFalta: options.tiposFalta,
       responsablesRh: options.responsablesRh,
       isSubmitting,
       dragActive,
