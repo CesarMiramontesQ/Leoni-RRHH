@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from zoneinfo import ZoneInfo
 
@@ -21,6 +21,26 @@ def primer_lunes_reserva_comedor_permitido(hoy: date) -> date:
     """
     lunes_actual = lunes_de_semana_contiene(hoy)
     return lunes_actual + timedelta(days=7)
+
+
+def primera_fecha_reserva_comedor_permitida(now: datetime) -> date:
+    """
+    Primera fecha de servicio permitida según la regla:
+    - deadline por semana de servicio: jueves 23:59:59 de la semana anterior.
+    - antes o en deadline del jueves actual -> se permite semana siguiente.
+    - después del deadline (viernes en adelante) -> se permite desde semana subsiguiente.
+    """
+    tz = ZoneInfo(settings.APP_TIMEZONE)
+    now_tz = now if now.tzinfo is not None else now.replace(tzinfo=tz)
+    lunes_actual = lunes_de_semana_contiene(now_tz.date())
+    jueves_actual_deadline = datetime.combine(
+        lunes_actual + timedelta(days=3),
+        time(hour=23, minute=59, second=59),
+        tzinfo=now_tz.tzinfo,
+    )
+    if now_tz <= jueves_actual_deadline:
+        return lunes_actual + timedelta(days=7)
+    return lunes_actual + timedelta(days=14)
 
 
 def business_today() -> date:

@@ -1,10 +1,13 @@
 """Reservas comedor: semana siguiente, rol empleado, un acceso activo por empleado y fecha."""
 
-from datetime import date
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient
 
+from app.core.exceptions import DomainValidationError
+from app.services.comedor_service import ComedorService
 from tests.conftest import auth_headers, make_empleado
 
 RESERVAR_URL = "/api/v1/comedor/accesos/reservar"
@@ -13,6 +16,47 @@ PRIMERA_FECHA_URL = "/api/v1/comedor/accesos/primera-fecha-permitida"
 MIS_FECHAS_OCUPADAS_URL = "/api/v1/comedor/accesos/mis-fechas-ocupadas"
 MIS_PROXIMAS_URL = "/api/v1/comedor/accesos/mis-proximas-reservas"
 EDITAR_ACCESO_URL = "/api/v1/comedor/accesos/{acceso_id}"
+
+
+@pytest.fixture(autouse=True)
+def _fijar_business_now(monkeypatch):
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(
+        cs,
+        "business_now",
+        lambda: datetime(2026, 4, 23, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+
+def test_valida_deadline_permite_jueves_235959():
+    service = object.__new__(ComedorService)
+    service._validar_ventana_modificacion_reserva(
+        fecha_servicio=date(2026, 4, 27),
+        fecha_transaccion=datetime(2026, 4, 23, 23, 59, 59, tzinfo=ZoneInfo("UTC")),
+    )
+
+
+def test_valida_deadline_bloquea_viernes_000000():
+    service = object.__new__(ComedorService)
+    with pytest.raises(DomainValidationError):
+        service._validar_ventana_modificacion_reserva(
+            fecha_servicio=date(2026, 4, 27),
+            fecha_transaccion=datetime(2026, 4, 24, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+        )
+
+
+def test_valida_deadline_cruce_anio_ok():
+    service = object.__new__(ComedorService)
+    service._validar_ventana_modificacion_reserva(
+        fecha_servicio=date(2027, 1, 4),
+        fecha_transaccion=datetime(2026, 12, 31, 23, 59, 59, tzinfo=ZoneInfo("UTC")),
+    )
+    with pytest.raises(DomainValidationError):
+        service._validar_ventana_modificacion_reserva(
+            fecha_servicio=date(2027, 1, 4),
+            fecha_transaccion=datetime(2027, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+        )
 
 
 @pytest.mark.asyncio
@@ -25,6 +69,22 @@ async def test_primera_fecha_permitida_ok_empleado(client: AsyncClient, db, monk
     r = await client.get(PRIMERA_FECHA_URL, headers=hdrs)
     assert r.status_code == 200, r.text
     assert r.json().get("fecha_iso") == "2026-04-27"
+
+
+@pytest.mark.asyncio
+async def test_primera_fecha_permitida_despues_de_deadline_salta_una_semana(client: AsyncClient, db, monkeypatch):
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(
+        cs,
+        "business_now",
+        lambda: datetime(2026, 4, 24, 0, 0, 0, tzinfo=timezone.utc),
+    )
+    emp = await make_empleado(db, email="prim_deadline@test.leoni", password="SecretPF2!")
+    hdrs = await auth_headers(client, emp, password="SecretPF2!")
+    r = await client.get(PRIMERA_FECHA_URL, headers=hdrs)
+    assert r.status_code == 200, r.text
+    assert r.json().get("fecha_iso") == "2026-05-04"
 
 
 @pytest.mark.asyncio
@@ -86,7 +146,8 @@ async def test_reservar_rechaza_semana_actual_permite_siguiente(client: AsyncCli
         },
         headers=hdrs,
     )
-    assert r_bloque.status_code == 403
+    assert r_bloque.status_code == 422
+    assert "fecha límite" in (r_bloque.json().get("detail") or "").lower()
 
     r_ok = await client.post(
         RESERVAR_URL,
@@ -638,7 +699,8 @@ async def test_no_editar_ni_cancelar_semana_actual(client: AsyncClient, db, monk
         EDITAR_ACCESO_URL.format(acceso_id=acceso.id),
         headers=hdrs,
     )
-    assert r_del.status_code == 409
+    assert r_del.status_code == 422
+    assert "fecha límite" in (r_del.json().get("detail") or "").lower()
 
 
 @pytest.mark.asyncio

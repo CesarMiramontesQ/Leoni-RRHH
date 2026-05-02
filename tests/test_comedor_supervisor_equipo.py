@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from httpx import AsyncClient
@@ -13,6 +13,17 @@ RESUMEN_RH_URL = "/api/v1/comedor/accesos/rh/resumen-diario"
 REGISTRO_RH_URL = "/api/v1/comedor/accesos/rh/registro"
 RESERVAR_URL = "/api/v1/comedor/accesos/reservar"
 EDITAR_ACCESO_URL = "/api/v1/comedor/accesos/{acceso_id}"
+
+
+@pytest.fixture(autouse=True)
+def _fijar_business_now(monkeypatch):
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(
+        cs,
+        "business_now",
+        lambda: datetime(2026, 4, 23, 12, 0, 0, tzinfo=timezone.utc),
+    )
 
 
 @pytest.mark.asyncio

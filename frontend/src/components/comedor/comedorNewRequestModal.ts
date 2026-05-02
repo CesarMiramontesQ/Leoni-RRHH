@@ -114,12 +114,12 @@ function validateForm(
   if (!state.fechaInicio.trim()) {
     errors.fechaInicio = "Selecciona una fecha inicial.";
   } else if (fechaMinReservaIso && state.fechaInicio < fechaMinReservaIso) {
-    errors.fechaInicio = "Solo puedes agendar a partir del lunes de la semana siguiente.";
+    errors.fechaInicio = "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
   }
   if (!state.fechaFin.trim()) {
     errors.fechaFin = "Selecciona una fecha final.";
   } else if (fechaMinReservaIso && state.fechaFin < fechaMinReservaIso) {
-    errors.fechaFin = "Solo puedes agendar a partir del lunes de la semana siguiente.";
+    errors.fechaFin = "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
   }
   if (!errors.fechaInicio && !errors.fechaFin && state.fechaFin < state.fechaInicio) {
     errors.fechaFin = "La fecha final debe ser mayor o igual a la fecha inicial.";
