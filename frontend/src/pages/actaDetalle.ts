@@ -39,12 +39,12 @@ function fechaHora(iso: string): string {
 
 function badgeEstadoHtml(estado: ActaEstadoCodigo): string {
   if (estado === "abierta" || estado === "en_proceso") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-300/50"><span aria-hidden="true">🕐</span>En revisión</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-[#fff7ed] px-3.5 py-1.5 text-xs font-semibold text-[#b45309] ring-1 ring-amber-200/70"><span aria-hidden="true">●</span>En revisión</span>`;
   }
   if (estado === "firmada") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-300/50"><span aria-hidden="true">✅</span>Aprobado</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[#ecfdf3] px-3.5 py-1.5 text-xs font-semibold text-[#027a48] ring-1 ring-emerald-200/70"><span aria-hidden="true">●</span>Firmada</span>`;
   }
-  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-100 px-3 py-1 text-xs font-semibold text-red-900 ring-1 ring-red-300/50"><span aria-hidden="true">❌</span>Rechazado</span>`;
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/70"><span aria-hidden="true">●</span>Cerrada</span>`;
 }
 
 function skeletonHtml(): string {
@@ -80,6 +80,63 @@ function adjuntoToneClass(adjunto: ActaAdjunto): string {
   if (adjunto.preview_color === "emerald") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (adjunto.preview_color === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
   return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
+function estadoProcesoIndex(estado: ActaEstadoCodigo): number {
+  if (estado === "abierta") return 0;
+  if (estado === "en_proceso") return 1;
+  if (estado === "firmada") return 2;
+  return 3;
+}
+
+function adjuntosCountText(count: number): string {
+  if (count <= 0) return "Sin archivos adjuntos";
+  if (count === 1) return "1 archivo adjunto";
+  return `${String(count)} archivos adjuntos`;
+}
+
+function rolBadgeClass(rol: string): string {
+  if (rol === "Testigo") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (rol === "Responsable RH") return "border-violet-200 bg-violet-50 text-violet-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function renderProcesoEstado(estado: ActaEstadoCodigo): string {
+  const steps = ["Creada", "En revisión", "Firma pendiente", "Cerrada"];
+  const current = estadoProcesoIndex(estado);
+  return `
+    <ol class="space-y-3">
+      ${steps
+        .map((step, index) => {
+          const isDone = index < current;
+          const isCurrent = index === current;
+          const dotClass = isDone
+            ? "border-[#1e40af] bg-[#1e40af] text-white"
+            : isCurrent
+              ? "border-[#1e40af] bg-white text-[#1e40af]"
+              : "border-slate-300 bg-white text-slate-400";
+          const titleClass = isCurrent
+            ? "text-slate-900"
+            : isDone
+              ? "text-slate-800"
+              : "text-slate-500";
+          return `
+            <li class="relative pl-9 ${index < steps.length - 1 ? "pb-3" : ""}">
+              <span class="absolute left-0 top-0 inline-flex size-6 items-center justify-center rounded-full border text-xs font-semibold ${dotClass}">
+                ${isDone ? "✓" : String(index + 1)}
+              </span>
+              ${
+                index < steps.length - 1
+                  ? `<span class="absolute left-[11px] top-6 h-[calc(100%-0.25rem)] w-px ${isDone ? "bg-[#1e40af]/30" : "bg-slate-200"}"></span>`
+                  : ""
+              }
+              <p class="text-sm font-semibold ${titleClass}">${escapeHtml(step)}</p>
+              <p class="mt-0.5 text-xs text-slate-500">${isCurrent ? "Estado actual" : isDone ? "Completado" : "Pendiente"}</p>
+            </li>`;
+        })
+        .join("")}
+    </ol>
+  `;
 }
 
 function mapBackendEstadoToUi(
@@ -128,7 +185,7 @@ function buildActaDetalleFromApi(data: {
 }): ActaDetalle {
   const numero =
     normalizeNumeroEmpleadoDisplay(data.numero_empleado) ||
-    "Sin numero";
+    "Sin número";
   const nombre = data.empleado_nombre?.trim() || `Empleado ${numero}`;
   const created = data.created_at;
   const eventoDate = data.fecha_evento
@@ -211,36 +268,43 @@ function renderAdjuntos(adjuntos: readonly ActaAdjunto[]): string {
         data-rh-acta-dropzone-trigger
         role="button"
         tabindex="0"
-        class="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/80 px-4 py-8 text-center transition hover:border-leoni-blue/50 hover:bg-leoni-blue/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+        class="rounded-2xl border-2 border-dashed border-slate-300 bg-[#f8fafc] px-4 py-8 text-center transition hover:border-[#1d4ed8]/60 hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
       >
         <div class="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0 4 4m-4-4L8 8M4 16.5v.75A2.75 2.75 0 0 0 6.75 20h10.5A2.75 2.75 0 0 0 20 17.25v-.75" /></svg>
         </div>
-        <p class="mt-3 text-sm font-medium text-slate-700">Arrastra archivos aquí o haz clic para seleccionar</p>
+        <p class="mt-3 text-sm font-semibold text-slate-800">Sube evidencias o documentos relacionados</p>
+        <p class="mt-1 text-xs text-slate-500">PDF, JPG, PNG o DOCX · Máximo 10 MB por archivo</p>
         <button
           type="button"
           data-rh-acta-dropzone-trigger
-          class="mt-3 inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue"
+          class="mt-4 inline-flex items-center rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[#1d4ed8]/40 hover:text-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
         >
-          Agregar archivo
+          Seleccionar archivo
         </button>
         <input data-rh-acta-adjuntos-input type="file" class="hidden" multiple />
       </div>`;
   }
   return `
-    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="space-y-2.5">
       ${adjuntos
         .map((adjunto) => {
           const tone = adjuntoToneClass(adjunto);
           return `
-            <article class="rounded-lg border border-slate-200 bg-white p-3 shadow-xs">
-              <div class="flex items-start gap-2.5">
+            <article class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex min-w-0 items-start gap-2.5">
                 <div class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border text-[11px] font-bold ${tone}">
                   ${escapeHtml(adjunto.extension)}
                 </div>
                 <div class="min-w-0">
                   <p class="truncate text-sm font-semibold text-slate-900" title="${escapeHtml(adjunto.nombre)}">${escapeHtml(adjunto.nombre)}</p>
                   <p class="mt-0.5 text-xs text-slate-500">${escapeHtml(adjunto.peso_mb.toFixed(1))} MB</p>
+                </div>
+              </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-[#1e40af] transition hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">Ver</button>
+                  <button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40">Eliminar</button>
                 </div>
               </div>
             </article>`;
@@ -293,30 +357,28 @@ function historialEventVisual(evento: { titulo: string; descripcion: string }): 
 }
 
 function renderIaActionButton(hasRecommendation: boolean): string {
-  if (hasRecommendation) {
-    return `
+  return `
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <button
         type="button"
         data-rh-acta-ia-view
-        title="Ver recomendacion de IA guardada para esta acta"
-        class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-300/60 bg-gradient-to-r from-blue-50 to-cyan-50 px-3 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-100 hover:to-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50"
+        title="Ver recomendación de IA guardada para esta acta"
+        ${hasRecommendation ? "" : "disabled"}
+        class="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#1e40af]/25 bg-white px-3 py-2 text-sm font-semibold text-[#1e40af] transition hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span aria-hidden="true">📄</span>
-        Ver recomendacion
+        Ver recomendación
       </button>
-    `;
-  }
-
-  return `
-    <button
-      type="button"
-      data-rh-acta-ia-improve
-      title="Usa IA para mejorar la redaccion de los hechos descritos en el acta"
-      class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:via-blue-600 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
-    >
-      <span aria-hidden="true">✨</span>
-      Mejorar con IA
-    </button>
+      <button
+        type="button"
+        data-rh-acta-ia-improve
+        title="Generar o regenerar recomendación de redacción"
+        class="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+      >
+        <span aria-hidden="true">✨</span>
+        Regenerar
+      </button>
+    </div>
   `;
 }
 
@@ -324,15 +386,15 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
   const nombreEmpleado = formatNombreEmpleadoUi(acta.empleado.nombre) || acta.empleado.nombre;
   const iniciales = inicialesDesdeNombreDisplay(nombreEmpleado);
   const avatar = acta.empleado.foto_url?.trim()
-    ? `<img src="${escapeHtml(acta.empleado.foto_url)}" alt="" class="size-12 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`
-    : `<span class="flex size-12 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-sm font-semibold text-white">${escapeHtml(iniciales)}</span>`;
+    ? `<img src="${escapeHtml(acta.empleado.foto_url)}" alt="" class="size-14 shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />`
+    : `<span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e40af] to-[#1d4ed8] text-sm font-semibold text-white shadow-sm">${escapeHtml(iniciales)}</span>`;
 
   const involucrados = acta.involucrados.length
     ? acta.involucrados
         .map(
           (persona) => `
-          <li class="flex items-start gap-2.5 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-            <span class="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-slate-500 ring-1 ring-slate-200">${escapeHtml(
+          <li class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm">
+            <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[11px] font-bold text-[#1e40af] ring-1 ring-[#c7d2fe]">${escapeHtml(
               persona.nombre
                 .split(" ")
                 .slice(0, 2)
@@ -342,12 +404,12 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
             )}</span>
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-slate-900">${escapeHtml(persona.nombre)}</p>
-              <p class="text-xs text-slate-500">${escapeHtml(persona.rol)}</p>
+              <p class="mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${rolBadgeClass(persona.rol)}">${escapeHtml(persona.rol)}</p>
             </div>
           </li>`,
         )
         .join("")
-    : `<li class="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">Sin personas involucradas registradas.</li>`;
+    : `<li class="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">Sin personas relacionadas registradas.</li>`;
 
   const historial = acta.historial.length
     ? acta.historial
@@ -367,32 +429,32 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
             </li>`;
         })
         .join("")
-    : `<li class="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">Sin historial registrado.</li>`;
+    : `<li class="rounded-xl border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">Sin historial registrado.</li>`;
 
   return `
-    <div id="rh-acta-detalle-root" class="space-y-4">
+    <div id="rh-acta-detalle-root" class="space-y-6">
       <div>
-        <a href="#/actas" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-leoni-blue">
+        <a href="#/actas" class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-sm font-medium text-slate-600 transition-colors hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 opacity-80" aria-hidden="true"><path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" /></svg>
           Volver a Actas
         </a>
       </div>
 
-      <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div class="min-w-0">
-            <h1 class="truncate text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">${escapeHtml(acta.titulo_documento)} <span class="text-leoni-blue">#${escapeHtml(acta.folio)}</span></h1>
-            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 sm:text-sm">
+            <h1 class="truncate text-[26px] font-semibold tracking-tight text-[#111827]">${escapeHtml(acta.titulo_documento)} <span class="text-[#1e40af]">#${escapeHtml(acta.folio)}</span></h1>
+            <div class="mt-2 flex flex-wrap items-center gap-3 text-[13px] text-[#667085]">
               ${badgeEstadoHtml(acta.estado)}
-              <span>Creado el ${escapeHtml(fechaCorta(acta.fecha_creacion))}</span>
+              <span>Creada el ${escapeHtml(fechaCorta(acta.fecha_creacion))}</span>
             </div>
           </div>
-          <div class="flex shrink-0 flex-wrap items-center gap-2">
-            <button type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-leoni-blue/40 hover:text-leoni-blue sm:text-sm">
+          <div class="flex shrink-0 flex-wrap items-center justify-start gap-2 md:justify-end">
+            <button type="button" class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1e40af]/40 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V3m0 13.5 4.5-4.5M12 16.5l-4.5-4.5M4.5 21h15" /></svg>
               Descargar PDF
             </button>
-            <button type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-leoni-blue-light sm:text-sm">
+            <button type="button" class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487ZM19.5 7.125 16.875 4.5" /></svg>
               Editar Acta
             </button>
@@ -400,86 +462,92 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
         </div>
       </section>
 
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
-        <div class="space-y-5">
-          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
-            <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Información del Empleado</h2>
-            <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+        <div class="space-y-6">
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Información del empleado</h2>
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               ${avatar}
               <div class="min-w-0">
-                <p class="truncate text-base font-semibold text-slate-900">${escapeHtml(nombreEmpleado)}</p>
-                <p class="text-sm font-medium text-leoni-blue">No. empleado: ${escapeHtml(acta.empleado.id)}</p>
+                <p class="truncate text-[15px] font-semibold text-[#111827]">${escapeHtml(nombreEmpleado)}</p>
+                <p class="text-[13px] font-medium text-[#1e40af]">Número de empleado: ${escapeHtml(acta.empleado.id)}</p>
               </div>
             </div>
-            <dl class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Area</dt><dd class="mt-0.5">${renderEmptyAwareEmpleadoValue(acta.empleado.area)}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Puesto</dt><dd class="mt-0.5">${renderEmptyAwareEmpleadoValue(acta.empleado.puesto)}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Supervisor directo</dt><dd class="mt-0.5">${renderEmptyAwareEmpleadoValue(acta.empleado.supervisor_directo)}</dd></div>
+            <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div class="rounded-xl border border-slate-100 bg-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Área</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.area)}</dd></div>
+              <div class="rounded-xl border border-slate-100 bg-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Puesto</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.puesto)}</dd></div>
+              <div class="rounded-xl border border-slate-100 bg-[#f8fafc] px-3 py-2.5 sm:col-span-2"><dt class="text-[12px] font-medium text-[#667085]">Supervisor directo</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.supervisor_directo)}</dd></div>
             </dl>
           </section>
 
-          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
-            <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Detalle del Evento</h2>
-            <dl class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Tipo de incidencia</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Fecha y hora</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
-              <div class="rounded-md bg-slate-50 px-3 py-2"><dt class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Ubicacion</dt><dd class="mt-0.5 font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Detalle del evento</h2>
+            <dl class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+              <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
+              <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Fecha y hora</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
+              <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Ubicación</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
             </dl>
-            <div class="mt-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2.5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">Descripcion de los hechos</p>
-              <p class="mt-1 text-sm leading-relaxed text-slate-700">${escapeHtml(acta.evento.descripcion)}</p>
+            <div class="mt-4 rounded-xl border border-slate-200 bg-[#f8fafc] px-4 py-3">
+              <p class="text-[12px] font-medium text-[#667085]">Descripción de los hechos</p>
+              <p class="mt-2 text-[15px] leading-relaxed text-slate-700">${escapeHtml(acta.evento.descripcion)}</p>
             </div>
           </section>
 
-          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
             <div class="flex items-center justify-between gap-2">
-              <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Evidencias y Adjuntos</h2>
-              <p data-rh-acta-adjuntos-count class="text-xs text-slate-500">${escapeHtml(String(acta.adjuntos.length))} archivo(s)</p>
+              <h2 class="text-[17px] font-semibold text-[#111827]">Evidencias y adjuntos</h2>
+              <p data-rh-acta-adjuntos-count class="text-[12px] text-[#667085]">${escapeHtml(adjuntosCountText(acta.adjuntos.length))}</p>
             </div>
-            <div class="mt-3">${renderAdjuntos(acta.adjuntos)}</div>
+            <div class="mt-4">${renderAdjuntos(acta.adjuntos)}</div>
           </section>
         </div>
 
-        <aside class="space-y-5">
-          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
-            <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Personas Involucradas</h2>
-            <ul class="mt-3 space-y-2">${involucrados}</ul>
+        <aside class="space-y-6">
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Estado del proceso</h2>
+            <div class="mt-4">${renderProcesoEstado(acta.estado)}</div>
           </section>
 
-          <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5 sm:p-5">
-            <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Historial de Acta</h2>
-            <ol class="mt-3">${historial}</ol>
-          </section>
-
-          <section class="rounded-xl border border-red-200/80 bg-white p-4 shadow-sm ring-1 ring-red-500/10 sm:p-5">
-            <h2 class="text-sm font-semibold text-red-700 sm:text-base">Acciones de Control</h2>
-            <div class="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" data-rh-acta-open-cancel-modal class="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Anular Acta</button>
-              <button type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-leoni-blue/40 hover:text-leoni-blue">Solicitar Firma Digital</button>
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Acciones del acta</h2>
+            <div class="mt-4 grid grid-cols-1 gap-2">
+              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">Solicitar Firma Digital</button>
+              <button type="button" data-rh-acta-open-cancel-modal title="Esta acción no se puede deshacer" class="inline-flex min-h-10 w-full items-center justify-center rounded-[10px] border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-[#dc2626] transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40">Anular Acta</button>
             </div>
           </section>
 
-          <section class="rounded-xl border p-4 shadow-sm ring-1 sm:p-5 ${
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Personas relacionadas</h2>
+            <ul class="mt-4 space-y-2.5">${involucrados}</ul>
+          </section>
+
+          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Historial del acta</h2>
+            <ol class="mt-4">${historial}</ol>
+          </section>
+
+          <section class="rounded-2xl border p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6 ${
             hasIaRecommendation
-              ? "border-blue-200/80 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/70 ring-blue-200/40"
-              : "border-slate-200/90 bg-white ring-slate-900/5"
+              ? "border-emerald-200 bg-gradient-to-br from-[#ecfdf3] via-white to-[#f0fdf4]"
+              : "border-[#e5e7eb] bg-white"
           }">
-            <h2 class="text-sm font-semibold text-slate-900 sm:text-base">Asistencia de Redacción</h2>
-            <div class="mt-3 space-y-3">
+            <h2 class="text-[17px] font-semibold text-[#111827]">Asistente de redacción IA</h2>
+            <div class="mt-4 space-y-3">
               ${
                 hasIaRecommendation
-                  ? `<p class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-100/80 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                  ? `<p class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[#ecfdf3] px-2.5 py-1 text-xs font-semibold text-[#027a48]">
                        <span aria-hidden="true">✨</span>
-                       Recomendacion IA guardada
+                       Recomendación lista
                      </p>`
                   : ""
               }
+              <p class="text-[13px] text-[#667085]">La IA generó una sugerencia de redacción para esta acta.</p>
               <div data-rh-acta-ia-action-wrap>${renderIaActionButton(hasIaRecommendation)}</div>
-              <p class="text-xs ${hasIaRecommendation ? "text-blue-700" : "text-slate-500"}">
+              <p class="text-xs ${hasIaRecommendation ? "text-[#027a48]" : "text-slate-500"}">
                 ${
                   hasIaRecommendation
-                    ? "Esta acta ya cuenta con una recomendacion generada por IA. Puedes verla o regenerarla."
-                    : "Usa IA para mejorar la redaccion de los hechos descritos en el acta."
+                    ? "Se generó y guardó una recomendación de redacción."
+                    : "Aún no hay una recomendación generada."
                 }
               </p>
               <p data-rh-acta-ia-status class="hidden rounded-lg border px-3 py-2 text-sm"></p>
@@ -490,21 +558,25 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
 
       <div data-rh-acta-cancel-modal class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div data-rh-acta-cancel-overlay class="absolute inset-0 bg-slate-900/40"></div>
-        <div class="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
-          <h3 class="text-base font-semibold text-slate-900">Confirmar anulacion</h3>
-          <p class="mt-2 text-sm text-slate-600">¿Estás seguro de que deseas anular esta acta? Esta acción no se puede deshacer.</p>
+        <div class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+          <h3 class="text-base font-semibold text-slate-900">¿Seguro que deseas anular esta acta?</h3>
+          <p class="mt-2 text-sm text-slate-600">Esta acción no se puede deshacer.</p>
+          <label class="mt-4 block">
+            <span class="text-xs font-medium text-slate-600">Motivo de anulación</span>
+            <textarea data-rh-acta-cancel-reason rows="3" placeholder="Escribe el motivo..." class="mt-1 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30"></textarea>
+          </label>
           <div class="mt-4 flex justify-end gap-2">
-            <button type="button" data-rh-acta-cancel-close class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Cancelar</button>
-            <button type="button" data-rh-acta-cancel-confirm class="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Confirmar anulacion</button>
+            <button type="button" data-rh-acta-cancel-close class="inline-flex items-center rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300">Cancelar</button>
+            <button type="button" data-rh-acta-cancel-confirm class="inline-flex items-center rounded-[10px] bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300">Sí, anular acta</button>
           </div>
         </div>
       </div>
 
       <div data-rh-acta-ia-modal class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div data-rh-acta-ia-modal-overlay class="absolute inset-0 bg-slate-900/40"></div>
-        <div class="relative w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+        <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
           <div class="flex items-center justify-between gap-3">
-            <h3 class="text-base font-semibold text-slate-900">Recomendacion de IA</h3>
+            <h3 class="text-base font-semibold text-slate-900">Recomendación de IA</h3>
             <button
               type="button"
               data-rh-acta-ia-modal-close
@@ -514,15 +586,15 @@ function renderDetalleHtml(acta: ActaDetalle, hasIaRecommendation: boolean): str
             </button>
           </div>
           <div class="mt-3 max-h-[58vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">Presiona "Mejorar con IA" para generar una recomendacion.</p>
+            <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">Presiona "Regenerar" para generar una recomendación.</p>
           </div>
           <div class="mt-4 flex flex-wrap justify-end gap-2">
             <button
               type="button"
               data-rh-acta-ia-regenerate
-              class="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/20 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:via-blue-600 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              🔄 Regenerar recomendacion
+              🔄 Regenerar
             </button>
             <button
               type="button"
@@ -571,7 +643,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
   const improveBtnIdleHtml = `
     <span aria-hidden="true">✨</span>
-    Mejorar con IA
+    Regenerar
   `;
   const improveBtnLoadingHtml = `
     <svg class="size-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -580,7 +652,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     </svg>
     Procesando...
   `;
-  const regenerateBtnIdleHtml = "🔄 Regenerar recomendacion";
+  const regenerateBtnIdleHtml = "🔄 Regenerar";
   const regenerateBtnLoadingHtml = `
     <svg class="size-4 animate-spin text-slate-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -660,19 +732,19 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
   async function generateIaRecommendation(): Promise<void> {
     setIaCopyEnabled(false);
-    setIaModalText("Generando recomendacion con IA...", "loading");
+    setIaModalText("Generando recomendación con IA...", "loading");
     try {
       const response = await improveActaWithIa(actaId, signal);
       iaTextoMejorado = response.texto_mejorado.trim();
       hasIaRecommendation = Boolean(iaTextoMejorado);
       setIaActionButton();
-      setIaModalText(iaTextoMejorado || "No se recibio contenido para mostrar.");
+      setIaModalText(iaTextoMejorado || "No se recibió contenido para mostrar.");
       setIaCopyEnabled(Boolean(iaTextoMejorado));
-      showIaStatus("Se genero y guardo una recomendacion de redaccion.", "success");
+      showIaStatus("Se generó y guardó una recomendación de redacción.", "success");
     } catch (error: unknown) {
       if (signal.aborted) return;
       const err = error as { detail?: string } | null;
-      const message = err?.detail || "No se pudo generar la recomendacion. Intenta de nuevo.";
+      const message = err?.detail || "No se pudo generar la recomendación. Intenta de nuevo.";
       setIaModalText(message, "error");
       setIaCopyEnabled(Boolean(iaTextoMejorado));
       showIaStatus(message, "error");
@@ -762,7 +834,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         if (iaTextoMejorado.trim()) {
           setIaModalText(iaTextoMejorado);
         } else {
-          setIaModalText("Aun no hay una recomendacion guardada para esta acta.");
+          setIaModalText("Aún no hay una recomendación guardada para esta acta.");
         }
         setIaCopyEnabled(Boolean(iaTextoMejorado.trim()));
         return;
@@ -810,7 +882,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
             showIaStatus("Texto copiado al portapapeles.", "success");
           })
           .catch(() => {
-            showIaStatus("No se pudo copiar el texto. Copialo manualmente.", "error");
+            showIaStatus("No se pudo copiar el texto. Cópialo manualmente.", "error");
           });
         return;
       }
@@ -843,7 +915,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       if (!input) return;
       const countLabel = page.querySelector<HTMLElement>("[data-rh-acta-adjuntos-count]");
       if (!countLabel) return;
-      countLabel.textContent = `${String(input.files?.length ?? 0)} archivo(s)`;
+      countLabel.textContent = adjuntosCountText(input.files?.length ?? 0);
     },
     { signal },
   );
@@ -855,7 +927,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       const dropzone = target.closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
       if (!dropzone) return;
       event.preventDefault();
-      dropzone.classList.add("border-leoni-blue", "bg-leoni-blue/5");
+      dropzone.classList.add("border-blue-500", "bg-blue-50");
     },
     { signal },
   );
@@ -866,7 +938,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       const target = event.target as HTMLElement;
       const dropzone = target.closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
       if (!dropzone) return;
-      dropzone.classList.remove("border-leoni-blue", "bg-leoni-blue/5");
+      dropzone.classList.remove("border-blue-500", "bg-blue-50");
     },
     { signal },
   );
@@ -878,10 +950,10 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       const dropzone = target.closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
       if (!dropzone) return;
       event.preventDefault();
-      dropzone.classList.remove("border-leoni-blue", "bg-leoni-blue/5");
+      dropzone.classList.remove("border-blue-500", "bg-blue-50");
       const fileCount = event.dataTransfer?.files?.length ?? 0;
       const countLabel = page.querySelector<HTMLElement>("[data-rh-acta-adjuntos-count]");
-      if (countLabel) countLabel.textContent = `${String(fileCount)} archivo(s)`;
+      if (countLabel) countLabel.textContent = adjuntosCountText(fileCount);
     },
     { signal },
   );
