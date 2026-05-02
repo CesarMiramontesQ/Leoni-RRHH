@@ -174,6 +174,7 @@ function buildActaDetalleFromApi(data: {
   empleado_id: number;
   empleado_nombre: string | null;
   numero_empleado: string | null;
+  puesto: string | null;
   area_departamento: string | null;
   supervisor_directo: string | null;
   tipo_falta: string | null;
@@ -233,7 +234,7 @@ function buildActaDetalleFromApi(data: {
       nombre,
       foto_url: null,
       area: data.area_departamento?.trim() || "Sin área",
-      puesto: "Sin puesto",
+      puesto: data.puesto?.trim() || "Sin puesto",
       supervisor_directo: data.supervisor_directo?.trim() || "Sin supervisor",
     },
     evento: {
@@ -363,6 +364,7 @@ function historialEventVisual(evento: { titulo: string; descripcion: string }): 
 }
 
 function renderIaActionButton(hasRecommendation: boolean): string {
+  const improveButtonLabel = hasRecommendation ? "Regenerar" : "Recomendación IA";
   return `
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <button
@@ -378,11 +380,11 @@ function renderIaActionButton(hasRecommendation: boolean): string {
       <button
         type="button"
         data-rh-acta-ia-improve
-        title="Generar o regenerar recomendación de redacción"
+        title="${hasRecommendation ? "Generar o regenerar recomendación de redacción" : "Generar recomendación de redacción con IA"}"
         class="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
       >
         <span aria-hidden="true">✨</span>
-        Regenerar
+        ${improveButtonLabel}
       </button>
     </div>
   `;
@@ -685,11 +687,7 @@ function renderDetalleHtml(
             <ol class="mt-4">${historial}</ol>
           </section>
 
-          <section class="rounded-2xl border p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6 ${
-            hasIaRecommendation
-              ? "border-emerald-200 bg-gradient-to-br from-[#ecfdf3] via-white to-[#f0fdf4]"
-              : "border-[#e5e7eb] bg-white"
-          }">
+          <section class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ecfdf3] via-white to-[#f0fdf4] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
             <h2 class="text-[17px] font-semibold text-[#111827]">Asistente de redacción IA</h2>
             <div class="mt-4 space-y-3">
               ${
@@ -852,10 +850,13 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     return null;
   }
 
-  const improveBtnIdleHtml = `
-    <span aria-hidden="true">✨</span>
-    Regenerar
-  `;
+  function getImproveBtnIdleHtml(): string {
+    const label = hasIaRecommendation ? "Regenerar" : "Recomendación IA";
+    return `
+      <span aria-hidden="true">✨</span>
+      ${label}
+    `;
+  }
   const improveBtnLoadingHtml = `
     <svg class="size-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -884,7 +885,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     btn.disabled = loading;
     btn.classList.toggle("cursor-not-allowed", loading);
     btn.classList.toggle("opacity-70", loading);
-    btn.innerHTML = loading ? improveBtnLoadingHtml : improveBtnIdleHtml;
+    btn.innerHTML = loading ? improveBtnLoadingHtml : getImproveBtnIdleHtml();
   }
 
   function showIaStatus(

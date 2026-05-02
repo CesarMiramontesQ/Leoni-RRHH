@@ -44,6 +44,7 @@ export type ActaDetailResponse = {
   empleado_id: number;
   empleado_nombre: string | null;
   numero_empleado: string | null;
+  puesto: string | null;
   area_departamento: string | null;
   supervisor_directo: string | null;
   tipo_falta: string | null;

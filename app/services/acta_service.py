@@ -160,18 +160,30 @@ class ActaService:
                 # Compatibilidad con datos legacy que guardaron numero como decimal string.
                 candidatos.append(f"{numero_acta}.0")
             result_emp = await self.db.execute(
-                select(Empleado).where(Empleado.no_empleado.in_(candidatos))
+                select(Empleado)
+                .options(selectinload(Empleado.puesto))
+                .where(Empleado.no_empleado.in_(candidatos))
             )
             empleado_por_numero = result_emp.scalar_one_or_none()
 
         if empleado_por_numero:
             r.empleado_nombre = empleado_por_numero.nombre
             r.numero_empleado = empleado_por_numero.no_empleado
+            r.puesto = (
+                empleado_por_numero.puesto.descripcion
+                if empleado_por_numero.puesto
+                else None
+            )
         else:
             empleado_rel = getattr(acta, "empleado", None)
             if empleado_rel:
                 r.empleado_nombre = empleado_rel.nombre
                 r.numero_empleado = empleado_rel.no_empleado
+                r.puesto = (
+                    empleado_rel.puesto.descripcion
+                    if getattr(empleado_rel, "puesto", None)
+                    else None
+                )
 
         numero_rel = self._normalizar_numero_empleado(r.numero_empleado)
         if numero_acta and numero_acta != numero_rel:
