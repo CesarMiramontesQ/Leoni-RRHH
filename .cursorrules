@@ -21,6 +21,11 @@
 - Mantener tipos en `dashboard/*/types.ts` sincronizados con respuestas del backend.
 - Evitar duplicar tipos o constantes si ya existen.
 
+## OpenAPI spec (`openapi.yaml`)
+- Al agregar, eliminar o modificar cualquier endpoint del backend (routers, schemas, modelos), actualizar `openapi.yaml` en la raiz del proyecto.
+- Esto incluye: nuevos paths, cambios en schemas de request/response, nuevos query/path params, enums modificados y requisitos de seguridad.
+- Mantener los component schemas sincronizados con los modelos Pydantic en `app/schemas/*.py`.
+
 ## Verificacion antes de cerrar tarea
 - Ejecutar checks/lint del area modificada cuando sea posible.
 - Reportar claramente que se cambio, en que archivos y como validarlo.

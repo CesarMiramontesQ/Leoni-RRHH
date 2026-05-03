@@ -123,3 +123,8 @@ Layered architecture: **router → service → repository → models/schemas**
 - When changing an API endpoint, update: schema → service → frontend API module → frontend types
 - Minimal, targeted changes; avoid unrequested refactors
 - If functional ambiguity exists, ask before proceeding
+
+### OpenAPI spec (`openapi.yaml`)
+- When adding, removing, or modifying any backend endpoint (routers, schemas, models), update `openapi.yaml` at the project root to reflect the change.
+- This includes: new paths, changed request/response schemas, new query/path parameters, modified enums, and security requirements.
+- Keep component schemas in sync with `app/schemas/*.py` Pydantic models.
