@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db:/dump
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U leoni -d leoni_rh"]
       interval: 10s
