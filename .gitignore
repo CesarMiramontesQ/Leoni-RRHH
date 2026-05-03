@@ -34,6 +34,9 @@ data/evidencias/
 *.log
 logs/
 
+# PostgreSQL data
+db/leoni_rh.sql
+
 # Alembic
 alembic/versions/*.pyc
 
