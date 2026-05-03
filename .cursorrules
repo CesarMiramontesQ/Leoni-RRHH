@@ -44,17 +44,19 @@
 
 ### Ramas — una por feature/fix
 - Naming: `tipo/iniciales/descripcion-corta`
-  - `feat/af/descripcion-corta`
-  - `fix/af/descripcion-corta`
-  - `refactor/af/descripcion-corta`
-  - `docs/af/descripcion-corta`
-  - `chore/af/descripcion-corta`
+- Las iniciales se derivan del `git config user.name` actual (e.g. "Alberto Flores" -> `af`, "Cesar Miramontes" -> `cm`). No usar iniciales hardcodeadas del ejemplo.
+  - `feat/<iniciales>/descripcion-corta`
+  - `fix/<iniciales>/descripcion-corta`
+  - `refactor/<iniciales>/descripcion-corta`
+  - `docs/<iniciales>/descripcion-corta`
+  - `chore/<iniciales>/descripcion-corta`
 
-### Commits — Conventional Commits + iniciales
-- Formato: `tipo(scope): descripcion [XX]` donde XX son las iniciales del autor.
+### Commits — Conventional Commits
+- Formato: `tipo(scope): descripcion`
 - Ejemplos:
-  - `feat(comedor): agregar reservas por equipo [AF]`
-  - `fix(auth): corregir expiracion de JWT [AF]`
+  - `feat(comedor): agregar reservas por equipo`
+  - `fix(auth): corregir expiracion de JWT`
+- NO incluir iniciales en el mensaje del commit ni en titulos de PR.
 - Commits pequenos y atomicos; un commit por cambio logico.
 
 ### Pull Requests
@@ -73,9 +75,9 @@
 ### Flujo resumido
 ```
 1. git checkout main && git pull origin main
-2. git checkout -b feat/af/mi-feature
+2. git checkout -b feat/<iniciales>/mi-feature
 3. Hacer cambios, commits con convencion
-4. git push -u origin feat/af/mi-feature
+4. git push -u origin feat/<iniciales>/mi-feature
 5. Crear Pull Request -> revision -> merge
 6. Volver a main y repetir
 ```

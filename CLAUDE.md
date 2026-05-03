@@ -79,16 +79,17 @@ Layered architecture: **router → service → repository → models/schemas**
 
 ### Ramas
 - Crear una rama por feature o fix. Naming: `tipo/iniciales/descripcion-corta`
-  - `feat/af/descripcion-corta` — nueva funcionalidad
-  - `fix/af/descripcion-corta` — corrección de bug
-  - `refactor/af/descripcion-corta` — refactor sin cambio funcional
-  - `docs/af/descripcion-corta` — documentación
-  - `chore/af/descripcion-corta` — mantenimiento, deps, configs
+- Las iniciales se derivan del `git config user.name` actual (e.g. "Alberto Flores" → `af`, "Cesar Miramontes" → `cm`). No usar iniciales hardcodeadas del ejemplo.
+  - `feat/<iniciales>/descripcion-corta` — nueva funcionalidad
+  - `fix/<iniciales>/descripcion-corta` — corrección de bug
+  - `refactor/<iniciales>/descripcion-corta` — refactor sin cambio funcional
+  - `docs/<iniciales>/descripcion-corta` — documentación
+  - `chore/<iniciales>/descripcion-corta` — mantenimiento, deps, configs
 
 ### Commits
 - Usar Conventional Commits: `tipo(scope): descripción`
   - Ejemplos: `feat(comedor): agregar reservas por equipo`, `fix(auth): corregir expiración de JWT`
-- Incluir iniciales del autor al final: `feat(comedor): agregar reservas [AF]`
+- NO incluir iniciales en el mensaje del commit ni en títulos de PR.
 - Commits pequeños y atómicos; un commit por cambio lógico.
 
 ### Pull Requests
@@ -109,9 +110,9 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Flujo resumido
 ```
 1. git checkout main && git pull origin main
-2. git checkout -b feat/af/mi-feature
+2. git checkout -b feat/<iniciales>/mi-feature
 3. ... hacer cambios, commits con convención ...
-4. git push -u origin feat/af/mi-feature
+4. git push -u origin feat/<iniciales>/mi-feature
 5. Crear Pull Request → revisión → merge
 6. git checkout main && git pull origin main (repetir)
 ```
