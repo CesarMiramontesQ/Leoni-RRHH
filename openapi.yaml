@@ -1,0 +1,3194 @@
+openapi: 3.1.0
+info:
+  title: Plataforma RH Leoni Cable
+  description: >
+    Plataforma on-premise de Recursos Humanos para Leoni Cable (Mexico).
+    Gestiona solicitudes de empleados (vacaciones, permisos), incidencias,
+    actas administrativas, comedor/acceso biometrico, organigrama e
+    integracion con nomina TRESS.
+  version: 1.0.0
+  contact:
+    name: Leoni Cable - Equipo de Desarrollo
+
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo local (Docker)
+
+tags:
+  - name: Root
+    description: Health check y estado del sistema
+  - name: Autenticacion
+    description: Login, logout, refresh de tokens JWT
+  - name: Usuarios
+    description: Gestion de cuentas de usuario (CRUD)
+  - name: Empleados
+    description: Directorio de empleados, Vista 360 y metricas
+  - name: Solicitudes
+    description: Vacaciones, permisos, home office y flujo de aprobacion
+  - name: Incidencias
+    description: Registro y seguimiento de incidencias laborales
+  - name: Actas Administrativas
+    description: Generacion, edicion, firma y PDF de actas
+  - name: Comedor
+    description: Menu semanal, reservas, acceso biometrico y terminal
+  - name: Reportes
+    description: Dashboard KPIs y exportacion PDF/Excel
+  - name: Notificaciones
+    description: Bandeja de notificaciones del usuario
+  - name: Organigrama
+    description: Estructura jerarquica organizacional
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Clave de API para terminales de comedor
+
+  schemas:
+    # ── Auth ──────────────────────────────────────────
+    TokenResponse:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          default: bearer
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    # ── Catalogos base ────────────────────────────────
+    AreaResponse:
+      type: object
+      required: [area_id, descripcion, estatus_id]
+      properties:
+        area_id:
+          type: integer
+        descripcion:
+          type: string
+        estatus_id:
+          type: integer
+
+    SubareaResponse:
+      type: object
+      required: [subarea_id, area_id, descripcion, estatus_id]
+      properties:
+        subarea_id:
+          type: integer
+        area_id:
+          type: integer
+        descripcion:
+          type: string
+        estatus_id:
+          type: integer
+
+    PuestoResponse:
+      type: object
+      required: [puesto_id, descripcion, estatus_id]
+      properties:
+        puesto_id:
+          type: integer
+        area_id:
+          type: [integer, "null"]
+        descripcion:
+          type: string
+        estatus_id:
+          type: integer
+
+    CategoriaResponse:
+      type: object
+      required: [categoria_id, estatus_id]
+      properties:
+        categoria_id:
+          type: integer
+        descripcion:
+          type: [string, "null"]
+        nivel:
+          type: [string, "null"]
+        estatus_id:
+          type: integer
+
+    EstadoEmpleadoResponse:
+      type: object
+      required: [estado_id, descripcion, estatus_id]
+      properties:
+        estado_id:
+          type: integer
+        descripcion:
+          type: string
+        estatus_id:
+          type: integer
+
+    ClasificacionEmpleadoResponse:
+      type: object
+      required: [clasificacion_id, descripcion, estatus_id]
+      properties:
+        clasificacion_id:
+          type: integer
+        descripcion:
+          type: string
+        significado:
+          type: [string, "null"]
+        estatus_id:
+          type: integer
+
+    RolBrief:
+      type: object
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+
+    # ── Empleados / Usuarios ──────────────────────────
+    EmpleadoResponse:
+      type: object
+      required: [id, empleado_id, no_empleado, nombre, rol_id, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        no_sap:
+          type: [string, "null"]
+        nombre:
+          type: string
+        email:
+          type: [string, "null"]
+        usuario:
+          type: [string, "null"]
+        rol_id:
+          type: integer
+        categoria:
+          $ref: "#/components/schemas/CategoriaResponse"
+        subarea:
+          $ref: "#/components/schemas/SubareaResponse"
+        puesto:
+          $ref: "#/components/schemas/PuestoResponse"
+        estado:
+          $ref: "#/components/schemas/EstadoEmpleadoResponse"
+        area:
+          $ref: "#/components/schemas/AreaResponse"
+        clasificacion:
+          $ref: "#/components/schemas/ClasificacionEmpleadoResponse"
+        lider_id:
+          type: [integer, "null"]
+        centrocosto_id:
+          type: [integer, "null"]
+        recibe_bono:
+          type: [boolean, "null"]
+        brigada:
+          type: [string, "null"]
+        registro:
+          type: [string, "null"]
+          format: date
+        a_restringido:
+          type: [boolean, "null"]
+        requiere_cambio_password:
+          type: [boolean, "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    UsuarioResponse:
+      type: object
+      required: [id, empleado_id, no_empleado, nombre, rol_id, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: [string, "null"]
+        rol_id:
+          type: integer
+        rol:
+          $ref: "#/components/schemas/RolBrief"
+        estado:
+          $ref: "#/components/schemas/EstadoEmpleadoResponse"
+        area:
+          $ref: "#/components/schemas/AreaResponse"
+        subarea:
+          $ref: "#/components/schemas/SubareaResponse"
+        puesto:
+          $ref: "#/components/schemas/PuestoResponse"
+        categoria:
+          $ref: "#/components/schemas/CategoriaResponse"
+        clasificacion:
+          $ref: "#/components/schemas/ClasificacionEmpleadoResponse"
+        lider_id:
+          type: [integer, "null"]
+        foto:
+          type: [string, "null"]
+        registro:
+          type: [string, "null"]
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    UsuarioListItem:
+      allOf:
+        - $ref: "#/components/schemas/UsuarioResponse"
+        - type: object
+          properties:
+            lider_nombre:
+              type: [string, "null"]
+
+    UsuarioAsignacionUpdate:
+      type: object
+      properties:
+        lider_id:
+          type: [integer, "null"]
+        rol_id:
+          type: [integer, "null"]
+
+    UsuarioPageResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsuarioListItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    UsuarioResumenResponse:
+      type: object
+      required:
+        - total_plantilla
+        - activos
+        - inactivos
+        - sin_lider_asignado
+        - practicantes
+        - porcentaje_operatividad
+        - colaboradores_total
+        - contratos_por_vencer
+      properties:
+        total_plantilla:
+          type: integer
+        activos:
+          type: integer
+        inactivos:
+          type: integer
+        sin_lider_asignado:
+          type: integer
+        practicantes:
+          type: integer
+        porcentaje_operatividad:
+          type: number
+          format: float
+        colaboradores_total:
+          type: integer
+        contratos_por_vencer:
+          type: integer
+
+    CatalogoFiltrosResponse:
+      type: object
+      required: [areas, puestos]
+      properties:
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaResponse"
+        puestos:
+          type: array
+          items:
+            $ref: "#/components/schemas/PuestoResponse"
+
+    SolicitudBrief:
+      type: object
+      required: [id, tipo, estado, fecha_inicio, fecha_fin, created_at]
+      properties:
+        id:
+          type: integer
+        tipo:
+          type: string
+        estado:
+          type: string
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    IncidenciaBrief:
+      type: object
+      required: [id, tipo, estado, created_at]
+      properties:
+        id:
+          type: integer
+        tipo:
+          type: string
+        estado:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ActaBrief:
+      type: object
+      required: [id, estado, created_at]
+      properties:
+        id:
+          type: integer
+        estado:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    UsuarioVista360Response:
+      type: object
+      required:
+        - usuario
+        - solicitudes_recientes
+        - incidencias_activas
+        - actas_firmadas
+        - saldo_vacaciones
+      properties:
+        usuario:
+          $ref: "#/components/schemas/UsuarioResponse"
+        solicitudes_recientes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SolicitudBrief"
+        incidencias_activas:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaBrief"
+        actas_firmadas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActaBrief"
+        saldo_vacaciones:
+          type: integer
+
+    MetricasUsuarioResponse:
+      type: object
+      required:
+        - solicitudes_por_estado
+        - incidencias_por_tipo
+        - dias_antiguedad
+        - total_actas
+      properties:
+        solicitudes_por_estado:
+          type: object
+          additionalProperties:
+            type: integer
+        incidencias_por_tipo:
+          type: object
+          additionalProperties:
+            type: integer
+        dias_antiguedad:
+          type: integer
+        total_actas:
+          type: integer
+
+    # ── Solicitudes ───────────────────────────────────
+    SolicitudCreate:
+      type: object
+      required: [tipo, fecha_inicio, fecha_fin]
+      properties:
+        tipo:
+          type: string
+          enum: [vacaciones, home_office]
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+          description: Debe ser >= fecha_inicio
+        comentarios:
+          type: [string, "null"]
+
+    SolicitudResponse:
+      type: object
+      required:
+        - id
+        - empleado_id
+        - tipo
+        - fecha_inicio
+        - fecha_fin
+        - estado
+        - nivel_actual
+        - comentarios
+        - created_at
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        tipo:
+          type: string
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+        estado:
+          type: string
+          enum: [pending, approved, rejected, cancelled, overridden, changes_requested]
+        nivel_actual:
+          type: integer
+        comentarios:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        empleado_nombre:
+          type: string
+          default: ""
+        empleado_area:
+          type: [string, "null"]
+        empleado_foto:
+          type: [string, "null"]
+        lider_id:
+          type: [integer, "null"]
+        lider_nombre:
+          type: [string, "null"]
+        gerente_linea_id:
+          type: [integer, "null"]
+        gerente_linea_nombre:
+          type: [string, "null"]
+        supervisor_aprobo:
+          type: boolean
+          default: false
+        pendiente_aprobacion_supervisor:
+          type: boolean
+          default: false
+        pendiente_aprobacion_gerente:
+          type: boolean
+          default: false
+
+    SolicitudAprobacionCreate:
+      type: object
+      required: [accion, nivel]
+      properties:
+        accion:
+          type: string
+          enum: [approve, reject, override, request_changes]
+        nivel:
+          type: integer
+        comentario:
+          type: [string, "null"]
+
+    SolicitudSolicitarCambiosBody:
+      type: object
+      required: [comentario]
+      properties:
+        nivel:
+          type: integer
+          default: 1
+        comentario:
+          type: string
+          minLength: 1
+
+    SolicitudRequisitorRevision:
+      type: object
+      required: [fecha_inicio, fecha_fin]
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+          description: Debe ser >= fecha_inicio
+        comentarios:
+          type: [string, "null"]
+
+    SolicitudAprobacionResponse:
+      type: object
+      required: [id, solicitud_id, aprobador_id, accion, nivel, timestamp]
+      properties:
+        id:
+          type: integer
+        solicitud_id:
+          type: integer
+        aprobador_id:
+          type: integer
+        accion:
+          type: string
+        nivel:
+          type: integer
+        comentario:
+          type: [string, "null"]
+        timestamp:
+          type: string
+          format: date-time
+        aprobador_nombre:
+          type: string
+          default: ""
+
+    PaginatedSolicitudResponse:
+      type: object
+      required: [items, next_cursor, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SolicitudResponse"
+        next_cursor:
+          type: [integer, "null"]
+        total:
+          type: integer
+
+    # ── Incidencias ───────────────────────────────────
+    IncidenciaCreate:
+      type: object
+      required: [empleado_id, tipo, descripcion]
+      properties:
+        empleado_id:
+          type: integer
+        tipo:
+          type: string
+          enum: [falta, retardo, conducta, accidente, otro]
+        descripcion:
+          type: string
+
+    IncidenciaResponse:
+      type: object
+      required: [id, empleado_id, tipo, descripcion, estado, registrado_por, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        tipo:
+          type: string
+        descripcion:
+          type: string
+        estado:
+          type: string
+          enum: [open, in_review, resolved, closed]
+        registrado_por:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        evidencias_count:
+          type: integer
+          default: 0
+
+    EvidenciaResponse:
+      type: object
+      required: [id, nombre_original, mime_type, tamano_bytes, created_at]
+      properties:
+        id:
+          type: integer
+        nombre_original:
+          type: string
+        mime_type:
+          type: string
+        tamano_bytes:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Actas Administrativas ─────────────────────────
+    ActaCreateRequest:
+      type: object
+      required:
+        - empleado_id
+        - numero_empleado
+        - area_departamento
+        - supervisor_directo
+        - tipo_falta
+        - fundamento_legal
+        - fecha_evento
+        - lugar_incidente
+        - descripcion_hechos
+        - responsable_rh
+      properties:
+        empleado_id:
+          type: integer
+        numero_empleado:
+          type: string
+        area_departamento:
+          type: string
+        supervisor_directo:
+          type: string
+        tipo_falta:
+          type: string
+        fundamento_legal:
+          type: string
+          enum:
+            - Ley Federal del Trabajo
+            - Reglamento Interior de Trabajo
+        articulo_inciso:
+          type: [string, "null"]
+        fecha_evento:
+          type: string
+          format: date
+        lugar_incidente:
+          type: string
+        descripcion_hechos:
+          type: string
+        personas_involucradas:
+          type: [string, "null"]
+        testigos:
+          type: [string, "null"]
+        responsable_rh:
+          type: string
+        evidencia:
+          type: [string, "null"]
+
+    ActaEditarRequest:
+      type: object
+      required:
+        - tipo_falta
+        - fundamento_legal
+        - fecha_evento
+        - lugar_incidente
+        - descripcion_hechos
+        - responsable_rh
+      properties:
+        tipo_falta:
+          type: string
+        fundamento_legal:
+          type: string
+          enum:
+            - Ley Federal del Trabajo
+            - Reglamento Interior de Trabajo
+        articulo_inciso:
+          type: [string, "null"]
+        fecha_evento:
+          type: string
+          format: date
+        lugar_incidente:
+          type: string
+        descripcion_hechos:
+          type: string
+        personas_involucradas:
+          type: [string, "null"]
+        testigos:
+          type: [string, "null"]
+        responsable_rh:
+          type: string
+        evidencia:
+          type: [string, "null"]
+
+    ActaAprobacionResponse:
+      type: object
+      required: [id, acta_id, firmante_id, rol_firmante]
+      properties:
+        id:
+          type: integer
+        acta_id:
+          type: integer
+        firmante_id:
+          type: integer
+        rol_firmante:
+          type: string
+        firma_timestamp:
+          type: [string, "null"]
+          format: date-time
+        comentario:
+          type: [string, "null"]
+
+    ActaResponse:
+      type: object
+      required: [id, empleado_id, estado, generado_por, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: [string, "null"]
+        numero_empleado:
+          type: [string, "null"]
+        puesto:
+          type: [string, "null"]
+        area_departamento:
+          type: [string, "null"]
+        supervisor_directo:
+          type: [string, "null"]
+        tipo_falta:
+          type: [string, "null"]
+        fundamento_legal:
+          type: [string, "null"]
+          enum:
+            - Ley Federal del Trabajo
+            - Reglamento Interior de Trabajo
+            - null
+        articulo_inciso:
+          type: [string, "null"]
+        fecha_evento:
+          type: [string, "null"]
+          format: date
+        lugar_incidente:
+          type: [string, "null"]
+        descripcion_hechos:
+          type: [string, "null"]
+        personas_involucradas:
+          type: [string, "null"]
+        testigos:
+          type: [string, "null"]
+        responsable_rh:
+          type: [string, "null"]
+        evidencia:
+          type: [string, "null"]
+        incidencia_id:
+          type: [integer, "null"]
+        contenido_ia:
+          type: [string, "null"]
+        ia_recomendacion:
+          type: [string, "null"]
+        contenido_final:
+          type: [string, "null"]
+        estado:
+          type: string
+        generado_por:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        aprobaciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActaAprobacionResponse"
+          default: []
+        firmantes_pendientes:
+          type: array
+          items:
+            type: string
+          default: []
+
+    ActaMejoraIaResponse:
+      type: object
+      required: [texto_mejorado]
+      properties:
+        texto_mejorado:
+          type: string
+
+    PaginatedActaResponse:
+      type: object
+      required: [items, next_cursor, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActaResponse"
+        next_cursor:
+          type: [integer, "null"]
+        total:
+          type: integer
+
+    # ── Comedor ───────────────────────────────────────
+    ComedorResponse:
+      type: object
+      required: [id, nombre, activo]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        ubicacion:
+          type: [string, "null"]
+        capacidad:
+          type: [integer, "null"]
+        activo:
+          type: boolean
+
+    ComedorCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 150
+        ubicacion:
+          type: [string, "null"]
+          maxLength: 255
+        capacidad:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 500000
+        activo:
+          type: boolean
+          default: true
+
+    ComedorUpdate:
+      type: object
+      required: [nombre, activo]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 150
+        ubicacion:
+          type: [string, "null"]
+          maxLength: 255
+        capacidad:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 500000
+        activo:
+          type: boolean
+
+    MenuSemanalCreate:
+      type: object
+      required: [comedor_id, semana, dia, tipo]
+      properties:
+        comedor_id:
+          type: integer
+        semana:
+          type: string
+          format: date
+        dia:
+          type: string
+        tipo:
+          type: string
+        descripcion:
+          type: [string, "null"]
+
+    MenuSemanalResponse:
+      type: object
+      required: [id, comedor_id, semana, dia, tipo, created_by, created_at]
+      properties:
+        id:
+          type: integer
+        comedor_id:
+          type: integer
+        semana:
+          type: string
+          format: date
+        dia:
+          type: string
+        tipo:
+          type: string
+        descripcion:
+          type: [string, "null"]
+        foto_path:
+          type: [string, "null"]
+        created_by:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    ComedorRegistroCreate:
+      type: object
+      required: [comedor_id, semana, tipo_platillo]
+      properties:
+        comedor_id:
+          type: integer
+        semana:
+          type: string
+          format: date
+        tipo_platillo:
+          type: string
+
+    ComedorRegistroResponse:
+      type: object
+      required: [id, comedor_id, semana, tipo_platillo, empleado_id, acceso_concedido, created_at]
+      properties:
+        id:
+          type: integer
+        comedor_id:
+          type: integer
+        semana:
+          type: string
+          format: date
+        tipo_platillo:
+          type: string
+        empleado_id:
+          type: integer
+        acceso_concedido:
+          type: boolean
+        huella_timestamp:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    HuellaValidarRequest:
+      type: object
+      required: [huella_id, comedor_id, timestamp]
+      properties:
+        huella_id:
+          type: string
+        comedor_id:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    HuellaValidarResponse:
+      type: object
+      required: [acceso]
+      properties:
+        acceso:
+          type: boolean
+        empleado:
+          type: [string, "null"]
+        tipo_platillo:
+          type: [string, "null"]
+
+    ComedorAccesoReservaCreate:
+      type: object
+      required: [comedor_id, tipo_comida]
+      properties:
+        comedor_id:
+          type: integer
+        fecha_servicio:
+          type: [string, "null"]
+          format: date
+          description: Fecha unica (compatibilidad). Usar fechas_servicio para lotes.
+        fechas_servicio:
+          type: [array, "null"]
+          items:
+            type: string
+            format: date
+          description: Lote de fechas. Se debe enviar fecha_servicio o fechas_servicio.
+        target_user_id:
+          type: [integer, "null"]
+          description: Para supervisor/gerente que reserva en nombre de otro.
+        tipo_comida:
+          type: string
+          enum: [casera, saludable]
+
+    ComedorAccesoReservaUpdate:
+      type: object
+      required: [tipo_comida]
+      properties:
+        tipo_comida:
+          type: string
+          enum: [casera, saludable]
+
+    ComedorAccesoReservaResponse:
+      type: object
+      required: [id, empleado_id, comedor_id, comedor_registro_id, fecha_servicio, tipo_comida, estado_acceso, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        comedor_id:
+          type: integer
+        comedor_registro_id:
+          type: integer
+        fecha_servicio:
+          type: string
+          format: date
+        tipo_comida:
+          type: string
+        estado_acceso:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ComedorRhRegistroCreate:
+      type: object
+      required: [person_type, comedor_id, fechas_servicio, tipo_comida]
+      properties:
+        person_type:
+          type: string
+          enum: [interno, externo]
+        comedor_id:
+          type: integer
+        fechas_servicio:
+          type: array
+          items:
+            type: string
+            format: date
+          minItems: 1
+        tipo_comida:
+          type: string
+          enum: [casera, saludable]
+        target_user_id:
+          type: [integer, "null"]
+        external_people_count:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 300
+        observaciones:
+          type: [string, "null"]
+
+    ComedorRhPaseExternoItem:
+      type: object
+      required: [codigo_acceso, password_temporal]
+      properties:
+        codigo_acceso:
+          type: string
+        password_temporal:
+          type: string
+
+    ComedorRhCredencialTemporal:
+      type: object
+      required: [lote_id, valido_desde, valido_hasta, pases]
+      properties:
+        lote_id:
+          type: string
+        valido_desde:
+          type: string
+          format: date
+        valido_hasta:
+          type: string
+          format: date
+        pases:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComedorRhPaseExternoItem"
+
+    ComedorRhRegistroResponse:
+      type: object
+      required: [total_registros_creados, modo]
+      properties:
+        total_registros_creados:
+          type: integer
+        modo:
+          type: string
+          enum: [interno, externo]
+        credenciales_temporales:
+          oneOf:
+            - $ref: "#/components/schemas/ComedorRhCredencialTemporal"
+            - type: "null"
+
+    ComedorCodigoExternoItem:
+      type: object
+      required: [id, fecha_inicio, fecha_fin, cantidad_personas, tipo_comida, codigo_acceso, password_temporal, estatus, usados]
+      properties:
+        id:
+          type: integer
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+        cantidad_personas:
+          type: integer
+        tipo_comida:
+          type: string
+        codigo_acceso:
+          type: string
+        password_temporal:
+          type: string
+        estatus:
+          type: string
+          enum: [ACTIVO, USADO_PARCIAL, USADO_TOTAL, VENCIDO]
+        usados:
+          type: integer
+        empleado_id:
+          type: [integer, "null"]
+        lote_id:
+          type: [string, "null"]
+
+    ComedorMisReservaItem:
+      type: object
+      required: [id, comedor_id, fecha_servicio, tipo_comida, estado_acceso]
+      properties:
+        id:
+          type: integer
+        comedor_id:
+          type: integer
+        fecha_servicio:
+          type: string
+          format: date
+        tipo_comida:
+          type: string
+        estado_acceso:
+          type: string
+
+    ComedorEquipoReservaItem:
+      type: object
+      required: [id, empleado_id, empleado_nombre, empleado_nombre_corto, fecha_servicio, tipo_comida, estado_acceso]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: string
+        empleado_nombre_corto:
+          type: string
+        fecha_servicio:
+          type: string
+          format: date
+        tipo_comida:
+          type: string
+        estado_acceso:
+          type: string
+
+    ComedorResumenDiarioItem:
+      type: object
+      required: [fecha, caseras, saludables]
+      properties:
+        fecha:
+          type: string
+          format: date
+        caseras:
+          type: integer
+        saludables:
+          type: integer
+
+    ComedorRhProximoRegistroItem:
+      type: object
+      required: [id, empleado_id, empleado_nombre, no_empleado, area, comedor_nombre, fecha_servicio, tipo_comida, estado_acceso]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: string
+        no_empleado:
+          type: string
+        area:
+          type: string
+        comedor_nombre:
+          type: string
+        fecha_servicio:
+          type: string
+          format: date
+        tipo_comida:
+          type: string
+        estado_acceso:
+          type: string
+
+    ComedorRhProximosRegistrosPage:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComedorRhProximoRegistroItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    ComedorEquipoBeneficiarioItem:
+      type: object
+      required: [empleado_id, no_empleado, nombre, nombre_corto]
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        nombre_corto:
+          type: string
+
+    ComedorPrimeraFechaReservaResponse:
+      type: object
+      required: [fecha_iso]
+      properties:
+        fecha_iso:
+          type: string
+          format: date
+
+    ComedorMisFechasOcupadasResponse:
+      type: object
+      required: [fechas]
+      properties:
+        fechas:
+          type: array
+          items:
+            type: string
+            format: date
+
+    ComedorTerminalAccederRequest:
+      type: object
+      required: [username, password, comedor_id]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+        comedor_id:
+          type: integer
+
+    ComedorTerminalAccederResponse:
+      type: object
+      required: [permitido]
+      properties:
+        permitido:
+          type: boolean
+        acceso_id:
+          type: [integer, "null"]
+        empleado_nombre:
+          type: [string, "null"]
+        tipo_platillo:
+          type: [string, "null"]
+        motivo:
+          type: [string, "null"]
+          enum: [sin_reserva, fuera_de_ventana, credenciales_invalidas, empleado_inactivo, null]
+
+    ComedorTerminalConsumirRequest:
+      type: object
+      required: [acceso_id]
+      properties:
+        acceso_id:
+          type: integer
+
+    ComedorTerminalConsumirResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        hora_entrada:
+          type: [string, "null"]
+          format: date-time
+
+    # ── Notificaciones ────────────────────────────────
+    NotificacionResponse:
+      type: object
+      required: [id, user_id, title, message, type, is_read, enviada, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+        is_read:
+          type: boolean
+        enviada:
+          type: boolean
+        target_url:
+          type: [string, "null"]
+        metadata:
+          type: [object, "null"]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        destinatario_id:
+          type: integer
+          readOnly: true
+        asunto:
+          type: string
+          readOnly: true
+        cuerpo:
+          type: string
+          readOnly: true
+        tipo:
+          type: string
+          readOnly: true
+        leida:
+          type: boolean
+          readOnly: true
+
+    PaginatedNotificacionResponse:
+      type: object
+      required: [items, next_cursor, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificacionResponse"
+        next_cursor:
+          type: [integer, "null"]
+        total:
+          type: integer
+
+    # ── Organigrama ───────────────────────────────────
+    OrganigramaNodoResponse:
+      type: object
+      required: [id, empleado_id, no_empleado, nombre_colaborador, activo, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre_colaborador:
+          type: string
+        nombre_puesto:
+          type: [string, "null"]
+        departamento:
+          type: [string, "null"]
+        correo:
+          type: [string, "null"]
+        foto_url:
+          type: [string, "null"]
+        extension_telefono:
+          type: [string, "null"]
+        parent_id:
+          type: [integer, "null"]
+        nivel_jerarquico:
+          type: integer
+          default: 0
+        nivel_visual:
+          type: string
+          default: operacion
+        activo:
+          type: boolean
+        estado_empleado:
+          type: [string, "null"]
+        reportes_directos:
+          type: integer
+          default: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+        relacion_incompleta:
+          type: boolean
+          default: false
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganigramaNodoResponse"
+          default: []
+
+    OrganigramaResponse:
+      type: object
+      required: [total_nodos, total_raices, total_relaciones_incompletas, generated_at, roots]
+      properties:
+        total_nodos:
+          type: integer
+        total_raices:
+          type: integer
+        total_relaciones_incompletas:
+          type: integer
+        generated_at:
+          type: string
+          format: date-time
+        roots:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganigramaNodoResponse"
+
+    # ── Genericos ─────────────────────────────────────
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+              msg:
+                type: string
+              type:
+                type: string
+
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+paths:
+  # ── Root ────────────────────────────────────────────
+  /:
+    get:
+      tags: [Root]
+      summary: Estado del sistema
+      operationId: root_get
+      responses:
+        "200":
+          description: Informacion del sistema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  app:
+                    type: string
+                  version:
+                    type: string
+                  status:
+                    type: string
+                  docs:
+                    type: string
+                  env:
+                    type: string
+
+  /health:
+    get:
+      tags: [Root]
+      summary: Health check
+      operationId: health_get
+      responses:
+        "200":
+          description: Servicio saludable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── Autenticacion ───────────────────────────────────
+  /api/v1/auth/login:
+    post:
+      tags: [Autenticacion]
+      summary: Iniciar sesion
+      operationId: auth_login
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Tokens de acceso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Autenticacion]
+      summary: Cerrar sesion
+      operationId: auth_logout
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sesion cerrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Autenticacion]
+      summary: Renovar access token
+      operationId: auth_refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Nuevos tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+
+  /api/v1/auth/me:
+    get:
+      tags: [Autenticacion]
+      summary: Perfil del usuario autenticado
+      operationId: auth_me
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Datos del usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpleadoResponse"
+
+  /api/v1/auth/sync-it:
+    post:
+      tags: [Autenticacion]
+      summary: Sincronizar IT Mirror
+      description: Sincronizacion manual de empleados desde BD espejo. Solo rol RH.
+      operationId: auth_sync_it
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sincronizacion encolada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    example: pending
+                  nota:
+                    type: string
+
+  # ── Usuarios ────────────────────────────────────────
+  /api/v1/usuarios/roles:
+    get:
+      tags: [Usuarios]
+      summary: Listar roles disponibles
+      operationId: usuarios_roles
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RolBrief"
+
+  /api/v1/usuarios/{id}:
+    get:
+      tags: [Usuarios]
+      summary: Detalle de usuario
+      operationId: usuarios_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioResponse"
+    patch:
+      tags: [Usuarios]
+      summary: Actualizar asignacion de lider o rol
+      operationId: usuarios_patch
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsuarioAsignacionUpdate"
+      responses:
+        "200":
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioResponse"
+
+  # ── Empleados ───────────────────────────────────────
+  /api/v1/empleados/resumen:
+    get:
+      tags: [Empleados]
+      summary: Resumen de plantilla
+      operationId: empleados_resumen
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Metricas de plantilla
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioResumenResponse"
+
+  /api/v1/empleados/catalogo-filtros:
+    get:
+      tags: [Empleados]
+      summary: Catalogos para filtros del directorio
+      operationId: empleados_catalogo_filtros
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Areas y puestos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogoFiltrosResponse"
+
+  /api/v1/empleados:
+    get:
+      tags: [Empleados]
+      summary: Directorio de empleados (paginado)
+      operationId: empleados_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: q
+          in: query
+          description: Busqueda por nombre o numero de empleado
+          schema:
+            type: string
+        - name: area_id
+          in: query
+          schema:
+            type: integer
+        - name: puesto_id
+          in: query
+          description: Permite multiples valores
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: activo
+          in: query
+          description: "Solo RH: true=activos, false=inactivos, omitir=todos"
+          schema:
+            type: boolean
+        - name: estatus
+          in: query
+          description: "Supervisor/Gerente: activo, inactivo, permiso"
+          schema:
+            type: string
+            enum: [activo, inactivo, permiso]
+        - name: solo_contratos_por_vencer
+          in: query
+          description: Contratos que vencen en 30 dias
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Pagina de empleados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioPageResponse"
+
+  /api/v1/empleados/{empleado_id}/vista360:
+    get:
+      tags: [Empleados]
+      summary: Vista 360 del empleado
+      operationId: empleados_vista360
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Perfil completo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioVista360Response"
+
+  /api/v1/empleados/{empleado_id}/metricas:
+    get:
+      tags: [Empleados]
+      summary: Metricas individuales del empleado
+      operationId: empleados_metricas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: KPIs del empleado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricasUsuarioResponse"
+
+  # ── Solicitudes ─────────────────────────────────────
+  /api/v1/solicitudes:
+    get:
+      tags: [Solicitudes]
+      summary: Listar solicitudes (cursor-based)
+      operationId: solicitudes_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: ID del ultimo item recibido; omitir para primera pagina
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Pagina de solicitudes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedSolicitudResponse"
+    post:
+      tags: [Solicitudes]
+      summary: Crear solicitud
+      operationId: solicitudes_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudCreate"
+      responses:
+        "201":
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/solicitudes/{solicitud_id}:
+    get:
+      tags: [Solicitudes]
+      summary: Detalle de solicitud
+      operationId: solicitudes_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Solicitud encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/aprobaciones:
+    get:
+      tags: [Solicitudes]
+      summary: Timeline de aprobaciones
+      operationId: solicitudes_aprobaciones
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de aprobaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SolicitudAprobacionResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/approve:
+    put:
+      tags: [Solicitudes]
+      summary: Aprobar solicitud
+      operationId: solicitudes_approve
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudAprobacionCreate"
+      responses:
+        "200":
+          description: Solicitud aprobada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/reject:
+    put:
+      tags: [Solicitudes]
+      summary: Rechazar solicitud
+      operationId: solicitudes_reject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudAprobacionCreate"
+      responses:
+        "200":
+          description: Solicitud rechazada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/request-changes:
+    put:
+      tags: [Solicitudes]
+      summary: Solicitar cambios al requisitor
+      operationId: solicitudes_request_changes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudSolicitarCambiosBody"
+      responses:
+        "200":
+          description: Cambios solicitados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/revision:
+    patch:
+      tags: [Solicitudes]
+      summary: Reenviar solicitud con cambios
+      description: Solo el creador puede usar este endpoint. Solo funciona en estado changes_requested.
+      operationId: solicitudes_revision
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudRequisitorRevision"
+      responses:
+        "200":
+          description: Solicitud reenviada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/override:
+    put:
+      tags: [Solicitudes]
+      summary: Override de aprobacion (director/RH)
+      operationId: solicitudes_override
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudAprobacionCreate"
+      responses:
+        "200":
+          description: Solicitud aprobada por override
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  /api/v1/solicitudes/{solicitud_id}/cancel:
+    put:
+      tags: [Solicitudes]
+      summary: Cancelar solicitud propia
+      operationId: solicitudes_cancel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Solicitud cancelada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolicitudResponse"
+
+  # ── Incidencias ─────────────────────────────────────
+  /api/v1/incidencias:
+    get:
+      tags: [Incidencias]
+      summary: Listar incidencias
+      description: Stub — retorna lista vacia. En desarrollo.
+      operationId: incidencias_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de incidencias
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IncidenciaResponse"
+                  next_cursor:
+                    type: [integer, "null"]
+                  total:
+                    type: integer
+    post:
+      tags: [Incidencias]
+      summary: Registrar incidencia
+      description: En desarrollo.
+      operationId: incidencias_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncidenciaCreate"
+      responses:
+        "200":
+          description: Incidencia registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /api/v1/incidencias/{id}:
+    get:
+      tags: [Incidencias]
+      summary: Detalle de incidencia
+      description: En desarrollo.
+      operationId: incidencias_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle de incidencia
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: integer
+
+  /api/v1/incidencias/{id}/estado:
+    put:
+      tags: [Incidencias]
+      summary: Cambiar estado de incidencia
+      description: En desarrollo.
+      operationId: incidencias_estado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: integer
+
+  /api/v1/incidencias/{id}/evidencias:
+    post:
+      tags: [Incidencias]
+      summary: Subir evidencia
+      description: En desarrollo. Upload de archivo.
+      operationId: incidencias_upload_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Evidencia subida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: integer
+
+  /api/v1/incidencias/{id}/evidencias/{eid}:
+    get:
+      tags: [Incidencias]
+      summary: Descargar evidencia
+      description: En desarrollo.
+      operationId: incidencias_download_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: eid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Archivo de evidencia
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  incidencia_id:
+                    type: integer
+                  evidencia_id:
+                    type: integer
+
+  # ── Actas Administrativas ──────────────────────────
+  /api/v1/actas:
+    get:
+      tags: [Actas Administrativas]
+      summary: Listar actas (cursor-based)
+      operationId: actas_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        "200":
+          description: Pagina de actas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedActaResponse"
+    post:
+      tags: [Actas Administrativas]
+      summary: Crear acta administrativa
+      operationId: actas_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActaCreateRequest"
+      responses:
+        "201":
+          description: Acta creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/actas/generar/{incidencia_id}:
+    post:
+      tags: [Actas Administrativas]
+      summary: Generar acta con IA desde incidencia
+      description: Integracion con Ollama LLM. En desarrollo.
+      operationId: actas_generar_ia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: incidencia_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generacion encolada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  incidencia_id:
+                    type: integer
+
+  /api/v1/actas/{id}:
+    get:
+      tags: [Actas Administrativas]
+      summary: Detalle de acta
+      operationId: actas_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acta encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+
+  /api/v1/actas/{id}/mejorar-ia:
+    post:
+      tags: [Actas Administrativas]
+      summary: Mejorar texto del acta con IA
+      operationId: actas_mejorar_ia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Texto mejorado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaMejoraIaResponse"
+
+  /api/v1/actas/{id}/editar:
+    put:
+      tags: [Actas Administrativas]
+      summary: Editar acta en estado DRAFT
+      operationId: actas_editar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActaEditarRequest"
+      responses:
+        "200":
+          description: Acta editada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+
+  /api/v1/actas/{id}/firmar:
+    put:
+      tags: [Actas Administrativas]
+      summary: Firmar acta
+      description: En desarrollo. Cada rol firma una vez; al completar 3 firmas pasa a SIGNED.
+      operationId: actas_firmar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Firma registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: integer
+
+  /api/v1/actas/{id}/pdf:
+    get:
+      tags: [Actas Administrativas]
+      summary: Descargar PDF del acta
+      description: En desarrollo.
+      operationId: actas_pdf
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: PDF generado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: integer
+
+  # ── Comedor ─────────────────────────────────────────
+  /api/v1/comedor/comedores:
+    get:
+      tags: [Comedor]
+      summary: Listar comedores activos
+      operationId: comedor_comedores_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de comedores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorResponse"
+    post:
+      tags: [Comedor]
+      summary: Crear comedor
+      operationId: comedor_comedores_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorCreate"
+      responses:
+        "201":
+          description: Comedor creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorResponse"
+
+  /api/v1/comedor/comedores/{comedor_id}:
+    put:
+      tags: [Comedor]
+      summary: Actualizar comedor
+      operationId: comedor_comedores_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: comedor_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorUpdate"
+      responses:
+        "200":
+          description: Comedor actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorResponse"
+
+  /api/v1/comedor/menu:
+    get:
+      tags: [Comedor]
+      summary: Menu semanal del comedor
+      operationId: comedor_menu_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: comedor_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: semana
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Menu de la semana
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenuSemanalResponse"
+    post:
+      tags: [Comedor]
+      summary: Publicar menu semanal
+      operationId: comedor_menu_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuSemanalCreate"
+      responses:
+        "201":
+          description: Menu publicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuSemanalResponse"
+
+  /api/v1/comedor/registro:
+    post:
+      tags: [Comedor]
+      summary: Seleccionar platillo semanal
+      operationId: comedor_registro_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorRegistroCreate"
+      responses:
+        "200":
+          description: Registro creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorRegistroResponse"
+
+  /api/v1/comedor/accesos/primera-fecha-permitida:
+    get:
+      tags: [Comedor]
+      summary: Primera fecha permitida para reservas
+      operationId: comedor_primera_fecha
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Fecha alineada a zona horaria de negocio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorPrimeraFechaReservaResponse"
+
+  /api/v1/comedor/accesos/mis-reservas:
+    get:
+      tags: [Comedor]
+      summary: Mis reservas del mes
+      operationId: comedor_mis_reservas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+        - name: mes
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: Lista de reservas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorMisReservaItem"
+
+  /api/v1/comedor/accesos/mis-fechas-ocupadas:
+    get:
+      tags: [Comedor]
+      summary: Fechas con reserva activa (PENDING o ACCEDIDO)
+      operationId: comedor_mis_fechas_ocupadas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: true
+          description: Debe ser >= desde
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Fechas ocupadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorMisFechasOcupadasResponse"
+
+  /api/v1/comedor/accesos/mis-proximas-reservas:
+    get:
+      tags: [Comedor]
+      summary: Proximas reservas del empleado
+      operationId: comedor_mis_proximas_reservas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limite
+          in: query
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 20
+      responses:
+        "200":
+          description: Reservas proximas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorMisReservaItem"
+
+  /api/v1/comedor/accesos/equipo/mis-proximas-reservas:
+    get:
+      tags: [Comedor]
+      summary: Proximas reservas del equipo
+      operationId: comedor_equipo_proximas_reservas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limite
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Reservas del equipo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorEquipoReservaItem"
+
+  /api/v1/comedor/accesos/equipo/beneficiarios:
+    get:
+      tags: [Comedor]
+      summary: Beneficiarios seleccionables (yo + equipo directo)
+      operationId: comedor_equipo_beneficiarios
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de beneficiarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorEquipoBeneficiarioItem"
+
+  /api/v1/comedor/accesos/equipo/mis-reservas:
+    get:
+      tags: [Comedor]
+      summary: Reservas del equipo por mes
+      operationId: comedor_equipo_reservas_mes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+        - name: mes
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: Reservas del equipo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorEquipoReservaItem"
+
+  /api/v1/comedor/accesos/equipo/metricas:
+    get:
+      tags: [Comedor]
+      summary: Metricas del comedor para el equipo
+      operationId: comedor_equipo_metricas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tarjetas de metricas
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/v1/comedor/accesos/rh/resumen-diario:
+    get:
+      tags: [Comedor]
+      summary: Resumen diario de accesos (RH)
+      operationId: comedor_rh_resumen_diario
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Resumen por dia
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorResumenDiarioItem"
+
+  /api/v1/comedor/accesos/rh/proximos-registros:
+    get:
+      tags: [Comedor]
+      summary: Proximos registros con filtros (RH)
+      operationId: comedor_rh_proximos_registros
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: buscar
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: filtro_estado
+          in: query
+          schema:
+            type: string
+            enum: [todos, confirmado, cancelado]
+            default: todos
+      responses:
+        "200":
+          description: Pagina de registros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorRhProximosRegistrosPage"
+
+  /api/v1/comedor/accesos/reservar:
+    post:
+      tags: [Comedor]
+      summary: Reservar acceso al comedor (pre-autorizacion diaria)
+      operationId: comedor_reservar
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorAccesoReservaCreate"
+      responses:
+        "200":
+          description: Reserva(s) creada(s)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ComedorAccesoReservaResponse"
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/ComedorAccesoReservaResponse"
+
+  /api/v1/comedor/accesos/rh/registro:
+    post:
+      tags: [Comedor]
+      summary: Registro RH (interno o externo con pases)
+      operationId: comedor_rh_registro
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorRhRegistroCreate"
+      responses:
+        "200":
+          description: Registros creados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorRhRegistroResponse"
+
+  /api/v1/comedor/accesos/rh/codigos-externos:
+    get:
+      tags: [Comedor]
+      summary: Codigos de acceso externos
+      operationId: comedor_rh_codigos_externos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: estatus
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVO, USADO_PARCIAL, USADO_TOTAL, VENCIDO]
+      responses:
+        "200":
+          description: Lista de codigos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorCodigoExternoItem"
+
+  /api/v1/comedor/accesos/{acceso_id}:
+    put:
+      tags: [Comedor]
+      summary: Actualizar tipo de comida de reserva
+      operationId: comedor_acceso_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: acceso_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorAccesoReservaUpdate"
+      responses:
+        "200":
+          description: Reserva actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorAccesoReservaResponse"
+    delete:
+      tags: [Comedor]
+      summary: Cancelar reserva de acceso
+      operationId: comedor_acceso_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: acceso_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Reserva cancelada
+
+  /api/v1/comedor/terminal/acceder:
+    post:
+      tags: [Comedor]
+      summary: Login de terminal de comedor
+      description: Restringido por IP (COMEDOR_TERMINAL_IPS). Requiere API key.
+      operationId: comedor_terminal_acceder
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorTerminalAccederRequest"
+      responses:
+        "200":
+          description: Resultado de acceso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorTerminalAccederResponse"
+
+  /api/v1/comedor/terminal/consumir:
+    post:
+      tags: [Comedor]
+      summary: Marcar acceso como consumido (torniquete)
+      description: Restringido por IP. Requiere API key.
+      operationId: comedor_terminal_consumir
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorTerminalConsumirRequest"
+      responses:
+        "200":
+          description: Acceso marcado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorTerminalConsumirResponse"
+
+  /api/v1/comedor/huella/validar:
+    post:
+      tags: [Comedor]
+      summary: Validacion biometrica de huella
+      description: >
+        Solo IPs en HUELLA_WHITELIST_IPS. Sin JWT. Timeout max 500ms. FAIL OPEN.
+      operationId: comedor_huella_validar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HuellaValidarRequest"
+      responses:
+        "200":
+          description: Resultado de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HuellaValidarResponse"
+
+  /api/v1/comedor/estadisticas:
+    get:
+      tags: [Comedor]
+      summary: Estadisticas semanales del comedor
+      operationId: comedor_estadisticas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: semana
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Estadisticas de consumo
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/v1/comedor/proyecciones:
+    get:
+      tags: [Comedor]
+      summary: Proyecciones de consumo (promedio 4 semanas)
+      operationId: comedor_proyecciones
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Proyecciones para planificacion de compras
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ── Reportes ────────────────────────────────────────
+  /api/v1/reportes/dashboard/kpis:
+    get:
+      tags: [Reportes]
+      summary: KPIs del dashboard principal
+      operationId: reportes_dashboard_kpis
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tarjetas de KPIs
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/v1/reportes/{modulo}/pdf:
+    get:
+      tags: [Reportes]
+      summary: Exportar modulo a PDF
+      operationId: reportes_pdf
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: modulo
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [solicitudes, incidencias, actas, comedor, empleados]
+      responses:
+        "200":
+          description: Archivo PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/v1/reportes/{modulo}/excel:
+    get:
+      tags: [Reportes]
+      summary: Exportar modulo a Excel
+      operationId: reportes_excel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: modulo
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [solicitudes, incidencias, actas, comedor, empleados]
+      responses:
+        "200":
+          description: Archivo Excel
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  # ── Notificaciones ──────────────────────────────────
+  /api/v1/notificaciones:
+    get:
+      tags: [Notificaciones]
+      summary: Bandeja de notificaciones (cursor-based)
+      operationId: notificaciones_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Pagina de notificaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedNotificacionResponse"
+
+  /api/v1/notificaciones/recientes:
+    get:
+      tags: [Notificaciones]
+      summary: Ultimas 5 notificaciones
+      operationId: notificaciones_recientes
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Notificaciones recientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificacionResponse"
+
+  /api/v1/notificaciones/no-leidas/count:
+    get:
+      tags: [Notificaciones]
+      summary: Contador de no leidas (badge)
+      operationId: notificaciones_unread_count
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Contador
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  no_leidas:
+                    type: integer
+
+  /api/v1/notificaciones/{notificacion_id}/leer:
+    put:
+      tags: [Notificaciones]
+      summary: Marcar notificacion como leida
+      operationId: notificaciones_leer
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificacion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notificacion marcada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificacionResponse"
+
+  /api/v1/notificaciones/leer-todas:
+    put:
+      tags: [Notificaciones]
+      summary: Marcar todas como leidas
+      operationId: notificaciones_leer_todas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Total marcadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  marcadas:
+                    type: integer
+
+  # ── Organigrama ─────────────────────────────────────
+  /api/v1/organigrama:
+    get:
+      tags: [Organigrama]
+      summary: Estructura jerarquica completa
+      operationId: organigrama_get
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Arbol organizacional
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganigramaResponse"
