@@ -129,3 +129,29 @@ Layered architecture: **router → service → repository → models/schemas**
 - When adding, removing, or modifying any backend endpoint (routers, schemas, models), update `openapi.yaml` at the project root to reflect the change.
 - This includes: new paths, changed request/response schemas, new query/path parameters, modified enums, and security requirements.
 - Keep component schemas in sync with `app/schemas/*.py` Pydantic models.
+
+### Design System (`design.md`)
+- **Read `design.md` before any frontend work.** It is the single source of truth for colors, typography, spacing, components, and layout patterns.
+- When creating or modifying frontend components, use the tokens and patterns defined in `design.md` — never invent new colors, spacing values, or component variants.
+- UI tokens live in `frontend/src/ui/uiTokens.ts`. Use existing constants (BTN_PRIMARY, BTN_SECONDARY, BTN_GHOST, BTN_DANGER, badge functions, FIELD_FOCUS, SELECT_CHEVRON, FILTER_FIELD_WRAP) instead of writing inline classes.
+- When adding a new component or pattern not covered in `design.md`, first implement it following the system's principles (4px grid, Inter font, semantic color tokens, tonal layering for depth), then update `design.md` to document the new pattern.
+- Colors: use `--color-primary` (#0A1628), `--color-accent` (#2563EB) for interactive elements, semantic status colors for badges. Never hardcode hex values in component code.
+- Border radius: default 4px for buttons/inputs, 8px for cards/modals, pill for badges/avatars.
+- Shadows: only on floating elements (dropdowns, modals, tooltips). Cards and containers use 1px borders + tonal layering.
+- The design system originates from Google Stitch project `1746412759455982581` ("Industrial Precision"). Use the Stitch MCP tools to reference or update screens when needed.
+
+### Stitch MCP (Google Stitch Design Tool)
+Available MCP tools for the design system:
+- `mcp__stitch__get_project` — Get project details. Use `name: "projects/1746412759455982581"`.
+- `mcp__stitch__list_screens` — List all screens. Use `projectId: "1746412759455982581"`.
+- `mcp__stitch__get_screen` — Get a specific screen's HTML and screenshot by screen ID.
+- `mcp__stitch__list_design_systems` — List design systems for the project.
+- `mcp__stitch__generate_screen_from_text` — Generate new screens from text descriptions.
+- `mcp__stitch__edit_screens` — Edit existing screens.
+- `mcp__stitch__generate_variants` — Generate variants of existing screens.
+- `mcp__stitch__create_design_system` / `mcp__stitch__update_design_system` — Manage the design system.
+
+Use these tools to:
+1. Reference screen designs when implementing new pages (get the screen HTML/screenshot first).
+2. Generate new screen mockups before implementing complex UI.
+3. Keep the design system in Stitch synchronized with `design.md` changes.
