@@ -8,6 +8,7 @@ import {
 } from "../api/organigrama.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 
 type OrganigramaPageState = {
@@ -368,17 +369,17 @@ function organigramaStyles(): string {
 }
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">Solo el rol RH puede acceder al organigrama empresarial.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "Solo el rol RH puede acceder al organigrama empresarial.",
+    linkHref: "#/",
+    linkLabel: "Volver al dashboard",
+  });
 }
 
 function organigramaMainHtml(state: OrganigramaPageState): string {
   if (state.loading) {
-    return `<div class="rounded-2xl border border-border bg-white px-4 py-16 text-center text-sm text-text-muted">
+    return `<div class="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-16 text-center text-sm text-text-muted shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
       Cargando organigrama empresarial...
     </div>`;
   }

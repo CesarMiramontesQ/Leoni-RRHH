@@ -7,9 +7,9 @@ import { mountAuthenticatedShell } from "../shellRouter.ts";
 
 export function mountLogin(container: HTMLElement): void {
   container.innerHTML = `
-<div class="flex min-h-full bg-white">
+<div class="flex min-h-full bg-[#f6f8fb]">
 
-  <div class="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
+  <div class="relative flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 bg-[linear-gradient(180deg,#ffffff_0%,#f6f8fb_100%)] shadow-[inset_1px_0_0_rgba(148,163,184,0.12)]">
     <div class="mx-auto w-full max-w-sm lg:w-96">
 
       <div>

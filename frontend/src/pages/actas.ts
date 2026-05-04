@@ -34,10 +34,14 @@ import { escapeHtml, fmtFechaCorta, paginationRange } from "../ui/uiUtils.ts";
 import {
   FIELD_FOCUS,
   SELECT_CHEVRON,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   badgeOpen,
   badgeInProgress,
   badgeApproved,
   badgeCancelled,
+  htmlAccessDenied,
 } from "../ui/uiTokens.ts";
 
 type ActasTableData = {
@@ -87,20 +91,13 @@ const DEFAULT_FILTERS: ActasFilterState = {
   page_size: 10,
 };
 
-const ACTAS_BTN_PRIMARY =
-  "inline-flex items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
-const ACTAS_BTN_SECONDARY =
-  "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
-const ACTAS_BTN_GHOST =
-  "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
-
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">La sección de actas administrativas solo está disponible para RH.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "La sección de actas administrativas solo está disponible para RH.",
+    linkHref: "#/",
+    linkLabel: "Volver al dashboard",
+  });
 }
 
 function normalizeText(value: string): string {
@@ -420,7 +417,7 @@ function renderActasFilters(filters: ActasFilterState, loading: boolean): string
       <button
         type="button"
         data-rh-actas-clear-filters
-        class="${ACTAS_BTN_GHOST} w-full sm:w-auto"
+        class="${RH_LISTADO_BTN_GHOST} w-full sm:w-auto"
       >
         Limpiar filtros
       </button>
@@ -477,8 +474,8 @@ function renderActasEmptyState(filters: ActasFilterState): string {
       <h3 class="mt-4 text-lg font-semibold text-[#111827]">No se encontraron actas</h3>
       <p class="mt-2 text-sm text-[#667085]">Intenta ajustar los filtros o crea una nueva acta administrativa.</p>
       <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
-        ${showClear ? `<button type="button" data-rh-actas-clear-filters class="${ACTAS_BTN_GHOST}">Limpiar filtros</button>` : ""}
-        <button type="button" id="rh-actas-nueva-empty" class="${ACTAS_BTN_PRIMARY}">
+        ${showClear ? `<button type="button" data-rh-actas-clear-filters class="${RH_LISTADO_BTN_GHOST}">Limpiar filtros</button>` : ""}
+        <button type="button" id="rh-actas-nueva-empty" class="${RH_LISTADO_BTN_PRIMARY}">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10 4.25a.75.75 0 0 1 .75.75v4.25H15a.75.75 0 0 1 0 1.5h-4.25V15a.75.75 0 0 1-1.5 0v-4.25H5a.75.75 0 0 1 0-1.5h4.25V5a.75.75 0 0 1 .75-.75Z" /></svg>
           Nueva acta administrativa
         </button>
@@ -697,7 +694,7 @@ function renderActasMain(
             <button
               type="button"
               id="rh-actas-export"
-              class="${ACTAS_BTN_SECONDARY}"
+              class="${RH_LISTADO_BTN_SECONDARY}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -707,7 +704,7 @@ function renderActasMain(
             <button
               type="button"
               id="rh-actas-nueva"
-              class="${ACTAS_BTN_PRIMARY}"
+              class="${RH_LISTADO_BTN_PRIMARY}"
             >
               <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10 4.25a.75.75 0 0 1 .75.75v4.25H15a.75.75 0 0 1 0 1.5h-4.25V15a.75.75 0 0 1-1.5 0v-4.25H5a.75.75 0 0 1 0-1.5h4.25V5a.75.75 0 0 1 .75-.75Z" /></svg>
               Nueva acta administrativa

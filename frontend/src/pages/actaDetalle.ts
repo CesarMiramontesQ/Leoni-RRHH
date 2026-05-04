@@ -14,14 +14,15 @@ import {
 } from "../actas/actasMockData.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">La sección de detalle de actas administrativas solo está disponible para RH.</p>
-      <a href="#/actas" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al listado de actas</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "La sección de detalle de actas administrativas solo está disponible para RH.",
+    linkHref: "#/actas",
+    linkLabel: "Volver al listado de actas",
+  });
 }
 
 function fechaCorta(iso: string): string {
@@ -791,8 +792,9 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     mainHtml: `<div id="rh-acta-detalle-page" class="space-y-4">${skeletonHtml()}</div>`,
   });
 
-  const page = container.querySelector("#rh-acta-detalle-page");
-  if (!(page instanceof HTMLElement)) return;
+  const pageNode = container.querySelector("#rh-acta-detalle-page");
+  if (!(pageNode instanceof HTMLElement)) return;
+  const page: HTMLElement = pageNode;
   let isImprovingWithIa = false;
   let isRegeneratingIa = false;
   let iaTextoMejorado = "";

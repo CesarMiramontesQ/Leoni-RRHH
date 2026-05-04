@@ -75,3 +75,50 @@ export function badgeInProgress(label = "En investigación"): string {
 export function badgeOverridden(label = "Override"): string {
   return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900"><span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
 }
+
+// ── Vistas listado RH (Actas, Incidencias, Solicitudes, Empleados) ───────────
+/** Contenedor principal: fondo gris-azulado y ancho máximo alineado a Actas. */
+export const RH_LISTADO_PAGE_OUTER =
+  "mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 bg-[#f6f8fb] px-2 pb-2 sm:gap-6 sm:px-3";
+
+/** Tarjeta / panel estándar: borde suave, sombra institucional. */
+export const RH_LISTADO_SURFACE =
+  "rounded-2xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]";
+
+export const RH_LISTADO_BTN_PRIMARY =
+  "inline-flex items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+
+export const RH_LISTADO_BTN_SECONDARY =
+  "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+
+export const RH_LISTADO_BTN_GHOST =
+  "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+
+export const RH_LISTADO_LABEL = "mb-1 block text-xs font-medium text-[#667085]";
+
+export const RH_LISTADO_SELECT =
+  "col-start-1 row-start-1 w-full appearance-none rounded-[10px] border border-[#e5e7eb] bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm";
+
+export const RH_LISTADO_FOCUS_RING =
+  "focus:border-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+
+/** Alias corto para nuevas vistas (mismo valor que RH_LISTADO_*). */
+export const RH_PAGE_OUTER = RH_LISTADO_PAGE_OUTER;
+export const RH_SURFACE_CARD = RH_LISTADO_SURFACE;
+
+/**
+ * Panel homogéneo de “acceso restringido” (amber, sin romper flujos existentes).
+ */
+export function htmlAccessDenied(opts: {
+  title: string;
+  description: string;
+  linkHref: string;
+  linkLabel: string;
+}): string {
+  return `
+    <div class="rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 px-5 py-5 text-sm text-amber-950 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+      <p class="font-semibold text-[#111827]">${escapeHtml(opts.title)}</p>
+      <p class="mt-1.5 leading-snug text-amber-950/90">${escapeHtml(opts.description)}</p>
+      <a href="${escapeHtml(opts.linkHref)}" class="mt-4 inline-flex font-semibold text-[#1e40af] transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2">${escapeHtml(opts.linkLabel)}</a>
+    </div>`;
+}

@@ -22,9 +22,13 @@ import {
   FIELD_FOCUS,
   SELECT_CHEVRON,
   FILTER_FIELD_WRAP,
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  BTN_GHOST,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
+  RH_LISTADO_SURFACE,
   badgePending,
   badgeApproved,
   badgeRejected,
@@ -35,12 +39,12 @@ import {
 
 type SolicitudesRenderScope = "main" | "personal" | "equipo";
 
-/** Cabecera de tabla: legibilidad alta sin azul marino pleno. */
+/** Cabecera de tabla (alineada a Actas / Incidencias). */
 const TABLE_TH =
-  "sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-3 py-2.5 text-left text-xs font-semibold text-slate-800 sm:px-4 sm:text-sm";
+  "sticky top-0 z-20 border-b border-slate-200 bg-slate-50 px-3 py-3 text-left text-[13px] font-semibold text-slate-700 sm:px-4";
 
 const ACT_ICON_BTN =
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-leoni-blue/45 hover:bg-slate-50 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-400";
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-400";
 
 function scopeAttr(scope: SolicitudesRenderScope): string {
   return `data-rh-sol-scope="${scope}"`;
@@ -151,7 +155,7 @@ function filtrosActivos(f: RhSolicitudFilterState, keys: readonly RequestFilterK
 function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState, scope: SolicitudesRenderScope): string {
   const inputId = scopeId("rh-sol-f-emp-q", scope);
   return `<div class="min-w-0">
-  <label for="${inputId}" class="mb-1 block text-xs font-medium text-gray-800">Empleado</label>
+  <label for="${inputId}" class="${RH_LISTADO_LABEL}">Empleado</label>
   <div>
     <input
       type="search"
@@ -163,7 +167,7 @@ function empleadoTextoBusquedaFilterField(f: RhSolicitudFilterState, scope: Soli
       enterkeyhint="search"
       placeholder="Buscar empleado..."
       value="${escapeHtml(f.empleado_busqueda)}"
-      class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-base text-gray-900 shadow-sm sm:text-sm/6 ${FIELD_FOCUS}"
+      class="w-full rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}"
     />
   </div>
 </div>`;
@@ -178,9 +182,9 @@ function selectFilter(
 ): string {
   const selectId = scopeId(id, scope);
   return `<div class="min-w-0">
-  <label for="${selectId}" class="mb-1 block text-xs font-medium text-gray-800">${escapeHtml(label)}</label>
+  <label for="${selectId}" class="${RH_LISTADO_LABEL}">${escapeHtml(label)}</label>
   <div class="grid grid-cols-1">
-    <select id="${selectId}" name="${name}" data-rh-sol-filter="${name}" ${scopeAttr(scope)} class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-2.5 text-base text-gray-900 sm:text-sm/6 ${FIELD_FOCUS}">
+    <select id="${selectId}" name="${name}" data-rh-sol-filter="${name}" ${scopeAttr(scope)} class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
       ${optionsHtml}
     </select>
     ${SELECT_CHEVRON}
@@ -458,7 +462,7 @@ function renderFilters(
           type="button"
           data-rh-sol-clear-filters
           ${scopeAttr(scope)}
-          class="${BTN_GHOST} w-full sm:w-auto"
+          class="${RH_LISTADO_BTN_GHOST} w-full sm:w-auto"
         >
           Limpiar filtros
         </button>
@@ -473,14 +477,17 @@ function renderFilters(
 
   if (clusterEquipo) {
     return `
-    <section class="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros del equipo">
-      <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buscar y filtrar equipo</p>
+    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-label="Filtros del equipo">
+      <p class="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">Buscar y filtrar equipo</p>
       ${inner}
     </section>`;
   }
 
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de solicitudes">
+    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-label="Filtros de solicitudes">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold text-[#111827]">Filtros</h2>
+      </div>
       ${inner}
     </section>`;
 }
@@ -496,7 +503,7 @@ function renderFiltersSkeleton(visibleCount: number): string {
     "",
   );
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-hidden="true" aria-label="Cargando filtros">
+    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-hidden="true" aria-label="Cargando filtros">
       <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
         ${slots}
       </div>
@@ -536,8 +543,8 @@ function renderEmpleadoSolicitudesTableFooter(
       }
       const active = x === tbl.page;
       const cls = active
-        ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
-        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
+        ? "min-h-8 min-w-8 rounded-lg bg-[#1e40af] px-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] sm:px-2.5 sm:text-sm"
+        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
       return `<button type="button" data-rh-sol-page="${x}" ${scopeAttr(scope)} class="${cls}">${x}</button>`;
     })
     .join("");
@@ -552,20 +559,20 @@ function renderEmpleadoSolicitudesTableFooter(
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
             <label for="${scopeId("rh-sol-emp-page-size", scope)}" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
-            <select id="${scopeId("rh-sol-emp-page-size", scope)}" name="${scopeId("rh-sol-emp-page-size", scope)}" data-rh-sol-page-size ${scopeAttr(scope)} class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
+            <select id="${scopeId("rh-sol-emp-page-size", scope)}" name="${scopeId("rh-sol-emp-page-size", scope)}" data-rh-sol-page-size ${scopeAttr(scope)} class="rounded-[10px] border border-[#e5e7eb] bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
           <button type="button" data-rh-sol-page="${tbl.page - 1}" ${scopeAttr(scope)} ${tbl.page <= 1 ? "disabled" : ""}
-            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
           <button type="button" data-rh-sol-page="${tbl.page + 1}" ${scopeAttr(scope)} ${tbl.page >= totalPages ? "disabled" : ""}
-            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
           </button>
@@ -576,9 +583,9 @@ function renderEmpleadoSolicitudesTableFooter(
 function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
   if (vm.tableStatus === "loading") {
     return `
-      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Tus solicitudes">
+      <section class="shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-busy="true" aria-label="Tus solicitudes">
         <div class="flex items-center gap-2.5 px-3 py-8 text-sm text-text-muted sm:px-4">
-          <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <svg class="size-5 animate-spin text-[#2563EB]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           Cargando solicitudes…
         </div>
       </section>`;
@@ -586,7 +593,7 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: 
 
   if (vm.tableStatus === "error") {
     return `
-      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
+      <section class="shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-label="Tus solicitudes">
         <div class="border-b border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-800 sm:px-4" role="alert">
           ${escapeHtml(vm.tableErrorMessage ?? "Error al cargar la tabla.")}
         </div>
@@ -656,11 +663,11 @@ function renderEmpleadoSolicitudesTable(vm: RhSolicitudesAdminViewModel, scope: 
   );
 
   return `
-    <section class="${sectionLayoutCls} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tus solicitudes">
+    <section class="${sectionLayoutCls} ${RH_LISTADO_SURFACE}" aria-label="Tus solicitudes">
       <div class="${tablaBodyWrapCls}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="min-w-[760px] w-full text-left">
-          <thead class="border-b border-slate-200 shadow-sm">
+          <thead class="bg-slate-50">
             <tr>
               <th scope="col" class="${TABLE_TH}">Folio</th>
               <th scope="col" class="${TABLE_TH}">Tipo</th>
@@ -684,9 +691,9 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
 
   if (vm.tableStatus === "loading") {
     return `
-      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true" aria-label="Solicitudes">
+      <section class="shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-busy="true" aria-label="Solicitudes">
         <div class="flex items-center gap-2.5 px-3 py-8 text-sm text-text-muted sm:px-4">
-          <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <svg class="size-5 animate-spin text-[#2563EB]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           Cargando solicitudes…
         </div>
       </section>`;
@@ -694,7 +701,7 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
 
   if (vm.tableStatus === "error") {
     return `
-      <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Solicitudes">
+      <section class="shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-label="Solicitudes">
         <div class="border-b border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-800 sm:px-4" role="alert">
           ${escapeHtml(vm.tableErrorMessage ?? "Error al cargar la tabla.")}
         </div>
@@ -773,8 +780,8 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
               }
               const active = x === tbl.page;
               const cls = active
-                ? "min-h-8 min-w-8 rounded-lg bg-leoni-blue px-2 text-xs font-bold text-white shadow-sm transition hover:bg-leoni-blue-light sm:px-2.5 sm:text-sm"
-                : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
+                ? "min-h-8 min-w-8 rounded-lg bg-[#1e40af] px-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] sm:px-2.5 sm:text-sm"
+                : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
               return `<button type="button" data-rh-sol-page="${x}" ${scopeAttr(scope)} class="${cls}">${x}</button>`;
             })
             .join("");
@@ -789,20 +796,20 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
             <label for="${scopeId("rh-sol-page-size", scope)}" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
-            <select id="${scopeId("rh-sol-page-size", scope)}" name="${scopeId("rh-sol-page-size", scope)}" data-rh-sol-page-size ${scopeAttr(scope)} class="rounded-md border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
+            <select id="${scopeId("rh-sol-page-size", scope)}" name="${scopeId("rh-sol-page-size", scope)}" data-rh-sol-page-size ${scopeAttr(scope)} class="rounded-[10px] border border-[#e5e7eb] bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
           <button type="button" data-rh-sol-page="${tbl.page - 1}" ${scopeAttr(scope)} ${tbl.page <= 1 ? "disabled" : ""}
-            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">Anterior</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
           </button>
           ${pageButtons}
           <button type="button" data-rh-sol-page="${tbl.page + 1}" ${scopeAttr(scope)} ${tbl.page >= totalPages ? "disabled" : ""}
-            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">Siguiente</span>
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
           </button>
@@ -825,11 +832,11 @@ function renderTable(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderSc
     : `<th scope="col" class="${TABLE_TH}">Empleado</th>`;
 
   return `
-    <section class="${sectionLayoutClsGestor} rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Listado de solicitudes">
+    <section class="${sectionLayoutClsGestor} ${RH_LISTADO_SURFACE}" aria-label="Listado de solicitudes">
       <div class="${tablaBodyWrapClsGestor}">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="${hideEmpleadoColumn ? "min-w-[820px]" : "min-w-[920px]"} w-full text-left">
-          <thead class="border-b border-slate-200 shadow-sm">
+          <thead class="bg-slate-50">
             <tr>
               ${thEmpleado}
               <th scope="col" class="${TABLE_TH}">Número</th>
@@ -855,20 +862,22 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       ? `<button
             type="button"
             id="rh-sol-nueva"
-            class="${BTN_PRIMARY} shrink-0"
+            class="${RH_LISTADO_BTN_PRIMARY} shrink-0"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
       : "";
     return `
-    <div id="rh-solicitudes-root" class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
-      <header class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div class="min-w-0">
-          <h1 class="text-lg font-semibold tracking-tight text-text-primary sm:text-xl">Solicitudes</h1>
-          <p class="mt-0.5 max-w-2xl text-xs leading-snug text-text-muted sm:text-sm">Consulta, seguimiento y registro de tus solicitudes</p>
+    <div id="rh-solicitudes-root" class="${RH_LISTADO_PAGE_OUTER}">
+      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
+            <h1 class="text-[28px] font-semibold leading-tight tracking-tight text-[#111827]">Solicitudes</h1>
+            <p class="mt-1 max-w-2xl text-sm leading-snug text-[#667085]">Consulta, seguimiento y registro de tus solicitudes</p>
+          </div>
+          ${nuevaBtn}
         </div>
-        ${nuevaBtn}
-      </header>
+      </section>
       <div id="rh-sol-emp-stats" class="shrink-0">${renderEmployeePersonalStatCards(vm)}</div>
       <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
       <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderEmpleadoSolicitudesTable(vm, "main")}</div>
@@ -879,9 +888,9 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     ? `<button
             type="button"
             id="rh-sol-export"
-            class="${BTN_SECONDARY}"
+            class="${RH_LISTADO_BTN_SECONDARY}"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 text-slate-600" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
             Exportar solicitudes
@@ -892,7 +901,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     ? `<button
             type="button"
             id="rh-sol-nueva"
-            class="${BTN_PRIMARY}"
+            class="${RH_LISTADO_BTN_PRIMARY}"
           >
             <span aria-hidden="true">+</span> Nueva solicitud
           </button>`
@@ -903,11 +912,16 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       : "";
 
   return `
-    <div id="rh-solicitudes-root" class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
-      <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
-        <p class="min-w-0 max-w-2xl text-xs leading-snug text-text-muted sm:max-w-none sm:text-sm">Gestión y aprobación de vacaciones y home office</p>
-        ${toolbarGestor}
-      </div>
+    <div id="rh-solicitudes-root" class="${RH_LISTADO_PAGE_OUTER}">
+      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div class="min-w-0">
+            <h1 class="text-[28px] font-semibold leading-tight tracking-tight text-[#111827]">Solicitudes</h1>
+            <p class="mt-1 min-w-0 max-w-2xl text-sm leading-snug text-[#667085]">Gestión y aprobación de vacaciones y home office</p>
+          </div>
+          ${toolbarGestor}
+        </div>
+      </section>
 
       <div id="rh-sol-stats" class="shrink-0">${renderStatCards(vm)}</div>
       <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
@@ -922,12 +936,12 @@ export function renderRhSolicitudesScopedSection(
   const tableHtml = vm.ui.variant === "empleado" ? renderEmpleadoSolicitudesTable(vm, options.scope) : renderTable(vm, options.scope);
   const sectionShell =
     options.scope === "personal"
-      ? "rounded-xl border border-slate-200/95 border-l-[6px] border-l-leoni-blue bg-white p-3 shadow-md ring-1 ring-slate-900/[0.06] sm:p-5"
-      : "rounded-xl border border-emerald-900/15 border-l-[6px] border-l-emerald-600 bg-gradient-to-br from-emerald-50/50 via-white to-white p-3 shadow-md ring-1 ring-emerald-900/10 sm:p-5";
+      ? `${RH_LISTADO_SURFACE} border-l-[6px] border-l-[#1e40af] p-4 sm:p-5`
+      : `${RH_LISTADO_SURFACE} border-emerald-200/80 border-l-[6px] border-l-emerald-600 bg-gradient-to-br from-emerald-50/40 via-white to-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-5`;
   const chip =
     options.scope === "personal"
-      ? `<span class="ml-2 inline-flex shrink-0 rounded-full bg-leoni-blue/12 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-leoni-blue">Personal</span>`
-      : `<span class="ml-2 inline-flex shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Equipo</span>`;
+      ? `<span class="ml-2 inline-flex shrink-0 rounded-full border border-[#1e40af]/20 bg-[#eff6ff] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#1e40af]">Personal</span>`
+      : `<span class="ml-2 inline-flex shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Equipo</span>`;
   return `
     <section class="${sectionShell}">
       <header class="mb-4 border-b border-slate-200/90 pb-3">

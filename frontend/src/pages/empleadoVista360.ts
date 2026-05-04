@@ -25,6 +25,7 @@ export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
 import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
 import { loadEmpleadoVista360 } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
 import {
   antiguedadAniosMeses,
   buildTimelineItems,
@@ -41,12 +42,12 @@ const iconId = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const iconCalendar = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">Se requiere rol RH, gerente, director o supervisor para ver el directorio.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "Se requiere rol RH, gerente, director o supervisor para ver el directorio.",
+    linkHref: "#/",
+    linkLabel: "Volver al dashboard",
+  });
 }
 
 function skeletonHtml(): string {

@@ -28,7 +28,14 @@ import { antiguedadAniosMeses, formatFechaIngreso } from "../utils/vista360Domai
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
-import { FIELD_FOCUS, SELECT_CHEVRON, BTN_GHOST } from "../ui/uiTokens.ts";
+import {
+  FIELD_FOCUS,
+  SELECT_CHEVRON,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SURFACE,
+  htmlAccessDenied,
+} from "../ui/uiTokens.ts";
 
 function nombreEmpleadoTablaMostrar(raw: string): string {
   return formatNombreEmpleadoUi(raw) || "Sin nombre";
@@ -626,8 +633,8 @@ function renderPanel(
       }
       const active = x === pg.page;
       const cls = active
-        ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
-        : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+        ? "min-h-10 min-w-10 rounded-lg bg-[#1e40af] px-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1d4ed8]"
+        : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
       return `<button type="button" data-emp-page="${x}" class="${cls}">${x}</button>`;
     })
     .join("");
@@ -643,7 +650,7 @@ function renderPanel(
             <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
 
   const clearBtn = filtrosActivos(state, isRh, liderUiForFilters)
-    ? `<button type="button" data-emp-clear-filters class="${BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
+    ? `<button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
     : "";
 
   const filtrosToolbar = clearBtn
@@ -682,15 +689,17 @@ function renderPanel(
               <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-right text-sm font-bold">Acciones</th>
             </tr>`;
 
+  const thClassic = (align: "text-left" | "text-right") =>
+    `sticky top-0 z-20 border-b border-slate-200 bg-slate-50 px-4 py-3 ${align} text-[13px] font-semibold text-slate-700`;
   const theadClassic = `
-            <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Empleado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Número</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Área</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Puesto</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Líder</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estatus</th>
-              ${isRh ? `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Acción</th>` : ""}
+            <tr>
+              <th scope="col" class="${thClassic("text-left")}">Empleado</th>
+              <th scope="col" class="${thClassic("text-right")}">Número</th>
+              <th scope="col" class="${thClassic("text-left")}">Área</th>
+              <th scope="col" class="${thClassic("text-left")}">Puesto</th>
+              <th scope="col" class="${thClassic("text-left")}">Líder</th>
+              <th scope="col" class="${thClassic("text-left")}">Estatus</th>
+              ${isRh ? `<th scope="col" class="${thClassic("text-right")}">Acción</th>` : ""}
             </tr>`;
 
   const theadInner = isLider ? theadLider : theadClassic;
@@ -702,15 +711,15 @@ function renderPanel(
 
   return `
     <div class="flex flex-col gap-8">
-      <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="Filtros del listado de empleados">
+      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-6" aria-label="Filtros del listado de empleados">
         ${filtrosToolbar}
         ${filtrosGrid}
       </section>
-      <section data-emp-table-region class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5 transition-opacity duration-150" aria-label="Listado de empleados">
+      <section data-emp-table-region class="overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="${tableMinW} w-full text-left">
-          <thead class="${isLider ? "shadow-sm" : "border-b border-leoni-blue-light shadow-sm"}">
+          <thead class="${isLider ? "bg-slate-50" : "bg-slate-50"}">
             ${theadInner}
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -745,12 +754,12 @@ function renderPanel(
 }
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">Se requiere rol RH, gerente, director o supervisor para el directorio.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "Se requiere rol RH, gerente, director o supervisor para el directorio.",
+    linkHref: "#/",
+    linkLabel: "Volver al dashboard",
+  });
 }
 
 export function mountEmpleados(container: HTMLElement, signal: AbortSignal): void {
@@ -788,7 +797,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     pageTitle: "Empleados",
     activeNav: "empleados",
     mainHtml: `
-      <div id="empleados-root" class="space-y-8">
+      <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER}">
         <div id="empleados-kpis">
           <div class="flex items-center gap-3 py-4 text-sm text-text-muted">
             <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>

@@ -24,15 +24,15 @@ import type {
   RhIncidenciaTablaFila,
 } from "../incidencias/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import { escapeIncHtml } from "../components/incidencias/rhIncidenciasUiUtils.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">${escapeIncHtml(INC_COPY.accesoDenegadoTitulo)}</p>
-      <p class="mt-1">${escapeIncHtml(INC_COPY.accesoDenegadoTexto)}</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">${escapeIncHtml(INC_COPY.volverDashboard)}</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: INC_COPY.accesoDenegadoTitulo,
+    description: INC_COPY.accesoDenegadoTexto,
+    linkHref: "#/",
+    linkLabel: INC_COPY.volverDashboard,
+  });
 }
 
 function incidenciasUiConfig(): RhIncidenciasUiConfig {

@@ -35,17 +35,23 @@ import type {
   RhSolicitudesAdminViewModel,
   RhSolicitudTablaFila,
 } from "../solicitudes/rh/types.ts";
-import { BTN_PRIMARY, BTN_SECONDARY } from "../ui/uiTokens.ts";
+import {
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SURFACE,
+  htmlAccessDenied,
+} from "../ui/uiTokens.ts";
 
 type SolicitudesScope = "main" | "personal" | "equipo";
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">Esta sección de solicitudes no está disponible para tu usuario.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "Esta sección de solicitudes no está disponible para tu usuario.",
+    linkHref: "#/",
+    linkLabel: "Volver al dashboard",
+  });
 }
 
 function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesAdminViewModel {
@@ -154,9 +160,9 @@ function renderSplitSolicitudesView(
     ? `<button
           type="button"
           id="rh-sol-export"
-          class="${BTN_SECONDARY}"
+          class="${RH_LISTADO_BTN_SECONDARY}"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-slate-500" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 text-slate-600" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
           Exportar solicitudes
@@ -166,18 +172,23 @@ function renderSplitSolicitudesView(
     ? `<button
           type="button"
           id="rh-sol-nueva"
-          class="${BTN_PRIMARY}"
+          class="${RH_LISTADO_BTN_PRIMARY}"
         >
           <span aria-hidden="true">+</span> Nueva solicitud
         </button>`
     : "";
 
   return `
-    <div id="rh-solicitudes-root" class="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
-      <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
-        <p class="min-w-0 max-w-2xl text-xs leading-snug text-text-muted sm:max-w-none sm:text-sm">Gestión y aprobación de vacaciones y home office</p>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-2.5">${exportBtn}${nuevaBtn}</div>
-      </div>
+    <div id="rh-solicitudes-root" class="${RH_LISTADO_PAGE_OUTER}">
+      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div class="min-w-0">
+            <h1 class="text-[28px] font-semibold leading-tight tracking-tight text-[#111827]">Solicitudes</h1>
+            <p class="mt-1 max-w-2xl text-sm leading-snug text-[#667085]">Gestión y aprobación de vacaciones y home office</p>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center justify-start gap-2 md:justify-end">${exportBtn}${nuevaBtn}</div>
+        </div>
+      </section>
       ${renderRhSolicitudesScopedSection(personalVm, {
         scope: "personal",
         title: "Mis Solicitudes",
