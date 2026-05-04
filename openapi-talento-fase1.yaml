@@ -1,0 +1,1639 @@
+openapi: 3.1.0
+info:
+  title: Plataforma RH Leoni Cable — Modulo Talento (Fase 1)
+  description: >
+    Especificacion para el modulo de Talento fase 1: Perfiles de Puesto y
+    Matriz de Competencias. Desarrollo spec-driven — esta spec se implementa
+    contra el backend FastAPI existente.
+  version: 0.1.0
+  contact:
+    name: Leoni Cable - Equipo de Desarrollo
+
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo local (Docker)
+
+tags:
+  - name: Perfiles de Puesto
+    description: CRUD de perfiles de puesto con competencias tecnicas, habilidades blandas, maquinaria y generacion IA
+  - name: Competencias
+    description: Catalogo de competencias, matriz de asignacion por puesto, resumen de area y brechas criticas
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ── Perfiles de Puesto ─────────────────────────────────
+
+    CompetenciaTecnicaItem:
+      type: object
+      required: [nombre, nivel_requerido]
+      properties:
+        nombre:
+          type: string
+          example: "Soldadura MIG/MAG"
+        descripcion:
+          type: string
+          example: "Capacidad para realizar soldadura de cable automotriz con equipo MIG/MAG"
+        nivel_requerido:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: "0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto"
+          example: 3
+
+    HabilidadBlandaItem:
+      type: object
+      required: [nombre, nivel_requerido]
+      properties:
+        nombre:
+          type: string
+          example: "Liderazgo"
+        nivel_requerido:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: "0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto"
+          example: 3
+
+    MaquinaHerramientaItem:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          example: "Cortadora laser CNC"
+        requiere_certificacion:
+          type: boolean
+          default: false
+          example: true
+
+    PuestoPerfilCreate:
+      type: object
+      required: [nombre, area_id, nivel]
+      properties:
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 200
+          example: "Auditor de Calidad Nivel 2"
+        area_id:
+          type: integer
+          example: 5
+        nivel:
+          type: string
+          enum: [operativo, tecnico, supervisor, gerencia, direccion]
+          example: "tecnico"
+        descripcion:
+          type: string
+          maxLength: 2000
+          example: "Responsable de auditar procesos de calidad en lineas de produccion de cable automotriz, asegurando cumplimiento de normas IATF 16949."
+        competencias_tecnicas:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaTecnicaItem"
+          default: []
+        habilidades_blandas:
+          type: array
+          items:
+            $ref: "#/components/schemas/HabilidadBlandaItem"
+          default: []
+        maquinas_herramientas:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaquinaHerramientaItem"
+          default: []
+
+    PuestoPerfilUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 200
+        area_id:
+          type: integer
+        nivel:
+          type: string
+          enum: [operativo, tecnico, supervisor, gerencia, direccion]
+        descripcion:
+          type: string
+          maxLength: 2000
+        competencias_tecnicas:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaTecnicaItem"
+        habilidades_blandas:
+          type: array
+          items:
+            $ref: "#/components/schemas/HabilidadBlandaItem"
+        maquinas_herramientas:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaquinaHerramientaItem"
+
+    PuestoPerfilResponse:
+      type: object
+      required:
+        - id
+        - codigo
+        - nombre
+        - area_id
+        - nivel
+        - version
+        - activo
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          example: 12
+        codigo:
+          type: string
+          description: "Codigo unico con formato PRF-YYYY-NNN"
+          example: "PRF-2026-001"
+        nombre:
+          type: string
+          example: "Auditor de Calidad Nivel 2"
+        area_id:
+          type: integer
+          example: 5
+        area_nombre:
+          type: string
+          example: "Calidad"
+        nivel:
+          type: string
+          enum: [operativo, tecnico, supervisor, gerencia, direccion]
+          example: "tecnico"
+        descripcion:
+          type: [string, "null"]
+          example: "Responsable de auditar procesos de calidad en lineas de produccion de cable automotriz."
+        competencias_tecnicas:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaTecnicaItem"
+        habilidades_blandas:
+          type: array
+          items:
+            $ref: "#/components/schemas/HabilidadBlandaItem"
+        maquinas_herramientas:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaquinaHerramientaItem"
+        version:
+          type: integer
+          minimum: 1
+          example: 2
+        activo:
+          type: boolean
+          example: true
+        updated_by:
+          type: [integer, "null"]
+          description: "ID del empleado que realizo la ultima actualizacion"
+          example: 45
+        updated_by_nombre:
+          type: [string, "null"]
+          example: "Maria Garcia Lopez"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PuestoPerfilList:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PuestoPerfilResponse"
+        total:
+          type: integer
+          example: 47
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    IAGeneracionRequest:
+      type: object
+      properties:
+        contexto_adicional:
+          type: string
+          maxLength: 1000
+          description: "Contexto opcional para guiar la generacion (ej. enfoque en normas IATF, industria automotriz)"
+          example: "Enfocado en produccion automotriz, normas IATF 16949, trabajo en turnos rotativos."
+        regenerar_descripcion:
+          type: boolean
+          default: true
+          description: "Si true, genera/reemplaza la descripcion del puesto"
+        regenerar_competencias:
+          type: boolean
+          default: true
+          description: "Si true, genera/reemplaza competencias tecnicas y habilidades blandas sugeridas"
+
+    IAGeneracionResponse:
+      type: object
+      required: [descripcion_generada, competencias_tecnicas_sugeridas, habilidades_blandas_sugeridas, modelo_utilizado]
+      properties:
+        descripcion_generada:
+          type: [string, "null"]
+          example: "Profesional encargado de ejecutar auditorias de calidad en procesos de manufactura de cable automotriz, verificando cumplimiento de estandares IATF 16949 y VDA 6.3."
+        competencias_tecnicas_sugeridas:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaTecnicaItem"
+        habilidades_blandas_sugeridas:
+          type: array
+          items:
+            $ref: "#/components/schemas/HabilidadBlandaItem"
+        maquinas_herramientas_sugeridas:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaquinaHerramientaItem"
+        modelo_utilizado:
+          type: string
+          description: "Modelo de Ollama utilizado"
+          example: "llama3:8b"
+        tokens_utilizados:
+          type: [integer, "null"]
+          example: 1250
+
+    # ── Competencias ───────────────────────────────────────
+
+    CompetenciaCreate:
+      type: object
+      required: [nombre, categoria]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 200
+          example: "Soldadura MIG/MAG"
+        descripcion:
+          type: string
+          maxLength: 1000
+          example: "Dominio de tecnicas de soldadura por arco con gas protector para uniones de cable automotriz."
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+          example: "tecnica"
+        area_id:
+          type: [integer, "null"]
+          description: "Si null, la competencia es transversal (aplica a todas las areas)"
+          example: 3
+
+    CompetenciaUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 200
+        descripcion:
+          type: string
+          maxLength: 1000
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+        area_id:
+          type: [integer, "null"]
+
+    CompetenciaResponse:
+      type: object
+      required: [id, nombre, categoria, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          example: 8
+        nombre:
+          type: string
+          example: "Soldadura MIG/MAG"
+        descripcion:
+          type: [string, "null"]
+          example: "Dominio de tecnicas de soldadura por arco con gas protector."
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+          example: "tecnica"
+        area_id:
+          type: [integer, "null"]
+          example: 3
+        area_nombre:
+          type: [string, "null"]
+          example: "Produccion"
+        activo:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CompetenciaList:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaResponse"
+        total:
+          type: integer
+          example: 34
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+
+    # ── Matriz de Competencias ─────────────────────────────
+
+    CompetenciaRequisito:
+      type: object
+      required: [competencia_id, puesto_perfil_id, nivel]
+      properties:
+        competencia_id:
+          type: integer
+          example: 8
+        puesto_perfil_id:
+          type: integer
+          example: 12
+        nivel:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: "0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto"
+          example: 3
+
+    MatrizCelda:
+      type: object
+      required: [puesto_perfil_id, nivel]
+      properties:
+        puesto_perfil_id:
+          type: integer
+          example: 12
+        puesto_perfil_nombre:
+          type: string
+          example: "Auditor de Calidad Nivel 2"
+        nivel:
+          type: integer
+          minimum: 0
+          maximum: 4
+          example: 3
+
+    MatrizFila:
+      type: object
+      required: [competencia_id, competencia_nombre, categoria, niveles]
+      properties:
+        competencia_id:
+          type: integer
+          example: 8
+        competencia_nombre:
+          type: string
+          example: "Soldadura MIG/MAG"
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+          example: "tecnica"
+        niveles:
+          type: array
+          description: "Una celda por cada puesto/perfil (columna) del area filtrada"
+          items:
+            $ref: "#/components/schemas/MatrizCelda"
+
+    MatrizColumna:
+      type: object
+      required: [puesto_perfil_id, puesto_perfil_nombre, puesto_perfil_codigo]
+      properties:
+        puesto_perfil_id:
+          type: integer
+          example: 12
+        puesto_perfil_nombre:
+          type: string
+          example: "Auditor de Calidad Nivel 2"
+        puesto_perfil_codigo:
+          type: string
+          example: "PRF-2026-001"
+
+    MatrizView:
+      type: object
+      required: [area_id, area_nombre, columnas, filas]
+      properties:
+        area_id:
+          type: integer
+          example: 5
+        area_nombre:
+          type: string
+          example: "Calidad"
+        columnas:
+          type: array
+          description: "Encabezados de columna — los puestos/perfiles del area"
+          items:
+            $ref: "#/components/schemas/MatrizColumna"
+        filas:
+          type: array
+          description: "Filas de la matriz — una por competencia"
+          items:
+            $ref: "#/components/schemas/MatrizFila"
+        total_competencias:
+          type: integer
+          example: 15
+        total_puestos:
+          type: integer
+          example: 6
+
+    MatrizBulkUpdateRequest:
+      type: object
+      required: [requisitos]
+      properties:
+        requisitos:
+          type: array
+          minItems: 1
+          maxItems: 500
+          description: "Lista de celdas a actualizar. Nivel 0 elimina el requisito."
+          items:
+            $ref: "#/components/schemas/CompetenciaRequisito"
+
+    MatrizBulkUpdateResponse:
+      type: object
+      required: [actualizados, creados, eliminados]
+      properties:
+        actualizados:
+          type: integer
+          description: "Requisitos existentes cuyo nivel cambio"
+          example: 8
+        creados:
+          type: integer
+          description: "Requisitos nuevos creados (nivel > 0)"
+          example: 3
+        eliminados:
+          type: integer
+          description: "Requisitos eliminados (nivel establecido en 0)"
+          example: 1
+
+    # ── Resumen de Area ────────────────────────────────────
+
+    ResumenArea:
+      type: object
+      required:
+        - area_id
+        - area_nombre
+        - porcentaje_cumplimiento
+        - total_empleados
+        - total_requisitos_activos
+        - total_competencias
+        - total_puestos_perfil
+      properties:
+        area_id:
+          type: integer
+          example: 5
+        area_nombre:
+          type: string
+          example: "Calidad"
+        porcentaje_cumplimiento:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: "Porcentaje promedio de cumplimiento de competencias en el area"
+          example: 78.5
+        total_empleados:
+          type: integer
+          description: "Empleados activos en el area"
+          example: 42
+        total_requisitos_activos:
+          type: integer
+          description: "Numero total de celdas de matriz con nivel > 0"
+          example: 156
+        total_competencias:
+          type: integer
+          description: "Competencias distintas asignadas en el area"
+          example: 18
+        total_puestos_perfil:
+          type: integer
+          description: "Perfiles de puesto activos en el area"
+          example: 7
+        brechas_criticas:
+          type: array
+          description: "Top 5 brechas con mayor porcentaje de incumplimiento"
+          items:
+            $ref: "#/components/schemas/BrechaItem"
+
+    BrechaItem:
+      type: object
+      required: [competencia_id, competencia_nombre, categoria, porcentaje_brecha, empleados_sin_nivel]
+      properties:
+        competencia_id:
+          type: integer
+          example: 8
+        competencia_nombre:
+          type: string
+          example: "Soldadura MIG/MAG"
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+          example: "tecnica"
+        porcentaje_brecha:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: "Porcentaje de empleados que no alcanzan el nivel requerido"
+          example: 35.7
+        empleados_sin_nivel:
+          type: integer
+          description: "Numero de empleados que no cumplen el nivel requerido"
+          example: 15
+        nivel_promedio_actual:
+          type: number
+          format: float
+          description: "Nivel promedio actual de los empleados en esta competencia"
+          example: 1.8
+        nivel_requerido_promedio:
+          type: number
+          format: float
+          description: "Nivel promedio requerido por los perfiles del area"
+          example: 3.2
+
+    # ── Errores ────────────────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          example: "Perfil de puesto no encontrado"
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+              msg:
+                type: string
+              type:
+                type: string
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ══════════════════════════════════════════════════════════
+  # PERFILES DE PUESTO
+  # ══════════════════════════════════════════════════════════
+
+  /api/v1/puestos-perfil/:
+    get:
+      tags: [Perfiles de Puesto]
+      summary: Listar perfiles de puesto (paginado, filtrable)
+      description: >
+        Retorna lista paginada de perfiles de puesto. Filtrable por area, nivel y
+        busqueda por texto. Roles permitidos: rh, director, gerente, supervisor.
+      operationId: puestos_perfil_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Numero de pagina (inicia en 1)
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: Elementos por pagina
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: area_id
+          in: query
+          description: Filtrar por area
+          schema:
+            type: integer
+        - name: nivel
+          in: query
+          description: Filtrar por nivel del puesto
+          schema:
+            type: string
+            enum: [operativo, tecnico, supervisor, gerencia, direccion]
+        - name: q
+          in: query
+          description: Busqueda por nombre o codigo del perfil
+          schema:
+            type: string
+            maxLength: 100
+        - name: activo
+          in: query
+          description: Filtrar por estado activo/inactivo (default true)
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Lista paginada de perfiles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilList"
+              example:
+                items:
+                  - id: 12
+                    codigo: "PRF-2026-001"
+                    nombre: "Auditor de Calidad Nivel 2"
+                    area_id: 5
+                    area_nombre: "Calidad"
+                    nivel: "tecnico"
+                    descripcion: "Responsable de auditar procesos de calidad."
+                    competencias_tecnicas:
+                      - nombre: "Auditoria IATF 16949"
+                        descripcion: "Ejecucion de auditorias de proceso"
+                        nivel_requerido: 3
+                    habilidades_blandas:
+                      - nombre: "Comunicacion efectiva"
+                        nivel_requerido: 3
+                    maquinas_herramientas:
+                      - nombre: "Calibrador digital"
+                        requiere_certificacion: false
+                    version: 2
+                    activo: true
+                    updated_by: 45
+                    updated_by_nombre: "Maria Garcia Lopez"
+                    created_at: "2026-03-15T10:30:00Z"
+                    updated_at: "2026-04-20T14:15:00Z"
+                total: 47
+                page: 1
+                page_size: 20
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags: [Perfiles de Puesto]
+      summary: Crear perfil de puesto
+      description: >
+        Crea un nuevo perfil de puesto con competencias, habilidades y maquinaria.
+        Se genera automaticamente un codigo PRF-YYYY-NNN secuencial.
+        Roles permitidos: rh.
+      operationId: puestos_perfil_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PuestoPerfilCreate"
+            example:
+              nombre: "Supervisor de Linea A-1"
+              area_id: 3
+              nivel: "supervisor"
+              descripcion: "Supervisa operaciones de la linea A-1 de produccion de cable automotriz."
+              competencias_tecnicas:
+                - nombre: "Gestion de produccion"
+                  descripcion: "Planificacion y control de produccion en linea"
+                  nivel_requerido: 4
+                - nombre: "Control estadistico de procesos"
+                  descripcion: "SPC y graficos de control"
+                  nivel_requerido: 3
+              habilidades_blandas:
+                - nombre: "Liderazgo"
+                  nivel_requerido: 4
+                - nombre: "Resolucion de conflictos"
+                  nivel_requerido: 3
+              maquinas_herramientas:
+                - nombre: "Extrusora de cable"
+                  requiere_certificacion: true
+                - nombre: "Sistema MES"
+                  requiere_certificacion: false
+      responses:
+        "201":
+          description: Perfil creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilResponse"
+        "400":
+          description: Datos invalidos (ej. area_id no existe)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/puestos-perfil/{id}:
+    get:
+      tags: [Perfiles de Puesto]
+      summary: Detalle de perfil de puesto
+      description: >
+        Retorna toda la informacion del perfil incluyendo competencias,
+        habilidades, maquinaria y metadata de versionamiento.
+        Roles permitidos: rh, director, gerente, supervisor.
+      operationId: puestos_perfil_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del perfil de puesto
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Perfil encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Perfil no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags: [Perfiles de Puesto]
+      summary: Actualizar perfil de puesto
+      description: >
+        Actualiza parcial o totalmente el perfil. Incrementa automaticamente
+        el numero de version y registra updated_by con el usuario actual.
+        Roles permitidos: rh.
+      operationId: puestos_perfil_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del perfil de puesto
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PuestoPerfilUpdate"
+            example:
+              descripcion: "Supervisa operaciones de la linea A-1 de produccion, incluyendo control de calidad en proceso."
+              competencias_tecnicas:
+                - nombre: "Gestion de produccion"
+                  descripcion: "Planificacion y control de produccion en linea"
+                  nivel_requerido: 4
+                - nombre: "Lean Manufacturing"
+                  descripcion: "Aplicacion de metodologias lean"
+                  nivel_requerido: 3
+      responses:
+        "200":
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilResponse"
+        "400":
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Perfil no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+    delete:
+      tags: [Perfiles de Puesto]
+      summary: Eliminar (desactivar) perfil de puesto
+      description: >
+        Soft-delete: marca el perfil como activo=false. No elimina fisicamente
+        para mantener integridad referencial con la matriz de competencias.
+        Roles permitidos: rh.
+      operationId: puestos_perfil_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del perfil de puesto
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Perfil desactivado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+                    example: "Perfil PRF-2026-001 desactivado exitosamente"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Perfil no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/puestos-perfil/{id}/generar-ia:
+    post:
+      tags: [Perfiles de Puesto]
+      summary: Generar descripcion y competencias con IA
+      description: >
+        Utiliza integracion con Ollama LLM para generar automaticamente la
+        descripcion del puesto y sugerir competencias tecnicas/habilidades blandas
+        basandose en el nombre, nivel y area del perfil. Las sugerencias NO se
+        guardan automaticamente — el usuario debe revisar y confirmar via PUT.
+        Roles permitidos: rh.
+      operationId: puestos_perfil_generar_ia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del perfil de puesto sobre el cual generar
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IAGeneracionRequest"
+            example:
+              contexto_adicional: "Industria automotriz, normas IATF 16949, produccion en 3 turnos."
+              regenerar_descripcion: true
+              regenerar_competencias: true
+      responses:
+        "200":
+          description: Sugerencias generadas por IA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IAGeneracionResponse"
+              example:
+                descripcion_generada: "Profesional responsable de supervisar y coordinar las operaciones de la linea A-1, asegurando el cumplimiento de metas de produccion, estandares de calidad IATF 16949 y seguridad industrial."
+                competencias_tecnicas_sugeridas:
+                  - nombre: "Gestion de produccion automotriz"
+                    descripcion: "Planificacion y control de produccion en linea de cable automotriz"
+                    nivel_requerido: 4
+                  - nombre: "IATF 16949"
+                    descripcion: "Conocimiento y aplicacion de la norma de calidad automotriz"
+                    nivel_requerido: 3
+                  - nombre: "Lean Manufacturing"
+                    descripcion: "Aplicacion de 5S, Kaizen, VSM en piso de produccion"
+                    nivel_requerido: 3
+                habilidades_blandas_sugeridas:
+                  - nombre: "Liderazgo de equipos"
+                    nivel_requerido: 4
+                  - nombre: "Comunicacion efectiva"
+                    nivel_requerido: 3
+                  - nombre: "Toma de decisiones bajo presion"
+                    nivel_requerido: 3
+                maquinas_herramientas_sugeridas:
+                  - nombre: "Extrusora de cable"
+                    requiere_certificacion: true
+                  - nombre: "Sistema MES/ERP"
+                    requiere_certificacion: false
+                modelo_utilizado: "llama3:8b"
+                tokens_utilizados: 1250
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Perfil no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Servicio de IA no disponible (Ollama no responde)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: "Servicio de IA no disponible. Intente mas tarde."
+
+  # ══════════════════════════════════════════════════════════
+  # COMPETENCIAS
+  # ══════════════════════════════════════════════════════════
+
+  /api/v1/competencias/:
+    get:
+      tags: [Competencias]
+      summary: Listar competencias (paginado, filtrable)
+      description: >
+        Catalogo de competencias tecnicas y blandas. Filtrable por categoria,
+        area y texto libre. Roles permitidos: rh, director, gerente, supervisor.
+      operationId: competencias_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Numero de pagina
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: Elementos por pagina
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: categoria
+          in: query
+          description: Filtrar por categoria
+          schema:
+            type: string
+            enum: [tecnica, blanda]
+        - name: area_id
+          in: query
+          description: Filtrar por area (null = transversales)
+          schema:
+            type: integer
+        - name: q
+          in: query
+          description: Busqueda por nombre de la competencia
+          schema:
+            type: string
+            maxLength: 100
+        - name: activo
+          in: query
+          description: Filtrar por estado activo/inactivo
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Lista paginada de competencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaList"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags: [Competencias]
+      summary: Crear competencia
+      description: >
+        Crea una nueva competencia tecnica o blanda en el catalogo. Si area_id
+        es null, se considera una competencia transversal. Roles permitidos: rh.
+      operationId: competencias_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetenciaCreate"
+            example:
+              nombre: "Control estadistico de procesos (SPC)"
+              descripcion: "Aplicacion de herramientas estadisticas para monitoreo y control de procesos de manufactura."
+              categoria: "tecnica"
+              area_id: 3
+      responses:
+        "201":
+          description: Competencia creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaResponse"
+        "400":
+          description: Datos invalidos (ej. nombre duplicado en la misma area)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/competencias/{id}:
+    get:
+      tags: [Competencias]
+      summary: Detalle de competencia
+      description: >
+        Retorna informacion completa de una competencia.
+        Roles permitidos: rh, director, gerente, supervisor.
+      operationId: competencias_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la competencia
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Competencia encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Competencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags: [Competencias]
+      summary: Actualizar competencia
+      description: >
+        Actualiza parcial o totalmente una competencia del catalogo.
+        Roles permitidos: rh.
+      operationId: competencias_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la competencia
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetenciaUpdate"
+            example:
+              descripcion: "Aplicacion avanzada de herramientas SPC (Cp, Cpk, graficos X-R) para procesos de cable."
+      responses:
+        "200":
+          description: Competencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaResponse"
+        "400":
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Competencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+    delete:
+      tags: [Competencias]
+      summary: Eliminar (desactivar) competencia
+      description: >
+        Soft-delete: marca la competencia como activo=false. No elimina los
+        requisitos existentes en la matriz. Roles permitidos: rh.
+      operationId: competencias_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la competencia
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Competencia desactivada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+                    example: "Competencia 'Soldadura MIG/MAG' desactivada exitosamente"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Competencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Matriz de Competencias ───────────────────────────────
+
+  /api/v1/competencias/matriz:
+    get:
+      tags: [Competencias]
+      summary: Obtener vista de matriz de competencias
+      description: >
+        Retorna la grilla completa de la matriz: filas = competencias,
+        columnas = perfiles de puesto del area seleccionada. Cada celda
+        contiene el nivel requerido (0-4). Filtrable por area y categoria.
+        Roles permitidos: rh, director, gerente, supervisor.
+      operationId: competencias_matriz_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          required: true
+          description: ID del area para filtrar la matriz
+          schema:
+            type: integer
+        - name: categoria
+          in: query
+          description: Filtrar filas por categoria de competencia
+          schema:
+            type: string
+            enum: [tecnica, blanda]
+        - name: linea
+          in: query
+          description: Filtrar por linea/sector dentro del area (ej. "A-1", "B-2")
+          schema:
+            type: string
+            maxLength: 50
+      responses:
+        "200":
+          description: Vista de matriz completa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatrizView"
+              example:
+                area_id: 5
+                area_nombre: "Calidad"
+                columnas:
+                  - puesto_perfil_id: 12
+                    puesto_perfil_nombre: "Auditor de Calidad Nivel 2"
+                    puesto_perfil_codigo: "PRF-2026-001"
+                  - puesto_perfil_id: 13
+                    puesto_perfil_nombre: "Inspector de Calidad"
+                    puesto_perfil_codigo: "PRF-2026-002"
+                  - puesto_perfil_id: 14
+                    puesto_perfil_nombre: "Supervisor de Calidad"
+                    puesto_perfil_codigo: "PRF-2026-003"
+                filas:
+                  - competencia_id: 8
+                    competencia_nombre: "Auditoria IATF 16949"
+                    categoria: "tecnica"
+                    niveles:
+                      - puesto_perfil_id: 12
+                        puesto_perfil_nombre: "Auditor de Calidad Nivel 2"
+                        nivel: 4
+                      - puesto_perfil_id: 13
+                        puesto_perfil_nombre: "Inspector de Calidad"
+                        nivel: 2
+                      - puesto_perfil_id: 14
+                        puesto_perfil_nombre: "Supervisor de Calidad"
+                        nivel: 3
+                  - competencia_id: 9
+                    competencia_nombre: "Metrologia dimensional"
+                    categoria: "tecnica"
+                    niveles:
+                      - puesto_perfil_id: 12
+                        puesto_perfil_nombre: "Auditor de Calidad Nivel 2"
+                        nivel: 3
+                      - puesto_perfil_id: 13
+                        puesto_perfil_nombre: "Inspector de Calidad"
+                        nivel: 4
+                      - puesto_perfil_id: 14
+                        puesto_perfil_nombre: "Supervisor de Calidad"
+                        nivel: 2
+                total_competencias: 15
+                total_puestos: 3
+        "400":
+          description: area_id es requerido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags: [Competencias]
+      summary: Actualizar matriz de competencias (bulk)
+      description: >
+        Actualiza multiples celdas de la matriz en una sola operacion.
+        Cada celda se identifica por competencia_id + puesto_perfil_id.
+        Si nivel = 0, el requisito se elimina (la celda queda vacia/N/A).
+        Maximo 500 celdas por request. Roles permitidos: rh.
+      operationId: competencias_matriz_update
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatrizBulkUpdateRequest"
+            example:
+              requisitos:
+                - competencia_id: 8
+                  puesto_perfil_id: 12
+                  nivel: 4
+                - competencia_id: 8
+                  puesto_perfil_id: 13
+                  nivel: 2
+                - competencia_id: 9
+                  puesto_perfil_id: 12
+                  nivel: 3
+                - competencia_id: 10
+                  puesto_perfil_id: 14
+                  nivel: 0
+      responses:
+        "200":
+          description: Matriz actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatrizBulkUpdateResponse"
+              example:
+                actualizados: 2
+                creados: 1
+                eliminados: 1
+        "400":
+          description: IDs invalidos (competencia o perfil no existen)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos (solo RH)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  # ── Resumen y Brechas ────────────────────────────────────
+
+  /api/v1/competencias/resumen-area:
+    get:
+      tags: [Competencias]
+      summary: Resumen de competencias por area
+      description: >
+        Retorna metricas agregadas del area: porcentaje de cumplimiento global,
+        total de empleados, requisitos activos y top 5 brechas criticas.
+        Roles permitidos: rh, director, gerente.
+      operationId: competencias_resumen_area
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          required: true
+          description: ID del area
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resumen del area
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumenArea"
+              example:
+                area_id: 5
+                area_nombre: "Calidad"
+                porcentaje_cumplimiento: 78.5
+                total_empleados: 42
+                total_requisitos_activos: 156
+                total_competencias: 18
+                total_puestos_perfil: 7
+                brechas_criticas:
+                  - competencia_id: 8
+                    competencia_nombre: "Auditoria IATF 16949"
+                    categoria: "tecnica"
+                    porcentaje_brecha: 42.8
+                    empleados_sin_nivel: 18
+                    nivel_promedio_actual: 1.5
+                    nivel_requerido_promedio: 3.5
+                  - competencia_id: 15
+                    competencia_nombre: "Metrologia dimensional"
+                    categoria: "tecnica"
+                    porcentaje_brecha: 35.7
+                    empleados_sin_nivel: 15
+                    nivel_promedio_actual: 1.8
+                    nivel_requerido_promedio: 3.2
+                  - competencia_id: 22
+                    competencia_nombre: "Comunicacion efectiva"
+                    categoria: "blanda"
+                    porcentaje_brecha: 28.5
+                    empleados_sin_nivel: 12
+                    nivel_promedio_actual: 2.1
+                    nivel_requerido_promedio: 3.0
+        "400":
+          description: area_id es requerido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/competencias/brechas:
+    get:
+      tags: [Competencias]
+      summary: Listado de brechas criticas
+      description: >
+        Retorna todas las brechas de competencias ordenadas por porcentaje de
+        brecha descendente. Filtrable por area, categoria y umbral minimo.
+        Roles permitidos: rh, director, gerente.
+      operationId: competencias_brechas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          description: Filtrar por area (si omitido, todas las areas)
+          schema:
+            type: integer
+        - name: categoria
+          in: query
+          description: Filtrar por categoria de competencia
+          schema:
+            type: string
+            enum: [tecnica, blanda]
+        - name: umbral_minimo
+          in: query
+          description: Solo brechas con porcentaje >= este umbral (default 10)
+          schema:
+            type: number
+            format: float
+            default: 10
+            minimum: 0
+            maximum: 100
+        - name: limit
+          in: query
+          description: Maximo de brechas a retornar
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Lista de brechas criticas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BrechaItem"
+                  total:
+                    type: integer
+                    description: "Total de brechas que cumplen los filtros"
+                    example: 12
+              example:
+                items:
+                  - competencia_id: 8
+                    competencia_nombre: "Auditoria IATF 16949"
+                    categoria: "tecnica"
+                    porcentaje_brecha: 42.8
+                    empleados_sin_nivel: 18
+                    nivel_promedio_actual: 1.5
+                    nivel_requerido_promedio: 3.5
+                  - competencia_id: 15
+                    competencia_nombre: "Soldadura MIG/MAG"
+                    categoria: "tecnica"
+                    porcentaje_brecha: 35.7
+                    empleados_sin_nivel: 15
+                    nivel_promedio_actual: 1.8
+                    nivel_requerido_promedio: 3.2
+                  - competencia_id: 22
+                    competencia_nombre: "Liderazgo de equipos"
+                    categoria: "blanda"
+                    porcentaje_brecha: 28.5
+                    empleados_sin_nivel: 12
+                    nivel_promedio_actual: 2.1
+                    nivel_requerido_promedio: 3.0
+                total: 12
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Sin permisos suficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

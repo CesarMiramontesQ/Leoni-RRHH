@@ -24,6 +24,7 @@ from app.models.notificaciones import Notificacion
 from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.tress import TressRobotQueue
+from app.models.talento import PuestoPerfil, Competencia, CompetenciaRequisito
 
 __all__ = [
     "Rol",
@@ -52,4 +53,7 @@ __all__ = [
     "ItSyncLog",
     "TokenBlacklist",
     "TressRobotQueue",
+    "PuestoPerfil",
+    "Competencia",
+    "CompetenciaRequisito",
 ]
