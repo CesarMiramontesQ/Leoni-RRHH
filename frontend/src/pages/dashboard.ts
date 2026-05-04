@@ -160,7 +160,9 @@ function mountRhOperationalDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
-    mainHtml: `<div id="rh-dashboard-root">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
+    /** Sin padding-top en `<main>` para que no se vea `bg-surface` gris entre navbar y el degradado del dashboard. */
+    mainClass: "pt-0 pb-10",
+    mainHtml: `<div id="rh-dashboard-root" class="rh-dashboard-page -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
   });
 
   void loadRhOperationalDashboard(container);
