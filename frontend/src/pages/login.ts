@@ -5,37 +5,48 @@ import {
 } from "../notificaciones/notificacionesResumenStore.ts";
 import { mountAuthenticatedShell } from "../shellRouter.ts";
 
+const ICON_USER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+  <circle cx="12" cy="7" r="4" />
+</svg>`;
+
+const ICON_LOCK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+</svg>`;
+
 export function mountLogin(container: HTMLElement): void {
   container.innerHTML = `
-<div class="flex min-h-full bg-[#f6f8fb]">
+<div class="login-page-root">
 
-  <div class="relative flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24 bg-[linear-gradient(180deg,#ffffff_0%,#f6f8fb_100%)] shadow-[inset_1px_0_0_rgba(148,163,184,0.12)]">
-    <div class="mx-auto w-full max-w-sm lg:w-96">
+  <div class="login-page-form-column">
+    <div class="login-page-inner">
+      <div class="login-page-card">
 
-      <div>
-        <img
-          src="/leoni-logo.png"
-          alt="Leoni"
-          width="200"
-          height="48"
-          class="h-10 w-auto max-w-full object-contain object-left"
-        />
-        <h2 class="mt-8 text-2xl/9 font-bold tracking-tight text-text-primary">
-          Acceso al sistema
-        </h2>
-        <p class="mt-2 text-sm/6 text-text-muted">
-          Plataforma de Recursos Humanos · Leoni
-        </p>
-      </div>
+        <div>
+          <img
+            src="/leoni-logo.png"
+            alt="Leoni"
+            width="200"
+            height="48"
+            class="login-page-logo"
+          />
+          <h2 class="login-page-title">
+            Acceso al sistema
+          </h2>
+          <p class="login-page-subtitle">
+            Plataforma de Recursos Humanos · Leoni
+          </p>
+        </div>
 
-      <div class="mt-10">
-        <form id="login-form" class="space-y-6">
+        <form id="login-form" class="mt-8 space-y-6">
 
           <div>
             <label for="login-identifier" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
               Correo o usuario
             </label>
-            <div class="mt-2">
+            <div class="login-page-field">
+              <span class="login-page-field-icon">${ICON_USER}</span>
               <input
                 id="login-identifier"
                 type="text"
@@ -43,9 +54,7 @@ export function mountLogin(container: HTMLElement): void {
                 required
                 autocomplete="username"
                 placeholder="correo@leoni.com o usuario de red"
-                class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary
-                       placeholder:text-text-muted
-                       focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
+                class="login-page-input"
               />
             </div>
           </div>
@@ -54,7 +63,8 @@ export function mountLogin(container: HTMLElement): void {
             <label for="password" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
               Contraseña
             </label>
-            <div class="mt-2">
+            <div class="login-page-field">
+              <span class="login-page-field-icon">${ICON_LOCK}</span>
               <input
                 id="password"
                 type="password"
@@ -62,59 +72,49 @@ export function mountLogin(container: HTMLElement): void {
                 required
                 autocomplete="current-password"
                 placeholder="••••••••"
-                class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary
-                       placeholder:text-text-muted
-                       focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
+                class="login-page-input"
               />
             </div>
           </div>
 
-          <div class="flex items-center justify-between">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div class="flex gap-3">
               <div class="flex h-6 shrink-0 items-center">
-                <div class="group grid size-4 grid-cols-1">
+                <div class="relative grid size-4 place-items-center">
                   <input
                     id="remember-me"
                     type="checkbox"
                     name="remember-me"
-                    class="col-start-1 row-start-1 appearance-none rounded-sm
-                           border border-border bg-white
-                           checked:border-leoni-blue checked:bg-leoni-blue
-                           focus-visible:outline-2 focus-visible:outline-offset-2
-                           focus-visible:outline-leoni-blue
-                           forced-colors:appearance-auto"
+                    class="peer login-page-checkbox col-start-1 row-start-1 forced-colors:appearance-auto"
                   />
                   <svg viewBox="0 0 14 14" fill="none"
-                       class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-white group-has-disabled:stroke-gray-950/25">
-                    <path d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                          class="opacity-0 group-has-checked:opacity-100" />
+                       class="pointer-events-none col-start-1 row-start-1 size-3.5 stroke-white opacity-0 transition-opacity duration-150 peer-checked:opacity-100 peer-disabled:stroke-gray-950/25 motion-reduce:transition-none">
+                    <path d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </div>
               </div>
-              <label for="remember-me" class="block cursor-pointer text-sm/6 text-text-primary select-none">
+              <label for="remember-me" class="block cursor-pointer text-sm/6 text-slate-800 select-none">
                 Recordarme
               </label>
             </div>
 
-            <div class="text-sm/6">
-              <a href="#" class="font-semibold text-leoni-blue transition-colors hover:text-leoni-blue-light">
+            <div class="text-sm/6 sm:shrink-0 sm:text-right">
+              <a href="#" class="login-page-forgot-link">
                 ¿Olvidaste tu contraseña?
               </a>
             </div>
           </div>
 
           <div id="error-msg"
-               class="hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+               role="alert"
+               aria-live="polite"
+               class="login-page-error hidden">
           </div>
 
           <div>
             <button
               type="submit"
-              class="flex w-full cursor-pointer justify-center rounded-lg bg-leoni-blue px-3 py-2
-                     text-sm font-semibold text-white shadow-xs
-                     transition-colors hover:bg-leoni-blue-light active:scale-[0.98] active:bg-leoni-blue
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2
-                     disabled:cursor-not-allowed disabled:opacity-60"
+              class="login-page-submit"
             >
               Iniciar sesión
             </button>
@@ -125,12 +125,16 @@ export function mountLogin(container: HTMLElement): void {
     </div>
   </div>
 
-  <div class="relative hidden min-h-0 w-0 flex-1 lg:block">
+  <div class="login-page-hero">
     <img
       src="/login-hero.png"
       alt=""
-      class="absolute inset-0 size-full object-cover"
+      class="login-page-hero-img"
     />
+    <div class="login-page-hero-overlay" aria-hidden="true"></div>
+    <p class="login-page-hero-tagline">
+      Gestión RH simple, segura y centralizada.
+    </p>
   </div>
 
 </div>
@@ -144,6 +148,7 @@ export function mountLogin(container: HTMLElement): void {
     e.preventDefault();
     errorEl.classList.add("hidden");
     btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
     btn.textContent = "Verificando…";
 
     const identifier = container.querySelector<HTMLInputElement>("#login-identifier")!.value;
@@ -185,6 +190,7 @@ export function mountLogin(container: HTMLElement): void {
     } finally {
       if (btn.isConnected) {
         btn.disabled = false;
+        btn.removeAttribute("aria-busy");
         btn.textContent = "Iniciar sesión";
       }
     }
