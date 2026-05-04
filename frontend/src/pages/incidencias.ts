@@ -216,7 +216,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         showEmpleadosToast(container, "Exportacion no disponible hasta integrar backend.", "error");
         return;
       }
-      if (t.closest("#rh-inc-nueva")) {
+      if (t.closest("#rh-inc-nueva") || t.closest("#rh-inc-nueva-empty")) {
         nuevaIncidenciaModal?.open();
         return;
       }
@@ -243,7 +243,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         showEmpleadosToast(container, "Descarga de evidencia no disponible.", "error");
         return;
       }
-      const row = t.closest<HTMLTableRowElement>("tr[data-rh-inc-row]");
+      const row = t.closest<HTMLElement>("[data-rh-inc-row]");
       if (row) {
         const raw = row.getAttribute("data-rh-inc-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
@@ -268,7 +268,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     "keydown",
     (e: Event) => {
       const ke = e as KeyboardEvent;
-      const tr = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-inc-row]");
+      const tr = (ke.target as HTMLElement | null)?.closest?.("[data-rh-inc-row]");
       if (!tr) return;
       if (ke.key !== "Enter" && ke.key !== " ") return;
       ke.preventDefault();
