@@ -4,12 +4,13 @@
 
 import { SR_COPY } from "../../solicitudes/rh/solicitudResueltaCopy.ts";
 import type { SolicitudHistorialTipo, SolicitudResueltaDetalleVm } from "../../solicitudes/rh/solicitudResueltaTypes.ts";
+import { badgeApproved, badgeChangesRequested, badgeRejected } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 
 
 const CARD =
-  "rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm shadow-slate-900/[0.04] sm:p-5 [color-scheme:light]";
-const CARD_TITLE = "text-[10px] font-bold uppercase tracking-wider text-slate-500";
+  "rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-white to-slate-50/40 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] sm:p-5 [color-scheme:light]";
+const CARD_TITLE = "text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500";
 const LBL = "text-xs text-slate-500";
 const VAL = "text-sm font-semibold text-slate-900";
 
@@ -59,23 +60,23 @@ function renderTimelineItem(
   const ring = isLatest ? "ring-2 ring-leoni-blue/35 ring-offset-2" : "";
   const comentario =
     item.comentario?.trim() ?
-      `<blockquote class="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm italic text-slate-600">"${escapeHtml(item.comentario.trim())}"</blockquote>`
+      `<blockquote class="mt-2 rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-blue-50/40 px-3.5 py-3 text-sm italic leading-relaxed text-slate-700">"${escapeHtml(item.comentario.trim())}"</blockquote>`
     : "";
   const rail =
-    isLast ? "" : `<span class="mt-2 block w-0.5 flex-1 min-h-6 shrink-0 bg-slate-200" aria-hidden="true"></span>`;
+    isLast ? "" : `<span class="mt-2 block w-0.5 flex-1 min-h-6 shrink-0 bg-gradient-to-b from-slate-200 via-slate-200 to-slate-300/70" aria-hidden="true"></span>`;
 
   return `
-    <li class="flex gap-4">
+    <li class="flex gap-3.5 sm:gap-4">
       <div class="flex flex-col items-center pt-0.5">
         <span class="${wrap} ${ring}" aria-hidden="true">${svg}</span>
         ${rail}
       </div>
       <div class="min-w-0 flex-1 pb-2">
-        <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          <p class="text-sm font-bold text-slate-900">${escapeHtml(item.titulo)}</p>
-          <time class="shrink-0 text-xs text-slate-500">${escapeHtml(item.fecha_hora)}</time>
+        <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <p class="text-sm font-bold leading-snug text-slate-900">${escapeHtml(item.titulo)}</p>
+          <time class="shrink-0 text-xs font-medium text-slate-500 sm:pt-0.5">${escapeHtml(item.fecha_hora)}</time>
         </div>
-        <p class="mt-1 text-xs text-slate-600">
+        <p class="mt-0.5 text-xs text-slate-600">
           <span class="font-medium text-slate-700">${escapeHtml(item.actor_nombre)}</span>
           <span class="text-slate-400"> · </span>
           <span>${escapeHtml(item.actor_rol)}</span>
@@ -89,28 +90,28 @@ export function solicitudResueltaShellHtml(): string {
   return `
     <div
       id="rh-sr-overlay"
-      class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[3px] sm:p-6"
+      class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/35 p-3 backdrop-blur-[5px] sm:p-6"
       role="presentation"
     >
       <div
-        class="flex max-h-[min(92vh,920px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_56px_-12px_rgba(15,23,42,0.2)] [color-scheme:light] lg:max-w-3xl"
+        class="flex max-h-[min(94vh,920px)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-white to-slate-50/40 shadow-[0_34px_80px_-20px_rgba(15,23,42,0.28)] [color-scheme:light] lg:max-w-3xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rh-sr-title"
       >
-        <header class="flex shrink-0 justify-end border-b border-slate-100 px-5 pt-4 sm:px-8 sm:pt-5">
+        <header class="flex shrink-0 justify-end border-b border-slate-200/80 bg-white/80 px-4 pt-4 sm:px-6 sm:pt-5">
           <button
             type="button"
-            class="-m-1 flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            class="-m-1 flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
             data-rh-sr-close
-            aria-label="${escapeHtml(SR_COPY.cerrarAria)}"
+            aria-label="Cerrar detalle de solicitud"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true">
               <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </button>
         </header>
-        <div id="rh-sr-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-7"></div>
+        <div id="rh-sr-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6"></div>
       </div>
     </div>`;
 }
@@ -149,25 +150,21 @@ export function solicitudResueltaEmptyBodyHtml(): string {
 }
 
 function headerInnerHtml(vm: SolicitudResueltaDetalleVm): string {
-  const badgeAprobada = `inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-800`;
-  const badgeRechazada = `inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-red-800`;
-  const badgeCambios = `inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-900`;
-  const badgeCls =
-    vm.estado_ui === "aprobada" ? badgeAprobada
-    : vm.estado_ui === "cambios_solicitados" ? badgeCambios
-    : badgeRechazada;
-  const badgeTxt =
-    vm.estado_ui === "aprobada" ? SR_COPY.badgeAprobado
-    : vm.estado_ui === "cambios_solicitados" ? SR_COPY.badgeCambiosSolicitados
-    : SR_COPY.badgeRechazado;
+  const badgeTxt = vm.estado_ui === "aprobada" ? SR_COPY.badgeAprobado : vm.estado_ui === "cambios_solicitados" ? SR_COPY.badgeCambiosSolicitados : SR_COPY.badgeRechazado;
+  const badgeHtml =
+    vm.estado_ui === "aprobada" ? badgeApproved(badgeTxt)
+    : vm.estado_ui === "cambios_solicitados" ? badgeChangesRequested(badgeTxt)
+    : badgeRejected(badgeTxt);
 
   return `
-    <div class="flex flex-wrap items-start justify-between gap-3 pr-2">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
-        <h2 id="rh-sr-title" class="text-xl font-bold tracking-tight text-leoni-blue sm:text-2xl">${escapeHtml(vm.titulo)}</h2>
-        <p class="mt-1 text-sm text-slate-500">${escapeHtml(vm.id_etiqueta)}</p>
+        <h2 id="rh-sr-title" class="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">${escapeHtml(vm.titulo)}</h2>
+        <p class="mt-2">
+          <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold tracking-wide text-slate-600">${escapeHtml(vm.id_etiqueta)}</span>
+        </p>
       </div>
-      <span class="${badgeCls} shrink-0">${escapeHtml(badgeTxt)}</span>
+      <span class="shrink-0 self-start sm:mt-0.5">${badgeHtml}</span>
     </div>`;
 }
 
@@ -206,12 +203,15 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
   const esVacacionesAprobada = vm.estado_ui === "aprobada" && vm.tipo_codigo === "vacaciones";
 
   const footerVacacionesAprobada = esVacacionesAprobada ?
-      `<div class="flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+      `<div class="flex flex-col gap-4 border-t border-slate-200/80 pt-5 sm:flex-row sm:justify-end">
         <button
           type="button"
           data-rh-sr-imprimir
-          class="min-h-11 rounded-xl bg-leoni-blue px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-leoni-blue/20 hover:bg-leoni-blue-light"
+          class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1e3a8a] to-[#1d4ed8] px-6 py-2.5 text-sm font-bold text-white shadow-[0_10px_22px_rgba(30,64,175,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(30,64,175,0.32)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:w-auto"
         >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5V4.875A1.875 1.875 0 0 1 8.625 3h6.75a1.875 1.875 0 0 1 1.875 1.875V7.5m-10.5 0H6A2.25 2.25 0 0 0 3.75 9.75v4.5A2.25 2.25 0 0 0 6 16.5h12a2.25 2.25 0 0 0 2.25-2.25v-4.5A2.25 2.25 0 0 0 18 7.5h-.75m-10.5 0h10.5M8.25 16.5h7.5v3A1.5 1.5 0 0 1 14.25 21h-4.5a1.5 1.5 0 0 1-1.5-1.5v-3Z" />
+          </svg>
           ${escapeHtml(SR_COPY.btnImprimir)}
         </button>
       </div>`
@@ -268,11 +268,11 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
 
   return `
     <div id="rh-sr-scroll" class="space-y-6">
-    <div class="border-b border-slate-100 pb-5">${headerInnerHtml(vm)}</div>
+    <div class="rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50/80 via-white to-blue-50/50 px-4 py-4 sm:px-5 sm:py-5">${headerInnerHtml(vm)}</div>
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="${CARD}">
           <h3 class="${CARD_TITLE}">${escapeHtml(SR_COPY.cardGeneral)}</h3>
-          <dl class="mt-4 space-y-3">
+          <dl class="mt-4 space-y-4">
             <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblEmpleado)}</dt><dd class="${VAL}">${escapeHtml(vm.empleado_nombre)}</dd></div>
             <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblTipoAusencia)}</dt><dd class="${VAL}">${escapeHtml(vm.tipo_ausencia)}</dd></div>
             <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblDepartamento)}</dt><dd class="${VAL}">${escapeHtml(vm.departamento)}</dd></div>
@@ -280,10 +280,15 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
         </div>
         <div class="${CARD}">
           <h3 class="${CARD_TITLE}">${escapeHtml(SR_COPY.cardPeriodo)}</h3>
-          <dl class="mt-4 space-y-3">
-            <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblDesde)}</dt><dd class="${VAL}">${escapeHtml(vm.fecha_inicio)}</dd></div>
-            <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblHasta)}</dt><dd class="${VAL}">${escapeHtml(vm.fecha_fin)}</dd></div>
-            <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblTotalDias)}</dt><dd class="text-lg font-bold tabular-nums text-leoni-blue">${escapeHtml(diasTxt)}</dd></div>
+          <dl class="mt-4 space-y-4">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblDesde)}</dt><dd class="${VAL}">${escapeHtml(vm.fecha_inicio)}</dd></div>
+              <div><dt class="${LBL}">${escapeHtml(SR_COPY.lblHasta)}</dt><dd class="${VAL}">${escapeHtml(vm.fecha_fin)}</dd></div>
+            </div>
+            <div class="rounded-xl border border-leoni-blue/15 bg-leoni-blue/[0.06] px-3.5 py-3">
+              <dt class="${LBL}">${escapeHtml(SR_COPY.lblTotalDias)}</dt>
+              <dd class="mt-1 text-lg font-bold tabular-nums text-leoni-blue">${escapeHtml(diasTxt)}</dd>
+            </div>
           </dl>
         </div>
       </div>
@@ -291,7 +296,7 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
       ${cambiosBloque}
       ${rechazoBloque}
 
-      <section class="border-t border-slate-100 pt-6" aria-labelledby="rh-sr-hist-title">
+      <section class="rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] sm:p-5" aria-labelledby="rh-sr-hist-title">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h3 id="rh-sr-hist-title" class="flex items-center gap-2 text-base font-bold text-slate-900">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 text-leoni-blue" aria-hidden="true">
@@ -299,7 +304,7 @@ export function solicitudResueltaContentHtml(vm: SolicitudResueltaDetalleVm): st
             </svg>
             ${escapeHtml(SR_COPY.seccionHistorial)}
           </h3>
-          <p class="text-xs text-slate-500">${escapeHtml(SR_COPY.actualizado)}${vm.actualizado_relativo ? ` · ${escapeHtml(vm.actualizado_relativo)}` : ""}</p>
+          <p class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500">${escapeHtml(SR_COPY.actualizado)}${vm.actualizado_relativo ? ` · ${escapeHtml(vm.actualizado_relativo)}` : ""}</p>
         </div>
         <ul class="space-y-0">
           ${timelineItems}

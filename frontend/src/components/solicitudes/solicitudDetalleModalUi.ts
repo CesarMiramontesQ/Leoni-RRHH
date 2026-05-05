@@ -5,12 +5,14 @@
 import type { SolicitudApiItem } from "../../api/solicitudes.ts";
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
 import type { SolicitudDetallePendienteVm } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
+import { badgePending } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 
 const SEC_HEAD =
   "flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-leoni-blue";
 
-const PANEL = "rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 sm:p-5 [color-scheme:light]";
+const PANEL =
+  "rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/40 p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] sm:p-5 [color-scheme:light]";
 
 const LABEL = "text-xs font-medium text-slate-500";
 const VALUE = "text-sm font-semibold text-slate-900";
@@ -25,9 +27,9 @@ const ICON_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 function kv(label: string, value: string, valueClass = VALUE): string {
   return `
-    <div class="grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,11rem)_1fr] sm:items-baseline sm:gap-4">
+    <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,11rem)_1fr] sm:items-baseline sm:gap-4">
       <dt class="${LABEL}">${escapeHtml(label)}</dt>
-      <dd class="${valueClass}">${escapeHtml(value)}</dd>
+      <dd class="${valueClass} break-words">${escapeHtml(value)}</dd>
     </div>`;
 }
 
@@ -35,26 +37,27 @@ export function solicitudDetalleShellHtml(): string {
   return `
     <div
       id="rh-sd-overlay"
-      class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[3px] sm:p-6"
+      class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/35 p-3 backdrop-blur-[5px] sm:p-6"
       role="presentation"
     >
       <div
-        class="flex max-h-[min(92vh,900px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_56px_-12px_rgba(15,23,42,0.2)] [color-scheme:light] sm:max-w-xl"
+        class="flex max-h-[min(94vh,920px)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-white to-slate-50/40 shadow-[0_34px_80px_-20px_rgba(15,23,42,0.28)] [color-scheme:light] sm:max-w-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rh-sd-title"
       >
-        <header class="shrink-0 border-b border-slate-100 px-5 pb-4 pt-5 sm:px-8 sm:pb-5 sm:pt-7">
-          <div class="flex items-start justify-between gap-4">
+        <header class="shrink-0 border-b border-slate-200/80 bg-white/80 px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div class="min-w-0 pr-2">
               <h2 id="rh-sd-title" class="text-xl font-bold tracking-tight text-slate-900">${escapeHtml(SD_COPY.tituloModal)}</h2>
               <p id="rh-sd-subtitle" class="mt-2 text-sm leading-relaxed text-slate-500">${escapeHtml(SD_COPY.subtituloModal)}</p>
+              <div class="mt-3">${badgePending("Pendiente")}</div>
             </div>
             <button
               type="button"
-              class="-m-1 flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+              class="-m-1 flex size-11 shrink-0 items-center justify-center self-end rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:self-start"
               data-rh-sd-close
-              aria-label="${escapeHtml(SD_COPY.cerrarAria)}"
+              aria-label="Cerrar detalle de solicitud"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true">
                 <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
@@ -62,7 +65,7 @@ export function solicitudDetalleShellHtml(): string {
             </button>
           </div>
         </header>
-        <div id="rh-sd-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-7"></div>
+        <div id="rh-sd-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6"></div>
       </div>
     </div>`;
 }
@@ -105,7 +108,7 @@ export function solicitudDetalleJerarquiaHtml(api: SolicitudApiItem): string {
   if (pending) {
     estadoSup = sinSup ? SD_COPY.supSinAsignar : SD_COPY.supPuedeAprobarUnPaso;
     estadoGer = !gerNom ? SD_COPY.gerSinEnCadena : SD_COPY.gerPuedeAprobarUnPaso;
-    alertaFlujo = `<p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">${escapeHtml(
+    alertaFlujo = `<p class="mt-3 rounded-xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50 to-white px-3.5 py-3 text-sm font-medium leading-relaxed text-emerald-900"><span class="mr-1.5 inline-block align-middle" aria-hidden="true">✓</span>${escapeHtml(
       SD_COPY.jerarquiaUnaSolaAprobacion,
     )}</p>`;
   } else {
@@ -115,16 +118,16 @@ export function solicitudDetalleJerarquiaHtml(api: SolicitudApiItem): string {
   }
 
   return `
-    <section class="space-y-3 rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm" aria-labelledby="rh-sd-jer-title">
+    <section class="space-y-3 rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] sm:p-5" aria-labelledby="rh-sd-jer-title">
       <h3 id="rh-sd-jer-title" class="${SEC_HEAD}">
         ${ICON_USER}
         ${escapeHtml(SD_COPY.seccionJerarquia)}
       </h3>
-      <div class="${PANEL} space-y-3">
+      <div class="${PANEL} space-y-3.5">
         ${kv(SD_COPY.lblSupervisorAsignado, sinSup ? "—" : supNom)}
         ${kv(SD_COPY.lblGerenteLinea, gerNom || "—")}
-        ${kv(SD_COPY.lblEstadoSupervisor, estadoSup)}
-        ${kv(SD_COPY.lblEstadoGerencia, estadoGer)}
+        ${kv(SD_COPY.lblEstadoSupervisor, estadoSup, "text-sm font-medium text-slate-700")}
+        ${kv(SD_COPY.lblEstadoGerencia, estadoGer, "text-sm font-medium text-slate-700")}
         ${alertaFlujo}
       </div>
     </section>`;
@@ -141,19 +144,19 @@ export function solicitudDetalleContentHtml(
   const e = vm.empleado;
   const diasTxt = `${s.total_dias} ${SD_COPY.diasUnidad}`;
 
-  const badge = `<span class="inline-flex max-w-full items-center rounded-lg border border-leoni-blue/20 bg-leoni-blue/[0.08] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-leoni-blue">${escapeHtml(s.tipo_badge)}</span>`;
+  const badge = `<span class="inline-flex max-w-full items-center rounded-full border border-leoni-blue/20 bg-leoni-blue/[0.08] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-leoni-blue">${escapeHtml(s.tipo_badge)}</span>`;
 
   const saldoCards = soloLectura
     ? ""
     : `
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div class="rounded-xl border border-slate-200/90 bg-white px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblSaldoActual)}</p>
         <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtml(String(s.saldo_actual))}</p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/30 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblRestante)}</p>
-        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtml(String(s.saldo_restante))}</p>
+        <p class="mt-1 text-xl font-bold tabular-nums text-emerald-700">${escapeHtml(String(s.saldo_restante))}</p>
       </div>
     </div>`;
 
@@ -175,12 +178,29 @@ export function solicitudDetalleContentHtml(
           ${ICON_USER}
           ${escapeHtml(SD_COPY.seccionEmpleado)}
         </h3>
-        <div class="${PANEL} space-y-3">
-          ${kv(SD_COPY.lblNombre, e.nombre)}
-          ${kv(SD_COPY.lblIdEmpleado, e.id_empleado)}
-          ${kv(SD_COPY.lblArea, e.area)}
-          ${kv(SD_COPY.lblPuesto, e.puesto)}
-          ${kv(SD_COPY.lblSupervisor, e.supervisor, `${VALUE} text-leoni-blue`)}
+        <div class="${PANEL}">
+          <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-3">
+            <div>
+              <dt class="${LABEL}">${escapeHtml(SD_COPY.lblNombre)}</dt>
+              <dd class="${VALUE} mt-1 break-words">${escapeHtml(e.nombre)}</dd>
+            </div>
+            <div>
+              <dt class="${LABEL}">${escapeHtml(SD_COPY.lblIdEmpleado)}</dt>
+              <dd class="${VALUE} mt-1 break-words">${escapeHtml(e.id_empleado)}</dd>
+            </div>
+            <div>
+              <dt class="${LABEL}">${escapeHtml(SD_COPY.lblArea)}</dt>
+              <dd class="${VALUE} mt-1 break-words">${escapeHtml(e.area)}</dd>
+            </div>
+            <div>
+              <dt class="${LABEL}">${escapeHtml(SD_COPY.lblPuesto)}</dt>
+              <dd class="${VALUE} mt-1 break-words">${escapeHtml(e.puesto)}</dd>
+            </div>
+            <div class="sm:col-span-2">
+              <dt class="${LABEL}">${escapeHtml(SD_COPY.lblSupervisor)}</dt>
+              <dd class="${VALUE} mt-1 break-words text-leoni-blue">${escapeHtml(e.supervisor)}</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -194,23 +214,23 @@ export function solicitudDetalleContentHtml(
             <p class="${LABEL} mb-2">${escapeHtml(SD_COPY.lblTipoSolicitud)}</p>
             ${badge}
           </div>
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-slate-200/90 bg-white px-3.5 py-3">
               <p class="${LABEL}">${escapeHtml(SD_COPY.lblFechaInicio)}</p>
               <p class="mt-1 text-base font-bold text-slate-900">${escapeHtml(s.fecha_inicio)}</p>
             </div>
-            <div>
+            <div class="rounded-xl border border-slate-200/90 bg-white px-3.5 py-3">
               <p class="${LABEL}">${escapeHtml(SD_COPY.lblFechaFin)}</p>
               <p class="mt-1 text-base font-bold text-slate-900">${escapeHtml(s.fecha_fin)}</p>
             </div>
           </div>
-          <div class="flex flex-col gap-1 border-t border-slate-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div class="rounded-xl border border-leoni-blue/15 bg-leoni-blue/[0.06] px-3.5 py-3">
             <span class="text-sm font-medium text-slate-600">${escapeHtml(SD_COPY.lblTotalDias)}</span>
-            <span class="text-2xl font-bold tabular-nums text-leoni-blue">${escapeHtml(diasTxt)}</span>
+            <p class="mt-1 text-2xl font-bold tabular-nums text-leoni-blue">${escapeHtml(diasTxt)}</p>
           </div>
           <div>
             <p class="${LABEL} mb-2">${escapeHtml(SD_COPY.lblComentarioEmpleado)}</p>
-            <p class="rounded-lg border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-600">${escapeHtml(s.comentario_empleado)}</p>
+            <p class="rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-blue-50/40 px-3.5 py-3 text-sm leading-relaxed text-slate-700">${escapeHtml(s.comentario_empleado)}</p>
           </div>
           ${saldoCards}
         </div>
@@ -219,12 +239,12 @@ export function solicitudDetalleContentHtml(
       ${
         soloLectura || ocultarDecisionJerarquica
           ? ""
-          : `<div class="space-y-3 border-t border-slate-100 pt-2">
+          : `<div class="space-y-3 border-t border-slate-200/80 pt-3">
         <button
           type="button"
           id="rh-sd-btn-aprobar"
           data-rh-sd-accion="aprobar"
-          class="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-leoni-blue px-4 text-sm font-bold text-white shadow-md shadow-leoni-blue/20 transition hover:bg-leoni-blue-light focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45"
+          class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1e3a8a] to-[#1d4ed8] px-4 text-sm font-bold text-white shadow-[0_10px_22px_rgba(30,64,175,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(30,64,175,0.32)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5 shrink-0" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -257,15 +277,15 @@ export function solicitudDetalleContentHtml(
         </div>
       </div>
 
-      <div class="border-t border-slate-100 pt-4">
+      <div class="border-t border-slate-200/80 pt-4">
         <button
           type="button"
           id="rh-sd-toggle-internal"
-          class="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto sm:px-4"
+          class="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-leoni-blue/30 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:w-auto"
           aria-expanded="false"
           aria-controls="rh-sd-internal-panel"
         >
-          <span class="text-lg leading-none" aria-hidden="true">+</span>
+          <span class="text-lg leading-none text-leoni-blue" aria-hidden="true">+</span>
           ${escapeHtml(SD_COPY.toggleComentarioInterno)}
         </button>
         <div id="rh-sd-internal-panel" class="mt-3 hidden space-y-2">
