@@ -26,6 +26,16 @@
 - Esto incluye: nuevos paths, cambios en schemas de request/response, nuevos query/path params, enums modificados y requisitos de seguridad.
 - Mantener los component schemas sincronizados con los modelos Pydantic en `app/schemas/*.py`.
 
+## Design System (`design.md`)
+- **Leer `design.md` antes de cualquier trabajo frontend.** Es la fuente de verdad unica para colores, tipografia, spacing, componentes y patrones de layout.
+- Al crear o modificar componentes frontend, usar los tokens y patrones de `design.md` — nunca inventar nuevos colores, valores de spacing o variantes de componentes.
+- Los tokens de UI viven en `frontend/src/ui/uiTokens.ts`. Usar las constantes existentes (BTN_PRIMARY, BTN_SECONDARY, BTN_GHOST, BTN_DANGER, funciones de badge, FIELD_FOCUS, SELECT_CHEVRON, FILTER_FIELD_WRAP) en lugar de escribir clases inline.
+- Si se agrega un componente o patron nuevo no cubierto en `design.md`, primero implementarlo siguiendo los principios del sistema (grid 4px, Inter, tokens de color semanticos, tonal layering), luego actualizar `design.md` para documentar el nuevo patron.
+- Colores: usar `--color-primary` (#0A1628), `--color-accent` (#2563EB) para elementos interactivos, colores semanticos para badges. Nunca hardcodear hex en componentes.
+- Border radius: 4px default para botones/inputs, 8px para cards/modals, pill para badges/avatares.
+- Shadows: solo en elementos flotantes (dropdowns, modales, tooltips). Cards y containers usan 1px borders + tonal layering.
+- El design system se origina del proyecto Google Stitch `1746412759455982581` ("Industrial Precision").
+
 ## Verificacion antes de cerrar tarea
 - Ejecutar checks/lint del area modificada cuando sea posible.
 - Reportar claramente que se cambio, en que archivos y como validarlo.
