@@ -19,6 +19,7 @@ import {
 import {
   renderRhSolicitudesAdminView,
   renderRhSolicitudesScopedSection,
+  renderSolicitudesSplitHeroMeta,
 } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
@@ -36,9 +37,9 @@ import type {
   RhSolicitudTablaFila,
 } from "../solicitudes/rh/types.ts";
 import {
-  RH_LISTADO_BTN_PRIMARY,
-  RH_LISTADO_BTN_SECONDARY,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_SOLICITUDES_BTN_PRIMARY,
+  RH_SOLICITUDES_BTN_SECONDARY,
   RH_LISTADO_SURFACE,
   htmlAccessDenied,
 } from "../ui/uiTokens.ts";
@@ -160,9 +161,9 @@ function renderSplitSolicitudesView(
     ? `<button
           type="button"
           id="rh-sol-export"
-          class="${RH_LISTADO_BTN_SECONDARY}"
+          class="${RH_SOLICITUDES_BTN_SECONDARY} rh-sol-header__btn-secondary order-2 w-full sm:w-auto sm:shrink-0 md:order-1"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 text-slate-600" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 shrink-0 text-slate-600" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
           Exportar solicitudes
@@ -172,21 +173,22 @@ function renderSplitSolicitudesView(
     ? `<button
           type="button"
           id="rh-sol-nueva"
-          class="${RH_LISTADO_BTN_PRIMARY}"
+          class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary order-1 w-full sm:w-auto sm:shrink-0 md:order-2"
         >
           <span aria-hidden="true">+</span> Nueva solicitud
         </button>`
     : "";
 
   return `
-    <div id="rh-solicitudes-root" class="${RH_LISTADO_PAGE_OUTER}">
-      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div class="min-w-0">
-            <h1 class="text-[28px] font-semibold leading-tight tracking-tight text-[#111827]">Solicitudes</h1>
-            <p class="mt-1 max-w-2xl text-sm leading-snug text-[#667085]">Gestión y aprobación de vacaciones y home office</p>
+    <div id="rh-solicitudes-root" class="rh-solicitudes-module ${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+      <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6">
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
+          <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
+            <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Solicitudes</h1>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de vacaciones y home office</p>
+            ${renderSolicitudesSplitHeroMeta(personalVm, equipoVm)}
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-start gap-2 md:justify-end">${exportBtn}${nuevaBtn}</div>
+          <div class="rh-sol-header__toolbar rh-sol-header__toolbar--dual flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-nowrap md:items-center md:justify-end md:gap-2.5">${exportBtn}${nuevaBtn}</div>
         </div>
       </section>
       ${renderRhSolicitudesScopedSection(personalVm, {
@@ -203,14 +205,16 @@ function renderSplitSolicitudesView(
 }
 
 export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): void {
-  const solicitudesMainClass = "py-5 sm:py-6";
+  const solicitudesMainClass = "pt-0 pb-5 sm:pb-6";
+  const solicitudesPageShellClass =
+    "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
   if (!canAccessSolicitudesPage()) {
     mountAppShell(container, {
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
       mainClass: solicitudesMainClass,
-      mainHtml: forbiddenHtml(),
+      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -221,7 +225,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
       mainClass: solicitudesMainClass,
-      mainHtml: forbiddenHtml(),
+      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -381,7 +385,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     pageTitle: shellTitle,
     activeNav: "solicitudes",
     mainClass: solicitudesMainClass,
-    mainHtml: `<div id="rh-solicitudes-page" class="relative flex min-h-[calc(100dvh-11rem)] flex-col">
+    mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">
       <div id="rh-solicitudes-inner" class="flex min-h-0 flex-1 flex-col">${
         isSplitGestorRole ?
           renderSplitSolicitudesView(
@@ -498,6 +502,21 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   const pageRoot = container.querySelector("#rh-solicitudes-page");
   pageRoot?.addEventListener(
+    "error",
+    (ev) => {
+      const el = ev.target;
+      if (!(el instanceof HTMLImageElement)) return;
+      if (!el.hasAttribute("data-rh-sol-avatar")) return;
+      el.classList.add("hidden");
+      const fb = el.nextElementSibling;
+      if (fb instanceof HTMLElement && fb.classList.contains("rh-sol-avatar-fallback--swap")) {
+        fb.removeAttribute("hidden");
+      }
+    },
+    { capture: true, signal },
+  );
+
+  pageRoot?.addEventListener(
     "click",
     (e) => {
       const t = e.target as HTMLElement;
@@ -509,18 +528,6 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         const id = raw ? Number.parseInt(raw, 10) : NaN;
         if (!Number.isFinite(id)) return;
         const fila = rowsForScope(verScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
-        if (!fila) return;
-        abrirSolicitudSegunEstado(fila, id);
-        return;
-      }
-
-      const editar = t.closest<HTMLElement>("[data-rh-sol-editar]");
-      if (editar && !editar.hasAttribute("disabled")) {
-        const edScope = scopeFromInteractiveElement(editar);
-        const raw = editar.getAttribute("data-rh-sol-editar");
-        const id = raw ? Number.parseInt(raw, 10) : NaN;
-        if (!Number.isFinite(id)) return;
-        const fila = rowsForScope(edScope).find((r) => r.id === id) ?? allRows.find((r) => r.id === id);
         if (!fila) return;
         abrirSolicitudSegunEstado(fila, id);
         return;

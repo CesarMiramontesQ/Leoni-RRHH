@@ -81,6 +81,12 @@ export function badgeOverridden(label = "Override"): string {
 export const RH_LISTADO_PAGE_OUTER =
   "mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 bg-[#f6f8fb] px-2 pb-2 sm:gap-6 sm:px-3";
 
+/**
+ * Mismo layout que `RH_LISTADO_PAGE_OUTER`, sin fondo plano (p. ej. sobre `.rh-dashboard-page`).
+ */
+export const RH_LISTADO_PAGE_OUTER_GRADIENT =
+  "mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 px-2 pb-2 sm:gap-6 sm:px-3";
+
 /** Tarjeta / panel estándar: borde suave, sombra institucional. */
 export const RH_LISTADO_SURFACE =
   "rounded-2xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]";
@@ -93,6 +99,10 @@ export const RH_LISTADO_BTN_SECONDARY =
 
 export const RH_LISTADO_BTN_GHOST =
   "inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#1e40af]/40 hover:bg-slate-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
+
+/** Botones listado Solicitudes (jerarquía + estilos `rh-sol-btn-*` en style.css). */
+export const RH_SOLICITUDES_BTN_PRIMARY = `${RH_LISTADO_BTN_PRIMARY} rh-sol-btn-primary`;
+export const RH_SOLICITUDES_BTN_SECONDARY = `${RH_LISTADO_BTN_SECONDARY} rh-sol-btn-secondary`;
 
 export const RH_LISTADO_LABEL = "mb-1 block text-xs font-medium text-[#667085]";
 
