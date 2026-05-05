@@ -1,6 +1,29 @@
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 
+/** Cabecera de tabla alineada a Solicitudes (`.rh-sol-th` + reglas bajo `#rh-comedor-page`). */
+export const COMEDOR_TABLE_TH =
+  "rh-sol-th sticky top-0 z-20 whitespace-nowrap border-b border-[rgba(148,163,184,0.28)] px-3 py-3 text-left text-[13px] font-semibold tracking-tight text-[#334155] sm:px-4";
+
+/** Input de búsqueda en barra de filtros (mismo tacto que Solicitudes). */
+export const COMEDOR_FILTER_INPUT =
+  "rh-comedor-filter-input min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2";
+
+/** Variante visual de tarjeta KPI según `ComedorKpi.id` (sin tocar contratos). */
+export function comedorKpiVariantClass(kpiId: string): string {
+  const map: Record<string, string> = {
+    reservas_hoy: "rh-comedor-kpi--semana-actual",
+    registros_proxima_semana: "rh-comedor-kpi--proxima-semana",
+    ocupacion_actual: "rh-comedor-kpi--activos",
+    porcentaje_asistencia: "rh-comedor-kpi--asistencia",
+    semana_actual_total: "rh-comedor-kpi--semana-actual",
+    semana_proxima_total: "rh-comedor-kpi--proxima-semana",
+    porcentaje_caseras: "rh-comedor-kpi--activos",
+    porcentaje_saludables: "rh-comedor-kpi--asistencia",
+  };
+  return map[kpiId] ?? "rh-comedor-kpi--default";
+}
+
 // Re-exportamos con los nombres legacy para no romper importadores existentes.
 export { escapeHtml as escapeComedorHtml } from "../../ui/uiUtils.ts";
 export { paginationRange } from "../../ui/uiUtils.ts";

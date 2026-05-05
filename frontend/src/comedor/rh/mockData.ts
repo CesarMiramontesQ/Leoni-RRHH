@@ -98,12 +98,6 @@ const SIDEBAR_DATASET: ComedorSidebarDataset = {
     saludablePercent: 75,
     regularPercent: 25,
   },
-  suggestion: {
-    titulo: "Sugerencia IA",
-    mensaje:
-      "Con base en histórico y tendencias, adelantar el turno 2 quince minutos reduce filas y mejora cobertura.",
-    ctaLabel: "Optimizar flujo",
-  },
   externalCodesCard: {
     titulo: "Códigos externos",
     mensaje: "Consulta y rastrea credenciales temporales de personal externo.",

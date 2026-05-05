@@ -6,13 +6,15 @@ import type {
   ComedorSidebarDataset,
 } from "../../comedor/rh/types.ts";
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
+import {
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_LISTADO_SURFACE,
+  RH_SOLICITUDES_BTN_PRIMARY,
+  RH_SOLICITUDES_BTN_SECONDARY,
+} from "../../ui/uiTokens.ts";
 import { renderComedorAlerts } from "./comedorAlerts.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
-import {
-  renderComedorCharts,
-  renderComedorExternalCodesCard,
-  renderComedorSuggestion,
-} from "./comedorCharts.ts";
+import { renderComedorCharts, renderComedorExternalCodesCard } from "./comedorCharts.ts";
 import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
 import type { ComedorTableFiltersState } from "./comedorReservationsTable.ts";
 import { renderComedorStats } from "./comedorStats.ts";
@@ -36,20 +38,35 @@ export type ComedorDashboardRhViewState = {
 
 function renderHeader(): string {
   return `
-    <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <p class="mt-1 text-sm text-text-muted">Monitoreo avanzado de capacidad y planificación mensual del comedor.</p>
-      </div>
-      <div class="flex shrink-0 flex-wrap items-center gap-2">
-        <button type="button" data-comedor-gestionar class="inline-flex items-center rounded-lg border border-yellow-400 bg-yellow-300 px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-yellow-200">
-          Gestionar comedores
-        </button>
-        <button type="button" data-comedor-planear class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-          Planear
-        </button>
-        <button type="button" data-comedor-nuevo class="inline-flex items-center rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-leoni-blue-light">
-          Nuevo registro
-        </button>
+    <section class="${RH_LISTADO_SURFACE} rh-comedor-hero rh-sol-hero-card p-5 sm:p-7">
+      <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between md:gap-8">
+        <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)] md:pr-4">
+          <h1 class="text-[clamp(1.35rem,2.5vw,1.85rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Comedor</h1>
+          <p class="mt-3 max-w-[65ch] text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-[1.65]">Monitoreo avanzado de capacidad y planificación mensual del comedor.</p>
+        </div>
+        <div class="rh-sol-header__toolbar rh-sol-header__toolbar--dual flex w-full shrink-0 flex-col gap-2.5 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:justify-end md:w-auto md:flex-nowrap md:items-center md:justify-end md:gap-2.5">
+          <button
+            type="button"
+            data-comedor-gestionar
+            class="rh-comedor-btn-gestionar order-3 inline-flex min-h-10 w-full min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[10px] px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/45 focus-visible:ring-offset-2 min-[520px]:w-auto md:order-1"
+          >
+            Gestionar comedores
+          </button>
+          <button
+            type="button"
+            data-comedor-planear
+            class="${RH_SOLICITUDES_BTN_SECONDARY} order-2 w-full min-[520px]:w-auto"
+          >
+            Planear
+          </button>
+          <button
+            type="button"
+            data-comedor-nuevo
+            class="${RH_SOLICITUDES_BTN_PRIMARY} order-1 w-full min-[520px]:w-auto md:order-3"
+          >
+            Nuevo registro
+          </button>
+        </div>
       </div>
     </section>`;
 }
@@ -66,15 +83,14 @@ export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): st
       )
     : "";
   return `
-    <div class="flex min-h-[calc(100dvh-11rem)] flex-col gap-4 sm:gap-5">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">
       ${renderHeader()}
       ${renderComedorStats(state.statsState, state.stats, state.statsError)}
       <section class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         ${renderComedorCalendar(state.calendarState, state.calendar, state.calendarError)}
-        <div class="space-y-4">
+        <div class="flex flex-col gap-4">
           ${renderComedorAlerts(state.sidebarState, sidebar?.alerts ?? null, state.sidebarError)}
           ${renderComedorCharts(state.sidebarState, sidebar?.weeklyOccupancy ?? null, sidebar?.rhPlatillosPorSemana)}
-          ${renderComedorSuggestion(state.sidebarState, sidebar?.suggestion ?? null)}
           ${renderComedorExternalCodesCard(state.sidebarState, sidebar?.externalCodesCard ?? null)}
         </div>
       </section>

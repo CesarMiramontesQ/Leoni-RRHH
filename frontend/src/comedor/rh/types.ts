@@ -65,13 +65,6 @@ export type ComedorDietDistribution = {
   regularPercent: number;
 };
 
-export type ComedorSuggestion = {
-  titulo: string;
-  mensaje: string;
-  ctaLabel: string;
-  ctaRoute?: string;
-};
-
 export type ComedorExternalCodesCard = {
   titulo: string;
   mensaje: string;
@@ -83,7 +76,6 @@ export type ComedorSidebarDataset = {
   alerts: ComedorAlert[];
   weeklyOccupancy: ComedorWeekOccupancyPoint[];
   dietDistribution: ComedorDietDistribution;
-  suggestion: ComedorSuggestion;
   externalCodesCard: ComedorExternalCodesCard;
   /** Solo rol RH: agregado por semana (últimas 4) para gráfica caseras vs saludables. */
   rhPlatillosPorSemana?: readonly ComedorRhSemanaPlatilloPorSemana[];
