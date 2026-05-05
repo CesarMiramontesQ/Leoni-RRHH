@@ -29,6 +29,23 @@ class Settings(BaseSettings):
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3"
     OLLAMA_TEMPERATURE: float = 0.3
+    # Temperatura dedicada a redacción formal de actas (consistencia, tono legal).
+    OLLAMA_ACTA_TEMPERATURE: float = 0.2
+    # Timeout cliente HTTP → Ollama (generación puede superar 45s con PDF+RAG+pregunta pesada).
+    OLLAMA_HTTP_TIMEOUT: float = 180.0
+    # Limita tokens de salida para acabar antes y reducir 500 por tiempo de espera interno.
+    OLLAMA_NUM_PREDICT: int = 1536
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+
+    # Legal RAG (Chroma + LangChain; ingest vía scripts/actas_rag/ingest.py)
+    LEGAL_RAG_CHROMA_PATH: str = "storage/legal-rag-chroma"
+    LEGAL_RAG_CHUNK_SIZE: int = 1000
+    LEGAL_RAG_CHUNK_OVERLAP: int = 200
+    LEGAL_RAG_TOP_K: int = 6
+    # Máximo de caracteres totales del marco legal inyectados en el prompt (varios chunks).
+    LEGAL_REFERENCE_PROMPT_MAX_CHARS: int = 4500
+    # Si la descripción de hechos es enorme, se trunca solo para la llamada a IA.
+    ACTA_DESCRIPCION_IA_MAX_CHARS: int = 8000
 
     # Lectores de huella — IPs autorizadas separadas por coma; vacío = permite todo (dev)
     HUELLA_WHITELIST_IPS: List[str] = []
