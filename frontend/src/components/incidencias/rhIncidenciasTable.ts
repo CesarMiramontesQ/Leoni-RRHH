@@ -12,13 +12,16 @@ import {
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
 import { escapeHtml as escapeIncHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
-import { badgeOpen, badgeInProgress, badgeCancelled } from "../../ui/uiTokens.ts";
+import { badgeOpen, badgeInProgress, badgeCancelled, FIELD_FOCUS } from "../../ui/uiTokens.ts";
 import {
   RH_LISTADO_BTN_GHOST,
-  RH_LISTADO_BTN_PRIMARY,
-  RH_LISTADO_FOCUS_RING,
   RH_LISTADO_SURFACE,
+  RH_SOLICITUDES_BTN_PRIMARY,
 } from "./rhIncidenciasPageStyles.ts";
+
+/** Cabecera de tabla (mismo patrón que Solicitudes / `.rh-sol-th` en style.css). */
+const TABLE_TH =
+  "rh-sol-th sticky top-0 z-20 whitespace-nowrap border-b border-[rgba(148,163,184,0.28)] px-3 py-3 text-left text-[13px] font-semibold tracking-tight text-[#334155] sm:px-4";
 
 function filtrosActivosTabla(vm: RhIncidenciasAdminViewModel): boolean {
   const f = vm.filters;
@@ -116,15 +119,16 @@ function celdaEmpleado(row: RhIncidenciaTablaFila): string {
   const name = formatNombreEmpleadoUi(row.empleado_nombre_raw) || INC_COPY.sinNombre;
   const ini = inicialesDesdeNombreDisplay(name);
   const foto = row.foto_url?.trim();
+  const fallback = `<span class="flex size-10 shrink-0 items-center justify-center rounded-full border border-[rgba(148,163,184,0.35)] bg-linear-to-br from-[#dbeafe] to-[#eff6ff] text-xs font-bold tracking-tight text-[#082f5f] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" title="${escapeIncHtml(name)}">${escapeIncHtml(ini)}</span>`;
   const avatar = foto
-    ? `<img src="${escapeIncHtml(foto)}" alt="" class="size-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`
-    : `<span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeIncHtml(ini)}</span>`;
+    ? `<img src="${escapeIncHtml(foto)}" alt="" width="40" height="40" decoding="async" loading="lazy" class="size-10 shrink-0 rounded-full object-cover ring-1 ring-[rgba(148,163,184,0.35)]" />`
+    : fallback;
   return `
-    <div class="flex min-w-0 items-center gap-2.5">
+    <div class="rh-sol-empleado-celda flex min-w-0 items-center gap-3">
       ${avatar}
       <div class="min-w-0">
-        <p class="truncate text-sm font-semibold text-slate-900">${escapeIncHtml(name)}</p>
-        <p class="truncate text-xs text-slate-500">${escapeIncHtml(row.empleado_id)}</p>
+        <p class="truncate text-sm font-semibold leading-snug text-[#0f172a]">${escapeIncHtml(name)}</p>
+        <p class="truncate text-xs text-[#64748b]">${escapeIncHtml(row.empleado_id)}</p>
       </div>
     </div>`;
 }
@@ -133,22 +137,23 @@ function renderIncidenciasEmptyState(vm: RhIncidenciasAdminViewModel): string {
   const showClear = filtrosActivosTabla(vm);
   const emptyExtra =
     vm.ui.modoFiltros === "rh" && vm.filters.empleado_busqueda.trim()
-      ? `<p class="mt-2 text-xs text-[#667085]">${escapeIncHtml(INC_COPY.tablaVaciaSugerenciaEmpleado)}</p>`
+      ? `<p class="rh-sol-empty__hint mt-3 text-center text-xs text-[#64748b]">${escapeIncHtml(INC_COPY.tablaVaciaSugerenciaEmpleado)}</p>`
       : "";
   return `
-    <section class="${RH_LISTADO_SURFACE} p-8 text-center">
-      <div class="mx-auto inline-flex size-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 15.75 4.5 4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
-      </div>
-      <h3 class="mt-4 text-lg font-semibold text-[#111827]">${escapeIncHtml(INC_COPY.tablaVaciaTitulo)}</h3>
-      <p class="mt-2 text-sm text-[#667085]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
-      ${emptyExtra}
-      <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
-        ${showClear ? `<button type="button" data-rh-inc-clear-filters class="${RH_LISTADO_BTN_GHOST}">${escapeIncHtml(INC_COPY.limpiarFiltros)}</button>` : ""}
-        <button type="button" id="rh-inc-nueva-empty" class="${RH_LISTADO_BTN_PRIMARY}">
-          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10 4.25a.75.75 0 0 1 .75.75v4.25H15a.75.75 0 0 1 0 1.5h-4.25V15a.75.75 0 0 1-1.5 0v-4.25H5a.75.75 0 0 1 0-1.5h4.25V5a.75.75 0 0 1 .75-.75Z" /></svg>
-          ${escapeIncHtml(INC_COPY.nueva)}
-        </button>
+    <section class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+      <div class="rh-sol-empty rh-inc-empty--standalone px-4 py-14 sm:px-6" role="status">
+        <div class="mx-auto flex size-14 items-center justify-center rounded-2xl border border-[rgba(148,163,184,0.28)] bg-linear-to-br from-[#eff6ff] to-white text-[#2563eb] shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_4px_14px_rgba(15,23,42,0.06)]" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-7"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+        </div>
+        <p class="rh-sol-empty__title mt-5 text-center text-sm font-semibold text-[#0f172a]">${escapeIncHtml(INC_COPY.tablaVaciaTitulo)}</p>
+        <p class="rh-sol-empty__sub mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
+        ${emptyExtra}
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+          ${showClear ? `<button type="button" data-rh-inc-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear">${escapeIncHtml(INC_COPY.limpiarFiltros)}</button>` : ""}
+          <button type="button" id="rh-inc-nueva-empty" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary">
+            <span aria-hidden="true">+</span> ${escapeIncHtml(INC_COPY.nueva)}
+          </button>
+        </div>
       </div>
     </section>`;
 }
@@ -156,26 +161,44 @@ function renderIncidenciasEmptyState(vm: RhIncidenciasAdminViewModel): string {
 /** Tabla de incidencias, estados vacío/carga/error y pie con paginación (patrón visual alineado con Actas). */
 export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): string {
   if (vm.tableStatus === "loading") {
+    const skRow = `<tr class="rh-sol-loading-row">${`<td class="px-3 py-3 sm:px-4"><div class="h-4 animate-pulse rounded-md bg-slate-200/80"></div></td>`.repeat(7)}</tr>`;
     return `
-      <section class="animate-pulse ${RH_LISTADO_SURFACE} p-4" aria-busy="true" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
-        <div class="h-5 w-40 rounded bg-slate-200"></div>
-        <div class="mt-2 h-4 w-28 rounded bg-slate-100"></div>
-        <div class="mt-4 space-y-2">
-          <div class="h-10 rounded bg-slate-100"></div>
-          <div class="h-12 rounded bg-slate-100"></div>
-          <div class="h-12 rounded bg-slate-100"></div>
-          <div class="h-12 rounded bg-slate-100"></div>
+      <section class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-busy="true" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+        <div class="flex items-center gap-2.5 border-b border-slate-100/90 px-4 py-3 text-sm text-[#475569] sm:px-5">
+          <svg class="size-5 shrink-0 animate-spin text-[#2563eb]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          ${escapeIncHtml(INC_COPY.cargandoTabla)}
+        </div>
+        <div class="overflow-x-auto px-2 pb-3 sm:px-3">
+          <table class="min-w-[920px] w-full text-left">
+            <thead class="rh-sol-thead"><tr>
+              ${[
+                INC_COPY.colEmpleado,
+                INC_COPY.colNumero,
+                INC_COPY.colArea,
+                INC_COPY.colTipo,
+                INC_COPY.colFecha,
+                INC_COPY.colEstado,
+                INC_COPY.colPrioridad,
+              ]
+                .map((lab) => `<th scope="col" class="${TABLE_TH}">${escapeIncHtml(lab)}</th>`)
+                .join("")}
+            </tr></thead>
+            <tbody class="divide-y divide-slate-100/80">${skRow.repeat(4)}</tbody>
+          </table>
         </div>
       </section>`;
   }
 
   if (vm.tableStatus === "error") {
     return `
-      <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
-        <div class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-5" role="alert">
+      <section class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+        <div class="border-b border-red-100 bg-linear-to-r from-red-50 to-white px-4 py-3 text-sm text-red-800 sm:px-5" role="alert">
           ${escapeIncHtml(vm.tableErrorMessage ?? INC_COPY.errorTabla)}
         </div>
-        <div class="px-4 py-8 text-center text-sm text-[#667085] sm:px-5">${escapeIncHtml(INC_COPY.sinDatosTrasError)}</div>
+        <div class="rh-sol-table-error-fallback px-4 py-10 text-center sm:px-5">
+          <p class="text-sm font-medium text-[#334155]">No pudimos mostrar el listado.</p>
+          <p class="mt-2 text-xs leading-relaxed text-[#64748b]">${escapeIncHtml(INC_COPY.sinDatosTrasError)}</p>
+        </div>
       </section>`;
   }
 
@@ -189,32 +212,24 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
       const num = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
       return `
     <tr
-      class="cursor-pointer transition-colors hover:bg-slate-50 focus-within:bg-slate-50"
+      class="rh-sol-data-row rh-sol-data-row--interactive cursor-pointer transition-colors"
       tabindex="0"
       role="button"
       data-rh-inc-row="1"
       data-rh-inc-id="${row.id}"
     >
-      <td class="px-3 py-3.5 align-middle sm:px-4">${celdaEmpleado(row)}</td>
-      <td class="whitespace-nowrap px-3 py-3.5 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeIncHtml(num)}</td>
-      <td class="max-w-40 px-3 py-3.5 align-middle text-sm text-slate-700 sm:px-4">
+      <td class="px-3 py-3 align-middle sm:px-4">${celdaEmpleado(row)}</td>
+      <td class="whitespace-nowrap px-3 py-3 align-middle text-sm font-medium tabular-nums text-slate-700 sm:px-4">${escapeIncHtml(num)}</td>
+      <td class="max-w-40 px-3 py-3 align-middle text-sm text-slate-700 sm:px-4">
         <span class="block truncate" title="${escapeIncHtml(row.area)}">${escapeIncHtml(row.area)}</span>
       </td>
-      <td class="px-3 py-3.5 align-middle sm:px-4">${badgeTipoFromRow(row)}</td>
-      <td class="whitespace-nowrap px-3 py-3.5 align-middle text-sm text-slate-600 sm:px-4">${escapeIncHtml(fmtFechaCorta(row.fecha))}</td>
-      <td class="px-3 py-3.5 align-middle sm:px-4">${badgeEstadoFromRow(row)}</td>
-      <td class="px-3 py-3.5 align-middle sm:px-4">${badgePrioridadFromRow(row)}</td>
+      <td class="px-3 py-3 align-middle sm:px-4">${badgeTipoFromRow(row)}</td>
+      <td class="whitespace-nowrap px-3 py-3 align-middle text-sm text-slate-600 sm:px-4">${escapeIncHtml(fmtFechaCorta(row.fecha))}</td>
+      <td class="px-3 py-3 align-middle sm:px-4">${badgeEstadoFromRow(row)}</td>
+      <td class="px-3 py-3 align-middle sm:px-4">${badgePrioridadFromRow(row)}</td>
     </tr>`;
     })
     .join("");
-
-  const th = (
-    label: string,
-    edge: "first" | "last" | "none" = "none",
-  ) =>
-    `<th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 px-3 py-3 text-left text-[13px] font-semibold text-slate-700 sm:px-4 ${
-      edge === "first" ? "rounded-tl-2xl" : edge === "last" ? "rounded-tr-2xl" : ""
-    }">${escapeIncHtml(label)}</th>`;
 
   const totalPages = Math.max(1, Math.ceil(tbl.total / tbl.page_size) || 1);
   const from = tbl.total === 0 ? 0 : (tbl.page - 1) * tbl.page_size + 1;
@@ -246,7 +261,7 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
       const num = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
       return `
       <article
-        class="rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-sm transition hover:border-slate-300"
+        class="rounded-[14px] border border-[rgba(148,163,184,0.22)] bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-[rgba(100,116,139,0.35)]"
         data-rh-inc-row="1"
         data-rh-inc-id="${row.id}"
         role="button"
@@ -270,19 +285,19 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
     .join("");
 
   const footer = `
-      <div class="flex shrink-0 flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p class="text-xs font-medium text-slate-600 sm:text-sm">
             ${escapeIncHtml(INC_COPY.mostrando(from, to, tbl.total))}
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
             <label for="rh-inc-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">${escapeIncHtml(INC_COPY.registrosPorPagina)}</label>
-            <select id="rh-inc-page-size" name="rh-inc-page-size" data-rh-inc-page-size class="rounded-[10px] border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-sm sm:text-sm ${RH_LISTADO_FOCUS_RING}">
+            <select id="rh-inc-page-size" name="rh-inc-page-size" data-rh-inc-page-size class="rh-sol-filter-select min-h-[38px] rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 hover:border-[rgba(100,116,139,0.45)] sm:text-sm ${FIELD_FOCUS}">
               ${pageSizeOpts}
             </select>
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-start gap-1 sm:justify-end">
+        <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
           <button type="button" data-rh-inc-page="${tbl.page - 1}" ${tbl.page <= 1 ? "disabled" : ""}
             class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
             <span class="sr-only">${escapeIncHtml(INC_COPY.anterior)}</span>
@@ -298,25 +313,25 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
       </div>`;
 
   return `
-    <section class="${sectionLayoutCls} gap-3 overflow-hidden ${RH_LISTADO_SURFACE} p-4" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
-      <div class="space-y-2 md:hidden">
+    <section class="rh-sol-table-section ${sectionLayoutCls} ${RH_LISTADO_SURFACE}" aria-label="${escapeIncHtml(INC_COPY.tablaAria)}">
+      <div class="space-y-2 p-3 md:hidden sm:p-4">
         ${mobileCards}
       </div>
-      <div class="hidden overflow-hidden rounded-t-2xl md:block ${bodyWrapCls}">
+      <div class="${bodyWrapCls} hidden md:block">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
-        <table class="min-w-[920px] w-full border-separate border-spacing-0 text-left">
-          <thead class="bg-slate-50">
+        <table class="min-w-[920px] w-full text-left">
+          <thead class="rh-sol-thead">
             <tr>
-              ${th(INC_COPY.colEmpleado, "first")}
-              ${th(INC_COPY.colNumero)}
-              ${th(INC_COPY.colArea)}
-              ${th(INC_COPY.colTipo)}
-              ${th(INC_COPY.colFecha)}
-              ${th(INC_COPY.colEstado)}
-              ${th(INC_COPY.colPrioridad, "last")}
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colEmpleado)}</th>
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colNumero)}</th>
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colArea)}</th>
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colTipo)}</th>
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colFecha)}</th>
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colEstado)}</th>
+              <th scope="col" class="${TABLE_TH}">${escapeIncHtml(INC_COPY.colPrioridad)}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">${rows}</tbody>
+          <tbody class="rh-sol-tbody divide-y divide-slate-100/80 bg-white">${rows}</tbody>
         </table>
       </div>
       ${footer}

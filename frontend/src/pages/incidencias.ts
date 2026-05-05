@@ -103,15 +103,18 @@ function isPeriodo(v: string): v is RhIncidenciaFilterState["periodo"] {
   return v === "30d" || v === "90d" || v === "365d" || v === "all";
 }
 
+const INCIDENCIAS_PAGE_SHELL_CLASS =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+
 export function mountIncidencias(container: HTMLElement, signal: AbortSignal): void {
-  const incidenciasMainClass = "py-5 sm:py-6";
+  const incidenciasMainClass = "pt-0 pb-5 sm:pb-6";
 
   if (!canAccessRhIncidenciasPage()) {
     mountAppShell(container, {
       pageTitle: INC_COPY.tituloPagina,
       activeNav: "incidencias",
       mainClass: incidenciasMainClass,
-      mainHtml: forbiddenHtml(),
+      mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -178,7 +181,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     pageTitle: INC_COPY.tituloPagina,
     activeNav: "incidencias",
     mainClass: incidenciasMainClass,
-    mainHtml: `<div id="rh-incidencias-page" class="relative flex min-h-[calc(100dvh-11rem)] flex-col">
+    mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
       <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel())}</div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>

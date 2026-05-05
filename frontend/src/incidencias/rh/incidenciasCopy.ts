@@ -46,7 +46,8 @@ export const INC_COPY = {
   limpiarFiltros: "Limpiar filtros",
 
   tablaAria: "Listado de incidencias",
-  filtrosSeccionAria: "Filtros de incidencias",
+  filtrosTitulo: "Filtros de búsqueda",
+  filtrosSeccionAria: "Filtros de búsqueda",
   colEmpleado: "Empleado",
   colNumero: "Número",
   colArea: "Área",

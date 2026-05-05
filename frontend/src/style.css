@@ -1170,19 +1170,19 @@ body {
   }
 }
 
-/* ── Solicitudes: cards, tabla, filtros (no modifica fondo de #rh-solicitudes-page) ─ */
-#rh-solicitudes-page .rh-sol-hero-card {
+/* ── Solicitudes e Incidencias: cards, tabla, filtros (mismo lenguaje visual) ─ */
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-hero-card {
   box-shadow:
     0 10px 28px rgba(15, 23, 42, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-#rh-solicitudes-page .rh-sol-hero__copy {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-hero__copy {
   word-break: normal;
   overflow-wrap: normal;
 }
 
-#rh-solicitudes-page .rh-sol-header__badge {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge {
   display: inline-flex;
   align-items: baseline;
   gap: 0.375rem;
@@ -1194,38 +1194,38 @@ body {
     0 2px 8px rgba(15, 23, 42, 0.05);
 }
 
-#rh-solicitudes-page .rh-sol-header__badge .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge .tabular-nums {
   font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
-#rh-solicitudes-page .rh-sol-header__badge-text {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge-text {
   font-size: 0.75rem;
   font-weight: 600;
 }
 
-#rh-solicitudes-page .rh-sol-header__badge--total {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge--total {
   border: 1px solid rgba(37, 99, 235, 0.22);
   background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
   color: #082f5f;
 }
 
-#rh-solicitudes-page .rh-sol-header__badge--total .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge--total .tabular-nums {
   color: #082f5f;
 }
 
-#rh-solicitudes-page .rh-sol-header__badge--pending {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge--pending {
   border: 1px solid rgba(245, 158, 11, 0.28);
   background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
   color: #92400e;
 }
 
-#rh-solicitudes-page .rh-sol-header__badge--pending .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__badge--pending .tabular-nums {
   color: #b45309;
 }
 
-#rh-solicitudes-page .rh-sol-btn-primary {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-primary {
   background: linear-gradient(135deg, #021b3a 0%, #063b73 58%, #0b4f8a 100%);
   box-shadow: 0 8px 20px rgba(2, 27, 58, 0.2);
   border: 1px solid rgba(0, 33, 71, 0.35);
@@ -1235,18 +1235,18 @@ body {
     filter 160ms ease;
 }
 
-#rh-solicitudes-page .rh-sol-btn-primary:hover:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 12px 26px rgba(2, 27, 58, 0.26);
   filter: brightness(1.03);
 }
 
-#rh-solicitudes-page .rh-sol-btn-primary:active:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-primary:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 6px 16px rgba(2, 27, 58, 0.18);
 }
 
-#rh-solicitudes-page .rh-sol-btn-secondary {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-secondary {
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -1255,13 +1255,13 @@ body {
     color 160ms ease;
 }
 
-#rh-solicitudes-page .rh-sol-btn-secondary:hover:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-secondary:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.35) 100%);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card {
   border-width: 1px;
   transition:
     transform 180ms ease,
@@ -1269,86 +1269,147 @@ body {
     border-color 180ms ease;
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--pendiente {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--pendiente {
   border-color: rgba(245, 158, 11, 0.35);
   background: linear-gradient(145deg, #fffbeb 0%, #fff7ed 55%, #fff 100%);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fef3c7 0%, #fffbeb 100%);
   color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.28);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__value {
   color: #78350f;
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--vacaciones {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--vacaciones {
   border-color: rgba(249, 115, 22, 0.32);
   background: linear-gradient(145deg, #fff7ed 0%, #ffedd5 45%, #fff 100%);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #ffedd5 0%, #fff7ed 100%);
   color: #c2410c;
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__value {
   color: #9a3412;
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--ho {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--ho {
   border-color: rgba(124, 58, 237, 0.28);
   background: linear-gradient(145deg, #faf5ff 0%, #ede9fe 40%, #fff 100%);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #ede9fe 0%, #f5f3ff 100%);
   color: #5b21b6;
   border: 1px solid rgba(124, 58, 237, 0.22);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
   color: #4c1d95;
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--aprobadas {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--aprobadas {
   border-color: rgba(16, 185, 129, 0.3);
   background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 35%, #fff 100%);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__value {
   color: #065f46;
 }
 
-#rh-solicitudes-page .rh-sol-kpi-card--empleado:hover {
+/* KPIs vista Incidencias (variantes dedicadas) */
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-abiertas {
+  border-color: rgba(37, 99, 235, 0.32);
+  background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 42%, #fff 100%);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__icon {
+  background: linear-gradient(145deg, #dbeafe 0%, #eff6ff 100%);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__value {
+  color: #1e3a8a;
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-investigacion {
+  border-color: rgba(245, 158, 11, 0.36);
+  background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 48%, #fff 100%);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__icon {
+  background: linear-gradient(145deg, #fef3c7 0%, #fffbeb 100%);
+  color: #c2410c;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__value {
+  color: #9a3412;
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-resueltas {
+  border-color: rgba(16, 185, 129, 0.32);
+  background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 38%, #fff 100%);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__icon {
+  background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__value {
+  color: #065f46;
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-criticas {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 42%, #fff 100%);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__icon {
+  background: linear-gradient(145deg, #fee2e2 0%, #fef2f2 100%);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__value {
+  color: #991b1b;
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card--empleado:hover {
   border-color: rgba(148, 163, 184, 0.45);
 }
 
-#rh-solicitudes-page .rh-sol-filters-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-filters-card {
   box-shadow:
     0 8px 22px rgba(15, 23, 42, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
-#rh-solicitudes-page .rh-sol-filters__chips {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-filters__chips {
   row-gap: 0.5rem;
 }
 
-#rh-solicitudes-page .rh-sol-filters__chip {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-filters__chip {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
@@ -1365,56 +1426,56 @@ body {
     0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
-#rh-solicitudes-page .rh-sol-filters__clear:hover:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-filters__clear:hover:not(:disabled) {
   border-color: rgba(37, 99, 235, 0.35);
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.4) 100%);
 }
 
-#rh-solicitudes-page .rh-sol-header__toolbar--dual {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__toolbar--dual {
   align-self: stretch;
 }
 
 @media (min-width: 768px) {
-  #rh-solicitudes-page .rh-sol-header__toolbar--dual {
+  :is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-header__toolbar--dual {
     align-self: center;
     width: auto;
   }
 }
 
-#rh-solicitudes-page .rh-sol-act-btn--disabled {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-act-btn--disabled {
   pointer-events: none;
   user-select: none;
   opacity: 0.55;
 }
 
-#rh-solicitudes-page .rh-sol-empleado-celda {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-empleado-celda {
   gap: 0.75rem;
 }
 
-#rh-solicitudes-page .rh-sol-avatar-img {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-avatar-img {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
-#rh-solicitudes-page .rh-sol-thead th.rh-sol-th {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-thead th.rh-sol-th {
   background: linear-gradient(135deg, #f8fbff 0%, #f1f5f9 100%);
   box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.12);
   backdrop-filter: blur(8px);
 }
 
-#rh-solicitudes-page .rh-sol-tbody .rh-sol-data-row:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-tbody .rh-sol-data-row:hover {
   background: linear-gradient(90deg, rgba(37, 99, 235, 0.04), rgba(37, 99, 235, 0.015));
 }
 
-#rh-solicitudes-page .rh-sol-data-row--interactive:focus-within {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-data-row--interactive:focus-within {
   background: linear-gradient(90deg, rgba(37, 99, 235, 0.07), rgba(37, 99, 235, 0.02));
   outline: none;
 }
 
-#rh-solicitudes-page .rh-sol-data-row--interactive:focus-visible {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-data-row--interactive:focus-visible {
   box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.25);
 }
 
-#rh-solicitudes-page .rh-sol-badge-tipo--vacaciones {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-tipo--vacaciones {
   color: #c2410c;
   border-color: rgba(249, 115, 22, 0.22);
   background: linear-gradient(135deg, #ffedd5 0%, #fff7ed 100%);
@@ -1423,7 +1484,7 @@ body {
     0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
-#rh-solicitudes-page .rh-sol-badge-tipo--ho {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-tipo--ho {
   color: #5b21b6;
   border-color: rgba(124, 58, 237, 0.22);
   background: linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
@@ -1432,67 +1493,71 @@ body {
     0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado--pending {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado--pending {
   color: #92400e;
   border-color: rgba(245, 158, 11, 0.28);
   background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado--approved {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado--approved {
   color: #065f46;
   border-color: rgba(16, 185, 129, 0.28);
   background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado--rejected {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado--rejected {
   color: #991b1b;
   border-color: rgba(248, 113, 113, 0.35);
   background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado--changes {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado--changes {
   color: #0c4a6e;
   border-color: rgba(14, 165, 233, 0.28);
   background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado--cancelled {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado--cancelled {
   color: #334155;
   border-color: rgba(148, 163, 184, 0.35);
   background: linear-gradient(135deg, #f1f5f9 0%, #f8fafc 100%);
 }
 
-#rh-solicitudes-page .rh-sol-badge-estado--overridden {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-badge-estado--overridden {
   color: #065f46;
   border-color: rgba(16, 185, 129, 0.28);
   background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
 }
 
-#rh-solicitudes-page .rh-sol-empty {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-empty {
   border-top: 1px dashed rgba(148, 163, 184, 0.35);
   background: linear-gradient(180deg, rgba(248, 251, 255, 0.65) 0%, rgba(255, 255, 255, 0.4) 100%);
 }
 
-#rh-solicitudes-page .rh-sol-table-error-fallback {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-inc-empty--standalone {
+  border-top: none;
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-table-error-fallback {
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, rgba(255, 255, 255, 0.5) 100%);
 }
 
-#rh-solicitudes-page .rh-sol-table-section {
+:is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-table-section {
   border-radius: 1rem;
   overflow: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #rh-solicitudes-page .rh-sol-btn-primary:hover:not(:disabled),
-  #rh-solicitudes-page .rh-sol-btn-primary:active:not(:disabled),
-  #rh-solicitudes-page .rh-sol-btn-secondary:hover:not(:disabled),
-  #rh-solicitudes-page .rh-sol-kpi-card:hover {
+  :is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-primary:hover:not(:disabled),
+  :is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-primary:active:not(:disabled),
+  :is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-btn-secondary:hover:not(:disabled),
+  :is(#rh-solicitudes-page, #rh-incidencias-page) .rh-sol-kpi-card:hover {
     transform: none;
   }
 }
