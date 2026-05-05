@@ -20,55 +20,33 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # --- Enum types ---
-    nivel_puesto_enum = postgresql.ENUM(
-        "jr", "mid", "sr", "lead", name="nivel_puesto_enum", create_type=False
-    )
-    nivel_puesto_enum.create(op.get_bind(), checkfirst=True)
-
-    categoria_competencia_enum = postgresql.ENUM(
-        "tecnica", "blanda", name="categoria_competencia_enum", create_type=False
-    )
-    categoria_competencia_enum.create(op.get_bind(), checkfirst=True)
-
     # --- Table: puestos_perfil ---
     op.create_table(
         "puestos_perfil",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column(
-            "codigo",
-            sa.String(length=15),
-            nullable=False,
-            comment="Formato PRF-YYYY-NNN",
-        ),
+        sa.Column("codigo", sa.String(length=20), nullable=False),
         sa.Column("nombre", sa.String(length=255), nullable=False),
-        sa.Column("area_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "nivel",
-            nivel_puesto_enum,
-            nullable=False,
-        ),
+        sa.Column("area_id", sa.Integer(), nullable=True),
+        sa.Column("nivel", sa.String(length=50), nullable=True),
         sa.Column("descripcion", sa.Text(), nullable=True),
         sa.Column(
             "competencias_tecnicas",
             postgresql.JSONB(astext_type=sa.Text()),
             nullable=True,
-            comment="[{nombre, descripcion, nivel_requerido}]",
         ),
         sa.Column(
             "habilidades_blandas",
             postgresql.JSONB(astext_type=sa.Text()),
             nullable=True,
-            comment="[{nombre, nivel_requerido}]",
         ),
         sa.Column(
             "maquinas_herramientas",
             postgresql.JSONB(astext_type=sa.Text()),
             nullable=True,
-            comment="[{nombre, certificacion_requerida}]",
         ),
         sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("created_by", sa.Integer(), nullable=False),
+        sa.Column("activo", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("created_by", sa.Integer(), nullable=True),
         sa.Column("updated_by", sa.Integer(), nullable=True),
         sa.Column(
             "created_at",
@@ -101,17 +79,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("nombre", sa.String(length=255), nullable=False),
         sa.Column("descripcion", sa.Text(), nullable=True),
-        sa.Column(
-            "categoria",
-            categoria_competencia_enum,
-            nullable=False,
-        ),
-        sa.Column(
-            "area_id",
-            sa.Integer(),
-            nullable=True,
-            comment="NULL = competencia global",
-        ),
+        sa.Column("categoria", sa.String(length=20), nullable=False),
+        sa.Column("area_id", sa.Integer(), nullable=True),
+        sa.Column("activo", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -144,6 +114,7 @@ def upgrade() -> None:
             "nivel_requerido",
             sa.Integer(),
             nullable=False,
+            server_default="0",
             comment="0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto",
         ),
         sa.Column(
@@ -197,7 +168,3 @@ def downgrade() -> None:
     op.drop_table("competencia_requisitos")
     op.drop_table("competencias")
     op.drop_table("puestos_perfil")
-
-    # Drop enum types
-    op.execute("DROP TYPE IF EXISTS categoria_competencia_enum")
-    op.execute("DROP TYPE IF EXISTS nivel_puesto_enum")

@@ -12,6 +12,8 @@ export type AppShellNavItemId =
   | "empleados"
   | "reportes"
   | "notificaciones"
+  | "puestos"
+  | "competencias"
   | "ajustes";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
@@ -23,6 +25,9 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 
+/** Items visibles solo para rh, director, gerente (Talento). */
+const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["puestos", "competencias"]);
+
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
 
 /**
@@ -31,6 +36,7 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (RH_ONLY_NAV_IDS.has(itemId)) return rol === "rh";
+  if (TALENTO_NAV_IDS.has(itemId)) return rol === "rh" || rol === "director" || rol === "gerente";
   if (rol === "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
   return true;
 }
