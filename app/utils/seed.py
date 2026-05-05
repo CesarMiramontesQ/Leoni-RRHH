@@ -304,6 +304,16 @@ ADMIN_RH: dict = {
     "estado_id": 1,
 }
 
+DEV_USER: dict = {
+    "empleado_id": 9998,
+    "no_empleado": "RH-0002",
+    "nombre": "Alberto Flores",
+    "email": "alberto.flores@leoni.com",
+    "usuario": "alberto.flores",
+    "password": "Dev2026!",
+    "estado_id": 1,
+}
+
 
 # ── Logica del seed ───────────────────────────────────────────────────────────
 
@@ -364,37 +374,35 @@ async def seed_roles(db) -> dict[str, int]:
     return created
 
 
-async def seed_admin(db, rol_rh_id: int) -> None:
-    """Crea el usuario admin RH si no existe."""
+async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
+    """Crea un usuario si no existe."""
     result = await db.execute(
-        select(Empleado).where(Empleado.email == ADMIN_RH["email"])
+        select(Empleado).where(Empleado.email == user_data["email"])
     )
     existing = result.scalar_one_or_none()
 
     if existing:
         logger.info(
-            "  Admin RH ya existe (id=%d, email=%s) — sin cambios",
+            "  %s ya existe (id=%d, email=%s) — sin cambios",
+            label,
             existing.id,
             existing.email,
         )
         return
 
-    admin = Empleado(
-        empleado_id=ADMIN_RH["empleado_id"],
-        no_empleado=ADMIN_RH["no_empleado"],
-        nombre=ADMIN_RH["nombre"],
-        email=ADMIN_RH["email"],
-        usuario=ADMIN_RH["usuario"],
-        password_hash=hash_password(ADMIN_RH["password"]),
-        rol_id=rol_rh_id,
-        estado_id=ADMIN_RH["estado_id"],
+    emp = Empleado(
+        empleado_id=user_data["empleado_id"],
+        no_empleado=user_data["no_empleado"],
+        nombre=user_data["nombre"],
+        email=user_data["email"],
+        usuario=user_data["usuario"],
+        password_hash=hash_password(user_data["password"]),
+        rol_id=rol_id,
+        estado_id=user_data["estado_id"],
     )
-    db.add(admin)
+    db.add(emp)
     await db.flush()
-    logger.info("  Admin RH creado (id=%d, email=%s)", admin.id, admin.email)
-    logger.warning(
-        "  IMPORTANTE: Cambiar la password del admin RH después del primer login."
-    )
+    logger.info("  %s creado (id=%d, email=%s)", label, emp.id, emp.email)
 
 
 async def seed() -> None:
@@ -409,11 +417,12 @@ async def seed() -> None:
             logger.info("Seeding roles...")
             created_roles = await seed_roles(db)
 
-            logger.info("Seeding usuario admin RH...")
+            logger.info("Seeding usuarios...")
             rol_rh_id = created_roles.get("rh")
             if not rol_rh_id:
                 raise RuntimeError("El rol 'rh' no fue creado correctamente")
-            await seed_admin(db, rol_rh_id)
+            await seed_user(db, ADMIN_RH, rol_rh_id, "Admin RH")
+            await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
 
             await db.commit()
             logger.info("=== Seed completado exitosamente ===")

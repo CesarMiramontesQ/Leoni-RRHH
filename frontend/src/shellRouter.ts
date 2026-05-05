@@ -9,7 +9,9 @@ import { mountIncidencias } from "./pages/incidencias.ts";
 import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
 import { mountOrganigrama } from "./pages/organigrama.ts";
+import { mountPuestos } from "./pages/puestos.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
+import { mountCompetencias } from "./pages/competencias.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 
 let routeAbort: AbortController | null = null;
@@ -73,6 +75,16 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/actas")) {
       mountActas(container);
+      return;
+    }
+
+    if (h.startsWith("#/puestos")) {
+      mountPuestos(container, signal);
+      return;
+    }
+
+    if (h.startsWith("#/competencias")) {
+      mountCompetencias(container, signal);
       return;
     }
 

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3"
     OLLAMA_TEMPERATURE: float = 0.3
 
+    # Stitch (Google design tool) — opcional
+    STITCH_API_KEY: str = ""
+
     # Lectores de huella — IPs autorizadas separadas por coma; vacío = permite todo (dev)
     HUELLA_WHITELIST_IPS: List[str] = []
 

@@ -37,6 +37,10 @@ tags:
     description: Bandeja de notificaciones del usuario
   - name: Organigrama
     description: Estructura jerarquica organizacional
+  - name: Talento - Competencias
+    description: Gestion de competencias y matriz de competencias por area
+  - name: Talento - Puestos Perfil
+    description: Perfiles de puesto con competencias, habilidades y generacion IA
 
 components:
   securitySchemes:
@@ -1405,6 +1409,310 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OrganigramaNodoResponse"
+
+    # ── Talento — Competencias ────────────────────────
+    FilterOption:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+
+    FilterOptionsResponse:
+      type: object
+      required: [areas, lineas, sectores]
+      properties:
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/FilterOption"
+        lineas:
+          type: array
+          items:
+            $ref: "#/components/schemas/FilterOption"
+        sectores:
+          type: array
+          items:
+            $ref: "#/components/schemas/FilterOption"
+
+    CompetenciaCreate:
+      type: object
+      required: [nombre, categoria]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 255
+        descripcion:
+          type: [string, "null"]
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+        area_id:
+          type: [integer, "null"]
+
+    CompetenciaUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 255
+        descripcion:
+          type: [string, "null"]
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+        area_id:
+          type: [integer, "null"]
+
+    CompetenciaResponse:
+      type: object
+      required: [id, nombre, categoria, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        descripcion:
+          type: [string, "null"]
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+        area_id:
+          type: [integer, "null"]
+        area_nombre:
+          type: [string, "null"]
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CompetenciaListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    MatrizCelda:
+      type: object
+      required: [competencia_id, puesto_perfil_id, nivel_requerido]
+      properties:
+        competencia_id:
+          type: integer
+        puesto_perfil_id:
+          type: integer
+        nivel_requerido:
+          type: integer
+          minimum: 0
+          maximum: 4
+
+    MatrizRow:
+      type: object
+      required: [competencia_id, competencia_nombre, categoria, niveles]
+      properties:
+        competencia_id:
+          type: integer
+        competencia_nombre:
+          type: string
+        categoria:
+          type: string
+        niveles:
+          type: object
+          additionalProperties:
+            type: integer
+          description: "Mapa puesto_perfil_id → nivel_requerido"
+
+    MatrizResponse:
+      type: object
+      required: [area_id, puestos, competencias]
+      properties:
+        area_id:
+          type: integer
+        area_nombre:
+          type: [string, "null"]
+        puestos:
+          type: array
+          items:
+            $ref: "#/components/schemas/PuestoPerfilResponse"
+        competencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatrizRow"
+
+    MatrizBulkUpdate:
+      type: object
+      required: [celdas]
+      properties:
+        celdas:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatrizCelda"
+
+    ResumenAreaResponse:
+      type: object
+      required: [area_id, total_empleados, total_puestos_perfil, total_competencias, requisitos_activos, cumplimiento_porcentaje]
+      properties:
+        area_id:
+          type: integer
+        area_nombre:
+          type: [string, "null"]
+        total_empleados:
+          type: integer
+        total_puestos_perfil:
+          type: integer
+        total_competencias:
+          type: integer
+        requisitos_activos:
+          type: integer
+        cumplimiento_porcentaje:
+          type: number
+          format: float
+
+    BrechaItem:
+      type: object
+      required: [competencia_id, competencia_nombre, categoria, nivel_requerido_promedio, gap_porcentaje, empleados_afectados]
+      properties:
+        competencia_id:
+          type: integer
+        competencia_nombre:
+          type: string
+        categoria:
+          type: string
+        nivel_requerido_promedio:
+          type: number
+          format: float
+        gap_porcentaje:
+          type: number
+          format: float
+        empleados_afectados:
+          type: integer
+
+    BrechasResponse:
+      type: object
+      required: [area_id, brechas]
+      properties:
+        area_id:
+          type: integer
+        area_nombre:
+          type: [string, "null"]
+        brechas:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrechaItem"
+
+    # ── Talento — Puestos Perfil ──────────────────────
+    PuestoPerfilCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 255
+        area_id:
+          type: [integer, "null"]
+        nivel:
+          type: [string, "null"]
+          maxLength: 50
+        descripcion:
+          type: [string, "null"]
+        competencias_tecnicas:
+          type: [object, "null"]
+        habilidades_blandas:
+          type: [object, "null"]
+        maquinas_herramientas:
+          type: [object, "null"]
+
+    PuestoPerfilUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 255
+        area_id:
+          type: [integer, "null"]
+        nivel:
+          type: [string, "null"]
+          maxLength: 50
+        descripcion:
+          type: [string, "null"]
+        competencias_tecnicas:
+          type: [object, "null"]
+        habilidades_blandas:
+          type: [object, "null"]
+        maquinas_herramientas:
+          type: [object, "null"]
+
+    PuestoPerfilResponse:
+      type: object
+      required: [id, codigo, nombre, version, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        nombre:
+          type: string
+        area_id:
+          type: [integer, "null"]
+        area_nombre:
+          type: [string, "null"]
+        nivel:
+          type: [string, "null"]
+        descripcion:
+          type: [string, "null"]
+        competencias_tecnicas:
+          type: [object, "null"]
+        habilidades_blandas:
+          type: [object, "null"]
+        maquinas_herramientas:
+          type: [object, "null"]
+        version:
+          type: integer
+        activo:
+          type: boolean
+        created_by:
+          type: [integer, "null"]
+        updated_by:
+          type: [integer, "null"]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PuestoPerfilListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PuestoPerfilResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
 
     # ── Genericos ─────────────────────────────────────
     HTTPValidationError:
@@ -3192,3 +3500,402 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrganigramaResponse"
+
+  # ── Talento — Competencias ───────────────────────────
+  /api/v1/competencias/filter-options:
+    get:
+      tags: [Talento - Competencias]
+      summary: Opciones de filtro (areas, lineas, sectores)
+      operationId: competencias_filter_options
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Opciones disponibles para filtros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilterOptionsResponse"
+
+  /api/v1/competencias/matriz:
+    get:
+      tags: [Talento - Competencias]
+      summary: Obtener matriz de competencias por area
+      operationId: competencias_matriz_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          description: ID del area. Si es null retorna respuesta vacia.
+          schema:
+            type: [integer, "null"]
+      responses:
+        "200":
+          description: Matriz de competencias del area
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatrizResponse"
+    put:
+      tags: [Talento - Competencias]
+      summary: Actualizar niveles de la matriz en lote
+      description: Solo rol RH.
+      operationId: competencias_matriz_update
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatrizBulkUpdate"
+      responses:
+        "200":
+          description: Matriz actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/competencias/resumen-area:
+    get:
+      tags: [Talento - Competencias]
+      summary: Resumen de competencias del area
+      operationId: competencias_resumen_area
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          description: ID del area. Si es null retorna zeros.
+          schema:
+            type: [integer, "null"]
+      responses:
+        "200":
+          description: Resumen con metricas del area
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumenAreaResponse"
+
+  /api/v1/competencias/brechas:
+    get:
+      tags: [Talento - Competencias]
+      summary: Brechas de competencias del area
+      operationId: competencias_brechas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          description: ID del area. Si es null retorna brechas vacias.
+          schema:
+            type: [integer, "null"]
+      responses:
+        "200":
+          description: Brechas identificadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrechasResponse"
+
+  /api/v1/competencias:
+    get:
+      tags: [Talento - Competencias]
+      summary: Listar competencias (paginado)
+      operationId: competencias_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: categoria
+          in: query
+          schema:
+            type: string
+            enum: [tecnica, blanda]
+        - name: area_id
+          in: query
+          schema:
+            type: integer
+        - name: busqueda
+          in: query
+          description: Busqueda por nombre de competencia
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pagina de competencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaListResponse"
+    post:
+      tags: [Talento - Competencias]
+      summary: Crear competencia
+      description: Solo rol RH.
+      operationId: competencias_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetenciaCreate"
+      responses:
+        "201":
+          description: Competencia creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/competencias/{id}:
+    get:
+      tags: [Talento - Competencias]
+      summary: Detalle de competencia
+      operationId: competencias_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Competencia encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaResponse"
+    put:
+      tags: [Talento - Competencias]
+      summary: Actualizar competencia
+      description: Solo rol RH.
+      operationId: competencias_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetenciaUpdate"
+      responses:
+        "200":
+          description: Competencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetenciaResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+    delete:
+      tags: [Talento - Competencias]
+      summary: Eliminar competencia
+      description: Solo rol RH.
+      operationId: competencias_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Competencia eliminada
+
+  # ── Talento — Puestos Perfil ─────────────────────────
+  /api/v1/puestos-perfil:
+    get:
+      tags: [Talento - Puestos Perfil]
+      summary: Listar perfiles de puesto (paginado)
+      operationId: puestos_perfil_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: area_id
+          in: query
+          schema:
+            type: integer
+        - name: busqueda
+          in: query
+          description: Busqueda por nombre o codigo
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pagina de perfiles de puesto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilListResponse"
+    post:
+      tags: [Talento - Puestos Perfil]
+      summary: Crear perfil de puesto
+      description: Auto-genera codigo unico. Solo rol RH.
+      operationId: puestos_perfil_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PuestoPerfilCreate"
+      responses:
+        "201":
+          description: Perfil de puesto creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/puestos-perfil/{id}:
+    get:
+      tags: [Talento - Puestos Perfil]
+      summary: Detalle de perfil de puesto
+      operationId: puestos_perfil_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Perfil encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilResponse"
+    put:
+      tags: [Talento - Puestos Perfil]
+      summary: Actualizar perfil de puesto
+      description: Solo rol RH.
+      operationId: puestos_perfil_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PuestoPerfilUpdate"
+      responses:
+        "200":
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PuestoPerfilResponse"
+        "422":
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+    delete:
+      tags: [Talento - Puestos Perfil]
+      summary: Eliminar perfil de puesto
+      description: Solo rol RH.
+      operationId: puestos_perfil_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Perfil eliminado
+
+  /api/v1/puestos-perfil/{id}/generar-ia:
+    post:
+      tags: [Talento - Puestos Perfil]
+      summary: Generar sugerencias IA para el perfil
+      description: Genera competencias y habilidades sugeridas usando LLM.
+      operationId: puestos_perfil_generar_ia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sugerencias generadas
+          content:
+            application/json:
+              schema:
+                type: object
