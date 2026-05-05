@@ -288,13 +288,14 @@ frontend/src/__tests__/
 
 ### Deuda tecnica
 
-| # | Item | Descripcion |
-|---|---|---|
-| 1 | Suite pytest | Implementar los 65 tests unitarios backend propuestos en este plan |
-| 2 | Suite vitest | Implementar los 16 tests unitarios frontend propuestos |
-| 3 | OpenAPI spec | Actualizar `openapi.yaml` con los endpoints nuevos |
-| 4 | Types separados | Extraer types de competencias/puestos a archivo `types.ts` dedicado |
-| 5 | QA manual completo | Ejecutar los 38 pasos del checklist de QA manual original |
+| # | Item | Estado | Notas |
+|---|---|---|---|
+| 1 | Suite pytest | DONE | 29 tests (15 competencias + 14 puestos_perfil) — todos pasan |
+| 2 | Suite vitest | PENDIENTE | 16 tests unitarios frontend propuestos |
+| 3 | OpenAPI spec | DONE | 14 endpoints documentados en `openapi.yaml` |
+| 4 | Types separados | DONE | `frontend/src/dashboard/competencias/types.ts` y `puestos/types.ts` |
+| 5 | QA E2E Playwright | DONE | 58/60 tests pasan (2 skipped por IA no disponible en CI) |
+| 6 | QA manual completo | PENDIENTE | Ejecutar los 38 pasos del checklist de QA manual original |
 
 ---
 
