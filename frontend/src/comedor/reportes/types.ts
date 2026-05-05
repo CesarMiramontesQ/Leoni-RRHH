@@ -1,4 +1,4 @@
-import type { ComedorPanelState } from "../rh/types.ts";
+import type { ComedorPanelState, ComedorRhProximosRegistrosPage } from "../rh/types.ts";
 
 export type ReporteComedorDepartamentoOption = {
   id: string;
@@ -90,4 +90,12 @@ export type ReporteComedorViewState = {
   tableSortDirection: ReporteComedorSortDirection;
   lastUpdatedLabel: string | null;
   selectedEmpleadoId: string | null;
+  /** Listado operativo «próximos registros» (solo UI RH; datos solo si rol === rh). */
+  rhFuturosState: ComedorPanelState;
+  rhFuturos: ComedorRhProximosRegistrosPage | null;
+  rhFuturosError: string | null;
+  rhFuturosPage: number;
+  rhFuturosPageSize: 10 | 50;
+  rhFuturosStatusFilter: "todos" | "confirmado" | "cancelado";
+  rhFuturosSearch: string;
 };

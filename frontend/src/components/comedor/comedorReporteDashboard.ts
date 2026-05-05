@@ -6,7 +6,9 @@ import type {
   ReporteComedorSortKey,
   ReporteComedorViewState,
 } from "../../comedor/reportes/types.ts";
+import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import { escapeComedorHtml, renderEmpleadoAvatarCell } from "./comedorUiUtils.ts";
+import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
 import { SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
 function iconForKpi(id: ReporteComedorKpi["icono"]): string {
@@ -765,12 +767,25 @@ function renderHelpFooter(): string {
 }
 
 export function renderComedorReporteDashboard(state: ReporteComedorViewState): string {
+  const bloqueRhProximos =
+    getRolFromAccessToken() === "rh"
+      ? renderComedorRhProximosRegistrosTable(
+          state.rhFuturosState,
+          state.rhFuturos,
+          state.rhFuturosError,
+          {
+            statusFilter: state.rhFuturosStatusFilter,
+            search: state.rhFuturosSearch,
+          },
+        )
+      : "";
   return `
     <div class="flex min-h-[calc(100dvh-11rem)] flex-col gap-4 sm:gap-5">
       ${renderHeader()}
       ${renderFilters(state)}
       ${renderKpis(state)}
       <section class="space-y-4">${renderTable(state)}</section>
+      ${bloqueRhProximos}
       ${renderHelpFooter()}
     </div>`;
 }

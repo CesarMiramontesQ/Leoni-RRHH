@@ -2,10 +2,8 @@ import type {
   ComedorCalendarMonth,
   ComedorKpi,
   ComedorPanelState,
-  ComedorRhProximosRegistrosPage,
   ComedorSidebarDataset,
 } from "../../comedor/rh/types.ts";
-import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import {
   RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
@@ -15,8 +13,6 @@ import {
 import { renderComedorAlerts } from "./comedorAlerts.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
 import { renderComedorCharts, renderComedorExternalCodesCard } from "./comedorCharts.ts";
-import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
-import type { ComedorTableFiltersState } from "./comedorReservationsTable.ts";
 import { renderComedorStats } from "./comedorStats.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 
@@ -30,10 +26,6 @@ export type ComedorDashboardRhViewState = {
   sidebarState: ComedorPanelState;
   sidebar: ComedorSidebarDataset | null;
   sidebarError: string | null;
-  tableFilters: ComedorTableFiltersState;
-  futurosRhState: ComedorPanelState;
-  futurosRh: ComedorRhProximosRegistrosPage | null;
-  futurosRhError: string | null;
 };
 
 function renderHeader(): string {
@@ -73,15 +65,6 @@ function renderHeader(): string {
 
 export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): string {
   const sidebar = state.sidebar;
-  const esRh = getRolFromAccessToken() === "rh";
-  const bloqueFuturosRh = esRh
-    ? renderComedorRhProximosRegistrosTable(
-        state.futurosRhState,
-        state.futurosRh,
-        state.futurosRhError,
-        state.tableFilters,
-      )
-    : "";
   return `
     <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">
       ${renderHeader()}
@@ -94,7 +77,6 @@ export function renderComedorDashboardRh(state: ComedorDashboardRhViewState): st
           ${renderComedorExternalCodesCard(state.sidebarState, sidebar?.externalCodesCard ?? null)}
         </div>
       </section>
-      ${bloqueFuturosRh}
     </div>`;
 }
 
