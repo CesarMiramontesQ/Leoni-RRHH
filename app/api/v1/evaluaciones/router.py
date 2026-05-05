@@ -1,0 +1,130 @@
+# app/api/v1/evaluaciones/router.py
+"""
+Router de Evaluaciones de Competencias — Modulo Talento Fase 2.
+
+Endpoints:
+  GET  /api/v1/evaluaciones/                      — Listar (paginado, filtros)
+  POST /api/v1/evaluaciones/                      — Crear/actualizar evaluacion
+  GET  /api/v1/evaluaciones/{id}                  — Detalle
+  PUT  /api/v1/evaluaciones/{id}                  — Actualizar
+  DELETE /api/v1/evaluaciones/{id}                — Eliminar (RH)
+  GET  /api/v1/evaluaciones/empleado/{empleado_id} — Evaluaciones de un empleado
+  POST /api/v1/evaluaciones/bulk                  — Bulk create (RH)
+"""
+
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.dependencies import get_current_user, role_checker
+from app.models.empleados import Empleado
+from app.schemas.evaluaciones import (
+    EvaluacionBulkCreate,
+    EvaluacionCreate,
+    EvaluacionListResponse,
+    EvaluacionResponse,
+    EvaluacionUpdate,
+)
+from app.services.evaluacion_service import EvaluacionService
+
+router = APIRouter(prefix="/api/v1/evaluaciones", tags=["Evaluaciones"])
+
+
+# ── Endpoints especiales (antes de /{id}) ───────────────────────────────────
+
+
+@router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])
+async def evaluaciones_por_empleado(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Todas las evaluaciones de un empleado."""
+    service = EvaluacionService(db)
+    return await service.listar_por_empleado(
+        empleado_id=empleado_id, current_user=current_user
+    )
+
+
+@router.post("/bulk", status_code=status.HTTP_200_OK)
+async def bulk_evaluaciones(
+    body: EvaluacionBulkCreate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear/actualizar multiples evaluaciones en batch. Solo RH."""
+    service = EvaluacionService(db)
+    return await service.bulk_crear(data=body, current_user=current_user)
+
+
+# ── CRUD ────────────────────────────────────────────────────────────────────
+
+
+@router.get("", response_model=EvaluacionListResponse)
+async def listar_evaluaciones(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    empleado_id: int | None = Query(None),
+    competencia_id: int | None = Query(None),
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista evaluaciones con paginacion y filtros."""
+    service = EvaluacionService(db)
+    return await service.listar(
+        page=page,
+        page_size=page_size,
+        empleado_id=empleado_id,
+        competencia_id=competencia_id,
+        area_id=area_id,
+    )
+
+
+@router.post(
+    "",
+    response_model=EvaluacionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def crear_evaluacion(
+    body: EvaluacionCreate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear o actualizar evaluacion. RH o supervisor (solo su area)."""
+    service = EvaluacionService(db)
+    return await service.crear(data=body, current_user=current_user)
+
+
+@router.get("/{id}", response_model=EvaluacionResponse)
+async def obtener_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detalle de una evaluacion."""
+    service = EvaluacionService(db)
+    return await service.obtener(id=id)
+
+
+@router.put("/{id}", response_model=EvaluacionResponse)
+async def actualizar_evaluacion(
+    id: int,
+    body: EvaluacionUpdate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar evaluacion. RH o supervisor (solo su area)."""
+    service = EvaluacionService(db)
+    return await service.actualizar(id=id, data=body, current_user=current_user)
+
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar evaluacion. Solo RH."""
+    service = EvaluacionService(db)
+    await service.eliminar(id=id, current_user=current_user)

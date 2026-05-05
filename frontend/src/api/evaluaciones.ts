@@ -1,0 +1,113 @@
+import { fetchWithAuth } from "./http.ts";
+
+export interface Evaluacion {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string | null;
+  competencia_id: number;
+  competencia_nombre: string | null;
+  nivel_actual: number;
+  evaluador_id: number | null;
+  evaluador_nombre: string | null;
+  observaciones: string | null;
+  fecha_evaluacion: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EvaluacionListResponse {
+  items: Evaluacion[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface EvaluacionPayload {
+  empleado_id: number;
+  competencia_id: number;
+  nivel_actual: number;
+  observaciones?: string;
+}
+
+export async function getEvaluaciones(params: {
+  page?: number;
+  page_size?: number;
+  empleado_id?: number;
+  competencia_id?: number;
+  area_id?: number;
+}): Promise<EvaluacionListResponse> {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", String(params.page));
+  if (params.page_size) qs.set("page_size", String(params.page_size));
+  if (params.empleado_id) qs.set("empleado_id", String(params.empleado_id));
+  if (params.competencia_id) qs.set("competencia_id", String(params.competencia_id));
+  if (params.area_id) qs.set("area_id", String(params.area_id));
+
+  const res = await fetchWithAuth(`/api/v1/evaluaciones?${qs.toString()}`);
+  if (!res.ok) return { items: [], total: 0, page: 1, page_size: 10 };
+  return res.json();
+}
+
+export async function getEvaluacionesPorEmpleado(empleadoId: number): Promise<Evaluacion[]> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function createEvaluacion(payload: EvaluacionPayload): Promise<Evaluacion | null> {
+  const res = await fetchWithAuth("/api/v1/evaluaciones", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function updateEvaluacion(
+  id: number,
+  payload: { nivel_actual?: number; observaciones?: string }
+): Promise<Evaluacion | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deleteEvaluacion(id: number): Promise<boolean> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}`, {
+    method: "DELETE",
+  });
+  return res.status === 204;
+}
+
+export async function bulkCreateEvaluaciones(
+  evaluaciones: EvaluacionPayload[]
+): Promise<{ creadas: number; errores: string[] }> {
+  const res = await fetchWithAuth("/api/v1/evaluaciones/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ evaluaciones }),
+  });
+  if (!res.ok) return { creadas: 0, errores: ["Error de servidor"] };
+  return res.json();
+}
+
+export const NIVEL_LABELS: Record<number, string> = {
+  0: "N/A",
+  1: "Básico",
+  2: "Intermedio",
+  3: "Avanzado",
+  4: "Experto",
+};
+
+export const NIVEL_COLORS: Record<number, string> = {
+  0: "bg-gray-100 text-gray-600",
+  1: "bg-red-100 text-red-700",
+  2: "bg-yellow-100 text-yellow-700",
+  3: "bg-blue-100 text-blue-700",
+  4: "bg-green-100 text-green-700",
+};
