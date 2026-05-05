@@ -37,6 +37,8 @@ from app.schemas.talento import (
     CompetenciaListResponse,
     CompetenciaResponse,
     CompetenciaUpdate,
+    FilterOption,
+    FilterOptionsResponse,
     MatrizBulkUpdate,
     MatrizResponse,
     MatrizRow,
@@ -86,6 +88,20 @@ class CompetenciaService:
         if not area:
             raise NotFoundError(entidad="Area", id=area_id)
         return area
+
+    # ── Filter Options ──────────────────────────────────────────────────────
+
+    async def obtener_filter_options(self) -> FilterOptionsResponse:
+        """Devuelve las opciones de filtro disponibles (areas activas)."""
+        result = await self.db.execute(
+            select(Area).where(Area.estatus_id == 1).order_by(Area.descripcion)
+        )
+        areas = result.scalars().all()
+        return FilterOptionsResponse(
+            areas=[FilterOption(id=str(a.area_id), label=a.descripcion) for a in areas],
+            lineas=[],
+            sectores=[],
+        )
 
     # ── Listar ───────────────────────────────────────────────────────────────
 

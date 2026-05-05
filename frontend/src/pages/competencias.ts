@@ -456,7 +456,7 @@ function renderCompetenciaModal(comp: Competencia | null): string {
 
   return `
     <div id="comp-modal-backdrop" data-action="close-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl" onclick="event.stopPropagation()">
+      <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl" data-modal-inner>
         <h2 class="text-lg font-semibold text-slate-900">${title}</h2>
         <form id="comp-modal-form" class="mt-4 flex flex-col gap-4">
           ${isEdit ? `<input type="hidden" name="id" value="${comp.id}" />` : ""}
@@ -711,10 +711,16 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       return;
     }
 
-    // Close modal
-    if (t.closest("[data-action='close-modal']")) {
-      showModal = false;
-      paintModal();
+    // Close modal (button click or direct backdrop click)
+    const closeBtn = t.closest<HTMLElement>("[data-action='close-modal']");
+    if (closeBtn) {
+      // If backdrop was clicked, only close if click was directly on backdrop (not inner content)
+      if (closeBtn.id === "comp-modal-backdrop" && t.closest("[data-modal-inner]")) {
+        // Click was inside modal content, ignore
+      } else {
+        showModal = false;
+        paintModal();
+      }
       return;
     }
 
@@ -821,6 +827,12 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
 
   root?.addEventListener("keydown", (e) => {
     const ke = e as KeyboardEvent;
+    if (ke.key === "Escape" && showModal) {
+      ke.preventDefault();
+      showModal = false;
+      paintModal();
+      return;
+    }
     const inp = (ke.target as HTMLElement).closest<HTMLInputElement>("[data-action='cell-input']");
     if (!inp) return;
     if (ke.key === "Enter") {

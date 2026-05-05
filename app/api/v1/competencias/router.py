@@ -26,6 +26,7 @@ from app.schemas.talento import (
     CompetenciaListResponse,
     CompetenciaResponse,
     CompetenciaUpdate,
+    FilterOptionsResponse,
     MatrizBulkUpdate,
     MatrizResponse,
     ResumenAreaResponse,
@@ -38,9 +39,19 @@ router = APIRouter(prefix="/api/v1/competencias", tags=["Competencias"])
 # ── Endpoints especiales (antes de /{id} para evitar conflicto de path) ──────
 
 
+@router.get("/filter-options", response_model=FilterOptionsResponse)
+async def obtener_filter_options(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Opciones de filtro para la matriz: areas, lineas, sectores."""
+    service = CompetenciaService(db)
+    return await service.obtener_filter_options()
+
+
 @router.get("/matriz", response_model=MatrizResponse)
 async def obtener_matriz(
-    area_id: int = Query(..., description="ID del area (requerido)"),
+    area_id: int | None = Query(None, description="ID del area"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -48,6 +59,8 @@ async def obtener_matriz(
     Matriz de competencias: filas=competencias, columnas=puestos del area.
     Cada celda contiene el nivel_requerido (0-4).
     """
+    if area_id is None:
+        return MatrizResponse(area_id=0, area_nombre=None, puestos=[], competencias=[])
     service = CompetenciaService(db)
     return await service.obtener_matriz(area_id=area_id)
 
@@ -70,7 +83,7 @@ async def actualizar_matriz(
 
 @router.get("/resumen-area", response_model=ResumenAreaResponse)
 async def resumen_area(
-    area_id: int = Query(..., description="ID del area"),
+    area_id: int | None = Query(None, description="ID del area"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -78,13 +91,19 @@ async def resumen_area(
     Resumen del area: cumplimiento %, total empleados, puestos, competencias,
     requisitos activos.
     """
+    if area_id is None:
+        return ResumenAreaResponse(
+            area_id=0, area_nombre=None, total_empleados=0,
+            total_puestos_perfil=0, total_competencias=0,
+            requisitos_activos=0, cumplimiento_porcentaje=0.0,
+        )
     service = CompetenciaService(db)
     return await service.resumen_area(area_id=area_id)
 
 
 @router.get("/brechas", response_model=BrechasResponse)
 async def obtener_brechas(
-    area_id: int = Query(..., description="ID del area"),
+    area_id: int | None = Query(None, description="ID del area"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -92,6 +111,8 @@ async def obtener_brechas(
     Brechas criticas: competencias con mayor gap de cumplimiento en el area.
     Ordenadas de mayor a menor gap.
     """
+    if area_id is None:
+        return BrechasResponse(area_id=0, area_nombre=None, brechas=[])
     service = CompetenciaService(db)
     return await service.obtener_brechas(area_id=area_id)
 

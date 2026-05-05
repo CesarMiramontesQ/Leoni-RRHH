@@ -9,6 +9,7 @@ Cubre:
   - Reglas de negocio: codigo secuencial, version increment, soft-delete
   - Filtrado y busqueda
   - Nombre duplicado → 409
+  - Generacion con IA (Ollama mockeado)
 """
 
 import pytest
@@ -16,7 +17,7 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 
 from tests.conftest import auth_headers, make_empleado
-from tests.conftest_talento import make_area, make_competencia, make_competencia_requisito, make_puesto_perfil
+from tests.conftest_talento import make_area, make_puesto_perfil
 
 
 # Payload valido reutilizable
@@ -306,3 +307,93 @@ async def test_delete_puesto_perfil_soft_delete(client: AsyncClient, db):
         assert response_get.json()["activo"] is False
     else:
         assert response_get.status_code == 404
+
+
+# ===========================================================================
+# Generacion con IA
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# test_generar_perfil_ia_success
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_generar_perfil_ia_success(client: AsyncClient, db):
+    """RH genera perfil con IA exitosamente (Ollama mockeado) → 200."""
+    area = await make_area(db, descripcion="Area IA")
+    rh = await make_empleado(db, rol="rh", email="pp_ia_ok@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    perfil = await make_puesto_perfil(
+        db, nombre="Operador IA Test", area_id=area.area_id
+    )
+
+    ia_response = {
+        "descripcion": "Operador responsable de la linea de produccion",
+        "competencias_tecnicas": ["Manejo de CNC", "Lectura de planos"],
+        "habilidades_blandas": ["Trabajo en equipo", "Comunicacion"],
+        "maquinas_herramientas": ["Torno CNC", "Fresadora"],
+    }
+
+    with patch(
+        "app.services.puesto_perfil_service.PuestoPerfilService._llamar_ollama_perfil",
+        new_callable=AsyncMock,
+    ) as mock_ollama:
+        from app.schemas.talento import GenerarPerfilIAResponse
+
+        mock_ollama.return_value = GenerarPerfilIAResponse(**ia_response)
+
+        response = await client.post(
+            f"/api/v1/puestos-perfil/{perfil.id}/generar-ia",
+            json={"nombre": "Operador IA Test", "area_nombre": "Area IA"},
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["descripcion"] == ia_response["descripcion"]
+    assert body["competencias_tecnicas"] == ia_response["competencias_tecnicas"]
+    assert body["habilidades_blandas"] == ia_response["habilidades_blandas"]
+    assert body["maquinas_herramientas"] == ia_response["maquinas_herramientas"]
+
+
+# ---------------------------------------------------------------------------
+# test_generar_perfil_ia_unauthorized
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_generar_perfil_ia_unauthorized(client: AsyncClient, db):
+    """Empleado no-RH intenta generar con IA → 403."""
+    area = await make_area(db, descripcion="Area IA Noauth")
+    empleado = await make_empleado(db, rol="empleado", email="pp_ia_noauth@leoni.test")
+    headers = await auth_headers(client, empleado)
+
+    perfil = await make_puesto_perfil(
+        db, nombre="Operador IA Noauth", area_id=area.area_id
+    )
+
+    response = await client.post(
+        f"/api/v1/puestos-perfil/{perfil.id}/generar-ia",
+        json={"nombre": "Operador IA Noauth"},
+        headers=headers,
+    )
+    assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# test_generar_perfil_ia_not_found
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_generar_perfil_ia_not_found(client: AsyncClient, db):
+    """Generar IA para perfil inexistente → 404."""
+    rh = await make_empleado(db, rol="rh", email="pp_ia_notfound@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil/999999/generar-ia",
+        json={"nombre": "Puesto Inexistente"},
+        headers=headers,
+    )
+    assert response.status_code == 404

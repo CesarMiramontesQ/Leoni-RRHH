@@ -169,6 +169,20 @@ class BrechasResponse(BaseModel):
     brechas: list[BrechaItem]
 
 
+# ── Filter Options ───────────────────────────────────────────────────────────
+
+
+class FilterOption(BaseModel):
+    id: str
+    label: str
+
+
+class FilterOptionsResponse(BaseModel):
+    areas: list[FilterOption] = []
+    lineas: list[FilterOption] = []
+    sectores: list[FilterOption] = []
+
+
 # ── IA Generacion ────────────────────────────────────────────────────────────
 
 

@@ -1,7 +1,7 @@
 """fase1_puestos_competencias
 
 Revision ID: t3u4v5w6x7y8
-Revises: r1s2t3u4v5w6
+Revises: ('r1s2t3u4v5w6', 'n7o8p9q0r1s2')
 Create Date: 2026-05-04 10:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "t3u4v5w6x7y8"
-down_revision: Union[str, None] = "r1s2t3u4v5w6"
+down_revision: Union[str, tuple[str, ...], None] = ("r1s2t3u4v5w6", "n7o8p9q0r1s2")
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

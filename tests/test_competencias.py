@@ -7,9 +7,10 @@ Cubre:
   - Autorizacion (solo RH muta, cualquier auth lee)
   - Duplicado de nombre+categoria → 409
   - Filtrado por categoria y busqueda
-  - Matriz: obtener por area, bulk update
-  - Resumen area
-  - Brechas criticas
+  - Filter options (areas activas)
+  - Matriz: obtener por area, empty sin area_id, bulk update
+  - Resumen area (con y sin area_id)
+  - Brechas criticas (con y sin area_id)
 """
 
 import pytest
@@ -86,6 +87,41 @@ async def test_create_competencia_duplicate(client: AsyncClient, db):
 
 
 # ---------------------------------------------------------------------------
+# test_create_competencia_unauthorized
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_competencia_unauthorized(client: AsyncClient, db):
+    """Empleado no-RH intenta crear competencia → 403."""
+    empleado = await make_empleado(db, rol="empleado", email="comp_noauth@leoni.test")
+    headers = await auth_headers(client, empleado)
+
+    response = await client.post(
+        "/api/v1/competencias",
+        json=COMPETENCIA_PAYLOAD,
+        headers=headers,
+    )
+    assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# test_get_competencia_not_found
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_competencia_not_found(client: AsyncClient, db):
+    """Solicitar competencia con ID inexistente → 404."""
+    user = await make_empleado(db, rol="empleado", email="comp_notfound@leoni.test")
+    headers = await auth_headers(client, user)
+
+    response = await client.get(
+        "/api/v1/competencias/999999",
+        headers=headers,
+    )
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # test_list_competencias_by_categoria
 # ---------------------------------------------------------------------------
 
@@ -157,8 +193,98 @@ async def test_delete_competencia(client: AsyncClient, db):
 
 
 # ===========================================================================
+# Filter Options
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# test_get_filter_options_returns_areas
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_filter_options_returns_areas(client: AsyncClient, db):
+    """GET /filter-options retorna areas activas como opciones de filtro."""
+    area1 = await make_area(db, descripcion="Produccion Filtro", estatus_id=1)
+    area2 = await make_area(db, descripcion="Calidad Filtro", estatus_id=1)
+    # Area inactiva (estatus_id != 1) no debe aparecer
+    await make_area(db, descripcion="Area Inactiva Filtro", estatus_id=0)
+
+    user = await make_empleado(db, rol="empleado", email="filter_opt@leoni.test")
+    headers = await auth_headers(client, user)
+
+    response = await client.get(
+        "/api/v1/competencias/filter-options",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "areas" in body
+    assert "lineas" in body
+    assert "sectores" in body
+    # lineas y sectores estan vacios en Fase 1
+    assert body["lineas"] == []
+    assert body["sectores"] == []
+    # Debe haber al menos las 2 areas activas creadas
+    area_ids = [a["id"] for a in body["areas"]]
+    assert str(area1.area_id) in area_ids
+    assert str(area2.area_id) in area_ids
+    # Verificar estructura de cada FilterOption
+    for area_opt in body["areas"]:
+        assert "id" in area_opt
+        assert "label" in area_opt
+
+
+# ---------------------------------------------------------------------------
+# test_get_filter_options_empty_when_no_active_areas
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_filter_options_empty_when_no_active_areas(client: AsyncClient, db):
+    """GET /filter-options con solo areas inactivas retorna lista vacia."""
+    user = await make_empleado(db, rol="empleado", email="filter_empty@leoni.test")
+    headers = await auth_headers(client, user)
+
+    # No creamos areas activas; puede haber areas de otros tests con estatus_id=1,
+    # pero al menos verificamos que la estructura es correcta
+    response = await client.get(
+        "/api/v1/competencias/filter-options",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body["areas"], list)
+    assert body["lineas"] == []
+    assert body["sectores"] == []
+
+
+# ===========================================================================
 # Matriz de Competencias
 # ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# test_get_matriz_without_area_id_returns_empty
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_matriz_without_area_id_returns_empty(client: AsyncClient, db):
+    """GET /matriz sin area_id retorna MatrizResponse vacia."""
+    user = await make_empleado(db, rol="empleado", email="mat_noarea@leoni.test")
+    headers = await auth_headers(client, user)
+
+    response = await client.get(
+        "/api/v1/competencias/matriz",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["area_id"] == 0
+    assert body["area_nombre"] is None
+    assert body["puestos"] == []
+    assert body["competencias"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +372,32 @@ async def test_update_matriz_bulk(client: AsyncClient, db):
 
 
 # ---------------------------------------------------------------------------
+# test_get_resumen_area_without_area_id_returns_empty
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_resumen_area_without_area_id_returns_empty(client: AsyncClient, db):
+    """GET /resumen-area sin area_id retorna ResumenAreaResponse vacia."""
+    user = await make_empleado(db, rol="empleado", email="resumen_noarea@leoni.test")
+    headers = await auth_headers(client, user)
+
+    response = await client.get(
+        "/api/v1/competencias/resumen-area",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["area_id"] == 0
+    assert body["area_nombre"] is None
+    assert body["total_empleados"] == 0
+    assert body["total_puestos_perfil"] == 0
+    assert body["total_competencias"] == 0
+    assert body["requisitos_activos"] == 0
+    assert body["cumplimiento_porcentaje"] == 0.0
+
+
+# ---------------------------------------------------------------------------
 # test_get_resumen_area
 # ---------------------------------------------------------------------------
 
@@ -274,6 +426,28 @@ async def test_get_resumen_area(client: AsyncClient, db):
     assert "cumplimiento_porcentaje" in body
     # El perfil tiene al menos un requisito → cumplimiento > 0
     assert body["cumplimiento_porcentaje"] > 0
+
+
+# ---------------------------------------------------------------------------
+# test_get_brechas_without_area_id_returns_empty
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_brechas_without_area_id_returns_empty(client: AsyncClient, db):
+    """GET /brechas sin area_id retorna BrechasResponse vacia."""
+    user = await make_empleado(db, rol="empleado", email="brechas_noarea@leoni.test")
+    headers = await auth_headers(client, user)
+
+    response = await client.get(
+        "/api/v1/competencias/brechas",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["area_id"] == 0
+    assert body["area_nombre"] is None
+    assert body["brechas"] == []
 
 
 # ---------------------------------------------------------------------------

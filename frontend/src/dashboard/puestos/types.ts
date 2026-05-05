@@ -64,6 +64,7 @@ export type PerfilPuestoCreatePayload = {
   codigo: string;
   nombre_puesto: string;
   area: string;
+  area_id: number | null;
   nivel: string;
 };
 
@@ -71,6 +72,7 @@ export type PerfilPuestoUpdatePayload = {
   codigo?: string;
   nombre_puesto?: string;
   area?: string;
+  area_id?: number | null;
   nivel?: string;
 };
 

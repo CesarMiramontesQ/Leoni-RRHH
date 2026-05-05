@@ -1,10 +1,12 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
   getPerfilesList,
+  getAreasOptions,
   createPerfil,
   updatePerfil,
   deletePerfil,
   type PuestosFetchError,
+  type AreaOption,
 } from "../api/puestos.ts";
 import type {
   PerfilPuestoListItem,
@@ -62,12 +64,6 @@ function filterItems(
   return result;
 }
 
-function uniqueAreas(items: PerfilPuestoListItem[]): string[] {
-  return [...new Set(items.map((p) => p.area).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, "es"),
-  );
-}
-
 function uniqueNiveles(items: PerfilPuestoListItem[]): string[] {
   return [...new Set(items.map((p) => p.nivel).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, "es"),
@@ -76,11 +72,11 @@ function uniqueNiveles(items: PerfilPuestoListItem[]): string[] {
 
 // ── Render functions ─────────────────────────────────────────────────────
 
-function renderFilterBar(filters: PuestosFilterState, areas: string[], niveles: string[]): string {
+function renderFilterBar(filters: PuestosFilterState, areas: AreaOption[], niveles: string[]): string {
   const areaOpts = areas
     .map(
       (a) =>
-        `<option value="${escapeHtml(a)}" ${filters.area === a ? "selected" : ""}>${escapeHtml(a)}</option>`,
+        `<option value="${escapeHtml(a.label)}" ${filters.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
     )
     .join("");
   const nivelOpts = niveles
@@ -217,6 +213,7 @@ function renderModal(
   mode: "create" | "edit",
   values: { codigo: string; nombre_puesto: string; area: string; nivel: string },
   saving: boolean,
+  areas: AreaOption[] = [],
 ): string {
   const title = mode === "create" ? "Nuevo Perfil de Puesto" : "Editar Perfil de Puesto";
   const submitLabel = saving ? "Guardando..." : mode === "create" ? "Crear Perfil" : "Guardar Cambios";
@@ -234,10 +231,10 @@ function renderModal(
             id="puestos-modal-codigo"
             name="codigo"
             type="text"
-            required
-            placeholder="PRF-2024-001"
+            placeholder="Se genera automaticamente"
             value="${escapeHtml(values.codigo)}"
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}"
+            readonly
+            class="block w-full rounded-lg border border-border bg-gray-50 px-3 py-2 text-sm text-text-muted placeholder:text-text-muted ${FIELD_FOCUS}"
           />
         </div>
 
@@ -258,15 +255,17 @@ function renderModal(
         <!-- Area -->
         <div>
           <label for="puestos-modal-area" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Area</label>
-          <input
-            id="puestos-modal-area"
-            name="area"
-            type="text"
-            required
-            placeholder="Produccion"
-            value="${escapeHtml(values.area)}"
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}"
-          />
+          <div class="relative grid grid-cols-1">
+            <select
+              id="puestos-modal-area"
+              name="area"
+              required
+              class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-border bg-white py-2 pl-3 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+              <option value="">Seleccionar area...</option>
+              ${areas.map((a) => `<option value="${a.id}" ${values.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
 
         <!-- Nivel -->
@@ -337,6 +336,7 @@ function renderError(message: string): string {
 export function mountPuestos(container: HTMLElement, signal: AbortSignal): void {
   // State
   let allItems: PerfilPuestoListItem[] = [];
+  let areasOptions: AreaOption[] = [];
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
   const filters: PuestosFilterState = { q: "", area: "", nivel: "" };
@@ -392,12 +392,11 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       return;
     }
 
-    const areas = uniqueAreas(allItems);
     const niveles = uniqueNiveles(allItems);
     const filtered = filterItems(allItems, filters);
 
     content.innerHTML = `
-      ${renderFilterBar(filters, areas, niveles)}
+      ${renderFilterBar(filters, areasOptions, niveles)}
       <div class="mt-4">
         ${renderTable(filtered)}
       </div>`;
@@ -408,7 +407,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     if (!host) return;
 
     if (modalMode === "create" || modalMode === "edit") {
-      host.innerHTML = renderModal(modalMode, editingValues, modalSaving);
+      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions);
     } else if (modalMode === "delete" && deletingItem) {
       host.innerHTML = renderDeleteConfirm(deletingItem.nombre_puesto, modalSaving);
     } else {
@@ -431,7 +430,9 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     status = "loading";
     paint();
     try {
-      allItems = await getPerfilesList();
+      const [items, areas] = await Promise.all([getPerfilesList(), getAreasOptions()]);
+      allItems = items;
+      areasOptions = areas;
       status = "ready";
       paint();
     } catch (e: unknown) {
@@ -580,14 +581,18 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
 
   async function handleSave(form: HTMLFormElement): Promise<void> {
     const data = new FormData(form);
+    const areaValue = (data.get("area") as string).trim();
+    const areaId = areaValue ? Number(areaValue) : null;
+    const areaLabel = areasOptions.find((a) => a.id === areaId)?.label ?? "";
     const payload: PerfilPuestoCreatePayload = {
       codigo: (data.get("codigo") as string).trim(),
       nombre_puesto: (data.get("nombre_puesto") as string).trim(),
-      area: (data.get("area") as string).trim(),
+      area: areaLabel,
+      area_id: areaId,
       nivel: (data.get("nivel") as string).trim(),
     };
 
-    if (!payload.codigo || !payload.nombre_puesto || !payload.area) return;
+    if (!payload.nombre_puesto) return;
 
     modalSaving = true;
     paintModal();
