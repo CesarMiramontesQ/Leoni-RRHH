@@ -109,7 +109,7 @@ function antiguedadBodyHtml(fechaIngreso: string | null): string {
   const evaluacionBlock = `
     <div>
       <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500/90">Próxima evaluación</p>
-      <div class="mt-1.5 flex items-center gap-2 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-2">
+      <div class="mt-1.5 flex items-center gap-2 rounded-xl border border-amber-200/90 bg-amber-50/95 px-3 py-2">
         <span class="size-2 shrink-0 rounded-full bg-amber-500 shadow-sm ring-2 ring-amber-200/90" aria-hidden="true"></span>
         <p class="text-sm font-semibold text-amber-950">No registrada en el sistema</p>
       </div>
@@ -151,16 +151,19 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
   });
 
   const quickActions = `
-    <div class="flex flex-wrap gap-x-5 gap-y-2">
-      <button type="button" disabled title="Próximamente" class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-leoni-blue opacity-45 cursor-not-allowed">
+    <div class="rounded-2xl border border-border/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500/90">Acciones rápidas</p>
+      <div class="flex flex-wrap gap-2.5">
+      <button type="button" disabled title="Próximamente" class="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed sm:w-auto">
         <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.12A1.5 1.5 0 0 1 17 7.622V16.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 16.5v-13Z" /></svg>
         Generar documento</button>
-      <button type="button" disabled title="Próximamente" class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-text-muted opacity-45 cursor-not-allowed">
+      <button type="button" disabled title="Próximamente" class="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed sm:w-auto">
         <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z" clip-rule="evenodd" /></svg>
         Solicitar gafete</button>
-      <button type="button" disabled title="Próximamente" class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-text-muted opacity-45 cursor-not-allowed">
+      <button type="button" disabled title="Próximamente" class="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed sm:w-auto">
         <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm1-12a1 1 0 1 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6Z" clip-rule="evenodd" /></svg>
         Registro asistencia</button>
+      </div>
     </div>`;
 
   const cardPersonales = vista360CardHtml({
@@ -211,11 +214,11 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
   const timeline = vista360TimelineHtml(timelineItems);
 
   const competencias = `
-    <aside class="rounded-2xl border border-border/80 bg-white p-5 shadow-sm">
+    <aside class="rounded-2xl border border-border/80 bg-gradient-to-b from-white to-slate-50/60 p-5 shadow-sm ring-1 ring-slate-900/5">
       <h3 class="text-sm font-semibold text-text-primary">Competencias</h3>
       <div class="mt-4">${vista360CompetenciasCardHtml([])}</div>
       <button type="button" disabled title="Próximamente"
-        class="mt-4 flex h-10 w-full items-center justify-center rounded-lg border border-leoni-blue/35 bg-white text-sm font-semibold text-leoni-blue opacity-50 cursor-not-allowed">
+        class="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed">
         Ver evaluación completa</button>
     </aside>`;
 
@@ -234,7 +237,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
 
   const resumenInner = `
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-12">
-      <section class="rounded-2xl border border-border/80 bg-white p-5 shadow-sm lg:col-span-7">
+      <section class="rounded-2xl border border-border/80 bg-gradient-to-b from-white to-slate-50/60 p-5 shadow-sm ring-1 ring-slate-900/5 lg:col-span-7">
         <h3 class="text-sm font-semibold text-text-primary">Últimas actividades</h3>
         <div class="mt-4">${timeline}</div>
       </section>
@@ -284,7 +287,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
   return `
     <div id="v360-loaded" class="space-y-6">
       <div>
-        <a href="#/empleados" class="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-leoni-blue">
+        <a href="#/empleados" class="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm font-semibold text-slate-500 transition-colors hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 opacity-80" aria-hidden="true"><path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" /></svg>
           Volver al directorio
         </a>
@@ -369,7 +372,7 @@ export function mountEmployeeVista360(
         if (r.ok) {
           contentEl.innerHTML = renderVista360Content(r.data, initialTab);
         } else {
-          contentEl.innerHTML = `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(r.message)}</div>`;
+          contentEl.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">${escapeHtml(r.message)}</div>`;
         }
       },
       onSessionExpired: () => {
@@ -402,7 +405,7 @@ export function mountEmployeeVista360(
       });
       return;
     }
-    contentEl.innerHTML = `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(r.message)}</div>`;
+    contentEl.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">${escapeHtml(r.message)}</div>`;
   }
 
   if (v360Root && contentEl) {

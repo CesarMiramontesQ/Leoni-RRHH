@@ -3,10 +3,10 @@ import { escapeHtml } from "./html.ts";
 export type Vista360CardIconTone = "blue" | "emerald" | "indigo" | "sky";
 
 const ICON_TONE: Record<Vista360CardIconTone, string> = {
-  blue: "bg-blue-50 text-leoni-blue",
-  emerald: "bg-emerald-50 text-emerald-700",
-  indigo: "bg-indigo-50 text-indigo-800",
-  sky: "bg-sky-50 text-sky-900",
+  blue: "border border-blue-100 bg-blue-50 text-leoni-blue",
+  emerald: "border border-emerald-100 bg-emerald-50 text-emerald-700",
+  indigo: "border border-indigo-100 bg-indigo-50 text-indigo-800",
+  sky: "border border-sky-100 bg-sky-50 text-sky-900",
 };
 
 export type Vista360CardProps = {
@@ -23,12 +23,12 @@ export function vista360CardHtml(p: Vista360CardProps): string {
     ? `<span class="flex size-10 shrink-0 items-center justify-center rounded-xl ${wrap}" aria-hidden="true">${p.iconSvg}</span>`
     : "";
   return `
-    <article class="flex h-full min-h-[10.5rem] flex-col rounded-2xl border border-border/80 bg-white p-5 shadow-sm">
+    <article class="flex h-full min-h-[11rem] flex-col rounded-2xl border border-border/80 bg-gradient-to-b from-white to-slate-50/55 p-5 shadow-sm ring-1 ring-slate-900/5">
       <div class="mb-3 flex min-h-[2.5rem] items-center gap-3">
         ${icon}
-        <h3 class="text-sm font-semibold text-text-primary">${escapeHtml(p.title)}</h3>
+        <h3 class="text-sm font-bold text-text-primary">${escapeHtml(p.title)}</h3>
       </div>
-      <div class="flex flex-1 flex-col gap-3 text-sm">${p.bodyHtml}</div>
+      <div class="flex flex-1 flex-col gap-3.5 text-sm">${p.bodyHtml}</div>
     </article>`;
 }
 
@@ -37,7 +37,7 @@ export function vista360FieldRowText(label: string, value: string | null | undef
   const inner =
     t && t !== "—"
       ? escapeHtml(t)
-      : `<span class="font-semibold text-text-muted">No disponible</span>`;
+      : `<span class="font-medium text-slate-500">No disponible</span>`;
   return vista360FieldRowHtml(label, inner);
 }
 
