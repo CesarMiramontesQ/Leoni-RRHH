@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   capitalizarNombreTituloUi,
   formatNombreEmpleadoUi,
+  inicialesDesdeNombreDisplay,
+  quitarSegundoApellidoUi,
   reordenarNombreComaApellidos,
 } from "./nombreEmpleadoDisplay.ts";
 
@@ -30,17 +32,42 @@ describe("reordenarNombreComaApellidos", () => {
   });
 });
 
+describe("quitarSegundoApellidoUi", () => {
+  it("quita el último token solo si hay más de dos", () => {
+    expect(quitarSegundoApellidoUi("FABIOLA QUEZADA ROMERO")).toBe("FABIOLA QUEZADA");
+    expect(quitarSegundoApellidoUi("KARIME GISELLE LOYA FROESE")).toBe("KARIME GISELLE LOYA");
+    expect(quitarSegundoApellidoUi("CARLOS ROBERTO REYNOSO RODRIGUEZ")).toBe("CARLOS ROBERTO REYNOSO");
+    expect(quitarSegundoApellidoUi("JUAN PEREZ")).toBe("JUAN PEREZ");
+    expect(quitarSegundoApellidoUi("MARIA")).toBe("MARIA");
+  });
+});
+
 describe("formatNombreEmpleadoUi", () => {
-  it("delega en reordenar sin título", () => {
-    expect(formatNombreEmpleadoUi("BORUNDA VAZQUEZ, MARIA MONSERRAT")).toBe("MARIA MONSERRAT BORUNDA VAZQUEZ");
+  it("reordena y omite segundo apellido por defecto", () => {
+    expect(formatNombreEmpleadoUi("QUEZADA ROMERO, FABIOLA")).toBe("FABIOLA QUEZADA");
+    expect(formatNombreEmpleadoUi("BORUNDA VAZQUEZ, MARIA MONSERRAT")).toBe("MARIA MONSERRAT BORUNDA");
     expect(formatNombreEmpleadoUi("Admin RH")).toBe("Admin RH");
     expect(formatNombreEmpleadoUi("")).toBe("");
   });
 
+  it("omitirSegundoApellido false conserva apellidos completos", () => {
+    expect(
+      formatNombreEmpleadoUi("BORUNDA VAZQUEZ, MARIA MONSERRAT", { omitirSegundoApellido: false }),
+    ).toBe("MARIA MONSERRAT BORUNDA VAZQUEZ");
+  });
+
   it("opción titulo", () => {
     expect(formatNombreEmpleadoUi("BORUNDA VAZQUEZ, MARIA MONSERRAT", { titulo: true })).toBe(
-      "Maria Monserrat Borunda Vazquez",
+      "Maria Monserrat Borunda",
     );
+  });
+});
+
+describe("inicialesDesdeNombreDisplay", () => {
+  it("primer token + último token del nombre mostrado", () => {
+    expect(inicialesDesdeNombreDisplay("FABIOLA QUEZADA")).toBe("FQ");
+    expect(inicialesDesdeNombreDisplay("KARIME GISELLE LOYA")).toBe("KL");
+    expect(inicialesDesdeNombreDisplay("CARLOS ROBERTO REYNOSO")).toBe("CR");
   });
 });
 

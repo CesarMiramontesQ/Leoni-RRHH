@@ -2,8 +2,10 @@ import type {
   ComedorPanelState,
   ComedorReservationsPage,
 } from "../../comedor/rh/types.ts";
-import { FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 import {
+  COMEDOR_FILTER_INPUT,
+  COMEDOR_TABLE_TH,
   dietBadgeLabel,
   escapeComedorHtml,
   paginationRange,
@@ -21,13 +23,15 @@ export type ComedorTableFiltersState = {
 export type ComedorFiltersToolbarVariant = "reservas" | "rh-futuros";
 
 function tabClass(active: boolean): string {
+  const base =
+    "inline-flex min-h-10 flex-1 items-center justify-center rounded-[10px] px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 sm:flex-initial";
   return active
-    ? "inline-flex min-h-10 items-center rounded-lg bg-leoni-blue px-4 py-2 text-sm font-semibold text-white shadow-sm"
-    : "inline-flex min-h-10 items-center rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+    ? `${base} rh-comedor-tab-active`
+    : `${base} border border-transparent text-slate-600 hover:bg-white/90 hover:text-[#002147]`;
 }
 
 function th(label: string): string {
-  return `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold text-white sm:px-4 sm:text-sm">${escapeComedorHtml(label)}</th>`;
+  return `<th scope="col" class="${COMEDOR_TABLE_TH}">${escapeComedorHtml(label)}</th>`;
 }
 
 export function renderComedorReservationsFiltersToolbar(
@@ -47,23 +51,23 @@ export function renderComedorReservationsFiltersToolbar(
   )
     .map(
       (chip) =>
-        `<button type="button" ${filterAttr}="${chip.id}" class="${tabClass(filters.statusFilter === chip.id)}">${chip.label}</button>`,
+        `<button type="button" role="tab" aria-selected="${filters.statusFilter === chip.id ? "true" : "false"}" ${filterAttr}="${chip.id}" class="${tabClass(filters.statusFilter === chip.id)}">${chip.label}</button>`,
     )
     .join("");
 
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="Filtros de la tabla de comedor">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros de la tabla de comedor">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
         <input
           type="search"
           value="${escapeComedorHtml(filters.search)}"
           ${searchAttr}=""
           placeholder="Buscar por nombre o número"
           autocomplete="off"
-          class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} sm:w-88"
+          class="${COMEDOR_FILTER_INPUT} sm:max-w-md lg:max-w-xl"
         />
-        <div class="overflow-x-auto">
-          <div class="inline-flex min-w-max items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+        <div class="w-full min-w-0 overflow-x-auto sm:w-auto sm:shrink-0">
+          <div class="inline-flex w-full min-w-max items-stretch gap-1 rounded-[12px] border border-[rgba(148,163,184,0.28)] bg-[#f1f5f9] p-1 sm:w-auto" role="tablist" aria-label="Filtrar por estado de reserva">
             ${chips}
           </div>
         </div>
@@ -120,7 +124,7 @@ export function renderComedorReservationsTable(
   const rows = tableData.items
     .map((row) => {
       return `
-        <tr class="hover:bg-slate-50">
+        <tr class="rh-comedor-data-row transition-colors">
           <td class="px-3 py-2.5 sm:px-4">${renderEmpleadoAvatarCell(row.empleadoNombre, row.empleadoNumero, row.avatarUrl)}</td>
           <td class="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.empleadoNumero)}</td>
           <td class="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.area)}</td>
@@ -150,10 +154,10 @@ export function renderComedorReservationsTable(
   return `
     <div class="flex flex-col gap-3">
       ${toolbar}
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Listado de reservas de comedor">
+        <section class="rh-sol-table-section ${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Listado de reservas de comedor">
         <div class="overflow-x-auto">
           <table class="min-w-[980px] w-full text-left">
-            <thead class="border-b border-leoni-blue-light shadow-sm">
+            <thead class="rh-sol-thead">
               <tr>
                 ${th("Empleado")}
                 ${th("Número")}
@@ -164,7 +168,7 @@ export function renderComedorReservationsTable(
                 ${th("Hora reserva")}
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
+            <tbody class="divide-y divide-slate-100/90 bg-white">${rows}</tbody>
           </table>
         </div>
         <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-4">

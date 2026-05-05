@@ -14,14 +14,18 @@ import {
 } from "../actas/actasMockData.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
+
+const actaDetallePageShellClass =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">La sección de detalle de actas administrativas solo está disponible para RH.</p>
-      <a href="#/actas" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al listado de actas</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "La sección de detalle de actas administrativas solo está disponible para RH.",
+    linkHref: "#/actas",
+    linkLabel: "Volver al listado de actas",
+  });
 }
 
 function fechaCorta(iso: string): string {
@@ -45,12 +49,12 @@ function fechaHora(iso: string): string {
 
 function badgeEstadoHtml(estado: ActaEstadoCodigo): string {
   if (estado === "abierta" || estado === "en_proceso") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-[#fff7ed] px-3.5 py-1.5 text-xs font-semibold text-[#b45309] ring-1 ring-amber-200/70"><span aria-hidden="true">●</span>En revisión</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200/90 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>En revisión</span>`;
   }
   if (estado === "firmada") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[#ecfdf3] px-3.5 py-1.5 text-xs font-semibold text-[#027a48] ring-1 ring-emerald-200/70"><span aria-hidden="true">●</span>Firmada</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/90 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>Firmada</span>`;
   }
-  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/70"><span aria-hidden="true">●</span>Cerrada</span>`;
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-slate-400" aria-hidden="true"></span>Cerrada</span>`;
 }
 
 function skeletonHtml(): string {
@@ -117,9 +121,9 @@ function renderProcesoEstado(estado: ActaEstadoCodigo): string {
           const isDone = index < current;
           const isCurrent = index === current;
           const dotClass = isDone
-            ? "border-[#1e40af] bg-[#1e40af] text-white"
+            ? "border-[#1e3a8a] bg-[#1e40af] text-white shadow-sm"
             : isCurrent
-              ? "border-[#1e40af] bg-white text-[#1e40af]"
+              ? "border-[#1d4ed8] bg-[#eff6ff] text-[#1e40af] ring-4 ring-blue-100/70"
               : "border-slate-300 bg-white text-slate-400";
           const titleClass = isCurrent
             ? "text-slate-900"
@@ -127,13 +131,13 @@ function renderProcesoEstado(estado: ActaEstadoCodigo): string {
               ? "text-slate-800"
               : "text-slate-500";
           return `
-            <li class="relative pl-9 ${index < steps.length - 1 ? "pb-3" : ""}">
+            <li class="relative pl-9 ${index < steps.length - 1 ? "pb-4" : ""}">
               <span class="absolute left-0 top-0 inline-flex size-6 items-center justify-center rounded-full border text-xs font-semibold ${dotClass}">
                 ${isDone ? "✓" : String(index + 1)}
               </span>
               ${
                 index < steps.length - 1
-                  ? `<span class="absolute left-[11px] top-6 h-[calc(100%-0.25rem)] w-px ${isDone ? "bg-[#1e40af]/30" : "bg-slate-200"}"></span>`
+                  ? `<span class="absolute left-[11px] top-6 h-[calc(100%-0.15rem)] w-px ${isDone || isCurrent ? "bg-gradient-to-b from-[#93c5fd] to-[#dbeafe]" : "bg-slate-200"}"></span>`
                   : ""
               }
               <p class="text-sm font-semibold ${titleClass}">${escapeHtml(step)}</p>
@@ -275,9 +279,9 @@ function renderAdjuntos(adjuntos: readonly ActaAdjunto[]): string {
         data-rh-acta-dropzone-trigger
         role="button"
         tabindex="0"
-        class="rounded-2xl border-2 border-dashed border-slate-300 bg-[#f8fafc] px-4 py-8 text-center transition hover:border-[#1d4ed8]/60 hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+        class="rounded-2xl border-2 border-dashed border-[#bfdbfe] bg-gradient-to-br from-[#f8fbff] to-[#f1f5f9] px-4 py-8 text-center transition hover:border-[#1d4ed8]/60 hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
       >
-        <div class="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200">
+        <div class="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-blue-100">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0 4 4m-4-4L8 8M4 16.5v.75A2.75 2.75 0 0 0 6.75 20h10.5A2.75 2.75 0 0 0 20 17.25v-.75" /></svg>
         </div>
         <p class="mt-3 text-sm font-semibold text-slate-800">Sube evidencias o documentos relacionados</p>
@@ -285,7 +289,7 @@ function renderAdjuntos(adjuntos: readonly ActaAdjunto[]): string {
         <button
           type="button"
           data-rh-acta-dropzone-trigger
-          class="mt-4 inline-flex items-center rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[#1d4ed8]/40 hover:text-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+          class="mt-4 inline-flex items-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[#1d4ed8]/40 hover:text-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
         >
           Seleccionar archivo
         </button>
@@ -372,7 +376,7 @@ function renderIaActionButton(hasRecommendation: boolean): string {
         data-rh-acta-ia-view
         title="Ver recomendación de IA guardada para esta acta"
         ${hasRecommendation ? "" : "disabled"}
-        class="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#1e40af]/25 bg-white px-3 py-2 text-sm font-semibold text-[#1e40af] transition hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-50"
+        class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#1e40af]/25 bg-white/90 px-3 py-2.5 text-sm font-semibold text-[#1e40af] transition hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span aria-hidden="true">📄</span>
         Ver recomendación
@@ -381,7 +385,7 @@ function renderIaActionButton(hasRecommendation: boolean): string {
         type="button"
         data-rh-acta-ia-improve
         title="${hasRecommendation ? "Generar o regenerar recomendación de redacción" : "Generar recomendación de redacción con IA"}"
-        class="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+        class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#1e40af] to-[#4338ca] px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
       >
         <span aria-hidden="true">✨</span>
         ${improveButtonLabel}
@@ -454,12 +458,16 @@ function renderDetalleHtml(
     ? `<img src="${escapeHtml(acta.empleado.foto_url)}" alt="" class="size-14 shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />`
     : `<span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e40af] to-[#1d4ed8] text-sm font-semibold text-white shadow-sm">${escapeHtml(iniciales)}</span>`;
 
+  const sharedCardClass =
+    "rounded-2xl border border-[#e2e8f0] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-6";
+  const sharedSectionTitleClass = "text-[17px] font-semibold tracking-tight text-[#0f172a]";
+
   const involucrados = acta.involucrados.length
     ? acta.involucrados
         .map(
           (persona) => `
-          <li class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm">
-            <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[11px] font-bold text-[#1e40af] ring-1 ring-[#c7d2fe]">${escapeHtml(
+          <li class="flex items-start gap-3 rounded-xl border border-slate-200/90 bg-gradient-to-r from-white to-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm">
+            <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#dbeafe] to-[#eef2ff] text-[11px] font-bold text-[#1e40af] ring-1 ring-[#bfdbfe]">${escapeHtml(
               persona.nombre
                 .split(" ")
                 .slice(0, 2)
@@ -469,7 +477,7 @@ function renderDetalleHtml(
             )}</span>
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-slate-900">${escapeHtml(persona.nombre)}</p>
-              <p class="mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${rolBadgeClass(persona.rol)}">${escapeHtml(persona.rol)}</p>
+              <p class="mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${rolBadgeClass(persona.rol)}"><span class="inline-flex size-1.5 rounded-full bg-current opacity-70" aria-hidden="true"></span>${escapeHtml(persona.rol)}</p>
             </div>
           </li>`,
         )
@@ -517,23 +525,23 @@ function renderDetalleHtml(
   return `
     <div id="rh-acta-detalle-root" class="space-y-6">
       <div>
-        <a href="#/actas" class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-sm font-medium text-slate-600 transition-colors hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
+        <a href="#/actas" class="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2 py-1 text-sm font-medium text-slate-600 transition-colors hover:border-blue-100 hover:bg-blue-50 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 opacity-80" aria-hidden="true"><path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" /></svg>
           Volver a Actas
         </a>
       </div>
 
-      <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+      <section class="overflow-hidden rounded-3xl border border-[#dbe4f0] bg-gradient-to-br from-white via-[#f8fbff] to-[#f3f7ff] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.08)] sm:p-7">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div class="min-w-0">
-            <h1 class="truncate text-[26px] font-semibold tracking-tight text-[#111827]">${escapeHtml(acta.titulo_documento)} <span class="text-[#1e40af]">#${escapeHtml(acta.folio)}</span></h1>
-            <div class="mt-2 flex flex-wrap items-center gap-3 text-[13px] text-[#667085]">
+            <h1 class="truncate text-[26px] font-semibold tracking-tight text-[#0f172a]">${escapeHtml(acta.titulo_documento)} <span class="bg-gradient-to-r from-[#1e40af] to-[#1d4ed8] bg-clip-text font-bold text-transparent">#${escapeHtml(acta.folio)}</span></h1>
+            <div class="mt-2 flex flex-wrap items-center gap-3 text-[13px] text-slate-600">
               ${badgeEstadoHtml(acta.estado)}
               <span>Creada el ${escapeHtml(fechaCorta(acta.fecha_creacion))}</span>
             </div>
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-start gap-2 md:justify-end">
-            <button type="button" class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1e40af]/40 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
+          <div class="grid w-full shrink-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+            <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-[#d0dbea] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1e40af]/40 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V3m0 13.5 4.5-4.5M12 16.5l-4.5-4.5M4.5 21h15" /></svg>
               Descargar PDF
             </button>
@@ -543,7 +551,7 @@ function renderDetalleHtml(
                     type="button"
                     data-rh-acta-cancel-edit
                     ${isSavingEdit ? "disabled" : ""}
-                    class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
+                    class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     Cancelar
                   </button>
@@ -551,7 +559,7 @@ function renderDetalleHtml(
                     type="button"
                     data-rh-acta-save-edit
                     ${isSavingEdit ? "disabled" : ""}
-                    class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-70"
+                    class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#1e40af] to-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     ${
                       isSavingEdit
@@ -566,7 +574,7 @@ function renderDetalleHtml(
                 : `<button
                     type="button"
                     data-rh-acta-start-edit
-                    class="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+                    class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#1e40af] to-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487ZM19.5 7.125 16.875 4.5" /></svg>
                     Editar Acta
@@ -577,26 +585,26 @@ function renderDetalleHtml(
         ${editStatusHtml}
       </section>
 
-      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(21rem,1fr)] xl:gap-7">
         <div class="space-y-6">
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Información del empleado</h2>
+          <section class="${sharedCardClass}">
+            <h2 class="${sharedSectionTitleClass}">Información del empleado</h2>
             <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               ${avatar}
               <div class="min-w-0">
-                <p class="truncate text-[15px] font-semibold text-[#111827]">${escapeHtml(nombreEmpleado)}</p>
-                <p class="text-[13px] font-medium text-[#1e40af]">Número de empleado: ${escapeHtml(acta.empleado.id)}</p>
+                <p class="truncate text-[16px] font-semibold text-[#0f172a]">${escapeHtml(nombreEmpleado)}</p>
+                <p class="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-[12px] font-medium text-[#1e40af]">Número de empleado: ${escapeHtml(acta.empleado.id)}</p>
               </div>
             </div>
             <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              <div class="rounded-xl border border-slate-100 bg-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Área</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.area)}</dd></div>
-              <div class="rounded-xl border border-slate-100 bg-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Puesto</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.puesto)}</dd></div>
-              <div class="rounded-xl border border-slate-100 bg-[#f8fafc] px-3 py-2.5 sm:col-span-2"><dt class="text-[12px] font-medium text-[#667085]">Supervisor directo</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.supervisor_directo)}</dd></div>
+              <div class="rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Área</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.area)}</dd></div>
+              <div class="rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Puesto</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.puesto)}</dd></div>
+              <div class="rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] px-3 py-2.5 sm:col-span-2"><dt class="text-[12px] font-medium text-[#667085]">Supervisor directo</dt><dd class="mt-1 text-[15px]">${renderEmptyAwareEmpleadoValue(acta.empleado.supervisor_directo)}</dd></div>
             </dl>
           </section>
 
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Detalle del evento</h2>
+          <section class="${sharedCardClass}">
+            <h2 class="${sharedSectionTitleClass}">Detalle del evento</h2>
             ${
               isEditMode
                 ? `<div class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
@@ -643,52 +651,52 @@ function renderDetalleHtml(
                      </label>
                    </div>`
                 : `<dl class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-                     <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
-                     <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Fecha y hora</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
-                     <div class="rounded-xl border border-slate-100 bg-white px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Ubicación</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
+                     <div class="rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-white to-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.tipo_incidencia)}</dd></div>
+                     <div class="rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-white to-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Fecha y hora</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(fechaHora(acta.evento.fecha_hora))}</dd></div>
+                     <div class="rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-white to-[#f8fafc] px-3 py-2.5"><dt class="text-[12px] font-medium text-[#667085]">Ubicación</dt><dd class="mt-1 text-[15px] font-semibold text-slate-800">${escapeHtml(acta.evento.ubicacion)}</dd></div>
                    </dl>
-                   <div class="mt-4 rounded-xl border border-slate-200 bg-[#f8fafc] px-4 py-3">
+                   <div class="mt-4 rounded-xl border border-[#dbe4f0] bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] px-4 py-4">
                      <p class="text-[12px] font-medium text-[#667085]">Descripción de los hechos</p>
-                     <p class="mt-2 text-[15px] leading-relaxed text-slate-700">${escapeHtml(acta.evento.descripcion)}</p>
+                     <p class="mt-2 max-w-[76ch] text-[15px] leading-[1.62] text-slate-600">${escapeHtml(acta.evento.descripcion)}</p>
                    </div>`
             }
           </section>
 
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
+          <section class="${sharedCardClass}">
             <div class="flex items-center justify-between gap-2">
-              <h2 class="text-[17px] font-semibold text-[#111827]">Evidencias y adjuntos</h2>
+              <h2 class="${sharedSectionTitleClass}">Evidencias y adjuntos</h2>
               <p data-rh-acta-adjuntos-count class="text-[12px] text-[#667085]">${escapeHtml(adjuntosCountText(acta.adjuntos.length))}</p>
             </div>
             <div class="mt-4">${renderAdjuntos(acta.adjuntos)}</div>
           </section>
         </div>
 
-        <aside class="space-y-6">
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Estado del proceso</h2>
+        <aside class="space-y-6 xl:sticky xl:top-24">
+          <section class="${sharedCardClass}">
+            <h2 class="${sharedSectionTitleClass}">Estado del proceso</h2>
             <div class="mt-4">${renderProcesoEstado(acta.estado)}</div>
           </section>
 
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Acciones del acta</h2>
+          <section class="${sharedCardClass}">
+            <h2 class="${sharedSectionTitleClass}">Acciones del acta</h2>
             <div class="mt-4 grid grid-cols-1 gap-2">
-              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">Solicitar Firma Digital</button>
-              <button type="button" data-rh-acta-open-cancel-modal title="Esta acción no se puede deshacer" class="inline-flex min-h-10 w-full items-center justify-center rounded-[10px] border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-[#dc2626] transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40">Anular Acta</button>
+              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#1e3a8a] to-[#1d4ed8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">Solicitar Firma Digital</button>
+              <button type="button" data-rh-acta-open-cancel-modal title="Esta acción no se puede deshacer" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-[#dc2626] transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40">Anular Acta</button>
             </div>
           </section>
 
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Personas relacionadas</h2>
+          <section class="${sharedCardClass}">
+            <h2 class="${sharedSectionTitleClass}">Personas relacionadas</h2>
             <ul class="mt-4 space-y-2.5">${involucrados}</ul>
           </section>
 
-          <section class="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Historial del acta</h2>
+          <section class="${sharedCardClass}">
+            <h2 class="${sharedSectionTitleClass}">Historial del acta</h2>
             <ol class="mt-4">${historial}</ol>
           </section>
 
-          <section class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ecfdf3] via-white to-[#f0fdf4] p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-6">
-            <h2 class="text-[17px] font-semibold text-[#111827]">Asistente de redacción IA</h2>
+          <section class="rounded-2xl border border-[#c7d2fe] bg-gradient-to-br from-[#eef2ff] via-[#f8faff] to-[#ecfeff] p-5 shadow-[0_14px_32px_rgba(30,64,175,0.14)] sm:p-6">
+            <h2 class="${sharedSectionTitleClass}">Asistente de redacción IA</h2>
             <div class="mt-4 space-y-3">
               ${
                 hasIaRecommendation
@@ -698,7 +706,7 @@ function renderDetalleHtml(
                      </p>`
                   : ""
               }
-              <p class="text-[13px] text-[#667085]">La IA generó una sugerencia de redacción para esta acta.</p>
+              <p class="text-[13px] text-slate-600">La IA generó una sugerencia de redacción para esta acta.</p>
               <div data-rh-acta-ia-action-wrap>${renderIaActionButton(hasIaRecommendation)}</div>
               <p class="text-xs ${hasIaRecommendation ? "text-[#027a48]" : "text-slate-500"}">
                 ${
@@ -778,8 +786,8 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     mountAppShell(container, {
       pageTitle: "Detalle de acta",
       activeNav: "actas",
-      mainClass: "py-5 sm:py-6",
-      mainHtml: forbiddenHtml(),
+      mainClass: "pt-0 pb-5 sm:pb-6",
+      mainHtml: `<div class="${actaDetallePageShellClass}"><div class="mx-auto w-full max-w-[1320px] px-2 pb-2 sm:px-3">${forbiddenHtml()}</div></div>`,
     });
     return;
   }
@@ -787,12 +795,13 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   mountAppShell(container, {
     pageTitle: "Detalle de acta",
     activeNav: "actas",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="rh-acta-detalle-page" class="space-y-4">${skeletonHtml()}</div>`,
+    mainClass: "pt-0 pb-5 sm:pb-6",
+    mainHtml: `<div class="${actaDetallePageShellClass}"><div id="rh-acta-detalle-page" class="mx-auto w-full max-w-[1320px] space-y-4 px-2 pb-2 sm:px-3">${skeletonHtml()}</div></div>`,
   });
 
-  const page = container.querySelector("#rh-acta-detalle-page");
-  if (!(page instanceof HTMLElement)) return;
+  const pageNode = container.querySelector("#rh-acta-detalle-page");
+  if (!(pageNode instanceof HTMLElement)) return;
+  const page: HTMLElement = pageNode;
   let isImprovingWithIa = false;
   let isRegeneratingIa = false;
   let iaTextoMejorado = "";

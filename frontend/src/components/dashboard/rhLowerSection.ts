@@ -56,26 +56,21 @@ function eventIcon(icon: RhUpcomingEventIcon): string {
 }
 
 function lineClasses(line: RhCalendarDayLine): string {
+  const base = "rh-cal-badge max-w-full truncate px-2 py-0.5 text-[10px] font-semibold leading-snug md:text-[11px]";
   if (line.danger) {
-    return line.solid
-      ? "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-snug bg-red-600 text-white md:text-[11px]"
-      : "rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-red-700 md:text-[11px]";
+    return line.solid ? `${base} rh-cal-badge--danger rh-cal-badge--danger-solid` : `${base} rh-cal-badge--danger`;
   }
   switch (line.kind) {
     case "normal":
-      return line.solid
-        ? "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-snug bg-leoni-blue text-white md:text-[11px]"
-        : "rounded-md bg-leoni-blue/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-leoni-blue md:text-[11px]";
+      return line.solid ? `${base} rh-cal-badge--normal rh-cal-badge--solid` : `${base} rh-cal-badge--normal-soft`;
     case "dieta":
-      return line.solid
-        ? "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-snug bg-leoni-green text-white md:text-[11px]"
-        : "rounded-md bg-leoni-green/15 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-leoni-dark md:text-[11px]";
+      return line.solid ? `${base} rh-cal-badge--dieta rh-cal-badge--solid` : `${base} rh-cal-badge--dieta-soft`;
     case "vacaciones":
-      return "rounded-md bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-orange-700 md:text-[11px]";
+      return `${base} rh-cal-badge--vacaciones`;
     case "ho":
-      return "rounded-md bg-violet-500/12 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-violet-800 md:text-[11px]";
+      return `${base} rh-cal-badge--ho`;
     default:
-      return "rounded-md px-1.5 py-0.5 text-[10px] text-text-muted md:text-[11px]";
+      return `${base} rh-cal-badge--muted`;
   }
 }
 
@@ -123,28 +118,28 @@ function renderCalendarDayCell(
     Boolean(metrics?.lines?.length) || Boolean(metrics?.showWarning) || Boolean(metrics?.showAttention);
 
   const cellPieces: string[] = [
-    "group relative flex min-h-[4.5rem] flex-col rounded-sm p-2 outline-none md:min-h-[6.5rem] md:p-3",
-    "border-0 transition-colors transition-shadow duration-150 ease-out",
+    "rh-cal-cell group relative flex min-h-[4.5rem] flex-col rounded-lg p-2 outline-none md:min-h-[6.5rem] md:p-3",
+    "border transition-[background,box-shadow,border-color,transform] duration-150 ease-out",
   ];
 
   if (!inMonth) {
-    cellPieces.push("bg-surface text-text-muted hover:bg-border/20 hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--out");
   } else if (isSelected) {
-    const selBg = isToday ? "bg-leoni-blue/10" : "bg-leoni-blue/[0.09]";
-    cellPieces.push(
-      `z-[1] ${selBg} ring-2 ring-leoni-blue ring-inset hover:bg-leoni-blue/[0.12] hover:shadow-sm`,
-    );
+    cellPieces.push("rh-cal-cell--selected z-[1]");
   } else if (isToday) {
-    cellPieces.push("bg-leoni-blue/5 hover:bg-leoni-blue/[0.09] hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--today");
   } else {
-    cellPieces.push("bg-white hover:bg-surface hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--default");
   }
 
   const cellBase = cellPieces.join(" ");
 
-  const dayNumWrap = isToday && inMonth
-    ? `<span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-leoni-blue text-xs font-bold text-white shadow-sm">${dayNumber}</span>`
-    : `<span class="inline-flex min-h-7 min-w-7 items-center justify-center text-xs font-semibold ${inMonth ? "text-text-primary" : "text-text-muted"}">${dayNumber}</span>`;
+  const dayNumWrap =
+    isSelected && inMonth
+      ? `<span class="rh-cal-cell__daynum rh-cal-cell__daynum--selected">${dayNumber}</span>`
+      : isToday && inMonth
+        ? `<span class="rh-cal-cell__daynum rh-cal-cell__daynum--today">${dayNumber}</span>`
+        : `<span class="rh-cal-cell__daynum ${inMonth ? "rh-cal-cell__daynum--plain" : "rh-cal-cell__daynum--muted"}">${dayNumber}</span>`;
 
   const warn = metrics?.showWarning
     ? `<span class="text-orange-600" title="Alerta" aria-hidden="true">
@@ -226,7 +221,7 @@ export function renderRhCalendarReplaceable(
     for (let r = 0; r < 6; r += 1) {
       const slice = grid.slice(r * 7, r * 7 + 7);
       rows.push(
-        `<div role="row" class="grid grid-cols-7 gap-1">${slice
+        `<div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${slice
           .map((cell) =>
             renderCalendarDayCell(
               cell.isoDate,
@@ -243,7 +238,7 @@ export function renderRhCalendarReplaceable(
   } else {
     const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
     rows.push(
-      `<div role="row" class="grid grid-cols-7 gap-1">${weekDates
+      `<div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${weekDates
         .map((d) => {
           const iso = isoLocalDate(d);
           return renderCalendarDayCell(
@@ -260,29 +255,29 @@ export function renderRhCalendarReplaceable(
   }
 
   const legend = `
-    <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs">
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-leoni-blue" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Normal</span>
+    <div class="rh-cal-legend flex flex-wrap gap-x-6 gap-y-2.5 text-xs">
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--normal" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Normal</span>
       </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-leoni-green" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Dieta</span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--dieta" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Dieta</span>
       </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Vacaciones</span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--vacaciones" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Vacaciones</span>
       </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-violet-600" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Home Office</span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--ho" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Home Office</span>
       </span>
     </div>`;
 
   const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
-        `<div role="columnheader" class="rounded-sm bg-white py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
+        `<div role="columnheader" class="rh-cal-colhead py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
     )
     .join("");
 
@@ -303,10 +298,10 @@ export function renderRhCalendarReplaceable(
                 .join("")
             : `<span class="text-xs text-text-muted">Sin registros</span>`;
         const flags = `${metrics?.showWarning ? '<span class="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">Alerta</span>' : ""}${metrics?.showAttention ? '<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">Atención</span>' : ""}`;
-        return `<article class="rounded-xl border border-border bg-white p-3 shadow-sm">
+        return `<article class="rh-cal-week-planner-day rounded-xl border border-[rgba(148,163,184,0.22)] bg-linear-to-br from-white to-[#f8fbff] p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
           <div class="mb-3 flex items-center justify-between">
             <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(dayName)}</span>
-            <span class="${isToday ? "inline-flex size-8 items-center justify-center rounded-full bg-leoni-blue text-sm font-semibold text-white" : "inline-flex size-8 items-center justify-center rounded-full bg-surface text-sm font-semibold text-text-primary"}">${d.getDate()}</span>
+            <span class="${isToday ? "rh-cal-week-planner-day__date rh-cal-week-planner-day__date--today" : "rh-cal-week-planner-day__date"}">${d.getDate()}</span>
           </div>
           <div class="mb-2 flex flex-wrap gap-1">${flags}</div>
           <div class="flex flex-col gap-1.5">${entries}</div>
@@ -320,16 +315,16 @@ export function renderRhCalendarReplaceable(
   })();
 
   return `
-    <header class="px-4 pt-5 sm:px-6">
+    <header class="rh-cal-card-header px-4 pt-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-base font-semibold text-text-primary">Calendario RH</h2>
-        <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+        <div class="rh-cal-toolbar flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+          <div class="rh-cal-seg" role="group" aria-label="Vista del calendario">
             <button
               type="button"
               id="rh-cal-view-month"
               data-rh-cal-view="month"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "month" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+              class="rh-cal-seg__btn ${viewMode === "month" ? "rh-cal-seg__btn--active" : ""}"
             >
               Mes
             </button>
@@ -337,25 +332,25 @@ export function renderRhCalendarReplaceable(
               type="button"
               id="rh-cal-view-week"
               data-rh-cal-view="week"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "week" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+              class="rh-cal-seg__btn ${viewMode === "week" ? "rh-cal-seg__btn--active" : ""}"
             >
               Semana
             </button>
           </div>
-          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+          <div class="rh-cal-nav-cluster inline-flex min-w-0 flex-wrap items-center justify-center gap-0.5 rounded-[14px] border border-[rgba(148,163,184,0.22)] bg-white/90 p-0.5 shadow-[0_6px_16px_rgba(15,23,42,0.05)]">
             <button
               type="button"
               id="rh-cal-prev"
-              class="${CAL_NAV_BTN_CLASS}"
+              class="${CAL_NAV_BTN_CLASS} rh-cal-nav-icon-btn"
               aria-label="${viewMode === "week" ? "Semana anterior" : "Mes anterior"}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
-            <p id="rh-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
+            <p id="rh-cal-month-label" class="min-w-0 max-w-[min(100%,14rem)] shrink px-2 py-1 text-center text-sm font-semibold text-text-primary sm:min-w-44 sm:max-w-none">${title}</p>
             <button
               type="button"
               id="rh-cal-next"
-              class="${CAL_NAV_BTN_CLASS}"
+              class="${CAL_NAV_BTN_CLASS} rh-cal-nav-icon-btn"
               aria-label="${viewMode === "week" ? "Semana siguiente" : "Mes siguiente"}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
@@ -364,7 +359,7 @@ export function renderRhCalendarReplaceable(
           <button
             type="button"
             id="rh-cal-today"
-            class="rounded-xl border border-border bg-white px-3 py-2 text-xs font-semibold text-text-muted shadow-sm transition-colors hover:border-leoni-blue/25 hover:bg-leoni-blue/5 hover:text-leoni-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leoni-blue"
+            class="rh-cal-today-btn rounded-xl border border-[rgba(148,163,184,0.26)] bg-white px-3 py-2 text-xs font-semibold text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition-[background,border-color,color,box-shadow,transform] duration-150 ease-out hover:border-[rgba(37,99,235,0.28)] hover:bg-[rgba(219,234,254,0.45)] hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
             aria-label="Ir al mes actual"
           >
             Hoy
@@ -381,9 +376,9 @@ export function renderRhCalendarReplaceable(
         : `<div
             role="grid"
             aria-label="Calendario mensual"
-            class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
+            class="rh-cal-grid-shell flex min-w-136 flex-col gap-1 sm:min-w-0"
           >
-            <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
+            <div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${weekHeader}</div>
             ${rows.join("")}
           </div>`}
     </div>`;
@@ -393,21 +388,21 @@ export function renderRhPriorityAlertsBlock(payload: RhLowerSectionPayload | nul
   const alerts = payload?.priority_alerts ?? [];
   if (alerts.length === 0) {
     return `
-      <section class="mb-6 rounded-2xl border border-amber-200/80 bg-amber-50/90 px-4 py-4 shadow-sm sm:px-6" aria-label="Alertas RH prioritarias">
+      <section class="rh-dash-priority rh-dash-priority--empty mb-6 rounded-[18px] px-4 py-4 sm:px-6" aria-label="Alertas RH prioritarias">
         <div class="flex flex-wrap items-center gap-2">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0 text-amber-700" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0 text-amber-700/90" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
-          <h2 class="text-sm font-semibold text-amber-900">Alertas RH prioritarias</h2>
+          <h2 class="text-sm font-semibold text-amber-950/90">Alertas RH prioritarias</h2>
         </div>
-        <p class="mt-2 text-sm text-amber-800/90">Sin alertas prioritarias.</p>
+        <p class="mt-2 text-sm text-amber-900/75">Sin alertas prioritarias.</p>
       </section>`;
   }
 
   const chips = alerts
     .map(
       (a) => `
-      <span class="inline-flex items-center gap-2 rounded-full border border-orange-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-sm">
+      <span class="rh-dash-priority-chip inline-flex max-w-full items-center gap-2 rounded-full border border-[rgba(251,146,60,0.35)] bg-white/90 px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-[0_4px_12px_rgba(245,158,11,0.08)]">
         ${alertChipIcon(a.icon)}
         ${escapeHtml(a.label)}
       </span>`,
@@ -415,13 +410,13 @@ export function renderRhPriorityAlertsBlock(payload: RhLowerSectionPayload | nul
     .join("");
 
   return `
-    <section class="mb-6 rounded-2xl border border-orange-200 bg-amber-50 px-4 py-4 shadow-sm sm:px-6" aria-label="Alertas RH prioritarias">
+    <section class="rh-dash-priority rh-dash-priority--active mb-6 rounded-[18px] px-4 py-4 sm:px-6" aria-label="Alertas RH prioritarias">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0 text-orange-700" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
           </svg>
-          <h2 class="text-sm font-semibold text-orange-900">Alertas RH prioritarias</h2>
+          <h2 class="text-sm font-semibold text-orange-950">Alertas RH prioritarias</h2>
         </div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
@@ -436,7 +431,7 @@ export function renderRhCalendarCard(
   payload: RhLowerSectionPayload | null,
 ): string {
   return `
-    <section class="mb-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm" aria-label="Calendario RH">
+    <section class="rh-cal-card mb-6 overflow-hidden rounded-[20px]" aria-label="Calendario RH">
       <div id="rh-calendar-replaceable">
         ${renderRhCalendarReplaceable(year, monthIndex, payload)}
       </div>
@@ -455,9 +450,9 @@ export function renderRhWeeklyAndEvents(payload: RhLowerSectionPayload | null): 
   const metricsHtml = metrics
     .map(
       (m) => `
-      <div class="min-w-0 text-center sm:text-left">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-white/70">${escapeHtml(m.label)}</p>
-        <p class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">${escapeHtml(m.value)}</p>
+      <div class="rh-week-summary__metric min-w-0 text-center sm:text-left">
+        <p class="rh-week-summary__label text-[10px] font-semibold uppercase tracking-[0.06em]">${escapeHtml(m.label)}</p>
+        <p class="rh-week-summary__value mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">${escapeHtml(m.value)}</p>
       </div>`,
     )
     .join("");
@@ -465,11 +460,11 @@ export function renderRhWeeklyAndEvents(payload: RhLowerSectionPayload | null): 
   const events = payload?.upcoming_events ?? [];
   const eventsHtml =
     events.length === 0
-      ? `<div class="rounded-xl border border-dashed border-border/90 bg-surface/40 px-4 py-8 text-center">
-          <p class="text-sm font-semibold text-text-primary">No hay próximos eventos</p>
-          <p class="mt-1 text-xs text-text-muted">Los eventos aparecerán cuando el calendario RH esté sincronizado.</p>
+      ? `<div class="rh-upcoming-empty rounded-xl border border-dashed border-[rgba(148,163,184,0.35)] bg-[rgba(248,251,255,0.85)] px-4 py-8 text-center">
+          <p class="text-sm font-semibold text-[#0f172a]">No hay próximos eventos</p>
+          <p class="mt-1.5 text-xs leading-relaxed text-[#64748b]">Los eventos aparecerán cuando el calendario RH esté sincronizado.</p>
         </div>`
-      : `<ul class="divide-y divide-border/80">
+      : `<ul class="rh-upcoming-list divide-y divide-[rgba(148,163,184,0.22)]">
           ${events
             .map(
               (e) => `
@@ -485,21 +480,21 @@ export function renderRhWeeklyAndEvents(payload: RhLowerSectionPayload | null): 
         </ul>`;
 
   return `
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <article class="rounded-2xl border border-leoni-blue bg-leoni-blue p-5 shadow-sm">
-        <div class="flex items-center gap-2">
+    <div class="rh-week-events-grid grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <article class="rh-week-summary-card relative overflow-hidden rounded-[18px] p-5 sm:p-6">
+        <div class="relative z-1 flex items-center gap-2">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0 text-white/90" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 3.75c0-.621.504-1.125 1.125-1.125h2.25C20.496 2.625 21 3.129 21 3.75v17.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V3.75Z" />
           </svg>
           <h2 class="text-sm font-semibold text-white">Resumen de la Semana</h2>
         </div>
-        <div class="mt-6 grid grid-cols-2 gap-6 lg:grid-cols-4">
+        <div class="relative z-1 mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:gap-x-6 lg:grid-cols-4">
           ${metricsHtml}
         </div>
       </article>
-      <article class="rounded-2xl border border-border bg-white p-5 shadow-sm">
+      <article class="rh-upcoming-card rounded-[18px] border border-[rgba(148,163,184,0.26)] bg-linear-to-br from-white to-[#f8fbff] p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:p-6">
         <h2 class="text-base font-semibold text-text-primary">Próximos Eventos RH</h2>
-        <div class="mt-2">
+        <div class="mt-3">
           ${eventsHtml}
         </div>
       </article>
@@ -512,7 +507,7 @@ export function renderRhLowerSection(
   payload: RhLowerSectionPayload | null,
 ): string {
   return `
-    <div class="mt-10 border-t border-border/80 pt-10">
+    <div class="rh-dashboard-lower mt-10 border-t border-[rgba(148,163,184,0.22)] pt-10">
       ${renderRhPriorityAlertsBlock(payload)}
       ${renderRhCalendarCard(year, monthIndex, payload)}
       ${renderRhWeeklyAndEvents(payload)}
@@ -521,8 +516,8 @@ export function renderRhLowerSection(
 
 export function renderRhLowerSectionSkeleton(): string {
   const bar = `
-    <div class="mb-6 animate-pulse rounded-2xl border border-amber-100 bg-amber-50/50 px-4 py-6 sm:px-6">
-      <div class="h-4 w-56 rounded bg-amber-200/60"></div>
+    <div class="mb-6 animate-pulse rounded-[18px] border border-[rgba(245,158,11,0.22)] bg-linear-to-br from-[#fffbeb] to-[#fff7ed] px-4 py-6 sm:px-6">
+      <div class="h-4 w-56 rounded bg-amber-200/50"></div>
       <div class="mt-4 flex flex-wrap gap-2">
         <div class="h-8 w-40 rounded-full bg-white/80"></div>
         <div class="h-8 w-44 rounded-full bg-white/80"></div>
@@ -530,28 +525,28 @@ export function renderRhLowerSectionSkeleton(): string {
       </div>
     </div>`;
   const cal = `
-    <div class="mb-6 animate-pulse rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-6">
+    <div class="mb-6 animate-pulse rounded-[20px] border border-[rgba(148,163,184,0.22)] bg-linear-to-br from-white to-[#f8fbff] p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
       <div class="flex justify-between gap-4">
-        <div class="h-5 w-36 rounded bg-slate-200"></div>
-        <div class="h-9 w-40 rounded-lg bg-slate-100"></div>
+        <div class="h-5 w-36 rounded bg-slate-200/90"></div>
+        <div class="h-9 w-40 rounded-[12px] bg-slate-100"></div>
       </div>
-      <div class="mt-6 h-4 w-full max-w-md rounded bg-slate-100"></div>
+      <div class="mt-6 h-4 w-full max-w-md rounded bg-slate-100/90"></div>
       <div class="mt-6 grid grid-cols-7 gap-2">
-        ${"<div class=\"h-10 rounded bg-slate-100\"></div>".repeat(7)}
+        ${"<div class=\"h-10 rounded-lg bg-slate-100/90\"></div>".repeat(7)}
       </div>
       <div class="mt-2 grid grid-cols-7 gap-2">
-        ${"<div class=\"h-16 rounded border border-slate-100 bg-slate-50/80\"></div>".repeat(7)}
+        ${"<div class=\"h-16 rounded-lg border border-slate-100/80 bg-slate-50/80\"></div>".repeat(7)}
       </div>
       <div class="mt-2 grid grid-cols-7 gap-2">
-        ${"<div class=\"h-16 rounded border border-slate-100 bg-slate-50/80\"></div>".repeat(7)}
+        ${"<div class=\"h-16 rounded-lg border border-slate-100/80 bg-slate-50/80\"></div>".repeat(7)}
       </div>
     </div>`;
   const bottom = `
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="h-44 animate-pulse rounded-2xl bg-leoni-blue/30"></div>
-      <div class="h-44 animate-pulse rounded-2xl border border-border bg-white"></div>
+      <div class="h-44 animate-pulse rounded-[18px] bg-linear-to-br from-[#021b3a]/25 via-[#063b73]/20 to-[#0b4f8a]/25"></div>
+      <div class="h-44 animate-pulse rounded-[18px] border border-[rgba(148,163,184,0.22)] bg-linear-to-br from-white to-[#f8fbff]"></div>
     </div>`;
-  return `<div class="mt-10 border-t border-border/80 pt-10">${bar}${cal}${bottom}</div>`;
+  return `<div class="rh-dashboard-lower mt-10 border-t border-[rgba(148,163,184,0.22)] pt-10">${bar}${cal}${bottom}</div>`;
 }
 
 /**

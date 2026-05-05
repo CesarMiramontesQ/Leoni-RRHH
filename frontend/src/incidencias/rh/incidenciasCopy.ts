@@ -6,20 +6,27 @@ export const INC_COPY = {
   tituloPagina: "Incidencias",
   subtitulo:
     "Registro y seguimiento de incidencias disciplinarias y operativas.",
+  listadoTitulo: "Listado de incidencias",
+  listadoSubtitulo: (total: number) =>
+    total === 1 ? "1 incidencia encontrada" : `${total} incidencias encontradas`,
   exportar: "Exportar incidencias",
   nueva: "Nueva incidencia",
   filtrosAvanzadosAria: "Filtros avanzados",
 
   kpiAbiertas: "Incidencias abiertas",
+  kpiAbiertasMicro: "Requieren atención",
   kpiInvestigacion: "En investigación",
+  kpiInvestigacionMicro: "Pendientes de seguimiento",
   kpiResueltas: "Resueltas",
+  kpiResueltasMicro: "Completadas o cerradas",
   kpiCriticas: "Críticas",
+  kpiCriticasMicro: "Prioridad máxima",
 
   errorMetricas: "No se pudieron calcular las métricas.",
 
   filtroArea: "Área",
   filtroEmpleado: "Empleado",
-  placeholderBuscarEmpleado: "Buscar empleado...",
+  placeholderBuscarEmpleado: "Buscar por nombre o número de empleado",
   tablaVaciaSugerenciaEmpleado:
     "Prueba con otro nombre, identificador o folio.",
   filtroSupervisor: "Supervisor",
@@ -39,7 +46,8 @@ export const INC_COPY = {
   limpiarFiltros: "Limpiar filtros",
 
   tablaAria: "Listado de incidencias",
-  filtrosSeccionAria: "Filtros de incidencias",
+  filtrosTitulo: "Filtros de búsqueda",
+  filtrosSeccionAria: "Filtros de búsqueda",
   colEmpleado: "Empleado",
   colNumero: "Número",
   colArea: "Área",
@@ -50,6 +58,9 @@ export const INC_COPY = {
 
   cargandoTabla: "Cargando incidencias…",
   tablaVacia: "No hay incidencias con los filtros actuales.",
+  tablaVaciaTitulo: "No se encontraron incidencias",
+  tablaVaciaDescripcion:
+    "Intenta ajustar los filtros o registra una nueva incidencia laboral.",
   errorTabla: "Error al cargar la tabla.",
   sinDatosTrasError: "Sin datos disponibles.",
   registrosPorPagina: "Registros por página",

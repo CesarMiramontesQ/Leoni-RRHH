@@ -86,6 +86,12 @@ import type {
   ReporteComedorViewState,
 } from "../comedor/reportes/types.ts";
 
+/** Mismo contenedor visual que Solicitudes (`#rh-comedor-page` activa estilos en `style.css`). */
+const COMEDOR_DASHBOARD_PAGE_SHELL =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+
+const COMEDOR_DASHBOARD_MAIN_CLASS = "pt-0 pb-5 sm:pb-6";
+
 type RhComedorState = {
   statsState: ComedorPanelState;
   statsError: string | null;
@@ -536,21 +542,21 @@ function mapEstadisticasToRhKpis(
 
   const porcentajeAsistencia =
     totalRegistros > 0 ? Math.round((estadisticas.acceso_concedido / totalRegistros) * 100) : 0;
+  const labelComidasORegistros = vistaComidasRh ? "Comidas registradas" : "Registros";
   return [
     {
       id: "reservas_hoy",
-      titulo: vistaComidasRh ? "Comidas registradas de la semana" : "Registros de la semana",
+      titulo: "Semana actual",
       valor: String(valorSemana),
-      descripcion: `Semana ${estadisticas.semana}`,
+      descripcion: `${labelComidasORegistros}\nSemana ${estadisticas.semana}`,
       accentClass: "border-t-leoni-blue",
       progressPercent: undefined,
     },
     {
       id: "registros_proxima_semana",
-      titulo:
-        vistaComidasRh ? "Comidas registradas de la próxima semana" : "Registros de la próxima semana",
+      titulo: "Próxima semana",
       valor: String(valorProximaSemana),
-      descripcion: "Planeación operativa para la semana siguiente",
+      descripcion: `${labelComidasORegistros}\nPlaneación semanal`,
       accentClass: "border-t-sky-500",
       progressPercent: undefined,
     },
@@ -558,15 +564,15 @@ function mapEstadisticasToRhKpis(
       id: "ocupacion_actual",
       titulo: "Registros activos",
       valor: String(totalRegistros),
-      descripcion: "Total de registros confirmados en la semana actual",
+      descripcion: "Confirmados\nSemana actual",
       accentClass: "border-t-emerald-500",
       progressPercent: undefined,
     },
     {
       id: "porcentaje_asistencia",
-      titulo: "% asistencia vs registro",
+      titulo: "Asistencia",
       valor: `${porcentajeAsistencia}%`,
-      descripcion: `${estadisticas.acceso_concedido} asistencias de ${totalRegistros} registros`,
+      descripcion: `Asistencia vs registro\n${estadisticas.acceso_concedido} asistencias de ${totalRegistros} registros`,
       accentClass: "border-t-violet-500",
       progressPercent: porcentajeAsistencia,
     },
@@ -662,12 +668,6 @@ function mapProyeccionesToSidebar(
     alerts: [],
     weeklyOccupancy,
     dietDistribution: { saludablePercent, regularPercent },
-    suggestion: {
-      titulo: "Proyección semanal",
-      mensaje: `Promedio semanal: ${proyecciones.promedio_semanal}.`,
-      ctaLabel: "Actualizar",
-      ctaRoute: "",
-    },
     externalCodesCard: {
       titulo: "Códigos externos",
       mensaje: "Consulta y rastrea credenciales temporales de personal externo.",
@@ -1101,8 +1101,8 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   mountAppShell(container, {
     pageTitle: "Comedor",
     activeNav: "comedor",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div>`,
+    mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
+    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-rh-root");
@@ -1181,12 +1181,6 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       }
       if (target.closest("[data-comedor-planear]")) {
         window.location.hash = "#/comedor/planear";
-        return;
-      }
-      const suggestionRouteBtn = target.closest<HTMLButtonElement>("[data-comedor-suggestion-route]");
-      if (suggestionRouteBtn) {
-        const route = suggestionRouteBtn.getAttribute("data-comedor-suggestion-route");
-        if (route) window.location.hash = route;
         return;
       }
       const externalCodesRouteBtn = target.closest<HTMLButtonElement>("[data-comedor-external-codes-route]");
@@ -2048,8 +2042,8 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     mountAppShell(container, {
       pageTitle: "Comedor",
       activeNav: "comedor",
-      mainClass: "py-5 sm:py-6",
-      mainHtml: `<div id="comedor-lider-root">${renderComedorDashboardLider(toLiderViewState(state))}</div><div id="comedor-lider-new-request-modal-host"></div>`,
+      mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
+      mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-lider-root">${renderComedorDashboardLider(toLiderViewState(state))}</div></div><div id="comedor-lider-new-request-modal-host"></div>`,
     });
 
     const root = container.querySelector<HTMLElement>("#comedor-lider-root");
@@ -2365,8 +2359,8 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     mountAppShell(container, {
       pageTitle: "Comedor",
       activeNav: "comedor",
-      mainClass: "py-5 sm:py-6",
-      mainHtml: `<div id="comedor-empleado-root">${renderComedorDashboardEmpleado(toEmpleadoViewState(state))}</div><div id="comedor-empleado-new-request-modal-host"></div>`,
+      mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
+      mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-empleado-root">${renderComedorDashboardEmpleado(toEmpleadoViewState(state))}</div></div><div id="comedor-empleado-new-request-modal-host"></div>`,
     });
 
     const root = container.querySelector<HTMLElement>("#comedor-empleado-root");

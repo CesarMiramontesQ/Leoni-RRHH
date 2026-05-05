@@ -5,8 +5,11 @@ import { escapeHtml } from "./html.ts";
 export function vista360TimelineHtml(items: TimelineItem[]): string {
   if (items.length === 0) {
     return `
-      <div class="rounded-xl border border-dashed border-border/90 bg-slate-50/40 py-10 text-center">
-        <p class="text-sm font-semibold text-text-primary">Sin actividades recientes</p>
+      <div class="rounded-2xl border border-dashed border-slate-300/90 bg-slate-50/70 px-4 py-10 text-center">
+        <div class="mx-auto flex size-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="size-5"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm1-12a1 1 0 1 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6Z" clip-rule="evenodd" /></svg>
+        </div>
+        <p class="mt-3 text-sm font-semibold text-text-primary">Sin actividades recientes</p>
         <p class="mt-1.5 text-xs text-text-muted">Cuando existan movimientos aparecerán en esta línea de tiempo.</p>
       </div>`;
   }

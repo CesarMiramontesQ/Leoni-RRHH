@@ -1,5 +1,6 @@
 /**
- * Presentación de nombres de empleado: reordenar `APELLIDOS, NOMBRES` → `NOMBRES APELLIDOS`.
+ * Presentación de nombres de empleado: reordenar `APELLIDOS, NOMBRES` → `NOMBRES APELLIDOS`
+ * y, por defecto, omitir el segundo apellido en listados (último token si hay más de dos).
  * No modifica datos persistidos; solo uso en UI.
  */
 
@@ -13,6 +14,16 @@ export function reordenarNombreComaApellidos(raw: string | null | undefined): st
   const apellidos = parts[0].trim();
   const nombres = parts.slice(1).join(",").trim();
   return `${nombres} ${apellidos}`.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Omite el segundo apellido en nombres ya ordenados tipo `NOMBRE(S) PATERNO MATERNO`:
+ * si hay más de dos tokens, elimina el último. Con uno o dos tokens no cambia (p. ej. solo nombre+paterno).
+ */
+export function quitarSegundoApellidoUi(normalized: string): string {
+  const parts = normalized.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 2) return normalized.trim();
+  return parts.slice(0, -1).join(" ");
 }
 
 /** Capitalización tipo título por palabra (solo UI). */
@@ -32,6 +43,11 @@ export function capitalizarNombreTituloUi(s: string): string {
 export type OpcionesNombreEmpleadoUi = {
   /** Si true, aplica `capitalizarNombreTituloUi` tras el reordenamiento. */
   titulo?: boolean;
+  /**
+   * Si no es `false`, quita el segundo apellido (último token cuando hay más de dos).
+   * Por defecto activo: listados RH suelen mostrar solo paterno.
+   */
+  omitirSegundoApellido?: boolean;
 };
 
 /**
@@ -43,13 +59,16 @@ export function formatNombreEmpleadoUi(
 ): string {
   const reordered = reordenarNombreComaApellidos(raw);
   if (!reordered) return "";
-  if (options?.titulo) return capitalizarNombreTituloUi(reordered);
-  return reordered;
+  const omitir = options?.omitirSegundoApellido !== false;
+  const display = omitir ? quitarSegundoApellidoUi(reordered) : reordered;
+  if (options?.titulo) return capitalizarNombreTituloUi(display);
+  return display;
 }
 
 /**
  * Iniciales a partir del nombre ya en formato de pantalla (p. ej. salida de `formatNombreEmpleadoUi`).
- * Primera letra del primer token + primera del último; un solo token usa dos primeras letras.
+ * Primer nombre + primer apellido: primera letra del primer token y del último token del display
+ * (tras omitir segundo apellido suele quedar `NOMBRE(S) PATERNO` → iniciales correctas).
  */
 export function inicialesDesdeNombreDisplay(display: string): string {
   const parts = display.trim().split(/\s+/).filter(Boolean);

@@ -38,7 +38,7 @@ import { escapeHtml } from "../ui/uiUtils.ts";
 
 function renderError(message: string): string {
   return `
-    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+    <div class="rounded-2xl border border-red-200/90 bg-red-50/95 px-4 py-4 text-sm text-red-800 shadow-[0_8px_24px_rgba(127,29,29,0.08)]" role="alert">
       ${escapeHtml(message)}
     </div>`;
 }
@@ -66,20 +66,20 @@ function renderKpis(kpi: KpiResponse): string {
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="rounded-xl border border-border border-t-4 border-t-leoni-green bg-white p-5 shadow-sm">
-        <h2 class="text-sm font-medium text-text-muted">Empleados activos</h2>
-        <p class="mt-2 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(kpi.empleados_activos))}</p>
+      <article class="rounded-2xl border border-[#e5e7eb] border-t-4 border-t-leoni-green bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+        <h2 class="text-sm font-medium text-[#667085]">Empleados activos</h2>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-[#111827]">${escapeHtml(String(kpi.empleados_activos))}</p>
       </article>
-      <article class="rounded-xl border border-border border-t-4 border-t-amber-400 bg-white p-5 shadow-sm">
-        <h2 class="text-sm font-medium text-text-muted">Incidencias abiertas</h2>
-        <p class="mt-2 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(kpi.incidencias_abiertas))}</p>
+      <article class="rounded-2xl border border-[#e5e7eb] border-t-4 border-t-amber-400 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+        <h2 class="text-sm font-medium text-[#667085]">Incidencias abiertas</h2>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-[#111827]">${escapeHtml(String(kpi.incidencias_abiertas))}</p>
       </article>
-      <article class="rounded-xl border border-border border-t-4 border-t-orange-400 bg-white p-5 shadow-sm">
-        <h2 class="text-sm font-medium text-text-muted">Actas pendientes de firma</h2>
-        <p class="mt-2 text-3xl font-bold tracking-tight text-text-primary">${escapeHtml(String(kpi.actas_pendientes_firma))}</p>
+      <article class="rounded-2xl border border-[#e5e7eb] border-t-4 border-t-orange-400 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+        <h2 class="text-sm font-medium text-[#667085]">Actas pendientes de firma</h2>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-[#111827]">${escapeHtml(String(kpi.actas_pendientes_firma))}</p>
       </article>
-      <article class="rounded-xl border border-border border-t-4 border-t-leoni-blue bg-white p-5 shadow-sm sm:col-span-2 xl:col-span-4">
-        <h2 class="text-sm font-medium text-text-muted">Solicitudes por estado</h2>
+      <article class="rounded-2xl border border-[#e5e7eb] border-t-4 border-t-[#1e40af] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] sm:col-span-2 xl:col-span-4">
+        <h2 class="text-sm font-medium text-[#667085]">Solicitudes por estado</h2>
         <div class="mt-4">
           ${solicitudesBlock}
         </div>
@@ -123,7 +123,7 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
 
 function rhMetricsUnavailableBanner(): string {
   return `
-    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+    <div class="mb-4 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white px-4 py-3 text-sm text-amber-950 shadow-[0_8px_24px_rgba(15,23,42,0.06)]" role="status">
       No se pudieron obtener las métricas en este momento. Las tarjetas muestran valores no disponibles (—) sin afectar el diseño.
     </div>`;
 }
@@ -160,7 +160,9 @@ function mountRhOperationalDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
-    mainHtml: `<div id="rh-dashboard-root">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
+    /** Sin padding-top en `<main>` para que no se vea `bg-surface` gris entre navbar y el degradado del dashboard. */
+    mainClass: "pt-0 pb-10",
+    mainHtml: `<div id="rh-dashboard-root" class="rh-dashboard-page -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
   });
 
   void loadRhOperationalDashboard(container);

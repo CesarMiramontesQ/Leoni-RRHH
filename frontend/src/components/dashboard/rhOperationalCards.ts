@@ -2,12 +2,12 @@ import { escapeHtml } from "../vista360/html.ts";
 import type { RhCardAccent, RhCardIconKey, RhOperationalCardView } from "../../dashboard/rh/mapMetricsToCardViews.ts";
 
 const ACCENT_ICON_WRAP: Record<RhCardAccent, string> = {
-  blue: "bg-blue-500/10 text-blue-600",
-  orange: "bg-orange-500/10 text-orange-600",
-  violet: "bg-violet-500/10 text-violet-600",
-  sky: "bg-sky-500/10 text-sky-600",
-  red: "bg-red-500/10 text-red-600",
-  amber: "bg-amber-400/20 text-amber-800",
+  blue: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
+  orange: "rh-dash-kpi-icon rh-dash-kpi-icon--orange",
+  violet: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
+  sky: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
+  red: "rh-dash-kpi-icon rh-dash-kpi-icon--red",
+  amber: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
 };
 
 function iconSvg(key: RhCardIconKey): string {
@@ -111,10 +111,10 @@ function renderCard(view: RhOperationalCardView): string {
         </p>`;
 
   return `
-    <article class="flex h-full flex-col rounded-2xl border border-border bg-white p-5 shadow-sm" data-rh-card="${view.id}">
+    <article class="rh-dash-kpi-card flex h-full flex-col rounded-[18px] p-5" data-rh-card="${view.id}">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-sm font-medium text-text-muted">${escapeHtml(view.title)}</h2>
-        <div class="rounded-xl p-2 ${wrap}" aria-hidden="true">
+        <div class="flex shrink-0 rounded-[14px] p-2 ${wrap}" aria-hidden="true">
           ${iconSvg(view.icon)}
         </div>
       </div>
@@ -149,7 +149,7 @@ export function renderRhOperationalDashboardGrid(views: RhOperationalCardView[])
 
 export function renderRhDashboardSkeletonGrid(): string {
   const cell = `
-    <div class="animate-pulse rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <div class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
       <div class="flex justify-between gap-3">
         <div class="h-4 w-40 rounded bg-slate-200"></div>
         <div class="size-10 rounded-xl bg-slate-200"></div>

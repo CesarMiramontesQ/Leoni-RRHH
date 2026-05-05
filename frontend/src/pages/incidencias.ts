@@ -24,15 +24,15 @@ import type {
   RhIncidenciaTablaFila,
 } from "../incidencias/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import { escapeIncHtml } from "../components/incidencias/rhIncidenciasUiUtils.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">${escapeIncHtml(INC_COPY.accesoDenegadoTitulo)}</p>
-      <p class="mt-1">${escapeIncHtml(INC_COPY.accesoDenegadoTexto)}</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">${escapeIncHtml(INC_COPY.volverDashboard)}</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: INC_COPY.accesoDenegadoTitulo,
+    description: INC_COPY.accesoDenegadoTexto,
+    linkHref: "#/",
+    linkLabel: INC_COPY.volverDashboard,
+  });
 }
 
 function incidenciasUiConfig(): RhIncidenciasUiConfig {
@@ -103,15 +103,18 @@ function isPeriodo(v: string): v is RhIncidenciaFilterState["periodo"] {
   return v === "30d" || v === "90d" || v === "365d" || v === "all";
 }
 
+const INCIDENCIAS_PAGE_SHELL_CLASS =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+
 export function mountIncidencias(container: HTMLElement, signal: AbortSignal): void {
-  const incidenciasMainClass = "py-5 sm:py-6";
+  const incidenciasMainClass = "pt-0 pb-5 sm:pb-6";
 
   if (!canAccessRhIncidenciasPage()) {
     mountAppShell(container, {
       pageTitle: INC_COPY.tituloPagina,
       activeNav: "incidencias",
       mainClass: incidenciasMainClass,
-      mainHtml: forbiddenHtml(),
+      mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -178,7 +181,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     pageTitle: INC_COPY.tituloPagina,
     activeNav: "incidencias",
     mainClass: incidenciasMainClass,
-    mainHtml: `<div id="rh-incidencias-page" class="relative flex min-h-[calc(100dvh-11rem)] flex-col">
+    mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
       <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel())}</div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>
@@ -216,7 +219,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         showEmpleadosToast(container, "Exportacion no disponible hasta integrar backend.", "error");
         return;
       }
-      if (t.closest("#rh-inc-nueva")) {
+      if (t.closest("#rh-inc-nueva") || t.closest("#rh-inc-nueva-empty")) {
         nuevaIncidenciaModal?.open();
         return;
       }
@@ -243,7 +246,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         showEmpleadosToast(container, "Descarga de evidencia no disponible.", "error");
         return;
       }
-      const row = t.closest<HTMLTableRowElement>("tr[data-rh-inc-row]");
+      const row = t.closest<HTMLElement>("[data-rh-inc-row]");
       if (row) {
         const raw = row.getAttribute("data-rh-inc-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
@@ -268,7 +271,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     "keydown",
     (e: Event) => {
       const ke = e as KeyboardEvent;
-      const tr = (ke.target as HTMLElement | null)?.closest?.("tr[data-rh-inc-row]");
+      const tr = (ke.target as HTMLElement | null)?.closest?.("[data-rh-inc-row]");
       if (!tr) return;
       if (ke.key !== "Enter" && ke.key !== " ") return;
       ke.preventDefault();

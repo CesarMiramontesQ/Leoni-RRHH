@@ -4,6 +4,11 @@ import type {
   ComedorPanelState,
   ComedorTeamReservationsPage,
 } from "../../comedor/rh/types.ts";
+import {
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_LISTADO_SURFACE,
+  RH_SOLICITUDES_BTN_PRIMARY,
+} from "../../ui/uiTokens.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
 import { renderComedorStats } from "./comedorStats.ts";
 import { renderComedorTeamReservationsTable } from "./comedorTeamReservationsTable.ts";
@@ -23,23 +28,26 @@ export type ComedorDashboardLiderViewState = {
 
 function renderHeader(): string {
   return `
-    <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <p class="mt-1 text-sm text-text-muted">
-          Consulta reservas propias y de tu equipo.
-        </p>
-      </div>
-      <div class="flex shrink-0 flex-wrap items-center gap-2">
-        <button type="button" data-comedor-nuevo class="inline-flex items-center rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-leoni-blue-light">
-          Agregar comida
-        </button>
+    <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6">
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+        <div class="rh-sol-hero__copy min-w-0 flex-1">
+          <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Comedor</h1>
+          <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">
+            Consulta reservas propias y de tu equipo.
+          </p>
+        </div>
+        <div class="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+          <button type="button" data-comedor-nuevo class="${RH_SOLICITUDES_BTN_PRIMARY} w-full sm:w-auto">
+            Agregar comida
+          </button>
+        </div>
       </div>
     </section>`;
 }
 
 export function renderComedorDashboardLider(state: ComedorDashboardLiderViewState): string {
   return `
-    <div class="flex min-h-[calc(100dvh-11rem)] flex-col gap-4 sm:gap-5">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">
       ${renderHeader()}
       ${renderComedorStats(
         state.statsState,

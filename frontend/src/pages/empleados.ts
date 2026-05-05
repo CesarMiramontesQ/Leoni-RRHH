@@ -21,14 +21,99 @@ import {
   getRolFromAccessToken,
 } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
-import { mountEditarAsignacionModal } from "../components/empleados/editarAsignacionModal.ts";
-import type { EditarAsignacionModalHandle } from "../components/empleados/editarAsignacionModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { antiguedadAniosMeses, formatFechaIngreso } from "../utils/vista360Domain.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
-import { FIELD_FOCUS, SELECT_CHEVRON, BTN_GHOST } from "../ui/uiTokens.ts";
+import {
+  FIELD_FOCUS,
+  FILTER_FIELD_WRAP,
+  SELECT_CHEVRON,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_LISTADO_SELECT,
+  RH_LISTADO_SURFACE,
+  htmlAccessDenied,
+} from "../ui/uiTokens.ts";
+
+/** Filtros e inputs alineados a Solicitudes (misma altura, radio y sombra). */
+const EMP_RH_FILTER_CONTROL = `rh-emp-filter-input min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc]`;
+
+const EMP_RH_FILTER_SELECT = `${RH_LISTADO_SELECT} min-h-[42px] rounded-[12px] border-[rgba(148,163,184,0.35)] py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc]`;
+
+const EMP_RH_TABLE_TH =
+  "rh-sol-th sticky top-0 z-20 whitespace-nowrap border-b border-[rgba(148,163,184,0.28)] px-3 py-3 text-left text-[13px] font-bold tracking-tight text-[#334155] sm:px-4";
+
+/** Botón/icono «ver» en columna Acción (mismo estilo que Solicitudes). */
+const EMP_RH_VER_BTN =
+  "rh-sol-act-btn inline-flex size-9 shrink-0 items-center justify-center rounded-[11px] border border-[rgba(148,163,184,0.35)] bg-white text-slate-600 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition-[background,border-color,color,box-shadow,transform] duration-150 ease-out hover:border-[rgba(37,99,235,0.35)] hover:bg-[rgba(219,234,254,0.45)] hover:text-[#002147] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2";
+
+function svgIconVerEmpleado(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`;
+}
+
+const empleadosPageShellClass =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+
+const empleadosMainClass = "pt-0 pb-5 sm:pb-6";
+
+function iconSearchInput(): string {
+  return `<span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-[1.125rem]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+  </span>`;
+}
+
+function renderEmpleadosHeroRh(): string {
+  return `
+    <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6" aria-labelledby="rh-empleados-hero-title">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-8">
+        <div class="rh-sol-hero__copy min-w-0 flex-1 md:max-w-[min(100%,42rem)]">
+          <h1 id="rh-empleados-hero-title" class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Empleados</h1>
+          <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y consulta de información del personal.</p>
+        </div>
+      </div>
+    </section>`;
+}
+
+function renderKpisSkeletonRh(): string {
+  const skel = `<div class="animate-pulse rounded-[14px] border border-[rgba(148,163,184,0.22)] bg-linear-to-br from-white to-[#f8fbff] p-5 shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
+    <div class="flex items-start justify-between gap-2">
+      <div class="h-3.5 w-28 rounded-md bg-slate-200/90"></div>
+      <div class="h-11 w-11 rounded-xl bg-slate-200/80"></div>
+    </div>
+    <div class="mt-4 h-10 w-24 rounded-md bg-slate-100/90"></div>
+    <div class="mt-3 h-3 w-full max-w-[14rem] rounded-md bg-slate-100/80"></div>
+  </div>`;
+  return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${skel}${skel}${skel}${skel}</div>`;
+}
+
+function renderTableLoadingRh(): string {
+  const skRow = `<tr class="rh-sol-loading-row">${"<td class=\"px-3 py-3 sm:px-4\"><div class=\"h-4 animate-pulse rounded-md bg-slate-200/80\"></div></td>".repeat(7)}</tr>`;
+  return `
+    <section class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-busy="true" aria-label="Listado de empleados">
+      <div class="flex items-center gap-2.5 border-b border-slate-100/90 px-4 py-3 text-sm text-[#475569] sm:px-5">
+        <svg class="size-5 shrink-0 animate-spin text-[#2563eb]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        Cargando tabla…
+      </div>
+      <div class="overflow-x-auto px-2 pb-3 sm:px-3">
+        <table class="min-w-[760px] w-full text-left">
+          <thead class="rh-sol-thead"><tr>
+            ${["Empleado", "Número", "Área", "Puesto", "Líder", "Estatus", "Acción"]
+              .map((lab) => `<th scope="col" class="${EMP_RH_TABLE_TH}">${lab}</th>`)
+              .join("")}
+          </tr></thead>
+          <tbody class="rh-sol-tbody divide-y divide-slate-100/80">${skRow.repeat(5)}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+function dotEstado(cls: string): string {
+  return `<span class="size-1.5 shrink-0 rounded-full ${cls}" aria-hidden="true"></span>`;
+}
 
 function nombreEmpleadoTablaMostrar(raw: string): string {
   return formatNombreEmpleadoUi(raw) || "Sin nombre";
@@ -300,20 +385,28 @@ function renderKpis(
         Sin vencimientos en la ventana
       </p>`;
 
+  const sinLiderResaltar = r.sin_lider_asignado > 50;
+  const kpiShell =
+    "flex min-h-[10.5rem] flex-col rounded-[14px] border p-5 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.1)]";
+  const titleKpi = "text-[13px] font-bold leading-tight text-[#475569]";
+  const numPlantilla = `${KPI_NUM_CLS} text-[#0c2340]`;
+  const numActivos = `${KPI_NUM_CLS} text-emerald-900`;
+  const numSinLider = `${KPI_NUM_CLS} ${sinLiderResaltar ? "text-amber-900" : "text-[#0c2340]"}`;
+
   return `
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="${kpiShell} border-[rgba(37,99,235,0.2)] bg-linear-to-br from-white to-[#eff6ff]">
         <div class="flex items-start justify-between gap-3">
-          <p class="text-sm font-semibold text-slate-600">Total de plantilla</p>
+          <h2 class="${titleKpi}">Total de plantilla</h2>
           ${kpiMetricIconBox("total", svgKpiTotalPlantilla())}
         </div>
-        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.total_plantilla))}</p>
+        <p class="${numPlantilla}">${escapeHtml(String(r.total_plantilla))}</p>
         <p class="${KPI_SUB_CLS}">Registro actual de personas en nómina</p>
-        <p class="${KPI_MICRO_CLS}">Variación vs mes anterior: pendiente de datos</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Variación vs mes anterior: pendiente de datos</p>
       </article>
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+      <article class="${kpiShell} border-emerald-200/60 bg-linear-to-br from-white to-emerald-50/90">
         <div class="flex items-start justify-between gap-3">
-          <p class="text-sm font-semibold text-slate-600">Activos</p>
+          <h2 class="${titleKpi}">Activos</h2>
           ${kpiMetricIconBox(
             "activo",
             `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
@@ -321,31 +414,31 @@ function renderKpis(
             </svg>`,
           )}
         </div>
-        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.activos))}</p>
-        <p class="mt-2 flex items-center gap-1.5 text-sm font-semibold text-kpi-metric-activo-icon">
-          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
+        <p class="${numActivos}">${escapeHtml(String(r.activos))}</p>
+        <p class="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-emerald-800">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0 text-emerald-600" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
           ${escapeHtml(String(r.porcentaje_operatividad))}% operatividad
         </p>
-        <p class="${KPI_MICRO_CLS}">Comparación vs mes anterior: no disponible</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
       </article>
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm${bordeContratosRh}">
+      <article class="${kpiShell} bg-linear-to-br from-white to-amber-50/80${bordeContratosRh}">
         <div class="flex items-start justify-between gap-3">
-          <p class="text-sm font-semibold text-slate-600">Contratos por vencer</p>
+          <h2 class="${titleKpi}">Contratos por vencer</h2>
           ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
         </div>
         <p class="${kpiNumContratosRhCls}">${escapeHtml(String(nContratosPv))}</p>
         <p class="${KPI_SUB_CLS}">Activos con fin de contrato en los próximos 30 días</p>
         ${estadoContratosRh}
-        <p class="${KPI_MICRO_CLS}">Comparación vs mes anterior: no disponible</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
       </article>
-      <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
+      <article class="${kpiShell} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}">
         <div class="flex items-start justify-between gap-3">
-          <p class="text-sm font-semibold text-slate-600">Sin Líder Asignado</p>
+          <h2 class="${titleKpi}">Sin Líder Asignado</h2>
           ${kpiMetricIconBox("sinLider", svgKpiSinLider())}
         </div>
-        <p class="${KPI_NUM_CLS}">${escapeHtml(String(r.sin_lider_asignado))}</p>
+        <p class="${numSinLider}">${escapeHtml(String(r.sin_lider_asignado))}</p>
         <p class="${KPI_SUB_CLS}">Empleados sin responsable jerárquico</p>
-        <p class="${KPI_MICRO_CLS}">Requieren asignación de líder</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Requieren asignación de líder</p>
       </article>
     </div>`;
 }
@@ -418,6 +511,28 @@ function estadoPill(estado: EstadoEmpleadoResponse | null): string {
       ${escapeHtml(label)}</span>`;
 }
 
+/** Badges de estatus para tabla RH (mismo lenguaje que Solicitudes). */
+function estadoBadgeRh(estado: EstadoEmpleadoResponse | null): string {
+  const raw = estado?.descripcion?.trim();
+  const base =
+    "rh-sol-badge-estado inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold";
+  if (!raw) {
+    return `<span class="${base} rh-sol-badge-estado--cancelled">${dotEstado("bg-slate-400")}Sin estado</span>`;
+  }
+  const lower = raw.toLowerCase();
+  const label = raw;
+  if (lower.includes("pendiente")) {
+    return `<span class="${base} rh-sol-badge-estado--pending">${dotEstado("bg-amber-400")}${escapeHtml(label)}</span>`;
+  }
+  if (lower.includes("inactiv") || lower.includes("baja")) {
+    return `<span class="${base} rh-sol-badge-estado--rejected">${dotEstado("bg-red-400")}${escapeHtml(label)}</span>`;
+  }
+  if (esEstadoVisualActivo(estado)) {
+    return `<span class="${base} rh-sol-badge-estado--approved"><svg viewBox="0 0 20 20" fill="currentColor" class="size-3 shrink-0 text-emerald-600" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>${escapeHtml(label)}</span>`;
+  }
+  return `<span class="${base} rh-sol-badge-estado--rejected">${dotEstado("bg-red-400")}${escapeHtml(label)}</span>`;
+}
+
 function rowAccionesLiderHtml(u: UsuarioListItem, name: string): string {
   const empDir = String(u.empleado_id);
   return `<td class="relative w-px px-2 py-3 align-middle" data-emp-row-nolink>
@@ -450,13 +565,29 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
   const isLider = mode === "lider";
   const jefeRol = getRolFromAccessToken();
   const ocultarLider = isLider && jefeRol === "supervisor";
+
+  const fotoUrl = u.foto?.trim();
+  const avatarRhFallback = `<span class="rh-sol-avatar-fallback flex size-10 shrink-0 items-center justify-center rounded-full border border-[rgba(148,163,184,0.35)] bg-linear-to-br from-[#dbeafe] to-[#eff6ff] text-xs font-bold tracking-tight text-[#082f5f] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" title="${escapeHtml(name)}">${escapeHtml(ini)}</span>`;
+  const avatarRh = fotoUrl
+    ? `<span class="relative inline-flex shrink-0">
+        <img src="${escapeHtml(fotoUrl)}" alt="" width="40" height="40" decoding="async" loading="lazy" data-rh-sol-avatar class="rh-sol-avatar-img size-10 rounded-full object-cover ring-1 ring-[rgba(148,163,184,0.35)]" />
+        <span hidden class="rh-sol-avatar-fallback rh-sol-avatar-fallback--swap flex size-10 items-center justify-center rounded-full border border-[rgba(148,163,184,0.35)] bg-linear-to-br from-[#dbeafe] to-[#eff6ff] text-xs font-bold tracking-tight text-[#082f5f] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" title="${escapeHtml(name)}">${escapeHtml(ini)}</span>
+      </span>`
+    : avatarRhFallback;
+
   const avatar = isLider
     ? empleadoAvatarCellHtml(u.foto ?? null, ini)
-    : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
+    : isRh
+      ? avatarRh
+      : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
   const nombreCls = isLider
     ? "text-sm font-bold text-slate-900 group-hover:text-leoni-blue"
-    : "text-sm font-semibold text-slate-900 group-hover:text-leoni-blue";
-  const emailCls = isLider ? "mt-0.5 text-xs leading-tight text-slate-500" : "text-xs text-slate-400";
+    : "text-sm font-semibold leading-snug text-[#0f172a] group-hover:text-leoni-blue";
+  const emailCls = isRh
+    ? "mt-0.5 text-[13px] leading-snug text-[#64748b]"
+    : isLider
+      ? "mt-0.5 text-xs leading-tight text-slate-500"
+      : "text-xs text-slate-400";
   const userStack = isLider
     ? `<div class="min-w-0 flex-1">
           <p class="${nombreCls}">${escapeHtml(name)}</p>
@@ -469,7 +600,11 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
 
   const colLider = ocultarLider
     ? ""
-    : `<td class="max-w-[10rem] px-4 py-4 align-middle text-sm text-slate-600">
+    : isRh
+      ? `<td class="max-w-[10rem] px-3 py-3 align-middle text-[13px] text-[#475569] sm:px-4">
+        <span class="block truncate" title="${escapeHtml(sup)}">${escapeHtml(sup)}</span>
+      </td>`
+      : `<td class="max-w-[10rem] px-4 py-4 align-middle text-sm text-slate-600">
         <span class="block truncate" title="${escapeHtml(sup)}">${escapeHtml(sup)}</span>
       </td>`;
   const colAntiguedad = isLider
@@ -477,42 +612,54 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
     : "";
   const colAccionesLider = isLider ? rowAccionesLiderHtml(u, name) : "";
 
+  const trCls = isRh
+    ? "group rh-sol-data-row rh-sol-data-row--interactive cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue"
+    : "group cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue";
+
+  const tdPad = isRh ? "px-3 py-3 align-middle sm:px-4" : "px-4 py-4 align-middle";
+  const celdaEmpleadoInner = isRh
+    ? `<div class="rh-sol-empleado-celda flex min-w-0 items-center gap-3">
+          ${avatar}
+          ${userStack}
+        </div>`
+    : `<div class="flex min-w-0 items-center gap-3">
+          ${avatar}
+          ${userStack}
+        </div>`;
+
+  const numCell = isRh
+    ? `<span class="inline-flex rounded-lg border border-[rgba(148,163,184,0.32)] bg-[linear-gradient(135deg,#f8fafc_0%,#f1f5f9_100%)] px-2.5 py-1 text-sm font-semibold tabular-nums text-[#475569]">#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</span>`
+    : `#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}`;
+
+  const estadoUi = isRh ? estadoBadgeRh(u.estado) : estadoPill(u.estado);
+
   return `
     <tr
       data-empleado-row-id="${u.id}"
       tabindex="0"
       aria-label="Ver vista 360 de ${escapeHtml(name)}"
-      class="group cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue"
+      class="${trCls}"
     >
-      <td class="px-4 py-4 align-middle">
-        <div class="flex min-w-0 items-center gap-3">
-          ${avatar}
-          ${userStack}
-        </div>
+      <td class="${tdPad}">
+        ${celdaEmpleadoInner}
       </td>
-      <td class="whitespace-nowrap px-4 py-4 text-right align-middle text-sm tabular-nums text-slate-500">#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</td>
-      <td class="max-w-[10rem] px-4 py-4 align-middle text-sm text-slate-700">
+      <td class="whitespace-nowrap ${tdPad} text-right text-sm tabular-nums ${isRh ? "" : "text-slate-500"}">${numCell}</td>
+      <td class="max-w-[10rem] ${tdPad} ${isRh ? "text-[13px] text-[#334155]" : "text-sm text-slate-700"}">
         <span class="block truncate" title="${escapeHtml(area)}">${escapeHtml(area)}</span>
       </td>
-      <td class="max-w-[14rem] px-4 py-4 align-middle text-sm text-slate-700">
+      <td class="max-w-[14rem] ${tdPad} ${isRh ? "text-[13px] text-[#334155]" : "text-sm text-slate-700"}">
         <span class="block truncate" title="${puestoTitle}">${escapeHtml(puesto)}</span>
       </td>
       ${colLider}
       ${colAntiguedad}
-      <td class="px-4 py-4 align-middle">${estadoPill(u.estado)}</td>
-      ${isRh ? `<td class="cursor-default px-4 py-4 text-right align-middle" data-empleado-row-actions>
-        <button
-          type="button"
-          data-edit-empleado-id="${u.id}"
-          title="Editar área, puesto o líder"
-          class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-slate-500 shadow-sm ring-1 ring-slate-200/80 transition-colors hover:bg-leoni-blue/10 hover:text-leoni-blue hover:ring-leoni-blue/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
-          aria-label="Editar asignación de ${escapeHtml(name)}"
-        >
-          <svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true">
-            <path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
-            <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
-          </svg>
-        </button>
+      <td class="${tdPad}">${estadoUi}</td>
+      ${isRh ? `<td class="cursor-default ${tdPad} text-right" data-empleado-row-actions>
+        <a
+          href="#/empleados/${u.id}"
+          class="${EMP_RH_VER_BTN}"
+          title="Ver empleado"
+          aria-label="Ver empleado"
+        >${svgIconVerEmpleado()}</a>
       </td>` : ""}
       ${colAccionesLider}
     </tr>`;
@@ -596,6 +743,158 @@ function empleadosSelectFilterCompact(id: string, name: string, labelText: strin
 </div>`;
 }
 
+function empleadosSelectFilterRh(id: string, name: string, labelText: string, optionsHtml: string): string {
+  return `<div class="min-w-0">
+  <label for="${id}" class="${RH_LISTADO_LABEL}">${escapeHtml(labelText)}</label>
+  <div class="mt-1 grid grid-cols-1">
+    <select id="${id}" name="${name}" class="col-start-1 row-start-1 ${EMP_RH_FILTER_SELECT} ${FIELD_FOCUS}">
+      ${optionsHtml}
+    </select>
+    ${SELECT_CHEVRON}
+  </div>
+</div>`;
+}
+
+/** Vista listado RH: filtros y tabla alineados a Solicitudes. */
+function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage, liderUiForFilters: boolean): string {
+  const colCount = 7;
+  const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
+  const from = pg.total === 0 ? 0 : (pg.page - 1) * pg.page_size + 1;
+  const to = Math.min(pg.page * pg.page_size, pg.total);
+  const pages = paginationRange(totalPages, pg.page);
+
+  const rows =
+    pg.items.length === 0
+      ? `<tr><td colspan="${colCount}" class="p-0">
+    <div class="rh-sol-empty px-4 py-12 sm:px-6" role="status">
+      <p class="rh-sol-empty__title text-center text-sm font-semibold text-[#0f172a]">No se encontraron empleados</p>
+      <p class="rh-sol-empty__sub mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">Prueba ajustando los filtros de búsqueda.</p>
+    </div>
+  </td></tr>`
+      : pg.items.map((u) => rowHtml(u, "rh")).join("");
+
+  const pageButtons = pages
+    .map((x) => {
+      if (x === "ellipsis") {
+        return `<span class="flex min-h-8 items-center px-1.5 text-xs text-slate-500 sm:text-sm">…</span>`;
+      }
+      const active = x === pg.page;
+      const cls = active
+        ? "min-h-8 min-w-8 rounded-lg bg-[#1e40af] px-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] sm:px-2.5 sm:text-sm"
+        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
+      return `<button type="button" data-emp-page="${x}" class="${cls}">${x}</button>`;
+    })
+    .join("");
+
+  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
+  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
+  const statusOpts = `<option value="" ${state.activo_rh === "" ? "selected" : ""}>Todos los estatus</option>
+            <option value="true" ${state.activo_rh === "true" ? "selected" : ""}>Activos</option>
+            <option value="false" ${state.activo_rh === "false" ? "selected" : ""}>No activos</option>`;
+
+  const clearVisible = filtrosActivos(state, true, liderUiForFilters);
+  const clearBtn = clearVisible
+    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
+        <button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear w-full sm:w-auto">Limpiar filtros</button>
+      </div>`
+    : "";
+
+  const countHtml = `<p class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[#0f172a]">${escapeHtml(String(pg.total))}</span> empleados</p>`;
+
+  const searchWrap = `
+    <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
+      <label for="emp-search" class="${RH_LISTADO_LABEL}">Búsqueda</label>
+      <div class="relative mt-1">
+        ${iconSearchInput()}
+        <input
+          id="emp-search"
+          type="search"
+          name="emp-search"
+          autocomplete="off"
+          enterkeyhint="search"
+          placeholder="Buscar por nombre, ID o número de empleado..."
+          value="${escapeHtml(state.q)}"
+          class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
+        />
+        <span data-emp-search-loading class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted" aria-hidden="true">
+          <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+      </div>
+    </div>`;
+
+  const filtrosInner = `
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
+        ${searchWrap}
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-status", "emp-filter-status", "Estatus", statusOpts)}</div>
+        ${clearBtn}
+      </div>`;
+
+  const pageSizeOpts = [10, 25, 50, 100]
+    .map((n) => `<option value="${n}" ${n === state.page_size ? "selected" : ""}>${n}</option>`)
+    .join("");
+
+  return `
+    <div class="flex flex-col gap-5">
+      <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros del listado de empleados">
+        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Filtros de búsqueda</h2>
+          ${countHtml}
+        </div>
+        ${filtrosInner}
+      </section>
+      <section data-emp-table-region class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
+      <div class="max-h-[min(72vh,780px)] overflow-auto">
+        <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
+        <table class="min-w-[760px] w-full text-left">
+          <thead class="rh-sol-thead">
+            <tr>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Empleado</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH} text-right">Número</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Área</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Puesto</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Líder</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Estatus</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH} text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody class="rh-sol-tbody divide-y divide-slate-100/90">${rows}</tbody>
+        </table>
+      </div>
+      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <p class="text-xs font-medium text-slate-600 sm:text-sm">
+            Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${pg.total}</span> empleados
+          </p>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <label for="emp-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
+            <select id="emp-page-size" name="emp-page-size" class="rh-sol-filter-select min-h-[38px] rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 hover:border-[rgba(100,116,139,0.45)] sm:text-sm ${FIELD_FOCUS}">
+              ${pageSizeOpts}
+            </select>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
+          <button type="button" data-emp-page="${pg.page - 1}" ${pg.page <= 1 ? "disabled" : ""}
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
+            <span class="sr-only">Anterior</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+          </button>
+          ${pageButtons}
+          <button type="button" data-emp-page="${pg.page + 1}" ${pg.page >= totalPages ? "disabled" : ""}
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
+            <span class="sr-only">Siguiente</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+          </button>
+        </div>
+      </div>
+      </section>
+    </div>`;
+}
+
 function renderPanel(
   state: State,
   catalogo: CatalogoFiltros,
@@ -603,11 +902,14 @@ function renderPanel(
   mode: PanelMode,
   liderUiForFilters: boolean,
 ): string {
-  const isRh = mode === "rh";
+  if (mode === "rh") {
+    return renderPanelRh(state, catalogo, pg, liderUiForFilters);
+  }
+
   const isLider = mode === "lider";
   const jefeRol = getRolFromAccessToken();
   const ocultarLiderCol = isLider && jefeRol === "supervisor";
-  const colCount = isRh ? 7 : isLider ? (ocultarLiderCol ? 7 : 8) : 6;
+  const colCount = isLider ? (ocultarLiderCol ? 7 : 8) : 6;
 
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
   const from = pg.total === 0 ? 0 : (pg.page - 1) * pg.page_size + 1;
@@ -626,45 +928,35 @@ function renderPanel(
       }
       const active = x === pg.page;
       const cls = active
-        ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
-        : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+        ? "min-h-10 min-w-10 rounded-lg bg-[#1e40af] px-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1d4ed8]"
+        : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2";
       return `<button type="button" data-emp-page="${x}" class="${cls}">${x}</button>`;
     })
     .join("");
 
   const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
   const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
-  const statusOpts = `<option value="" ${state.activo_rh === "" ? "selected" : ""}>Todos los estatus</option>
-            <option value="true" ${state.activo_rh === "true" ? "selected" : ""}>Activos</option>
-            <option value="false" ${state.activo_rh === "false" ? "selected" : ""}>No activos</option>`;
 
   const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
             <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
             <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
 
-  const clearBtn = filtrosActivos(state, isRh, liderUiForFilters)
-    ? `<button type="button" data-emp-clear-filters class="${BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
+  const clearBtn = filtrosActivos(state, false, liderUiForFilters)
+    ? `<button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
     : "";
 
   const filtrosToolbar = clearBtn
     ? `<div class="mb-4 flex justify-end sm:mb-3">${clearBtn}</div>`
     : "";
 
-  const filtrosGrid = isRh
-    ? `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
-        <div class="min-w-0 md:col-span-2 xl:col-span-6">${empleadosSearchInput(state.q)}</div>
-        <div class="min-w-0 md:col-span-1 xl:col-span-2">${empleadosSelectFilter("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
-        <div class="min-w-0 md:col-span-1 xl:col-span-2">${empleadosSelectFilter("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
-        <div class="min-w-0 md:col-span-2 xl:col-span-2">${empleadosSelectFilter("emp-filter-status", "emp-filter-status", "Estatus", statusOpts)}</div>
-      </div>`
-    : isLider
-      ? `<div class="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-end xl:gap-x-3 xl:gap-y-2">
+  const filtrosGrid = isLider
+    ? `<div class="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-end xl:gap-x-3 xl:gap-y-2">
         ${empleadosSearchFieldLiderCompact(state.q)}
         ${empleadosSelectFilterCompact("emp-filter-area", "emp-filter-area", "Área", areaOpts)}
         ${empleadosSelectFilterCompact("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}
         ${empleadosSelectFilterCompact("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}
       </div>`
-      : `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+    : `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
         <div class="min-w-0 md:col-span-2 xl:col-span-6">${empleadosSearchInput(state.q)}</div>
         <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
         <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
@@ -682,15 +974,16 @@ function renderPanel(
               <th scope="col" class="sticky top-0 z-20 border-b border-slate-200 bg-slate-100 px-4 py-3 text-right text-sm font-bold">Acciones</th>
             </tr>`;
 
+  const thClassic = (align: "text-left" | "text-right") =>
+    `sticky top-0 z-20 border-b border-slate-200 bg-slate-50 px-4 py-3 ${align} text-[13px] font-semibold text-slate-700`;
   const theadClassic = `
-            <tr class="text-white">
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Empleado</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Número</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Área</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Puesto</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Líder</th>
-              <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Estatus</th>
-              ${isRh ? `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Acción</th>` : ""}
+            <tr>
+              <th scope="col" class="${thClassic("text-left")}">Empleado</th>
+              <th scope="col" class="${thClassic("text-right")}">Número</th>
+              <th scope="col" class="${thClassic("text-left")}">Área</th>
+              <th scope="col" class="${thClassic("text-left")}">Puesto</th>
+              <th scope="col" class="${thClassic("text-left")}">Líder</th>
+              <th scope="col" class="${thClassic("text-left")}">Estatus</th>
             </tr>`;
 
   const theadInner = isLider ? theadLider : theadClassic;
@@ -702,15 +995,15 @@ function renderPanel(
 
   return `
     <div class="flex flex-col gap-8">
-      <section class="rounded-xl border border-slate-200/90 bg-white p-4 pt-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6 sm:pt-6" aria-label="Filtros del listado de empleados">
+      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-6" aria-label="Filtros del listado de empleados">
         ${filtrosToolbar}
         ${filtrosGrid}
       </section>
-      <section data-emp-table-region class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5 transition-opacity duration-150" aria-label="Listado de empleados">
+      <section data-emp-table-region class="overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
         <table class="${tableMinW} w-full text-left">
-          <thead class="${isLider ? "shadow-sm" : "border-b border-leoni-blue-light shadow-sm"}">
+          <thead class="${isLider ? "bg-slate-50" : "bg-slate-50"}">
             ${theadInner}
           </thead>
           <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -745,12 +1038,12 @@ function renderPanel(
 }
 
 function forbiddenHtml(): string {
-  return `
-    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-      <p class="font-semibold">Acceso restringido</p>
-      <p class="mt-1">Se requiere rol RH, gerente, director o supervisor para el directorio.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
-    </div>`;
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "Se requiere rol RH, gerente, director o supervisor para el directorio.",
+    linkHref: "#/",
+    linkLabel: "Volver al dashboard",
+  });
 }
 
 export function mountEmpleados(container: HTMLElement, signal: AbortSignal): void {
@@ -777,7 +1070,6 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     kpi_filtrar_contratos: false,
   };
 
-  let currentPageItems: UsuarioListItem[] = [];
   let resumenGestion: UsuarioResumen | null = null;
 
   let catalogo: CatalogoFiltros = { areas: [], puestos: [] };
@@ -787,8 +1079,17 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   mountAppShell(container, {
     pageTitle: "Empleados",
     activeNav: "empleados",
-    mainHtml: `
-      <div id="empleados-root" class="space-y-8">
+    ...(isRh ? { mainClass: empleadosMainClass } : {}),
+    mainHtml: isRh
+      ? `<div id="rh-empleados-page" class="${empleadosPageShellClass}">
+      <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+        ${renderEmpleadosHeroRh()}
+        <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
+        <div id="empleados-panel">${renderTableLoadingRh()}</div>
+      </div>
+    </div>`
+      : `
+      <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER}">
         <div id="empleados-kpis">
           <div class="flex items-center gap-3 py-4 text-sm text-text-muted">
             <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -801,35 +1102,16 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
             Cargando tabla…
           </div>
         </div>
-      </div>
-      ${isRh ? `<div id="editar-asignacion-modal-host"></div>` : ""}`,
+      </div>`,
   });
 
   const empleadosRoot = container.querySelector("#empleados-root") as HTMLElement | null;
-  const editModalHost = container.querySelector("#editar-asignacion-modal-host") as HTMLElement | null;
-
-  let editModal: EditarAsignacionModalHandle | null = null;
-  if (isRh && empleadosRoot && editModalHost) {
-    editModal = mountEditarAsignacionModal(editModalHost, {
-      onSuccess: () => void init(),
-      onSessionExpired: () => {
-        clearAuth();
-        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
-          abortAuthenticatedShell();
-          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
-        });
-      },
-      toastContainer: empleadosRoot,
-      signal,
-    });
-  }
 
   if (empleadosRoot) {
     empleadosRoot.addEventListener(
       "click",
       (e) => {
         const t = e.target as HTMLElement;
-        if (t.closest("[data-edit-empleado-id]")) return;
         if (t.closest("details") || t.closest("summary") || t.closest("a[href]")) return;
         const tr = t.closest<HTMLTableRowElement>("tr[data-empleado-row-id]");
         if (!tr) return;
@@ -855,18 +1137,20 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     );
   }
 
-  container.addEventListener(
-    "click",
-    (e) => {
-      const t = e.target as HTMLElement;
-      const btn = t.closest<HTMLButtonElement>("[data-edit-empleado-id]");
-      if (!btn || !isRh || !editModal) return;
-      const id = Number.parseInt(btn.getAttribute("data-edit-empleado-id") ?? "", 10);
-      const empleado = currentPageItems.find((u) => u.id === id);
-      if (!empleado) return;
-      void editModal.open(empleado);
+  const rhEmpleadosPage = container.querySelector("#rh-empleados-page");
+  rhEmpleadosPage?.addEventListener(
+    "error",
+    (ev) => {
+      const el = ev.target;
+      if (!(el instanceof HTMLImageElement)) return;
+      if (!el.hasAttribute("data-rh-sol-avatar")) return;
+      el.classList.add("hidden");
+      const fb = el.nextElementSibling;
+      if (fb instanceof HTMLElement && fb.classList.contains("rh-sol-avatar-fallback--swap")) {
+        fb.removeAttribute("hidden");
+      }
     },
-    { signal },
+    { capture: true, signal },
   );
 
   const kpisEl = (): HTMLElement | null => container.querySelector("#empleados-kpis");
@@ -902,12 +1186,11 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     if (background) {
       setSearchLoading(true);
     } else {
-      panel.innerHTML = `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
+      panel.innerHTML = isRh ? renderTableLoadingRh() : `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
     }
     try {
       const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRh, kpiGestionEquipo));
       if (requestId !== latestLoadRequestId) return;
-      currentPageItems = pg.items;
       const pm = panelMode(isRh, kpiGestionEquipo);
       panel.innerHTML = renderPanel(state, catalogo, pg, pm, kpiGestionEquipo);
       const kEl = kpisEl();
@@ -966,7 +1249,6 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
           kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
         );
       }
-      currentPageItems = pg.items;
       const panel = panelEl();
       if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, panelMode(isRh, kpiGestionEquipo), kpiGestionEquipo);
     } catch (e: unknown) {

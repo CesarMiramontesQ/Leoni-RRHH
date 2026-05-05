@@ -11,6 +11,7 @@ import {
   getNotificacionesResumenSnapshot,
   refreshNotificacionesResumen,
 } from "../notificaciones/notificacionesResumenStore.ts";
+import { renderNotificationsDropdownEmpty } from "../notificaciones/emptyNotificationsState.ts";
 import { renderNotificacionBadge, renderNotificacionListItem } from "../notificaciones/ui.ts";
 
 function escapeHtmlText(s: string): string {
@@ -273,7 +274,14 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       </p>
       <div class="flex items-center gap-x-4 lg:gap-x-6">
         <div id="app-shell-notifications-wrapper" class="relative">
-          <button type="button" id="app-shell-notifications" class="relative -m-2.5 p-2.5 text-text-muted hover:text-text-primary">
+          <button
+            type="button"
+            id="app-shell-notifications"
+            class="relative -m-2.5 p-2.5 text-text-muted hover:text-text-primary"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="app-shell-notifications-panel"
+          >
             <span class="sr-only">Ver notificaciones</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
               <path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />
@@ -282,16 +290,20 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
           </button>
           <div
             id="app-shell-notifications-panel"
-            class="invisible absolute right-0 z-50 mt-2 w-[22rem] origin-top-right rounded-md border border-border bg-white opacity-0 shadow-lg transition duration-100 ease-out"
+            class="notif-dropdown-panel"
+            role="region"
+            aria-labelledby="notif-dropdown-heading"
           >
-            <div class="flex items-center justify-between border-b border-border px-3 py-2">
-              <p class="text-sm font-semibold text-text-primary">Notificaciones</p>
-              <span id="app-shell-notifications-count" class="text-xs text-text-muted">0 no leídas</span>
+            <header class="notif-dropdown-header">
+              <h2 id="notif-dropdown-heading" class="notif-dropdown-header__title">Notificaciones</h2>
+              <span id="app-shell-notifications-count" class="notif-dropdown-header-badge">0 no leídas</span>
+            </header>
+            <div id="app-shell-notifications-list" class="notif-dropdown-list">
+              <p class="notif-dropdown-loading">Cargando...</p>
             </div>
-            <div id="app-shell-notifications-list" class="max-h-96 space-y-2 overflow-y-auto p-3">
-              <p class="text-sm text-text-muted">Cargando...</p>
-            </div>
-            <a href="#/notificaciones" class="block border-t border-border px-3 py-2 text-center text-sm font-semibold text-leoni-blue hover:bg-surface">Ver todas</a>
+            <footer class="notif-dropdown-footer">
+              <a href="#/notificaciones" class="notif-dropdown-footer-link">Ver todas →</a>
+            </footer>
           </div>
         </div>
 
@@ -358,14 +370,14 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const setNotifPanelState = (open: boolean): void => {
     notifPanelOpen = open;
     if (!notifPanel) return;
-    notifPanel.classList.toggle("invisible", !open);
-    notifPanel.classList.toggle("opacity-0", !open);
+    notifPanel.classList.toggle("notif-dropdown-panel--open", open);
+    notifButton?.setAttribute("aria-expanded", open ? "true" : "false");
   };
 
   const renderNotifDropdown = (items: NotificacionApiItem[]): void => {
     if (!notifList) return;
     if (items.length === 0) {
-      notifList.innerHTML = `<p class="rounded-md border border-border bg-surface px-3 py-4 text-center text-sm text-text-muted">No tienes notificaciones recientes.</p>`;
+      notifList.innerHTML = renderNotificationsDropdownEmpty();
       return;
     }
     notifList.innerHTML = items.map((item) => renderNotificacionListItem(item, { compact: true })).join("");
@@ -378,7 +390,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     notifBadgeHost.innerHTML = renderNotificacionBadge(snap.unreadCount);
     notifCount.textContent = `${snap.unreadCount} no leídas`;
     if (snap.status === "error" && snap.errorMessage) {
-      notifList.innerHTML = `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">${escapeHtmlText(snap.errorMessage)}</p>`;
+      notifList.innerHTML = `<p class="notif-dropdown-error" role="alert">${escapeHtmlText(snap.errorMessage)}</p>`;
       return;
     }
     renderNotifDropdown(snap.recientes);
@@ -387,7 +399,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const loadNotificaciones = async (): Promise<void> => {
     if (!notifList || !notifBadgeHost || !notifCount) return;
     if (notifPanelOpen) {
-      notifList.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
+      notifList.innerHTML = `<p class="notif-dropdown-loading">Cargando...</p>`;
     }
     const antes = getNotificacionesResumenSnapshot();
     if (antes.status === "idle") {

@@ -1,12 +1,13 @@
 import type { ComedorPanelState, ComedorRhProximosRegistrosPage } from "../../comedor/rh/types.ts";
+import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 import {
   renderComedorReservationsFiltersToolbar,
   type ComedorTableFiltersState,
 } from "./comedorReservationsTable.ts";
-import { escapeComedorHtml, paginationRange } from "./comedorUiUtils.ts";
+import { COMEDOR_TABLE_TH, escapeComedorHtml, paginationRange } from "./comedorUiUtils.ts";
 
 function th(label: string): string {
-  return `<th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-3 py-2 text-left text-xs font-semibold text-white sm:px-4 sm:text-sm">${escapeComedorHtml(label)}</th>`;
+  return `<th scope="col" class="${COMEDOR_TABLE_TH}">${escapeComedorHtml(label)}</th>`;
 }
 
 function formatFechaServicio(iso: string): string {
@@ -29,18 +30,38 @@ function tipoComidaLabel(raw: string): string {
   return raw;
 }
 
+function tipoComidaBadge(raw: string): string {
+  const label = tipoComidaLabel(raw);
+  const k = raw.trim().toLowerCase();
+  const base =
+    "inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold";
+  if (k === "saludable") {
+    return `<span class="${base} border-emerald-200/90 bg-linear-to-r from-emerald-50 to-teal-50 text-emerald-900"><span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>${escapeComedorHtml(label)}</span>`;
+  }
+  if (k === "casera") {
+    return `<span class="${base} border-sky-200/90 bg-linear-to-r from-sky-50 to-blue-50 text-sky-950"><span class="size-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span>${escapeComedorHtml(label)}</span>`;
+  }
+  return `<span class="${base} border-slate-200 bg-slate-50 text-slate-800">${escapeComedorHtml(label)}</span>`;
+}
+
+function dot(cls: string): string {
+  return `<span class="size-1.5 shrink-0 rounded-full ${cls}" aria-hidden="true"></span>`;
+}
+
 function estadoAccesoBadge(estado: string): string {
   const k = estado.trim().toUpperCase();
+  const base =
+    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold";
   if (k === "ACCEDIDO") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">${escapeComedorHtml("Accedido")}</span>`;
+    return `<span class="${base} border-emerald-200/90 bg-linear-to-r from-emerald-50 to-teal-50 text-emerald-900">${dot("bg-emerald-500")}${escapeComedorHtml("Accedido")}</span>`;
   }
   if (k === "PENDIENTE") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">${escapeComedorHtml("Pendiente")}</span>`;
+    return `<span class="${base} border-amber-200/90 bg-linear-to-r from-amber-50 to-yellow-50 text-amber-950">${dot("bg-amber-400")}${escapeComedorHtml("Pendiente")}</span>`;
   }
   if (k === "EXPIRADO") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">${escapeComedorHtml("Cancelado")}</span>`;
+    return `<span class="${base} border-red-200/90 bg-linear-to-r from-red-50 to-rose-50 text-red-900">${dot("bg-red-400")}${escapeComedorHtml("Cancelado")}</span>`;
   }
-  return `<span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700">${escapeComedorHtml(estado)}</span>`;
+  return `<span class="${base} border-slate-200 bg-slate-50 text-slate-800">${escapeComedorHtml(estado)}</span>`;
 }
 
 function proximosSubtitle(filters: ComedorTableFiltersState): string {
@@ -68,7 +89,7 @@ export function renderComedorRhProximosRegistrosTable(
       <span class="font-medium">Registros por página</span>
       <select
         data-comedor-rh-futuros-page-size
-        class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm font-semibold text-slate-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue"
+        class="min-h-10 rounded-[10px] border border-[rgba(148,163,184,0.35)] bg-white px-2.5 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
       >
         <option value="10" ${pageSize === 10 ? "selected" : ""}>10</option>
         <option value="50" ${pageSize === 50 ? "selected" : ""}>50</option>
@@ -82,14 +103,14 @@ export function renderComedorRhProximosRegistrosTable(
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-base font-semibold text-text-primary">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
           ${pageSizeSelect}
         </div>
-        <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-busy="true">
+        <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-busy="true">
           <div class="animate-pulse p-4 sm:p-5">
-            <div class="h-10 rounded bg-slate-100"></div>
-            <div class="mt-3 h-10 rounded bg-slate-100"></div>
-            <div class="mt-3 h-10 rounded bg-slate-100"></div>
+            <div class="h-10 rounded-lg bg-slate-100"></div>
+            <div class="mt-3 h-10 rounded-lg bg-slate-100"></div>
+            <div class="mt-3 h-10 rounded-lg bg-slate-100"></div>
           </div>
         </section>
       </div>`;
@@ -100,13 +121,13 @@ export function renderComedorRhProximosRegistrosTable(
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-base font-semibold text-text-primary">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
           ${pageSizeSelect}
         </div>
-        <section class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700 shadow-sm">
-          <p class="font-semibold">No fue posible cargar los próximos registros.</p>
+        <section class="rh-sol-table-error-fallback rounded-2xl border border-red-200/90 px-4 py-4 text-sm text-red-700 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <p class="font-semibold text-red-900">No fue posible cargar los próximos registros.</p>
           <p class="mt-1">${escapeComedorHtml(errorMessage ?? "Error inesperado.")}</p>
-          <button type="button" data-comedor-rh-futuros-retry class="mt-3 inline-flex rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">
+          <button type="button" data-comedor-rh-futuros-retry class="mt-3 inline-flex min-h-10 items-center rounded-[10px] border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-2">
             Reintentar
           </button>
         </section>
@@ -118,11 +139,14 @@ export function renderComedorRhProximosRegistrosTable(
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-base font-semibold text-text-primary">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
           ${pageSizeSelect}
         </div>
-        <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5">
-          <p class="px-4 py-12 text-center text-sm text-slate-500">${escapeComedorHtml(proximosEmptyMessage(filters))}</p>
+        <section class="${RH_LISTADO_SURFACE} overflow-hidden">
+          <div class="rh-sol-empty px-4 py-12 sm:px-6" role="status">
+            <p class="text-center text-sm font-semibold text-[#0f172a]">${escapeComedorHtml(proximosEmptyMessage(filters))}</p>
+            <p class="mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">Prueba ajustando la búsqueda o el filtro de estado.</p>
+          </div>
         </section>
       </div>`;
   }
@@ -130,16 +154,16 @@ export function renderComedorRhProximosRegistrosTable(
   const rows = data.items
     .map(
       (row) => `
-      <tr class="hover:bg-slate-50">
-        <td class="whitespace-nowrap px-3 py-2.5 text-sm font-medium text-slate-800 sm:px-4">${escapeComedorHtml(formatFechaServicio(row.fecha_servicio))}</td>
-        <td class="min-w-0 px-3 py-2.5 sm:px-4">
-          <p class="truncate text-sm font-semibold text-slate-900">${escapeComedorHtml(row.empleado_nombre)}</p>
-          <p class="truncate text-xs text-slate-500">${escapeComedorHtml(row.no_empleado)}</p>
+      <tr class="rh-comedor-data-row transition-colors">
+        <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-800 sm:px-4">${escapeComedorHtml(formatFechaServicio(row.fecha_servicio))}</td>
+        <td class="min-w-0 px-3 py-3 sm:px-4">
+          <p class="truncate text-sm font-semibold leading-snug text-[#0f172a]">${escapeComedorHtml(row.empleado_nombre)}</p>
+          <p class="truncate text-xs font-medium tabular-nums text-[#64748b]">${escapeComedorHtml(row.no_empleado)}</p>
         </td>
-        <td class="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.area || "—")}</td>
-        <td class="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.comedor_nombre || "—")}</td>
-        <td class="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(tipoComidaLabel(row.tipo_comida))}</td>
-        <td class="whitespace-nowrap px-3 py-2.5 sm:px-4">${estadoAccesoBadge(row.estado_acceso)}</td>
+        <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.area || "—")}</td>
+        <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.comedor_nombre || "—")}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${tipoComidaBadge(row.tipo_comida)}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${estadoAccesoBadge(row.estado_acceso)}</td>
       </tr>`,
     )
     .join("");
@@ -164,15 +188,15 @@ export function renderComedorRhProximosRegistrosTable(
       ${toolbar}
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-base font-semibold text-text-primary">Próximas reservas y asistencias</h2>
-          <p class="mt-0.5 text-xs text-text-muted">${escapeComedorHtml(proximosSubtitle(filters))}</p>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
+          <p class="mt-0.5 text-xs text-[#64748b]">${escapeComedorHtml(proximosSubtitle(filters))}</p>
         </div>
         ${pageSizeSelect}
       </div>
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Próximos registros de comedor">
+      <section class="rh-sol-table-section ${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Próximos registros de comedor">
         <div class="overflow-x-auto">
           <table class="min-w-[720px] w-full text-left">
-            <thead class="border-b border-leoni-blue-light shadow-sm">
+            <thead class="rh-sol-thead">
               <tr>
                 ${th("Fecha servicio")}
                 ${th("Empleado")}
@@ -182,7 +206,7 @@ export function renderComedorRhProximosRegistrosTable(
                 ${th("Estado")}
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
+            <tbody class="divide-y divide-slate-100/90 bg-white">${rows}</tbody>
           </table>
         </div>
         <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-4">
