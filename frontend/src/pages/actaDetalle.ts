@@ -16,6 +16,9 @@ import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/no
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
+const actaDetallePageShellClass =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+
 function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
@@ -783,8 +786,8 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     mountAppShell(container, {
       pageTitle: "Detalle de acta",
       activeNav: "actas",
-      mainClass: "py-5 sm:py-6",
-      mainHtml: forbiddenHtml(),
+      mainClass: "pt-0 pb-5 sm:pb-6",
+      mainHtml: `<div class="${actaDetallePageShellClass}"><div class="mx-auto w-full max-w-[1320px] px-2 pb-2 sm:px-3">${forbiddenHtml()}</div></div>`,
     });
     return;
   }
@@ -792,8 +795,8 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   mountAppShell(container, {
     pageTitle: "Detalle de acta",
     activeNav: "actas",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="rh-acta-detalle-page" class="space-y-4">${skeletonHtml()}</div>`,
+    mainClass: "pt-0 pb-5 sm:pb-6",
+    mainHtml: `<div class="${actaDetallePageShellClass}"><div id="rh-acta-detalle-page" class="mx-auto w-full max-w-[1320px] space-y-4 px-2 pb-2 sm:px-3">${skeletonHtml()}</div></div>`,
   });
 
   const pageNode = container.querySelector("#rh-acta-detalle-page");

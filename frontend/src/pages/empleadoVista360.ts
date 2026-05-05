@@ -40,6 +40,8 @@ const iconUser = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const iconBriefcase = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.184 2.675-.394.633-1.086 1.185-2.066 1.185H7c-.98 0-1.672-.552-2.066-1.185-.397-.639-1.184-1.581-1.184-2.675v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.182-2.649a2.18 2.18 0 0 0-.908-.91 2.18 2.18 0 0 0-1.661-.75H7.5a2.18 2.18 0 0 0-1.661.75 2.18 2.18 0 0 0-.908.91C4.517 5.691 3.75 6.625 3.75 7.706v3.784a2.18 2.18 0 0 0 .75 1.661m16.5 0A2.25 2.25 0 0 1 18 16.5h-12a2.25 2.25 0 0 1-2.25-2.25V8.25A2.25 2.25 0 0 1 6 6h12a2.25 2.25 0 0 1 2.25 2.25v5.25Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const iconId = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm3.75 6.75h-9v-.75a3.375 3.375 0 0 1 3.375-3.375h2.25a3.375 3.375 0 0 1 3.375 3.375v.75Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const iconCalendar = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+const vista360PageShellClass =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
 function forbiddenHtml(): string {
   return htmlAccessDenied({
@@ -340,7 +342,8 @@ export function mountEmployeeVista360(
     mountAppShell(container, {
       pageTitle: "Vista 360",
       activeNav: "empleados",
-      mainHtml: `<div class="space-y-4">${forbiddenHtml()}</div>`,
+      mainClass: "pt-0 pb-5 sm:pb-6",
+      mainHtml: `<div class="${vista360PageShellClass}"><div class="mx-auto w-full max-w-[1320px] space-y-4 px-2 pb-2 sm:px-3">${forbiddenHtml()}</div></div>`,
     });
     return;
   }
@@ -350,9 +353,12 @@ export function mountEmployeeVista360(
   mountAppShell(container, {
     pageTitle: "Vista 360",
     activeNav: "empleados",
+    mainClass: "pt-0 pb-5 sm:pb-6",
     mainHtml: `
-      <div id="v360-root" class="space-y-6">
-        <div id="v360-content">${skeletonHtml()}</div>
+      <div class="${vista360PageShellClass}">
+        <div id="v360-root" class="mx-auto w-full max-w-[1320px] space-y-6 px-2 pb-2 sm:px-3">
+          <div id="v360-content">${skeletonHtml()}</div>
+        </div>
       </div>
       ${isRh ? `<div id="v360-edit-modal-host"></div>` : ""}`,
   });
