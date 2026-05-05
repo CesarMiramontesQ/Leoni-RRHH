@@ -10,10 +10,15 @@ Se encola la generacion del PDF en TRESS una vez firmado.
 Stub de Ollama para generacion de contenido de acta.
 """
 
+import json
 import logging
+import re
+import zipfile
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
+from xml.etree import ElementTree
 
 import httpx
 from fastapi import BackgroundTasks
@@ -33,6 +38,11 @@ from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.empleados import Empleado
 from app.repositories.acta_repository import ActaAprobacionRepository, ActaRepository
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.services.acta_rag_prompts import (
+    SYSTEM_GENERAR_ACTA_FORMAL,
+    USER_GENERAR_ACTA_TEMPLATE,
+)
+from app.services.legal_rag_service import legal_rag_service
 from app.schemas import PaginatedResponse
 from app.schemas.actas import (
     ActaAprobacionResponse,
@@ -46,11 +56,267 @@ from app.utils.audit_logger import audit_background
 
 logger = logging.getLogger(__name__)
 
+# Tags de razonamiento que algunos modelos (p. ej. Qwen3) usan y deben excluirse del texto final.
+_THINK_BLOCK_RE = re.compile(
+    r"<(?:think|thinking|redacted_reasoning|redacted_thinking)[^>]*>.*?</(?:think|thinking|redacted_reasoning|redacted_thinking)>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+# Salida visible tipo “cadena de pensamiento” en inglés (Qwen u otros sin suppression completa).
+_REASONING_LEAK_START_RE = re.compile(
+    r"(?is)^\s*("
+    r"okay\b|"
+    r"let'?s\b|"
+    r"wait\b|"
+    r"hmm\b|"
+    r"alternatively\b|"
+    r"first\b|"
+    r"i need to\b|"
+    r"the user wants\b|"
+    r"the user is\b|"
+    r"i should\b|"
+    r"i have to\b"
+    r")",
+)
+
+_ACTA_START_MARKER = "<<<ACTA>>>"
+_ACTA_END_MARKER = "<<<FIN>>>"
+
+
+def _strip_model_think_artifacts(text: str) -> str:
+    """Quita bloques  y normaliza espacios sin aplastar párrafos del acta."""
+    if not text:
+        return ""
+    cleaned = _THINK_BLOCK_RE.sub("", text)
+    cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in cleaned.split("\n")]
+    out: list[str] = []
+    prev_empty = False
+    for line in lines:
+        empty = not line
+        if empty and prev_empty:
+            continue
+        out.append(line)
+        prev_empty = empty
+    return "\n".join(out).strip()
+
+
+def _looks_like_visible_reasoning_dump(text: str) -> bool:
+    sample = (text or "")[:900]
+    return bool(_REASONING_LEAK_START_RE.match(sample))
+
+
+def _response_has_spanish_acta_signals(text: str) -> bool:
+    """True si el texto parece contener cuerpo de acta en español (no solo razonamiento)."""
+    low = (text or "").lower()
+    signals = (
+        "acta administrativa",
+        "ley federal del trabajo",
+        "reglamento interior",
+        "antecedentes",
+        "fundamento legal",
+        "comparece",
+        "por medio del presente",
+    )
+    return sum(1 for s in signals if s in low) >= 2
+
+
+def _trim_preface_before_acta(text: str) -> str:
+    """
+    Modelos tipo Qwen3 Thinking suelen volcar párrafos en inglés antes del acta en español.
+    Recorta hasta el primer ancla clara del documento formal.
+    """
+    if not text or len(text) < 80:
+        return text
+    lower = text.lower()
+    anchors: list[tuple[int, str]] = []
+    for needle in (
+        "<<<acta>>>",
+        "acta administrativa",
+        "por medio del presente",
+        "comparezco para",
+        "i. antecedentes",
+        "1. antecedentes",
+        "antecedentes",
+    ):
+        pos = lower.find(needle)
+        if pos != -1:
+            anchors.append((pos, needle))
+    if not anchors:
+        return text
+    best_pos = min(anchors, key=lambda x: x[0])[0]
+    # Solo recortar si hay un preámbulo sustancial (evita falsos positivos al inicio)
+    if best_pos >= 120:
+        return text[best_pos:].strip()
+    return text
+
+
+def _extract_acta_between_markers(text: str) -> Optional[str]:
+    if _ACTA_START_MARKER not in text:
+        return None
+    i = text.index(_ACTA_START_MARKER) + len(_ACTA_START_MARKER)
+    if _ACTA_END_MARKER in text[i:]:
+        j = text.index(_ACTA_END_MARKER, i)
+        inner = text[i:j].strip()
+    else:
+        inner = text[i:].strip()
+    return inner if inner else None
+
+
+async def _ollama_completar_redaccion_acta(
+    client: httpx.AsyncClient,
+    *,
+    user_prompt: str,
+    system_prompt: str,
+    temperature: float | None = None,
+) -> str:
+    """
+    Qwen3 puede devolver `response` vacío en /api/generate si todo el presupuesto va a "thinking".
+    /api/chat con think=false es el camino estable.
+    """
+    model = settings.OLLAMA_MODEL
+    base_temp = settings.OLLAMA_TEMPERATURE if temperature is None else temperature
+    temp = max(0.0, min(base_temp, 1.0))
+    opts = {
+        "temperature": temp,
+        "num_predict": settings.OLLAMA_NUM_PREDICT,
+    }
+    url_base = settings.OLLAMA_URL.rstrip("/")
+
+    chat_payload: dict = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": False,
+        "options": opts,
+    }
+    if "qwen" in model.lower():
+        chat_payload["think"] = False
+
+    resp = await client.post(f"{url_base}/api/chat", json=chat_payload)
+    if resp.status_code == 200:
+        data = resp.json()
+        msg = data.get("message") or {}
+        content = _strip_model_think_artifacts(str(msg.get("content") or ""))
+        if content:
+            return content
+    else:
+        logger.debug(
+            "Ollama /api/chat HTTP %s — %s",
+            resp.status_code,
+            (resp.text or "")[:500],
+        )
+
+    gen_body: dict = {
+        "model": model,
+        "prompt": user_prompt,
+        "system": system_prompt,
+        "temperature": temp,
+        "stream": False,
+        "options": {"num_predict": settings.OLLAMA_NUM_PREDICT},
+    }
+    if "qwen" in model.lower():
+        gen_body["think"] = False
+
+    resp2 = await client.post(
+        f"{url_base}/api/generate",
+        json=gen_body,
+    )
+    resp2.raise_for_status()
+    data2 = resp2.json()
+    return _strip_model_think_artifacts(str(data2.get("response") or ""))
+
 # Roles que deben firmar para que un acta quede SIGNED
 _ROLES_FIRMANTES_REQUERIDOS = {"gerente", "director", "rh"}
 
 # Directorio de PDFs generados
 _PDF_BASE = Path("/data/actas/pdf")
+_LEGAL_DOCS_BASE = Path(__file__).resolve().parents[2] / "reference" / "legal-documents"
+_MAX_LEGAL_DOC_BYTES = 8 * 1024 * 1024
+_MAX_LEGAL_DOC_TEXT = 12000
+_MAX_TOTAL_LEGAL_CONTEXT = 24000
+_LEGAL_ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
+
+
+def _truncate_text(value: str, max_len: int) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if len(normalized) <= max_len:
+        return normalized
+    return f"{normalized[:max_len].rstrip()}..."
+
+
+def _extract_text_from_docx_bytes(content: bytes) -> str:
+    with zipfile.ZipFile(BytesIO(content)) as archive:
+        raw = archive.read("word/document.xml")
+    root = ElementTree.fromstring(raw)
+    chunks: list[str] = []
+    for node in root.iter():
+        if node.tag.endswith("}t") and node.text:
+            chunks.append(node.text)
+    return " ".join(chunks)
+
+
+def _extract_text_from_pdf_bytes(content: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+    except Exception as exc:
+        raise ServiceUnavailableError(
+            detail="No fue posible leer PDFs legales en este momento."
+        ) from exc
+    reader = PdfReader(BytesIO(content))
+    texts: list[str] = []
+    for page in reader.pages:
+        texts.append(page.extract_text() or "")
+    return " ".join(texts)
+
+
+def _extract_legal_document_text(file_path: Path) -> str:
+    filename = file_path.name
+    ext = Path(filename).suffix.lower()
+    if ext not in _LEGAL_ALLOWED_EXTENSIONS:
+        return ""
+    content = file_path.read_bytes()
+    if not content:
+        return ""
+    if len(content) > _MAX_LEGAL_DOC_BYTES:
+        logger.warning(
+            "Documento legal omitido por tamano: %s",
+            filename,
+        )
+        return ""
+    if ext in {".txt", ".md"}:
+        text = content.decode("utf-8", errors="ignore")
+    elif ext == ".docx":
+        text = _extract_text_from_docx_bytes(content)
+    else:
+        text = _extract_text_from_pdf_bytes(content)
+    cleaned = _truncate_text(text, _MAX_LEGAL_DOC_TEXT)
+    if not cleaned:
+        return ""
+    return cleaned
+
+
+def _load_legal_reference_documents() -> list[str]:
+    if not _LEGAL_DOCS_BASE.exists() or not _LEGAL_DOCS_BASE.is_dir():
+        return []
+    chunks: list[str] = []
+    total_chars = 0
+    for file_path in sorted(_LEGAL_DOCS_BASE.rglob("*")):
+        if not file_path.is_file():
+            continue
+        if file_path.name.lower() == "readme.md":
+            continue
+        text = _extract_legal_document_text(file_path)
+        if not text:
+            continue
+        chunk = f"[{file_path.name}] {text}"
+        if total_chars + len(chunk) > _MAX_TOTAL_LEGAL_CONTEXT:
+            break
+        chunks.append(chunk)
+        total_chars += len(chunk)
+    return chunks
 
 
 async def _llamar_ollama(contexto: dict) -> str:
@@ -80,37 +346,43 @@ async def _llamar_ollama(contexto: dict) -> str:
 
 
 async def _mejorar_redaccion_acta(contexto: dict) -> str:
+    ctx_str = json.dumps(contexto, ensure_ascii=False, indent=2)
+    prompt = USER_GENERAR_ACTA_TEMPLATE.format(contexto=ctx_str)
     prompt = (
-        "Mejora la redaccion de una acta administrativa manteniendo hechos, fechas, personas y "
-        "datos legales sin inventar informacion.\n"
-        "Requisitos:\n"
-        "1) Usa tono formal, claro y juridico-laboral mexicano.\n"
-        "2) Conserva el significado original y el orden logico.\n"
-        "3) Corrige ortografia, puntuacion y coherencia.\n"
-        "4) No uses markdown ni encabezados adicionales.\n"
-        "5) Devuelve solo el texto mejorado.\n\n"
-        f"Contexto del acta:\n{contexto}"
+        f"{prompt}\n\n"
+        "Reglas de identidad y roles (obligatorias):\n"
+        "- El unico empleado sujeto del acta es el definido en empleado_objetivo.\n"
+        "- NO cambies el empleado sujeto por ninguna persona mencionada en personas relacionadas.\n"
+        "- personas_relacionadas_testigos solo puede figurar como testigos.\n"
+        "- persona_responsable_legal solo como responsable legal/RH.\n"
+        "- Si faltan datos, conserva neutralidad y no inventes nombres, cargos ni relaciones."
+    )
+    timeout = httpx.Timeout(
+        timeout=settings.OLLAMA_HTTP_TIMEOUT,
+        connect=15.0,
     )
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            resp = await client.post(
-                f"{settings.OLLAMA_URL}/api/generate",
-                json={
-                    "model": settings.OLLAMA_MODEL,
-                    "prompt": prompt,
-                    "system": (
-                        "Eres un especialista legal laboral en Mexico. "
-                        "Redacta textos formales para actas administrativas de RH."
-                    ),
-                    "temperature": max(0.0, min(settings.OLLAMA_TEMPERATURE, 0.4)),
-                    "stream": False,
-                },
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            texto_raw = await _ollama_completar_redaccion_acta(
+                client,
+                user_prompt=prompt,
+                system_prompt=SYSTEM_GENERAR_ACTA_FORMAL,
+                temperature=settings.OLLAMA_ACTA_TEMPERATURE,
             )
-            resp.raise_for_status()
-            texto = str(resp.json().get("response", "")).strip()
-            if not texto:
+            texto_raw = _strip_model_think_artifacts(texto_raw)
+            texto_raw = _trim_preface_before_acta(texto_raw)
+            marcado = _extract_acta_between_markers(texto_raw)
+            if marcado:
+                return marcado
+            if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_acta_signals(
+                texto_raw
+            ):
+                raise ValueError(
+                    "El modelo devolvio razonamiento visible en lugar del texto del acta"
+                )
+            if not texto_raw.strip():
                 raise ValueError("Respuesta vacia de Ollama")
-            return texto
+            return texto_raw.strip()
     except Exception as exc:
         logger.warning(
             "No se pudo mejorar redaccion del acta con IA: %s",
@@ -274,16 +546,60 @@ class ActaService:
                 detail="El acta no tiene descripcion de hechos para mejorar con IA"
             )
 
+        desc_ia = texto_original
+        lim_desc = settings.ACTA_DESCRIPCION_IA_MAX_CHARS
+        if len(desc_ia) > lim_desc:
+            desc_ia = (
+                f"{desc_ia[:lim_desc].rstrip()}\n"
+                "...[descripcion truncada para la llamada a IA; conserva este texto si editas]"
+            )
+
         contexto = {
+            "empleado_objetivo": {
+                "nombre": acta.empleado_nombre or "",
+                "numero_empleado": acta.numero_empleado or "",
+                "area_departamento": acta.area_departamento or "",
+                "puesto": acta.puesto or "",
+                "supervisor_directo": acta.supervisor_directo or "",
+            },
             "tipo_falta": acta.tipo_falta or "",
             "fundamento_legal": acta.fundamento_legal or "",
             "articulo_inciso": acta.articulo_inciso or "",
             "fecha_evento": str(acta.fecha_evento) if acta.fecha_evento else "",
             "lugar_incidente": acta.lugar_incidente or "",
-            "descripcion_hechos": texto_original,
+            "descripcion_hechos": desc_ia,
             "personas_involucradas": acta.personas_involucradas or "",
-            "testigos": acta.testigos or "",
+            "personas_relacionadas_testigos": acta.testigos or "",
+            "persona_responsable_legal": acta.responsable_rh or "",
         }
+        # RAG legal: recupera solo fragmentos relevantes; si falla, conserva fallback completo.
+        try:
+            rag_query = (
+                f"tipo_falta: {acta.tipo_falta or ''}\n"
+                f"fundamento_legal: {acta.fundamento_legal or ''}\n"
+                f"articulo_inciso: {acta.articulo_inciso or ''}\n"
+                f"hechos: {texto_original}\n"
+                f"area: {acta.area_departamento or ''}\n"
+                f"puesto: {acta.puesto or ''}\n"
+            )
+            documentos_texto = await legal_rag_service.retrieve_relevant_context(rag_query)
+        except Exception as exc:
+            logger.warning("RAG legal no disponible, usando fallback de documentos completos: %s", exc)
+            documentos_texto = _load_legal_reference_documents()
+
+        if not documentos_texto:
+            documentos_texto = _load_legal_reference_documents()
+
+        if documentos_texto:
+            merged_refs = "\n\n".join(documentos_texto)
+            lim_refs = settings.LEGAL_REFERENCE_PROMPT_MAX_CHARS
+            if len(merged_refs) > lim_refs:
+                merged_refs = (
+                    f"{merged_refs[:lim_refs].rstrip()}\n"
+                    "...[fragmentos legales truncados por limite seguro]"
+                )
+            contexto["documentos_legales_referencia"] = merged_refs
+
         texto_mejorado = await _mejorar_redaccion_acta(contexto)
         texto_mejorado = texto_mejorado.strip()
 

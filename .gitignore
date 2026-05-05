@@ -42,6 +42,9 @@ logs/
 # PostgreSQL data
 db/leoni_rh.sql
 
+# Chroma RAG legal (generado localmente)
+storage/legal-rag-chroma/
+
 # Alembic
 alembic/versions/*.pyc
 
