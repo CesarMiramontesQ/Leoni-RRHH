@@ -67,7 +67,7 @@ class EvaluacionService:
         )
         emp = result.scalar_one_or_none()
         if not emp:
-            raise NotFoundError(f"Empleado {empleado_id} no encontrado")
+            raise NotFoundError("Empleado", empleado_id)
         return emp
 
     async def _get_competencia(self, competencia_id: int) -> Competencia:
@@ -80,7 +80,7 @@ class EvaluacionService:
         )
         comp = result.scalar_one_or_none()
         if not comp:
-            raise NotFoundError(f"Competencia {competencia_id} no encontrada")
+            raise NotFoundError("Competencia", competencia_id)
         return comp
 
     async def crear(
@@ -105,7 +105,7 @@ class EvaluacionService:
     async def obtener(self, id: int) -> EvaluacionResponse:
         ev = await self.repo.get(id)
         if not ev:
-            raise NotFoundError(f"Evaluacion {id} no encontrada")
+            raise NotFoundError("Evaluacion", id)
         return _to_response(ev)
 
     async def actualizar(
@@ -113,7 +113,7 @@ class EvaluacionService:
     ) -> EvaluacionResponse:
         ev = await self.repo.get(id)
         if not ev:
-            raise NotFoundError(f"Evaluacion {id} no encontrada")
+            raise NotFoundError("Evaluacion", id)
 
         target = await self._get_empleado(ev.empleado_id)
         self._check_supervisor_permission(current_user, target)
@@ -133,10 +133,10 @@ class EvaluacionService:
     async def eliminar(self, id: int, current_user: Empleado) -> None:
         ev = await self.repo.get(id)
         if not ev:
-            raise NotFoundError(f"Evaluacion {id} no encontrada")
+            raise NotFoundError("Evaluacion", id)
         deleted = await self.repo.delete(id)
         if not deleted:
-            raise NotFoundError(f"Evaluacion {id} no encontrada")
+            raise NotFoundError("Evaluacion", id)
         await self.db.commit()
 
     async def listar(

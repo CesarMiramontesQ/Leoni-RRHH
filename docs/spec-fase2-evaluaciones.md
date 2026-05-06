@@ -324,3 +324,9 @@ def downgrade():
 - [ ] Una evaluacion por (empleado, competencia) — upsert semantics
 - [ ] 12/12 tests backend pasan
 - [ ] Frontend funcional con tabla, filtros, modal y permisos
+
+---
+
+## Preguntas por resolver
+
+- [ ] ¿El supervisor deberia poder acceder a `#/puestos` y `#/competencias` si navega directamente a la URL? Actualmente el nav no muestra esos links para supervisor, pero la ruta no esta bloqueada — puede acceder escribiendo la URL manualmente.

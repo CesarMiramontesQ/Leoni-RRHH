@@ -87,6 +87,7 @@ class EvaluacionRepository:
         result = await self.db.execute(
             select(EvaluacionCompetencia)
             .options(
+                selectinload(EvaluacionCompetencia.empleado),
                 selectinload(EvaluacionCompetencia.competencia),
                 selectinload(EvaluacionCompetencia.evaluador),
             )
