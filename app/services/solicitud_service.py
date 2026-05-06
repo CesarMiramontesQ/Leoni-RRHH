@@ -395,12 +395,12 @@ class SolicitudService:
     async def _validar_saldo_vacaciones_crear(
         self,
         *,
-        current_user: Empleado,
+        empleado: Empleado,
         fecha_inicio: date,
         fecha_fin: date,
     ) -> None:
         """Solo `vacaciones`: compara días solicitados (inclusive) vs TRESS."""
-        no = (current_user.no_empleado or "").strip()
+        no = (empleado.no_empleado or "").strip()
         if not no:
             raise DomainValidationError(
                 detail="No hay número de empleado para consultar el saldo de vacaciones."
@@ -416,6 +416,44 @@ class SolicitudService:
                 )
             )
 
+    async def _resolver_empleado_objetivo_crear_solicitud(
+        self,
+        data: SolicitudCreate,
+        current_user: Empleado,
+    ) -> Empleado:
+        """
+        Determina el colaborador titular de la solicitud (self-service vs alta delegada).
+        Misma regla de alcance que `IncidenciaService.crear_incidencia` para equipo/rh/director.
+        """
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        requested = data.empleado_id
+
+        if requested is None or requested == current_user.id:
+            return current_user
+
+        target = await self.empleado_repo.get_with_area_y_lider(requested)
+        if not target:
+            raise NotFoundError(entidad="Empleado", id=requested)
+
+        if rol == "empleado":
+            raise ForbiddenError(detail="No puedes crear solicitudes para otro empleado")
+
+        if rol in ("rh", "director"):
+            return target
+
+        if rol in ("gerente", "supervisor"):
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
+            permitidos = {e.id for e in subordinados} | {current_user.id}
+            if requested not in permitidos:
+                raise ForbiddenError(
+                    detail="No puedes crear solicitudes para empleados fuera de tu equipo"
+                )
+            return target
+
+        raise ForbiddenError(detail="No tienes permiso para crear solicitudes para otro empleado")
+
     async def crear_solicitud(
         self,
         data: SolicitudCreate,
@@ -423,7 +461,10 @@ class SolicitudService:
         background_tasks: BackgroundTasks,
     ) -> SolicitudResponse:
         """
-        Alta de solicitud para el usuario autenticado (cualquier rol permitido en el router).
+        Alta de solicitud para el colaborador titular (por defecto el usuario autenticado).
+
+        Roles autorizados pueden enviar `empleado_id` para registrar en nombre de otro colaborador
+        dentro de su alcance (equipo/rh/director), alineado con incidencias.
 
         No se aplican aquí reglas de aprobación jerárquica ni auto-aprobación; esas viven
         únicamente en `aprobar_solicitud` y `rechazar_solicitud`.
@@ -433,9 +474,11 @@ class SolicitudService:
         2) Saldo de vacaciones (solo tipo vacaciones, lectura TRESS).
         3) Persistencia y notificaciones.
         """
+        target = await self._resolver_empleado_objetivo_crear_solicitud(data, current_user)
+
         duplicado = await self.repo.count(
             filters=[
-                Solicitud.empleado_id == current_user.id,
+                Solicitud.empleado_id == target.id,
                 Solicitud.fecha_inicio == data.fecha_inicio,
                 Solicitud.fecha_fin == data.fecha_fin,
                 Solicitud.estado.in_(_ESTADOS_DUPLICADO_EXACTO),
@@ -446,13 +489,13 @@ class SolicitudService:
 
         if data.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(
-                current_user=current_user,
+                empleado=target,
                 fecha_inicio=data.fecha_inicio,
                 fecha_fin=data.fecha_fin,
             )
 
         solicitud = await self.repo.create({
-            "empleado_id": current_user.id,
+            "empleado_id": target.id,
             "tipo": data.tipo,
             "fecha_inicio": data.fecha_inicio,
             "fecha_fin": data.fecha_fin,
@@ -468,13 +511,17 @@ class SolicitudService:
             modulo="solicitudes",
             usuario_id=current_user.id,
             entidad_id=solicitud.id,
-            datos_despues={"tipo": solicitud.tipo, "estado": solicitud.estado},
+            datos_despues={
+                "tipo": solicitud.tipo,
+                "estado": solicitud.estado,
+                "empleado_id": solicitud.empleado_id,
+            },
         )
 
-        # Notificar al empleado solicitante que su registro quedo en revision.
+        # Notificar al colaborador titular que el registro quedó en revisión.
         background_tasks.add_task(
             _enviar_notificacion_background,
-            destinatario_id=current_user.id,
+            destinatario_id=target.id,
             asunto="Tu solicitud fue enviada",
             cuerpo=(
                 f"Tu solicitud de <b>{data.tipo}</b> del {data.fecha_inicio} al "
@@ -489,9 +536,9 @@ class SolicitudService:
             },
         )
 
-        if current_user.lider_id:
-            supervisor_id = current_user.lider_id
-            nombre_empleado = current_user.nombre
+        if target.lider_id:
+            supervisor_id = target.lider_id
+            nombre_empleado = target.nombre or ""
             tipo = data.tipo
 
             background_tasks.add_task(
@@ -511,7 +558,7 @@ class SolicitudService:
                 },
             )
 
-        return _solicitud_to_response(solicitud, empleado_ctx=current_user)
+        return _solicitud_to_response(solicitud, empleado_ctx=target)
 
     # ── Aprobar ──────────────────────────────────────────────────────────────
 
@@ -891,7 +938,7 @@ class SolicitudService:
 
         if solicitud.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(
-                current_user=current_user,
+                empleado=current_user,
                 fecha_inicio=data.fecha_inicio,
                 fecha_fin=data.fecha_fin,
             )

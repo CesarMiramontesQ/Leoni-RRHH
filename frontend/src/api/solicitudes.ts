@@ -42,6 +42,8 @@ export type SolicitudCreatePayload = {
   fecha_inicio: string;
   fecha_fin: string;
   comentarios: string | null;
+  /** Titular de la solicitud; si se omite, el backend usa el usuario autenticado. */
+  empleado_id?: number;
 };
 
 export type SolicitudCreateResponse = SolicitudApiItem;
