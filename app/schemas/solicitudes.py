@@ -11,7 +11,7 @@ Convencion:
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 SOLICITUD_TIPOS_VALIDOS = {"vacaciones", "home_office"}
@@ -37,6 +37,13 @@ class SolicitudCreate(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     comentarios: Optional[str] = None
+    empleado_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "ID del colaborador titular de la solicitud. Omitir o usar el propio ID equivale a solicitar "
+            "para uno mismo. Roles supervisor/gerente/rh/director pueden indicar un colaborador autorizado."
+        ),
+    )
 
     @field_validator("tipo")
     @classmethod
