@@ -1,4 +1,5 @@
-import type { ComedorPanelState, ComedorRhProximosRegistrosPage } from "../rh/types.ts";
+import type { ComedorPanelState, ComedorRhProximosRegistrosPage, ComedorRhProximoRegistroRow } from "../rh/types.ts";
+import type { ComedorResumenDiarioApiItem } from "../../api/comedor.ts";
 
 export type ReporteComedorDepartamentoOption = {
   id: string;
@@ -17,8 +18,22 @@ export type ReporteComedorFiltersDataset = {
   fechaFinIso: string;
 };
 
+export type ReporteComedorKpiId =
+  | "total_empleados"
+  | "promedio_asistencia"
+  | "dias_mayor_consumo"
+  | "costo_estimado"
+  | "total_registros_resumen"
+  | "promedio_diario_resumen"
+  | "mix_menu_resumen"
+  | "empleados_unicos_operativo"
+  | "accedidos_operativo"
+  | "pendientes_operativo"
+  | "cancelados_operativo"
+  | "comedores_activos_operativo";
+
 export type ReporteComedorKpi = {
-  id: "total_empleados" | "promedio_asistencia" | "dias_mayor_consumo" | "costo_estimado";
+  id: ReporteComedorKpiId;
   label: string;
   valor: string;
   secundario: string;
@@ -62,7 +77,10 @@ export type ReporteComedorFiltersQuery = {
   fechaFinIso: string;
 };
 
-export type ReporteComedorDatePreset = "last_7" | "last_30" | "this_month" | "previous_month" | "custom";
+/** Chips rápidos: Hoy, Esta semana, Este mes, Mes anterior, Personalizado */
+export type ReporteComedorDatePreset = "today" | "this_week" | "this_month" | "previous_month" | "custom";
+
+export type ReporteComedorMainTab = "comedor" | "empleados" | "areas" | "detalle";
 
 export type ReporteComedorSortKey = "nombre" | "dias_mes" | "menu" | "estado";
 
@@ -79,9 +97,23 @@ export type ReporteComedorViewState = {
   selectedTurnoId: string;
   selectedFechaInicioIso: string;
   selectedFechaFinIso: string;
+  /** Mensaje de validación suave (fechas inválidas). */
+  dateRangeError: string | null;
+  /** Vista principal del tablero analítico. */
+  reporteMainTab: ReporteComedorMainTab;
+  /** Búsqueda local en tab «Por comedor». */
+  tabSearchComedor: string;
+  /** Búsqueda local en tab «Por empleados». */
+  tabSearchEmpleado: string;
+  /** Búsqueda local en tab «Por áreas». */
+  tabSearchArea: string;
+  /** KPIs usan resumen diario (RH) o estadísticas semanales (otros roles). */
+  kpisModo: "rh_resumen" | "comedor_semana";
   kpisState: ComedorPanelState;
   kpis: readonly ReporteComedorKpi[] | null;
   kpisError: string | null;
+  /** Serie para mini tendencia en KPIs (RH, desde resumen diario). */
+  rhResumenDiario: readonly ComedorResumenDiarioApiItem[] | null;
   tableState: ComedorPanelState;
   table: ReporteComedorTableResponse | null;
   tableError: string | null;
@@ -98,4 +130,8 @@ export type ReporteComedorViewState = {
   rhFuturosPageSize: 10 | 50;
   rhFuturosStatusFilter: "todos" | "confirmado" | "cancelado";
   rhFuturosSearch: string;
+  /** Dataset completo para agregaciones (mismo filtro de estado que la tabla; sin búsqueda de texto). */
+  rhAnalyticsState: ComedorPanelState;
+  rhAnalyticsRows: readonly ComedorRhProximoRegistroRow[];
+  rhAnalyticsError: string | null;
 };

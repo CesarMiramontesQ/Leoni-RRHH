@@ -103,7 +103,7 @@ export function renderComedorRhProximosRegistrosTable(
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Reservas y asistencias</h2>
           ${pageSizeSelect}
         </div>
         <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-busy="true">
@@ -121,7 +121,7 @@ export function renderComedorRhProximosRegistrosTable(
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Reservas y asistencias</h2>
           ${pageSizeSelect}
         </div>
         <section class="rh-sol-table-error-fallback rounded-2xl border border-red-200/90 px-4 py-4 text-sm text-red-700 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
@@ -139,7 +139,7 @@ export function renderComedorRhProximosRegistrosTable(
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Reservas y asistencias</h2>
           ${pageSizeSelect}
         </div>
         <section class="${RH_LISTADO_SURFACE} overflow-hidden">
@@ -188,7 +188,7 @@ export function renderComedorRhProximosRegistrosTable(
       ${toolbar}
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Próximas reservas y asistencias</h2>
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Reservas y asistencias</h2>
           <p class="mt-0.5 text-xs text-[#64748b]">${escapeComedorHtml(proximosSubtitle(filters))}</p>
         </div>
         ${pageSizeSelect}

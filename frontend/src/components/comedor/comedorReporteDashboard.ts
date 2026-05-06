@@ -1,15 +1,26 @@
 import type {
-  ReporteComedorDatePreset,
   ReporteComedorEmpleadoRow,
   ReporteComedorKpi,
+  ReporteComedorKpiId,
+  ReporteComedorMainTab,
   ReporteComedorSortDirection,
   ReporteComedorSortKey,
   ReporteComedorViewState,
 } from "../../comedor/reportes/types.ts";
+import { diasEnPeriodoCalendario, serieDiariaTotales } from "../../comedor/reportes/reporteAggregations.ts";
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import { escapeComedorHtml, renderEmpleadoAvatarCell } from "./comedorUiUtils.ts";
 import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
-import { SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import {
+  renderReporteFilterToolbarGlobal,
+  renderReporteRhRestrictedNotice,
+  renderReporteTabAreas,
+  renderReporteTabComedor,
+  renderReporteTabEmpleados,
+} from "./comedorReporteAnalytics.ts";
+import { FIELD_FOCUS } from "../../ui/uiTokens.ts";
+
+const REPORTE_DETALLE_SEARCH_ICON = `<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg></span>`;
 
 function iconForKpi(id: ReporteComedorKpi["icono"]): string {
   if (id === "empleados") {
@@ -43,177 +54,81 @@ function parseDiasMes(diasMes: string): { asistidos: number; esperados: number; 
   return { asistidos: safeAsistidos, esperados: safeEsperados, ratio: safeAsistidos / safeEsperados };
 }
 
-function renderHeader(): string {
+function formatHeroDate(dateIso: string): string {
+  const parsed = new Date(`${dateIso}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dateIso;
+  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
+}
+
+function renderHero(state: ReporteComedorViewState): string {
+  const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
+  const ini = formatHeroDate(state.selectedFechaInicioIso);
+  const fin = formatHeroDate(state.selectedFechaFinIso);
+  const updated =
+    state.lastUpdatedLabel ?
+      `<span class="inline-flex items-center rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm">Actualizado ${escapeComedorHtml(state.lastUpdatedLabel)}</span>`
+    : "";
   return `
-    <header class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-text-primary">Reporte comedor</h1>
-        <p class="mt-1 text-sm text-text-muted">Tablero analítico para monitoreo de asistencia, consumo y costos de comedor.</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <details class="relative">
-          <summary class="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-400">
-            Exportar
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 0 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"/></svg>
-          </summary>
-          <div class="absolute right-0 z-10 mt-2 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg ring-1 ring-slate-900/5">
-            <button type="button" class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100">Exportar en PDF</button>
-            <button type="button" class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100">Exportar en Excel</button>
-            <button type="button" class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100">Exportar en CSV</button>
+    <header class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white bg-[radial-gradient(1200px_circle_at_100%_-10%,rgba(37,99,235,0.07),transparent_45%)] p-6 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/5 sm:p-7">
+      <div class="pointer-events-none absolute -right-12 top-0 size-52 rounded-full bg-leoni-blue/6 blur-3xl sm:size-64"></div>
+      <div class="relative flex flex-col gap-5">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0 flex-1 space-y-2">
+            <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-[1.75rem]">Reporte comedor</h1>
+            <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Tablero analítico para monitoreo de asistencia, consumo y costos de comedor.</p>
           </div>
-        </details>
+          ${updated ? `<div class="shrink-0 sm:pt-1">${updated}</div>` : ""}
+        </div>
+        <div class="h-px w-full bg-gradient-to-r from-slate-200/0 via-slate-200 to-slate-200/0"></div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Periodo seleccionado</p>
+            <p class="mt-1.5 break-words text-sm font-semibold text-slate-900">
+              <span class="text-slate-800">${escapeComedorHtml(ini)}</span>
+              <span class="mx-1.5 font-normal text-slate-400">—</span>
+              <span class="text-slate-800">${escapeComedorHtml(fin)}</span>
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center">
+            <span class="inline-flex items-center rounded-full border border-slate-200/90 bg-slate-50 px-3 py-1.5 text-xs font-semibold tabular-nums text-slate-700 shadow-sm">
+              ${dias} día${dias === 1 ? "" : "s"} en el rango
+            </span>
+          </div>
+        </div>
       </div>
     </header>`;
 }
 
-function renderFilterSelect(
-  id: string,
-  label: string,
-  value: string,
-  options: readonly { id: string; label: string }[],
-  dataAttr: string,
-): string {
-  const optionsHtml = options
-    .map(
-      (option) =>
-        `<option value="${escapeComedorHtml(option.id)}" ${value === option.id ? "selected" : ""}>${escapeComedorHtml(option.label)}</option>`,
-    )
-    .join("");
-  return `
-    <div class="min-w-0">
-      <label for="${id}" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeComedorHtml(label)}</label>
-      <div class="grid grid-cols-1">
-        <select id="${id}" data-comedor-reporte-filter="${dataAttr}" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-300 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
-          ${optionsHtml}
-        </select>
-        ${SELECT_CHEVRON}
-      </div>
-    </div>`;
-}
-
-function activeFilterChips(state: ReporteComedorViewState): readonly { key: "departamento" | "turno" | "fecha"; label: string }[] {
-  const chips: { key: "departamento" | "turno" | "fecha"; label: string }[] = [];
-  if (state.selectedDepartamentoId !== "todos") {
-    const found = state.filtersDataset.departamentos.find((item) => item.id === state.selectedDepartamentoId);
-    if (found) chips.push({ key: "departamento", label: `Departamento: ${found.label}` });
+function kpiDashVisual(kpi: ReporteComedorKpi, state: ReporteComedorViewState): {
+  iconShell: string;
+  trend: string;
+  featured: boolean;
+} {
+  const featured =
+    state.kpisModo === "rh_resumen" ? kpi.id === "total_registros_resumen" : kpi.id === "costo_estimado";
+  const id: ReporteComedorKpiId = kpi.id;
+  if (id === "total_registros_resumen" || id === "total_empleados" || id === "costo_estimado") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--blue", trend: "#1d4ed8", featured };
   }
-  if (state.selectedTurnoId !== "todos") {
-    const found = state.filtersDataset.turnos.find((item) => item.id === state.selectedTurnoId);
-    if (found) chips.push({ key: "turno", label: `Turno: ${found.label}` });
+  if (id === "promedio_diario_resumen" || id === "promedio_asistencia") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--slate", trend: "#475569", featured };
   }
-  const defaultInicio = state.filtersDataset.fechaInicioIso;
-  const defaultFin = state.filtersDataset.fechaFinIso;
-  if (state.selectedFechaInicioIso !== defaultInicio || state.selectedFechaFinIso !== defaultFin) {
-    chips.push({
-      key: "fecha",
-      label: `Periodo: ${formatFilterDate(state.selectedFechaInicioIso)} - ${formatFilterDate(state.selectedFechaFinIso)}`,
-    });
+  if (id === "mix_menu_resumen" || id === "empleados_unicos_operativo") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--violet", trend: "#7c3aed", featured };
   }
-  return chips;
-}
-
-function renderDatePresetButton(id: Exclude<ReporteComedorDatePreset, "custom">, label: string, selectedPreset: ReporteComedorDatePreset): string {
-  const active = selectedPreset === id;
-  return `<button
-    type="button"
-    data-comedor-reporte-date-preset="${id}"
-    class="rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-      active ?
-        "border-leoni-blue bg-leoni-blue/10 text-leoni-blue"
-      : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900"
-    }"
-  >
-    ${escapeComedorHtml(label)}
-  </button>`;
-}
-
-function renderFilters(state: ReporteComedorViewState): string {
-  const chips = activeFilterChips(state);
-  return `
-    <section class="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-sm font-semibold text-slate-900">Filtros del reporte</p>
-        <p class="text-xs text-slate-500">
-          ${state.lastUpdatedLabel ? `Actualizado: ${escapeComedorHtml(state.lastUpdatedLabel)}` : "Pendiente de actualización"}
-        </p>
-      </div>
-      <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.25fr)_auto]">
-        ${renderFilterSelect(
-          "reporte-comedor-departamento",
-          "Departamento",
-          state.draftDepartamentoId,
-          state.filtersDataset.departamentos,
-          "departamento",
-        )}
-        ${renderFilterSelect(
-          "reporte-comedor-turno",
-          "Turno",
-          state.draftTurnoId,
-          state.filtersDataset.turnos,
-          "turno",
-        )}
-        <div class="min-w-0">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Rango de fecha</label>
-          <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <input
-              type="date"
-              data-comedor-reporte-filter="fecha_inicio"
-              value="${escapeComedorHtml(state.draftFechaInicioIso)}"
-              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
-            />
-            <span class="text-xs font-semibold text-slate-500">a</span>
-            <input
-              type="date"
-              data-comedor-reporte-filter="fecha_fin"
-              value="${escapeComedorHtml(state.draftFechaFinIso)}"
-              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
-            />
-          </div>
-        </div>
-        <div class="flex flex-col justify-end gap-2">
-          <button type="button" data-comedor-reporte-clear-filters class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">
-            Limpiar filtros
-          </button>
-        </div>
-      </div>
-      <div class="mt-3 flex flex-wrap items-center gap-2">
-        ${renderDatePresetButton("last_7", "Últimos 7 días", state.draftDatePreset)}
-        ${renderDatePresetButton("last_30", "Últimos 30 días", state.draftDatePreset)}
-        ${renderDatePresetButton("this_month", "Este mes", state.draftDatePreset)}
-        ${renderDatePresetButton("previous_month", "Mes anterior", state.draftDatePreset)}
-      </div>
-      ${
-        chips.length > 0 ?
-          `<div class="mt-3 flex flex-wrap gap-2">
-            ${chips
-              .map(
-                (chip) => `<button type="button" data-comedor-reporte-clear-chip="${chip.key}" class="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:border-slate-400">
-                ${escapeComedorHtml(chip.label)}
-                <span aria-hidden="true" class="text-slate-500">x</span>
-              </button>`,
-              )
-              .join("")}
-          </div>`
-        : `<p class="mt-3 text-xs text-slate-500">Sin filtros activos adicionales.</p>`
-      }
-    </section>`;
-}
-
-function kpiToneClasses(kpi: ReporteComedorKpi, isPrimary: boolean): { card: string; icon: string; trend: string } {
-  if (isPrimary) {
-    return {
-      card: "border-leoni-blue/20 bg-gradient-to-br from-leoni-blue/10 to-sky-50",
-      icon: "bg-leoni-blue text-white",
-      trend: "#0f4da8",
-    };
+  if (id === "accedidos_operativo") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--emerald", trend: "#059669", featured };
   }
-  if (kpi.id === "promedio_asistencia") {
-    return { card: "border-emerald-200/90 bg-white", icon: "bg-emerald-100 text-emerald-700", trend: "#059669" };
+  if (id === "pendientes_operativo" || id === "dias_mayor_consumo") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--amber", trend: "#d97706", featured };
   }
-  if (kpi.id === "dias_mayor_consumo") {
-    return { card: "border-amber-200/90 bg-white", icon: "bg-amber-100 text-amber-700", trend: "#d97706" };
+  if (id === "cancelados_operativo") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--red", trend: "#dc2626", featured };
   }
-  return { card: "border-slate-200/90 bg-white", icon: "bg-slate-100 text-slate-700", trend: "#64748b" };
+  if (id === "comedores_activos_operativo") {
+    return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--sky", trend: "#0284c7", featured };
+  }
+  return { iconShell: "rh-dash-kpi-icon rh-dash-kpi-icon--sky", trend: "#64748b", featured };
 }
 
 function sparklineValuesForKpi(kpiId: ReporteComedorKpi["id"]): readonly number[] {
@@ -236,7 +151,7 @@ function renderSparkline(values: readonly number[], colorHex: string): string {
       return `${x},${Number.isFinite(y) ? y : height / 2}`;
     })
     .join(" ");
-  return `<svg viewBox="0 0 ${width} ${height}" class="h-9 w-full"><polyline fill="none" stroke="${colorHex}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" points="${points}" /></svg>`;
+  return `<svg viewBox="0 0 ${width} ${height}" class="h-9 w-full" aria-hidden="true"><polyline fill="none" stroke="${colorHex}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" points="${points}" /></svg>`;
 }
 
 function normalizePeakDays(value: string): string {
@@ -257,7 +172,8 @@ function normalizePeakDays(value: string): string {
   return `Picos: ${expanded.join(" y ")}`;
 }
 
-function normalizeKpiSecondary(kpi: ReporteComedorKpi): string {
+function normalizeKpiSecondary(kpi: ReporteComedorKpi, modo: ReporteComedorViewState["kpisModo"]): string {
+  if (modo === "rh_resumen") return kpi.secundario;
   if (kpi.id === "promedio_asistencia") return `${kpi.secundario}. Revisar equipos bajo 90%.`;
   if (kpi.id === "costo_estimado") return "Comparar contra presupuesto y ajustar menú por demanda.";
   if (kpi.id === "total_empleados") return "Segmenta por turno para detectar variaciones de consumo.";
@@ -265,16 +181,35 @@ function normalizeKpiSecondary(kpi: ReporteComedorKpi): string {
   return kpi.secundario;
 }
 
+function sparklineForKpi(state: ReporteComedorViewState, kpi: ReporteComedorKpi, trendColor: string): string {
+  if (
+    state.kpisModo === "rh_resumen" &&
+    kpi.id === "total_registros_resumen" &&
+    state.rhResumenDiario &&
+    state.rhResumenDiario.length > 0
+  ) {
+    const serie = serieDiariaTotales(state.rhResumenDiario).slice(-14);
+    return renderSparkline(serie, trendColor);
+  }
+  return renderSparkline(sparklineValuesForKpi(kpi.id), trendColor);
+}
+
+const KPI_CAL_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-[18px]" aria-hidden="true"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 function renderKpis(state: ReporteComedorViewState): string {
+  const skeletonCount = state.kpisModo === "rh_resumen" ? 8 : 4;
   if (state.kpisState === "loading") {
-    return `<section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      ${Array.from({ length: 4 })
+    return `<section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      ${Array.from({ length: skeletonCount })
         .map(
-          () => `<article class="animate-pulse rounded-xl border border-border bg-white p-4 shadow-sm">
-            <div class="h-8 w-8 rounded-lg bg-slate-100"></div>
-            <div class="mt-3 h-3 w-36 rounded bg-slate-100"></div>
-            <div class="mt-2 h-7 w-24 rounded bg-slate-200"></div>
-            <div class="mt-2 h-3 w-40 rounded bg-slate-100"></div>
+          () => `<article class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div class="size-10 rounded-[14px] bg-slate-100"></div>
+              <div class="h-9 w-24 rounded bg-slate-100"></div>
+            </div>
+            <div class="mt-4 h-3 w-28 rounded bg-slate-100"></div>
+            <div class="mt-2 h-8 w-20 rounded bg-slate-200"></div>
+            <div class="mt-3 h-3 w-full max-w-[11rem] rounded bg-slate-100"></div>
           </article>`,
         )
         .join("")}
@@ -282,39 +217,63 @@ function renderKpis(state: ReporteComedorViewState): string {
   }
   if (state.kpisState === "error") {
     return `
-      <section class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+      <section class="rounded-2xl border border-red-200/90 bg-red-50/95 px-4 py-4 text-sm text-red-800 shadow-[0_8px_24px_rgba(127,29,29,0.06)]" role="alert">
         <p class="font-semibold">No fue posible cargar las métricas del reporte.</p>
         <p class="mt-1">${escapeComedorHtml(state.kpisError ?? "Error inesperado.")}</p>
-        <button type="button" data-comedor-reporte-retry-kpis class="mt-3 inline-flex items-center rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">
+        <button type="button" data-comedor-reporte-retry-kpis class="mt-3 inline-flex items-center rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2">
           Reintentar
         </button>
       </section>`;
   }
   if (state.kpisState === "empty" || !state.kpis || state.kpis.length === 0) {
-    return `<section class="rounded-xl border border-border bg-white px-4 py-6 text-sm text-text-muted">No hay métricas disponibles para los filtros seleccionados.</section>`;
+    return `<section class="rounded-2xl border border-dashed border-slate-300/90 bg-slate-50/90 px-5 py-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 inline-flex size-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6 text-slate-400" aria-hidden="true"><path d="M9 17v-6m3 4v-4m3 5v-9M5 3h14a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-4 3V5a2 2 0 0 1 2-2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <p class="text-sm font-semibold text-slate-900">No hay métricas para este periodo.</p>
+      <p class="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-slate-600">Prueba seleccionando otro rango de fechas o ajusta el comedor.</p>
+    </section>`;
   }
-  const ordered = state.kpis
-    .filter((kpi) => kpi.id !== "dias_mayor_consumo")
-    .sort((a, b) => (a.id === "costo_estimado" ? -1 : b.id === "costo_estimado" ? 1 : 0));
-  return `<section class="space-y-3">
-    <article class="rounded-xl border border-slate-200/90 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-900/5">
-      <p class="text-xs font-semibold uppercase tracking-wide text-leoni-blue">Resumen del periodo</p>
-      <p class="mt-1 text-sm text-slate-700">Del ${escapeComedorHtml(formatFilterDate(state.selectedFechaInicioIso))} al ${escapeComedorHtml(formatFilterDate(state.selectedFechaFinIso))}.</p>
-    </article>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  let ordered = state.kpis.filter((kpi) => kpi.id !== "dias_mayor_consumo");
+  if (state.kpisModo !== "rh_resumen") {
+    ordered = [...ordered].sort((a, b) => (a.id === "costo_estimado" ? -1 : b.id === "costo_estimado" ? 1 : 0));
+  }
+  const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
+  const fuenteResumen =
+    state.kpisModo === "rh_resumen" ?
+      "Consolidado diario RH (caseras + saludables) y KPIs operativos filtrados por periodo y comedor."
+    : "Referencia de la semana actual del comedor (API estadísticas / proyecciones).";
+  const contextStrip = `
+    <div class="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/40 to-sky-50/30 px-4 py-3.5 shadow-sm ring-1 ring-slate-900/5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+      <div class="flex min-w-0 items-start gap-3">
+        <div class="flex shrink-0 rounded-[14px] p-2 rh-dash-kpi-icon rh-dash-kpi-icon--sky" aria-hidden="true">${KPI_CAL_ICON}</div>
+        <div class="min-w-0">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Contexto del periodo</p>
+          <p class="mt-1 text-sm font-semibold leading-snug text-slate-900">
+            Del ${escapeComedorHtml(formatFilterDate(state.selectedFechaInicioIso))} al ${escapeComedorHtml(formatFilterDate(state.selectedFechaFinIso))}
+          </p>
+          <p class="mt-0.5 text-xs text-slate-600">${dias} día${dias === 1 ? "" : "s"} analizados · consolidado operativo</p>
+        </div>
+      </div>
+      <p class="text-xs leading-relaxed text-slate-500 sm:max-w-[min(100%,22rem)] sm:text-right">${escapeComedorHtml(fuenteResumen)}</p>
+    </div>`;
+  return `<section class="space-y-4 sm:space-y-5">
+    ${contextStrip}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       ${ordered
         .map((kpi) => {
-          const isPrimary = kpi.id === "costo_estimado";
-          const tone = kpiToneClasses(kpi, isPrimary);
+          const vis = kpiDashVisual(kpi, state);
           const value = kpi.id === "dias_mayor_consumo" ? normalizePeakDays(kpi.valor) : kpi.valor;
-          return `<article class="rounded-xl border p-4 shadow-sm ring-1 ring-slate-900/5 ${tone.card} ${isPrimary ? "sm:col-span-2 xl:col-span-2" : ""}">
+          const valueSize = vis.featured ? "text-3xl sm:text-4xl" : "text-2xl sm:text-[1.65rem]";
+          const featuredBar = vis.featured ? "border-t-[3px] border-t-blue-600" : "";
+          return `<article class="group rh-dash-kpi-card relative flex min-h-[158px] flex-col overflow-hidden p-4 sm:p-5 ${featuredBar}">
             <div class="flex items-start justify-between gap-3">
-              <div class="inline-flex size-9 items-center justify-center rounded-lg ${tone.icon}">${iconForKpi(kpi.icono)}</div>
-              <div class="min-w-28">${renderSparkline(sparklineValuesForKpi(kpi.id), tone.trend)}</div>
+              <div class="flex shrink-0 rounded-[14px] p-2 ${vis.iconShell}" aria-hidden="true">${iconForKpi(kpi.icono)}</div>
+              <div class="pointer-events-none w-[min(120px,28vw)] shrink-0 opacity-[0.42] motion-safe:transition-opacity motion-safe:duration-200 group-hover:opacity-[0.58]">${sparklineForKpi(state, kpi, vis.trend)}</div>
             </div>
-            <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeComedorHtml(kpi.label)}</p>
-            <p class="mt-1 ${isPrimary ? "text-4xl" : "text-2xl"} font-bold tracking-tight text-text-primary">${escapeComedorHtml(value)}</p>
-            <p class="mt-2 text-xs ${isPrimary ? "text-slate-700" : "text-text-muted"}">${escapeComedorHtml(normalizeKpiSecondary(kpi))}</p>
+            <p class="mt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">${escapeComedorHtml(kpi.label)}</p>
+            <p class="mt-1 ${valueSize} font-bold tracking-tight text-text-primary">${escapeComedorHtml(value)}</p>
+            <p class="mt-auto pt-2 text-xs leading-snug ${vis.featured ? "text-slate-600" : "text-slate-500"}">${escapeComedorHtml(normalizeKpiSecondary(kpi, state.kpisModo))}</p>
           </article>`;
         })
         .join("")}
@@ -353,8 +312,8 @@ function sortArrow(active: boolean, direction: ReporteComedorSortDirection): str
 
 function sortableHeader(title: string, key: ReporteComedorSortKey, state: ReporteComedorViewState, extraClass = ""): string {
   const active = state.tableSortKey === key;
-  return `<th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted ${extraClass}">
-      <button type="button" data-comedor-reporte-sort="${key}" class="inline-flex items-center gap-1 hover:text-slate-900">
+  return `<th scope="col" class="sticky top-0 z-10 bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B] shadow-[inset_0_-1px_0_rgba(226,232,240,0.9)] ${extraClass}">
+      <button type="button" data-comedor-reporte-sort="${key}" class="inline-flex items-center gap-1 rounded-md hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
         ${escapeComedorHtml(title)}
         ${sortArrow(active, state.tableSortDirection)}
       </button>
@@ -362,22 +321,23 @@ function sortableHeader(title: string, key: ReporteComedorSortKey, state: Report
 }
 
 function renderTable(state: ReporteComedorViewState): string {
+  const searchInputClasses = `min-h-10 w-full rounded-[10px] border border-slate-300 bg-white py-2 pr-3 pl-9 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}`;
   if (state.tableState === "loading") {
     return `
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5">
-        <div class="animate-pulse p-4">
-          <div class="h-10 rounded bg-slate-100"></div>
-          <div class="mt-3 h-10 rounded bg-slate-100"></div>
-          <div class="mt-3 h-10 rounded bg-slate-100"></div>
+      <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
+        <div class="animate-pulse p-4 sm:p-5">
+          <div class="h-10 rounded-[10px] bg-slate-100"></div>
+          <div class="mt-3 h-10 rounded-[10px] bg-slate-100"></div>
+          <div class="mt-3 h-10 rounded-[10px] bg-slate-100"></div>
         </div>
       </section>`;
   }
   if (state.tableState === "error") {
     return `
-      <section class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700 shadow-sm">
+      <section class="rounded-2xl border border-red-200/90 bg-red-50/95 px-4 py-4 text-sm text-red-800 shadow-sm" role="alert">
         <p class="font-semibold">No fue posible cargar la tabla de empleados.</p>
         <p class="mt-1">${escapeComedorHtml(state.tableError ?? "Error inesperado.")}</p>
-        <button type="button" data-comedor-reporte-retry-table class="mt-3 inline-flex rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">
+        <button type="button" data-comedor-reporte-retry-table class="mt-3 inline-flex rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2">
           Reintentar
         </button>
       </section>`;
@@ -385,51 +345,65 @@ function renderTable(state: ReporteComedorViewState): string {
   const rows = filteredAndSortedRows(state);
   if (state.tableState === "empty" || rows.length === 0) {
     return `
-      <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5">
-        <div class="border-b border-slate-200 px-4 py-3">
+      <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
+        <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+          <label class="relative block w-full sm:max-w-md">
+            ${REPORTE_DETALLE_SEARCH_ICON}
+            <span class="sr-only">Buscar en detalle de registros</span>
+            <input
+              type="search"
+              value="${escapeComedorHtml(state.tableSearch)}"
+              data-comedor-reporte-search
+              placeholder="Buscar por nombre, número o área"
+              class="${searchInputClasses}"
+            />
+          </label>
+        </div>
+        <div class="border border-dashed border-slate-200/90 bg-slate-50/60 px-5 py-14 text-center">
+          <div class="mx-auto mb-3 inline-flex size-11 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6 text-slate-400" aria-hidden="true"><path d="M9 17v-6m3 4v-4m3 5v-9M5 3h14a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-4 3V5a2 2 0 0 1 2-2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <p class="text-sm font-semibold text-slate-900">No hay registros en este periodo.</p>
+          <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600">Prueba ajustando el rango de fechas o el comedor seleccionado.</p>
+        </div>
+      </section>`;
+  }
+  return `
+    <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
+      <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+        <p class="text-sm font-semibold text-slate-900">Empleados evaluados</p>
+        <label class="relative block w-full sm:max-w-md">
+          ${REPORTE_DETALLE_SEARCH_ICON}
+          <span class="sr-only">Buscar en detalle de registros</span>
           <input
             type="search"
             value="${escapeComedorHtml(state.tableSearch)}"
             data-comedor-reporte-search
             placeholder="Buscar por nombre, número o área"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            class="${searchInputClasses}"
           />
-        </div>
-        <p class="px-4 py-14 text-center text-sm text-slate-500">No hay empleados para los filtros o búsqueda actual.</p>
-      </section>`;
-  }
-  return `
-    <section class="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/5">
-      <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-        <p class="text-sm font-semibold text-slate-900">Empleados evaluados</p>
-        <input
-          type="search"
-          value="${escapeComedorHtml(state.tableSearch)}"
-          data-comedor-reporte-search
-          placeholder="Buscar por nombre, número o área"
-          class="w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
-        />
+        </label>
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-[940px] w-full text-left">
-          <thead class="border-b border-leoni-blue-light bg-slate-50/70">
+      <div class="-mx-px overflow-x-auto border-t border-slate-100">
+        <table class="min-w-[940px] w-full border-collapse text-left">
+          <thead class="[&_th]:whitespace-nowrap">
             <tr>
               ${sortableHeader("Empleado", "nombre", state)}
-              ${sortableHeader("Días (mes)", "dias_mes", state)}
+              ${sortableHeader("Días (mes)", "dias_mes", state, "text-right")}
               ${sortableHeader("Menú", "menu", state)}
               ${sortableHeader("Estado", "estado", state, "whitespace-nowrap")}
-              <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Acción</th>
+              <th scope="col" class="sticky top-0 z-10 bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B] shadow-[inset_0_-1px_0_rgba(226,232,240,0.9)]">Acción</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100/90">
+          <tbody class="divide-y divide-slate-100">
             ${rows
               .map((row) => {
-                return `<tr class="transition hover:bg-slate-50">
+                return `<tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
                     <td class="px-4 py-3">
                       ${renderEmpleadoAvatarCell(row.nombre, row.noEmpleado, row.avatarUrl)}
                       <p class="mt-1 pl-11 text-xs text-slate-500">${escapeComedorHtml(row.area)}</p>
                     </td>
-                    <td class="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-900">${escapeComedorHtml(row.diasMes)}</td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">${escapeComedorHtml(row.diasMes)}</td>
                     <td class="whitespace-nowrap px-4 py-3">${menuBadge(row.menu)}</td>
                     <td class="whitespace-nowrap px-4 py-3">
                       ${
@@ -755,20 +729,81 @@ function renderProfilePanel(state: ReporteComedorViewState): string {
         <button type="button" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100">
           Editar perfil
         </button>
-      </section>
+      </div>
     </section>`;
 }
 
-function renderHelpFooter(): string {
+function reporteWorkspaceCopy(tab: ReporteComedorMainTab): { title: string; subtitle: string } {
+  switch (tab) {
+    case "comedor":
+      return {
+        title: "Reporte por comedor",
+        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
+      };
+    case "empleados":
+      return {
+        title: "Reporte por empleados",
+        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
+      };
+    case "areas":
+      return {
+        title: "Reporte por áreas",
+        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
+      };
+    case "detalle":
+      return {
+        title: "Detalle de registros",
+        subtitle:
+          "Tabla de evaluación (placeholder) y reservas futuras filtradas por estado. La lista operativa muestra fechas desde hoy; cruza con el periodo seleccionado usando la fecha de servicio de cada fila.",
+      };
+    default:
+      return { title: "", subtitle: "" };
+  }
+}
+
+function renderReporteWorkspaceIntro(state: ReporteComedorViewState): string {
+  const { title, subtitle } = reporteWorkspaceCopy(state.reporteMainTab);
   return `
-    <section class="rounded-xl border border-slate-200/90 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm ring-1 ring-slate-900/5">
-      Insights automáticos: el mayor consumo se concentra en días pico; usa filtros por turno para balancear producción y presupuesto.
-    </section>`;
+    <div class="flex flex-col gap-1">
+      <h2 class="text-lg font-semibold tracking-tight text-slate-900">${escapeComedorHtml(title)}</h2>
+      <p class="max-w-3xl text-sm leading-relaxed text-slate-600">${escapeComedorHtml(subtitle)}</p>
+    </div>`;
+}
+
+function renderMainTabSegment(state: ReporteComedorViewState): string {
+  const tabs: { id: ReporteComedorMainTab; label: string }[] = [
+    { id: "comedor", label: "Por comedor" },
+    { id: "empleados", label: "Por empleados" },
+    { id: "areas", label: "Por áreas" },
+    { id: "detalle", label: "Detalle de registros" },
+  ];
+  const buttons = tabs
+    .map((t) => {
+      const active = state.reporteMainTab === t.id;
+      return `<button type="button" role="tab" aria-selected="${active}" data-comedor-reporte-main-tab="${t.id}" class="min-h-10 shrink-0 rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap motion-safe:transition motion-safe:duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 ${
+        active ?
+          "bg-leoni-blue text-white shadow-[0_6px_16px_rgba(0,33,71,0.22)]"
+        : "border border-slate-200/85 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+      }">${escapeComedorHtml(t.label)}</button>`;
+    })
+    .join("");
+  return `<div class="-mx-1 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Vistas del reporte comedor">
+    <div class="inline-flex min-w-full gap-1 rounded-xl border border-slate-200/85 bg-slate-50/95 p-1 shadow-inner sm:flex-wrap">${buttons}</div>
+  </div>`;
+}
+
+function renderActiveTabBody(state: ReporteComedorViewState): string {
+  const esRh = getRolFromAccessToken() === "rh";
+  if (!esRh) return renderReporteRhRestrictedNotice();
+  if (state.reporteMainTab === "comedor") return renderReporteTabComedor(state);
+  if (state.reporteMainTab === "empleados") return renderReporteTabEmpleados(state);
+  if (state.reporteMainTab === "areas") return renderReporteTabAreas(state);
+  return "";
 }
 
 export function renderComedorReporteDashboard(state: ReporteComedorViewState): string {
   const bloqueRhProximos =
-    getRolFromAccessToken() === "rh"
+    getRolFromAccessToken() === "rh" && state.reporteMainTab === "detalle"
       ? renderComedorRhProximosRegistrosTable(
           state.rhFuturosState,
           state.rhFuturos,
@@ -779,14 +814,25 @@ export function renderComedorReporteDashboard(state: ReporteComedorViewState): s
           },
         )
       : "";
+
+  const workspaceIntro = renderReporteWorkspaceIntro(state);
+  const tabContent =
+    state.reporteMainTab === "detalle" ?
+      `<div class="flex flex-col gap-5">${renderTable(state)}${bloqueRhProximos}</div>`
+    : renderActiveTabBody(state);
+
   return `
-    <div class="flex min-h-[calc(100dvh-11rem)] flex-col gap-4 sm:gap-5">
-      ${renderHeader()}
-      ${renderFilters(state)}
+    <div class="flex min-h-0 flex-col gap-5 sm:gap-6">
+      ${renderHero(state)}
+      ${renderReporteFilterToolbarGlobal(state)}
       ${renderKpis(state)}
-      <section class="space-y-4">${renderTable(state)}</section>
-      ${bloqueRhProximos}
-      ${renderHelpFooter()}
+      <section class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-6 lg:p-7">
+        ${renderMainTabSegment(state)}
+        <div class="mt-6 space-y-6 border-t border-slate-100 pt-6">
+          ${workspaceIntro}
+          ${tabContent}
+        </div>
+      </section>
     </div>`;
 }
 
@@ -818,6 +864,5 @@ export function renderComedorReporteDetailDashboard(state: ReporteComedorViewSta
         </div>
         <div class="mt-4">${renderProfilePanel(state)}</div>
       </section>
-      ${renderHelpFooter()}
     </div>`;
 }

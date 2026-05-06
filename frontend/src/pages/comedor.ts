@@ -85,6 +85,14 @@ import type {
   ReporteComedorTableResponse,
   ReporteComedorViewState,
 } from "../comedor/reportes/types.ts";
+import type { ComedorRhProximoRegistroRow } from "../comedor/rh/types.ts";
+import {
+  clasificarEstadoOps,
+  diasEnPeriodoCalendario,
+  filterPorComedorSeleccion,
+  filterProximosPorRango,
+  sumResumenDiario,
+} from "../comedor/reportes/reporteAggregations.ts";
 
 /** Mismo contenedor visual que Solicitudes (`#rh-comedor-page` activa estilos en `style.css`). */
 const COMEDOR_DASHBOARD_PAGE_SHELL =
@@ -687,10 +695,113 @@ function mapEstadisticasToReporteKpis(
       id: "costo_estimado",
       label: "Promedio semanal",
       valor: `${proyecciones.promedio_semanal}`,
-      secundario: "Basado en últimas 4 semanas",
+      secundario: "Basado en últimas 4 semanas (referencia histórica)",
       icono: "costo",
     },
   ];
+}
+
+function mapRhReporteKpis(
+  resumen: Awaited<ReturnType<typeof getComedorRhResumenDiario>>,
+  desdeIso: string,
+  hastaIso: string,
+  opsEnRangoYcomedor: readonly ComedorRhProximoRegistroRow[],
+): readonly ReporteComedorKpi[] {
+  const { total, caseras, saludables } = sumResumenDiario(resumen);
+  const diasCal = diasEnPeriodoCalendario(desdeIso, hastaIso);
+  const promedioDiario = diasCal > 0 ? (total / diasCal).toFixed(1) : "0";
+  const comedoresSet = new Set(opsEnRangoYcomedor.map((r) => (r.comedor_nombre || "").trim()).filter(Boolean));
+  const empleadosSet = new Set(opsEnRangoYcomedor.map((r) => r.empleado_id));
+  let acc = 0;
+  let pend = 0;
+  let canc = 0;
+  for (const r of opsEnRangoYcomedor) {
+    const c = clasificarEstadoOps(r.estado_acceso);
+    if (c === "confirmado") acc += 1;
+    else if (c === "cancelado") canc += 1;
+    else pend += 1;
+  }
+  const mixValor =
+    total > 0 ?
+      `${Math.round((caseras / total) * 100)}% / ${Math.round((saludables / total) * 100)}%`
+    : "—";
+  return [
+    {
+      id: "total_registros_resumen",
+      label: "Total registros (consolidado)",
+      valor: String(total),
+      secundario: `Caseras ${caseras} · Saludables ${saludables}`,
+      icono: "empleados",
+    },
+    {
+      id: "promedio_diario_resumen",
+      label: "Promedio diario",
+      valor: promedioDiario,
+      secundario: `${diasCal} días calendario · Resumen diario RH`,
+      icono: "costo",
+    },
+    {
+      id: "mix_menu_resumen",
+      label: "Mix caseras / saludables",
+      valor: mixValor,
+      secundario: "Distribución sobre el total consolidado del periodo",
+      icono: "consumo",
+    },
+    {
+      id: "empleados_unicos_operativo",
+      label: "Empleados únicos",
+      valor: String(empleadosSet.size),
+      secundario: "Basado en registros operativos del periodo seleccionado",
+      icono: "empleados",
+    },
+    {
+      id: "accedidos_operativo",
+      label: "Accedidos",
+      valor: String(acc),
+      secundario: "Registros operativos en el periodo (huella validada)",
+      icono: "asistencia",
+    },
+    {
+      id: "pendientes_operativo",
+      label: "Pendientes",
+      valor: String(pend),
+      secundario: "Registros operativos en el periodo",
+      icono: "consumo",
+    },
+    {
+      id: "cancelados_operativo",
+      label: "Cancelados / expirados",
+      valor: String(canc),
+      secundario: "Registros operativos en el periodo",
+      icono: "costo",
+    },
+    {
+      id: "comedores_activos_operativo",
+      label: "Comedores con registros",
+      valor: String(comedoresSet.size),
+      secundario:
+        comedoresSet.size > 0 ? "Comedores distintos en registros del periodo" : "Sin registros en el periodo",
+      icono: "asistencia",
+    },
+  ];
+}
+
+async function fetchAllRhProximosRegistrosPages(
+  filtroEstado: "todos" | "confirmado" | "cancelado",
+): Promise<readonly ComedorRhProximoRegistroRow[]> {
+  const pageSize = 50 as const;
+  let page = 1;
+  const all: ComedorRhProximoRegistroRow[] = [];
+  let total = Infinity;
+  while (all.length < total) {
+    const raw = await getComedorRhProximosRegistros(page, pageSize, { filtroEstado });
+    all.push(...raw.items);
+    total = raw.total;
+    if (raw.items.length === 0) break;
+    page += 1;
+    if (page > 400) break;
+  }
+  return all;
 }
 
 function toIsoDate(value: Date): string {
@@ -714,15 +825,17 @@ function dateRangeFromPreset(preset: Exclude<ReporteComedorDatePreset, "custom">
 } {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (preset === "last_7") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 6);
-    return { inicioIso: toIsoDate(start), finIso: toIsoDate(today) };
+  if (preset === "today") {
+    const iso = toIsoDate(today);
+    return { inicioIso: iso, finIso: iso };
   }
-  if (preset === "last_30") {
+  if (preset === "this_week") {
+    const dow = (today.getDay() + 6) % 7;
     const start = new Date(today);
-    start.setDate(today.getDate() - 29);
-    return { inicioIso: toIsoDate(start), finIso: toIsoDate(today) };
+    start.setDate(today.getDate() - dow);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { inicioIso: toIsoDate(start), finIso: toIsoDate(end) };
   }
   if (preset === "this_month") {
     return { inicioIso: toIsoDate(startOfMonth(today)), finIso: toIsoDate(endOfMonth(today)) };
@@ -2483,7 +2596,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   const esRhReporte = getRolFromAccessToken() === "rh";
   const state: ReporteComedorState = {
     filtersDataset: {
-      departamentos: [{ id: "todos", label: "Todos los departamentos" }],
+      departamentos: [{ id: "todos", label: "Todos los comedores" }],
       turnos: [{ id: "todos", label: "Todos los turnos" }],
       fechaInicioIso: initialRange.inicioIso,
       fechaFinIso: initialRange.finIso,
@@ -2497,9 +2610,16 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     selectedTurnoId: "todos",
     selectedFechaInicioIso: initialRange.inicioIso,
     selectedFechaFinIso: initialRange.finIso,
+    dateRangeError: null,
+    reporteMainTab: esRhReporte ? "comedor" : "detalle",
+    tabSearchComedor: "",
+    tabSearchEmpleado: "",
+    tabSearchArea: "",
+    kpisModo: esRhReporte ? "rh_resumen" : "comedor_semana",
     kpisState: "loading",
     kpis: null,
     kpisError: null,
+    rhResumenDiario: null,
     tableState: "loading",
     table: null,
     tableError: null,
@@ -2515,6 +2635,9 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     rhFuturosPageSize: 10,
     rhFuturosStatusFilter: "todos",
     rhFuturosSearch: "",
+    rhAnalyticsState: esRhReporte ? "loading" : "empty",
+    rhAnalyticsRows: [],
+    rhAnalyticsError: null,
   };
 
   let rhFuturosSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2534,14 +2657,17 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   function paint(): void {
     const root = container.querySelector<HTMLElement>("#comedor-reporte-root");
     if (!root) return;
-    root.innerHTML = renderComedorReporteDashboard(toReporteViewState(state));
+    root.innerHTML = reporteComedorInnerWrap(renderComedorReporteDashboard(toReporteViewState(state)));
   }
 
   async function loadFilters(): Promise<void> {
     try {
       const comedores = await getComedoresActivos();
+      const preserveDept = state.selectedDepartamentoId;
       const dataset = {
         ...state.filtersDataset,
+        fechaInicioIso: state.selectedFechaInicioIso,
+        fechaFinIso: state.selectedFechaFinIso,
         departamentos: [
           { id: "todos", label: "Todos los comedores" },
           ...comedores.map((item) => ({ id: String(item.id), label: item.nombre })),
@@ -2549,46 +2675,79 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       };
       if (signal.aborted) return;
       state.filtersDataset = dataset;
-      state.selectedDepartamentoId = dataset.departamentos[0]?.id ?? "todos";
-      state.selectedTurnoId = dataset.turnos[0]?.id ?? "todos";
-      state.selectedFechaInicioIso = dataset.fechaInicioIso;
-      state.selectedFechaFinIso = dataset.fechaFinIso;
+      const stillValid = dataset.departamentos.some((d) => d.id === preserveDept);
+      state.selectedDepartamentoId = stillValid ? preserveDept : "todos";
       state.draftDepartamentoId = state.selectedDepartamentoId;
       state.draftTurnoId = state.selectedTurnoId;
       state.draftFechaInicioIso = state.selectedFechaInicioIso;
       state.draftFechaFinIso = state.selectedFechaFinIso;
-      state.draftDatePreset = "custom";
     } catch {
       if (signal.aborted) return;
     }
     paint();
   }
 
+  function comedorNombreFiltroSeleccionado(): string | null {
+    if (state.selectedDepartamentoId === "todos") return null;
+    const opt = state.filtersDataset.departamentos.find((d) => d.id === state.selectedDepartamentoId);
+    return opt?.label.trim() ? opt.label.trim() : null;
+  }
+
   async function loadKpis(): Promise<void> {
     state.kpisState = "loading";
     state.kpisError = null;
+    state.kpisModo = getRolFromAccessToken() === "rh" ? "rh_resumen" : "comedor_semana";
+    if (getRolFromAccessToken() === "rh") {
+      state.rhAnalyticsState = "loading";
+      state.rhAnalyticsError = null;
+    }
     paint();
     try {
-      const comedorId = await resolveComedorId();
-      if (comedorId == null) {
-        state.kpis = [];
-        state.kpisState = "empty";
-        paint();
-        return;
+      if (getRolFromAccessToken() === "rh") {
+        const [resumen, bulk] = await Promise.all([
+          getComedorRhResumenDiario(state.selectedFechaInicioIso, state.selectedFechaFinIso),
+          fetchAllRhProximosRegistrosPages(state.rhFuturosStatusFilter),
+        ]);
+        if (signal.aborted) return;
+        state.rhResumenDiario = resumen;
+        state.rhAnalyticsRows = bulk;
+        state.rhAnalyticsState = "ready";
+        const opsFiltrados = filterPorComedorSeleccion(
+          filterProximosPorRango(bulk, state.selectedFechaInicioIso, state.selectedFechaFinIso),
+          comedorNombreFiltroSeleccionado(),
+        );
+        const rows = mapRhReporteKpis(resumen, state.selectedFechaInicioIso, state.selectedFechaFinIso, opsFiltrados);
+        state.kpis = rows;
+        state.kpisState = rows.length > 0 ? "ready" : "empty";
+      } else {
+        state.rhResumenDiario = null;
+        state.rhAnalyticsRows = [];
+        state.rhAnalyticsState = "empty";
+        const comedorId = await resolveComedorId();
+        if (comedorId == null) {
+          state.kpis = [];
+          state.kpisState = "empty";
+          paint();
+          return;
+        }
+        const [estadisticas, proyecciones] = await Promise.all([
+          getComedorEstadisticas(getCurrentWeekStartIso()),
+          getComedorProyecciones(),
+        ]);
+        const rows = mapEstadisticasToReporteKpis(estadisticas, proyecciones);
+        if (signal.aborted) return;
+        state.kpis = rows;
+        state.kpisState = rows.length > 0 ? "ready" : "empty";
       }
-      const [estadisticas, proyecciones] = await Promise.all([
-        getComedorEstadisticas(getCurrentWeekStartIso()),
-        getComedorProyecciones(),
-      ]);
-      const rows = mapEstadisticasToReporteKpis(estadisticas, proyecciones);
-      if (signal.aborted) return;
-      state.kpis = rows;
-      state.kpisState = rows.length > 0 ? "ready" : "empty";
     } catch (error) {
       if (signal.aborted) return;
       state.kpis = null;
       state.kpisState = "error";
       state.kpisError = error instanceof Error ? error.message : "Error al cargar métricas.";
+      if (getRolFromAccessToken() === "rh") {
+        state.rhAnalyticsState = "error";
+        state.rhAnalyticsError = state.kpisError;
+      }
     }
     paint();
   }
@@ -2634,54 +2793,13 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   }
 
   async function reloadAll(): Promise<void> {
-    await Promise.all([loadKpis(), loadTable()]);
+    const rol = getRolFromAccessToken();
+    const tasks: Promise<void>[] = [loadKpis(), loadTable()];
+    if (rol === "rh") tasks.push(loadFuturosRegistrosRh());
+    await Promise.all(tasks);
     if (signal.aborted) return;
     state.lastUpdatedLabel = toUpdatedLabel(Date.now());
     paint();
-  }
-
-  function applyFilters(): void {
-    state.selectedDepartamentoId = state.draftDepartamentoId;
-    state.selectedTurnoId = state.draftTurnoId;
-    state.selectedFechaInicioIso = state.draftFechaInicioIso;
-    state.selectedFechaFinIso = state.draftFechaFinIso;
-    void reloadAll();
-  }
-
-  function clearFilters(): void {
-    const defaultDepartamentoId = state.filtersDataset.departamentos[0]?.id ?? "todos";
-    const defaultTurnoId = state.filtersDataset.turnos[0]?.id ?? "todos";
-    const inicioIso = state.filtersDataset.fechaInicioIso;
-    const finIso = state.filtersDataset.fechaFinIso;
-    state.draftDepartamentoId = defaultDepartamentoId;
-    state.draftTurnoId = defaultTurnoId;
-    state.draftFechaInicioIso = inicioIso;
-    state.draftFechaFinIso = finIso;
-    state.draftDatePreset = "custom";
-    applyFilters();
-  }
-
-  function applyDatePreset(preset: Exclude<ReporteComedorDatePreset, "custom">): void {
-    const range = dateRangeFromPreset(preset);
-    state.draftDatePreset = preset;
-    state.draftFechaInicioIso = range.inicioIso;
-    state.draftFechaFinIso = range.finIso;
-    paint();
-  }
-
-  function removeActiveChip(chip: "departamento" | "turno" | "fecha"): void {
-    if (chip === "departamento") {
-      state.draftDepartamentoId = state.filtersDataset.departamentos[0]?.id ?? "todos";
-    }
-    if (chip === "turno") {
-      state.draftTurnoId = state.filtersDataset.turnos[0]?.id ?? "todos";
-    }
-    if (chip === "fecha") {
-      state.draftFechaInicioIso = state.filtersDataset.fechaInicioIso;
-      state.draftFechaFinIso = state.filtersDataset.fechaFinIso;
-      state.draftDatePreset = "custom";
-    }
-    applyFilters();
   }
 
   function updateTableSort(nextKey: ReporteComedorSortKey): void {
@@ -2695,11 +2813,15 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     paint();
   }
 
+  function reporteComedorInnerWrap(html: string): string {
+    return `<div class="mx-auto flex w-full max-w-[1320px] flex-col gap-5 sm:gap-6">${html}</div>`;
+  }
+
   mountAppShell(container, {
     pageTitle: "Reporte comedor",
     activeNav: "reportes",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-reporte-root">${renderComedorReporteDashboard(toReporteViewState(state))}</div>`,
+    mainClass: "pt-0 pb-5 sm:pb-6",
+    mainHtml: `<div id="comedor-reporte-root" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">${reporteComedorInnerWrap(renderComedorReporteDashboard(toReporteViewState(state)))}</div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-reporte-root");
@@ -2707,6 +2829,85 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     "click",
     (event) => {
       const target = event.target as HTMLElement;
+      const presetReporte = target.closest<HTMLButtonElement>("[data-comedor-reporte-preset]");
+      if (presetReporte) {
+        const raw = presetReporte.getAttribute("data-comedor-reporte-preset");
+        if (raw === "custom") {
+          state.draftDatePreset = "custom";
+          paint();
+          return;
+        }
+        if (
+          raw === "today" ||
+          raw === "this_week" ||
+          raw === "this_month" ||
+          raw === "previous_month"
+        ) {
+          const range = dateRangeFromPreset(raw);
+          state.draftDatePreset = raw;
+          state.selectedFechaInicioIso = range.inicioIso;
+          state.selectedFechaFinIso = range.finIso;
+          state.draftFechaInicioIso = range.inicioIso;
+          state.draftFechaFinIso = range.finIso;
+          state.dateRangeError = null;
+          state.filtersDataset = {
+            ...state.filtersDataset,
+            fechaInicioIso: range.inicioIso,
+            fechaFinIso: range.finIso,
+          };
+          void reloadAll();
+          return;
+        }
+        return;
+      }
+      if (target.closest("[data-comedor-reporte-apply-dates]")) {
+        if (isoToDate(state.draftFechaInicioIso).getTime() > isoToDate(state.draftFechaFinIso).getTime()) {
+          state.dateRangeError = "La fecha inicial no puede ser posterior a la fecha final.";
+          paint();
+          return;
+        }
+        state.dateRangeError = null;
+        state.selectedFechaInicioIso = state.draftFechaInicioIso;
+        state.selectedFechaFinIso = state.draftFechaFinIso;
+        state.draftDatePreset = "custom";
+        state.filtersDataset = {
+          ...state.filtersDataset,
+          fechaInicioIso: state.selectedFechaInicioIso,
+          fechaFinIso: state.selectedFechaFinIso,
+        };
+        void reloadAll();
+        return;
+      }
+      if (target.closest("[data-comedor-reporte-reset-filters]")) {
+        const range = dateRangeFromPreset("this_month");
+        state.draftDatePreset = "this_month";
+        state.selectedFechaInicioIso = range.inicioIso;
+        state.selectedFechaFinIso = range.finIso;
+        state.draftFechaInicioIso = range.inicioIso;
+        state.draftFechaFinIso = range.finIso;
+        state.selectedDepartamentoId = "todos";
+        state.draftDepartamentoId = "todos";
+        state.tabSearchComedor = "";
+        state.tabSearchEmpleado = "";
+        state.tabSearchArea = "";
+        state.dateRangeError = null;
+        state.filtersDataset = {
+          ...state.filtersDataset,
+          fechaInicioIso: range.inicioIso,
+          fechaFinIso: range.finIso,
+        };
+        void reloadAll();
+        return;
+      }
+      const mainTabBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-main-tab]");
+      if (mainTabBtn) {
+        const v = mainTabBtn.getAttribute("data-comedor-reporte-main-tab");
+        if (v === "comedor" || v === "empleados" || v === "areas" || v === "detalle") {
+          state.reporteMainTab = v;
+          paint();
+        }
+        return;
+      }
       if (target.closest("[data-comedor-rh-futuros-retry]")) {
         void loadFuturosRegistrosRh();
         return;
@@ -2727,7 +2928,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         if (v === "todos" || v === "confirmado" || v === "cancelado") {
           state.rhFuturosStatusFilter = v;
           state.rhFuturosPage = 1;
-          void loadFuturosRegistrosRh();
+          void Promise.all([loadKpis(), loadFuturosRegistrosRh()]);
         }
         return;
       }
@@ -2737,26 +2938,6 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       }
       if (target.closest("[data-comedor-reporte-retry-table]")) {
         void loadTable();
-        return;
-      }
-      if (target.closest("[data-comedor-reporte-clear-filters]")) {
-        clearFilters();
-        return;
-      }
-      const presetBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-date-preset]");
-      if (presetBtn) {
-        const preset = presetBtn.getAttribute("data-comedor-reporte-date-preset");
-        if (preset === "last_7" || preset === "last_30" || preset === "this_month" || preset === "previous_month") {
-          applyDatePreset(preset);
-        }
-        return;
-      }
-      const clearChipBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-clear-chip]");
-      if (clearChipBtn) {
-        const chip = clearChipBtn.getAttribute("data-comedor-reporte-clear-chip");
-        if (chip === "departamento" || chip === "turno" || chip === "fecha") {
-          removeActiveChip(chip);
-        }
         return;
       }
       const sortBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-sort]");
@@ -2780,6 +2961,13 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     "change",
     (event) => {
       const target = event.target as HTMLElement;
+      const comedorSel = target.closest<HTMLSelectElement>("[data-comedor-reporte-filter-comedor]");
+      if (comedorSel) {
+        state.selectedDepartamentoId = comedorSel.value;
+        state.draftDepartamentoId = comedorSel.value;
+        void loadKpis();
+        return;
+      }
       const rhPageSizeSel = target.closest<HTMLSelectElement>("[data-comedor-rh-futuros-page-size]");
       if (rhPageSizeSel) {
         const v = Number.parseInt(rhPageSizeSel.value, 10);
@@ -2790,25 +2978,6 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         }
         return;
       }
-      const filter = target.closest<HTMLElement>("[data-comedor-reporte-filter]");
-      if (!filter) return;
-      const key = filter.getAttribute("data-comedor-reporte-filter");
-      if (!key) return;
-      if (key === "departamento" && filter instanceof HTMLSelectElement) {
-        state.draftDepartamentoId = filter.value;
-      }
-      if (key === "turno" && filter instanceof HTMLSelectElement) {
-        state.draftTurnoId = filter.value;
-      }
-      if (key === "fecha_inicio" && filter instanceof HTMLInputElement) {
-        state.draftFechaInicioIso = filter.value;
-        state.draftDatePreset = "custom";
-      }
-      if (key === "fecha_fin" && filter instanceof HTMLInputElement) {
-        state.draftFechaFinIso = filter.value;
-        state.draftDatePreset = "custom";
-      }
-      paint();
     },
     { signal },
   );
@@ -2817,6 +2986,38 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     "input",
     (event) => {
       const target = event.target as HTMLElement;
+      const draftStart = target.closest<HTMLInputElement>("[data-comedor-reporte-draft-start]");
+      if (draftStart) {
+        state.draftFechaInicioIso = draftStart.value;
+        state.draftDatePreset = "custom";
+        paint();
+        return;
+      }
+      const draftEnd = target.closest<HTMLInputElement>("[data-comedor-reporte-draft-end]");
+      if (draftEnd) {
+        state.draftFechaFinIso = draftEnd.value;
+        state.draftDatePreset = "custom";
+        paint();
+        return;
+      }
+      const tabComedor = target.closest<HTMLInputElement>("[data-comedor-reporte-tab-search-comedor]");
+      if (tabComedor) {
+        state.tabSearchComedor = tabComedor.value;
+        paint();
+        return;
+      }
+      const tabEmp = target.closest<HTMLInputElement>("[data-comedor-reporte-tab-search-empleado]");
+      if (tabEmp) {
+        state.tabSearchEmpleado = tabEmp.value;
+        paint();
+        return;
+      }
+      const tabArea = target.closest<HTMLInputElement>("[data-comedor-reporte-tab-search-area]");
+      if (tabArea) {
+        state.tabSearchArea = tabArea.value;
+        paint();
+        return;
+      }
       const rhSearch = target.closest<HTMLInputElement>("[data-comedor-rh-futuros-search]");
       if (rhSearch) {
         state.rhFuturosSearch = rhSearch.value;
@@ -2840,11 +3041,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
 
   void loadFilters().then(() => {
     if (signal.aborted) return;
-    void (async () => {
-      await reloadAll();
-      if (signal.aborted) return;
-      if (getRolFromAccessToken() === "rh") await loadFuturosRegistrosRh();
-    })();
+    void reloadAll();
   });
 
   signal.addEventListener("abort", () => {

@@ -777,6 +777,18 @@ body {
   border: 1px solid rgba(245, 158, 11, 0.28);
 }
 
+.rh-dash-kpi-icon--emerald {
+  background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.26);
+}
+
+.rh-dash-kpi-icon--slate {
+  background: linear-gradient(145deg, #f1f5f9 0%, #f8fafc 100%);
+  color: #334155;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
 /* Alertas prioritarias */
 .rh-dash-priority--empty {
   border: 1px solid rgba(245, 158, 11, 0.22);
