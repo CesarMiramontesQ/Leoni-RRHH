@@ -132,17 +132,17 @@ export function mapMetricsToCardViews(
         a.normal !== null || a.dieta !== null
           ? [
               {
-                text: `Caseras: ${fmtInt(a.normal)}`,
+                text: `Opción A: ${fmtInt(a.normal)}`,
                 dotClass: "bg-blue-500",
               },
               {
-                text: `Saludables: ${fmtInt(a.dieta)}`,
+                text: `Opción B: ${fmtInt(a.dieta)}`,
                 dotClass: "bg-emerald-500",
               },
             ]
           : [
-              { text: "Caseras: —", dotClass: "bg-slate-300" },
-              { text: "Saludables: —", dotClass: "bg-slate-300" },
+              { text: "Opción A: —", dotClass: "bg-slate-300" },
+              { text: "Opción B: —", dotClass: "bg-slate-300" },
             ],
       badgeUrgente: false,
       actionLink: null,

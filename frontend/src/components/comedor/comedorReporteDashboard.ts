@@ -241,7 +241,7 @@ function renderKpis(state: ReporteComedorViewState): string {
   const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
   const fuenteResumen =
     state.kpisModo === "rh_resumen" ?
-      "Consolidado diario RH (caseras + saludables) y KPIs operativos filtrados por periodo y comedor."
+      "Consolidado diario RH (Opción A + Opción B) y KPIs operativos filtrados por periodo y comedor."
     : "Referencia de la semana actual del comedor (API estadísticas / proyecciones).";
   const contextStrip = `
     <div class="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/40 to-sky-50/30 px-4 py-3.5 shadow-sm ring-1 ring-slate-900/5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">

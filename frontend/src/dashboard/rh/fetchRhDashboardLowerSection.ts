@@ -88,7 +88,7 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
   const dayMetrics: RhLowerSectionPayload["calendar"]["dayMetrics"] = {};
 
   let totalAlmuerzos = 0;
-  let totalSaludables = 0;
+  let totalOpcionB = 0;
   let totalHomeOffice = 0;
 
   for (const [iso, counters] of Object.entries(solicitudesByDay)) {
@@ -110,12 +110,12 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
     const saludables = Math.max(0, row.saludables ?? 0);
     const totalDia = caseras + saludables;
     totalAlmuerzos += totalDia;
-    totalSaludables += saludables;
+    totalOpcionB += saludables;
     const current = dayMetrics[row.fecha];
     const lines = current?.lines ?? [];
     lines.unshift(
-      { kind: "dieta", text: `${saludables} Saludables` },
-      { kind: "normal", text: `${caseras} Caseras` },
+      { kind: "dieta", text: `${saludables} Opción B` },
+      { kind: "normal", text: `${caseras} Opción A` },
     );
     dayMetrics[row.fecha] = {
       lines,
@@ -145,7 +145,7 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
     },
     weekly_summary: {
       total_almuerzos: totalAlmuerzos,
-      menus_dieta: totalSaludables,
+      menus_dieta: totalOpcionB,
       home_office_total: totalHomeOffice,
       promedio_diario: Math.round(totalAlmuerzos / weekdaysInMonth),
     },

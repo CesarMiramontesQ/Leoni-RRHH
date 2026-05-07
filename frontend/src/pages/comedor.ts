@@ -461,8 +461,8 @@ function mapResumenRhToCalendarMonth(
       isoDate: iso,
       reservas: caseras + saludables,
       tags: [
-        { id: `rh-caseras-${iso}`, label: `${caseras} Caseras`, tone: "normal" },
-        { id: `rh-saludables-${iso}`, label: `${saludables} Saludables`, tone: "dieta" },
+        { id: `rh-caseras-${iso}`, label: `${caseras} Opción A`, tone: "normal" },
+        { id: `rh-saludables-${iso}`, label: `${saludables} Opción B`, tone: "dieta" },
       ],
     };
   }
@@ -470,8 +470,8 @@ function mapResumenRhToCalendarMonth(
     year,
     monthIndex,
     legend: [
-      { id: "rh-caseras", label: "Caseras", dotClass: "bg-leoni-blue" },
-      { id: "rh-saludables", label: "Saludables", dotClass: "bg-emerald-500" },
+      { id: "rh-caseras", label: "Opción A", dotClass: "bg-leoni-blue" },
+      { id: "rh-saludables", label: "Opción B", dotClass: "bg-emerald-500" },
     ],
     dayMetrics,
   };
@@ -486,8 +486,8 @@ function formatEstadoAccesoLabel(estadoAcceso: string): string {
 
 function formatTipoComidaLabel(tipoComida: string): string {
   const key = tipoComida.trim().toLowerCase();
-  if (key === "casera") return "Casera";
-  if (key === "saludable") return "Saludable";
+  if (key === "casera") return "Opción A";
+  if (key === "saludable") return "Opción B";
   return tipoComida;
 }
 
@@ -585,7 +585,7 @@ function mapMetricasLiderToKpis(metricas: Awaited<ReturnType<typeof getComedorEq
     },
     {
       id: "porcentaje_caseras",
-      titulo: "% Comidas caseras",
+      titulo: "% Opción A",
       valor: `${metricas.porcentaje_caseras ?? 0}%`,
       descripcion: `Sobre ${metricas.total_activas ?? 0} reservas activas/confirmadas.`,
       accentClass: "border-t-emerald-500",
@@ -593,7 +593,7 @@ function mapMetricasLiderToKpis(metricas: Awaited<ReturnType<typeof getComedorEq
     },
     {
       id: "porcentaje_saludables",
-      titulo: "% Comidas saludables",
+      titulo: "% Opción B",
       valor: `${metricas.porcentaje_saludables ?? 0}%`,
       descripcion: `Sobre ${metricas.total_activas ?? 0} reservas activas/confirmadas.`,
       accentClass: "border-t-violet-500",
@@ -730,7 +730,7 @@ function mapRhReporteKpis(
       id: "total_registros_resumen",
       label: "Total registros (consolidado)",
       valor: String(total),
-      secundario: `Caseras ${caseras} · Saludables ${saludables}`,
+      secundario: `Opción A ${caseras} · Opción B ${saludables}`,
       icono: "empleados",
     },
     {
@@ -742,7 +742,7 @@ function mapRhReporteKpis(
     },
     {
       id: "mix_menu_resumen",
-      label: "Mix caseras / saludables",
+      label: "Mix Opción A / Opción B",
       valor: mixValor,
       secundario: "Distribución sobre el total consolidado del periodo",
       icono: "consumo",
@@ -1185,8 +1185,8 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         menuFieldLabel: "Tipo de comida",
         loadMenuOptions: async () => {
           return [
-            { id: "casera", label: "Casera" },
-            { id: "saludable", label: "Saludable" },
+            { id: "casera", label: "Opción A" },
+            { id: "saludable", label: "Opción B" },
           ];
         },
         searchEmployees: searchComedorEmployeesFromDb,
@@ -1347,7 +1347,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
           <td class="px-3 py-2">${row.fecha_inicio}</td>
           <td class="px-3 py-2">${row.fecha_fin}</td>
           <td class="px-3 py-2">${row.cantidad_personas}</td>
-          <td class="px-3 py-2">${row.tipo_comida === "casera" ? "Casera" : "Saludable"}</td>
+          <td class="px-3 py-2">${row.tipo_comida === "casera" ? "Opción A" : "Opción B"}</td>
           <td class="px-3 py-2 font-mono text-xs">${row.codigo_acceso}</td>
           <td class="px-3 py-2 font-mono text-xs">${row.password_temporal}</td>
           <td class="px-3 py-2">${row.usados}/${row.cantidad_personas}</td>
@@ -2050,8 +2050,8 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         fechaMinReservaIso,
         menuFieldLabel: "Tipo de comida",
         loadMenuOptions: async () => [
-          { id: "casera", label: "Casera" },
-          { id: "saludable", label: "Saludable" },
+          { id: "casera", label: "Opción A" },
+          { id: "saludable", label: "Opción B" },
         ],
         loadEmployeeOptions: isSupervisor
           ? async () => {
@@ -2164,12 +2164,18 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           return;
         }
         const tipoActual = row.tipoComida.trim().toLowerCase();
-        const sugerido = tipoActual === "saludable" ? "saludable" : "casera";
-        const nuevoTipo = window
-          .prompt("Editar tipo de comida (casera/saludable):", sugerido)
+        const sugerido = tipoActual === "saludable" ? "opcion_b" : "opcion_a";
+        const nuevoTipoInput = window
+          .prompt("Editar tipo de comida (opcion_a/opcion_b):", sugerido)
           ?.trim()
           .toLowerCase();
-        if (!nuevoTipo) return;
+        if (!nuevoTipoInput) return;
+        const nuevoTipo =
+          nuevoTipoInput === "opcion_a"
+            ? "casera"
+            : nuevoTipoInput === "opcion_b"
+              ? "saludable"
+              : nuevoTipoInput;
         if (nuevoTipo !== "casera" && nuevoTipo !== "saludable") {
           showEmpleadosToast(container, "Tipo de comida inválido.", "error");
           return;
@@ -2385,8 +2391,8 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
               }
             : null,
           loadMenuOptions: async () => [
-            { id: "casera", label: "Casera" },
-            { id: "saludable", label: "Saludable" },
+            { id: "casera", label: "Opción A" },
+            { id: "saludable", label: "Opción B" },
           ],
           searchEmployees: async () => [],
           onSubmit: async (payload) => {

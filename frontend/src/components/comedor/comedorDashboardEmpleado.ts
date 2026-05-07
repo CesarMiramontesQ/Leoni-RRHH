@@ -43,8 +43,8 @@ function renderHeader(): string {
 
 function tipoComidaLabel(tipo: string): string {
   const map: Record<string, string> = {
-    casera: "Casera",
-    saludable: "Saludable",
+    casera: "Opción A",
+    saludable: "Opción B",
   };
   return map[tipo] ?? tipo;
 }
@@ -169,8 +169,8 @@ function renderEditModal(state: ComedorDashboardEmpleadoViewState): string {
           class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 focus:border-leoni-blue focus:outline-none"
           ${disableAttr}
         >
-          <option value="casera" ${state.editTipoComida === "casera" ? "selected" : ""}>Casera</option>
-          <option value="saludable" ${state.editTipoComida === "saludable" ? "selected" : ""}>Saludable</option>
+          <option value="casera" ${state.editTipoComida === "casera" ? "selected" : ""}>Opción A</option>
+          <option value="saludable" ${state.editTipoComida === "saludable" ? "selected" : ""}>Opción B</option>
         </select>
       </div>
       <div class="mt-5 flex justify-end gap-2">

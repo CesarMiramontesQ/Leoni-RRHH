@@ -243,7 +243,7 @@ const RESERVATIONS: readonly ComedorReservationRow[] = [
 
 const MENU_OPTIONS: readonly ComedorMenuOption[] = [
   { id: "normal", label: "Normal" },
-  { id: "saludable", label: "Saludable" },
+  { id: "saludable", label: "Opción B" },
 ];
 
 /**

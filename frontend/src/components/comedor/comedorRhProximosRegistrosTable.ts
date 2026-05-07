@@ -25,8 +25,8 @@ function formatFechaServicio(iso: string): string {
 
 function tipoComidaLabel(raw: string): string {
   const k = raw.trim().toLowerCase();
-  if (k === "casera") return "Casera";
-  if (k === "saludable") return "Saludable";
+  if (k === "casera") return "Opción A";
+  if (k === "saludable") return "Opción B";
   return raw;
 }
 
