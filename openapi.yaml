@@ -744,6 +744,12 @@ components:
         comentario:
           type: [string, "null"]
 
+    ActaAnularRequest:
+      type: object
+      properties:
+        motivo:
+          type: [string, "null"]
+
     ActaResponse:
       type: object
       required: [id, empleado_id, estado, generado_por, created_at]
@@ -797,6 +803,7 @@ components:
           type: [string, "null"]
         estado:
           type: string
+          enum: [draft, pending_sign, signed, archived, cancelled]
         generado_por:
           type: integer
         created_at:
@@ -2579,8 +2586,8 @@ paths:
   /api/v1/actas/generar/{incidencia_id}:
     post:
       tags: [Actas Administrativas]
-      summary: Generar acta con IA desde incidencia
-      description: Integracion con Ollama LLM. En desarrollo.
+      summary: Generar acta desde incidencia
+      description: Borrador assistido desde incidencia. En desarrollo.
       operationId: actas_generar_ia
       security:
         - BearerAuth: []
@@ -2627,7 +2634,7 @@ paths:
   /api/v1/actas/{id}/mejorar-ia:
     post:
       tags: [Actas Administrativas]
-      summary: Mejorar texto del acta con IA
+      summary: Generar escrito de apoyo para el acta
       operationId: actas_mejorar_ia
       security:
         - BearerAuth: []
@@ -2639,7 +2646,7 @@ paths:
             type: integer
       responses:
         "200":
-          description: Texto mejorado
+          description: Escrito de apoyo generado
           content:
             application/json:
               schema:
@@ -2648,7 +2655,7 @@ paths:
   /api/v1/actas/{id}/editar:
     put:
       tags: [Actas Administrativas]
-      summary: Editar acta en estado DRAFT
+      summary: Editar acta en estado En revisión
       operationId: actas_editar
       security:
         - BearerAuth: []
@@ -2698,6 +2705,63 @@ paths:
                     type: string
                   id:
                     type: integer
+
+  /api/v1/actas/{id}/aprobar:
+    put:
+      tags: [Actas Administrativas]
+      summary: Aprobar acta (solo RH)
+      operationId: actas_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acta aprobada (archivada)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+        "403":
+          description: Solo RH puede aprobar
+        "409":
+          description: Acta ya aprobada o anulada
+
+  /api/v1/actas/{id}/anular:
+    put:
+      tags: [Actas Administrativas]
+      summary: Anular acta (solo RH)
+      description: Solo en borrador o en proceso (draft / pending_sign). No aplica si ya esta aprobada.
+      operationId: actas_anular
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActaAnularRequest"
+      responses:
+        "200":
+          description: Acta anulada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+        "403":
+          description: Solo RH puede anular
+        "409":
+          description: Acta ya anulada o ya aprobada
 
   /api/v1/actas/{id}/pdf:
     get:

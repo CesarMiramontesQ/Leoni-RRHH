@@ -379,7 +379,7 @@ class UsuarioService:
             select(ActaAdministrativa)
             .where(
                 ActaAdministrativa.empleado_id == id,
-                ActaAdministrativa.estado == "signed",
+                ActaAdministrativa.estado.in_(["signed", "archived"]),
             )
             .order_by(ActaAdministrativa.id.desc())
         )

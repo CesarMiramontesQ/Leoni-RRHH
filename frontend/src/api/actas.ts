@@ -35,7 +35,7 @@ export type ActaListItem = {
   supervisor_directo: string | null;
   tipo_falta: string | null;
   fecha_evento: string | null;
-  estado: "draft" | "pending_sign" | "signed" | "archived";
+  estado: "draft" | "pending_sign" | "signed" | "archived" | "cancelled";
   created_at: string;
 };
 
@@ -58,7 +58,7 @@ export type ActaDetailResponse = {
   responsable_rh: string | null;
   evidencia: string | null;
   ia_recomendacion: string | null;
-  estado: "draft" | "pending_sign" | "signed" | "archived";
+  estado: "draft" | "pending_sign" | "signed" | "archived" | "cancelled";
   created_at: string;
 };
 
@@ -164,6 +164,39 @@ export async function updateActaAdministrativa(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaDetailResponse;
+}
+
+export async function approveActaAdministrativa(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ActaDetailResponse> {
+  const res = await fetchWithAuth(`/api/v1/actas/${id}/aprobar`, {
+    method: "PUT",
+    signal,
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaDetailResponse;
+}
+
+export type ActaAnularPayload = {
+  motivo?: string | null;
+};
+
+export async function anularActaAdministrativa(
+  id: number,
+  payload: ActaAnularPayload = {},
+  signal?: AbortSignal,
+): Promise<ActaDetailResponse> {
+  const res = await fetchWithAuth(`/api/v1/actas/${id}/anular`, {
+    method: "PUT",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ motivo: payload.motivo?.trim() || null }),
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaDetailResponse;

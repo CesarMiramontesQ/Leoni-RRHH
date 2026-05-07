@@ -47,6 +47,12 @@ class ActaCreateRequest(BaseModel):
     evidencia: Optional[str] = None
 
 
+class ActaAnularRequest(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    motivo: Optional[str] = None
+
+
 class ActaEditarRequest(BaseModel):
     model_config = {"str_strip_whitespace": True}
 

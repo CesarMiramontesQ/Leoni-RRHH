@@ -39,7 +39,14 @@ class ActaAdministrativa(Base):
     ia_recomendacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contenido_final: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[str] = mapped_column(
-        Enum("draft", "pending_sign", "signed", "archived", name="acta_estado_enum"),
+        Enum(
+            "draft",
+            "pending_sign",
+            "signed",
+            "archived",
+            "cancelled",
+            name="acta_estado_enum",
+        ),
         nullable=False,
         default="draft",
     )

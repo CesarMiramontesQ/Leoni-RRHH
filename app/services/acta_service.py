@@ -45,6 +45,7 @@ from app.services.acta_rag_prompts import (
 from app.services.legal_rag_service import legal_rag_service
 from app.schemas import PaginatedResponse
 from app.schemas.actas import (
+    ActaAnularRequest,
     ActaAprobacionResponse,
     ActaCreateRequest,
     ActaEditarRequest,
@@ -52,7 +53,7 @@ from app.schemas.actas import (
     ActaGenerarRequest,
     ActaResponse,
 )
-from app.utils.audit_logger import audit_background
+from app.utils.audit_logger import audit_background, log_action
 
 logger = logging.getLogger(__name__)
 
@@ -385,11 +386,11 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
             return texto_raw.strip()
     except Exception as exc:
         logger.warning(
-            "No se pudo mejorar redaccion del acta con IA: %s",
+            "No se pudo mejorar la redacción del acta (asistente legal): %s",
             exc,
         )
         raise ServiceUnavailableError(
-            detail="No fue posible generar la sugerencia con IA en este momento. Intenta nuevamente."
+            detail="No fue posible generar el escrito de apoyo en este momento. Intenta nuevamente."
         ) from exc
 
 
@@ -540,10 +541,14 @@ class ActaService:
         current_user: Empleado,
     ) -> str:
         acta = await self.get_acta(id=id, current_user=current_user)
+        if acta.estado in ("signed", "archived", "cancelled"):
+            raise ConflictError(
+                detail="El escrito no se puede modificar porque el acta ya está cerrada"
+            )
         texto_original = (acta.descripcion_hechos or "").strip()
         if not texto_original:
             raise ConflictError(
-                detail="El acta no tiene descripcion de hechos para mejorar con IA"
+                detail="El acta no tiene descripción de hechos para generar el escrito de apoyo."
             )
 
         desc_ia = texto_original
@@ -551,7 +556,7 @@ class ActaService:
         if len(desc_ia) > lim_desc:
             desc_ia = (
                 f"{desc_ia[:lim_desc].rstrip()}\n"
-                "...[descripcion truncada para la llamada a IA; conserva este texto si editas]"
+                "...[descripción truncada por límite de contexto; conserva este texto si editas]"
             )
 
         contexto = {
@@ -659,7 +664,7 @@ class ActaService:
             "incidencia_id": data.incidencia_id,
             "contenido_ia": contenido_ia,
             "contenido_final": None,
-            "estado": "draft",
+            "estado": "pending_sign",
             "generado_por": current_user.id,
         })
 
@@ -716,7 +721,7 @@ class ActaService:
             "incidencia_id": None,
             "contenido_ia": None,
             "contenido_final": None,
-            "estado": "draft",
+            "estado": "pending_sign",
             "generado_por": current_user.id,
         })
 
@@ -755,9 +760,9 @@ class ActaService:
         if not acta:
             raise NotFoundError(entidad="Acta", id=id)
 
-        if acta.estado != "draft":
+        if acta.estado not in ("draft", "pending_sign"):
             raise ConflictError(
-                detail=f"Solo se pueden editar actas en estado 'draft', estado actual: '{acta.estado}'"
+                detail=f"Solo se pueden editar actas en estado 'pending_sign', estado actual: '{acta.estado}'"
             )
 
         datos_antes = {
@@ -903,6 +908,111 @@ class ActaService:
             usuario_id=current_user.id,
             entidad_id=id,
             datos_despues={"firmante_id": current_user.id, "rol": rol},
+        )
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        return await self._build_response(acta)
+
+    async def aprobar_acta(
+        self,
+        id: int,
+        current_user: Empleado,
+    ) -> ActaResponse:
+        rol = self._get_rol(current_user)
+        if rol != "rh":
+            raise ForbiddenError(detail="Solo RH puede aprobar actas")
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        if not acta:
+            raise NotFoundError(entidad="Acta", id=id)
+
+        if acta.estado == "cancelled":
+            raise ConflictError(detail="No se puede aprobar un acta anulada")
+        if acta.estado in ("signed", "archived"):
+            raise ConflictError(detail="El acta ya se encuentra aprobada")
+
+        ahora = datetime.now(timezone.utc)
+        firma_existente = await self.repo.get_aprobacion_by_firmante(
+            acta_id=id,
+            firmante_id=current_user.id,
+        )
+        if firma_existente and firma_existente.firma_timestamp:
+            raise ConflictError(detail="Ya aprobaste esta acta anteriormente")
+
+        if firma_existente:
+            await self.aprobacion_repo.update(
+                firma_existente.id,
+                {
+                    "firma_timestamp": ahora,
+                    "comentario": "Aprobación de acta",
+                    "rol_firmante": "rh",
+                },
+            )
+        else:
+            await self.aprobacion_repo.create({
+                "acta_id": id,
+                "firmante_id": current_user.id,
+                "rol_firmante": "rh",
+                "firma_timestamp": ahora,
+                "comentario": "Aprobación de acta",
+            })
+
+        await self.repo.update(id, {"estado": "archived"})
+
+        await log_action(
+            db=self.db,
+            accion="ACTA_APPROVED",
+            modulo="actas",
+            usuario_id=current_user.id,
+            entidad_id=id,
+            datos_despues={
+                "accion": "Aprobación de acta",
+                "acta_id": id,
+                "aprobador_id": current_user.id,
+                "aprobador_nombre": current_user.nombre,
+                "rol": rol,
+                "fecha_aprobacion": ahora.isoformat(),
+                "estado": "archived",
+            },
+        )
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        return await self._build_response(acta)
+
+    async def anular_acta(
+        self,
+        id: int,
+        data: ActaAnularRequest,
+        current_user: Empleado,
+    ) -> ActaResponse:
+        rol = self._get_rol(current_user)
+        if rol != "rh":
+            raise ForbiddenError(detail="Solo RH puede anular actas")
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        if not acta:
+            raise NotFoundError(entidad="Acta", id=id)
+
+        if acta.estado == "cancelled":
+            raise ConflictError(detail="El acta ya está anulada")
+        if acta.estado in ("signed", "archived"):
+            raise ConflictError(detail="No se puede anular un acta ya aprobada")
+
+        motivo = (data.motivo or "").strip() or None
+        await self.repo.update(id, {"estado": "cancelled"})
+
+        await log_action(
+            db=self.db,
+            accion="ACTA_CANCELLED",
+            modulo="actas",
+            usuario_id=current_user.id,
+            entidad_id=id,
+            datos_despues={
+                "accion": "Anulación de acta",
+                "acta_id": id,
+                "motivo": motivo,
+                "estado": "cancelled",
+            },
         )
 
         acta = await self.repo.get_with_aprobaciones(id)
