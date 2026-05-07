@@ -1093,6 +1093,7 @@ components:
           type: string
         password_temporal:
           type: string
+          description: PIN numérico aleatorio de 4 dígitos (0000-9999), único por pase dentro del mismo lote.
 
     ComedorRhCredencialTemporal:
       type: object
@@ -1145,6 +1146,7 @@ components:
           type: string
         password_temporal:
           type: string
+          description: Contraseña temporal; las credenciales generadas actualmente son PIN de 4 dígitos.
         estatus:
           type: string
           enum: [ACTIVO, USADO_PARCIAL, USADO_TOTAL, VENCIDO]

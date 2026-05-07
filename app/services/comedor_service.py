@@ -12,7 +12,6 @@ Responsabilidades:
 import calendar
 import logging
 import secrets
-import string
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
@@ -104,11 +103,6 @@ class ComedorService:
 
     def _get_rol(self, user: Empleado) -> str:
         return user.rol.nombre if user.rol else ""
-
-    @staticmethod
-    def _generar_password_temporal(longitud: int = 10) -> str:
-        alfabeto = string.ascii_uppercase + string.digits
-        return "".join(secrets.choice(alfabeto) for _ in range(longitud))
 
     @staticmethod
     def _nombre_corto(nombre_completo: str | None) -> str:
@@ -692,10 +686,13 @@ class ComedorService:
         lote_id = str(uuid.uuid4())
         numeros = await self.externo_corr_repo.reservar_siguientes(cantidad)
         pases: list[ComedorRhPaseExternoItem] = []
+        # PIN numérico de 4 dígitos (0000–9999), únicos dentro del mismo lote.
+        rng = secrets.SystemRandom()
+        pin_enteros = rng.sample(range(10_000), cantidad)
 
-        for num in numeros:
+        for num, pin_int in zip(numeros, pin_enteros, strict=True):
             token = f"CEXT{num}"
-            password_temporal = self._generar_password_temporal()
+            password_temporal = f"{pin_int:04d}"
             pases.append(
                 ComedorRhPaseExternoItem(
                     codigo_acceso=token,

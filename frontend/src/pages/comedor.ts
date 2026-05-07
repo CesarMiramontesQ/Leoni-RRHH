@@ -1342,7 +1342,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
 }
 
 function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSignal): void {
-  type CodigoEstatus = "todos" | "ACTIVO" | "USADO_PARCIAL" | "USADO_TOTAL" | "VENCIDO";
+  type CodigoEstatus = "todos" | "ACTIVO" | "USADO_PARCIAL" | "USADO_TOTAL";
 
   const DATE_RANGE_MSG = "La fecha inicial no puede ser posterior a la fecha final.";
 
@@ -1366,8 +1366,6 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
         return "USADO_PARCIAL";
       case "USADO_TOTAL":
         return "USADO_TOTAL";
-      case "VENCIDO":
-        return "VENCIDO";
       default:
         return String(e);
     }
@@ -1407,14 +1405,6 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25A2.25 2.25 0 0 1 13.5 8.25V6ZM3.75 15.75a2.25 2.25 0 0 1 2.25-2.25h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" /></svg>`;
   }
 
-  function iconKpiCheck(): string {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
-  }
-
-  function iconKpiAlert(): string {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>`;
-  }
-
   function iconKpiChart(): string {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>`;
   }
@@ -1448,8 +1438,6 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
 
   function renderKpisSection(rows: readonly ComedorCodigoExternoApiItem[]): string {
     const total = rows.length;
-    const vigentes = rows.filter((r) => r.estatus !== "VENCIDO").length;
-    const vencidos = rows.filter((r) => r.estatus === "VENCIDO").length;
     const usosSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.usados) ? r.usados : 0), 0);
     const cuposSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.cantidad_personas) ? r.cantidad_personas : 0), 0);
 
@@ -1457,29 +1445,11 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
       renderKpiCard({
         title: "Total de códigos",
         value: total,
-        desc: "Registros en el resultado actual.",
-        footer: "Según filtros aplicados.",
+        desc: "Registros vigentes en pantalla.",
+        footer: "Los vencidos no se listan; siguen en base de datos.",
         icon: iconKpiGrid(),
         variantClass: "rh-comedor-kpi--semana-actual",
         iconTintClass: "text-[#1e40af]",
-      }),
-      renderKpiCard({
-        title: "Vigentes",
-        value: vigentes,
-        desc: "Registros con estatus distinto de VENCIDO.",
-        footer: "Incluye ACTIVO y usados.",
-        icon: iconKpiCheck(),
-        variantClass: "rh-comedor-kpi--activos",
-        iconTintClass: "text-emerald-700",
-      }),
-      renderKpiCard({
-        title: "Vencidos",
-        value: vencidos,
-        desc: "Códigos con estatus VENCIDO.",
-        footer: "Revisar vigencia del periodo.",
-        icon: iconKpiAlert(),
-        variantClass: "rh-sol-kpi-card--inc-criticas",
-        iconTintClass: "text-red-700",
       }),
       renderKpiCard({
         title: "Usos (hoy)",
@@ -1502,7 +1472,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     ].join("");
 
     return `
-      <section aria-label="Resumen de códigos externos" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">${cards}</section>`;
+      <section aria-label="Resumen de códigos externos" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">${cards}</section>`;
   }
 
   function renderLoadingShell(): string {
@@ -1531,8 +1501,8 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
             ${bar("max-w-xs")}
           </div>
         </div>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          ${Array.from({ length: 5 }, () => kpiSkel).join("")}
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          ${Array.from({ length: 3 }, () => kpiSkel).join("")}
         </div>
         <div class="rh-sol-filters-card rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 sm:p-5 motion-safe:animate-pulse">
           <div class="flex flex-wrap gap-3">
@@ -1642,7 +1612,6 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
                 <option value="ACTIVO" ${state.estatus === "ACTIVO" ? "selected" : ""}>ACTIVO</option>
                 <option value="USADO_PARCIAL" ${state.estatus === "USADO_PARCIAL" ? "selected" : ""}>USADO_PARCIAL</option>
                 <option value="USADO_TOTAL" ${state.estatus === "USADO_TOTAL" ? "selected" : ""}>USADO_TOTAL</option>
-                <option value="VENCIDO" ${state.estatus === "VENCIDO" ? "selected" : ""}>VENCIDO</option>
               </select>
               ${SELECT_CHEVRON}
             </div>
@@ -1753,7 +1722,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
         estatus: state.estatus,
       });
       if (signal.aborted) return;
-      state.rows = rows;
+      state.rows = rows.filter((r) => r.estatus !== "VENCIDO");
       state.panelState = "ready";
     } catch (error) {
       if (signal.aborted) return;
