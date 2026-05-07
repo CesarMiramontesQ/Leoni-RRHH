@@ -117,7 +117,6 @@ export function mountNotificaciones(container: HTMLElement, signal: AbortSignal)
 
   mountAppShell(container, {
     pageTitle: "Notificaciones",
-    activeNav: "notificaciones",
     mainClass: "py-0",
     mainHtml: `<div id="notificaciones-page" class="notificaciones-page-root -mx-4 min-h-[min(60vh,28rem)] px-4 pt-6 pb-10 sm:-mx-6 sm:px-6 sm:pt-8 sm:pb-12 lg:-mx-8 lg:px-8">${notificacionesPageHtml(state)}</div>`,
   });

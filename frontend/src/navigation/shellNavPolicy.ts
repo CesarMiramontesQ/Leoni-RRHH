@@ -11,7 +11,6 @@ export type AppShellNavItemId =
   | "comedor"
   | "empleados"
   | "reportes"
-  | "notificaciones"
   | "puestos"
   | "competencias"
   | "ajustes";
@@ -20,7 +19,6 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "solicitudes",
   "comedor",
-  "notificaciones",
 ]);
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
