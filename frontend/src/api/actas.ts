@@ -81,6 +81,11 @@ export type ActaPageResponse = {
   total: number;
 };
 
+export type ActasDashboardMetricasResponse = {
+  en_proceso: number;
+  pendientes_firma: number;
+};
+
 export type ActaImproveWithIaResponse = {
   texto_mejorado: string;
 };
@@ -117,6 +122,12 @@ export async function createActaAdministrativa(payload: ActaCreatePayload): Prom
 
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaCreateResponse;
+}
+
+export async function getActasDashboardMetricas(): Promise<ActasDashboardMetricasResponse> {
+  const res = await fetchWithAuth("/api/v1/actas/metricas-dashboard");
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActasDashboardMetricasResponse;
 }
 
 export async function getActasPage(params: {

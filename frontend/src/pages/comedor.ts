@@ -22,6 +22,7 @@ import {
   crearComedorRhRegistro,
   editarComedorAcceso,
   getComedorRhCodigosExternos,
+  type ComedorCodigoExternoApiItem,
   getComedorEstadisticas,
   getComedorMenuSemana,
   getComedorMisFechasOcupadas,
@@ -74,7 +75,16 @@ import {
 } from "../components/comedor/comedorWeeklyPlanner.ts";
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
+import { COMEDOR_TABLE_TH, escapeComedorHtml } from "../components/comedor/comedorUiUtils.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import {
+  BTN_GHOST,
+  FILTER_FIELD_WRAP,
+  RH_LISTADO_FOCUS_RING,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_SELECT,
+  SELECT_CHEVRON,
+} from "../ui/uiTokens.ts";
 import { mountDashboardPlaceholder } from "./dashboard.ts";
 import { mountComedorStub } from "./shellModuleStubs.ts";
 import type {
@@ -1333,6 +1343,214 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
 
 function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSignal): void {
   type CodigoEstatus = "todos" | "ACTIVO" | "USADO_PARCIAL" | "USADO_TOTAL" | "VENCIDO";
+
+  const DATE_RANGE_MSG = "La fecha inicial no puede ser posterior a la fecha final.";
+
+  function formatIsoDateMx(iso: string): string {
+    if (!iso) return "";
+    const parts = iso.split("-").map((x) => Number.parseInt(x, 10));
+    if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) return iso;
+    const [y, m, d] = parts;
+    return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric" }).format(
+      new Date(y, (m ?? 1) - 1, d ?? 1),
+    );
+  }
+
+  function estatusFiltroLabel(e: CodigoEstatus): string {
+    switch (e) {
+      case "todos":
+        return "Todos";
+      case "ACTIVO":
+        return "ACTIVO";
+      case "USADO_PARCIAL":
+        return "USADO_PARCIAL";
+      case "USADO_TOTAL":
+        return "USADO_TOTAL";
+      case "VENCIDO":
+        return "VENCIDO";
+      default:
+        return String(e);
+    }
+  }
+
+  function tipoComidaLabel(tipo: string): string {
+    return tipo === "casera" ? "Opción A" : "Opción B";
+  }
+
+  function tipoComidaBadgeClass(tipo: string): string {
+    return tipo === "casera"
+      ? "border-emerald-200/90 bg-emerald-50 text-emerald-900"
+      : "border-sky-200/90 bg-sky-50 text-sky-900";
+  }
+
+  function dateRangeInvalid(): boolean {
+    if (!state.desdeIso || !state.hastaIso) return false;
+    return state.desdeIso > state.hastaIso;
+  }
+
+  function statusBadgeHtml(estatus: ComedorCodigoExternoApiItem["estatus"]): string {
+    const dot = (cls: string) =>
+      `<span class="size-1.5 shrink-0 rounded-full ${cls}" aria-hidden="true"></span>`;
+    switch (estatus) {
+      case "VENCIDO":
+        return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">${dot("bg-red-400")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+      case "USADO_TOTAL":
+        return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">${dot("bg-emerald-500")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+      case "USADO_PARCIAL":
+        return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">${dot("bg-amber-400")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+      default:
+        return `<span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-900">${dot("bg-blue-500")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+    }
+  }
+
+  function iconKpiGrid(): string {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25A2.25 2.25 0 0 1 13.5 8.25V6ZM3.75 15.75a2.25 2.25 0 0 1 2.25-2.25h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" /></svg>`;
+  }
+
+  function iconKpiCheck(): string {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+  }
+
+  function iconKpiAlert(): string {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>`;
+  }
+
+  function iconKpiChart(): string {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>`;
+  }
+
+  function iconKpiUsers(): string {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.21-8.482 9.338 9.338 0 0 0 .464 9.062ZM12 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /></svg>`;
+  }
+
+  function renderKpiCard(opts: {
+    title: string;
+    value: string | number;
+    desc: string;
+    footer: string;
+    icon: string;
+    variantClass: string;
+    iconTintClass: string;
+  }): string {
+    return `
+    <article class="rh-comedor-kpi-card rh-sol-kpi-card ${opts.variantClass} flex min-h-[8.5rem] flex-col rounded-2xl border p-4 shadow-[0_6px_20px_rgba(15,23,42,0.05)] transition-[box-shadow,transform,border-color] duration-200 motion-reduce:transition-none sm:min-h-46 sm:p-5">
+      <header class="flex items-start gap-2.5">
+        <div class="rh-sol-kpi-card__icon rh-comedor-kpi-card__icon flex size-11 shrink-0 items-center justify-center rounded-[12px] ${opts.iconTintClass}" aria-hidden="true">${opts.icon}</div>
+        <p class="min-w-0 flex-1 pt-0.5 text-[13px] font-bold leading-tight tracking-tight text-[#475569]">${escapeComedorHtml(opts.title)}</p>
+      </header>
+      <div class="mt-3 min-w-0 flex-1 sm:mt-4">
+        <p class="text-[clamp(1.65rem,4vw,2.1rem)] font-extrabold tabular-nums leading-none tracking-tight text-[#0f172a]">${escapeComedorHtml(String(opts.value))}</p>
+        <p class="mt-2 text-[13px] leading-snug text-[#64748b]">${escapeComedorHtml(opts.desc)}</p>
+        <p class="mt-1.5 text-[11px] font-medium leading-snug text-[#94a3b8]">${escapeComedorHtml(opts.footer)}</p>
+      </div>
+    </article>`;
+  }
+
+  function renderKpisSection(rows: readonly ComedorCodigoExternoApiItem[]): string {
+    const total = rows.length;
+    const vigentes = rows.filter((r) => r.estatus !== "VENCIDO").length;
+    const vencidos = rows.filter((r) => r.estatus === "VENCIDO").length;
+    const usosSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.usados) ? r.usados : 0), 0);
+    const cuposSum = rows.reduce((acc, r) => acc + (Number.isFinite(r.cantidad_personas) ? r.cantidad_personas : 0), 0);
+
+    const cards = [
+      renderKpiCard({
+        title: "Total de códigos",
+        value: total,
+        desc: "Registros en el resultado actual.",
+        footer: "Según filtros aplicados.",
+        icon: iconKpiGrid(),
+        variantClass: "rh-comedor-kpi--semana-actual",
+        iconTintClass: "text-[#1e40af]",
+      }),
+      renderKpiCard({
+        title: "Vigentes",
+        value: vigentes,
+        desc: "Registros con estatus distinto de VENCIDO.",
+        footer: "Incluye ACTIVO y usados.",
+        icon: iconKpiCheck(),
+        variantClass: "rh-comedor-kpi--activos",
+        iconTintClass: "text-emerald-700",
+      }),
+      renderKpiCard({
+        title: "Vencidos",
+        value: vencidos,
+        desc: "Códigos con estatus VENCIDO.",
+        footer: "Revisar vigencia del periodo.",
+        icon: iconKpiAlert(),
+        variantClass: "rh-sol-kpi-card--inc-criticas",
+        iconTintClass: "text-red-700",
+      }),
+      renderKpiCard({
+        title: "Usos (hoy)",
+        value: usosSum,
+        desc: "Suma de usados en las filas.",
+        footer: "Acumulado del listado visible.",
+        icon: iconKpiChart(),
+        variantClass: "rh-comedor-kpi--asistencia",
+        iconTintClass: "text-violet-700",
+      }),
+      renderKpiCard({
+        title: "Cupos totales",
+        value: cuposSum,
+        desc: "Suma de cantidad (personas).",
+        footer: "Capacidad acumulada del listado.",
+        icon: iconKpiUsers(),
+        variantClass: "rh-comedor-kpi--proxima-semana",
+        iconTintClass: "text-slate-700",
+      }),
+    ].join("");
+
+    return `
+      <section aria-label="Resumen de códigos externos" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">${cards}</section>`;
+  }
+
+  function renderLoadingShell(): string {
+    const bar = (w: string) =>
+      `<div class="h-3 ${w} rounded-md bg-slate-200/85 motion-safe:animate-pulse"></div>`;
+    const kpiSkel = `
+      <div class="flex min-h-[8.5rem] flex-col rounded-2xl border border-[rgba(148,163,184,0.2)] bg-linear-to-br from-white to-[#f8fbff] p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] sm:min-h-46 sm:p-5 motion-safe:animate-pulse">
+        <div class="flex items-center gap-2.5">
+          <div class="size-11 shrink-0 rounded-[12px] bg-slate-200/90"></div>
+          <div class="h-3.5 flex-1 rounded-md bg-slate-200/75"></div>
+        </div>
+        <div class="mt-4 space-y-2">
+          <div class="h-8 w-28 rounded-md bg-slate-200/90"></div>
+          ${bar("max-w-[200px]")}
+          ${bar("w-2/3")}
+        </div>
+      </div>`;
+    return `
+      <div class="flex flex-col gap-5 sm:gap-6">
+        <div class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/5 motion-safe:animate-pulse sm:p-7">
+          <div class="h-8 max-w-md rounded-lg bg-slate-200/80"></div>
+          <div class="mt-3 h-4 max-w-xl rounded-md bg-slate-100/90"></div>
+          <div class="mt-6 h-px w-full bg-slate-100"></div>
+          <div class="mt-4 grid gap-2 sm:grid-cols-2">
+            ${bar("max-w-xs")}
+            ${bar("max-w-xs")}
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          ${Array.from({ length: 5 }, () => kpiSkel).join("")}
+        </div>
+        <div class="rh-sol-filters-card rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 sm:p-5 motion-safe:animate-pulse">
+          <div class="flex flex-wrap gap-3">
+            ${bar("h-10 w-40")}
+            ${bar("h-10 w-40")}
+            ${bar("h-10 w-48")}
+            ${bar("h-10 w-28")}
+          </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-[0_12px_40px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-4 motion-safe:animate-pulse">
+          <div class="h-10 rounded-lg bg-slate-100/90"></div>
+          <div class="mt-3 space-y-2">
+            ${Array.from({ length: 6 }, () => `<div class="h-12 rounded-lg bg-slate-50"></div>`).join("")}
+          </div>
+        </div>
+      </div>`;
+  }
+
   const state: {
     panelState: ComedorPanelState;
     errorMessage: string | null;
@@ -1340,6 +1558,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     hastaIso: string;
     estatus: CodigoEstatus;
     rows: Awaited<ReturnType<typeof getComedorRhCodigosExternos>>;
+    dateRangeError: string | null;
   } = {
     panelState: "loading",
     errorMessage: null,
@@ -1347,73 +1566,173 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     hastaIso: "",
     estatus: "todos",
     rows: [],
+    dateRangeError: null,
   };
 
   function render(): string {
-    const statusChip = (status: CodigoEstatus | string): string => {
-      if (status === "VENCIDO") return "bg-slate-100 text-slate-500";
-      if (status === "USADO_TOTAL") return "bg-emerald-100 text-emerald-700";
-      if (status === "USADO_PARCIAL") return "bg-amber-100 text-amber-700";
-      return "bg-blue-100 text-blue-700";
-    };
-    const tableRows = state.rows
-      .map(
-        (row) => `
-        <tr class="${row.estatus === "VENCIDO" ? "text-slate-400" : "text-slate-700"}">
-          <td class="px-3 py-2">${row.fecha_inicio}</td>
-          <td class="px-3 py-2">${row.fecha_fin}</td>
-          <td class="px-3 py-2">${row.cantidad_personas}</td>
-          <td class="px-3 py-2">${row.tipo_comida === "casera" ? "Opción A" : "Opción B"}</td>
-          <td class="px-3 py-2 font-mono text-xs">${row.codigo_acceso}</td>
-          <td class="px-3 py-2 font-mono text-xs">${row.password_temporal}</td>
-          <td class="px-3 py-2">${row.usados}/${row.cantidad_personas}</td>
-          <td class="px-3 py-2"><span class="rounded px-2 py-1 text-xs font-semibold ${statusChip(row.estatus)}">${row.estatus}</span></td>
-        </tr>`,
-      )
-      .join("");
     if (state.panelState === "loading") {
-      return `<div class="rounded-xl border border-border bg-white p-4 text-sm text-slate-500">Cargando códigos externos...</div>`;
+      return renderLoadingShell();
     }
     if (state.panelState === "error") {
-      return `<div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <p>${state.errorMessage ?? "No se pudo cargar el listado."}</p>
-        <button type="button" data-comedor-codigos-retry class="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-xs font-semibold">Reintentar</button>
+      return `<div class="rounded-2xl border border-red-200/90 bg-gradient-to-br from-red-50 via-white to-red-50/40 px-5 py-6 text-sm text-red-900 shadow-[0_12px_40px_rgba(15,23,42,0.06)] ring-1 ring-red-900/5">
+        <p class="font-semibold text-[#111827]">No se pudo cargar el listado</p>
+        <p class="mt-2 leading-relaxed text-red-800/95">${escapeComedorHtml(state.errorMessage ?? "Error al cargar códigos externos.")}</p>
+        <button type="button" data-comedor-codigos-retry class="rh-sol-btn-primary mt-5 inline-flex min-h-10 w-full items-center justify-center rounded-[10px] px-4 py-2 text-sm font-semibold sm:w-auto">Reintentar</button>
       </div>`;
     }
-    return `
-      <section class="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <div class="mb-3 flex flex-wrap items-end gap-3">
-          <div>
-            <label class="mb-1 block text-xs font-semibold text-slate-500">Desde</label>
-            <input type="date" value="${state.desdeIso}" data-comedor-codigos-desde class="rounded border border-slate-200 px-2 py-1 text-sm"/>
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-semibold text-slate-500">Hasta</label>
-            <input type="date" value="${state.hastaIso}" data-comedor-codigos-hasta class="rounded border border-slate-200 px-2 py-1 text-sm"/>
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-semibold text-slate-500">Estatus</label>
-            <select data-comedor-codigos-estatus class="rounded border border-slate-200 px-2 py-1 text-sm">
-              <option value="todos" ${state.estatus === "todos" ? "selected" : ""}>Todos</option>
-              <option value="ACTIVO" ${state.estatus === "ACTIVO" ? "selected" : ""}>ACTIVO</option>
-              <option value="USADO_PARCIAL" ${state.estatus === "USADO_PARCIAL" ? "selected" : ""}>USADO_PARCIAL</option>
-              <option value="USADO_TOTAL" ${state.estatus === "USADO_TOTAL" ? "selected" : ""}>USADO_TOTAL</option>
-              <option value="VENCIDO" ${state.estatus === "VENCIDO" ? "selected" : ""}>VENCIDO</option>
-            </select>
-          </div>
-          <button type="button" data-comedor-codigos-filtrar class="rounded bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white">Filtrar</button>
+
+    const periodoHtml = (() => {
+      if (state.desdeIso && state.hastaIso) {
+        return `<p class="text-[13px] text-slate-700"><span class="font-semibold text-slate-900">Periodo:</span> <span class="font-medium text-slate-800">${escapeComedorHtml(formatIsoDateMx(state.desdeIso))}</span> <span class="text-slate-400">—</span> <span class="font-medium text-slate-800">${escapeComedorHtml(formatIsoDateMx(state.hastaIso))}</span></p>`;
+      }
+      if (state.desdeIso) {
+        return `<p class="text-[13px] text-slate-700"><span class="font-semibold text-slate-900">Desde:</span> <span class="font-medium text-slate-800">${escapeComedorHtml(formatIsoDateMx(state.desdeIso))}</span></p>`;
+      }
+      if (state.hastaIso) {
+        return `<p class="text-[13px] text-slate-700"><span class="font-semibold text-slate-900">Hasta:</span> <span class="font-medium text-slate-800">${escapeComedorHtml(formatIsoDateMx(state.hastaIso))}</span></p>`;
+      }
+      return `<p class="text-[13px] text-slate-600">Sin rango de fechas seleccionado en filtros.</p>`;
+    })();
+
+    const heroBlock = `
+      <header class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white bg-[radial-gradient(1200px_circle_at_100%_-10%,rgba(37,99,235,0.07),transparent_45%)] p-6 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/5 sm:p-7">
+        <div class="pointer-events-none absolute -right-12 top-0 size-52 rounded-full bg-leoni-blue/6 blur-3xl sm:size-64"></div>
+        <div class="relative space-y-2">
+          <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-[1.75rem]">Códigos externos</h1>
+          <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Consulta y monitorea códigos externos generados para acceso al comedor.</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
+        <div class="relative mt-5 h-px w-full bg-gradient-to-r from-slate-200/0 via-slate-200 to-slate-200/0"></div>
+        <div class="relative mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+          ${periodoHtml}
+          <p class="text-[13px] text-slate-700"><span class="font-semibold text-slate-900">Estatus:</span> ${escapeComedorHtml(estatusFiltroLabel(state.estatus))}</p>
+        </div>
+      </header>`;
+
+    const dateErrBlock =
+      state.dateRangeError ?
+        `<div class="mt-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-3 py-2.5 text-sm text-amber-950 shadow-sm ring-1 ring-amber-900/5" role="alert">
+          <p class="font-semibold text-amber-950">${escapeComedorHtml(state.dateRangeError)}</p>
+        </div>`
+      : "";
+
+    const filtrosCard = `
+      <section class="rh-sol-filters-card rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 sm:p-5">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Filtros</p>
+            <p class="text-sm font-semibold text-slate-900">Refinar listado</p>
+          </div>
+        </div>
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end">
+          <div class="${FILTER_FIELD_WRAP}">
+            <label for="comedor-codigos-desde-input" class="${RH_LISTADO_LABEL}">Desde</label>
+            <input id="comedor-codigos-desde-input" type="date" value="${escapeComedorHtml(state.desdeIso)}" data-comedor-codigos-desde
+              class="min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] ${RH_LISTADO_FOCUS_RING}"/>
+          </div>
+          <div class="${FILTER_FIELD_WRAP}">
+            <label for="comedor-codigos-hasta-input" class="${RH_LISTADO_LABEL}">Hasta</label>
+            <input id="comedor-codigos-hasta-input" type="date" value="${escapeComedorHtml(state.hastaIso)}" data-comedor-codigos-hasta
+              class="min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] ${RH_LISTADO_FOCUS_RING}"/>
+          </div>
+          <div class="${FILTER_FIELD_WRAP}">
+            <label for="comedor-codigos-estatus-input" class="${RH_LISTADO_LABEL}">Estatus</label>
+            <div class="relative grid w-full grid-cols-1 grid-rows-1">
+              <select id="comedor-codigos-estatus-input" data-comedor-codigos-estatus class="${RH_LISTADO_SELECT} ${RH_LISTADO_FOCUS_RING} col-start-1 row-start-1">
+                <option value="todos" ${state.estatus === "todos" ? "selected" : ""}>Todos</option>
+                <option value="ACTIVO" ${state.estatus === "ACTIVO" ? "selected" : ""}>ACTIVO</option>
+                <option value="USADO_PARCIAL" ${state.estatus === "USADO_PARCIAL" ? "selected" : ""}>USADO_PARCIAL</option>
+                <option value="USADO_TOTAL" ${state.estatus === "USADO_TOTAL" ? "selected" : ""}>USADO_TOTAL</option>
+                <option value="VENCIDO" ${state.estatus === "VENCIDO" ? "selected" : ""}>VENCIDO</option>
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div class="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[220px] sm:flex-1 sm:flex-row sm:justify-end lg:min-w-0 lg:flex-none">
+            <button type="button" data-comedor-codigos-filtrar class="rh-sol-btn-primary inline-flex min-h-[42px] w-full flex-1 items-center justify-center rounded-[10px] px-4 py-2 text-sm font-semibold shadow-sm transition-[transform,box-shadow] duration-150 hover:-translate-y-px motion-reduce:transition-none motion-reduce:hover:transform-none sm:w-auto">Filtrar</button>
+            <button type="button" data-comedor-codigos-reset class="${BTN_GHOST} min-h-[42px] w-full justify-center sm:w-auto">Restablecer</button>
+          </div>
+        </div>
+        ${dateErrBlock}
+      </section>`;
+
+    const tableRows = state.rows
+      .map((row) => {
+        const usoPct =
+          row.cantidad_personas > 0 ? Math.min(100, Math.round((row.usados / row.cantidad_personas) * 100)) : 0;
+        const tipoLabel = tipoComidaLabel(row.tipo_comida);
+        const tipoCls = tipoComidaBadgeClass(row.tipo_comida);
+        return `
+        <tr class="rh-sol-data-row border-b border-slate-100/90 transition-colors duration-150 hover:bg-[rgba(248,250,252,0.85)] motion-reduce:transition-none">
+          <td class="whitespace-nowrap px-3 py-3.5 text-sm text-slate-800 sm:px-4">${escapeComedorHtml(row.fecha_inicio)}</td>
+          <td class="whitespace-nowrap px-3 py-3.5 text-sm text-slate-800 sm:px-4">${escapeComedorHtml(row.fecha_fin)}</td>
+          <td class="px-3 py-3.5 text-right tabular-nums sm:px-4">
+            <span class="inline-flex min-w-[2rem] items-center justify-end rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-bold text-slate-900">${escapeComedorHtml(String(row.cantidad_personas))}</span>
+          </td>
+          <td class="px-3 py-3.5 sm:px-4">
+            <span class="inline-flex max-w-full items-center rounded-full border ${tipoCls} px-2.5 py-0.5 text-xs font-semibold">${escapeComedorHtml(tipoLabel)}</span>
+          </td>
+          <td class="max-w-[11rem] px-3 py-3.5 sm:max-w-[13rem] sm:px-4">
+            <code class="block truncate font-mono text-[0.8125rem] text-slate-800" title="${escapeComedorHtml(row.codigo_acceso)}">${escapeComedorHtml(row.codigo_acceso)}</code>
+          </td>
+          <td class="max-w-[9rem] px-3 py-3.5 sm:px-4">
+            <code class="inline-block max-w-full truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[0.75rem] text-slate-800" title="${escapeComedorHtml(row.password_temporal)}">${escapeComedorHtml(row.password_temporal)}</code>
+          </td>
+          <td class="px-3 py-3.5 sm:px-4">
+            <div class="flex min-w-[5.5rem] flex-col gap-1.5">
+              <span class="text-sm font-semibold tabular-nums text-slate-800">${escapeComedorHtml(String(row.usados))}/${escapeComedorHtml(String(row.cantidad_personas))}</span>
+              <div class="h-1.5 w-full max-w-[7rem] overflow-hidden rounded-full bg-slate-100" role="presentation">
+                <div class="h-full rounded-full bg-violet-500/90 transition-[width] duration-200 motion-reduce:transition-none" style="width:${usoPct}%"></div>
+              </div>
+            </div>
+          </td>
+          <td class="whitespace-nowrap px-3 py-3.5 sm:px-4">${statusBadgeHtml(row.estatus)}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const emptyBody = `
+      <tr>
+        <td colspan="8" class="px-3 py-14 sm:px-4">
+          <div class="rh-sol-empty mx-auto max-w-md rounded-2xl border border-dashed border-slate-300/90 bg-slate-50/80 px-5 py-10 text-center shadow-sm">
+            <div class="mx-auto mb-4 inline-flex size-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" /></svg>
+            </div>
+            <p class="text-sm font-semibold text-slate-900">No hay códigos externos para los filtros seleccionados.</p>
+            <p class="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-slate-600">Prueba ajustando el rango de fechas o el estatus.</p>
+          </div>
+        </td>
+      </tr>`;
+
+    const tabla = `
+      <section class="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-[0_12px_40px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-4">
+        <div class="-mx-1 overflow-x-auto sm:mx-0">
+          <table class="min-w-[920px] w-full border-collapse text-sm">
             <thead>
-              <tr class="border-b text-left text-xs text-slate-500">
-                <th class="px-3 py-2">Inicio</th><th class="px-3 py-2">Fin</th><th class="px-3 py-2">Cantidad</th><th class="px-3 py-2">Tipo</th><th class="px-3 py-2">Código</th><th class="px-3 py-2">Contraseña</th><th class="px-3 py-2">Uso (hoy)</th><th class="px-3 py-2">Estatus</th>
+              <tr class="bg-[var(--color-grid-header-bg,#F8FAFC)]">
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Inicio</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Fin</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH} text-right">Cantidad</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Tipo</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Código</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Contraseña</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Uso (hoy)</th>
+                <th scope="col" class="${COMEDOR_TABLE_TH}">Estatus</th>
               </tr>
             </thead>
-            <tbody>${tableRows || `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">Sin resultados.</td></tr>`}</tbody>
+            <tbody class="text-[13px]">${tableRows || emptyBody}</tbody>
           </table>
         </div>
       </section>`;
+
+    const kpis = renderKpisSection(state.rows);
+
+    return `
+      <div class="flex flex-col gap-5 sm:gap-6">
+        ${heroBlock}
+        ${kpis}
+        ${filtrosCard}
+        ${tabla}
+      </div>`;
   }
 
   function paint(): void {
@@ -1425,6 +1744,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
   async function load(): Promise<void> {
     state.panelState = "loading";
     state.errorMessage = null;
+    state.dateRangeError = null;
     paint();
     try {
       const rows = await getComedorRhCodigosExternos({
@@ -1446,17 +1766,20 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
   mountAppShell(container, {
     pageTitle: "Códigos externos",
     activeNav: "comedor",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `<div class="flex flex-col gap-4">
-      <nav aria-label="Navegación comedor">
-        <button type="button" data-comedor-codigos-volver class="inline-flex items-center gap-x-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-yellow-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-600">
-          <svg viewBox="0 0 20 20" fill="currentColor" data-slot="icon" aria-hidden="true" class="-ml-0.5 size-5">
-            <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" />
-          </svg>
-          Volver a Comedor
-        </button>
-      </nav>
-      <div id="comedor-codigos-root"></div>
+    mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
+    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">
+      <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-5 sm:gap-6">
+        <nav aria-label="Navegación comedor" class="flex flex-wrap items-center gap-3">
+          <button type="button" data-comedor-codigos-volver
+            class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-gradient-to-r from-white via-white to-sky-50/50 px-4 py-2 text-sm font-semibold text-[#0A1628] shadow-sm transition-[box-shadow,transform,border-color] duration-150 ease-out hover:-translate-y-px hover:border-[#1e40af]/35 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:transform-none">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 text-[#1e40af]">
+              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" />
+            </svg>
+            Volver a Comedor
+          </button>
+        </nav>
+        <div id="comedor-codigos-root" class="min-w-0"></div>
+      </div>
     </div>`,
   });
   container.querySelector<HTMLButtonElement>("[data-comedor-codigos-volver]")?.addEventListener(
@@ -1471,7 +1794,25 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     "click",
     (event) => {
       const target = event.target as HTMLElement;
-      if (target.closest("[data-comedor-codigos-retry]") || target.closest("[data-comedor-codigos-filtrar]")) {
+      if (target.closest("[data-comedor-codigos-retry]")) {
+        void load();
+        return;
+      }
+      if (target.closest("[data-comedor-codigos-reset]")) {
+        state.desdeIso = "";
+        state.hastaIso = "";
+        state.estatus = "todos";
+        state.dateRangeError = null;
+        void load();
+        return;
+      }
+      if (target.closest("[data-comedor-codigos-filtrar]")) {
+        if (dateRangeInvalid()) {
+          state.dateRangeError = DATE_RANGE_MSG;
+          paint();
+          return;
+        }
+        state.dateRangeError = null;
         void load();
       }
     },
@@ -1480,6 +1821,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
   root?.addEventListener(
     "change",
     (event) => {
+      const hadDateErr = state.dateRangeError != null;
       const target = event.target as HTMLElement;
       const desde = target.closest<HTMLInputElement>("[data-comedor-codigos-desde]");
       if (desde) state.desdeIso = desde.value;
@@ -1487,6 +1829,8 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
       if (hasta) state.hastaIso = hasta.value;
       const estatus = target.closest<HTMLSelectElement>("[data-comedor-codigos-estatus]");
       if (estatus) state.estatus = (estatus.value as CodigoEstatus) || "todos";
+      if (!dateRangeInvalid()) state.dateRangeError = null;
+      if (hadDateErr && state.dateRangeError == null && state.panelState === "ready") paint();
     },
     { signal },
   );

@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 import httpx
 from fastapi import BackgroundTasks
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -39,8 +39,8 @@ from app.models.empleados import Empleado
 from app.repositories.acta_repository import ActaAprobacionRepository, ActaRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.services.acta_rag_prompts import (
-    SYSTEM_GENERAR_ACTA_FORMAL,
-    USER_GENERAR_ACTA_TEMPLATE,
+    SYSTEM_RECOMENDACION_LEGAL_IA,
+    USER_RECOMENDACION_LEGAL_IA_TEMPLATE,
 )
 from app.services.legal_rag_service import legal_rag_service
 from app.schemas import PaginatedResponse
@@ -51,6 +51,7 @@ from app.schemas.actas import (
     ActaEditarRequest,
     ActaFirmarRequest,
     ActaGenerarRequest,
+    ActasDashboardMetricasResponse,
     ActaResponse,
 )
 from app.utils.audit_logger import audit_background, log_action
@@ -118,6 +119,27 @@ def _response_has_spanish_acta_signals(text: str) -> bool:
         "fundamento legal",
         "comparece",
         "por medio del presente",
+    )
+    return sum(1 for s in signals if s in low) >= 2
+
+
+def _response_has_spanish_recomendacion_signals(text: str) -> bool:
+    """True si la respuesta parece una recomendación legal en español (no solo razonamiento)."""
+    low = (text or "").lower()
+    signals = (
+        "ley federal del trabajo",
+        "fundamento",
+        "recomendación",
+        "recomendacion",
+        "resumen",
+        "riesgo",
+        "trabajador",
+        "patrón",
+        "patron",
+        "artículo",
+        "articulo",
+        "incumplimiento",
+        "lft",
     )
     return sum(1 for s in signals if s in low) >= 2
 
@@ -348,7 +370,7 @@ async def _llamar_ollama(contexto: dict) -> str:
 
 async def _mejorar_redaccion_acta(contexto: dict) -> str:
     ctx_str = json.dumps(contexto, ensure_ascii=False, indent=2)
-    prompt = USER_GENERAR_ACTA_TEMPLATE.format(contexto=ctx_str)
+    prompt = USER_RECOMENDACION_LEGAL_IA_TEMPLATE.format(detalle_acta=ctx_str)
     prompt = (
         f"{prompt}\n\n"
         "Reglas de identidad y roles (obligatorias):\n"
@@ -367,19 +389,15 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
             texto_raw = await _ollama_completar_redaccion_acta(
                 client,
                 user_prompt=prompt,
-                system_prompt=SYSTEM_GENERAR_ACTA_FORMAL,
+                system_prompt=SYSTEM_RECOMENDACION_LEGAL_IA,
                 temperature=settings.OLLAMA_ACTA_TEMPERATURE,
             )
             texto_raw = _strip_model_think_artifacts(texto_raw)
-            texto_raw = _trim_preface_before_acta(texto_raw)
-            marcado = _extract_acta_between_markers(texto_raw)
-            if marcado:
-                return marcado
-            if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_acta_signals(
+            if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_recomendacion_signals(
                 texto_raw
             ):
                 raise ValueError(
-                    "El modelo devolvio razonamiento visible en lugar del texto del acta"
+                    "El modelo devolvio razonamiento visible en lugar de la recomendacion legal"
                 )
             if not texto_raw.strip():
                 raise ValueError("Respuesta vacia de Ollama")
@@ -515,6 +533,36 @@ class ActaService:
             items=response_items,
             next_cursor=next_cursor,
             total=total,
+        )
+
+    async def get_dashboard_metricas(
+        self,
+        current_user: Empleado,
+    ) -> ActasDashboardMetricasResponse:
+        """Cuenta actas en proceso y pendientes de firma con el mismo alcance que list_actas."""
+        rol = self._get_rol(current_user)
+        emp_filters: list = []
+        if rol in ("director", "rh"):
+            pass
+        elif rol == "gerente":
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
+            ids = [e.id for e in subordinados] + [current_user.id]
+            emp_filters = [ActaAdministrativa.empleado_id.in_(ids)]
+        else:
+            emp_filters = [ActaAdministrativa.empleado_id == current_user.id]
+
+        async def _count_estados(estados: tuple[str, ...]) -> int:
+            where_parts = [ActaAdministrativa.estado.in_(estados), *emp_filters]
+            result = await self.db.execute(select(func.count()).where(*where_parts))
+            return int(result.scalar_one())
+
+        en_proceso = await _count_estados(("draft", "pending_sign"))
+        pendientes_firma = await _count_estados(("pending_sign",))
+        return ActasDashboardMetricasResponse(
+            en_proceso=en_proceso,
+            pendientes_firma=pendientes_firma,
         )
 
     # ── Obtener uno ──────────────────────────────────────────────────────────

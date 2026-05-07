@@ -110,5 +110,12 @@ class ActaResponse(BaseModel):
     firmantes_pendientes: list[str] = []
 
 
+class ActasDashboardMetricasResponse(BaseModel):
+    """Conteos para tarjeta operativa RH (alineado a estados del listado de actas)."""
+
+    en_proceso: int
+    pendientes_firma: int
+
+
 class ActaMejoraIaResponse(BaseModel):
     texto_mejorado: str

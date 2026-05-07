@@ -9,6 +9,7 @@ from app.schemas.actas import (
     ActaAnularRequest,
     ActaCreateRequest,
     ActaEditarRequest,
+    ActasDashboardMetricasResponse,
     ActaMejoraIaResponse,
     ActaResponse,
 )
@@ -35,6 +36,18 @@ async def list_actas(
         limit=limit,
         current_user=current_user,
     )
+
+
+@router.get(
+    "/metricas-dashboard",
+    response_model=ActasDashboardMetricasResponse,
+)
+async def actas_metricas_dashboard(
+    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ActaService(db)
+    return await service.get_dashboard_metricas(current_user=current_user)
 
 
 @router.post("", response_model=ActaResponse, status_code=status.HTTP_201_CREATED)

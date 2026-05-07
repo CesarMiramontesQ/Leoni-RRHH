@@ -827,6 +827,17 @@ components:
         texto_mejorado:
           type: string
 
+    ActasDashboardMetricasResponse:
+      type: object
+      required: [en_proceso, pendientes_firma]
+      properties:
+        en_proceso:
+          type: integer
+          description: Actas en borrador o pendientes de firma (draft + pending_sign)
+        pendientes_firma:
+          type: integer
+          description: Actas en estado pending_sign
+
     PaginatedActaResponse:
       type: object
       required: [items, next_cursor, total]
@@ -2582,6 +2593,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/actas/metricas-dashboard:
+    get:
+      tags: [Actas Administrativas]
+      summary: Metricas para dashboard operativo (actas en proceso y pendientes de firma)
+      operationId: actas_metricas_dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Conteos segun visibilidad del usuario (mismo alcance que el listado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActasDashboardMetricasResponse"
 
   /api/v1/actas/generar/{incidencia_id}:
     post:
