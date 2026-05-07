@@ -113,10 +113,7 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
     totalOpcionB += saludables;
     const current = dayMetrics[row.fecha];
     const lines = current?.lines ?? [];
-    lines.unshift(
-      { kind: "dieta", text: `${saludables} Opción B` },
-      { kind: "normal", text: `${caseras} Opción A` },
-    );
+    lines.unshift({ kind: "normal", text: `${totalDia} comidas` });
     dayMetrics[row.fecha] = {
       lines,
       showWarning: Boolean(current?.showWarning),
