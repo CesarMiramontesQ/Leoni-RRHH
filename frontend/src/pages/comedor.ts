@@ -92,16 +92,16 @@ import type {
   ReporteComedorSortDirection,
   ReporteComedorSortKey,
   ReporteComedorTableResponse,
-  ReporteComedorTipoComidaFilter,
   ReporteComedorViewState,
 } from "../comedor/reportes/types.ts";
 import type { ComedorRhProximoRegistroRow } from "../comedor/rh/types.ts";
 import {
   clasificarEstadoOps,
   diasEnPeriodoCalendario,
+  filterPorAreaSeleccion,
   filterPorComedorSeleccion,
-  filterPorTipoComidaSeleccion,
   filterProximosPorRango,
+  reporteAreaFilterOptions,
   sumResumenDiario,
 } from "../comedor/reportes/reporteAggregations.ts";
 
@@ -712,18 +712,40 @@ function mapEstadisticasToReporteKpis(
   ];
 }
 
+function conteosOpcionAyB(rows: readonly ComedorRhProximoRegistroRow[]): { caseras: number; saludables: number } {
+  let caseras = 0;
+  let saludables = 0;
+  for (const r of rows) {
+    const t = (r.tipo_comida || "").trim().toLowerCase();
+    if (t === "casera") caseras += 1;
+    else if (t === "saludable") saludables += 1;
+  }
+  return { caseras, saludables };
+}
+
 function mapRhReporteKpis(
   resumen: Awaited<ReturnType<typeof getComedorRhResumenDiario>>,
   desdeIso: string,
   hastaIso: string,
   opsEnRangoYcomedor: readonly ComedorRhProximoRegistroRow[],
-  tipoComidaFilter: ReporteComedorTipoComidaFilter,
+  areaFilter: "todos" | string,
+  areaDisplayLabel: string | null,
 ): readonly ReporteComedorKpi[] {
-  const sum = sumResumenDiario(resumen);
-  const caseras = tipoComidaFilter === "saludable" ? 0 : sum.caseras;
-  const saludables = tipoComidaFilter === "casera" ? 0 : sum.saludables;
-  const total = caseras + saludables;
   const diasCal = diasEnPeriodoCalendario(desdeIso, hastaIso);
+  const sum = sumResumenDiario(resumen);
+  let caseras: number;
+  let saludables: number;
+  let total: number;
+  if (areaFilter === "todos") {
+    caseras = sum.caseras;
+    saludables = sum.saludables;
+    total = caseras + saludables;
+  } else {
+    const c = conteosOpcionAyB(opsEnRangoYcomedor);
+    caseras = c.caseras;
+    saludables = c.saludables;
+    total = opsEnRangoYcomedor.length;
+  }
   const promedioDiario = diasCal > 0 ? (total / diasCal).toFixed(1) : "0";
   const comedoresSet = new Set(opsEnRangoYcomedor.map((r) => (r.comedor_nombre || "").trim()).filter(Boolean));
   const empleadosSet = new Set(opsEnRangoYcomedor.map((r) => r.empleado_id));
@@ -737,19 +759,17 @@ function mapRhReporteKpis(
     else pend += 1;
   }
   const mixValor =
-    tipoComidaFilter === "casera"
-      ? "100% / 0%"
-      : tipoComidaFilter === "saludable"
-        ? "0% / 100%"
-        : total > 0
-          ? `${Math.round((caseras / total) * 100)}% / ${Math.round((saludables / total) * 100)}%`
-          : "—";
+    total > 0
+      ? `${Math.round((caseras / total) * 100)}% / ${Math.round((saludables / total) * 100)}%`
+      : "—";
   const mixSecundario =
-    tipoComidaFilter === "casera"
-      ? "Filtro aplicado: solo Opción A."
-      : tipoComidaFilter === "saludable"
-        ? "Filtro aplicado: solo Opción B."
-        : "Distribución sobre el total consolidado del periodo";
+    areaFilter === "todos"
+      ? "Distribución sobre el total consolidado del periodo"
+      : `Filtro aplicado: solo ${areaDisplayLabel ?? "área seleccionada"}.`;
+  const promedioDiarioSec =
+    areaFilter === "todos"
+      ? `${diasCal} días calendario · Resumen diario RH`
+      : `${diasCal} días calendario · Registros operativos por área`;
   return [
     {
       id: "total_registros_resumen",
@@ -762,7 +782,7 @@ function mapRhReporteKpis(
       id: "promedio_diario_resumen",
       label: "Promedio diario",
       valor: promedioDiario,
-      secundario: `${diasCal} días calendario · Resumen diario RH`,
+      secundario: promedioDiarioSec,
       icono: "costo",
     },
     {
@@ -865,14 +885,21 @@ function dateRangeFromPreset(preset: Exclude<ReporteComedorDatePreset, "custom">
     end.setDate(start.getDate() + 6);
     return { inicioIso: toIsoDate(start), finIso: toIsoDate(end) };
   }
+  if (preset === "next_week") {
+    const dow = (today.getDay() + 6) % 7;
+    const thisWeekStart = new Date(today);
+    thisWeekStart.setDate(today.getDate() - dow);
+    const start = new Date(thisWeekStart);
+    start.setDate(thisWeekStart.getDate() + 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { inicioIso: toIsoDate(start), finIso: toIsoDate(end) };
+  }
   if (preset === "this_month") {
     return { inicioIso: toIsoDate(startOfMonth(today)), finIso: toIsoDate(endOfMonth(today)) };
   }
-  const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  return {
-    inicioIso: toIsoDate(startOfMonth(previousMonth)),
-    finIso: toIsoDate(endOfMonth(previousMonth)),
-  };
+  const _never: never = preset;
+  throw new Error(`Preset de fecha no contemplado: ${String(_never)}`);
 }
 
 function toUpdatedLabel(timestamp: number): string {
@@ -2948,11 +2975,11 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     selectedFechaInicioIso: initialRange.inicioIso,
     selectedFechaFinIso: initialRange.finIso,
     dateRangeError: null,
-    reporteMainTab: esRhReporte ? "comedor" : "detalle",
+    reporteDetallePage: 1,
     tabSearchComedor: "",
     tabSearchEmpleado: "",
     tabSearchArea: "",
-    selectedTipoComidaFilter: "todos",
+    selectedAreaFilter: "todos",
     kpisModo: esRhReporte ? "rh_resumen" : "comedor_semana",
     kpisState: "loading",
     kpis: null,
@@ -2961,18 +2988,10 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     tableState: "loading",
     table: null,
     tableError: null,
-    tableSearch: "",
     tableSortKey: "dias_mes",
     tableSortDirection: "desc",
     lastUpdatedLabel: null,
     selectedEmpleadoId: null,
-    rhFuturosState: esRhReporte ? "loading" : "empty",
-    rhFuturos: null,
-    rhFuturosError: null,
-    rhFuturosPage: 1,
-    rhFuturosPageSize: 10,
-    rhFuturosStatusFilter: "todos",
-    rhFuturosSearch: "",
     rhAnalyticsState: esRhReporte ? "loading" : "empty",
     rhAnalyticsRows: [],
     rhAnalyticsError: null,
@@ -3048,7 +3067,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
           fetchAllRhRegistrosReportePages(
             state.selectedFechaInicioIso,
             state.selectedFechaFinIso,
-            state.rhFuturosStatusFilter,
+            "todos",
           ),
         ]);
         let externos: ComedorCodigoExternoApiItem[] = [];
@@ -3062,19 +3081,29 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         state.rhAnalyticsRows = bulk;
         state.rhCodigosExternosRows = externos;
         state.rhAnalyticsState = "ready";
-        const opsFiltrados = filterPorComedorSeleccion(
-          filterPorTipoComidaSeleccion(
+        const areaOpts = reporteAreaFilterOptions(bulk);
+        const validAreaIds = new Set<string>(["todos", ...areaOpts.map((o) => o.id)]);
+        if (!validAreaIds.has(state.selectedAreaFilter)) {
+          state.selectedAreaFilter = "todos";
+        }
+        const opsFiltrados = filterPorAreaSeleccion(
+          filterPorComedorSeleccion(
             filterProximosPorRango(bulk, state.selectedFechaInicioIso, state.selectedFechaFinIso),
-            state.selectedTipoComidaFilter,
+            comedorNombreFiltroSeleccionado(),
           ),
-          comedorNombreFiltroSeleccionado(),
+          state.selectedAreaFilter,
         );
+        const areaDisplayLabel =
+          state.selectedAreaFilter === "todos"
+            ? null
+            : (areaOpts.find((o) => o.id === state.selectedAreaFilter)?.label ?? null);
         const rows = mapRhReporteKpis(
           resumen,
           state.selectedFechaInicioIso,
           state.selectedFechaFinIso,
           opsFiltrados,
-          state.selectedTipoComidaFilter,
+          state.selectedAreaFilter,
+          areaDisplayLabel,
         );
         state.kpis = rows;
         state.kpisState = rows.length > 0 ? "ready" : "empty";
@@ -3126,6 +3155,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   }
 
   async function reloadAll(): Promise<void> {
+    state.reporteDetallePage = 1;
     const tasks: Promise<void>[] = [loadKpis(), loadTable()];
     await Promise.all(tasks);
     if (signal.aborted) return;
@@ -3171,8 +3201,8 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         if (
           raw === "today" ||
           raw === "this_week" ||
-          raw === "this_month" ||
-          raw === "previous_month"
+          raw === "next_week" ||
+          raw === "this_month"
         ) {
           const range = dateRangeFromPreset(raw);
           state.draftDatePreset = raw;
@@ -3218,7 +3248,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         state.draftFechaFinIso = range.finIso;
         state.selectedDepartamentoId = "todos";
         state.draftDepartamentoId = "todos";
-        state.selectedTipoComidaFilter = "todos";
+        state.selectedAreaFilter = "todos";
         state.tabSearchComedor = "";
         state.tabSearchEmpleado = "";
         state.tabSearchArea = "";
@@ -3231,22 +3261,13 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         void reloadAll();
         return;
       }
-      const mainTabBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-main-tab]");
-      if (mainTabBtn) {
-        const v = mainTabBtn.getAttribute("data-comedor-reporte-main-tab");
-        if (v === "comedor" || v === "empleados" || v === "areas" || v === "detalle") {
-          state.reporteMainTab = v;
+      const detallePageBtn = target.closest<HTMLButtonElement>("[data-comedor-reporte-detalle-page]");
+      if (detallePageBtn) {
+        const raw = detallePageBtn.getAttribute("data-comedor-reporte-detalle-page");
+        const p = Number.parseInt(raw ?? "1", 10);
+        if (Number.isFinite(p) && p >= 1) {
+          state.reporteDetallePage = p;
           paint();
-        }
-        return;
-      }
-      const rhFuturosFilterBtn = target.closest<HTMLButtonElement>("[data-comedor-rh-futuros-filter-status]");
-      if (rhFuturosFilterBtn) {
-        const v = rhFuturosFilterBtn.getAttribute("data-comedor-rh-futuros-filter-status");
-        if (v === "todos" || v === "confirmado" || v === "cancelado") {
-          state.rhFuturosStatusFilter = v;
-          state.rhFuturosPage = 1;
-          void loadKpis();
         }
         return;
       }
@@ -3283,37 +3304,16 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       if (comedorSel) {
         state.selectedDepartamentoId = comedorSel.value;
         state.draftDepartamentoId = comedorSel.value;
+        state.reporteDetallePage = 1;
         void loadKpis();
         return;
       }
-      const tipoComidaSel = target.closest<HTMLSelectElement>("[data-comedor-reporte-filter-tipo-comida]");
-      if (tipoComidaSel) {
-        const value = tipoComidaSel.value;
-        if (value === "todos" || value === "casera" || value === "saludable") {
-          state.selectedTipoComidaFilter = value;
-          void loadKpis();
-          paint();
-        }
-        return;
-      }
-      const rhPageSizeSel = target.closest<HTMLSelectElement>("[data-comedor-rh-futuros-page-size]");
-      if (rhPageSizeSel) {
-        const v = Number.parseInt(rhPageSizeSel.value, 10);
-        if (v === 10 || v === 50) {
-          state.rhFuturosPageSize = v;
-          state.rhFuturosPage = 1;
-          paint();
-        }
-        return;
-      }
-      const rhFuturosTipoSel = target.closest<HTMLSelectElement>("[data-comedor-rh-futuros-filter-tipo]");
-      if (rhFuturosTipoSel) {
-        const value = rhFuturosTipoSel.value;
-        if (value === "todos" || value === "casera" || value === "saludable") {
-          state.selectedTipoComidaFilter = value;
-          void loadKpis();
-          paint();
-        }
+      const areaSel = target.closest<HTMLSelectElement>("[data-comedor-reporte-filter-area]");
+      if (areaSel) {
+        state.selectedAreaFilter = areaSel.value;
+        state.reporteDetallePage = 1;
+        void loadKpis();
+        paint();
         return;
       }
     },
@@ -3338,35 +3338,6 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         paint();
         return;
       }
-      const tabComedor = target.closest<HTMLInputElement>("[data-comedor-reporte-tab-search-comedor]");
-      if (tabComedor) {
-        state.tabSearchComedor = tabComedor.value;
-        paint();
-        return;
-      }
-      const tabEmp = target.closest<HTMLInputElement>("[data-comedor-reporte-tab-search-empleado]");
-      if (tabEmp) {
-        state.tabSearchEmpleado = tabEmp.value;
-        paint();
-        return;
-      }
-      const tabArea = target.closest<HTMLInputElement>("[data-comedor-reporte-tab-search-area]");
-      if (tabArea) {
-        state.tabSearchArea = tabArea.value;
-        paint();
-        return;
-      }
-      const rhSearch = target.closest<HTMLInputElement>("[data-comedor-rh-futuros-search]");
-      if (rhSearch) {
-        state.rhFuturosSearch = rhSearch.value;
-        state.rhFuturosPage = 1;
-        paint();
-        return;
-      }
-      const search = target.closest<HTMLInputElement>("[data-comedor-reporte-search]");
-      if (!search) return;
-      state.tableSearch = search.value;
-      paint();
     },
     { signal },
   );

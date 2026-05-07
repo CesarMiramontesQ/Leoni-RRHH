@@ -2,19 +2,17 @@ import type {
   ReporteComedorEmpleadoRow,
   ReporteComedorKpi,
   ReporteComedorKpiId,
-  ReporteComedorMainTab,
   ReporteComedorViewState,
 } from "../../comedor/reportes/types.ts";
-import { diasEnPeriodoCalendario, serieDiariaTotales } from "../../comedor/reportes/reporteAggregations.ts";
+import { serieDiariaTotales, serieDiariaTotalesOperativo } from "../../comedor/reportes/reporteAggregations.ts";
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 import {
   renderReporteFilterToolbarGlobal,
+  renderReporteMainHeaderCard,
   renderReporteRhRestrictedNotice,
-  renderReporteTabAreas,
-  renderReporteTabComedor,
   renderReporteTabDetalle,
-  renderReporteTabEmpleados,
+  reporteOperativoRowsScoped,
 } from "./comedorReporteAnalytics.ts";
 
 function iconForKpi(id: ReporteComedorKpi["icono"]): string {
@@ -34,12 +32,6 @@ function downloadIcon(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4"><path d="M12 3.75v11.25m0 0 3.75-3.75M12 15 8.25 11.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 15.75v1.125A2.625 2.625 0 0 0 7.125 19.5h9.75a2.625 2.625 0 0 0 2.625-2.625V15.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
-function formatFilterDate(dateIso: string): string {
-  const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return dateIso;
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
-}
-
 function parseDiasMes(diasMes: string): { asistidos: number; esperados: number; ratio: number } {
   const [asistidosRaw, esperadosRaw] = diasMes.split("/");
   const asistidos = Number.parseInt((asistidosRaw ?? "").trim(), 10);
@@ -47,51 +39,6 @@ function parseDiasMes(diasMes: string): { asistidos: number; esperados: number; 
   const safeAsistidos = Number.isFinite(asistidos) ? asistidos : 0;
   const safeEsperados = Number.isFinite(esperados) && esperados > 0 ? esperados : 1;
   return { asistidos: safeAsistidos, esperados: safeEsperados, ratio: safeAsistidos / safeEsperados };
-}
-
-function formatHeroDate(dateIso: string): string {
-  const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return dateIso;
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
-}
-
-function renderHero(state: ReporteComedorViewState): string {
-  const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
-  const ini = formatHeroDate(state.selectedFechaInicioIso);
-  const fin = formatHeroDate(state.selectedFechaFinIso);
-  const updated =
-    state.lastUpdatedLabel ?
-      `<span class="inline-flex items-center rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm">Actualizado ${escapeComedorHtml(state.lastUpdatedLabel)}</span>`
-    : "";
-  return `
-    <header class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white bg-[radial-gradient(1200px_circle_at_100%_-10%,rgba(37,99,235,0.07),transparent_45%)] p-6 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/5 sm:p-7">
-      <div class="pointer-events-none absolute -right-12 top-0 size-52 rounded-full bg-leoni-blue/6 blur-3xl sm:size-64"></div>
-      <div class="relative flex flex-col gap-5">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div class="min-w-0 flex-1 space-y-2">
-            <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-[1.75rem]">Reporte comedor</h1>
-            <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Tablero analítico para monitoreo de asistencia, consumo y costos de comedor.</p>
-          </div>
-          ${updated ? `<div class="shrink-0 sm:pt-1">${updated}</div>` : ""}
-        </div>
-        <div class="h-px w-full bg-gradient-to-r from-slate-200/0 via-slate-200 to-slate-200/0"></div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
-          <div class="min-w-0">
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Periodo seleccionado</p>
-            <p class="mt-1.5 break-words text-sm font-semibold text-slate-900">
-              <span class="text-slate-800">${escapeComedorHtml(ini)}</span>
-              <span class="mx-1.5 font-normal text-slate-400">—</span>
-              <span class="text-slate-800">${escapeComedorHtml(fin)}</span>
-            </p>
-          </div>
-          <div class="flex shrink-0 items-center">
-            <span class="inline-flex items-center rounded-full border border-slate-200/90 bg-slate-50 px-3 py-1.5 text-xs font-semibold tabular-nums text-slate-700 shadow-sm">
-              ${dias} día${dias === 1 ? "" : "s"} en el rango
-            </span>
-          </div>
-        </div>
-      </div>
-    </header>`;
 }
 
 function kpiDashVisual(kpi: ReporteComedorKpi, state: ReporteComedorViewState): {
@@ -177,19 +124,23 @@ function normalizeKpiSecondary(kpi: ReporteComedorKpi, modo: ReporteComedorViewS
 }
 
 function sparklineForKpi(state: ReporteComedorViewState, kpi: ReporteComedorKpi, trendColor: string): string {
-  if (
-    state.kpisModo === "rh_resumen" &&
-    kpi.id === "total_registros_resumen" &&
-    state.rhResumenDiario &&
-    state.rhResumenDiario.length > 0
-  ) {
-    const serie = serieDiariaTotales(state.rhResumenDiario, state.selectedTipoComidaFilter).slice(-14);
-    return renderSparkline(serie, trendColor);
+  if (state.kpisModo === "rh_resumen" && kpi.id === "total_registros_resumen") {
+    if (
+      state.selectedAreaFilter === "todos" &&
+      state.rhResumenDiario &&
+      state.rhResumenDiario.length > 0
+    ) {
+      const serie = serieDiariaTotales(state.rhResumenDiario, "todos").slice(-14);
+      return renderSparkline(serie, trendColor);
+    }
+    const scoped = reporteOperativoRowsScoped(state);
+    const serieOp = serieDiariaTotalesOperativo(scoped, state.selectedFechaInicioIso, state.selectedFechaFinIso).slice(
+      -14,
+    );
+    if (serieOp.length > 0) return renderSparkline(serieOp, trendColor);
   }
   return renderSparkline(sparklineValuesForKpi(kpi.id), trendColor);
 }
-
-const KPI_CAL_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-[18px]" aria-hidden="true"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 function renderKpis(state: ReporteComedorViewState): string {
   const skeletonCount = state.kpisModo === "rh_resumen" ? 8 : 4;
@@ -233,32 +184,7 @@ function renderKpis(state: ReporteComedorViewState): string {
   if (state.kpisModo !== "rh_resumen") {
     ordered = [...ordered].sort((a, b) => (a.id === "costo_estimado" ? -1 : b.id === "costo_estimado" ? 1 : 0));
   }
-  const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
-  const fuenteResumen =
-    state.kpisModo === "rh_resumen" ?
-      state.selectedTipoComidaFilter === "todos"
-        ? "Consolidado diario RH (Opción A + Opción B) y KPIs operativos filtrados por periodo y comedor."
-        : state.selectedTipoComidaFilter === "casera"
-          ? "Consolidado diario RH filtrado por Opción A en periodo y comedor."
-          : "Consolidado diario RH filtrado por Opción B en periodo y comedor."
-    : "Referencia de la semana actual del comedor (API estadísticas / proyecciones).";
-  const contextStrip = `
-    <div class="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/40 to-sky-50/30 px-4 py-3.5 shadow-sm ring-1 ring-slate-900/5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-      <div class="flex min-w-0 items-start gap-3">
-        <div class="flex shrink-0 rounded-[14px] p-2 rh-dash-kpi-icon rh-dash-kpi-icon--sky" aria-hidden="true">${KPI_CAL_ICON}</div>
-        <div class="min-w-0">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Contexto del periodo</p>
-          <p class="mt-1 text-sm font-semibold leading-snug text-slate-900">
-            Del ${escapeComedorHtml(formatFilterDate(state.selectedFechaInicioIso))} al ${escapeComedorHtml(formatFilterDate(state.selectedFechaFinIso))}
-          </p>
-          <p class="mt-0.5 text-xs text-slate-600">${dias} día${dias === 1 ? "" : "s"} analizados · consolidado operativo</p>
-        </div>
-      </div>
-      <p class="text-xs leading-relaxed text-slate-500 sm:max-w-[min(100%,22rem)] sm:text-right">${escapeComedorHtml(fuenteResumen)}</p>
-    </div>`;
-  return `<section class="space-y-4 sm:space-y-5">
-    ${contextStrip}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  return `<section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       ${ordered
         .map((kpi) => {
           const vis = kpiDashVisual(kpi, state);
@@ -276,7 +202,6 @@ function renderKpis(state: ReporteComedorViewState): string {
           </article>`;
         })
         .join("")}
-    </div>
   </section>`;
 }
 
@@ -587,91 +512,26 @@ function renderProfilePanel(state: ReporteComedorViewState): string {
     </section>`;
 }
 
-function reporteWorkspaceCopy(tab: ReporteComedorMainTab): { title: string; subtitle: string } {
-  switch (tab) {
-    case "comedor":
-      return {
-        title: "Reporte por comedor",
-        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
-      };
-    case "empleados":
-      return {
-        title: "Reporte por empleados",
-        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
-      };
-    case "areas":
-      return {
-        title: "Reporte por áreas",
-        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
-      };
-    case "detalle":
-      return {
-        title: "Detalle de registros",
-        subtitle:
-          "Listado de accesos cuya fecha de servicio cae dentro del rango aplicado. Usa la búsqueda y el filtro de estado para acotar resultados.",
-      };
-    default:
-      return { title: "", subtitle: "" };
-  }
-}
-
-function renderReporteWorkspaceIntro(state: ReporteComedorViewState): string {
-  const { title, subtitle } = reporteWorkspaceCopy(state.reporteMainTab);
+function renderReporteWorkspaceIntro(): string {
   return `
     <div class="flex flex-col gap-1">
-      <h2 class="text-lg font-semibold tracking-tight text-slate-900">${escapeComedorHtml(title)}</h2>
-      <p class="max-w-3xl text-sm leading-relaxed text-slate-600">${escapeComedorHtml(subtitle)}</p>
+      <h2 class="text-lg font-semibold tracking-tight text-slate-900">Registros del periodo</h2>
+      <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Accesos con fecha de servicio dentro del rango y filtros aplicados en la parte superior (periodo, comedor y área).</p>
     </div>`;
 }
 
-function renderMainTabSegment(state: ReporteComedorViewState): string {
-  const tabs: { id: ReporteComedorMainTab; label: string }[] = [
-    { id: "comedor", label: "Por comedor" },
-    { id: "empleados", label: "Por empleados" },
-    { id: "areas", label: "Por áreas" },
-    { id: "detalle", label: "Detalle de registros" },
-  ];
-  const buttons = tabs
-    .map((t) => {
-      const active = state.reporteMainTab === t.id;
-      return `<button type="button" role="tab" aria-selected="${active}" data-comedor-reporte-main-tab="${t.id}" class="min-h-10 shrink-0 rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap motion-safe:transition motion-safe:duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 ${
-        active ?
-          "bg-leoni-blue text-white shadow-[0_6px_16px_rgba(0,33,71,0.22)]"
-        : "border border-slate-200/85 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
-      }">${escapeComedorHtml(t.label)}</button>`;
-    })
-    .join("");
-  return `<div class="-mx-1 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Vistas del reporte comedor">
-    <div class="inline-flex min-w-full gap-1 rounded-xl border border-slate-200/85 bg-slate-50/95 p-1 shadow-inner sm:flex-wrap">${buttons}</div>
-  </div>`;
-}
-
-function renderActiveTabBody(state: ReporteComedorViewState): string {
-  const esRh = getRolFromAccessToken() === "rh";
-  if (!esRh) return renderReporteRhRestrictedNotice();
-  if (state.reporteMainTab === "comedor") return renderReporteTabComedor(state);
-  if (state.reporteMainTab === "empleados") return renderReporteTabEmpleados(state);
-  if (state.reporteMainTab === "areas") return renderReporteTabAreas(state);
-  return "";
-}
-
 export function renderComedorReporteDashboard(state: ReporteComedorViewState): string {
-  const workspaceIntro = renderReporteWorkspaceIntro(state);
   const esRh = getRolFromAccessToken() === "rh";
-  const tabContent =
-    state.reporteMainTab === "detalle" ?
-      `<div class="flex flex-col gap-5">${esRh ? renderReporteTabDetalle(state) : renderReporteRhRestrictedNotice()}</div>`
-    : renderActiveTabBody(state);
+  const tabContent = `<div class="flex flex-col gap-5">${esRh ? renderReporteTabDetalle(state) : renderReporteRhRestrictedNotice()}</div>`;
 
   return `
     <div class="flex min-h-0 flex-col gap-5 sm:gap-6">
-      ${renderHero(state)}
+      ${renderReporteMainHeaderCard(state)}
       ${renderReporteFilterToolbarGlobal(state)}
       ${renderKpis(state)}
       <section class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-6 lg:p-7">
-        ${renderMainTabSegment(state)}
-        <div class="mt-6 space-y-6 border-t border-slate-100 pt-6">
-          ${workspaceIntro}
+        <div class="space-y-6">
+          ${renderReporteWorkspaceIntro()}
           ${tabContent}
         </div>
       </section>

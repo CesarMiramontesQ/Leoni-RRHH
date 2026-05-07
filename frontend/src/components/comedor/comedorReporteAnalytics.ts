@@ -1,12 +1,14 @@
-import type { ComedorCodigoExternoApiItem } from "../../api/comedor.ts";
 import type { ComedorRhProximoRegistroRow } from "../../comedor/rh/types.ts";
 import type { ReporteComedorViewState } from "../../comedor/reportes/types.ts";
 import {
   aggregateByArea,
   aggregateByComedor,
   aggregateByEmpleado,
+  diasEnPeriodoCalendario,
+  filterPorAreaSeleccion,
   filterPorComedorSeleccion,
   filterProximosPorRango,
+  reporteAreaFilterOptions,
   type ReporteAggArea,
   type ReporteAggComedor,
   type ReporteAggEmpleado,
@@ -25,8 +27,9 @@ import {
   formatFechaServicioRhRegistro,
   tipoComidaBadgeRhRegistro,
 } from "./comedorRhProximosRegistrosTable.ts";
-import { renderComedorReservationsFiltersToolbar } from "./comedorReservationsTable.ts";
-import { COMEDOR_TABLE_TH, escapeComedorHtml } from "./comedorUiUtils.ts";
+import { COMEDOR_TABLE_TH, escapeComedorHtml, paginationRange } from "./comedorUiUtils.ts";
+
+const REPORTE_DETALLE_PAGE_SIZE = 10;
 
 const REPORTE_SEARCH_ICON = `<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg></span>`;
 
@@ -60,7 +63,7 @@ function emptyBlock(title: string, body: string): string {
     </div>`;
 }
 
-/** Filas operativas del periodo y filtros globales (comedor / tipo de comida). */
+/** Filas operativas del periodo y filtros globales (comedor / área). */
 export function reporteOperativoRowsScoped(state: ReporteComedorViewState): readonly ComedorRhProximoRegistroRow[] {
   const base = filterProximosPorRango(
     state.rhAnalyticsRows,
@@ -68,8 +71,7 @@ export function reporteOperativoRowsScoped(state: ReporteComedorViewState): read
     state.selectedFechaFinIso,
   );
   const byComedor = filterPorComedorSeleccion(base, comedorLabelFromState(state));
-  if (state.selectedTipoComidaFilter === "todos") return byComedor;
-  return byComedor.filter((r) => (r.tipo_comida || "").trim().toLowerCase() === state.selectedTipoComidaFilter);
+  return filterPorAreaSeleccion(byComedor, state.selectedAreaFilter);
 }
 
 function comedorLabelFromState(state: ReporteComedorViewState): string | null {
@@ -417,53 +419,7 @@ function thDetalle(label: string): string {
   return `<th scope="col" class="${COMEDOR_TABLE_TH}">${escapeComedorHtml(label)}</th>`;
 }
 
-function estatusCodigoExternoBadge(estatus: ComedorCodigoExternoApiItem["estatus"]): string {
-  const dot = (cls: string) =>
-    `<span class="size-1.5 shrink-0 rounded-full ${cls}" aria-hidden="true"></span>`;
-  switch (estatus) {
-    case "VENCIDO":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">${dot("bg-red-400")}<span>${escapeComedorHtml(estatus)}</span></span>`;
-    case "USADO_TOTAL":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">${dot("bg-emerald-500")}<span>${escapeComedorHtml(estatus)}</span></span>`;
-    case "USADO_PARCIAL":
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">${dot("bg-amber-400")}<span>${escapeComedorHtml(estatus)}</span></span>`;
-    default:
-      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-900">${dot("bg-blue-500")}<span>${escapeComedorHtml(estatus)}</span></span>`;
-  }
-}
-
-/** Códigos externos cuya vigencia intersecta el periodo del reporte (API ya filtra por fechas). */
-function reporteExternosFiltrados(state: ReporteComedorViewState): ComedorCodigoExternoApiItem[] {
-  let rows = [...state.rhCodigosExternosRows];
-  if (state.selectedDepartamentoId !== "todos") {
-    rows = rows.filter((r) => String(r.comedor_id) === state.selectedDepartamentoId);
-  }
-  if (state.selectedTipoComidaFilter !== "todos") {
-    rows = rows.filter((r) => (r.tipo_comida || "").trim().toLowerCase() === state.selectedTipoComidaFilter);
-  }
-  const sf = state.rhFuturosStatusFilter;
-  if (sf === "confirmado") {
-    rows = rows.filter((r) => r.estatus === "USADO_PARCIAL" || r.estatus === "USADO_TOTAL");
-  } else if (sf === "cancelado") {
-    rows = rows.filter((r) => r.estatus === "VENCIDO");
-  }
-  const needle = state.tableSearch.trim().toLowerCase();
-  if (needle.length > 0) {
-    rows = rows.filter((r) => {
-      const blob = `${r.codigo_acceso} ${r.comedor_nombre ?? ""} ${r.lote_id ?? ""}`.toLowerCase();
-      return blob.includes(needle);
-    });
-  }
-  rows.sort((a, b) => {
-    const fa = (a.fecha_fin || "").slice(0, 10);
-    const fb = (b.fecha_fin || "").slice(0, 10);
-    const c = fb.localeCompare(fa);
-    return c !== 0 ? c : b.id - a.id;
-  });
-  return rows;
-}
-
-/** Listado plano de accesos en el rango aplicado (misma fuente que KPI y otras pestañas). */
+/** Registros del periodo con filtros aplicados (10 por página). */
 export function renderReporteTabDetalle(state: ReporteComedorViewState): string {
   if (state.rhAnalyticsState === "loading") {
     return `<div class="animate-pulse space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -475,26 +431,8 @@ export function renderReporteTabDetalle(state: ReporteComedorViewState): string 
     return `<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">${escapeComedorHtml(state.rhAnalyticsError ?? "Error al cargar registros.")}</div>`;
   }
 
-  const toolbar = renderComedorReservationsFiltersToolbar(
-    {
-      statusFilter: state.rhFuturosStatusFilter,
-      search: state.tableSearch,
-      tipoComidaFilter: state.selectedTipoComidaFilter,
-    },
-    "reporte-detalle",
-  );
-
   const scoped = reporteOperativoRowsScoped(state);
-  const needle = state.tableSearch.trim().toLowerCase();
-  const filtered =
-    needle.length === 0 ?
-      scoped
-    : scoped.filter((r) => {
-        const blob =
-          `${r.empleado_nombre} ${r.no_empleado} ${r.area ?? ""} ${r.comedor_nombre ?? ""}`.toLowerCase();
-        return blob.includes(needle);
-      });
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = [...scoped].sort((a, b) => {
     const fa = (a.fecha_servicio ?? "").toString().slice(0, 10);
     const fb = (b.fecha_servicio ?? "").toString().slice(0, 10);
     const c = fa.localeCompare(fb);
@@ -503,22 +441,25 @@ export function renderReporteTabDetalle(state: ReporteComedorViewState): string 
 
   const rangeLabel = `${formatIsoShort(state.selectedFechaInicioIso)} — ${formatIsoShort(state.selectedFechaFinIso)}`;
 
-  const externosFiltrados = reporteExternosFiltrados(state);
-
-  if (sorted.length === 0 && externosFiltrados.length === 0) {
+  if (sorted.length === 0) {
     return `
-      <div class="flex flex-col gap-4">
-        ${toolbar}
-        <section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-12 text-center sm:px-6" role="status">
-          <p class="text-sm font-semibold text-slate-900">No hay registros internos ni códigos externos en este periodo.</p>
-          <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600">
-            Ajusta el rango de fechas, el comedor, el tipo de comida o el filtro de estado. Periodo: ${escapeComedorHtml(rangeLabel)}.
-          </p>
-        </section>
-      </div>`;
+      <section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-12 text-center sm:px-6" role="status">
+        <p class="text-sm font-semibold text-slate-900">No hay registros en este periodo con los filtros actuales.</p>
+        <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600">
+          Ajusta el rango de fechas, el comedor o el área. Periodo: ${escapeComedorHtml(rangeLabel)}.
+        </p>
+      </section>`;
   }
 
-  const rowsInternos = sorted
+  const totalRegistros = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(totalRegistros / REPORTE_DETALLE_PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, state.reporteDetallePage), totalPages);
+  const startIdx = (currentPage - 1) * REPORTE_DETALLE_PAGE_SIZE;
+  const pageSlice = sorted.slice(startIdx, startIdx + REPORTE_DETALLE_PAGE_SIZE);
+  const shownFrom = startIdx + 1;
+  const shownTo = startIdx + pageSlice.length;
+
+  const rowsInternos = pageSlice
     .map(
       (row) => `
       <tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
@@ -535,12 +476,21 @@ export function renderReporteTabDetalle(state: ReporteComedorViewState): string 
     )
     .join("");
 
-  const bloqueInternos =
-    sorted.length === 0 ?
-      `<section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-8 text-center text-sm text-slate-600" role="status">
-        Sin registros de personal interno con los filtros actuales.
-      </section>`
-    : `<section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Registros internos del periodo">
+  const pageButtons = paginationRange(totalPages, currentPage)
+    .map((entry) => {
+      if (entry === "ellipsis") {
+        return '<span class="flex min-h-10 items-center px-2 text-sm text-slate-500">…</span>';
+      }
+      const active = entry === currentPage;
+      return `<button type="button" data-comedor-reporte-detalle-page="${entry}" class="${
+        active
+          ? "min-h-10 min-w-10 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
+          : "min-h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+      }">${entry}</button>`;
+    })
+    .join("");
+
+  const tabla = `<section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Registros del periodo">
         <div class="overflow-x-auto">
           <table class="min-w-[880px] w-full border-collapse text-left text-sm">
             <thead class="sticky top-0 z-10 border-b border-slate-200 bg-[#F8FAFC]">
@@ -556,171 +506,198 @@ export function renderReporteTabDetalle(state: ReporteComedorViewState): string 
             <tbody class="divide-y divide-slate-100 bg-white">${rowsInternos}</tbody>
           </table>
         </div>
-      </section>`;
-
-  const rowsExternos = externosFiltrados
-    .map(
-      (row) => `
-      <tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
-        <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-800 sm:px-4">${escapeComedorHtml(formatIsoShort(row.fecha_inicio))} — ${escapeComedorHtml(formatIsoShort(row.fecha_fin))}</td>
-        <td class="min-w-0 px-3 py-3 text-sm font-medium text-slate-900 sm:px-4">${escapeComedorHtml(row.comedor_nombre || "—")}</td>
-        <td class="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-800 sm:px-4">${escapeComedorHtml(row.codigo_acceso)}</td>
-        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${tipoComidaBadgeRhRegistro(row.tipo_comida)}</td>
-        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-800 sm:px-4">${row.cantidad_personas}</td>
-        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-800 sm:px-4">${row.usados}</td>
-        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${estatusCodigoExternoBadge(row.estatus)}</td>
-      </tr>`,
-    )
-    .join("");
-
-  const bloqueExternos =
-    externosFiltrados.length === 0 ?
-      `<section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-8 text-center text-sm text-slate-600" role="status">
-        Sin códigos de personal externo con vigencia en el periodo y filtros actuales.
-      </section>`
-    : `<section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Códigos de personal externo">
-        <div class="overflow-x-auto">
-          <table class="min-w-[920px] w-full border-collapse text-left text-sm">
-            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-[#F8FAFC]">
-              <tr>
-                ${thDetalle("Vigencia")}
-                ${thDetalle("Comedor")}
-                ${thDetalle("Código")}
-                ${thDetalle("Tipo")}
-                ${thDetalle("Cupos")}
-                ${thDetalle("Usos (hoy)")}
-                ${thDetalle("Estatus")}
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">${rowsExternos}</tbody>
-          </table>
-        </div>
+        <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-4">
+          <p class="text-xs text-slate-500 sm:text-sm">
+            Mostrando <span class="font-semibold text-slate-700">${shownFrom}</span>–<span class="font-semibold text-slate-700">${shownTo}</span> de <span class="font-semibold text-slate-700">${totalRegistros}</span> · ${REPORTE_DETALLE_PAGE_SIZE} por página
+          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" data-comedor-reporte-detalle-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""} class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+              Anterior
+            </button>
+            <div class="flex items-center gap-1">${pageButtons}</div>
+            <button type="button" data-comedor-reporte-detalle-page="${currentPage + 1}" ${currentPage >= totalPages ? "disabled" : ""} class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+              Siguiente
+            </button>
+          </div>
+        </footer>
       </section>`;
 
   return `
-    <div class="flex flex-col gap-6">
-      ${toolbar}
-      <div class="flex flex-col gap-2">
-        <div>
-          <p class="text-sm font-semibold text-slate-900">Personal interno (empleados)</p>
-          <p class="mt-0.5 text-xs text-slate-600">${escapeComedorHtml(rangeLabel)} · ${sorted.length} registro${sorted.length === 1 ? "" : "s"}</p>
-        </div>
-        ${bloqueInternos}
-      </div>
-      <div class="flex flex-col gap-2">
-        <div>
-          <p class="text-sm font-semibold text-slate-900">Personal externo (códigos temporales)</p>
-          <p class="mt-0.5 text-xs text-slate-600">Vigencia que intersecta el periodo · ${externosFiltrados.length} código${externosFiltrados.length === 1 ? "" : "s"} · Los usos mostrados corresponden al día actual (misma lógica que el listado de códigos).</p>
-        </div>
-        ${bloqueExternos}
-      </div>
+    <div class="flex flex-col gap-5">
+      ${tabla}
     </div>`;
 }
 
-export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState): string {
+function reporteDatesPendingApply(state: ReporteComedorViewState): boolean {
+  return (
+    state.draftFechaInicioIso !== state.selectedFechaInicioIso ||
+    state.draftFechaFinIso !== state.selectedFechaFinIso
+  );
+}
+
+const REPORTE_CLOCK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-3.5 shrink-0 text-slate-500" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3 2"/><circle cx="12" cy="12" r="9"/></svg>`;
+
+/** Tarjeta superior: título, cambio de fechas y presets (mismos data-* que antes). */
+export function renderReporteMainHeaderCard(state: ReporteComedorViewState): string {
+  const diasApplied = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
+  const iniApplied = formatIsoShort(state.selectedFechaInicioIso);
+  const finApplied = formatIsoShort(state.selectedFechaFinIso);
+  const periodRangeBadge = `<span class="inline-flex max-w-[min(100vw-2rem,26rem)] items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold leading-snug text-slate-600 shadow-sm" title="${escapeComedorHtml(`${iniApplied} — ${finApplied} · ${diasApplied} día${diasApplied === 1 ? "" : "s"}`)}">${REPORTE_CLOCK_ICON}<span class="min-w-0 whitespace-normal text-left sm:whitespace-nowrap">${escapeComedorHtml(iniApplied)} — ${escapeComedorHtml(finApplied)} · ${diasApplied} día${diasApplied === 1 ? "" : "s"}</span></span>`;
+
+  const pendingDates = reporteDatesPendingApply(state);
+
   const presetBtn = (id: ReporteComedorViewState["draftDatePreset"], label: string) => {
     const active = state.draftDatePreset === id;
-    return `<button type="button" data-comedor-reporte-preset="${id}" class="inline-flex min-h-9 shrink-0 items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold motion-safe:transition motion-safe:duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 ${
+    return `<button type="button" data-comedor-reporte-preset="${id}" aria-pressed="${active ? "true" : "false"}" class="inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold motion-safe:transition motion-safe:duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A1628] focus-visible:ring-offset-2 ${
       active ?
-        "border-leoni-blue bg-leoni-blue text-white shadow-sm"
-      : "border-slate-200 bg-white text-slate-700 hover:border-leoni-blue/35 hover:bg-slate-50"
+        "border-[#0A1628] bg-[#0A1628] text-white shadow-[0_2px_8px_rgba(10,22,40,0.18)]"
+      : "border-slate-200/90 bg-white text-slate-700 shadow-sm hover:border-blue-400/50 hover:bg-sky-50/80"
     }">${escapeComedorHtml(label)}</button>`;
   };
 
+  const pendingBadge = pendingDates ?
+    `<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950" role="status">Cambios pendientes</span>`
+  : "";
+
+  const applyBtnClass = `${BTN_PRIMARY} h-9 min-h-9 w-full justify-center px-4 text-sm shadow-sm motion-safe:transition motion-safe:duration-150 motion-safe:hover:-translate-y-px motion-safe:hover:shadow-md sm:w-auto ${
+    pendingDates ? "ring-2 ring-amber-400/85 ring-offset-1 ring-offset-white" : ""
+  }`;
+
+  return `
+    <header class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white bg-[radial-gradient(900px_circle_at_90%_-20%,rgba(37,99,235,0.07),transparent_50%)] p-5 shadow-[0_10px_36px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-6">
+      <div class="pointer-events-none absolute -right-10 top-0 size-48 rounded-full bg-leoni-blue/5 blur-3xl"></div>
+      <div class="relative flex flex-col gap-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div class="min-w-0 flex-1">
+            <h1 class="text-xl font-bold tracking-tight text-[#0A1628] sm:text-2xl">Reporte comedor</h1>
+            <p class="mt-0.5 max-w-2xl text-xs leading-snug text-slate-600 sm:text-sm">Tablero analítico para monitoreo de asistencia, consumo y costos de comedor.</p>
+          </div>
+          <div class="shrink-0 self-start sm:pt-0.5">${periodRangeBadge}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200/85 bg-slate-50/50 p-3 sm:p-3.5">
+          <div class="flex flex-col gap-2.5">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Cambiar periodo</h2>
+                ${pendingBadge}
+              </div>
+            </div>
+            <p class="text-xs text-slate-600">Modifica el rango y actualiza el reporte.</p>
+
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
+              <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 sm:max-w-lg">
+                <div class="min-w-0">
+                  <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-start">Desde</label>
+                  <input
+                    id="comedor-reporte-start"
+                    type="date"
+                    value="${escapeComedorHtml(state.draftFechaInicioIso)}"
+                    data-comedor-reporte-draft-start
+                    class="mt-1 w-full min-h-9 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-sm ${FIELD_FOCUS}"
+                  />
+                </div>
+                <div class="min-w-0">
+                  <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-end">Hasta</label>
+                  <input
+                    id="comedor-reporte-end"
+                    type="date"
+                    value="${escapeComedorHtml(state.draftFechaFinIso)}"
+                    data-comedor-reporte-draft-end
+                    class="mt-1 w-full min-h-9 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-sm ${FIELD_FOCUS}"
+                  />
+                </div>
+              </div>
+              <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:justify-end lg:w-auto">
+                <button type="button" data-comedor-reporte-apply-dates class="${applyBtnClass}">Actualizar reporte</button>
+                <button type="button" data-comedor-reporte-reset-filters class="${RH_LISTADO_BTN_SECONDARY} h-9 min-h-9 w-full justify-center sm:w-auto">Restablecer</button>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-200/70 pt-3">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Accesos rápidos</span>
+                <div class="-mx-0.5 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap [&::-webkit-scrollbar]:hidden">
+                  ${presetBtn("today", "Hoy")}
+                  ${presetBtn("this_week", "Esta semana")}
+                  ${presetBtn("next_week", "Próxima semana")}
+                  ${presetBtn("this_month", "Este mes")}
+                  ${presetBtn("custom", "Personalizado")}
+                </div>
+              </div>
+            </div>
+          </div>
+          ${
+            state.dateRangeError ?
+              `<p class="mt-2 text-xs font-medium text-amber-800" role="alert">${escapeComedorHtml(state.dateRangeError)}</p>`
+            : ""
+          }
+        </div>
+      </div>
+    </header>`;
+}
+
+/** Comedor y área (tarjeta secundaria). */
+export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState): string {
   const deptOptions = state.filtersDataset.departamentos
     .map((d) => {
       const sel = state.selectedDepartamentoId === d.id ? " selected" : "";
       return `<option value="${escapeComedorHtml(d.id)}"${sel}>${escapeComedorHtml(d.label)}</option>`;
     })
     .join("");
-  const tipoOptions = [
-    { id: "todos", label: "Todos los tipos" },
-    { id: "casera", label: "Opción A" },
-    { id: "saludable", label: "Opción B" },
-  ]
-    .map((tipo) => {
-      const sel = state.selectedTipoComidaFilter === tipo.id ? " selected" : "";
-      return `<option value="${escapeComedorHtml(tipo.id)}"${sel}>${escapeComedorHtml(tipo.label)}</option>`;
-    })
-    .join("");
+  const areaOpts = reporteAreaFilterOptions(state.rhAnalyticsRows);
+  const areaOptionsHtml = [
+    `<option value="todos"${state.selectedAreaFilter === "todos" ? " selected" : ""}>Todas las áreas</option>`,
+    ...areaOpts.map((o) => {
+      const sel = state.selectedAreaFilter === o.id ? " selected" : "";
+      return `<option value="${escapeComedorHtml(o.id)}"${sel}>${escapeComedorHtml(o.label)}</option>`;
+    }),
+  ].join("");
+
+  const dept = state.filtersDataset.departamentos.find((d) => d.id === state.selectedDepartamentoId);
+  const comedorLabel = dept?.label ?? "Todos los comedores";
+  const areaLabel =
+    state.selectedAreaFilter === "todos"
+      ? "Todas las áreas"
+      : (areaOpts.find((o) => o.id === state.selectedAreaFilter)?.label ?? "Área seleccionada");
 
   return `
     <div class="${RH_SURFACE_CARD} p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 sm:p-6">
-      <div class="flex flex-col gap-6">
-        <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-          <div class="grid w-full gap-4 sm:grid-cols-2 lg:max-w-2xl lg:flex-1">
-            <div class="min-w-0">
-              <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-start">Fecha inicio</label>
-              <input
-                id="comedor-reporte-start"
-                type="date"
-                value="${escapeComedorHtml(state.draftFechaInicioIso)}"
-                data-comedor-reporte-draft-start
-                class="mt-1.5 w-full min-h-10 rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm ${FIELD_FOCUS}"
-              />
-            </div>
-            <div class="min-w-0">
-              <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-end">Fecha fin</label>
-              <input
-                id="comedor-reporte-end"
-                type="date"
-                value="${escapeComedorHtml(state.draftFechaFinIso)}"
-                data-comedor-reporte-draft-end
-                class="mt-1.5 w-full min-h-10 rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm ${FIELD_FOCUS}"
-              />
-            </div>
-          </div>
-          <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
-            <button type="button" data-comedor-reporte-apply-dates class="${BTN_PRIMARY} w-full justify-center shadow-sm motion-safe:transition motion-safe:duration-150 motion-safe:hover:-translate-y-px motion-safe:hover:shadow-md sm:w-auto">Aplicar fechas</button>
-            <button type="button" data-comedor-reporte-reset-filters class="${RH_LISTADO_BTN_SECONDARY} w-full justify-center sm:w-auto">Restablecer</button>
+      <div class="space-y-1">
+        <h2 class="text-base font-semibold tracking-tight text-[#0A1628]">Filtros adicionales</h2>
+        <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Refina el reporte dentro del periodo seleccionado.</p>
+      </div>
+      <div class="mt-5 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-comedor-sel">Comedor</label>
+          <div class="relative mt-1.5 grid w-full items-center">
+            <select
+              id="comedor-reporte-comedor-sel"
+              data-comedor-reporte-filter-comedor
+              class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
+            >
+              ${deptOptions}
+            </select>
+            ${SELECT_CHEVRON}
           </div>
         </div>
-        ${
-          state.dateRangeError ?
-            `<p class="text-xs font-medium text-amber-800" role="alert">${escapeComedorHtml(state.dateRangeError)}</p>`
-          : ""
-        }
-        <div class="border-t border-slate-100 pt-5">
-          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Presets de periodo</p>
-          <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap">
-            ${presetBtn("today", "Hoy")}
-            ${presetBtn("this_week", "Esta semana")}
-            ${presetBtn("this_month", "Este mes")}
-            ${presetBtn("previous_month", "Mes anterior")}
-            ${presetBtn("custom", "Personalizado")}
+        <div>
+          <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-area-sel">Área</label>
+          <div class="relative mt-1.5 grid w-full items-center">
+            <select
+              id="comedor-reporte-area-sel"
+              data-comedor-reporte-filter-area
+              class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
+              ${state.rhAnalyticsState === "loading" ? "disabled" : ""}
+            >
+              ${areaOptionsHtml}
+            </select>
+            ${SELECT_CHEVRON}
           </div>
-        </div>
-        <div class="border-t border-slate-100 pt-5">
-          <div class="grid gap-4 md:grid-cols-2">
-            <div>
-              <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-comedor-sel">Comedor (detalle operativo)</label>
-              <div class="relative mt-1.5 grid w-full items-center">
-                <select
-                  id="comedor-reporte-comedor-sel"
-                  data-comedor-reporte-filter-comedor
-                  class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
-                >
-                  ${deptOptions}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </div>
-            <div>
-              <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-tipo-comida-sel">Tipo de comida</label>
-              <div class="relative mt-1.5 grid w-full items-center">
-                <select
-                  id="comedor-reporte-tipo-comida-sel"
-                  data-comedor-reporte-filter-tipo-comida
-                  class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
-                >
-                  ${tipoOptions}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </div>
-          </div>
-          <p class="mt-1.5 max-w-xl text-xs leading-snug text-slate-400">Filtra KPIs operativos y tablas por comedor y tipo. Selecciona "Todos los tipos" para ver el total general consolidado.</p>
         </div>
       </div>
+      <p class="mt-4 max-w-xl text-xs leading-snug text-slate-500">
+        Mostrando: ${escapeComedorHtml(comedorLabel)} · ${escapeComedorHtml(areaLabel)}. Filtra KPIs operativos y tablas; elige “Todas las áreas” para el consolidado general.
+      </p>
     </div>`;
 }

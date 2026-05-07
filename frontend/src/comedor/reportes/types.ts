@@ -1,5 +1,5 @@
 import type { ComedorCodigoExternoApiItem, ComedorResumenDiarioApiItem } from "../../api/comedor.ts";
-import type { ComedorPanelState, ComedorRhProximosRegistrosPage, ComedorRhProximoRegistroRow } from "../rh/types.ts";
+import type { ComedorPanelState, ComedorRhProximoRegistroRow } from "../rh/types.ts";
 
 export type ReporteComedorDepartamentoOption = {
   id: string;
@@ -78,9 +78,9 @@ export type ReporteComedorFiltersQuery = {
 };
 
 /** Chips rápidos: Hoy, Esta semana, Este mes, Mes anterior, Personalizado */
-export type ReporteComedorDatePreset = "today" | "this_week" | "this_month" | "previous_month" | "custom";
+export type ReporteComedorDatePreset = "today" | "this_week" | "next_week" | "this_month" | "custom";
 
-export type ReporteComedorMainTab = "comedor" | "empleados" | "areas" | "detalle";
+/** Filtro por tipo de comida solo en la tabla «Próximos registros» (toolbar RH). */
 export type ReporteComedorTipoComidaFilter = "todos" | "casera" | "saludable";
 
 export type ReporteComedorSortKey = "nombre" | "dias_mes" | "menu" | "estado";
@@ -100,16 +100,16 @@ export type ReporteComedorViewState = {
   selectedFechaFinIso: string;
   /** Mensaje de validación suave (fechas inválidas). */
   dateRangeError: string | null;
-  /** Vista principal del tablero analítico. */
-  reporteMainTab: ReporteComedorMainTab;
+  /** Paginación del listado de registros (detalle). */
+  reporteDetallePage: number;
   /** Búsqueda local en tab «Por comedor». */
   tabSearchComedor: string;
   /** Búsqueda local en tab «Por empleados». */
   tabSearchEmpleado: string;
   /** Búsqueda local en tab «Por áreas». */
   tabSearchArea: string;
-  /** Filtro global por tipo de comida para vistas operativas/resumen RH. */
-  selectedTipoComidaFilter: ReporteComedorTipoComidaFilter;
+  /** Filtro global por área del empleado (registros operativos / KPIs). `todos` = todas. */
+  selectedAreaFilter: "todos" | string;
   /** KPIs usan resumen diario (RH) o estadísticas semanales (otros roles). */
   kpisModo: "rh_resumen" | "comedor_semana";
   kpisState: ComedorPanelState;
@@ -120,20 +120,11 @@ export type ReporteComedorViewState = {
   tableState: ComedorPanelState;
   table: ReporteComedorTableResponse | null;
   tableError: string | null;
-  tableSearch: string;
   tableSortKey: ReporteComedorSortKey;
   tableSortDirection: ReporteComedorSortDirection;
   lastUpdatedLabel: string | null;
   selectedEmpleadoId: string | null;
-  /** Listado operativo «próximos registros» (solo UI RH; datos solo si rol === rh). */
-  rhFuturosState: ComedorPanelState;
-  rhFuturos: ComedorRhProximosRegistrosPage | null;
-  rhFuturosError: string | null;
-  rhFuturosPage: number;
-  rhFuturosPageSize: 10 | 50;
-  rhFuturosStatusFilter: "todos" | "confirmado" | "cancelado";
-  rhFuturosSearch: string;
-  /** Dataset completo para agregaciones (mismo filtro de estado que la tabla; sin búsqueda de texto). */
+  /** Dataset completo para agregaciones y tabla de registros (RH). */
   rhAnalyticsState: ComedorPanelState;
   rhAnalyticsRows: readonly ComedorRhProximoRegistroRow[];
   rhAnalyticsError: string | null;

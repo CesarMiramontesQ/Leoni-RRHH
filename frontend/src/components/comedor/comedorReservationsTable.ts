@@ -76,7 +76,7 @@ export function renderComedorReservationsFiltersToolbar(
           </select>
         </label>`
       : variant === "reporte-detalle"
-        ? `<p class="text-xs leading-snug text-slate-500">El tipo de comida y el comedor se controlan en los filtros superiores del reporte.</p>`
+        ? `<p class="text-xs leading-snug text-slate-500">El área y el comedor se controlan en los filtros superiores del reporte.</p>`
         : "";
   return `
     <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros de la tabla de comedor">
