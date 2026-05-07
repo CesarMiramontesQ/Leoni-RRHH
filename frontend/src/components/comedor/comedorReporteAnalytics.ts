@@ -57,7 +57,9 @@ function scopeRows(state: ReporteComedorViewState) {
     state.selectedFechaInicioIso,
     state.selectedFechaFinIso,
   );
-  return filterPorComedorSeleccion(base, comedorLabelFromState(state));
+  const byComedor = filterPorComedorSeleccion(base, comedorLabelFromState(state));
+  if (state.selectedTipoComidaFilter === "todos") return byComedor;
+  return byComedor.filter((r) => (r.tipo_comida || "").trim().toLowerCase() === state.selectedTipoComidaFilter);
 }
 
 function comedorLabelFromState(state: ReporteComedorViewState): string | null {
@@ -417,6 +419,16 @@ export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState)
       return `<option value="${escapeComedorHtml(d.id)}"${sel}>${escapeComedorHtml(d.label)}</option>`;
     })
     .join("");
+  const tipoOptions = [
+    { id: "todos", label: "Todos los tipos" },
+    { id: "casera", label: "Opción A" },
+    { id: "saludable", label: "Opción B" },
+  ]
+    .map((tipo) => {
+      const sel = state.selectedTipoComidaFilter === tipo.id ? " selected" : "";
+      return `<option value="${escapeComedorHtml(tipo.id)}"${sel}>${escapeComedorHtml(tipo.label)}</option>`;
+    })
+    .join("");
 
   return `
     <div class="${RH_SURFACE_CARD} p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 sm:p-6">
@@ -465,18 +477,35 @@ export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState)
           </div>
         </div>
         <div class="border-t border-slate-100 pt-5">
-          <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-comedor-sel">Comedor (detalle operativo)</label>
-          <div class="relative mt-1.5 grid w-full max-w-full items-center sm:max-w-md lg:max-w-lg">
-            <select
-              id="comedor-reporte-comedor-sel"
-              data-comedor-reporte-filter-comedor
-              class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
-            >
-              ${deptOptions}
-            </select>
-            ${SELECT_CHEVRON}
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>
+              <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-comedor-sel">Comedor (detalle operativo)</label>
+              <div class="relative mt-1.5 grid w-full items-center">
+                <select
+                  id="comedor-reporte-comedor-sel"
+                  data-comedor-reporte-filter-comedor
+                  class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
+                >
+                  ${deptOptions}
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
+            </div>
+            <div>
+              <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-tipo-comida-sel">Tipo de comida</label>
+              <div class="relative mt-1.5 grid w-full items-center">
+                <select
+                  id="comedor-reporte-tipo-comida-sel"
+                  data-comedor-reporte-filter-tipo-comida
+                  class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
+                >
+                  ${tipoOptions}
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
+            </div>
           </div>
-          <p class="mt-1.5 max-w-xl text-xs leading-snug text-slate-400">Filtra KPIs operativos y tablas; el consolidado diario RH sigue siendo global.</p>
+          <p class="mt-1.5 max-w-xl text-xs leading-snug text-slate-400">Filtra KPIs operativos y tablas por comedor y tipo. Selecciona "Todos los tipos" para ver el total general consolidado.</p>
         </div>
       </div>
     </div>`;

@@ -81,6 +81,7 @@ export type ReporteComedorFiltersQuery = {
 export type ReporteComedorDatePreset = "today" | "this_week" | "this_month" | "previous_month" | "custom";
 
 export type ReporteComedorMainTab = "comedor" | "empleados" | "areas" | "detalle";
+export type ReporteComedorTipoComidaFilter = "todos" | "casera" | "saludable";
 
 export type ReporteComedorSortKey = "nombre" | "dias_mes" | "menu" | "estado";
 
@@ -107,6 +108,8 @@ export type ReporteComedorViewState = {
   tabSearchEmpleado: string;
   /** Búsqueda local en tab «Por áreas». */
   tabSearchArea: string;
+  /** Filtro global por tipo de comida para vistas operativas/resumen RH. */
+  selectedTipoComidaFilter: ReporteComedorTipoComidaFilter;
   /** KPIs usan resumen diario (RH) o estadísticas semanales (otros roles). */
   kpisModo: "rh_resumen" | "comedor_semana";
   kpisState: ComedorPanelState;

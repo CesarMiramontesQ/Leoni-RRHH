@@ -17,6 +17,7 @@ import {
 export type ComedorTableFiltersState = {
   statusFilter: "todos" | "confirmado" | "cancelado";
   search: string;
+  tipoComidaFilter?: "todos" | "casera" | "saludable";
 };
 
 /** Misma barra de filtros; `rh-futuros` usa `data-comedor-rh-futuros-*` para no chocar con la tabla de líder. */
@@ -55,6 +56,20 @@ export function renderComedorReservationsFiltersToolbar(
     )
     .join("");
 
+  const tipoFilter =
+    variant === "rh-futuros"
+      ? `<label class="flex items-center gap-2 text-sm text-slate-600">
+          <span class="font-medium">Tipo</span>
+          <select
+            data-comedor-rh-futuros-filter-tipo
+            class="min-h-10 rounded-[10px] border border-[rgba(148,163,184,0.35)] bg-white px-2.5 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
+          >
+            <option value="todos" ${filters.tipoComidaFilter === "todos" || !filters.tipoComidaFilter ? "selected" : ""}>Todos los tipos</option>
+            <option value="casera" ${filters.tipoComidaFilter === "casera" ? "selected" : ""}>Opción A</option>
+            <option value="saludable" ${filters.tipoComidaFilter === "saludable" ? "selected" : ""}>Opción B</option>
+          </select>
+        </label>`
+      : "";
   return `
     <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros de la tabla de comedor">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
@@ -72,6 +87,7 @@ export function renderComedorReservationsFiltersToolbar(
           </div>
         </div>
       </div>
+      ${tipoFilter ? `<div class="mt-3">${tipoFilter}</div>` : ""}
     </section>`;
 }
 

@@ -1,5 +1,6 @@
 import type { ComedorResumenDiarioApiItem } from "../../api/comedor.ts";
 import type { ComedorRhProximoRegistroRow } from "../rh/types.ts";
+import type { ReporteComedorTipoComidaFilter } from "./types.ts";
 
 export type EstadoOps = "pendiente" | "confirmado" | "cancelado";
 
@@ -73,6 +74,14 @@ export function filterPorComedorSeleccion(
   if (!comedorNombreExacto || !comedorNombreExacto.trim()) return rows;
   const target = comedorNombreExacto.trim().toLowerCase();
   return rows.filter((r) => (r.comedor_nombre || "").trim().toLowerCase() === target);
+}
+
+export function filterPorTipoComidaSeleccion(
+  rows: readonly ComedorRhProximoRegistroRow[],
+  tipoComida: ReporteComedorTipoComidaFilter,
+): readonly ComedorRhProximoRegistroRow[] {
+  if (tipoComida === "todos") return rows;
+  return rows.filter((r) => (r.tipo_comida || "").trim().toLowerCase() === tipoComida);
 }
 
 function incEstado(bucket: { confirmados: number; pendientes: number; cancelados: number }, estado: EstadoOps): void {
@@ -275,8 +284,17 @@ export function sumResumenDiario(items: readonly ComedorResumenDiarioApiItem[]):
   return { total: caseras + saludables, caseras, saludables, diasConDatos };
 }
 
-export function serieDiariaTotales(items: readonly ComedorResumenDiarioApiItem[]): readonly number[] {
+export function serieDiariaTotales(
+  items: readonly ComedorResumenDiarioApiItem[],
+  tipoComida: ReporteComedorTipoComidaFilter = "todos",
+): readonly number[] {
   return [...items]
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    .map((row) => Math.max(0, row.caseras) + Math.max(0, row.saludables));
+    .map((row) => {
+      const caseras = Math.max(0, row.caseras);
+      const saludables = Math.max(0, row.saludables);
+      if (tipoComida === "casera") return caseras;
+      if (tipoComida === "saludable") return saludables;
+      return caseras + saludables;
+    });
 }

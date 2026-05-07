@@ -65,9 +65,15 @@ function estadoAccesoBadge(estado: string): string {
 }
 
 function proximosSubtitle(filters: ComedorTableFiltersState): string {
-  if (filters.statusFilter === "confirmado") return "Desde hoy: solo accedidos, ordenados por fecha.";
-  if (filters.statusFilter === "cancelado") return "Desde hoy: accesos cancelados/expirados, ordenados por fecha.";
-  return "Desde hoy: pendientes y accedidos, ordenados por fecha.";
+  const tipoTxt =
+    filters.tipoComidaFilter === "casera"
+      ? " tipo Opción A"
+      : filters.tipoComidaFilter === "saludable"
+        ? " tipo Opción B"
+        : "";
+  if (filters.statusFilter === "confirmado") return `Desde hoy: solo accedidos${tipoTxt}, ordenados por fecha.`;
+  if (filters.statusFilter === "cancelado") return `Desde hoy: accesos cancelados/expirados${tipoTxt}, ordenados por fecha.`;
+  return `Desde hoy: pendientes y accedidos${tipoTxt}, ordenados por fecha.`;
 }
 
 function proximosEmptyMessage(filters: ComedorTableFiltersState): string {
@@ -134,7 +140,14 @@ export function renderComedorRhProximosRegistrosTable(
       </div>`;
   }
 
-  if (!data || data.items.length === 0) {
+  const itemsFiltradosPorTipo =
+    filters.tipoComidaFilter && filters.tipoComidaFilter !== "todos"
+      ? (data?.items ?? []).filter(
+          (row) => (row.tipo_comida || "").trim().toLowerCase() === filters.tipoComidaFilter,
+        )
+      : (data?.items ?? []);
+
+  if (!data || itemsFiltradosPorTipo.length === 0) {
     return `
       <div class="mt-2 flex flex-col gap-3">
         ${toolbar}
@@ -151,7 +164,7 @@ export function renderComedorRhProximosRegistrosTable(
       </div>`;
   }
 
-  const rows = data.items
+  const rows = itemsFiltradosPorTipo
     .map(
       (row) => `
       <tr class="rh-comedor-data-row transition-colors">
@@ -210,7 +223,7 @@ export function renderComedorRhProximosRegistrosTable(
           </table>
         </div>
         <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-4">
-          <p class="text-xs text-slate-500 sm:text-sm">Mostrando <span class="font-semibold text-slate-700">${data.items.length}</span> de <span class="font-semibold text-slate-700">${data.total}</span></p>
+          <p class="text-xs text-slate-500 sm:text-sm">Mostrando <span class="font-semibold text-slate-700">${itemsFiltradosPorTipo.length}</span> de <span class="font-semibold text-slate-700">${data.total}</span></p>
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" data-comedor-rh-futuros-page="${data.page - 1}" ${data.page <= 1 ? "disabled" : ""} class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
               Anterior

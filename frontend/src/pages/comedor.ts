@@ -83,6 +83,7 @@ import type {
   ReporteComedorSortDirection,
   ReporteComedorSortKey,
   ReporteComedorTableResponse,
+  ReporteComedorTipoComidaFilter,
   ReporteComedorViewState,
 } from "../comedor/reportes/types.ts";
 import type { ComedorRhProximoRegistroRow } from "../comedor/rh/types.ts";
@@ -90,6 +91,7 @@ import {
   clasificarEstadoOps,
   diasEnPeriodoCalendario,
   filterPorComedorSeleccion,
+  filterPorTipoComidaSeleccion,
   filterProximosPorRango,
   sumResumenDiario,
 } from "../comedor/reportes/reporteAggregations.ts";
@@ -706,8 +708,12 @@ function mapRhReporteKpis(
   desdeIso: string,
   hastaIso: string,
   opsEnRangoYcomedor: readonly ComedorRhProximoRegistroRow[],
+  tipoComidaFilter: ReporteComedorTipoComidaFilter,
 ): readonly ReporteComedorKpi[] {
-  const { total, caseras, saludables } = sumResumenDiario(resumen);
+  const sum = sumResumenDiario(resumen);
+  const caseras = tipoComidaFilter === "saludable" ? 0 : sum.caseras;
+  const saludables = tipoComidaFilter === "casera" ? 0 : sum.saludables;
+  const total = caseras + saludables;
   const diasCal = diasEnPeriodoCalendario(desdeIso, hastaIso);
   const promedioDiario = diasCal > 0 ? (total / diasCal).toFixed(1) : "0";
   const comedoresSet = new Set(opsEnRangoYcomedor.map((r) => (r.comedor_nombre || "").trim()).filter(Boolean));
@@ -722,9 +728,19 @@ function mapRhReporteKpis(
     else pend += 1;
   }
   const mixValor =
-    total > 0 ?
-      `${Math.round((caseras / total) * 100)}% / ${Math.round((saludables / total) * 100)}%`
-    : "—";
+    tipoComidaFilter === "casera"
+      ? "100% / 0%"
+      : tipoComidaFilter === "saludable"
+        ? "0% / 100%"
+        : total > 0
+          ? `${Math.round((caseras / total) * 100)}% / ${Math.round((saludables / total) * 100)}%`
+          : "—";
+  const mixSecundario =
+    tipoComidaFilter === "casera"
+      ? "Filtro aplicado: solo Opción A."
+      : tipoComidaFilter === "saludable"
+        ? "Filtro aplicado: solo Opción B."
+        : "Distribución sobre el total consolidado del periodo";
   return [
     {
       id: "total_registros_resumen",
@@ -744,7 +760,7 @@ function mapRhReporteKpis(
       id: "mix_menu_resumen",
       label: "Mix Opción A / Opción B",
       valor: mixValor,
-      secundario: "Distribución sobre el total consolidado del periodo",
+      secundario: mixSecundario,
       icono: "consumo",
     },
     {
@@ -2621,6 +2637,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     tabSearchComedor: "",
     tabSearchEmpleado: "",
     tabSearchArea: "",
+    selectedTipoComidaFilter: "todos",
     kpisModo: esRhReporte ? "rh_resumen" : "comedor_semana",
     kpisState: "loading",
     kpis: null,
@@ -2719,10 +2736,19 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         state.rhAnalyticsRows = bulk;
         state.rhAnalyticsState = "ready";
         const opsFiltrados = filterPorComedorSeleccion(
-          filterProximosPorRango(bulk, state.selectedFechaInicioIso, state.selectedFechaFinIso),
+          filterPorTipoComidaSeleccion(
+            filterProximosPorRango(bulk, state.selectedFechaInicioIso, state.selectedFechaFinIso),
+            state.selectedTipoComidaFilter,
+          ),
           comedorNombreFiltroSeleccionado(),
         );
-        const rows = mapRhReporteKpis(resumen, state.selectedFechaInicioIso, state.selectedFechaFinIso, opsFiltrados);
+        const rows = mapRhReporteKpis(
+          resumen,
+          state.selectedFechaInicioIso,
+          state.selectedFechaFinIso,
+          opsFiltrados,
+          state.selectedTipoComidaFilter,
+        );
         state.kpis = rows;
         state.kpisState = rows.length > 0 ? "ready" : "empty";
       } else {
@@ -2893,6 +2919,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         state.draftFechaFinIso = range.finIso;
         state.selectedDepartamentoId = "todos";
         state.draftDepartamentoId = "todos";
+        state.selectedTipoComidaFilter = "todos";
         state.tabSearchComedor = "";
         state.tabSearchEmpleado = "";
         state.tabSearchArea = "";
@@ -2974,6 +3001,16 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         void loadKpis();
         return;
       }
+      const tipoComidaSel = target.closest<HTMLSelectElement>("[data-comedor-reporte-filter-tipo-comida]");
+      if (tipoComidaSel) {
+        const value = tipoComidaSel.value;
+        if (value === "todos" || value === "casera" || value === "saludable") {
+          state.selectedTipoComidaFilter = value;
+          void loadKpis();
+          paint();
+        }
+        return;
+      }
       const rhPageSizeSel = target.closest<HTMLSelectElement>("[data-comedor-rh-futuros-page-size]");
       if (rhPageSizeSel) {
         const v = Number.parseInt(rhPageSizeSel.value, 10);
@@ -2981,6 +3018,16 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
           state.rhFuturosPageSize = v;
           state.rhFuturosPage = 1;
           void loadFuturosRegistrosRh();
+        }
+        return;
+      }
+      const rhFuturosTipoSel = target.closest<HTMLSelectElement>("[data-comedor-rh-futuros-filter-tipo]");
+      if (rhFuturosTipoSel) {
+        const value = rhFuturosTipoSel.value;
+        if (value === "todos" || value === "casera" || value === "saludable") {
+          state.selectedTipoComidaFilter = value;
+          void loadKpis();
+          paint();
         }
         return;
       }
