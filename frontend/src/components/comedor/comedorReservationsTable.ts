@@ -21,7 +21,7 @@ export type ComedorTableFiltersState = {
 };
 
 /** Misma barra de filtros; `rh-futuros` usa `data-comedor-rh-futuros-*` para no chocar con la tabla de líder. */
-export type ComedorFiltersToolbarVariant = "reservas" | "rh-futuros";
+export type ComedorFiltersToolbarVariant = "reservas" | "rh-futuros" | "reporte-detalle";
 
 function tabClass(active: boolean): string {
   const base =
@@ -40,9 +40,15 @@ export function renderComedorReservationsFiltersToolbar(
   variant: ComedorFiltersToolbarVariant,
 ): string {
   const searchAttr =
-    variant === "rh-futuros" ? "data-comedor-rh-futuros-search" : "data-comedor-search";
+    variant === "rh-futuros"
+      ? "data-comedor-rh-futuros-search"
+      : variant === "reporte-detalle"
+        ? "data-comedor-reporte-search"
+        : "data-comedor-search";
   const filterAttr =
-    variant === "rh-futuros" ? "data-comedor-rh-futuros-filter-status" : "data-comedor-filter-status";
+    variant === "rh-futuros" || variant === "reporte-detalle"
+      ? "data-comedor-rh-futuros-filter-status"
+      : "data-comedor-filter-status";
   const chips = (
     [
       { id: "todos", label: "Todos" },
@@ -69,7 +75,9 @@ export function renderComedorReservationsFiltersToolbar(
             <option value="saludable" ${filters.tipoComidaFilter === "saludable" ? "selected" : ""}>Opción B</option>
           </select>
         </label>`
-      : "";
+      : variant === "reporte-detalle"
+        ? `<p class="text-xs leading-snug text-slate-500">El tipo de comida y el comedor se controlan en los filtros superiores del reporte.</p>`
+        : "";
   return `
     <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros de la tabla de comedor">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">

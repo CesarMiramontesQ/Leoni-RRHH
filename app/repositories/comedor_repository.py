@@ -356,6 +356,58 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         )
         return list((await self.db.execute(stmt)).scalars().all())
 
+    async def count_accesos_global_rh_en_rango(
+        self,
+        desde: date,
+        hasta: date,
+        estados: tuple[ComedorAccesoEstado, ...],
+        buscar: str | None = None,
+    ) -> int:
+        stmt = select(func.count(ComedorAcceso.id)).where(
+            ComedorAcceso.fecha_servicio >= desde,
+            ComedorAcceso.fecha_servicio <= hasta,
+            ComedorAcceso.estado_acceso.in_(estados),
+        )
+        if buscar and (t := buscar.strip()):
+            pattern = f"%{t}%"
+            emp_ids = select(Empleado.id).where(
+                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+            )
+            stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
+        return int((await self.db.execute(stmt)).scalar_one() or 0)
+
+    async def list_accesos_global_rh_en_rango(
+        self,
+        desde: date,
+        hasta: date,
+        offset: int,
+        limit: int,
+        estados: tuple[ComedorAccesoEstado, ...],
+        buscar: str | None = None,
+    ) -> list[ComedorAcceso]:
+        stmt = (
+            select(ComedorAcceso)
+            .options(
+                selectinload(ComedorAcceso.empleado).selectinload(Empleado.area),
+                selectinload(ComedorAcceso.comedor),
+            )
+            .where(
+                ComedorAcceso.fecha_servicio >= desde,
+                ComedorAcceso.fecha_servicio <= hasta,
+                ComedorAcceso.estado_acceso.in_(estados),
+            )
+        )
+        if buscar and (t := buscar.strip()):
+            pattern = f"%{t}%"
+            emp_ids = select(Empleado.id).where(
+                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+            )
+            stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
+        stmt = stmt.order_by(ComedorAcceso.fecha_servicio.asc(), ComedorAcceso.id.asc()).offset(offset).limit(
+            limit
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
+
     async def list_accesos_equipo_mes(
         self,
         empleado_ids: list[int],
@@ -631,9 +683,13 @@ class ComedorCodigoExternoRepository(BaseRepository[ComedorCodigoExterno]):
         hasta: date | None = None,
         estatus: str | None = None,
     ) -> list[dict]:
-        stmt = select(ComedorCodigoExterno).order_by(
-            ComedorCodigoExterno.fecha_inicio.desc(),
-            ComedorCodigoExterno.created_at.desc(),
+        stmt = (
+            select(ComedorCodigoExterno)
+            .options(selectinload(ComedorCodigoExterno.comedor))
+            .order_by(
+                ComedorCodigoExterno.fecha_inicio.desc(),
+                ComedorCodigoExterno.created_at.desc(),
+            )
         )
         if desde:
             stmt = stmt.where(ComedorCodigoExterno.fecha_fin >= desde)
@@ -673,8 +729,11 @@ class ComedorCodigoExternoRepository(BaseRepository[ComedorCodigoExterno]):
                 estado = ComedorCodigoExternoEstado.USADO_PARCIAL.value
             if estatus and estado != estatus:
                 continue
+            comedor_nm = (row.comedor.nombre if getattr(row, "comedor", None) else "") or ""
             result.append({
                 "id": row.id,
+                "comedor_id": row.comedor_id,
+                "comedor_nombre": comedor_nm.strip(),
                 "fecha_inicio": row.fecha_inicio,
                 "fecha_fin": row.fecha_fin,
                 "cantidad_personas": row.cantidad_personas,

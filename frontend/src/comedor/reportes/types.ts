@@ -1,5 +1,5 @@
+import type { ComedorCodigoExternoApiItem, ComedorResumenDiarioApiItem } from "../../api/comedor.ts";
 import type { ComedorPanelState, ComedorRhProximosRegistrosPage, ComedorRhProximoRegistroRow } from "../rh/types.ts";
-import type { ComedorResumenDiarioApiItem } from "../../api/comedor.ts";
 
 export type ReporteComedorDepartamentoOption = {
   id: string;
@@ -137,4 +137,6 @@ export type ReporteComedorViewState = {
   rhAnalyticsState: ComedorPanelState;
   rhAnalyticsRows: readonly ComedorRhProximoRegistroRow[];
   rhAnalyticsError: string | null;
+  /** Códigos de personal externo con vigencia que intersecta el periodo del reporte (solo RH). */
+  rhCodigosExternosRows: readonly ComedorCodigoExternoApiItem[];
 };

@@ -161,6 +161,8 @@ class ComedorRhRegistroResponse(BaseModel):
 
 class ComedorCodigoExternoItem(BaseModel):
     id: int
+    comedor_id: int
+    comedor_nombre: str
     fecha_inicio: date
     fecha_fin: date
     cantidad_personas: int

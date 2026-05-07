@@ -3,24 +3,19 @@ import type {
   ReporteComedorKpi,
   ReporteComedorKpiId,
   ReporteComedorMainTab,
-  ReporteComedorSortDirection,
-  ReporteComedorSortKey,
   ReporteComedorViewState,
 } from "../../comedor/reportes/types.ts";
 import { diasEnPeriodoCalendario, serieDiariaTotales } from "../../comedor/reportes/reporteAggregations.ts";
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
-import { escapeComedorHtml, renderEmpleadoAvatarCell } from "./comedorUiUtils.ts";
-import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
+import { escapeComedorHtml } from "./comedorUiUtils.ts";
 import {
   renderReporteFilterToolbarGlobal,
   renderReporteRhRestrictedNotice,
   renderReporteTabAreas,
   renderReporteTabComedor,
+  renderReporteTabDetalle,
   renderReporteTabEmpleados,
 } from "./comedorReporteAnalytics.ts";
-import { FIELD_FOCUS } from "../../ui/uiTokens.ts";
-
-const REPORTE_DETALLE_SEARCH_ICON = `<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg></span>`;
 
 function iconForKpi(id: ReporteComedorKpi["icono"]): string {
   if (id === "empleados") {
@@ -283,151 +278,6 @@ function renderKpis(state: ReporteComedorViewState): string {
         .join("")}
     </div>
   </section>`;
-}
-
-function menuBadge(menu: ReporteComedorEmpleadoRow["menu"]): string {
-  if (menu === "dieta") {
-    return '<span class="inline-flex items-center rounded-full border border-violet-200 bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-900">Dieta</span>';
-  }
-  return '<span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">Normal</span>';
-}
-
-function filteredAndSortedRows(state: ReporteComedorViewState): readonly ReporteComedorEmpleadoRow[] {
-  const baseRows = state.table?.empleados ?? [];
-  const needle = state.tableSearch.trim().toLowerCase();
-  const filtered =
-    needle.length === 0 ?
-      baseRows
-    : baseRows.filter((row) => `${row.nombre} ${row.noEmpleado} ${row.area} ${row.diasMes}`.toLowerCase().includes(needle));
-  return [...filtered].sort((a, b) => {
-    let comparison = 0;
-    if (state.tableSortKey === "nombre") comparison = a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
-    if (state.tableSortKey === "dias_mes") comparison = parseDiasMes(a.diasMes).ratio - parseDiasMes(b.diasMes).ratio;
-    if (state.tableSortKey === "menu") comparison = a.menu.localeCompare(b.menu);
-    if (state.tableSortKey === "estado") comparison = Number(a.activo) - Number(b.activo);
-    return state.tableSortDirection === "asc" ? comparison : comparison * -1;
-  });
-}
-
-function sortArrow(active: boolean, direction: ReporteComedorSortDirection): string {
-  if (!active) return '<span class="text-slate-300">↕</span>';
-  return `<span class="text-leoni-blue">${direction === "asc" ? "↑" : "↓"}</span>`;
-}
-
-function sortableHeader(title: string, key: ReporteComedorSortKey, state: ReporteComedorViewState, extraClass = ""): string {
-  const active = state.tableSortKey === key;
-  return `<th scope="col" class="sticky top-0 z-10 bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B] shadow-[inset_0_-1px_0_rgba(226,232,240,0.9)] ${extraClass}">
-      <button type="button" data-comedor-reporte-sort="${key}" class="inline-flex items-center gap-1 rounded-md hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
-        ${escapeComedorHtml(title)}
-        ${sortArrow(active, state.tableSortDirection)}
-      </button>
-    </th>`;
-}
-
-function renderTable(state: ReporteComedorViewState): string {
-  const searchInputClasses = `min-h-10 w-full rounded-[10px] border border-slate-300 bg-white py-2 pr-3 pl-9 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}`;
-  if (state.tableState === "loading") {
-    return `
-      <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
-        <div class="animate-pulse p-4 sm:p-5">
-          <div class="h-10 rounded-[10px] bg-slate-100"></div>
-          <div class="mt-3 h-10 rounded-[10px] bg-slate-100"></div>
-          <div class="mt-3 h-10 rounded-[10px] bg-slate-100"></div>
-        </div>
-      </section>`;
-  }
-  if (state.tableState === "error") {
-    return `
-      <section class="rounded-2xl border border-red-200/90 bg-red-50/95 px-4 py-4 text-sm text-red-800 shadow-sm" role="alert">
-        <p class="font-semibold">No fue posible cargar la tabla de empleados.</p>
-        <p class="mt-1">${escapeComedorHtml(state.tableError ?? "Error inesperado.")}</p>
-        <button type="button" data-comedor-reporte-retry-table class="mt-3 inline-flex rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2">
-          Reintentar
-        </button>
-      </section>`;
-  }
-  const rows = filteredAndSortedRows(state);
-  if (state.tableState === "empty" || rows.length === 0) {
-    return `
-      <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
-        <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
-          <label class="relative block w-full sm:max-w-md">
-            ${REPORTE_DETALLE_SEARCH_ICON}
-            <span class="sr-only">Buscar en detalle de registros</span>
-            <input
-              type="search"
-              value="${escapeComedorHtml(state.tableSearch)}"
-              data-comedor-reporte-search
-              placeholder="Buscar por nombre, número o área"
-              class="${searchInputClasses}"
-            />
-          </label>
-        </div>
-        <div class="border border-dashed border-slate-200/90 bg-slate-50/60 px-5 py-14 text-center">
-          <div class="mx-auto mb-3 inline-flex size-11 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6 text-slate-400" aria-hidden="true"><path d="M9 17v-6m3 4v-4m3 5v-9M5 3h14a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-4 3V5a2 2 0 0 1 2-2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <p class="text-sm font-semibold text-slate-900">No hay registros en este periodo.</p>
-          <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600">Prueba ajustando el rango de fechas o el comedor seleccionado.</p>
-        </div>
-      </section>`;
-  }
-  return `
-    <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
-      <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-        <p class="text-sm font-semibold text-slate-900">Empleados evaluados</p>
-        <label class="relative block w-full sm:max-w-md">
-          ${REPORTE_DETALLE_SEARCH_ICON}
-          <span class="sr-only">Buscar en detalle de registros</span>
-          <input
-            type="search"
-            value="${escapeComedorHtml(state.tableSearch)}"
-            data-comedor-reporte-search
-            placeholder="Buscar por nombre, número o área"
-            class="${searchInputClasses}"
-          />
-        </label>
-      </div>
-      <div class="-mx-px overflow-x-auto border-t border-slate-100">
-        <table class="min-w-[940px] w-full border-collapse text-left">
-          <thead class="[&_th]:whitespace-nowrap">
-            <tr>
-              ${sortableHeader("Empleado", "nombre", state)}
-              ${sortableHeader("Días (mes)", "dias_mes", state, "text-right")}
-              ${sortableHeader("Menú", "menu", state)}
-              ${sortableHeader("Estado", "estado", state, "whitespace-nowrap")}
-              <th scope="col" class="sticky top-0 z-10 bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B] shadow-[inset_0_-1px_0_rgba(226,232,240,0.9)]">Acción</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            ${rows
-              .map((row) => {
-                return `<tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
-                    <td class="px-4 py-3">
-                      ${renderEmpleadoAvatarCell(row.nombre, row.noEmpleado, row.avatarUrl)}
-                      <p class="mt-1 pl-11 text-xs text-slate-500">${escapeComedorHtml(row.area)}</p>
-                    </td>
-                    <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">${escapeComedorHtml(row.diasMes)}</td>
-                    <td class="whitespace-nowrap px-4 py-3">${menuBadge(row.menu)}</td>
-                    <td class="whitespace-nowrap px-4 py-3">
-                      ${
-                        row.activo ?
-                          '<span class="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-900">Activo</span>'
-                        : '<span class="inline-flex items-center rounded-full border border-rose-300 bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-900">Inactivo</span>'
-                      }
-                    </td>
-                    <td class="whitespace-nowrap px-4 py-3">
-                      <button type="button" data-comedor-reporte-open-detail="${escapeComedorHtml(row.id)}" class="inline-flex items-center rounded-md border border-leoni-blue/40 bg-white px-2.5 py-1 text-xs font-semibold text-leoni-blue transition hover:bg-leoni-blue/10">
-                        Ver análisis
-                      </button>
-                    </td>
-                  </tr>`;
-              })
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-    </section>`;
 }
 
 function renderSparklineCard(values: readonly number[]): string {
@@ -758,7 +608,7 @@ function reporteWorkspaceCopy(tab: ReporteComedorMainTab): { title: string; subt
       return {
         title: "Detalle de registros",
         subtitle:
-          "Tabla de evaluación (placeholder) y reservas futuras filtradas por estado. La lista operativa muestra fechas desde hoy; cruza con el periodo seleccionado usando la fecha de servicio de cada fila.",
+          "Listado de accesos cuya fecha de servicio cae dentro del rango aplicado. Usa la búsqueda y el filtro de estado para acotar resultados.",
       };
     default:
       return { title: "", subtitle: "" };
@@ -806,24 +656,11 @@ function renderActiveTabBody(state: ReporteComedorViewState): string {
 }
 
 export function renderComedorReporteDashboard(state: ReporteComedorViewState): string {
-  const bloqueRhProximos =
-    getRolFromAccessToken() === "rh" && state.reporteMainTab === "detalle"
-      ? renderComedorRhProximosRegistrosTable(
-          state.rhFuturosState,
-          state.rhFuturos,
-          state.rhFuturosError,
-          {
-            statusFilter: state.rhFuturosStatusFilter,
-            search: state.rhFuturosSearch,
-            tipoComidaFilter: state.selectedTipoComidaFilter,
-          },
-        )
-      : "";
-
   const workspaceIntro = renderReporteWorkspaceIntro(state);
+  const esRh = getRolFromAccessToken() === "rh";
   const tabContent =
     state.reporteMainTab === "detalle" ?
-      `<div class="flex flex-col gap-5">${renderTable(state)}${bloqueRhProximos}</div>`
+      `<div class="flex flex-col gap-5">${esRh ? renderReporteTabDetalle(state) : renderReporteRhRestrictedNotice()}</div>`
     : renderActiveTabBody(state);
 
   return `

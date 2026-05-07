@@ -10,7 +10,7 @@ function th(label: string): string {
   return `<th scope="col" class="${COMEDOR_TABLE_TH}">${escapeComedorHtml(label)}</th>`;
 }
 
-function formatFechaServicio(iso: string): string {
+export function formatFechaServicioRhRegistro(iso: string): string {
   const [y, m, d] = iso.split("-").map((p) => Number.parseInt(p, 10));
   if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return iso;
   return new Intl.DateTimeFormat("es-MX", {
@@ -30,7 +30,7 @@ function tipoComidaLabel(raw: string): string {
   return raw;
 }
 
-function tipoComidaBadge(raw: string): string {
+export function tipoComidaBadgeRhRegistro(raw: string): string {
   const label = tipoComidaLabel(raw);
   const k = raw.trim().toLowerCase();
   const base =
@@ -48,7 +48,7 @@ function dot(cls: string): string {
   return `<span class="size-1.5 shrink-0 rounded-full ${cls}" aria-hidden="true"></span>`;
 }
 
-function estadoAccesoBadge(estado: string): string {
+export function estadoAccesoBadgeRhRegistro(estado: string): string {
   const k = estado.trim().toUpperCase();
   const base =
     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold";
@@ -168,15 +168,15 @@ export function renderComedorRhProximosRegistrosTable(
     .map(
       (row) => `
       <tr class="rh-comedor-data-row transition-colors">
-        <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-800 sm:px-4">${escapeComedorHtml(formatFechaServicio(row.fecha_servicio))}</td>
+        <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-800 sm:px-4">${escapeComedorHtml(formatFechaServicioRhRegistro(row.fecha_servicio))}</td>
         <td class="min-w-0 px-3 py-3 sm:px-4">
           <p class="truncate text-sm font-semibold leading-snug text-[#0f172a]">${escapeComedorHtml(row.empleado_nombre)}</p>
           <p class="truncate text-xs font-medium tabular-nums text-[#64748b]">${escapeComedorHtml(row.no_empleado)}</p>
         </td>
         <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.area || "—")}</td>
         <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.comedor_nombre || "—")}</td>
-        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${tipoComidaBadge(row.tipo_comida)}</td>
-        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${estadoAccesoBadge(row.estado_acceso)}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${tipoComidaBadgeRhRegistro(row.tipo_comida)}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${estadoAccesoBadgeRhRegistro(row.estado_acceso)}</td>
       </tr>`,
     )
     .join("");

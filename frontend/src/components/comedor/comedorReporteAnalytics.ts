@@ -1,3 +1,5 @@
+import type { ComedorCodigoExternoApiItem } from "../../api/comedor.ts";
+import type { ComedorRhProximoRegistroRow } from "../../comedor/rh/types.ts";
 import type { ReporteComedorViewState } from "../../comedor/reportes/types.ts";
 import {
   aggregateByArea,
@@ -14,10 +16,17 @@ import {
   FIELD_FOCUS,
   RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_LABEL,
+  RH_LISTADO_SURFACE,
   RH_SURFACE_CARD,
   SELECT_CHEVRON,
 } from "../../ui/uiTokens.ts";
-import { escapeComedorHtml } from "./comedorUiUtils.ts";
+import {
+  estadoAccesoBadgeRhRegistro,
+  formatFechaServicioRhRegistro,
+  tipoComidaBadgeRhRegistro,
+} from "./comedorRhProximosRegistrosTable.ts";
+import { renderComedorReservationsFiltersToolbar } from "./comedorReservationsTable.ts";
+import { COMEDOR_TABLE_TH, escapeComedorHtml } from "./comedorUiUtils.ts";
 
 const REPORTE_SEARCH_ICON = `<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg></span>`;
 
@@ -51,7 +60,8 @@ function emptyBlock(title: string, body: string): string {
     </div>`;
 }
 
-function scopeRows(state: ReporteComedorViewState) {
+/** Filas operativas del periodo y filtros globales (comedor / tipo de comida). */
+export function reporteOperativoRowsScoped(state: ReporteComedorViewState): readonly ComedorRhProximoRegistroRow[] {
   const base = filterProximosPorRango(
     state.rhAnalyticsRows,
     state.selectedFechaInicioIso,
@@ -71,7 +81,7 @@ function comedorLabelFromState(state: ReporteComedorViewState): string | null {
 export function renderReporteRhRestrictedNotice(): string {
   return emptyBlock(
     "Desglose no disponible para tu rol",
-    "Las vistas por comedor, empleado y área usan el listado operativo de RH. Como gerente o director puedes revisar los KPIs globales del comedor y la tabla de evaluación cuando aplique.",
+    "Las vistas detalladas usan el listado operativo de RH. Como gerente o director puedes revisar los KPIs globales del comedor en esta misma pantalla.",
   );
 }
 
@@ -85,7 +95,7 @@ export function renderReporteTabComedor(state: ReporteComedorViewState): string 
   if (state.rhAnalyticsState === "error") {
     return `<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">${escapeComedorHtml(state.rhAnalyticsError ?? "Error al cargar datos operativos.")}</div>`;
   }
-  const rowsAll = scopeRows(state);
+  const rowsAll = reporteOperativoRowsScoped(state);
   const needle = state.tabSearchComedor.trim().toLowerCase();
   const aggAll = aggregateByComedor(rowsAll);
   const agg = needle ?
@@ -191,7 +201,7 @@ export function renderReporteTabEmpleados(state: ReporteComedorViewState): strin
   if (state.rhAnalyticsState === "error") {
     return `<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">${escapeComedorHtml(state.rhAnalyticsError ?? "Error")}</div>`;
   }
-  const rowsAll = scopeRows(state);
+  const rowsAll = reporteOperativoRowsScoped(state);
   const needle = state.tabSearchEmpleado.trim().toLowerCase();
   const aggAll = aggregateByEmpleado(rowsAll);
   const agg = needle ?
@@ -309,7 +319,7 @@ export function renderReporteTabAreas(state: ReporteComedorViewState): string {
   if (state.rhAnalyticsState === "error") {
     return `<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">${escapeComedorHtml(state.rhAnalyticsError ?? "Error")}</div>`;
   }
-  const rowsAll = scopeRows(state);
+  const rowsAll = reporteOperativoRowsScoped(state);
   const needle = state.tabSearchArea.trim().toLowerCase();
   const aggAll = aggregateByArea(rowsAll);
   const agg = needle ? aggAll.filter((g) => g.areaNombre.toLowerCase().includes(needle)) : aggAll;
@@ -400,6 +410,210 @@ export function renderReporteTabAreas(state: ReporteComedorViewState): string {
           </table>
         </div>
       </section>
+    </div>`;
+}
+
+function thDetalle(label: string): string {
+  return `<th scope="col" class="${COMEDOR_TABLE_TH}">${escapeComedorHtml(label)}</th>`;
+}
+
+function estatusCodigoExternoBadge(estatus: ComedorCodigoExternoApiItem["estatus"]): string {
+  const dot = (cls: string) =>
+    `<span class="size-1.5 shrink-0 rounded-full ${cls}" aria-hidden="true"></span>`;
+  switch (estatus) {
+    case "VENCIDO":
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">${dot("bg-red-400")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+    case "USADO_TOTAL":
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900">${dot("bg-emerald-500")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+    case "USADO_PARCIAL":
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">${dot("bg-amber-400")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+    default:
+      return `<span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-900">${dot("bg-blue-500")}<span>${escapeComedorHtml(estatus)}</span></span>`;
+  }
+}
+
+/** Códigos externos cuya vigencia intersecta el periodo del reporte (API ya filtra por fechas). */
+function reporteExternosFiltrados(state: ReporteComedorViewState): ComedorCodigoExternoApiItem[] {
+  let rows = [...state.rhCodigosExternosRows];
+  if (state.selectedDepartamentoId !== "todos") {
+    rows = rows.filter((r) => String(r.comedor_id) === state.selectedDepartamentoId);
+  }
+  if (state.selectedTipoComidaFilter !== "todos") {
+    rows = rows.filter((r) => (r.tipo_comida || "").trim().toLowerCase() === state.selectedTipoComidaFilter);
+  }
+  const sf = state.rhFuturosStatusFilter;
+  if (sf === "confirmado") {
+    rows = rows.filter((r) => r.estatus === "USADO_PARCIAL" || r.estatus === "USADO_TOTAL");
+  } else if (sf === "cancelado") {
+    rows = rows.filter((r) => r.estatus === "VENCIDO");
+  }
+  const needle = state.tableSearch.trim().toLowerCase();
+  if (needle.length > 0) {
+    rows = rows.filter((r) => {
+      const blob = `${r.codigo_acceso} ${r.comedor_nombre ?? ""} ${r.lote_id ?? ""}`.toLowerCase();
+      return blob.includes(needle);
+    });
+  }
+  rows.sort((a, b) => {
+    const fa = (a.fecha_fin || "").slice(0, 10);
+    const fb = (b.fecha_fin || "").slice(0, 10);
+    const c = fb.localeCompare(fa);
+    return c !== 0 ? c : b.id - a.id;
+  });
+  return rows;
+}
+
+/** Listado plano de accesos en el rango aplicado (misma fuente que KPI y otras pestañas). */
+export function renderReporteTabDetalle(state: ReporteComedorViewState): string {
+  if (state.rhAnalyticsState === "loading") {
+    return `<div class="animate-pulse space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="h-10 rounded-lg bg-slate-100"></div>
+      <div class="h-40 rounded-xl bg-slate-100"></div>
+    </div>`;
+  }
+  if (state.rhAnalyticsState === "error") {
+    return `<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">${escapeComedorHtml(state.rhAnalyticsError ?? "Error al cargar registros.")}</div>`;
+  }
+
+  const toolbar = renderComedorReservationsFiltersToolbar(
+    {
+      statusFilter: state.rhFuturosStatusFilter,
+      search: state.tableSearch,
+      tipoComidaFilter: state.selectedTipoComidaFilter,
+    },
+    "reporte-detalle",
+  );
+
+  const scoped = reporteOperativoRowsScoped(state);
+  const needle = state.tableSearch.trim().toLowerCase();
+  const filtered =
+    needle.length === 0 ?
+      scoped
+    : scoped.filter((r) => {
+        const blob =
+          `${r.empleado_nombre} ${r.no_empleado} ${r.area ?? ""} ${r.comedor_nombre ?? ""}`.toLowerCase();
+        return blob.includes(needle);
+      });
+  const sorted = [...filtered].sort((a, b) => {
+    const fa = (a.fecha_servicio ?? "").toString().slice(0, 10);
+    const fb = (b.fecha_servicio ?? "").toString().slice(0, 10);
+    const c = fa.localeCompare(fb);
+    return c !== 0 ? c : a.id - b.id;
+  });
+
+  const rangeLabel = `${formatIsoShort(state.selectedFechaInicioIso)} — ${formatIsoShort(state.selectedFechaFinIso)}`;
+
+  const externosFiltrados = reporteExternosFiltrados(state);
+
+  if (sorted.length === 0 && externosFiltrados.length === 0) {
+    return `
+      <div class="flex flex-col gap-4">
+        ${toolbar}
+        <section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-12 text-center sm:px-6" role="status">
+          <p class="text-sm font-semibold text-slate-900">No hay registros internos ni códigos externos en este periodo.</p>
+          <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600">
+            Ajusta el rango de fechas, el comedor, el tipo de comida o el filtro de estado. Periodo: ${escapeComedorHtml(rangeLabel)}.
+          </p>
+        </section>
+      </div>`;
+  }
+
+  const rowsInternos = sorted
+    .map(
+      (row) => `
+      <tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
+        <td class="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-800 sm:px-4">${escapeComedorHtml(formatFechaServicioRhRegistro(row.fecha_servicio))}</td>
+        <td class="min-w-0 px-3 py-3 sm:px-4">
+          <p class="truncate text-sm font-semibold leading-snug text-slate-900">${escapeComedorHtml(row.empleado_nombre)}</p>
+          <p class="truncate text-xs font-medium tabular-nums text-slate-500">${escapeComedorHtml(row.no_empleado)}</p>
+        </td>
+        <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.area || "—")}</td>
+        <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-700 sm:px-4">${escapeComedorHtml(row.comedor_nombre || "—")}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${tipoComidaBadgeRhRegistro(row.tipo_comida)}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${estadoAccesoBadgeRhRegistro(row.estado_acceso)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const bloqueInternos =
+    sorted.length === 0 ?
+      `<section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-8 text-center text-sm text-slate-600" role="status">
+        Sin registros de personal interno con los filtros actuales.
+      </section>`
+    : `<section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Registros internos del periodo">
+        <div class="overflow-x-auto">
+          <table class="min-w-[880px] w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-[#F8FAFC]">
+              <tr>
+                ${thDetalle("Fecha servicio")}
+                ${thDetalle("Empleado")}
+                ${thDetalle("Área")}
+                ${thDetalle("Comedor")}
+                ${thDetalle("Tipo")}
+                ${thDetalle("Estado")}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">${rowsInternos}</tbody>
+          </table>
+        </div>
+      </section>`;
+
+  const rowsExternos = externosFiltrados
+    .map(
+      (row) => `
+      <tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
+        <td class="whitespace-nowrap px-3 py-3 text-sm text-slate-800 sm:px-4">${escapeComedorHtml(formatIsoShort(row.fecha_inicio))} — ${escapeComedorHtml(formatIsoShort(row.fecha_fin))}</td>
+        <td class="min-w-0 px-3 py-3 text-sm font-medium text-slate-900 sm:px-4">${escapeComedorHtml(row.comedor_nombre || "—")}</td>
+        <td class="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-800 sm:px-4">${escapeComedorHtml(row.codigo_acceso)}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${tipoComidaBadgeRhRegistro(row.tipo_comida)}</td>
+        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-800 sm:px-4">${row.cantidad_personas}</td>
+        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-800 sm:px-4">${row.usados}</td>
+        <td class="whitespace-nowrap px-3 py-3 sm:px-4">${estatusCodigoExternoBadge(row.estatus)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const bloqueExternos =
+    externosFiltrados.length === 0 ?
+      `<section class="${RH_LISTADO_SURFACE} overflow-hidden px-4 py-8 text-center text-sm text-slate-600" role="status">
+        Sin códigos de personal externo con vigencia en el periodo y filtros actuales.
+      </section>`
+    : `<section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Códigos de personal externo">
+        <div class="overflow-x-auto">
+          <table class="min-w-[920px] w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-[#F8FAFC]">
+              <tr>
+                ${thDetalle("Vigencia")}
+                ${thDetalle("Comedor")}
+                ${thDetalle("Código")}
+                ${thDetalle("Tipo")}
+                ${thDetalle("Cupos")}
+                ${thDetalle("Usos (hoy)")}
+                ${thDetalle("Estatus")}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">${rowsExternos}</tbody>
+          </table>
+        </div>
+      </section>`;
+
+  return `
+    <div class="flex flex-col gap-6">
+      ${toolbar}
+      <div class="flex flex-col gap-2">
+        <div>
+          <p class="text-sm font-semibold text-slate-900">Personal interno (empleados)</p>
+          <p class="mt-0.5 text-xs text-slate-600">${escapeComedorHtml(rangeLabel)} · ${sorted.length} registro${sorted.length === 1 ? "" : "s"}</p>
+        </div>
+        ${bloqueInternos}
+      </div>
+      <div class="flex flex-col gap-2">
+        <div>
+          <p class="text-sm font-semibold text-slate-900">Personal externo (códigos temporales)</p>
+          <p class="mt-0.5 text-xs text-slate-600">Vigencia que intersecta el periodo · ${externosFiltrados.length} código${externosFiltrados.length === 1 ? "" : "s"} · Los usos mostrados corresponden al día actual (misma lógica que el listado de códigos).</p>
+        </div>
+        ${bloqueExternos}
+      </div>
     </div>`;
 }
 

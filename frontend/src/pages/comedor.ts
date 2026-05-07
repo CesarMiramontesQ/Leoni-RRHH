@@ -30,7 +30,7 @@ import {
   getComedorMisReservasMes,
   getComedorEquipoProximasReservas,
   getComedorEquipoReservasMes,
-  getComedorRhProximosRegistros,
+  getComedorRhRegistrosReporte,
   getComedorRhResumenDiario,
   getComedorEquipoMetricas,
   getComedorEquipoBeneficiarios,
@@ -51,7 +51,6 @@ import type {
   ComedorEmployeeOption,
   ComedorKpi,
   ComedorPanelState,
-  ComedorRhProximosRegistrosPage,
   ComedorRhSemanaPlatilloPorSemana,
   ComedorTeamReservationsPage,
   ComedorSidebarDataset,
@@ -812,7 +811,10 @@ function mapRhReporteKpis(
   ];
 }
 
-async function fetchAllRhProximosRegistrosPages(
+/** Registros operativos en el rango del reporte (inclusive), alineado con resumen-diario RH. */
+async function fetchAllRhRegistrosReportePages(
+  desdeIso: string,
+  hastaIso: string,
   filtroEstado: "todos" | "confirmado" | "cancelado",
 ): Promise<readonly ComedorRhProximoRegistroRow[]> {
   const pageSize = 50 as const;
@@ -820,7 +822,7 @@ async function fetchAllRhProximosRegistrosPages(
   const all: ComedorRhProximoRegistroRow[] = [];
   let total = Infinity;
   while (all.length < total) {
-    const raw = await getComedorRhProximosRegistros(page, pageSize, { filtroEstado });
+    const raw = await getComedorRhRegistrosReporte(desdeIso, hastaIso, page, pageSize, { filtroEstado });
     all.push(...raw.items);
     total = raw.total;
     if (raw.items.length === 0) break;
@@ -2974,9 +2976,8 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     rhAnalyticsState: esRhReporte ? "loading" : "empty",
     rhAnalyticsRows: [],
     rhAnalyticsError: null,
+    rhCodigosExternosRows: [],
   };
-
-  let rhFuturosSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function normalizeSelection(): void {
     const empleados = state.table?.empleados ?? [];
@@ -3040,13 +3041,26 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     paint();
     try {
       if (getRolFromAccessToken() === "rh") {
+        const desde = state.selectedFechaInicioIso.slice(0, 10);
+        const hasta = state.selectedFechaFinIso.slice(0, 10);
         const [resumen, bulk] = await Promise.all([
           getComedorRhResumenDiario(state.selectedFechaInicioIso, state.selectedFechaFinIso),
-          fetchAllRhProximosRegistrosPages(state.rhFuturosStatusFilter),
+          fetchAllRhRegistrosReportePages(
+            state.selectedFechaInicioIso,
+            state.selectedFechaFinIso,
+            state.rhFuturosStatusFilter,
+          ),
         ]);
+        let externos: ComedorCodigoExternoApiItem[] = [];
+        try {
+          externos = await getComedorRhCodigosExternos({ desdeIso: desde, hastaIso: hasta });
+        } catch {
+          externos = [];
+        }
         if (signal.aborted) return;
         state.rhResumenDiario = resumen;
         state.rhAnalyticsRows = bulk;
+        state.rhCodigosExternosRows = externos;
         state.rhAnalyticsState = "ready";
         const opsFiltrados = filterPorComedorSeleccion(
           filterPorTipoComidaSeleccion(
@@ -3067,6 +3081,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       } else {
         state.rhResumenDiario = null;
         state.rhAnalyticsRows = [];
+        state.rhCodigosExternosRows = [];
         state.rhAnalyticsState = "empty";
         const comedorId = await resolveComedorId();
         if (comedorId == null) {
@@ -3092,6 +3107,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       if (getRolFromAccessToken() === "rh") {
         state.rhAnalyticsState = "error";
         state.rhAnalyticsError = state.kpisError;
+        state.rhCodigosExternosRows = [];
       }
     }
     paint();
@@ -3109,38 +3125,8 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     paint();
   }
 
-  async function loadFuturosRegistrosRh(): Promise<void> {
-    if (getRolFromAccessToken() !== "rh") return;
-    state.rhFuturosState = "loading";
-    state.rhFuturosError = null;
-    paint();
-    try {
-      const raw = await getComedorRhProximosRegistros(state.rhFuturosPage, state.rhFuturosPageSize, {
-        buscar: state.rhFuturosSearch.trim() || undefined,
-        filtroEstado: state.rhFuturosStatusFilter,
-      });
-      if (signal.aborted) return;
-      const mapped: ComedorRhProximosRegistrosPage = {
-        items: raw.items,
-        total: raw.total,
-        page: raw.page,
-        page_size: raw.page_size,
-      };
-      state.rhFuturos = mapped;
-      state.rhFuturosState = "ready";
-    } catch (error) {
-      if (signal.aborted) return;
-      state.rhFuturos = null;
-      state.rhFuturosState = "error";
-      state.rhFuturosError = error instanceof Error ? error.message : "Error al cargar próximos registros.";
-    }
-    paint();
-  }
-
   async function reloadAll(): Promise<void> {
-    const rol = getRolFromAccessToken();
     const tasks: Promise<void>[] = [loadKpis(), loadTable()];
-    if (rol === "rh") tasks.push(loadFuturosRegistrosRh());
     await Promise.all(tasks);
     if (signal.aborted) return;
     state.lastUpdatedLabel = toUpdatedLabel(Date.now());
@@ -3254,27 +3240,13 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         }
         return;
       }
-      if (target.closest("[data-comedor-rh-futuros-retry]")) {
-        void loadFuturosRegistrosRh();
-        return;
-      }
-      const futurosPageBtn = target.closest<HTMLButtonElement>("[data-comedor-rh-futuros-page]");
-      if (futurosPageBtn && !futurosPageBtn.disabled) {
-        const raw = futurosPageBtn.getAttribute("data-comedor-rh-futuros-page");
-        const p = raw ? Number.parseInt(raw, 10) : NaN;
-        if (Number.isFinite(p) && p > 0) {
-          state.rhFuturosPage = p;
-          void loadFuturosRegistrosRh();
-        }
-        return;
-      }
       const rhFuturosFilterBtn = target.closest<HTMLButtonElement>("[data-comedor-rh-futuros-filter-status]");
       if (rhFuturosFilterBtn) {
         const v = rhFuturosFilterBtn.getAttribute("data-comedor-rh-futuros-filter-status");
         if (v === "todos" || v === "confirmado" || v === "cancelado") {
           state.rhFuturosStatusFilter = v;
           state.rhFuturosPage = 1;
-          void Promise.all([loadKpis(), loadFuturosRegistrosRh()]);
+          void loadKpis();
         }
         return;
       }
@@ -3330,7 +3302,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         if (v === 10 || v === 50) {
           state.rhFuturosPageSize = v;
           state.rhFuturosPage = 1;
-          void loadFuturosRegistrosRh();
+          paint();
         }
         return;
       }
@@ -3388,13 +3360,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       if (rhSearch) {
         state.rhFuturosSearch = rhSearch.value;
         state.rhFuturosPage = 1;
-        if (rhFuturosSearchDebounceTimer != null) {
-          window.clearTimeout(rhFuturosSearchDebounceTimer);
-        }
-        rhFuturosSearchDebounceTimer = window.setTimeout(() => {
-          rhFuturosSearchDebounceTimer = null;
-          void loadFuturosRegistrosRh();
-        }, 220);
+        paint();
         return;
       }
       const search = target.closest<HTMLInputElement>("[data-comedor-reporte-search]");
@@ -3410,12 +3376,6 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     void reloadAll();
   });
 
-  signal.addEventListener("abort", () => {
-    if (rhFuturosSearchDebounceTimer != null) {
-      window.clearTimeout(rhFuturosSearchDebounceTimer);
-      rhFuturosSearchDebounceTimer = null;
-    }
-  });
 }
 
 export function mountComedor(container: HTMLElement, signal: AbortSignal): void {

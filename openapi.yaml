@@ -1128,10 +1128,15 @@ components:
 
     ComedorCodigoExternoItem:
       type: object
-      required: [id, fecha_inicio, fecha_fin, cantidad_personas, tipo_comida, codigo_acceso, password_temporal, estatus, usados]
+      required:
+        [id, comedor_id, comedor_nombre, fecha_inicio, fecha_fin, cantidad_personas, tipo_comida, codigo_acceso, password_temporal, estatus, usados]
       properties:
         id:
           type: integer
+        comedor_id:
+          type: integer
+        comedor_nombre:
+          type: string
         fecha_inicio:
           type: string
           format: date
@@ -3206,6 +3211,60 @@ paths:
       responses:
         "200":
           description: Pagina de registros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorRhProximosRegistrosPage"
+
+  /api/v1/comedor/accesos/rh/registros-reporte:
+    get:
+      tags: [Comedor]
+      summary: Registros operativos por rango de fechas (RH)
+      description: >-
+        Listado paginado para analítica del Reporte comedor; incluye fechas pasadas y futuras dentro del rango [desde, hasta].
+      operationId: comedor_rh_registros_reporte
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: buscar
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: filtro_estado
+          in: query
+          schema:
+            type: string
+            enum: [todos, confirmado, cancelado]
+            default: todos
+      responses:
+        "200":
+          description: Pagina de registros en el rango
           content:
             application/json:
               schema:
