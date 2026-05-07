@@ -165,7 +165,8 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
     const day_entries: Record<string, TeamCalendarDayEntry> = {};
     for (const r of solicitudesCalendario) {
       const estado = r.estado === SOLICITUD_ESTADO_API.APROBADO ? "approved" : "pending";
-      const line = toTeamCalendarLine(r.tipo, estado, r.empleado_id, r.empleado_nombre_raw);
+      const tipoCalendario = r.tipo === "vacaciones" ? "vacaciones" : "home_office";
+      const line = toTeamCalendarLine(tipoCalendario, estado, r.empleado_id, r.empleado_nombre_raw);
       for (const iso of eachIsoDayInclusive(r.fecha_inicio, r.fecha_fin)) {
         if (iso < rangeStartIso || iso > rangeEndIso) continue;
         const prev = day_entries[iso]?.lines ?? [];

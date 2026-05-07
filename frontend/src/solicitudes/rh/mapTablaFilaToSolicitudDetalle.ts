@@ -37,7 +37,13 @@ export function mapTablaFilaToSolicitudDetallePendiente(
   const totalDias = calcularDiasSolicitadosInclusive(row.fecha_inicio, row.fecha_fin);
   const saldoRestante = Math.max(0, extra.saldo_actual - totalDias);
   const tipoBadge =
-    row.tipo === "vacaciones" ? SD_COPY.badgeVacacionesPendiente : SD_COPY.badgeHomeOfficePendiente;
+    row.tipo === "vacaciones" ? SD_COPY.badgeVacacionesPendiente
+    : row.tipo === "home_office" ? SD_COPY.badgeHomeOfficePendiente
+    : row.tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce · Pendiente"
+    : row.tipo === "matrimonio" ? "Matrimonio · Pendiente"
+    : row.tipo === "incapacidad_interna" ? "Incapacidad interna · Pendiente"
+    : row.tipo === "defuncion" ? "Defunción · Pendiente"
+    : "Paternidad · Pendiente";
   const comentarioApi =
     typeof row.comentarios === "string" && row.comentarios.trim() ? row.comentarios.trim() : "";
   const comentarioEmp = comentarioApi || extra.comentario_empleado.trim();

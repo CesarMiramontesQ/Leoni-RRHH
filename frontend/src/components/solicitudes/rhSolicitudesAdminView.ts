@@ -80,7 +80,22 @@ function badgeTipo(t: RhSolicitudTipoCodigo): string {
   if (t === "vacaciones") {
     return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--vacaciones inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Vacaciones</span>`;
   }
-  return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--ho inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Home Office</span>`;
+  if (t === "home_office") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--ho inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Home Office</span>`;
+  }
+  if (t === "matrimonio") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Matrimonio</span>`;
+  }
+  if (t === "incapacidad_interna") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Incapacidad interna</span>`;
+  }
+  if (t === "defuncion") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Defunción</span>`;
+  }
+  if (t === "permiso_sin_goce_sueldo") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Permiso sin goce</span>`;
+  }
+  return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Paternidad</span>`;
 }
 
 function dot(cls: string): string {
@@ -1015,7 +1030,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
         <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
           <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
             <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Solicitudes</h1>
-            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de vacaciones y home office</p>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de solicitudes del personal</p>
             ${renderSolicitudesHeaderMeta(vm)}
           </div>
           ${toolbarGestor}

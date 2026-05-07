@@ -10,6 +10,7 @@ export type SolicitudApiItem = {
   estado: string;
   created_at: string;
   nivel_actual?: number;
+  motivo?: string | null;
   comentarios?: string | null;
   empleado_nombre?: string;
   empleado_area?: string | null;
@@ -38,9 +39,17 @@ export type SolicitudesFetchError = {
 export const SOLICITUD_DUPLICADA_DETAIL = "Esta solicitud ya existe";
 
 export type SolicitudCreatePayload = {
-  tipo: "vacaciones" | "home_office";
+  tipo:
+    | "vacaciones"
+    | "home_office"
+    | "matrimonio"
+    | "incapacidad_interna"
+    | "defuncion"
+    | "paternidad"
+    | "permiso_sin_goce_sueldo";
   fecha_inicio: string;
   fecha_fin: string;
+  motivo: string | null;
   comentarios: string | null;
   /** Titular de la solicitud; si se omite, el backend usa el usuario autenticado. */
   empleado_id?: number;
@@ -96,7 +105,12 @@ function toTipo(tipo: string): RhSolicitudTipoCodigo {
   const raw = (tipo || "").trim().toLowerCase();
   if (raw === "vacaciones" || raw === "vacation") return "vacaciones";
   if (raw === "home_office" || raw === "home office" || raw === "homeoffice") return "home_office";
-  return "home_office";
+  if (raw === "matrimonio") return "matrimonio";
+  if (raw === "incapacidad_interna" || raw === "incapacidad interna") return "incapacidad_interna";
+  if (raw === "defuncion" || raw === "defunción") return "defuncion";
+  if (raw === "paternidad") return "paternidad";
+  if (raw === "permiso_sin_goce_sueldo" || raw === "permiso sin goce de sueldo") return "permiso_sin_goce_sueldo";
+  return "vacaciones";
 }
 
 function toEstado(estado: string): RhSolicitudEstadoCodigo {
@@ -140,6 +154,7 @@ function toFila(item: SolicitudApiItem): RhSolicitudTablaFila {
     supervisor_nombre: supNom,
     fecha_aprobacion: null,
     nivel_actual: nivel,
+    motivo: item.motivo ?? null,
     comentarios: item.comentarios ?? null,
   };
 }

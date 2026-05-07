@@ -135,12 +135,22 @@ function iconHome(active: boolean): string {
 }
 
 export type RhNewRequestFormParams = {
-  tipo: "vacaciones" | "home_office";
+  tipo:
+    | "vacaciones"
+    | "home_office"
+    | "matrimonio"
+    | "incapacidad_interna"
+    | "defuncion"
+    | "paternidad"
+    | "permiso_sin_goce_sueldo";
+  showPaidLeaveTypes?: boolean;
+  showUnpaidLeaveType?: boolean;
   items: UsuarioListItem[];
   selectedEmpleadoId: string;
   empleadoSearchQ: string;
   fechaInicio: string;
   fechaFin: string;
+  motivo: string;
   comentarios: string;
   diasLabel: string;
   infoHtml: string;
@@ -224,11 +234,19 @@ export function buildInfoHomeOfficeHtml(text: string): string {
 export function buildFormHtml(p: RhNewRequestFormParams): string {
   const vacActive = p.tipo === "vacaciones";
   const hoActive = p.tipo === "home_office";
+  const permisoSinGoceActive = p.tipo === "permiso_sin_goce_sueldo";
   const selfMode = Boolean(p.fixedEmpleado);
   const revision = Boolean(p.modoRevision);
   const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
   const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
-  const tipoEtiquetaLectura = vacActive ? "Vacaciones" : "Home office";
+  const tipoEtiquetaLectura =
+    p.tipo === "vacaciones" ? "Vacaciones"
+    : p.tipo === "home_office" ? "Home office"
+    : p.tipo === "matrimonio" ? "Matrimonio"
+    : p.tipo === "incapacidad_interna" ? "Incapacidad interna"
+    : p.tipo === "defuncion" ? "Defunción"
+    : p.tipo === "paternidad" ? "Paternidad"
+    : "Permiso sin goce de sueldo";
   const submitLabel = p.submitLabel ?? "Enviar solicitud";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
@@ -314,6 +332,45 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
           <p class="text-sm font-semibold text-slate-900">${escapeHtml(tipoEtiquetaLectura)}</p>
           <p class="mt-1 text-xs text-slate-500">No se puede modificar el tipo al corregir una solicitud existente.</p>
         </div>`
+          : p.showPaidLeaveTypes ?
+            `<div class="space-y-3">
+          <p class="text-xs text-slate-500">Solicitudes estándar y con goce de sueldo (solo RH).</p>
+          <div class="grid grid-cols-1">
+            <select id="rh-nr-tipo-select" data-rh-nr-tipo-select class="col-start-1 row-start-1 ${CONTROL} cursor-pointer appearance-none pr-10 font-medium">
+              <optgroup label="Solicitudes estándar">
+                <option value="vacaciones" ${p.tipo === "vacaciones" ? "selected" : ""}>Vacaciones</option>
+                <option value="home_office" ${p.tipo === "home_office" ? "selected" : ""}>Home Office</option>
+                ${
+                  p.showUnpaidLeaveType
+                    ? `<option value="permiso_sin_goce_sueldo" ${p.tipo === "permiso_sin_goce_sueldo" ? "selected" : ""}>Permiso sin goce de sueldo</option>`
+                    : ""
+                }
+              </optgroup>
+              <optgroup label="Solicitudes con goce de sueldo">
+                <option value="matrimonio" ${p.tipo === "matrimonio" ? "selected" : ""}>Matrimonio (2 días)</option>
+                <option value="incapacidad_interna" ${p.tipo === "incapacidad_interna" ? "selected" : ""}>Incapacidad interna (duración RH)</option>
+                <option value="defuncion" ${p.tipo === "defuncion" ? "selected" : ""}>Defunción (3 días)</option>
+                <option value="paternidad" ${p.tipo === "paternidad" ? "selected" : ""}>Paternidad (7 días hábiles)</option>
+              </optgroup>
+            </select>
+            ${NR_SELECT_CHEVRON}
+          </div>
+        </div>`
+          : p.showUnpaidLeaveType ?
+            `<div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
+          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
+            ${iconVacaciones(vacActive)}
+            <span>Vacaciones</span>
+          </button>
+          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
+            ${iconHome(hoActive)}
+            <span>Home Office</span>
+          </button>
+          <button type="button" role="tab" aria-selected="${permisoSinGoceActive}" data-rh-nr-tipo="permiso_sin_goce_sueldo" class="${permisoSinGoceActive ? TAB_ACTIVE : TAB_INACTIVE}">
+            ${iconHome(permisoSinGoceActive)}
+            <span>Permiso sin goce</span>
+          </button>
+        </div>`
           : `<div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
           <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
             ${iconVacaciones(vacActive)}
@@ -360,6 +417,23 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         </div>
       </section>
 
+      <section class="space-y-2" aria-labelledby="rh-nr-sec-motivo">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 id="rh-nr-sec-motivo" class="${SEC_TITLE} !mb-0">Motivo</h3>
+          <span class="text-[10px] font-medium uppercase tracking-wide text-slate-400">${p.tipo === "permiso_sin_goce_sueldo" ? "Obligatorio" : "Opcional"}</span>
+        </div>
+        <textarea
+          id="rh-nr-motivo"
+          name="motivo"
+          rows="3"
+          ${p.tipo === "permiso_sin_goce_sueldo" ? "required" : ""}
+          placeholder="Describe el motivo de la solicitud…"
+          aria-describedby="rh-nr-motivo-help"
+          class="min-h-[6rem] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/65 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
+        >${escapeHtml(p.motivo)}</textarea>
+        <p id="rh-nr-motivo-help" class="text-xs text-slate-500">Especifica la justificación principal del permiso.</p>
+      </section>
+
       <section class="space-y-2" aria-labelledby="rh-nr-sec-comentarios">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id="rh-nr-sec-comentarios" class="${SEC_TITLE} !mb-0">Comentarios</h3>
@@ -404,11 +478,19 @@ export type RhModalComputedUi = {
 };
 
 export function computeRhModalFormUi(
-  tipo: "vacaciones" | "home_office",
+  tipo:
+    | "vacaciones"
+    | "home_office"
+    | "matrimonio"
+    | "incapacidad_interna"
+    | "defuncion"
+    | "paternidad"
+    | "permiso_sin_goce_sueldo",
   contextoVac: number | null,
   selectedEmpleadoId: string,
   fechaInicio: string,
   fechaFin: string,
+  motivo: string,
   empleadoSelectorOmitted = false,
 ): RhModalComputedUi {
   const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
@@ -448,11 +530,13 @@ export function computeRhModalFormUi(
   }
 
   const empOk = empleadoSelectorOmitted || selectedEmpleadoId.trim() !== "";
+  const motivoOk = tipo !== "permiso_sin_goce_sueldo" || motivo.trim().length > 0;
   const canSubmit =
     empOk &&
     bothDates &&
     fechasOk &&
     dias > 0 &&
+    motivoOk &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -468,7 +552,14 @@ export function computeRhModalFormUi(
 /** Actualiza resumen, hints, bordes de fechas y estado del botón enviar sin re-renderizar el formulario. */
 export function applyRhModalLiveFeedback(
   modalHost: HTMLElement,
-  tipo: "vacaciones" | "home_office",
+  tipo:
+    | "vacaciones"
+    | "home_office"
+    | "matrimonio"
+    | "incapacidad_interna"
+    | "defuncion"
+    | "paternidad"
+    | "permiso_sin_goce_sueldo",
   contextoVac: number | null,
 ): void {
   /** Empleado fijo: portal o corrección (hidden sin `<select>`). */
@@ -480,11 +571,12 @@ export function applyRhModalLiveFeedback(
   const hid = modalHost.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null;
   const fi = modalHost.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
   const ff = modalHost.querySelector("#rh-nr-fin") as HTMLInputElement | null;
+  const motivo = modalHost.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
   if (!fi || !ff) return;
 
   const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
 
-  const ui = computeRhModalFormUi(tipo, contextoVac, empVal, fi.value, ff.value, selfMode);
+  const ui = computeRhModalFormUi(tipo, contextoVac, empVal, fi.value, ff.value, motivo?.value ?? "", selfMode);
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;
   ff.className = `${CONTROL} font-medium tabular-nums ${ui.fechaFinInvalid ? CONTROL_INVALID : ""}`;

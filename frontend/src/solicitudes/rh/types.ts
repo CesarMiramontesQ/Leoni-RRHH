@@ -5,7 +5,14 @@
 
 import type { SolicitudesPageUiConfig } from "../solicitudesPageFilterConfig.ts";
 
-export type RhSolicitudTipoCodigo = "vacaciones" | "home_office";
+export type RhSolicitudTipoCodigo =
+  | "vacaciones"
+  | "home_office"
+  | "matrimonio"
+  | "incapacidad_interna"
+  | "defuncion"
+  | "paternidad"
+  | "permiso_sin_goce_sueldo";
 
 export type RhSolicitudEstadoCodigo =
   | "pending"
@@ -42,6 +49,8 @@ export type RhSolicitudTablaFila = {
   nivel_actual?: number;
   /** Comentarios del empleado al crear la solicitud (API). */
   comentarios?: string | null;
+  /** Motivo del permiso (obligatorio para permiso sin goce de sueldo). */
+  motivo?: string | null;
 };
 
 /** Métricas del encabezado (normalmente globales, no filtradas por la tabla). */

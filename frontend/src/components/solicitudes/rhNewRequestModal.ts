@@ -40,6 +40,10 @@ export type RhNewRequestModalOptions = {
    * y el envío usa siempre este id (la UI no puede cambiar el destinatario).
    */
   fixedEmpleadoDirectoryId?: number;
+  /** Habilita tipos especiales con goce de sueldo (solo RH). */
+  allowPaidLeaveTypes?: boolean;
+  /** Habilita tipo especial sin goce de sueldo (supervisor/gerente). */
+  allowUnpaidLeaveType?: boolean;
 };
 
 export type RhNewRequestModalOpenOptions = {
@@ -76,9 +80,23 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   /** Dueño de la solicitud en corrección (validación de `empleado_id` en envío). */
   let revisionEmpleadoId: number | null = null;
   let revisionEmpleadoDisplayLine = "";
-  let revisionTipoOriginal: "vacaciones" | "home_office" = "vacaciones";
+  let revisionTipoOriginal:
+    | "vacaciones"
+    | "home_office"
+    | "matrimonio"
+    | "incapacidad_interna"
+    | "defuncion"
+    | "paternidad"
+    | "permiso_sin_goce_sueldo" = "vacaciones";
 
-  let tipo: "vacaciones" | "home_office" = "vacaciones";
+  let tipo:
+    | "vacaciones"
+    | "home_office"
+    | "matrimonio"
+    | "incapacidad_interna"
+    | "defuncion"
+    | "paternidad"
+    | "permiso_sin_goce_sueldo" = "vacaciones";
   let empleadosCache: UsuarioListItem[] = [];
   let contextoVac: number | null = null;
   let contextoHoText = "";
@@ -121,8 +139,16 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const fechasOk = fechasOrdenValidas(fi, ff);
     if (tipo === "vacaciones") {
       card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk);
-    } else {
+    } else if (tipo === "home_office") {
       card.innerHTML = buildInfoHomeOfficeHtml(contextoHoText);
+    } else {
+      const txt =
+        tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
+        : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
+        : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
+        : tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
+        : "Incapacidad interna: RH define manualmente la duración.";
+      card.innerHTML = buildInfoHomeOfficeHtml(txt);
     }
   }
 
@@ -143,6 +169,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     selectedEmpleadoId: string;
     fechaInicio: string;
     fechaFin: string;
+    motivo: string;
     comentarios: string;
   } {
     const hid = (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ?? "";
@@ -151,6 +178,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       selectedEmpleadoId: hid || sel,
       fechaInicio: (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ?? "",
       fechaFin: (host.querySelector("#rh-nr-fin") as HTMLInputElement | null)?.value ?? "",
+      motivo: (host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null)?.value ?? "",
       comentarios: (host.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null)?.value ?? "",
     };
   }
@@ -174,6 +202,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       selectedId: string;
       fechaInicio: string;
       fechaFin: string;
+      motivo: string;
       comentarios: string;
       submitLabel: string;
     }>,
@@ -200,13 +229,22 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFin = preserve.fechaFin ?? snap.fechaFin;
+    const motivo = preserve.motivo ?? snap.motivo;
     const comentarios = preserve.comentarios ?? snap.comentarios;
     const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
     const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
     const infoHtml =
       tipo === "vacaciones"
         ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk)
-        : buildInfoHomeOfficeHtml(contextoHoText);
+        : tipo === "home_office"
+          ? buildInfoHomeOfficeHtml(contextoHoText)
+          : buildInfoHomeOfficeHtml(
+              tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
+              : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
+              : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
+              : tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
+              : "Incapacidad interna: RH define manualmente la duración.",
+            );
     const empleadoSelectorOmitido = fixedEmpleado != null;
     const ui = computeRhModalFormUi(
       tipo,
@@ -214,15 +252,19 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       selectedEmpleadoId,
       fechaInicio,
       fechaFin,
+      motivo,
       empleadoSelectorOmitido,
     );
     modalBody.innerHTML = buildFormHtml({
       tipo,
+      showPaidLeaveTypes: options.allowPaidLeaveTypes === true,
+      showUnpaidLeaveType: options.allowUnpaidLeaveType === true,
       items: empleadosCache,
       selectedEmpleadoId,
       empleadoSearchQ,
       fechaInicio,
       fechaFin,
+      motivo,
       comentarios,
       diasLabel: ui.diasLabel,
       infoHtml,
@@ -245,6 +287,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const sel = host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null;
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
     const fin = host.querySelector("#rh-nr-fin") as HTMLInputElement | null;
+    const motivo = host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
 
     if (!host.querySelector("#rh-nr-form[data-rh-nr-revision]")) {
       host.querySelectorAll("[data-rh-nr-tipo]").forEach((btn) => {
@@ -252,13 +295,37 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           "click",
           () => {
             const t = btn.getAttribute("data-rh-nr-tipo");
-            if (t !== "vacaciones" && t !== "home_office") return;
+            if (
+              t !== "vacaciones" &&
+              t !== "home_office" &&
+              t !== "permiso_sin_goce_sueldo"
+            ) return;
             tipo = t;
             renderForm({});
           },
           { signal: options.signal },
         );
       });
+      const tipoSelect = host.querySelector("[data-rh-nr-tipo-select]") as HTMLSelectElement | null;
+      tipoSelect?.addEventListener(
+        "change",
+        () => {
+          const raw = tipoSelect.value;
+          if (
+            raw === "vacaciones" ||
+            raw === "home_office" ||
+            raw === "matrimonio" ||
+            raw === "incapacidad_interna" ||
+            raw === "defuncion" ||
+            raw === "paternidad" ||
+            raw === "permiso_sin_goce_sueldo"
+          ) {
+            tipo = raw;
+            renderForm({});
+          }
+        },
+        { signal: options.signal },
+      );
     }
 
     if (sel) {
@@ -303,6 +370,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
 
     inicio?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
+    motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
 
     form?.addEventListener(
       "submit",
@@ -353,6 +421,12 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           return;
         }
         const comentariosRaw = String(fd.get("comentarios") ?? "").trim();
+        const motivoRaw = String(fd.get("motivo") ?? "").trim();
+        if (tipo === "permiso_sin_goce_sueldo" && !motivoRaw) {
+          showError("Captura el motivo del permiso sin goce de sueldo.");
+          return;
+        }
+        const motivo = motivoRaw === "" ? null : motivoRaw;
         const comentarios = comentariosRaw === "" ? null : comentariosRaw;
 
         const submitBtn = host.querySelector("#rh-nr-submit") as HTMLButtonElement | null;
@@ -366,6 +440,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           tipo,
           fecha_inicio,
           fecha_fin,
+          motivo,
           comentarios,
         };
 
@@ -490,7 +565,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           <button type="button" data-rh-nr-close class="mt-4 rounded-lg border border-border px-4 py-2 text-sm font-semibold">Cerrar</button>`;
             return;
           }
-          tipo = sol.tipo === "home_office" ? "home_office" : "vacaciones";
+          if (
+            sol.tipo === "home_office" ||
+            sol.tipo === "matrimonio" ||
+            sol.tipo === "incapacidad_interna" ||
+            sol.tipo === "defuncion" ||
+            sol.tipo === "paternidad" ||
+            sol.tipo === "permiso_sin_goce_sueldo"
+          ) {
+            tipo = sol.tipo;
+          } else {
+            tipo = "vacaciones";
+          }
           revisionTipoOriginal = tipo;
           revisionEmpleadoId = empleadoRevision;
           const rawNom = typeof sol.empleado_nombre === "string" ? sol.empleado_nombre.trim() : "";
@@ -501,6 +587,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           renderForm({
             fechaInicio: String(sol.fecha_inicio).slice(0, 10),
             fechaFin: String(sol.fecha_fin).slice(0, 10),
+            motivo: typeof sol.motivo === "string" ? sol.motivo : "",
             comentarios: com,
             submitLabel: "Guardar y reenviar",
           });
@@ -522,6 +609,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             selectedId,
             fechaInicio: iso(today),
             fechaFin: iso(today),
+            motivo: "",
             comentarios: "",
           });
           await refreshContextForEmpleado(selectedId ? Number.parseInt(selectedId, 10) : null);
@@ -534,6 +622,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           renderForm({
             fechaInicio: iso(today),
             fechaFin: iso(today),
+            motivo: "",
             comentarios: "",
           });
           (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();

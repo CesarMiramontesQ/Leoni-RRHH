@@ -19,7 +19,7 @@ Al rechazar/cancelar: NO se encola en TRESS.
 """
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from fastapi import BackgroundTasks
@@ -61,7 +61,18 @@ logger = logging.getLogger(__name__)
 _TRESS_ACCION_MAP = {
     "vacaciones": "REGISTRAR_VACACIONES",
     "home_office": "REGISTRAR_HOME_OFFICE",
+    "matrimonio": "REGISTRAR_GOCE_SUELDO_MATRIMONIO",
+    "incapacidad_interna": "REGISTRAR_GOCE_SUELDO_INCAPACIDAD_INTERNA",
+    "defuncion": "REGISTRAR_GOCE_SUELDO_DEFUNCION",
+    "paternidad": "REGISTRAR_GOCE_SUELDO_PATERNIDAD",
+    "permiso_sin_goce_sueldo": "REGISTRAR_PERMISO_SIN_GOCE_SUELDO",
 }
+_TIPOS_GOCE_SUELDO_RH = frozenset({
+    "matrimonio",
+    "incapacidad_interna",
+    "defuncion",
+    "paternidad",
+})
 
 # Duplicidad exacta (mismo colaborador, mismas fechas inicio/fin): solo estos estados
 # cuentan como «ya existe»; rechazadas/canceladas permiten volver a registrar esas fechas.
@@ -71,6 +82,17 @@ _MSG_SOLICITUD_YA_EXISTE = "Esta solicitud ya existe"
 
 def _dias_solicitud_inclusive(fecha_inicio: date, fecha_fin: date) -> int:
     return (fecha_fin - fecha_inicio).days + 1
+
+
+def _sumar_dias_habiles(fecha_inicio: date, dias_habiles: int) -> date:
+    """Suma días hábiles (lunes-viernes) sobre fecha_inicio inclusive."""
+    cursor = fecha_inicio
+    acumulados = 1
+    while acumulados < dias_habiles:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            acumulados += 1
+    return cursor
 
 
 async def _resolver_fila_saldo_vacaciones_tress(no_empleado: str) -> dict:
@@ -176,6 +198,7 @@ def _solicitud_to_response(s: Solicitud, empleado_ctx: Empleado | None = None) -
         fecha_fin=s.fecha_fin,
         estado=s.estado,
         nivel_actual=s.nivel_actual,
+        motivo=s.motivo,
         comentarios=s.comentarios,
         created_at=s.created_at,
         empleado_nombre=nombre,
@@ -474,13 +497,38 @@ class SolicitudService:
         2) Saldo de vacaciones (solo tipo vacaciones, lectura TRESS).
         3) Persistencia y notificaciones.
         """
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
         target = await self._resolver_empleado_objetivo_crear_solicitud(data, current_user)
+
+        fecha_inicio = data.fecha_inicio
+        fecha_fin = data.fecha_fin
+        if data.tipo == "permiso_sin_goce_sueldo" and rol not in (
+            "supervisor",
+            "gerente",
+            "rh",
+            "director",
+        ):
+            raise ForbiddenError(
+                detail="Solo supervisor, gerente, RH o director pueden crear permisos sin goce de sueldo"
+            )
+        if data.tipo in _TIPOS_GOCE_SUELDO_RH:
+            if rol != "rh":
+                raise ForbiddenError(
+                    detail="Solo RH puede crear solicitudes con goce de sueldo"
+                )
+            if data.tipo == "matrimonio":
+                fecha_fin = fecha_inicio + timedelta(days=1)
+            elif data.tipo == "defuncion":
+                fecha_fin = fecha_inicio + timedelta(days=2)
+            elif data.tipo == "paternidad":
+                fecha_fin = _sumar_dias_habiles(fecha_inicio, 7)
+            # incapacidad_interna mantiene la fecha_fin indicada por RH.
 
         duplicado = await self.repo.count(
             filters=[
                 Solicitud.empleado_id == target.id,
-                Solicitud.fecha_inicio == data.fecha_inicio,
-                Solicitud.fecha_fin == data.fecha_fin,
+                Solicitud.fecha_inicio == fecha_inicio,
+                Solicitud.fecha_fin == fecha_fin,
                 Solicitud.estado.in_(_ESTADOS_DUPLICADO_EXACTO),
             ]
         )
@@ -490,17 +538,18 @@ class SolicitudService:
         if data.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(
                 empleado=target,
-                fecha_inicio=data.fecha_inicio,
-                fecha_fin=data.fecha_fin,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
             )
 
         solicitud = await self.repo.create({
             "empleado_id": target.id,
             "tipo": data.tipo,
-            "fecha_inicio": data.fecha_inicio,
-            "fecha_fin": data.fecha_fin,
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
             "estado": "pending",
             "nivel_actual": 1,
+            "motivo": data.motivo,
             "comentarios": data.comentarios,
         })
 
@@ -524,8 +573,8 @@ class SolicitudService:
             destinatario_id=target.id,
             asunto="Tu solicitud fue enviada",
             cuerpo=(
-                f"Tu solicitud de <b>{data.tipo}</b> del {data.fecha_inicio} al "
-                f"{data.fecha_fin} fue enviada y esta en revision."
+                f"Tu solicitud de <b>{data.tipo}</b> del {fecha_inicio} al "
+                f"{fecha_fin} fue enviada y esta en revision."
             ),
             canal="in_app",
             target_url="#/solicitudes",
@@ -547,7 +596,7 @@ class SolicitudService:
                 asunto=f"Nueva solicitud de {nombre_empleado}",
                 cuerpo=(
                     f"Se ha generado una solicitud de <b>{tipo}</b> "
-                    f"del {data.fecha_inicio} al {data.fecha_fin}. "
+                    f"del {fecha_inicio} al {fecha_fin}. "
                     "Por favor rev&iacute;sala en la plataforma."
                 ),
                 canal="in_app",

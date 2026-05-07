@@ -35,7 +35,13 @@ export type CalendarBadgeInput = {
 };
 
 function typeLabel(tipo: RhSolicitudTipoCodigo): string {
-  return tipo === "vacaciones" ? "Vacaciones" : "Home Office";
+  if (tipo === "vacaciones") return "Vacaciones";
+  if (tipo === "home_office") return "Home Office";
+  if (tipo === "matrimonio") return "Matrimonio";
+  if (tipo === "incapacidad_interna") return "Incapacidad interna";
+  if (tipo === "defuncion") return "Defunción";
+  if (tipo === "permiso_sin_goce_sueldo") return "Permiso sin goce";
+  return "Paternidad";
 }
 
 function roleWantsOwner(role: string | null | undefined): role is typeof ROL_SUPERVISOR | typeof ROL_GERENTE {

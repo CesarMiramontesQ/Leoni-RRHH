@@ -237,8 +237,18 @@ export function mapTablaFilaToSolicitudResuelta(
   const folio = row.numero_folio.startsWith("#") ? row.numero_folio : `#${row.numero_folio}`;
   const total = calcularDiasSolicitadosInclusive(row.fecha_inicio, row.fecha_fin);
   const tipoAusencia =
-    row.tipo === "vacaciones" ? SR_COPY.tipoVacacionesAnuales : SR_COPY.tipoHomeOffice;
-  const titulo = row.tipo === "vacaciones" ? SR_COPY.tituloVacaciones : SR_COPY.tituloHomeOffice;
+    row.tipo === "vacaciones" ? SR_COPY.tipoVacacionesAnuales
+    : row.tipo === "home_office" ? SR_COPY.tipoHomeOffice
+    : row.tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce de sueldo"
+    : row.tipo === "matrimonio" ? "Matrimonio con goce"
+    : row.tipo === "incapacidad_interna" ? "Incapacidad interna con goce"
+    : row.tipo === "defuncion" ? "Defunción con goce"
+    : "Paternidad con goce";
+  const titulo =
+    row.tipo === "vacaciones" ? SR_COPY.tituloVacaciones
+    : row.tipo === "home_office" ? SR_COPY.tituloHomeOffice
+    : row.tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce de sueldo"
+    : "Solicitud con goce de sueldo";
 
   const estado_ui: SolicitudResueltaEstadoUi =
     row.estado === "rejected" ? "rechazada"
@@ -339,7 +349,15 @@ export function mapTablaFilaToSolicitudResuelta(
     vm.siguiente_paso = perfil.siguiente_paso;
   }
 
-  if (estado_ui === "aprobada" && row.tipo === "vacaciones") {
+  if (
+    estado_ui === "aprobada" &&
+    (row.tipo === "vacaciones" ||
+      row.tipo === "permiso_sin_goce_sueldo" ||
+      row.tipo === "matrimonio" ||
+      row.tipo === "incapacidad_interna" ||
+      row.tipo === "defuncion" ||
+      row.tipo === "paternidad")
+  ) {
     vm.siguiente_paso = undefined;
     vm.puede_firmar = false;
     vm.puede_cancelar = false;

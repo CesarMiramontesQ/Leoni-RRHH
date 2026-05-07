@@ -1414,6 +1414,66 @@ async def test_crear_solicitud_tipos_validos(tipo, client: AsyncClient, db):
     assert response.json()["tipo"] == tipo
 
 
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol027b_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027b_emp@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "matrimonio",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-30",
+            "comentarios": "Alta RH",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tipo"] == "matrimonio"
+    assert body["fecha_inicio"] == "2026-05-04"
+    assert body["fecha_fin"] == "2026-05-05"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_paternidad_calcula_7_dias_habiles(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol027c_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027c_emp@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "paternidad",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-04",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["fecha_inicio"] == "2026-05-04"
+    assert body["fecha_fin"] == "2026-05-12"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_no_rh_retorna_403(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol027d_sup@leoni.test")
+    headers = await auth_headers(client, supervisor)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-04",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # TC-SOL-028: Gerente — listado incluye solicitudes de todo el subarbol
 # ---------------------------------------------------------------------------

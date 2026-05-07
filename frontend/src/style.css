@@ -1562,6 +1562,15 @@ body {
     0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--goce {
+  color: #0f766e;
+  border-color: rgba(20, 184, 166, 0.25);
+  background: linear-gradient(135deg, #ccfbf1 0%, #f0fdfa 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
 :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),

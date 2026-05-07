@@ -106,7 +106,15 @@ function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]):
 }
 
 function isTipo(v: string): v is RhSolicitudTipoCodigo {
-  return v === "vacaciones" || v === "home_office";
+  return (
+    v === "vacaciones" ||
+    v === "home_office" ||
+    v === "permiso_sin_goce_sueldo" ||
+    v === "matrimonio" ||
+    v === "incapacidad_interna" ||
+    v === "defuncion" ||
+    v === "paternidad"
+  );
 }
 
 function isEstado(v: string): v is RhSolicitudEstadoCodigo {
@@ -185,7 +193,7 @@ function renderSplitSolicitudesView(
         <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
           <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
             <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Solicitudes</h1>
-            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de vacaciones y home office</p>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de solicitudes del personal</p>
             ${renderSolicitudesSplitHeroMeta(personalVm, equipoVm)}
           </div>
           <div class="rh-sol-header__toolbar rh-sol-header__toolbar--dual flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-nowrap md:items-center md:justify-end md:gap-2.5">${exportBtn}${nuevaBtn}</div>
@@ -434,6 +442,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         });
       },
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
+      allowPaidLeaveTypes: pageRole === "rh",
+      allowUnpaidLeaveType: pageRole === "supervisor" || pageRole === "gerente" || pageRole === "rh",
     });
   }
 

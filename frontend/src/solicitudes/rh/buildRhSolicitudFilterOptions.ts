@@ -43,6 +43,11 @@ export function buildRhSolicitudFilterOptions(rows: readonly RhSolicitudTablaFil
     tipos: [
       { id: "vacaciones", label: "Vacaciones" },
       { id: "home_office", label: "Home Office" },
+      { id: "permiso_sin_goce_sueldo", label: "Permiso sin goce de sueldo" },
+      { id: "matrimonio", label: "Matrimonio (goce)" },
+      { id: "incapacidad_interna", label: "Incapacidad interna (goce)" },
+      { id: "defuncion", label: "Defunción (goce)" },
+      { id: "paternidad", label: "Paternidad (goce)" },
     ],
     estados: [
       { id: "pending", label: "Pendiente" },

@@ -426,7 +426,14 @@ components:
       properties:
         tipo:
           type: string
-          enum: [vacaciones, home_office]
+          enum: [vacaciones, home_office, matrimonio, incapacidad_interna, defuncion, paternidad, permiso_sin_goce_sueldo]
+          description: >
+            Tipos especiales (`matrimonio`, `incapacidad_interna`, `defuncion`, `paternidad`)
+            solo pueden ser creados por RH. Reglas automáticas:
+            matrimonio=2 días, defuncion=3 días, paternidad=7 días hábiles,
+            incapacidad_interna con duración manual.
+            El tipo `permiso_sin_goce_sueldo` solo puede crearlo supervisor, gerente,
+            RH o director, y requiere `motivo`.
         fecha_inicio:
           type: string
           format: date
@@ -434,6 +441,9 @@ components:
           type: string
           format: date
           description: Debe ser >= fecha_inicio
+        motivo:
+          type: [string, "null"]
+          description: Obligatorio cuando `tipo=permiso_sin_goce_sueldo`.
         comentarios:
           type: [string, "null"]
         empleado_id:
@@ -454,6 +464,7 @@ components:
         - fecha_fin
         - estado
         - nivel_actual
+        - motivo
         - comentarios
         - created_at
       properties:
@@ -474,6 +485,8 @@ components:
           enum: [pending, approved, rejected, cancelled, overridden, changes_requested]
         nivel_actual:
           type: integer
+        motivo:
+          type: [string, "null"]
         comentarios:
           type: [string, "null"]
         created_at:
