@@ -41,6 +41,8 @@ tags:
     description: Gestion de competencias y matriz de competencias por area
   - name: Talento - Puestos Perfil
     description: Perfiles de puesto con competencias, habilidades y generacion IA
+  - name: Talento - Evaluaciones
+    description: Evaluaciones de competencias por empleado (CRUD, bulk, permisos por rol)
 
 components:
   securitySchemes:
@@ -1747,6 +1749,98 @@ components:
       properties:
         message:
           type: string
+
+    # ── Evaluaciones de Competencias ──────────────────────
+    EvaluacionCreate:
+      type: object
+      required: [empleado_id, competencia_id, nivel_actual]
+      properties:
+        empleado_id:
+          type: integer
+        competencia_id:
+          type: integer
+        nivel_actual:
+          type: integer
+          minimum: 0
+          maximum: 4
+        observaciones:
+          type: string
+          nullable: true
+
+    EvaluacionUpdate:
+      type: object
+      properties:
+        nivel_actual:
+          type: integer
+          minimum: 0
+          maximum: 4
+          nullable: true
+        observaciones:
+          type: string
+          nullable: true
+
+    EvaluacionResponse:
+      type: object
+      required: [id, empleado_id, competencia_id, nivel_actual, fecha_evaluacion, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: string
+          nullable: true
+        competencia_id:
+          type: integer
+        competencia_nombre:
+          type: string
+          nullable: true
+        nivel_actual:
+          type: integer
+          minimum: 0
+          maximum: 4
+        evaluador_id:
+          type: integer
+          nullable: true
+        evaluador_nombre:
+          type: string
+          nullable: true
+        observaciones:
+          type: string
+          nullable: true
+        fecha_evaluacion:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EvaluacionListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluacionResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    EvaluacionBulkCreate:
+      type: object
+      required: [evaluaciones]
+      properties:
+        evaluaciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluacionCreate"
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -3906,3 +4000,183 @@ paths:
             application/json:
               schema:
                 type: object
+
+  # ── Talento — Evaluaciones de Competencias ──────────────────────────
+  /api/v1/evaluaciones:
+    get:
+      tags: [Talento - Evaluaciones]
+      summary: Listar evaluaciones (paginado, filtros)
+      operationId: evaluaciones_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10, minimum: 1, maximum: 100 }
+        - name: empleado_id
+          in: query
+          schema: { type: integer }
+        - name: competencia_id
+          in: query
+          schema: { type: integer }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Lista paginada de evaluaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluacionListResponse"
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Crear/actualizar evaluacion (upsert)
+      description: Si ya existe evaluacion para el par empleado+competencia, actualiza el nivel. Solo RH o supervisor (su area).
+      operationId: evaluaciones_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluacionCreate"
+      responses:
+        "201":
+          description: Evaluacion creada/actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluacionResponse"
+        "403":
+          description: Sin permiso (empleado o supervisor fuera de su area)
+        "404":
+          description: Empleado o competencia no encontrado
+
+  /api/v1/evaluaciones/{id}:
+    get:
+      tags: [Talento - Evaluaciones]
+      summary: Detalle de evaluacion
+      operationId: evaluaciones_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Evaluacion encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluacionResponse"
+        "404":
+          description: Evaluacion no encontrada
+    put:
+      tags: [Talento - Evaluaciones]
+      summary: Actualizar evaluacion
+      description: Solo RH o supervisor (su area).
+      operationId: evaluaciones_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluacionUpdate"
+      responses:
+        "200":
+          description: Evaluacion actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluacionResponse"
+        "403":
+          description: Sin permiso
+        "404":
+          description: Evaluacion no encontrada
+    delete:
+      tags: [Talento - Evaluaciones]
+      summary: Eliminar evaluacion
+      description: Solo RH.
+      operationId: evaluaciones_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Evaluacion eliminada
+        "403":
+          description: Sin permiso (solo RH)
+        "404":
+          description: Evaluacion no encontrada
+
+  /api/v1/evaluaciones/empleado/{empleado_id}:
+    get:
+      tags: [Talento - Evaluaciones]
+      summary: Evaluaciones de un empleado
+      description: Empleado ve las propias; supervisor ve su area; RH ve todas.
+      operationId: evaluaciones_by_empleado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Lista de evaluaciones del empleado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EvaluacionResponse"
+        "403":
+          description: Sin permiso para ver evaluaciones de este empleado
+
+  /api/v1/evaluaciones/bulk:
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Crear/actualizar evaluaciones en batch
+      description: Solo RH. Errores parciales no detienen el batch.
+      operationId: evaluaciones_bulk
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluacionBulkCreate"
+      responses:
+        "200":
+          description: Resultado del batch
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  creadas:
+                    type: integer
+                  errores:
+                    type: array
+                    items:
+                      type: string

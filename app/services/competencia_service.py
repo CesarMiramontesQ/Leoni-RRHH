@@ -24,7 +24,7 @@ from app.core.exceptions import (
 )
 from app.models.catalogos import Area
 from app.models.empleados import Empleado
-from app.models.talento import Competencia, CompetenciaRequisito, PuestoPerfil
+from app.models.talento import Competencia, CompetenciaRequisito, EvaluacionCompetencia, PuestoPerfil
 from app.repositories.competencia_repository import (
     CompetenciaRepository,
     CompetenciaRequisitoRepository,
@@ -375,21 +375,62 @@ class CompetenciaService:
         # Requisitos activos (nivel > 0)
         requisitos_activos = await self.requisito_repo.count_by_area(area_id)
 
-        # Cumplimiento %:
-        # Para Fase 1 sin evaluaciones individuales, calculamos como:
-        # (puestos con al menos un requisito definido / total puestos) * 100
-        # Esto mide "completitud de la definicion" del area.
-        if total_puestos == 0:
+        # Cumplimiento %: promedio de (nivel_actual / nivel_requerido) para
+        # cada par empleado×competencia donde existe un requisito.
+        # Si no hay evaluaciones, fallback a completitud de definicion.
+        if requisitos_activos == 0 or total_empleados == 0:
             cumplimiento = 0.0
         else:
-            puestos_con_requisitos = 0
-            for p in puestos:
-                reqs = await self.requisito_repo.list_by_puesto(p.id)
-                if reqs:
-                    puestos_con_requisitos += 1
-            cumplimiento = round(
-                (puestos_con_requisitos / total_puestos) * 100, 1
+            # Obtener evaluaciones del area
+            ev_result = await self.db.execute(
+                select(EvaluacionCompetencia).where(
+                    EvaluacionCompetencia.empleado_id.in_(
+                        select(Empleado.id).where(
+                            Empleado.area_id == area_id,
+                            Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+                        )
+                    )
+                )
             )
+            evaluaciones = {
+                (e.empleado_id, e.competencia_id): e.nivel_actual
+                for e in ev_result.scalars().all()
+            }
+
+            if not evaluaciones:
+                # Fallback: completitud de definicion
+                puestos_con_requisitos = 0
+                for p in puestos:
+                    reqs = await self.requisito_repo.list_by_puesto(p.id)
+                    if reqs:
+                        puestos_con_requisitos += 1
+                cumplimiento = round(
+                    (puestos_con_requisitos / total_puestos) * 100, 1
+                ) if total_puestos > 0 else 0.0
+            else:
+                # Calcular cumplimiento real
+                requisitos = await self.requisito_repo.list_by_area(area_id)
+                total_score = 0.0
+                total_pairs = 0
+                emp_ids = [e.id for e in (await self.db.execute(
+                    select(Empleado).where(
+                        Empleado.area_id == area_id,
+                        Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+                    )
+                )).scalars().all()]
+
+                for req in requisitos:
+                    if req.nivel_requerido == 0:
+                        continue
+                    for emp_id in emp_ids:
+                        nivel_actual = evaluaciones.get((emp_id, req.competencia_id), 0)
+                        score = min(nivel_actual / req.nivel_requerido, 1.0)
+                        total_score += score
+                        total_pairs += 1
+
+                cumplimiento = round(
+                    (total_score / total_pairs) * 100, 1
+                ) if total_pairs > 0 else 0.0
 
         return ResumenAreaResponse(
             area_id=area_id,
@@ -453,10 +494,23 @@ class CompetenciaService:
                 comp_requisitos[req.competencia_id] = []
             comp_requisitos[req.competencia_id].append(req)
 
-        # Obtener mapeo puesto_perfil_id → puesto_id (catalogo puestos) para matching empleados
-        # En Fase 1 no tenemos link directo empleado.puesto_perfil_id, asi que
-        # usamos empleados del area como proxy: todos estan "afectados" por
-        # competencias requeridas en el area si no tienen evaluacion.
+        # Obtener evaluaciones del area para calcular gaps reales
+        ev_result = await self.db.execute(
+            select(EvaluacionCompetencia).where(
+                EvaluacionCompetencia.empleado_id.in_(
+                    select(Empleado.id).where(
+                        Empleado.area_id == area_id,
+                        Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+                    )
+                )
+            )
+        )
+        evaluaciones = {
+            (e.empleado_id, e.competencia_id): e.nivel_actual
+            for e in ev_result.scalars().all()
+        }
+        emp_ids = [e.id for e in empleados]
+
         brechas: list[BrechaItem] = []
 
         for comp_id, reqs in comp_requisitos.items():
@@ -464,17 +518,17 @@ class CompetenciaService:
             if not comp:
                 continue
 
-            # Nivel requerido promedio para esta competencia
             niveles = [r.nivel_requerido for r in reqs]
             nivel_promedio = sum(niveles) / len(niveles) if niveles else 0
 
-            # En Fase 1 sin evaluaciones, todos los empleados del area son
-            # "afectados" (asumimos gap del 100% ya que no hay medicion).
-            # Se refina en Fase 2 cuando existan evaluaciones.
-            empleados_afectados = total_empleados
+            # Calcular empleados con gap > 0
+            afectados = 0
+            for emp_id in emp_ids:
+                nivel_actual = evaluaciones.get((emp_id, comp_id), 0)
+                if nivel_actual < nivel_promedio:
+                    afectados += 1
 
-            # gap = 100% (no hay evaluaciones aun)
-            gap_porcentaje = 100.0
+            gap_porcentaje = round((afectados / total_empleados) * 100, 1)
 
             brechas.append(BrechaItem(
                 competencia_id=comp_id,
@@ -482,7 +536,7 @@ class CompetenciaService:
                 categoria=comp.categoria,
                 nivel_requerido_promedio=round(nivel_promedio, 1),
                 gap_porcentaje=gap_porcentaje,
-                empleados_afectados=empleados_afectados,
+                empleados_afectados=afectados,
             ))
 
         # Ordenar por gap descendente

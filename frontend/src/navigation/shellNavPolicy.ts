@@ -10,6 +10,7 @@ export type AppShellNavItemId =
   | "actas"
   | "comedor"
   | "empleados"
+  | "evaluaciones"
   | "reportes"
   | "notificaciones"
   | "puestos"
@@ -61,5 +62,6 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
+  if (h.startsWith("#/evaluaciones")) return true;
   return true;
 }

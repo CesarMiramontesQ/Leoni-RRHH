@@ -12,6 +12,8 @@ import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
+import { mountEvaluaciones } from "./pages/evaluaciones.ts";
+import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 
 let routeAbort: AbortController | null = null;
@@ -96,7 +98,17 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
         return;
       }
     }
-    if (h.startsWith("#/empleados")) {
+    const evalEmpMatch = h.match(/^#\/evaluaciones\/empleado\/(\d+)/);
+    if (evalEmpMatch) {
+      const id = Number.parseInt(evalEmpMatch[1] ?? "", 10);
+      if (!Number.isNaN(id)) {
+        mountEvaluacionEmpleado(container, id, signal);
+        return;
+      }
+    }
+    if (h.startsWith("#/evaluaciones")) {
+      mountEvaluaciones(container, signal);
+    } else if (h.startsWith("#/empleados")) {
       mountEmpleados(container, signal);
     } else if (h.startsWith("#/solicitudes")) {
       mountSolicitudes(container, signal);

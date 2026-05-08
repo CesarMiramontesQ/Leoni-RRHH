@@ -149,3 +149,56 @@ class CompetenciaRequisito(Base):
             f"<CompetenciaRequisito competencia_id={self.competencia_id} "
             f"puesto_perfil_id={self.puesto_perfil_id} nivel={self.nivel_requerido}>"
         )
+
+
+class EvaluacionCompetencia(Base):
+    __tablename__ = "evaluaciones_competencia"
+    __table_args__ = (
+        UniqueConstraint(
+            "empleado_id", "competencia_id", name="uq_evaluacion_vigente"
+        ),
+        CheckConstraint(
+            "nivel_actual >= 0 AND nivel_actual <= 4",
+            name="ck_nivel_actual_rango",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.id"), nullable=False
+    )
+    competencia_id: Mapped[int] = mapped_column(
+        ForeignKey("competencias.id", ondelete="CASCADE"), nullable=False
+    )
+    nivel_actual: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto",
+    )
+    evaluador_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_evaluacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    empleado: Mapped["Empleado"] = relationship(
+        "Empleado", foreign_keys=[empleado_id]
+    )
+    competencia: Mapped["Competencia"] = relationship("Competencia")
+    evaluador: Mapped[Optional["Empleado"]] = relationship(
+        "Empleado", foreign_keys=[evaluador_id]
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<EvaluacionCompetencia empleado_id={self.empleado_id} "
+            f"competencia_id={self.competencia_id} nivel={self.nivel_actual}>"
+        )

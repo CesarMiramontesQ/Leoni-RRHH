@@ -4,6 +4,10 @@
 .env.*.local
 .mcp.json
 
+# Node (root-level tooling like Playwright)
+node_modules/
+package-lock.json
+
 # Python
 __pycache__/
 *.py[cod]
