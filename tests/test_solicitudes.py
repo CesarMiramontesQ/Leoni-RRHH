@@ -102,6 +102,39 @@ async def test_crear_solicitud_supervisor_retorna_201(client: AsyncClient, db):
     assert response.status_code == 201
 
 
+@pytest.mark.asyncio
+async def test_crear_solicitud_supervisor_para_subordinado_usa_empleado_id_objetivo(
+    client: AsyncClient, db,
+):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol002b_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol002b_sub@leoni.test",
+        lider_id=supervisor.id,
+    )
+    headers = await auth_headers(client, supervisor)
+
+    payload = {**SOLICITUD_VACACIONES, "empleado_id": subordinado.id}
+    response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["empleado_id"] == subordinado.id
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_empleado_otro_colaborador_retorna_403(client: AsyncClient, db):
+    emp_a = await make_empleado(db, rol="empleado", email="sol002c_a@leoni.test")
+    emp_b = await make_empleado(db, rol="empleado", email="sol002c_b@leoni.test")
+    headers = await auth_headers(client, emp_a)
+
+    payload = {**SOLICITUD_VACACIONES, "empleado_id": emp_b.id}
+    response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
+
+    assert response.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # TC-SOL-002b: Crear solicitud como gerente → 201
 # ---------------------------------------------------------------------------

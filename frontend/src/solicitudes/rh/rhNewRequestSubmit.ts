@@ -1,6 +1,5 @@
 /**
- * Envío de nueva solicitud desde el modal RH (en nombre de otro empleado).
- * Actualmente la API crea para el usuario autenticado.
+ * Envío de nueva solicitud desde el modal (propia o en nombre de otro colaborador autorizado).
  */
 
 import { createSolicitud, type SolicitudesFetchError } from "../../api/solicitudes.ts";
@@ -13,16 +12,14 @@ export type RhNuevaSolicitudPayload = {
   comentarios: string | null;
 };
 
-/**
- * Crea una solicitud real vía API.
- * Nota: `empleado_id` se mantiene por compatibilidad de UI, pero el backend usa el usuario autenticado.
- */
+/** Crea la solicitud vía API con `empleado_id` como titular. */
 export async function enviarRhNuevaSolicitud(payload: RhNuevaSolicitudPayload): Promise<void> {
   await createSolicitud({
     tipo: payload.tipo,
     fecha_inicio: payload.fecha_inicio,
     fecha_fin: payload.fecha_fin,
     comentarios: payload.comentarios,
+    empleado_id: payload.empleado_id,
   });
 }
 

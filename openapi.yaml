@@ -438,6 +438,13 @@ components:
           description: Debe ser >= fecha_inicio
         comentarios:
           type: [string, "null"]
+        empleado_id:
+          type: integer
+          nullable: true
+          description: >
+            ID del colaborador titular. Si se omite o coincide con el usuario autenticado,
+            la solicitud es propia. Supervisor/gerente/RH/director pueden indicar un colaborador
+            dentro de su alcance.
 
     SolicitudResponse:
       type: object

@@ -91,6 +91,18 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         )
         return result.scalar_one_or_none()
 
+    async def get_with_area_y_lider(self, id: int) -> Empleado | None:
+        """Carga explícita para armar respuestas API sin lazy load (async)."""
+        result = await self.db.execute(
+            select(Empleado)
+            .options(
+                selectinload(Empleado.area),
+                selectinload(Empleado.lider),
+            )
+            .where(Empleado.id == id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_subordinados(self, lider_id: int, estados_activos: list[int]) -> list[Empleado]:
         result = await self.db.execute(
             select(Empleado).where(
