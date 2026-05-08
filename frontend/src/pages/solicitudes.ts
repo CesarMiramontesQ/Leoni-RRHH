@@ -136,20 +136,28 @@ function isEstadoPermitidoParaEmpleado(v: string): v is RhSolicitudEstadoCodigo 
   return v !== "overridden" && isEstado(v);
 }
 
-function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "estado" | "empleado_id"> {
+type SolicitudesHashDeepLinkFilters = Pick<RhSolicitudFilterState, "tipo" | "estado" | "empleado_id"> & {
+  /** Solo supervisor/gerente (vista partida): filtros aplican solo al bloque indicado (evita contaminar Mis solicitudes). */
+  seccion: "personal" | "equipo" | null;
+};
+
+function parseSolicitudesHashDeepLink(): SolicitudesHashDeepLinkFilters {
   const hash = window.location.hash || "";
   const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return { tipo: "", estado: "", empleado_id: "" };
+  if (queryIndex < 0) return { tipo: "", estado: "", empleado_id: "", seccion: null };
   const rawQuery = hash.slice(queryIndex + 1);
   const params = new URLSearchParams(rawQuery);
   const tipo = params.get("tipo") ?? "";
   const estado = params.get("estado") ?? "";
   const empleadoDir = params.get("empleado_dir") ?? "";
   const empleado_id = /^\d+$/.test(empleadoDir.trim()) ? empleadoDir.trim() : "";
+  const seccionRaw = (params.get("seccion") ?? params.get("alcance") ?? "").trim().toLowerCase();
+  const seccion = seccionRaw === "personal" || seccionRaw === "equipo" ? seccionRaw : null;
   return {
     tipo: isTipo(tipo) ? tipo : "",
     estado: isEstado(estado) ? estado : "",
     empleado_id,
+    seccion,
   };
 }
 
@@ -249,14 +257,25 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
-  const initialFilters = getInitialFiltersFromHash();
-  if (pageRole === "empleado" && initialFilters.tipo && !isTipoPermitidoParaEmpleado(initialFilters.tipo)) {
-    initialFilters.tipo = "";
+
+  const hashDeepLink = parseSolicitudesHashDeepLink();
+  if (
+    pageRole === "empleado" &&
+    hashDeepLink.tipo &&
+    !isTipoPermitidoParaEmpleado(hashDeepLink.tipo)
+  ) {
+    hashDeepLink.tipo = "";
   }
-  if (pageRole === "empleado" && initialFilters.estado && !isEstadoPermitidoParaEmpleado(initialFilters.estado)) {
-    initialFilters.estado = "";
+  if (
+    pageRole === "empleado" &&
+    hashDeepLink.estado &&
+    !isEstadoPermitidoParaEmpleado(hashDeepLink.estado)
+  ) {
+    hashDeepLink.estado = "";
   }
-  const initialEmpleadoDirFromHash = initialFilters.empleado_id;
+
+  /** Scroll suave tras pintar vista partida cuando el hash trae `seccion`/`alcance`. */
+  let solicitudesDeepLinkScrollTarget: Exclude<SolicitudesScope, "main"> | null = null;
   const personalSectionUi = {
     ...pageUi,
     role: "empleado" as const,
@@ -281,21 +300,48 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   let teamFilterOpts = buildRhSolicitudFilterOptions([]);
   let empleadoVacacionesDisponibles: number | null = null;
 
-  const state: RhSolicitudFilterState = {
-    tipo: initialFilters.tipo,
+  const neutFilterState = (): RhSolicitudFilterState => ({
+    tipo: "",
     area_id: "",
     supervisor_id: "",
     empleado_id: "",
     empleado_busqueda: "",
-    estado: initialFilters.estado,
+    estado: "",
     page: 1,
     page_size: 10,
-  };
-  const personalState: RhSolicitudFilterState = { ...state };
-  const teamState: RhSolicitudFilterState = {
-    ...state,
-    ...(initialEmpleadoDirFromHash ? { empleado_id: initialEmpleadoDirFromHash } : {}),
-  };
+  });
+
+  let state: RhSolicitudFilterState;
+  let personalState: RhSolicitudFilterState;
+  let teamState: RhSolicitudFilterState;
+
+  if (!isSplitGestorRole) {
+    solicitudesDeepLinkScrollTarget = null;
+    state = {
+      ...neutFilterState(),
+      tipo: hashDeepLink.tipo,
+      estado: hashDeepLink.estado,
+      empleado_id: hashDeepLink.empleado_id,
+    };
+    personalState = state;
+    teamState = state;
+  } else {
+    solicitudesDeepLinkScrollTarget = hashDeepLink.seccion;
+    const t = hashDeepLink.tipo;
+    const e = hashDeepLink.estado;
+    const emp = hashDeepLink.empleado_id;
+    if (hashDeepLink.seccion === "equipo") {
+      personalState = neutFilterState();
+      teamState = { ...neutFilterState(), tipo: t, estado: e, empleado_id: emp };
+    } else if (hashDeepLink.seccion === "personal") {
+      personalState = { ...neutFilterState(), tipo: t, estado: e };
+      teamState = neutFilterState();
+    } else {
+      personalState = { ...neutFilterState(), tipo: t, estado: e };
+      teamState = { ...neutFilterState(), tipo: t, estado: e, empleado_id: emp };
+    }
+    state = { ...personalState };
+  }
 
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -380,6 +426,22 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
             showNewRequestButton: pageUi.showNewRequestButton,
           })
         : renderRhSolicitudesAdminView(vm);
+      const scrollDeep = solicitudesDeepLinkScrollTarget;
+      if (isSplitGestorRole && scrollDeep === "equipo" && equipoVm.tableStatus !== "loading") {
+        solicitudesDeepLinkScrollTarget = null;
+        requestAnimationFrame(() => {
+          document.getElementById("rh-sol-seccion-equipo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      if (isSplitGestorRole && scrollDeep === "personal" && personalVm.tableStatus !== "loading") {
+        solicitudesDeepLinkScrollTarget = null;
+        requestAnimationFrame(() => {
+          document.getElementById("rh-sol-seccion-personal")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      }
     }
     if (restoreEmpSearch) {
       const scope = active instanceof Element ? scopeFromInteractiveElement(active) : "main";
@@ -458,6 +520,10 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
       allowPaidLeaveTypes: pageRole === "rh",
       allowUnpaidLeaveType: pageRole === "supervisor" || pageRole === "gerente" || pageRole === "rh",
+      wideForSupervisor: pageRole === "supervisor",
+      supervisorSolicitudSubjectSelector: pageRole === "supervisor" && sessionEmpleadoDirId != null,
+      supervisorDirectoryId:
+        pageRole === "supervisor" && sessionEmpleadoDirId != null ? sessionEmpleadoDirId : undefined,
     });
   }
 

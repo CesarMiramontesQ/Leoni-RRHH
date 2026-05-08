@@ -2,6 +2,7 @@ import type {
   ComedorCalendarMonth,
   ComedorKpi,
   ComedorPanelState,
+  ComedorSupervisorTableSegment,
   ComedorTeamReservationsPage,
 } from "../../comedor/rh/types.ts";
 import {
@@ -23,7 +24,11 @@ export type ComedorDashboardLiderViewState = {
   tableState: ComedorPanelState;
   table: ComedorTeamReservationsPage | null;
   tableError: string | null;
-  tableFilters: { search: string };
+  tableFilters: {
+    search: string;
+    supervisorSegment: ComedorSupervisorTableSegment;
+    showSupervisorSegment: boolean;
+  };
 };
 
 function renderHeader(): string {

@@ -11,7 +11,7 @@ export type RhPriorityAlertChip = {
   icon: RhPriorityAlertIcon;
 };
 
-export type RhDayLineKind = "normal" | "dieta" | "vacaciones" | "ho";
+export type RhDayLineKind = "normal" | "dieta" | "vacaciones" | "ho" | "sin_goce" | "goce_sueldo";
 
 /** Línea compacta dentro de una celda del calendario */
 export type RhCalendarDayLine = {

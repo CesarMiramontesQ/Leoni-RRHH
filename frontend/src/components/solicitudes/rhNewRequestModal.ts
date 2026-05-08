@@ -28,7 +28,12 @@ import {
   computeRhModalFormUi,
   loadingBodyHtml,
   shellHtml,
+  type SupervisorSolicitudSujeto,
 } from "./rhNewRequestModalUi.ts";
+
+function empleadosExcluyeId(items: UsuarioListItem[], excluirId: number): UsuarioListItem[] {
+  return items.filter((u) => u.id !== excluirId);
+}
 
 export type RhNewRequestModalOptions = {
   signal: AbortSignal;
@@ -44,6 +49,12 @@ export type RhNewRequestModalOptions = {
   allowPaidLeaveTypes?: boolean;
   /** Habilita tipo especial sin goce de sueldo (supervisor/gerente). */
   allowUnpaidLeaveType?: boolean;
+  /** Panel más ancho (solo UI; p. ej. rol supervisor). */
+  wideForSupervisor?: boolean;
+  /** Muestra radio «personal / equipo» (supervisor): requiere `supervisorDirectoryId`. */
+  supervisorSolicitudSubjectSelector?: boolean;
+  /** Id de directorio del supervisor (sesión) para modo personal y filtrado en modo equipo. */
+  supervisorDirectoryId?: number;
 };
 
 export type RhNewRequestModalOpenOptions = {
@@ -66,7 +77,7 @@ export type RhNewRequestModalHandle = {
 
 export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestModalOptions): RhNewRequestModalHandle {
   const fixedSelfId = options.fixedEmpleadoDirectoryId;
-  host.innerHTML = shellHtml();
+  host.innerHTML = shellHtml({ wideForSupervisor: options.wideForSupervisor === true });
   const overlay = host.querySelector("#rh-nr-overlay") as HTMLElement | null;
   const body = host.querySelector("#rh-nr-body") as HTMLElement | null;
   if (!overlay || !body) {
@@ -103,6 +114,21 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSearchQ = "";
   let empleadoSearchQ = "";
+  /** Personal vs equipo (solo supervisor cuando `supervisorSolicitudSubjectSelector`). */
+  let solicitudSubjectSupervisor: SupervisorSolicitudSujeto = "personal";
+
+  const showSupervisorSujeto =
+    options.supervisorSolicitudSubjectSelector === true &&
+    typeof options.supervisorDirectoryId === "number" &&
+    Number.isFinite(options.supervisorDirectoryId);
+  const supervisorDirResolved = showSupervisorSujeto ? options.supervisorDirectoryId! : null;
+
+  function listaEmpleadosParaSelector(): UsuarioListItem[] {
+    if (showSupervisorSujeto && solicitudSubjectSupervisor === "team" && supervisorDirResolved != null) {
+      return empleadosExcluyeId(empleadosCache, supervisorDirResolved);
+    }
+    return empleadosCache;
+  }
 
   function close(): void {
     rootOverlay.classList.add("hidden");
@@ -142,11 +168,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     } else if (tipo === "home_office") {
       card.innerHTML = buildInfoHomeOfficeHtml(contextoHoText);
     } else {
+      const supervisorEquipoSinCampoMotivo =
+        showSupervisorSujeto &&
+        revisionSolicitudId == null &&
+        solicitudSubjectSupervisor === "team";
       const txt =
         tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
         : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
         : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
-        : tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
+        : tipo === "permiso_sin_goce_sueldo" ?
+          supervisorEquipoSinCampoMotivo ?
+            "Permiso sin goce de sueldo: indica contexto obligatorio en comentarios y la duración manualmente."
+          : "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
         : "Incapacidad interna: RH define manualmente la duración.";
       card.innerHTML = buildInfoHomeOfficeHtml(txt);
     }
@@ -209,9 +242,28 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   ): void {
     const modoRevision = revisionSolicitudId != null;
     const empleadoSelfMode = !modoRevision && fixedSelfId != null;
-    const singleDayHomeOfficeEmpleado = empleadoSelfMode && tipo === "home_office";
-    const hideMotivoEmpleado = empleadoSelfMode && (tipo === "home_office" || tipo === "vacaciones");
+    const supervisorPersonalMode =
+      showSupervisorSujeto &&
+      !modoRevision &&
+      solicitudSubjectSupervisor === "personal" &&
+      supervisorDirResolved != null;
+    const actuaComoColaboradorPropio = empleadoSelfMode || supervisorPersonalMode;
+    const supervisorSolicitudEquipo =
+      showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "team";
+    const hideMotivoSupervisorEquipo = supervisorSolicitudEquipo;
+    const singleDayHomeOfficeEmpleado =
+      tipo === "home_office" && (actuaComoColaboradorPropio || supervisorSolicitudEquipo);
+    const hideMotivoEmpleado = actuaComoColaboradorPropio && (tipo === "home_office" || tipo === "vacaciones");
     const snap = readFormSnapshot();
+
+    if (
+      showSupervisorSujeto &&
+      !modoRevision &&
+      solicitudSubjectSupervisor === "personal" &&
+      tipo === "permiso_sin_goce_sueldo"
+    ) {
+      tipo = "vacaciones";
+    }
 
     let fixedEmpleado:
       | { directoryId: string; displayLine: string }
@@ -226,6 +278,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         directoryId: String(fixedSelfId),
         displayLine: getUserDisplayNameFromAccessToken(),
       };
+    } else if (supervisorPersonalMode && supervisorDirResolved != null) {
+      fixedEmpleado = {
+        directoryId: String(supervisorDirResolved),
+        displayLine: getUserDisplayNameFromAccessToken().trim() || `Empleado #${supervisorDirResolved}`,
+      };
     }
 
     const selectedEmpleadoId =
@@ -234,7 +291,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
     const fechaFin = singleDayHomeOfficeEmpleado ? fechaInicio : fechaFinBase;
     const motivoBase = preserve.motivo ?? snap.motivo;
-    const motivo = hideMotivoEmpleado ? "" : motivoBase;
+    const motivo =
+      hideMotivoEmpleado || hideMotivoSupervisorEquipo ? "" : motivoBase;
     const comentarios = preserve.comentarios ?? snap.comentarios;
     const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
     const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
@@ -247,7 +305,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
               : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
               : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
-              : tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
+              : tipo === "permiso_sin_goce_sueldo" ?
+                  hideMotivoSupervisorEquipo ?
+                    "Permiso sin goce de sueldo: indica contexto obligatorio en comentarios y la duración manualmente."
+                  : "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
               : "Incapacidad interna: RH define manualmente la duración.",
             );
     const empleadoSelectorOmitido = fixedEmpleado != null;
@@ -259,12 +320,16 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaFin,
       motivo,
       empleadoSelectorOmitido,
+      comentarios,
+      hideMotivoSupervisorEquipo,
     );
+    const itemsParaSelector = listaEmpleadosParaSelector();
+
     modalBody.innerHTML = buildFormHtml({
       tipo,
       showPaidLeaveTypes: options.allowPaidLeaveTypes === true,
       showUnpaidLeaveType: options.allowUnpaidLeaveType === true,
-      items: empleadosCache,
+      items: itemsParaSelector,
       selectedEmpleadoId,
       empleadoSearchQ,
       fechaInicio,
@@ -282,7 +347,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       modoRevision,
       submitLabel: preserve.submitLabel,
       singleDayHomeOfficeMode: singleDayHomeOfficeEmpleado,
-      showMotivoField: !hideMotivoEmpleado,
+      showMotivoField: !hideMotivoEmpleado && !hideMotivoSupervisorEquipo,
+      omitMotivoCampoSupervisorEquipo: hideMotivoSupervisorEquipo ? true : undefined,
+      showSupervisorSolicitudSubject: showSupervisorSujeto && !modoRevision,
+      supervisorSolicitudSubject: solicitudSubjectSupervisor,
+      fixedEmpleadoAyudaOverride: supervisorPersonalMode
+        ? "La solicitud queda registrada a tu nombre. No puedes elegir otro colaborador en este modo."
+        : undefined,
+      empleadoBusquedaAyuda: supervisorSolicitudEquipo ?
+        "Busca a un colaborador de tu equipo según tu alcance en el directorio. Tu propio usuario no aparece en el listado."
+      : undefined,
+      supervisorOcultarPermisoSinGoceEnTipo:
+        showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "personal" ? true : undefined,
     });
     bindFormInteractions();
     applyRhModalLiveFeedback(host, tipo, contextoVac);
@@ -295,7 +371,20 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
     const fin = host.querySelector("#rh-nr-fin") as HTMLInputElement | null;
     const motivo = host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
-    const isSingleDayHomeOfficeEmpleado = revisionSolicitudId == null && fixedSelfId != null && tipo === "home_office";
+    const comentariosTa = host.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null;
+    const modoRevBind = revisionSolicitudId != null;
+    const empleadoSelfBind = !modoRevBind && fixedSelfId != null;
+    const supervisorPersonalBind =
+      showSupervisorSujeto &&
+      !modoRevBind &&
+      solicitudSubjectSupervisor === "personal" &&
+      supervisorDirResolved != null;
+    const supervisorEquipoBind =
+      showSupervisorSujeto && !modoRevBind && solicitudSubjectSupervisor === "team";
+    const isSingleDayHomeOfficeEmpleado =
+      revisionSolicitudId == null &&
+      tipo === "home_office" &&
+      (empleadoSelfBind || supervisorPersonalBind || supervisorEquipoBind);
 
     function syncSingleDayHomeOfficeFechaFin(): void {
       if (!isSingleDayHomeOfficeEmpleado || !inicio || !fin) return;
@@ -340,6 +429,56 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         { signal: options.signal },
       );
     }
+
+    host.querySelectorAll('input[name="rh-nr-solicitud-sujeto"]').forEach((inp) => {
+      inp.addEventListener(
+        "change",
+        () => {
+          const checked = host.querySelector(
+            'input[name="rh-nr-solicitud-sujeto"]:checked',
+          ) as HTMLInputElement | null;
+          const v = checked?.value;
+          if (v !== "personal" && v !== "team") return;
+          if (v === solicitudSubjectSupervisor) return;
+          solicitudSubjectSupervisor = v;
+          empleadoSearchQ = "";
+          lastSearchQ = "";
+          hideError();
+          const snapSubject = readFormSnapshot();
+          void (async (): Promise<void> => {
+            try {
+              if (v === "team") {
+                await loadEmpleados("");
+                renderForm({
+                  selectedId: "",
+                  fechaInicio: snapSubject.fechaInicio,
+                  fechaFin: snapSubject.fechaFin,
+                  motivo: snapSubject.motivo,
+                  comentarios: snapSubject.comentarios,
+                });
+                void refreshContextForEmpleado(null);
+              } else if (supervisorDirResolved != null) {
+                if (tipo === "permiso_sin_goce_sueldo") {
+                  tipo = "vacaciones";
+                }
+                empleadosCache = [];
+                await refreshContextForEmpleado(supervisorDirResolved);
+                renderForm({
+                  selectedId: "",
+                  fechaInicio: snapSubject.fechaInicio,
+                  fechaFin: snapSubject.fechaFin,
+                  motivo: snapSubject.motivo,
+                  comentarios: snapSubject.comentarios,
+                });
+              }
+            } catch {
+              showError("No se pudo actualizar el modo de solicitud.");
+            }
+          })();
+        },
+        { signal: options.signal },
+      );
+    });
 
     if (sel) {
       qInput?.addEventListener(
@@ -391,6 +530,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     );
     fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
+    comentariosTa?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     syncSingleDayHomeOfficeFechaFin();
 
     form?.addEventListener(
@@ -403,9 +543,21 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         const empleado_id = Number.parseInt(empRaw, 10);
         if (!empRaw || Number.isNaN(empleado_id)) {
           showError(
-            revisionSolicitudId != null || fixedSelfId != null ?
+            revisionSolicitudId != null ||
+              fixedSelfId != null ||
+              (showSupervisorSujeto && solicitudSubjectSupervisor === "personal") ?
               "No se pudo validar los datos de la solicitud. Cierra el modal e inténtalo de nuevo."
             : "Selecciona un empleado.",
+          );
+          return;
+        }
+        if (
+          showSupervisorSujeto &&
+          solicitudSubjectSupervisor === "personal" &&
+          tipo === "permiso_sin_goce_sueldo"
+        ) {
+          showError(
+            "El permiso sin goce de sueldo no está disponible en solicitudes personales. Elige otro tipo o cambia a «Miembro del equipo».",
           );
           return;
         }
@@ -421,11 +573,26 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         } else if (fixedSelfId != null && empleado_id !== fixedSelfId) {
           showError("No está permitido modificar el colaborador de la solicitud.");
           return;
+        } else if (
+          supervisorDirResolved != null &&
+          showSupervisorSujeto &&
+          solicitudSubjectSupervisor === "personal" &&
+          empleado_id !== supervisorDirResolved
+        ) {
+          showError("No está permitido modificar el colaborador de la solicitud.");
+          return;
         }
         const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
-        const singleDayHomeOfficeEmpleado = revisionSolicitudId == null && fixedSelfId != null && tipo === "home_office";
+        const singleDayHOEnvio =
+          revisionSolicitudId == null &&
+          tipo === "home_office" &&
+          (fixedSelfId != null ||
+            (showSupervisorSujeto &&
+              solicitudSubjectSupervisor === "personal" &&
+              supervisorDirResolved != null) ||
+            (showSupervisorSujeto && solicitudSubjectSupervisor === "team"));
         const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
-        const fecha_fin = singleDayHomeOfficeEmpleado ? fecha_inicio : fecha_fin_raw;
+        const fecha_fin = singleDayHOEnvio ? fecha_inicio : fecha_fin_raw;
         if (!fecha_inicio || !fecha_fin) {
           showError("Indica fecha de inicio y fecha de fin.");
           return;
@@ -445,12 +612,29 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         }
         const comentariosRaw = String(fd.get("comentarios") ?? "").trim();
         const motivoRaw = String(fd.get("motivo") ?? "").trim();
-        if (tipo === "permiso_sin_goce_sueldo" && !motivoRaw) {
-          showError("Captura el motivo del permiso sin goce de sueldo.");
-          return;
+        const supervisorEquipoMotivoViaComentarios =
+          showSupervisorSujeto && solicitudSubjectSupervisor === "team";
+        if (tipo === "permiso_sin_goce_sueldo") {
+          if (supervisorEquipoMotivoViaComentarios) {
+            if (!comentariosRaw) {
+              showError("Indica el contexto del permiso en comentarios.");
+              return;
+            }
+          } else if (!motivoRaw) {
+            showError("Captura el motivo del permiso sin goce de sueldo.");
+            return;
+          }
         }
-        const motivo = motivoRaw === "" ? null : motivoRaw;
-        const comentarios = comentariosRaw === "" ? null : comentariosRaw;
+        const textoEquipoPermiso =
+          tipo === "permiso_sin_goce_sueldo" && supervisorEquipoMotivoViaComentarios ?
+            comentariosRaw || null
+          : null;
+        const motivo =
+          textoEquipoPermiso != null ? textoEquipoPermiso : motivoRaw === "" ? null : motivoRaw;
+        const comentarios =
+          textoEquipoPermiso != null ?
+            textoEquipoPermiso
+          : comentariosRaw === "" ? null : comentariosRaw;
 
         const submitBtn = host.querySelector("#rh-nr-submit") as HTMLButtonElement | null;
         if (submitBtn) {
@@ -554,6 +738,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       contextoHoText = "";
       lastSearchQ = "";
       empleadoSearchQ = "";
+      solicitudSubjectSupervisor = "personal";
       rootOverlay.classList.remove("hidden");
       rootOverlay.classList.add("flex");
       document.body.style.overflow = "hidden";
@@ -566,6 +751,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             "Actualiza las fechas o comentarios y reenvía la solicitud al aprobador."
           : fixedSelfId != null ?
             "Elige el tipo de solicitud y las fechas. El registro quedará a tu nombre."
+          : showSupervisorSujeto ?
+            "Indica si la solicitud es para ti o para un colaborador, elige el tipo y completa los datos."
           : "Selecciona el tipo de solicitud y completa los campos requeridos.";
       }
 
@@ -619,12 +806,27 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         }
 
         if (fixedSelfId == null) {
-          await loadEmpleados("");
           let prefill = openOpts?.prefillEmpleadoId;
-          if (prefill != null && !empleadosCache.some((u) => u.id === prefill)) {
-            await loadEmpleados(String(prefill));
+          let selectedId = "";
+          const abreSupervisorPersonal =
+            showSupervisorSujeto && solicitudSubjectSupervisor === "personal";
+
+          if (abreSupervisorPersonal) {
+            empleadosCache = [];
+          } else {
+            await loadEmpleados("");
+            if (prefill != null && !empleadosCache.some((u) => u.id === prefill)) {
+              await loadEmpleados(String(prefill));
+            }
+            const poolAbierto = listaEmpleadosParaSelector();
+            if (prefill != null && !poolAbierto.some((u) => u.id === prefill)) {
+              await loadEmpleados(String(prefill));
+            }
+            const poolFinal = listaEmpleadosParaSelector();
+            selectedId =
+              prefill != null && poolFinal.some((u) => u.id === prefill) ? String(prefill) : "";
           }
-          const selectedId = prefill != null && empleadosCache.some((u) => u.id === prefill) ? String(prefill) : "";
+
           const today = new Date();
           const iso = (d: Date) =>
             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -635,8 +837,16 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             motivo: "",
             comentarios: "",
           });
-          await refreshContextForEmpleado(selectedId ? Number.parseInt(selectedId, 10) : null);
-          (host.querySelector("#rh-nr-empleado") as HTMLElement | null)?.focus();
+          const ctxEmpDir =
+            abreSupervisorPersonal && supervisorDirResolved != null
+              ? supervisorDirResolved
+              : selectedId
+                ? Number.parseInt(selectedId, 10)
+                : null;
+          await refreshContextForEmpleado(ctxEmpDir);
+          (
+            host.querySelector(abreSupervisorPersonal ? "#rh-nr-inicio" : "#rh-nr-empleado") as HTMLElement | null
+          )?.focus();
         } else {
           await refreshContextForEmpleado(fixedSelfId);
           const today = new Date();

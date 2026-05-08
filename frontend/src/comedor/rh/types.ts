@@ -146,6 +146,9 @@ export type ComedorTeamReservationsPage = {
   pageSize: number;
 };
 
+/** Alcance del listado de reservas en tablero de líder (solo UI supervisor). */
+export type ComedorSupervisorTableSegment = "personal" | "equipo";
+
 export type ComedorPersonType = "interno" | "externo";
 
 export type ComedorEmployeeOption = {
@@ -168,6 +171,11 @@ export type ComedorCreateRequestPayload = {
   menuId: string;
   fechas: string[];
   observaciones: string;
+  /**
+   * Solo flujo supervisor comedor «Registro personal»:
+   * el backend debe resolver el beneficiario desde la sesión (`target_user_id` omitido).
+   */
+  supervisorSelfRegistration?: boolean;
 };
 
 export type ComedorWeekPlannerStatus = "borrador" | "publicado";

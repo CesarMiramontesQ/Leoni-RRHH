@@ -5,7 +5,7 @@ import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/
 import { etiquetaTipoComida } from "../../utils/comedorReservaFechas.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyEmpleadoDashboardPayload } from "./mock.ts";
-import { SOLICITUD_ESTADO_API } from "./solicitudCalendarioConsts.ts";
+import { esSolicitudTipoCalendarioDashboard, SOLICITUD_ESTADO_API } from "./solicitudCalendarioConsts.ts";
 import type { EmpleadoCalendarDayEntry, EmpleadoDashboardPayload, SolicitudEstadoCalendarioEmpleado } from "./types.ts";
 
 type CalendarMonthFetchTarget = {
@@ -122,6 +122,7 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
         return iso >= rangeStartIso && iso <= rangeEndIso;
       });
     const relevant = rows.filter((r) => {
+      if (!esSolicitudTipoCalendarioDashboard(r.tipo)) return false;
       if (r.estado !== SOLICITUD_ESTADO_API.APROBADO && r.estado !== SOLICITUD_ESTADO_API.PENDIENTE) return false;
       if (myId != null && r.empleado_id !== myId) return false;
       const startIso = r.fecha_inicio.slice(0, 10);

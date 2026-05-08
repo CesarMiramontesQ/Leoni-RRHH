@@ -32,7 +32,13 @@ import {
 } from "../components/dashboard/liderTeamDashboard.ts";
 import { fetchLiderDashboard } from "../dashboard/lider/fetchLiderDashboard.ts";
 import { emptyLiderDashboardPayload } from "../dashboard/lider/mock.ts";
-import { approveSolicitud, rejectSolicitud } from "../api/solicitudes.ts";
+import { getSolicitudById, mapSolicitudApiItemToRhTablaFila } from "../api/solicitudes.ts";
+import {
+  mountSolicitudDetalleModal,
+  type SolicitudDetalleModalHandle,
+} from "../components/solicitudes/solicitudDetalleModal.ts";
+import { showEmpleadosToast } from "../components/empleados/toast.ts";
+import type { RhSolicitudTablaFila } from "../solicitudes/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 
@@ -206,6 +212,33 @@ function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
   void loadEmpleadoPersonalDashboard(container);
 }
 
+/** Cache + modal de detalle solo para la tabla de aprobaciones del dashboard líder (supervisor/gerente). */
+const liderSolicitudDetalleFilaCache = new Map<number, RhSolicitudTablaFila>();
+let liderSolicitudDetalleModal: SolicitudDetalleModalHandle | null = null;
+let liderSolicitudDetalleAc: AbortController | null = null;
+
+function tearDownLiderSolicitudDetalleModal(): void {
+  liderSolicitudDetalleAc?.abort();
+  liderSolicitudDetalleAc = null;
+  liderSolicitudDetalleModal?.destroy();
+  liderSolicitudDetalleModal = null;
+  liderSolicitudDetalleFilaCache.clear();
+}
+
+function setupLiderSolicitudDetalleModal(container: HTMLElement): void {
+  tearDownLiderSolicitudDetalleModal();
+  const host = container.querySelector("#lider-solicitud-detalle-modal-host");
+  if (!host) return;
+  liderSolicitudDetalleAc = new AbortController();
+  liderSolicitudDetalleModal = mountSolicitudDetalleModal(host as HTMLElement, {
+    signal: liderSolicitudDetalleAc.signal,
+    toastContainer: container,
+    getFilaById: (id) => liderSolicitudDetalleFilaCache.get(id),
+    onRefrescarListado: () => loadLiderTeamDashboard(container),
+    cargarDetalleServidor: (id) => getSolicitudById(id),
+  });
+}
+
 async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   const root = container.querySelector<HTMLElement>("#lider-dashboard-root");
   if (!root) return;
@@ -236,27 +269,31 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
     root.dataset.liderApprovalBound = "1";
     root.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
-      const approveBtn = target.closest<HTMLButtonElement>("[data-lider-approve]");
-      const rejectBtn = target.closest<HTMLButtonElement>("[data-lider-reject]");
-      const actionBtn = approveBtn ?? rejectBtn;
-      if (!actionBtn) return;
+      const verBtn = target.closest<HTMLButtonElement>("[data-lider-solicitud-detalle]");
+      if (!verBtn) return;
 
-      const solicitudIdRaw = actionBtn.getAttribute("data-lider-approve") ?? actionBtn.getAttribute("data-lider-reject");
+      const solicitudIdRaw = verBtn.getAttribute("data-lider-solicitud-detalle");
       const solicitudId = Number(solicitudIdRaw);
       if (!Number.isFinite(solicitudId)) return;
 
-      const isApprove = Boolean(approveBtn);
-      actionBtn.disabled = true;
+      verBtn.disabled = true;
       void (async () => {
         try {
-          if (isApprove) {
-            await approveSolicitud(solicitudId, { nivel: 1, comentario: null });
-          } else {
-            await rejectSolicitud(solicitudId, { nivel: 1, comentario: null });
-          }
-          await loadLiderTeamDashboard(container);
+          const item = await getSolicitudById(solicitudId);
+          const fila = mapSolicitudApiItemToRhTablaFila(item);
+          liderSolicitudDetalleFilaCache.set(solicitudId, fila);
+          liderSolicitudDetalleModal?.open(solicitudId);
+        } catch (e: unknown) {
+          const detail =
+            typeof e === "object" &&
+            e !== null &&
+            "detail" in e &&
+            typeof (e as { detail?: unknown }).detail === "string"
+              ? (e as { detail: string }).detail
+              : "No se pudo cargar el detalle de la solicitud.";
+          showEmpleadosToast(container, detail, "error");
         } finally {
-          actionBtn.disabled = false;
+          verBtn.disabled = false;
         }
       })();
     });
@@ -267,9 +304,12 @@ function mountLiderTeamDashboardShell(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
-    mainHtml: `<div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div>`,
+    /** Misma envolvente visual que dashboard RH y empleado (degradado + ancho). */
+    mainClass: "py-0",
+    mainHtml: `<div class="rh-dashboard-page flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div><div id="lider-solicitud-detalle-modal-host" class="shrink-0"></div></div>`,
   });
 
+  setupLiderSolicitudDetalleModal(container);
   void loadLiderTeamDashboard(container);
 }
 

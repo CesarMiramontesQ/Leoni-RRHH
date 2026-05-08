@@ -98,6 +98,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             .options(
                 selectinload(Empleado.area),
                 selectinload(Empleado.lider),
+                selectinload(Empleado.puesto),
             )
             .where(Empleado.id == id)
         )

@@ -69,6 +69,10 @@ function lineClasses(line: RhCalendarDayLine): string {
       return `${base} rh-cal-badge--vacaciones`;
     case "ho":
       return `${base} rh-cal-badge--ho`;
+    case "sin_goce":
+      return `${base} rh-cal-badge--sin-goce`;
+    case "goce_sueldo":
+      return `${base} rh-cal-badge--goce-sueldo`;
     default:
       return `${base} rh-cal-badge--muted`;
   }
@@ -94,6 +98,12 @@ function renderMobileMetricDots(metrics: RhCalendarDayMetrics | undefined): stri
   }
   if (kinds.has("ho")) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-violet-600" title="Home Office"></span>');
+  }
+  if (kinds.has("sin_goce")) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-slate-600" title="Sin goce"></span>');
+  }
+  if (kinds.has("goce_sueldo")) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-sky-600" title="Con goce"></span>');
   }
   if (metrics.showWarning) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-400" title="Alerta"></span>');
@@ -271,6 +281,14 @@ export function renderRhCalendarReplaceable(
       <span class="rh-cal-legend__item">
         <span class="rh-cal-legend__swatch rh-cal-legend__swatch--ho" aria-hidden="true"></span>
         <span class="rh-cal-legend__label">Home Office</span>
+      </span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--sin-goce" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Permiso sin goce</span>
+      </span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--goce-sueldo" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Permiso con goce</span>
       </span>
     </div>`;
 

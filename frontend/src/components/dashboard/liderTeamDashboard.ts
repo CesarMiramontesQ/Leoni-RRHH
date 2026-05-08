@@ -16,6 +16,13 @@ import {
   type CalendarWeekStart,
 } from "./calendarShared.ts";
 import { renderEmpleadoStatCards } from "./empleadoPersonalDashboard.ts";
+import { SOLICITUDES_HASH_LIDER_EQUIPO_PENDING } from "../../solicitudes/solicitudesPageFilterConfig.ts";
+import {
+  RH_LISTADO_BTN_SECONDARY,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_LISTADO_SURFACE,
+  badgePending,
+} from "../../ui/uiTokens.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { emptyEmpleadoDashboardPayload } from "../../dashboard/empleado/mock.ts";
@@ -32,8 +39,6 @@ import type {
 } from "../../dashboard/lider/types.ts";
 
 const MAX_VISIBLE_TEAM_CAL_LINES = 3;
-const DEFAULT_MEAL_DETAIL_TITLE = "Selecciona un registro de comida";
-const DEFAULT_MEAL_DETAIL_BODY = "Haz clic en una etiqueta azul del calendario para ver tipo de menú y hora.";
 
 type SelectedMealDetail = {
   dateIso: string;
@@ -97,70 +102,79 @@ function renderLiderDashboardSectionHeader(title: string, subtitle: string): str
     .replace(/^-|-$/gu, "");
   const headingId = `lider-dash-section-${idSlug}`;
   return `
-    <header class="mb-4">
-      <h2 id="${escapeHtml(headingId)}" class="text-lg font-semibold tracking-tight text-text-primary">${escapeHtml(title)}</h2>
+    <header class="mb-6">
+      <h2 id="${escapeHtml(headingId)}" class="text-xl font-semibold tracking-tight text-text-primary">${escapeHtml(title)}</h2>
       <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-muted">${escapeHtml(subtitle)}</p>
     </header>`;
 }
+
+type LiderKpiAccent = "red" | "orange" | "violet" | "blue";
+
+const LIDER_KPI_ICON_WRAP: Record<LiderKpiAccent, string> = {
+  red: "rh-dash-kpi-icon rh-dash-kpi-icon--red",
+  orange: "rh-dash-kpi-icon rh-dash-kpi-icon--orange",
+  violet: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
+  blue: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
+};
 
 export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
   const t = team;
   const rolLider = getRolFromAccessToken();
   const esGerente = rolLider === "gerente";
-  const cards = [
+  const cards: Array<{
+    title: string;
+    accent: LiderKpiAccent;
+    icon: string;
+    value: string;
+    sub: string;
+  }> = [
     {
-      label: "Incidencias activas",
-      labelCls: "text-red-600",
-      iconWrap: "bg-red-500/12 text-red-600",
+      title: "Incidencias activas",
+      accent: "red",
       icon: iconIncidencias(),
       value: fmtActivas(t?.team_active_incidents ?? null),
       sub: "Incidencias del equipo",
     },
     {
-      label: "Vacaciones por aprobar",
-      labelCls: "text-orange-600",
-      iconWrap: "bg-orange-500/12 text-orange-600",
+      title: "Vacaciones por aprobar",
+      accent: "orange",
       icon: iconVacPend(),
       value: fmtPendientes(t?.team_pending_vacation_requests ?? null),
       sub: "Pendientes de aprobación",
     },
     {
-      label: "Home Office pendientes",
-      labelCls: "text-violet-700",
-      iconWrap: "bg-violet-500/12 text-violet-700",
+      title: "Home Office pendientes",
+      accent: "violet",
       icon: iconHoPend(),
       value: fmtPendientes(t?.team_pending_home_office_requests ?? null),
       sub: "Home Office por aprobar",
     },
     {
-      label: esGerente ? "Total estructura" : "Total colaboradores",
-      labelCls: "text-leoni-blue",
-      iconWrap: "bg-leoni-blue/10 text-leoni-blue",
+      title: esGerente ? "Total estructura" : "Total colaboradores",
+      accent: "blue",
       icon: iconColaboradores(),
       value: fmtPersonas(t?.team_collaborators_count ?? null),
-      sub: esGerente
-        ? "Todos los niveles bajo tu mando"
-        : "Equipo directo",
+      sub: esGerente ? "Todos los niveles bajo tu mando" : "Equipo directo",
     },
   ];
 
   const html = cards
     .map(
       (c) => `
-    <article class="rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <article class="rh-dash-kpi-card flex h-full flex-col rounded-[18px] p-5">
       <div class="flex items-start justify-between gap-3">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-full ${c.iconWrap}">
+        <h2 class="text-sm font-medium text-text-muted">${escapeHtml(c.title)}</h2>
+        <div class="flex shrink-0 rounded-[14px] p-2 ${LIDER_KPI_ICON_WRAP[c.accent]}" aria-hidden="true">
           ${c.icon}
         </div>
-        <span class="max-w-[55%] text-right text-[11px] font-bold uppercase leading-tight tracking-wide ${c.labelCls}">${escapeHtml(c.label)}</span>
       </div>
-      <p class="mt-4 text-2xl font-bold tracking-tight text-text-primary">${escapeHtml(c.value)}</p>
+      <p class="mt-2 text-2xl font-bold tracking-tight text-text-primary">${escapeHtml(c.value)}</p>
       <p class="mt-1 text-sm text-text-muted">${escapeHtml(c.sub)}</p>
     </article>`,
     )
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+  return `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">${html}</div>`;
 }
 
 function approvalTypeLabel(tp: LiderApprovalRequestType): string {
@@ -169,6 +183,10 @@ function approvalTypeLabel(tp: LiderApprovalRequestType): string {
       return "Vacaciones";
     case "home_office":
       return "Home Office";
+    case "permiso_sin_goce":
+      return "Permiso sin goce";
+    case "goce_sueldo":
+      return "Permiso con goce";
     case "permiso":
       return "Permiso";
     case "incidencia":
@@ -178,27 +196,34 @@ function approvalTypeLabel(tp: LiderApprovalRequestType): string {
   }
 }
 
+/** Misma familia visual que el botón “ver” en listado de solicitudes (`rhSolicitudesAdminView`). */
+function iconLiderVerDetalle(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4 shrink-0" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`;
+}
+
+/** Botón compacto de fila: token RH_LISTADO_BTN_SECONDARY + tamaño tabla densa. */
+const LIDER_ROW_BTN_VER_DETALLE = `${RH_LISTADO_BTN_SECONDARY} inline-flex items-center gap-1.5 text-xs px-3 py-1.5`;
+
 function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string {
   const empty =
     requests.length === 0 ?
-      `<div class="rounded-xl border border-dashed border-border/90 bg-surface/40 px-4 py-10 text-center">
+      `<div class="rounded-xl border border-dashed border-slate-200/90 bg-gradient-to-br from-slate-50/80 to-white px-4 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
         <p class="text-sm font-semibold text-text-primary">No hay solicitudes pendientes por aprobar</p>
         <p class="mt-1 text-xs text-text-muted">Las solicitudes de tu equipo aparecerán aquí.</p>
       </div>`
     : `
-      <div class="overflow-x-auto">
-        <table class="min-w-full border-collapse text-left text-sm">
+      <div class="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+        <table class="min-w-full w-full table-fixed border-collapse text-left text-sm">
           <thead>
-            <tr class="border-b border-border text-xs font-semibold uppercase tracking-wide text-text-muted">
-              <th scope="col" class="whitespace-nowrap py-3 pr-4">Colaborador</th>
-              <th scope="col" class="whitespace-nowrap py-3 pr-4">Tipo</th>
-              <th scope="col" class="whitespace-nowrap py-3 pr-4">Fechas</th>
-              <th scope="col" class="min-w-[8rem] py-3 pr-4">Detalle</th>
-              <th scope="col" class="whitespace-nowrap py-3 pr-4">Estatus</th>
-              <th scope="col" class="whitespace-nowrap py-3 text-right">Acciones</th>
+            <tr class="border-b border-[#e5e7eb] bg-slate-50/90 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+              <th scope="col" class="w-[24%] min-w-0 py-3 pr-3 pl-4 sm:pl-5">Colaborador</th>
+              <th scope="col" class="w-[19%] min-w-0 py-3 pr-3">Tipo</th>
+              <th scope="col" class="w-[22%] min-w-0 py-3 pr-3">Fechas</th>
+              <th scope="col" class="w-[17%] min-w-0 py-3 pr-3">Estatus</th>
+              <th scope="col" class="w-[18%] min-w-0 py-3 pr-4 text-right sm:pr-5">Acciones</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-border/80">
+          <tbody class="divide-y divide-[#e5e7eb]/80">
             ${requests
               .map((r) => {
                 const initials =
@@ -214,28 +239,28 @@ function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string
                 const name = escapeHtml(r.collaborator_name);
                 const ini = escapeHtml(initials);
                 return `
-              <tr class="bg-white">
-                <td class="py-3 pr-4 align-middle">
-                  <div class="flex items-center gap-3">
-                    <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 text-xs font-bold text-leoni-blue">${ini}</span>
-                    <span class="font-semibold text-text-primary">${name}</span>
+              <tr class="bg-white transition-colors hover:bg-slate-50/70">
+                <td class="min-w-0 py-3 pr-3 pl-4 align-middle sm:pl-5">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <span class="flex size-9 shrink-0 items-center justify-center rounded-full border border-blue-200/60 bg-blue-50/90 text-xs font-bold text-[#1e40af] shadow-[0_1px_0_rgba(255,255,255,0.9)]">${ini}</span>
+                    <span class="min-w-0 truncate font-semibold text-text-primary">${name}</span>
                   </div>
                 </td>
-                <td class="py-3 pr-4 align-middle text-text-primary">${escapeHtml(approvalTypeLabel(r.request_type))}</td>
-                <td class="py-3 pr-4 align-middle text-text-muted">${escapeHtml(r.date_range)}</td>
-                <td class="max-w-xs py-3 pr-4 align-middle text-text-muted">${escapeHtml(r.detail)}</td>
-                <td class="py-3 pr-4 align-middle">
-                  <span class="inline-flex rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-semibold text-amber-800">${escapeHtml(r.status)}</span>
+                <td class="min-w-0 py-3 pr-3 align-middle text-text-primary">${escapeHtml(approvalTypeLabel(r.request_type))}</td>
+                <td class="min-w-0 py-3 pr-3 align-middle text-text-muted">${escapeHtml(r.date_range)}</td>
+                <td class="min-w-0 py-3 pr-3 align-middle">
+                  ${badgePending(r.status)}
                 </td>
-                <td class="py-3 align-middle text-right">
-                  <div class="flex flex-wrap items-center justify-end gap-2">
-                    <button type="button" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600" data-lider-reject="${escapeHtml(r.id)}">
-                      Rechazar
-                    </button>
-                    <button type="button" class="rounded-lg bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-leoni-blue-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leoni-blue" data-lider-approve="${escapeHtml(r.id)}">
-                      Aprobar
-                    </button>
-                  </div>
+                <td class="min-w-0 py-3 pr-4 align-middle text-right sm:pr-5">
+                  <button
+                    type="button"
+                    class="${LIDER_ROW_BTN_VER_DETALLE}"
+                    data-lider-solicitud-detalle="${escapeHtml(r.id)}"
+                    title="Ver detalle de la solicitud"
+                  >
+                    ${iconLiderVerDetalle()}
+                    Ver detalles
+                  </button>
                 </td>
               </tr>`;
               })
@@ -245,36 +270,53 @@ function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string
       </div>`;
 
   return `
-    <section class="mt-8 rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6" aria-label="Solicitudes de aprobación">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-base font-semibold text-text-primary">Solicitudes de aprobación</h2>
-        <a href="#" class="text-sm font-semibold text-leoni-blue hover:text-leoni-blue-light">Ver todas</a>
+    <section class="${RH_LISTADO_SURFACE} mt-8 p-5 sm:p-6" aria-label="Solicitudes de aprobación">
+      <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-text-primary">Solicitudes de aprobación</h2>
+          <p class="mt-1 text-sm text-text-muted">Abre el detalle de cada solicitud para aprobar, rechazar o solicitar cambios.</p>
+        </div>
+        <a href="${SOLICITUDES_HASH_LIDER_EQUIPO_PENDING}" class="mt-2 shrink-0 text-sm font-semibold text-leoni-blue transition hover:text-leoni-blue-light sm:mt-0">Ver todas</a>
       </div>
-      <div class="mt-4">
+      <div class="mt-5">
         ${empty}
       </div>
     </section>`;
 }
 
-function teamLineClass(line: TeamCalendarLine): string {
-  if (
-    (line.kind === "vacation" || line.kind === "home_office") &&
-    (line.request_status === "approved" || line.request_status === "pending")
-  ) {
-    return line.request_status === "approved"
-      ? "rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-emerald-800 md:text-[11px]"
-      : "rounded-md bg-amber-400/25 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-amber-950 md:text-[11px]";
-  }
+function esSolicitudPersonal(line: TeamCalendarLine, currentUserId: string | null): boolean {
+  return Boolean(currentUserId && line.owner_id && currentUserId === line.owner_id);
+}
 
+function esComidaPersonal(line: TeamCalendarLine, currentUserId: string | null): boolean {
+  if (line.kind !== "meal") return false;
+  return Boolean(line.meal_empleado_id && currentUserId && currentUserId === line.meal_empleado_id);
+}
+
+/** Estilos por categoría visual: solicitud/comida propia vs equipo (sin cambiar datos ni textos funcionales). */
+function esLineaSolicitudEquipoCal(line: TeamCalendarLine): boolean {
+  return (
+    line.kind === "vacation" ||
+    line.kind === "home_office" ||
+    line.kind === "permiso_sin_goce" ||
+    line.kind === "goce_sueldo"
+  );
+}
+
+function teamLineClass(line: TeamCalendarLine, currentUserId: string | null): string {
+  if (esLineaSolicitudEquipoCal(line)) {
+    const personal = esSolicitudPersonal(line, currentUserId);
+    return personal
+      ? "rounded-md bg-blue-500/14 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-blue-950 md:text-[11px]"
+      : "rounded-md bg-violet-500/14 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-violet-950 md:text-[11px]";
+  }
   switch (line.kind) {
     case "meal":
-      return "rounded-md bg-leoni-blue/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-leoni-blue md:text-[11px]";
-    case "vacation":
-      return "rounded-md bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-orange-700 md:text-[11px]";
-    case "home_office":
-      return "rounded-md bg-violet-500/12 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-violet-800 md:text-[11px]";
+      return esComidaPersonal(line, currentUserId)
+        ? "rounded-md bg-emerald-500/14 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-emerald-950 md:text-[11px]"
+        : "rounded-md bg-orange-500/14 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-orange-950 md:text-[11px]";
     case "incident":
-      return "rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-red-700 md:text-[11px]";
+      return "rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-snug text-red-800 md:text-[11px]";
     default:
       return "rounded-md px-1.5 py-0.5 text-[10px] text-text-muted md:text-[11px]";
   }
@@ -286,17 +328,17 @@ function mealLineIcon(): string {
 
 function renderTeamLineText(line: TeamCalendarLine, currentRole: string | null, currentUserId: string | null): string {
   if (
-    (line.kind === "vacation" || line.kind === "home_office") &&
-    (line.request_status === "approved" || line.request_status === "pending")
+    esLineaSolicitudEquipoCal(line) &&
+    (line.request_status === "approved" || line.request_status === "pending") &&
+    line.request_tipo
   ) {
-    const tipo = line.request_type === "home_office" || line.kind === "home_office" ? "home_office" : "vacaciones";
     return getCalendarRequestBadge({
       userRole: currentRole,
       currentUserId,
       ownerId: line.owner_id ?? null,
       ownerName: line.owner_name ?? null,
       estado: line.request_status,
-      tipo,
+      tipo: line.request_tipo,
     }).text;
   }
   return line.text;
@@ -316,28 +358,32 @@ function visibleTeamLines(entry: TeamCalendarDayEntry | undefined): {
   };
 }
 
-function teamCalendarMobileDots(entry: TeamCalendarDayEntry | undefined): string {
+function teamCalendarMobileDots(entry: TeamCalendarDayEntry | undefined, currentUserId: string | null): string {
   if (!entry?.lines?.length) return "";
-  const kinds = new Set(entry.lines.map((l) => l.kind));
-  const hasApprovedRequest = entry.lines.some(
-    (l) => (l.kind === "vacation" || l.kind === "home_office") && l.request_status === "approved",
-  );
-  const hasPendingRequest = entry.lines.some(
-    (l) => (l.kind === "vacation" || l.kind === "home_office") && l.request_status === "pending",
-  );
   const dots: string[] = [];
-  if (kinds.has("meal")) dots.push('<span class="size-1.5 shrink-0 rounded-full bg-leoni-blue" title="Comidas"></span>');
-  if (hasApprovedRequest) {
-    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-emerald-600" title="Solicitudes aprobadas"></span>');
-  } else if (kinds.has("vacation")) {
-    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-500" title="Vacaciones"></span>');
+  const reqLines = entry.lines.filter((l) => esLineaSolicitudEquipoCal(l));
+  const mealLines = entry.lines.filter((l) => l.kind === "meal");
+
+  const hasPersonalReq = reqLines.some((l) => esSolicitudPersonal(l, currentUserId));
+  const hasTeamReq = reqLines.some((l) => !esSolicitudPersonal(l, currentUserId));
+  const hasPersonalMeal = mealLines.some((l) => esComidaPersonal(l, currentUserId));
+  const hasTeamMeal = mealLines.some((l) => !esComidaPersonal(l, currentUserId));
+
+  if (hasPersonalReq) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-blue-600" title="Solicitudes propias"></span>');
   }
-  if (hasPendingRequest) {
-    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-amber-500" title="Solicitudes pendientes"></span>');
-  } else if (kinds.has("home_office")) {
-    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-violet-600" title="Home Office"></span>');
+  if (hasTeamReq) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-violet-600" title="Solicitudes del equipo"></span>');
   }
-  if (kinds.has("incident")) dots.push('<span class="size-1.5 shrink-0 rounded-full bg-red-500" title="Incidencias"></span>');
+  if (hasPersonalMeal) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-emerald-600" title="Comidas propias"></span>');
+  }
+  if (hasTeamMeal) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-500" title="Comidas del equipo"></span>');
+  }
+  if (entry.lines.some((l) => l.kind === "incident")) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-red-500" title="Incidencias"></span>');
+  }
   if (dots.length === 0) return "";
   return `<div class="mt-0.5 flex flex-wrap gap-1 md:hidden" aria-hidden="true">${dots.join("")}</div>`;
 }
@@ -357,28 +403,28 @@ function renderTeamCalendarDayCell(
   const currentUserId = getEmpleadoIdFromAccessToken();
 
   const cellPieces: string[] = [
-    "group relative flex min-h-[4.5rem] flex-col rounded-sm p-2 outline-none md:min-h-[6.5rem] md:p-3",
-    "border-0 transition-colors transition-shadow duration-150 ease-out",
+    "rh-cal-cell group relative flex min-h-[4.5rem] flex-col rounded-lg p-2 outline-none md:min-h-[6.5rem] md:p-3",
+    "border transition-[background,box-shadow,border-color,transform] duration-150 ease-out",
   ];
 
   if (!inMonth) {
-    cellPieces.push("bg-surface text-text-muted hover:bg-border/20 hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--out");
   } else if (isSelected) {
-    const selBg = isToday ? "bg-leoni-blue/10" : "bg-leoni-blue/[0.09]";
-    cellPieces.push(
-      `z-[1] ${selBg} ring-2 ring-leoni-blue ring-inset hover:bg-leoni-blue/[0.12] hover:shadow-sm`,
-    );
+    cellPieces.push("rh-cal-cell--selected z-[1]");
   } else if (isToday) {
-    cellPieces.push("bg-leoni-blue/5 hover:bg-leoni-blue/[0.09] hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--today");
   } else {
-    cellPieces.push("bg-white hover:bg-surface hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--default");
   }
 
   const cellBase = cellPieces.join(" ");
 
-  const dayNumWrap = isToday && inMonth
-    ? `<span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-leoni-blue text-xs font-bold text-white shadow-sm">${dayNumber}</span>`
-    : `<span class="inline-flex min-h-7 min-w-7 items-center justify-center text-xs font-semibold ${inMonth ? "text-text-primary" : "text-text-muted"}">${dayNumber}</span>`;
+  const dayNumWrap =
+    isSelected && inMonth
+      ? `<span class="rh-cal-cell__daynum rh-cal-cell__daynum--selected">${dayNumber}</span>`
+      : isToday && inMonth
+        ? `<span class="rh-cal-cell__daynum rh-cal-cell__daynum--today">${dayNumber}</span>`
+        : `<span class="rh-cal-cell__daynum ${inMonth ? "rh-cal-cell__daynum--plain" : "rh-cal-cell__daynum--muted"}">${dayNumber}</span>`;
 
   const topRowSep = hasContent ? "border-b border-border/30 pb-2 mb-2" : "";
 
@@ -393,7 +439,7 @@ function renderTeamCalendarDayCell(
           ${visible
             .map((ln) => {
               if (ln.kind !== "meal") {
-                return `<span class="truncate ${teamLineClass(ln)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`;
+                return `<span class="truncate ${teamLineClass(ln, currentUserId)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`;
               }
               const dateIso = escapeHtml(iso);
               const employeeName = escapeHtml(ln.meal_employee_name ?? "Sin nombre");
@@ -404,11 +450,11 @@ function renderTeamCalendarDayCell(
                 selectedMeal.employeeName === (ln.meal_employee_name ?? "Sin nombre") &&
                 selectedMeal.mealType === (ln.meal_type_label ?? "Sin tipo") &&
                 selectedMeal.mealTime === (ln.meal_time_label ?? "Sin hora");
-              const selectedClass = isMealSelected ? "ring-1 ring-inset ring-leoni-blue/50" : "";
+              const selectedClass = isMealSelected ? "ring-1 ring-inset ring-[var(--color-outline)]/55" : "";
               const summaryText = escapeHtml(ln.text);
               return `<button
                 type="button"
-                class="inline-flex max-w-full items-center gap-1 truncate text-left ${teamLineClass(ln)} ${selectedClass}"
+                class="inline-flex max-w-full items-center gap-1 truncate text-left ${teamLineClass(ln, currentUserId)} ${selectedClass}"
                 data-lider-meal-detail="1"
                 data-lider-meal-date="${dateIso}"
                 data-lider-meal-employee="${employeeName}"
@@ -425,7 +471,7 @@ function renderTeamCalendarDayCell(
         </div>`
     : "";
 
-  const dotsMobile = hasContent ? teamCalendarMobileDots(entry) : "";
+  const dotsMobile = hasContent ? teamCalendarMobileDots(entry, currentUserId) : "";
 
   return `
     <div
@@ -469,7 +515,7 @@ export function renderLiderTeamCalendarReplaceable(
     for (let r = 0; r < 6; r += 1) {
       const slice = grid.slice(r * 7, r * 7 + 7);
       rows.push(
-        `<div role="row" class="grid grid-cols-7 gap-1">${slice
+        `<div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${slice
           .map((cell) =>
             renderTeamCalendarDayCell(
               cell.isoDate,
@@ -487,7 +533,7 @@ export function renderLiderTeamCalendarReplaceable(
   } else {
     const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
     rows.push(
-      `<div role="row" class="grid grid-cols-7 gap-1">${weekDates
+      `<div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${weekDates
         .map((d) => {
           const iso = isoLocalDate(d);
           return renderTeamCalendarDayCell(
@@ -505,56 +551,51 @@ export function renderLiderTeamCalendarReplaceable(
   }
 
   const legend = `
-    <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs">
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-leoni-blue" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Comidas</span>
+    <div
+      class="lider-cal-legend flex flex-wrap items-center gap-x-5 gap-y-2.5 text-xs leading-snug text-text-muted"
+      aria-label="Leyenda del calendario"
+    >
+      <span class="inline-flex items-center gap-2">
+        <span class="size-2.5 shrink-0 rounded-[3px] bg-blue-500/35 ring-1 ring-blue-700/25" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Solicitudes personales</span>
       </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Vacaciones</span>
+      <span class="inline-flex items-center gap-2">
+        <span class="size-2.5 shrink-0 rounded-[3px] bg-violet-500/35 ring-1 ring-violet-800/22" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Solicitudes del equipo</span>
       </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-violet-600" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Home Office</span>
+      <span class="inline-flex items-center gap-2">
+        <span class="size-2.5 shrink-0 rounded-[3px] bg-emerald-500/35 ring-1 ring-emerald-800/22" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Comidas personales</span>
       </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Solicitudes aprobadas</span>
-      </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Solicitudes pendientes</span>
-      </span>
-      <span class="inline-flex items-center gap-2 text-text-muted">
-        <span class="size-2 shrink-0 rounded-full bg-red-500" aria-hidden="true"></span>
-        <span class="font-medium text-text-primary">Incidencias</span>
+      <span class="inline-flex items-center gap-2">
+        <span class="size-2.5 shrink-0 rounded-[3px] bg-orange-500/35 ring-1 ring-orange-800/25" aria-hidden="true"></span>
+        <span class="font-medium text-text-primary">Comidas del equipo</span>
       </span>
     </div>`;
 
   const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
-        `<div role="columnheader" class="rounded-sm bg-white py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
+        `<div role="columnheader" class="rh-cal-colhead py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
     )
     .join("");
 
   const hasMealSelected = Boolean(selectedMeal);
-  const mealTitle = hasMealSelected ? "Detalle de comida" : DEFAULT_MEAL_DETAIL_TITLE;
-  const mealMain = hasMealSelected
-    ? `${selectedMeal?.employeeName ?? "Sin nombre"} · ${selectedMeal?.mealType ?? "Sin tipo"}`
-    : DEFAULT_MEAL_DETAIL_BODY;
-  const mealMeta = hasMealSelected
-    ? `Fecha: ${selectedMeal?.dateIso ?? ""} · Hora: ${selectedMeal?.mealTime ?? "Sin hora"}`
-    : "";
-  const mealDetail = `<div
+  const mealDetail =
+    hasMealSelected ?
+      `<div
       id="lider-meal-detail-panel"
-      class="mt-4 rounded-xl border px-4 py-3 ${hasMealSelected ? "border-leoni-blue/25 bg-leoni-blue/5" : "border-border/80 bg-surface/50"}"
+      class="mt-4 rounded-xl border border-[rgba(148,163,184,0.22)] bg-gradient-to-br from-blue-50/90 to-white px-4 py-3 shadow-[0_4px_14px_rgba(15,23,42,0.04)]"
     >
-      <p id="lider-meal-detail-title" class="text-xs font-semibold ${hasMealSelected ? "uppercase tracking-wide text-leoni-blue" : "text-text-primary"}">${escapeHtml(mealTitle)}</p>
-      <p id="lider-meal-detail-main" class="mt-1 ${hasMealSelected ? "text-sm font-semibold text-text-primary" : "text-xs text-text-muted"}">${escapeHtml(mealMain)}</p>
-      <p id="lider-meal-detail-meta" class="text-xs text-text-muted">${escapeHtml(mealMeta)}</p>
-    </div>`;
+      <p id="lider-meal-detail-title" class="text-xs font-semibold uppercase tracking-wide text-leoni-blue">Detalle de comida</p>
+      <p id="lider-meal-detail-main" class="mt-1 text-sm font-semibold text-text-primary">${escapeHtml(
+        `${selectedMeal?.employeeName ?? "Sin nombre"} · ${selectedMeal?.mealType ?? "Sin tipo"}`,
+      )}</p>
+      <p id="lider-meal-detail-meta" class="text-xs text-text-muted">${escapeHtml(
+        `Fecha: ${selectedMeal?.dateIso ?? ""} · Hora: ${selectedMeal?.mealTime ?? "Sin hora"}`,
+      )}</p>
+    </div>`
+    : "";
 
   const currentRole = getRolFromAccessToken();
   const currentUserId = getEmpleadoIdFromAccessToken();
@@ -578,7 +619,7 @@ export function renderLiderTeamCalendarReplaceable(
                     const mealTime = escapeHtml(ln.meal_time_label ?? "Sin hora");
                     return `<button
                       type="button"
-                      class="inline-flex max-w-full items-center gap-1 truncate text-left ${teamLineClass(ln)}"
+                      class="inline-flex max-w-full items-center gap-1 truncate text-left ${teamLineClass(ln, currentUserId)}"
                       data-lider-meal-detail="1"
                       data-lider-meal-date="${dateIso}"
                       data-lider-meal-employee="${employeeName}"
@@ -589,14 +630,14 @@ export function renderLiderTeamCalendarReplaceable(
                       <span class="truncate">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>
                     </button>`;
                   }
-                  return `<span class="truncate ${teamLineClass(ln)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`;
+                  return `<span class="truncate ${teamLineClass(ln, currentUserId)}">${escapeHtml(renderTeamLineText(ln, currentRole, currentUserId))}</span>`;
                 })
                 .join("")
             : `<span class="text-xs text-text-muted">Sin registros</span>`;
-        return `<article class="rounded-xl border border-border bg-white p-3 shadow-sm">
+        return `<article class="rh-cal-week-planner-day rounded-xl border border-[rgba(148,163,184,0.22)] bg-linear-to-br from-white to-[#f8fbff] p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
           <div class="mb-3 flex items-center justify-between">
             <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(dayName)}</span>
-            <span class="${isToday ? "inline-flex size-8 items-center justify-center rounded-full bg-leoni-blue text-sm font-semibold text-white" : "inline-flex size-8 items-center justify-center rounded-full bg-surface text-sm font-semibold text-text-primary"}">${d.getDate()}</span>
+            <span class="${isToday ? "rh-cal-week-planner-day__date rh-cal-week-planner-day__date--today" : "rh-cal-week-planner-day__date"}">${d.getDate()}</span>
           </div>
           <div class="flex flex-col gap-1.5">${entries}</div>
         </article>`;
@@ -609,16 +650,19 @@ export function renderLiderTeamCalendarReplaceable(
   })();
 
   return `
-    <header class="px-4 pt-5 sm:px-6">
+    <header class="rh-cal-card-header px-4 pt-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-base font-semibold text-text-primary">Calendario del equipo</h2>
-        <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+        <div>
+          <h2 class="text-lg font-semibold text-text-primary">Calendario del equipo</h2>
+          <p class="mt-1 max-w-xl text-sm text-text-muted">Vacaciones, home office y comidas: colores distinguen tus registros y los del equipo.</p>
+        </div>
+        <div class="rh-cal-toolbar flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+          <div class="rh-cal-seg" role="group" aria-label="Vista del calendario">
             <button
               type="button"
               id="lid-cal-view-month"
               data-lid-cal-view="month"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "month" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+              class="rh-cal-seg__btn ${viewMode === "month" ? "rh-cal-seg__btn--active" : ""}"
             >
               Mes
             </button>
@@ -626,25 +670,25 @@ export function renderLiderTeamCalendarReplaceable(
               type="button"
               id="lid-cal-view-week"
               data-lid-cal-view="week"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "week" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+              class="rh-cal-seg__btn ${viewMode === "week" ? "rh-cal-seg__btn--active" : ""}"
             >
               Semana
             </button>
           </div>
-          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+          <div class="rh-cal-nav-cluster inline-flex min-w-0 flex-wrap items-center justify-center gap-0.5 rounded-[14px] border border-[rgba(148,163,184,0.22)] bg-white/90 p-0.5 shadow-[0_6px_16px_rgba(15,23,42,0.05)]">
             <button
               type="button"
               id="lid-cal-prev"
-              class="${CAL_NAV_BTN_CLASS}"
+              class="${CAL_NAV_BTN_CLASS} rh-cal-nav-icon-btn"
               aria-label="${viewMode === "week" ? "Semana anterior" : "Mes anterior"}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
-            <p id="lid-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
+            <p id="lid-cal-month-label" class="min-w-0 max-w-[min(100%,14rem)] shrink px-2 py-1 text-center text-sm font-semibold text-text-primary sm:min-w-44 sm:max-w-none">${title}</p>
             <button
               type="button"
               id="lid-cal-next"
-              class="${CAL_NAV_BTN_CLASS}"
+              class="${CAL_NAV_BTN_CLASS} rh-cal-nav-icon-btn"
               aria-label="${viewMode === "week" ? "Semana siguiente" : "Mes siguiente"}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
@@ -653,26 +697,26 @@ export function renderLiderTeamCalendarReplaceable(
           <button
             type="button"
             id="lid-cal-today"
-            class="rounded-xl border border-border bg-white px-3 py-2 text-xs font-semibold text-text-muted shadow-sm transition-colors hover:border-leoni-blue/25 hover:bg-leoni-blue/5 hover:text-leoni-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leoni-blue"
+            class="rh-cal-today-btn rounded-xl border border-[rgba(148,163,184,0.26)] bg-white px-3 py-2 text-xs font-semibold text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition-[background,border-color,color,box-shadow,transform] duration-150 ease-out hover:border-[rgba(37,99,235,0.28)] hover:bg-[rgba(219,234,254,0.45)] hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
             aria-label="Ir al mes actual"
           >
             Hoy
           </button>
         </div>
       </div>
-      <div class="mt-5 border-t border-border/50 pt-4">
+      <div class="mt-4 border-t border-border/50 pb-3 pt-2">
         ${legend}
       </div>
     </header>
-    <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6">
+    <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6 sm:pt-5">
       ${viewMode === "week"
         ? weeklyPlanner
         : `<div
             role="grid"
             aria-label="Calendario del equipo"
-            class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
+            class="rh-cal-grid-shell flex min-w-136 flex-col gap-1 sm:min-w-0"
           >
-            <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
+            <div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${weekHeader}</div>
             ${rows.join("")}
           </div>`}
       ${mealDetail}
@@ -686,7 +730,7 @@ function renderLiderTeamCalendarCard(
   selectedMeal: SelectedMealDetail | null = null,
 ): string {
   return `
-    <section class="mt-8 overflow-hidden rounded-2xl border border-border bg-white shadow-sm" aria-label="Calendario del equipo">
+    <section class="rh-cal-card mt-8 overflow-hidden rounded-[20px]" aria-label="Calendario del equipo">
       <div id="lider-calendar-replaceable">
         ${renderLiderTeamCalendarReplaceable(year, monthIndex, payload, selectedMeal)}
       </div>
@@ -715,44 +759,64 @@ export function renderLiderTeamDashboard(
   );
 
   return `
-    <div class="space-y-0">
-      <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-personal">
-        ${personalHeading}
-        ${personalHtml}
-      </section>
-      <div class="my-10 border-t border-border/40" aria-hidden="true"></div>
-      <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-del-equipo">
-        ${teamHeading}
-        ${teamHtml}
-        ${approvalsHtml}
-      </section>
-      ${calHtml}
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} min-h-0">
+      <div class="flex flex-col gap-8 sm:gap-10">
+        <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-personal">
+          ${personalHeading}
+          ${personalHtml}
+        </section>
+        <section class="lider-dashboard-stats-section" aria-labelledby="lider-dash-section-resumen-del-equipo">
+          ${teamHeading}
+          ${teamHtml}
+          ${approvalsHtml}
+        </section>
+        ${calHtml}
+      </div>
     </div>`;
 }
 
 export function renderLiderDashboardSkeleton(): string {
   const headingSkel = `
-    <header class="mb-4">
-      <div class="h-6 w-52 max-w-full animate-pulse rounded-md bg-surface"></div>
-      <div class="mt-3 h-4 w-full max-w-xl animate-pulse rounded-md bg-surface/80"></div>
+    <header class="mb-6">
+      <div class="h-7 w-56 max-w-full animate-pulse rounded-md bg-slate-200/90"></div>
+      <div class="mt-3 h-4 w-full max-w-xl animate-pulse rounded-md bg-slate-100"></div>
     </header>`;
-  const row4 = `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    ${`<div class="animate-pulse rounded-2xl border border-border bg-white p-5 shadow-sm">
-      <div class="flex justify-between gap-3"><div class="size-11 rounded-full bg-surface"></div><div class="h-3 w-24 rounded bg-surface"></div></div>
-      <div class="mt-4 h-8 w-28 rounded bg-surface"></div>
-      <div class="mt-2 h-4 w-36 rounded bg-surface/80"></div>
+  const personalRow = `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    ${`<div class="${RH_LISTADO_SURFACE} animate-pulse p-5">
+      <div class="flex justify-between gap-3"><div class="size-11 rounded-full bg-slate-100"></div><div class="h-3 w-24 rounded bg-slate-100"></div></div>
+      <div class="mt-4 h-8 w-28 rounded bg-slate-100"></div>
+      <div class="mt-2 h-4 w-36 rounded bg-slate-50"></div>
     </div>`.repeat(4)}
   </div>`;
-  const sep = `<div class="my-10 border-t border-border/40"></div>`;
-  const table = `<div class="mt-8 animate-pulse rounded-2xl border border-border bg-white p-6 shadow-sm">
-    <div class="flex justify-between"><div class="h-5 w-48 rounded bg-surface"></div><div class="h-4 w-16 rounded bg-surface"></div></div>
-    <div class="mt-6 h-32 rounded-lg bg-surface/60"></div>
+  const teamRow = `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    ${`<div class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
+      <div class="flex justify-between gap-3"><div class="h-4 w-32 rounded bg-slate-200"></div><div class="size-10 rounded-xl bg-slate-200"></div></div>
+      <div class="mt-4 h-8 w-24 rounded bg-slate-200"></div>
+      <div class="mt-3 h-3 w-40 rounded bg-slate-100"></div>
+    </div>`.repeat(4)}
   </div>`;
-  const cal = `<div class="mt-8 animate-pulse rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-6">
-    <div class="flex justify-between gap-4"><div class="h-5 w-40 rounded bg-surface"></div><div class="h-9 w-44 rounded-xl bg-surface"></div></div>
-    <div class="mt-6 grid grid-cols-7 gap-1">${"<div class=\"h-16 rounded-sm bg-surface/50\"></div>".repeat(7)}</div>
+  const table = `<div class="${RH_LISTADO_SURFACE} mt-8 animate-pulse p-6">
+    <div class="flex flex-col gap-2 sm:flex-row sm:justify-between">
+      <div class="h-6 w-56 rounded bg-slate-200"></div>
+      <div class="h-4 w-20 rounded bg-slate-100 sm:self-end"></div>
+    </div>
+    <div class="mt-6 h-4 w-full max-w-md rounded bg-slate-100"></div>
+    <div class="mt-6 h-36 rounded-xl bg-slate-50"></div>
   </div>`;
-  return headingSkel + row4 + sep + headingSkel + row4 + table + cal;
+  const cal = `<div class="rh-cal-card mt-8 animate-pulse overflow-hidden rounded-[20px] p-4 sm:p-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:justify-between">
+      <div class="space-y-2"><div class="h-6 w-48 rounded bg-slate-200"></div><div class="h-3 w-full max-w-xs rounded bg-slate-100"></div></div>
+      <div class="h-10 w-full max-w-[16rem] rounded-xl bg-slate-100 sm:ml-auto"></div>
+    </div>
+    <div class="mt-6 grid grid-cols-7 gap-1">${"<div class=\"h-9 rounded-lg bg-slate-100\"></div>".repeat(7)}</div>
+    <div class="mt-1 grid grid-cols-7 gap-1">${"<div class=\"h-16 rounded-lg bg-slate-50\"></div>".repeat(7)}</div>
+  </div>`;
+  return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} min-h-0">
+    <div class="flex flex-col gap-8 sm:gap-10">
+      ${headingSkel + personalRow}
+      ${headingSkel + teamRow + table + cal}
+    </div>
+  </div>`;
 }
 
 export function bindLiderTeamCalendarNavigation(

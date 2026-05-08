@@ -124,6 +124,35 @@ async def test_crear_solicitud_supervisor_para_subordinado_usa_empleado_id_objet
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_supervisor_para_subordinado_home_office_un_dia_retorna_201(
+    client: AsyncClient,
+    db,
+):
+    supervisor = await make_empleado(db, rol="supervisor", email="sol002b_sup_ho@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol002b_sub_ho@leoni.test",
+        lider_id=supervisor.id,
+    )
+    headers = await auth_headers(client, supervisor)
+    payload = {
+        "tipo": "home_office",
+        "fecha_inicio": "2026-06-03",
+        "fecha_fin": "2026-06-03",
+        "empleado_id": subordinado.id,
+        "motivo": None,
+        "comentarios": None,
+    }
+    response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tipo"] == "home_office"
+    assert body["empleado_id"] == subordinado.id
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_empleado_otro_colaborador_retorna_403(client: AsyncClient, db):
     emp_a = await make_empleado(db, rol="empleado", email="sol002c_a@leoni.test")
     emp_b = await make_empleado(db, rol="empleado", email="sol002c_b@leoni.test")

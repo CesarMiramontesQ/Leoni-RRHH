@@ -41,7 +41,11 @@ function fmtPendingCount(value: number | null): string {
 }
 
 function pendingTypeLabel(t: EmpleadoPendingRequestType): string {
-  return t === "vacation" ? "VAC" : "HO";
+  if (t === "vacation") return "VAC";
+  if (t === "homeOffice") return "HO";
+  if (t === "permiso_sin_goce") return "Sin goce";
+  if (t === "goce_sueldo") return "Con goce";
+  return "SOL";
 }
 
 function mealCalendarText(meal: EmpleadoCalendarDayEntry["meal"]): string {

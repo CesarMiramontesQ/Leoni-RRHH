@@ -1069,8 +1069,10 @@ export function renderRhSolicitudesScopedSection(
     options.scope === "personal"
       ? `<span class="ml-2 inline-flex shrink-0 rounded-full border border-[#1e40af]/20 bg-[#eff6ff] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#1e40af]">Personal</span>`
       : `<span class="ml-2 inline-flex shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Equipo</span>`;
+  const sectionIdAttr =
+    options.scope === "personal" ? ` id="rh-sol-seccion-personal"` : ` id="rh-sol-seccion-equipo"`;
   return `
-    <section class="${sectionShell}">
+    <section${sectionIdAttr} class="${sectionShell}">
       <header class="mb-4 border-b border-slate-200/90 pb-3">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}${chip}</h2>

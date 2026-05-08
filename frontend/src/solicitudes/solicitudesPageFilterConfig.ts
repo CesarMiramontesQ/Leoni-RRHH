@@ -65,6 +65,12 @@ export function resolveVisibleFilterKeys(role: SolicitudesPageRole): RequestFilt
   return filtersByRole[role].filter((k) => SOLICITUDES_FILTER_KEYS_WITH_UI.has(k));
 }
 
+/**
+ * Deep link desde Dashboard líder → bloque “Solicitudes del Equipo”, estatus pendientes.
+ * Mecanismo principal: `#/solicitudes?seccion=equipo&estado=pending` (ver parseo en solicitudes.ts).
+ */
+export const SOLICITUDES_HASH_LIDER_EQUIPO_PENDING = "#/solicitudes?seccion=equipo&estado=pending" as const;
+
 export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): SolicitudesPageUiConfig {
   const variant: SolicitudesPageVariant = role === "empleado" ? "empleado" : "gestor";
   const isGestor = variant === "gestor";

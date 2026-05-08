@@ -54,6 +54,7 @@ import type {
   ComedorKpi,
   ComedorPanelState,
   ComedorRhSemanaPlatilloPorSemana,
+  ComedorSupervisorTableSegment,
   ComedorTeamReservationsPage,
   ComedorSidebarDataset,
   ComedorWeekPlanner,
@@ -154,6 +155,9 @@ type LiderComedorState = {
   pageSize: number;
   year: number;
   monthIndex: number;
+  /** Solo aplica filtros de segmento en `loadTable` cuando `isSupervisorTable` es true. */
+  tableSegment: ComedorSupervisorTableSegment;
+  isSupervisorTable: boolean;
 } & Omit<
   ComedorDashboardLiderViewState,
   | "statsState"
@@ -176,7 +180,11 @@ function toLiderViewState(state: LiderComedorState): ComedorDashboardLiderViewSt
     tableState: state.tableState,
     table: state.table,
     tableError: state.tableError,
-    tableFilters: { search: state.search },
+    tableFilters: {
+      search: state.search,
+      supervisorSegment: state.tableSegment,
+      showSupervisorSegment: state.isSupervisorTable,
+    },
   };
 }
 
@@ -2326,6 +2334,8 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     pageSize: 10,
     year: now.getFullYear(),
     monthIndex: now.getMonth(),
+    tableSegment: "equipo",
+    isSupervisorTable: isSupervisor,
   };
   let calendarRequestVersion = 0;
 
@@ -2392,10 +2402,22 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     try {
       const rows = await getComedorEquipoProximasReservas(200);
       if (signal.aborted) return;
+      let scoped = rows;
+      if (state.isSupervisorTable && currentUserId != null) {
+        scoped =
+          state.tableSegment === "personal"
+            ? rows.filter((row) => row.empleado_id === currentUserId)
+            : rows.filter((row) => row.empleado_id !== currentUserId);
+      }
       const search = state.search.trim().toLowerCase();
       const filtered = search
-        ? rows.filter((row) => row.empleado_nombre.toLowerCase().includes(search))
-        : rows;
+        ? scoped.filter((row) => row.empleado_nombre.toLowerCase().includes(search))
+        : scoped;
+      const totalFiltered = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(totalFiltered / state.pageSize));
+      if (state.page > totalPages) {
+        state.page = totalPages;
+      }
       const start = (state.page - 1) * state.pageSize;
       const end = start + state.pageSize;
       state.table = {
@@ -2443,6 +2465,19 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
 
     const root = container.querySelector<HTMLElement>("#comedor-lider-root");
     const modalHost = container.querySelector<HTMLElement>("#comedor-lider-new-request-modal-host");
+
+    let supervisorSelfForModal: ComedorEmployeeOption | null = null;
+    if (isSupervisor && currentUserId != null && !signal.aborted) {
+      const resolved = await resolveEmpleadoOptionForComedor(
+        String(currentUserId),
+        getUserDisplayNameFromAccessToken(),
+        getNoEmpleadoFromAccessToken(),
+      );
+      if (!signal.aborted && resolved) {
+        supervisorSelfForModal = resolved;
+      }
+    }
+
     const newRequestModal =
       modalHost ?
         mountComedorNewRequestModal(modalHost, {
@@ -2455,25 +2490,39 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           { id: "casera", label: "Opción A" },
           { id: "saludable", label: "Opción B" },
         ],
-        loadEmployeeOptions: isSupervisor
-          ? async () => {
-              const rows = await getComedorEquipoBeneficiarios();
-              return rows.map((row) => ({
-                id: String(row.empleado_id),
-                nombre: row.nombre_corto,
-                numero: row.no_empleado,
-                area: row.empleado_id === rows[0]?.empleado_id ? "Mí mismo" : "Equipo directo",
-                avatarUrl: null,
-              }));
-            }
-          : undefined,
+        ...(supervisorSelfForModal ?
+          {
+            supervisorBeneficiaryConfig: {
+              self: supervisorSelfForModal,
+              loadTeamOptions: async () => {
+                const rows = await getComedorEquipoBeneficiarios();
+                const uid = currentUserId!;
+                return rows
+                  .filter((row) => row.empleado_id !== uid)
+                  .map((row) => ({
+                    id: String(row.empleado_id),
+                    nombre: row.nombre_corto,
+                    numero: row.no_empleado,
+                    area: "Equipo directo",
+                    avatarUrl: null,
+                  }))
+                  .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+              },
+            },
+          }
+        : {}),
         searchEmployees: searchComedorEmployeesFromDb,
+        showObservacionesField: !isSupervisor,
         onSubmit: async (payload) => {
           const comedorId = await resolveComedorId();
           if (comedorId == null) throw new Error("No hay comedor activo configurado.");
-          const targetUserId = isSupervisor && payload.personType === "interno" && payload.employeeId
-            ? Number.parseInt(payload.employeeId, 10)
-            : undefined;
+          const targetUserId =
+            isSupervisor &&
+            payload.personType === "interno" &&
+            payload.supervisorSelfRegistration !== true &&
+            payload.employeeId
+              ? Number.parseInt(payload.employeeId, 10)
+              : undefined;
           if (isSupervisor && targetUserId != null && !Number.isFinite(targetUserId)) {
             throw new Error("Selecciona un beneficiario válido.");
           }
@@ -2642,6 +2691,20 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         void loadTable();
       }, 220);
     },
+      { signal },
+    );
+
+    root?.addEventListener(
+      "change",
+      (event) => {
+        const select = (event.target as HTMLElement).closest<HTMLSelectElement>("[data-comedor-table-segment]");
+        if (!select) return;
+        const raw = select.value;
+        if (raw !== "personal" && raw !== "equipo") return;
+        state.tableSegment = raw;
+        state.page = 1;
+        void loadTable();
+      },
       { signal },
     );
 

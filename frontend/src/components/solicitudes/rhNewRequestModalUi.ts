@@ -31,14 +31,34 @@ const NR_SELECT_CHEVRON = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hid
   <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
 </svg>`;
 
-const TAB_BASE =
-  "flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2";
+/** Selector de tipo (supervisor / empleado): tarjetas en contenedor tonal. */
+const NR_TIPO_LIST_WRAP =
+  "rounded-2xl border border-slate-200/75 bg-linear-to-br from-slate-100/90 to-slate-50/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] ring-1 ring-slate-900/[0.04]";
 
-const TAB_ACTIVE = `${TAB_BASE} bg-white text-leoni-blue shadow-md shadow-slate-900/10 ring-1 ring-slate-200/80`;
+const NR_TIPO_CARD_BASE =
+  "group flex w-full min-h-[3.5rem] min-w-0 items-center gap-3 rounded-xl border px-3.5 py-3.5 text-left shadow-sm transition-[background-color,border-color,box-shadow,transform,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:min-h-[4rem] sm:gap-3.5 sm:py-4 active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-colors";
 
-const TAB_INACTIVE = `${TAB_BASE} text-slate-500 hover:bg-white/70 hover:text-slate-800`;
+const nrTipoCardActive = `${NR_TIPO_CARD_BASE} border-leoni-blue/40 bg-white text-text-primary shadow-md shadow-slate-900/[0.08] ring-[0.5px] ring-leoni-blue/35`;
 
-export function shellHtml(): string {
+const nrTipoCardInactive = `${NR_TIPO_CARD_BASE} border-slate-200/95 bg-white/65 text-slate-700 hover:border-slate-300 hover:bg-white hover:shadow-[0_2px_8px_-2px_rgba(15,23,42,0.07)]`;
+
+const NR_TIPO_ICON_WRAP_BASE =
+  "flex size-10 shrink-0 items-center justify-center rounded-[10px] border transition-colors duration-200";
+
+const tipoIconWrapActive = `${NR_TIPO_ICON_WRAP_BASE} border-leoni-blue/25 bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-leoni-blue`;
+
+const tipoIconWrapInactive = `${NR_TIPO_ICON_WRAP_BASE} border-slate-200/85 bg-white/95 text-slate-500 group-hover:border-slate-300 group-hover:text-slate-600`;
+
+/** Ancho del panel del diálogo: estrecho por defecto; supervisor más ancho desde `sm` (móvil sin cambios). */
+function rhNuevaSolicitudModalDialogWidthClass(wideForSupervisor: boolean): string {
+  return wideForSupervisor
+    ? "max-w-[26rem] sm:max-w-4xl"
+    : "max-w-[26rem] sm:max-w-lg";
+}
+
+export function shellHtml(opts?: { wideForSupervisor?: boolean }): string {
+  const wide = opts?.wideForSupervisor === true;
+  const dialogW = rhNuevaSolicitudModalDialogWidthClass(wide);
   return `
     <div
       id="rh-nr-overlay"
@@ -46,7 +66,7 @@ export function shellHtml(): string {
       role="presentation"
     >
       <div
-        class="flex max-h-[min(92vh,880px)] w-full max-w-[26rem] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_50px_-16px_rgba(15,23,42,0.18)] [color-scheme:light] sm:max-w-lg"
+        class="flex max-h-[min(92vh,880px)] w-full ${dialogW} flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_50px_-16px_rgba(15,23,42,0.18)] [color-scheme:light]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rh-nr-title"
@@ -120,18 +140,123 @@ export function buildEmpleadoOptions(
   return head + rest;
 }
 
-function iconVacaciones(active: boolean): string {
-  const cls = active ? "text-leoni-blue" : "text-slate-400";
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-[1.15rem] shrink-0 ${cls}" aria-hidden="true">
+function iconSvgVacaciones(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z" />
   </svg>`;
 }
 
-function iconHome(active: boolean): string {
-  const cls = active ? "text-leoni-blue" : "text-slate-400";
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-[1.15rem] shrink-0 ${cls}" aria-hidden="true">
+function iconSvgHomeOffice(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125h4.125v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
   </svg>`;
+}
+
+/** Documento con líneas — distinto del ícono de casa (Home Office). */
+function iconSvgPermisoSinGoce(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5h7.5A2.25 2.25 0 0118 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-7.5A2.25 2.25 0 016 17.25V6.75A2.25 2.25 0 018.25 4.5z" />
+    <path stroke-linecap="round" d="M9 9.75h6M9 13.5h6M9 17.25h4.5" />
+  </svg>`;
+}
+
+/** Botones‑tarjeta del tipo de solicitud (solo UI; mismo `data-rh-nr-tipo` para el montaje TS). */
+function buildRhTipoChipRowHtml(opts: {
+  vacActive: boolean;
+  hoActive: boolean;
+  permisoActive: boolean;
+  showPermisoSinGoce: boolean;
+}): string {
+  const gridCols = opts.showPermisoSinGoce ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
+
+  function chip(
+    active: boolean,
+    tipoAttr: "vacaciones" | "home_office" | "permiso_sin_goce_sueldo",
+    svg: string,
+    title: string,
+    subtitle: string | null,
+  ): string {
+    const card = active ? nrTipoCardActive : nrTipoCardInactive;
+    const wrap = active ? tipoIconWrapActive : tipoIconWrapInactive;
+    const subExtra = subtitle
+      ? `<span class="mt-0.5 block text-[11px] font-medium leading-snug ${active ? "text-slate-600" : "text-slate-500 group-hover:text-slate-600"}">${escapeHtml(subtitle)}</span>`
+      : "";
+    return `
+      <button
+        type="button"
+        role="tab"
+        aria-selected="${active}"
+        data-rh-nr-tipo="${tipoAttr}"
+        class="${card}"
+      >
+        <span class="${wrap}">${svg}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-[13px] font-semibold leading-snug tracking-tight ${active ? "text-text-primary" : "text-slate-800"}">${escapeHtml(title)}</span>
+          ${subExtra}
+        </span>
+      </button>`;
+  }
+
+  const permisoBtn = opts.showPermisoSinGoce
+    ? chip(opts.permisoActive, "permiso_sin_goce_sueldo", iconSvgPermisoSinGoce(), "Permiso sin goce", "Sin goce de sueldo")
+    : "";
+
+  return `
+    <div class="${NR_TIPO_LIST_WRAP}" role="tablist" aria-label="Tipo de solicitud">
+      <div class="grid ${gridCols} gap-2.5 sm:gap-3">
+        ${chip(opts.vacActive, "vacaciones", iconSvgVacaciones(), "Vacaciones", null)}
+        ${chip(opts.hoActive, "home_office", iconSvgHomeOffice(), "Home Office", null)}
+        ${permisoBtn}
+      </div>
+    </div>`;
+}
+
+export type SupervisorSolicitudSujeto = "personal" | "team";
+
+function buildSupervisorSolicitudSubjectHtml(subject: SupervisorSolicitudSujeto): string {
+  const personalOn = subject === "personal";
+  const teamOn = subject === "team";
+  const optBase =
+    "flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3.5 text-left transition-[background-color,border-color,box-shadow] duration-200 ease-out has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-leoni-blue has-[:focus-visible]:ring-offset-2 sm:py-4";
+  const inactive = `${optBase} border-slate-200/95 bg-white/70 hover:border-slate-300 hover:bg-white hover:shadow-sm`;
+  const active = `${optBase} border-leoni-blue/40 bg-white shadow-md shadow-slate-900/[0.07] ring-[0.5px] ring-leoni-blue/35`;
+  return `
+    <fieldset class="${SEC_BOX} space-y-3" aria-describedby="rh-nr-sujeto-desc">
+      <legend id="rh-nr-sec-sujeto" class="${SEC_TITLE}">Sujeto de la solicitud</legend>
+      <p id="rh-nr-sujeto-desc" class="text-xs leading-relaxed text-slate-500">
+        Define si registrarás tus propios días y permisos o los de un colaborador bajo tu mando directo (alcance habitual del supervisor en el sistema).
+      </p>
+      <div class="${NR_TIPO_LIST_WRAP}">
+        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+          <label class="${personalOn ? active : inactive}">
+            <input
+              type="radio"
+              name="rh-nr-solicitud-sujeto"
+              value="personal"
+              class="mt-0.5 size-[1.125rem] shrink-0 accent-[var(--color-accent)]"
+              ${personalOn ? "checked" : ""}
+            />
+            <span class="min-w-0 flex-1">
+              <span class="block text-[13px] font-semibold leading-snug tracking-tight text-text-primary">Solicitud personal</span>
+              <span class="mt-0.5 block text-[11px] font-medium leading-snug text-slate-500">Para tus vacaciones u horarios como colaborador</span>
+            </span>
+          </label>
+          <label class="${teamOn ? active : inactive}">
+            <input
+              type="radio"
+              name="rh-nr-solicitud-sujeto"
+              value="team"
+              class="mt-0.5 size-[1.125rem] shrink-0 accent-[var(--color-accent)]"
+              ${teamOn ? "checked" : ""}
+            />
+            <span class="min-w-0 flex-1">
+              <span class="block text-[13px] font-semibold leading-snug tracking-tight text-text-primary">Miembro del equipo</span>
+              <span class="mt-0.5 block text-[11px] font-medium leading-snug text-slate-500">Registro en nombre de un colaborador</span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </fieldset>`;
 }
 
 export type RhNewRequestFormParams = {
@@ -168,6 +293,21 @@ export type RhNewRequestFormParams = {
   singleDayHomeOfficeMode?: boolean;
   /** Controla visibilidad del bloque de Motivo. */
   showMotivoField?: boolean;
+  /** Radio personal vs equipo (solo supervisor). */
+  showSupervisorSolicitudSubject?: boolean;
+  supervisorSolicitudSubject?: SupervisorSolicitudSujeto;
+  /** Reemplaza el texto de ayuda bajo titular fijo (p. ej. solicitud propia supervisor). */
+  fixedEmpleadoAyudaOverride?: string;
+  /** Texto del párrafo introductorio en la sección de búsqueda de empleado. */
+  empleadoBusquedaAyuda?: string;
+  /**
+   * Si es true y `showUnpaidLeaveType`: ocultar chip «Permiso sin goce» (supervisor en solicitud personal).
+   */
+  supervisorOcultarPermisoSinGoceEnTipo?: boolean;
+  /**
+   * Supervisor en «Miembro del equipo»: no mostrar campo Motivo; solo comentarios (permiso sin goce se valida ahí).
+   */
+  omitMotivoCampoSupervisorEquipo?: boolean;
 };
 
 export const RESUMEN_BASE =
@@ -243,6 +383,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const revision = Boolean(p.modoRevision);
   const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
   const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
+  const formSupEquipoSinMotivoAttr = p.omitMotivoCampoSupervisorEquipo === true ? ` data-rh-nr-sup-equipo-sin-motivo="1"` : "";
   const tipoEtiquetaLectura =
     p.tipo === "vacaciones" ? "Vacaciones"
     : p.tipo === "home_office" ? "Home office"
@@ -267,18 +408,28 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     revision ?
       "El colaborador de la solicitud no puede cambiarse al corregir. Solo puedes ajustar fechas y comentarios."
     : "La solicitud queda registrada para tu usuario. No está permitido elegir otro colaborador.";
+  const textoAyudaFijoEmpleado =
+    revision ? empleadoAyudaFija : (p.fixedEmpleadoAyudaOverride?.trim() || empleadoAyudaFija);
   const empleadoTituloSeccion = revision ? "Colaborador de la solicitud" : "Solicitante";
+  const empleadoSectionIntro =
+    (p.empleadoBusquedaAyuda ?? "").trim() ||
+    "Busca y selecciona la persona para la que registras la solicitud.";
+
+  const supervisorSujetoSection =
+    p.showSupervisorSolicitudSubject && !revision
+      ? buildSupervisorSolicitudSubjectHtml(p.supervisorSolicitudSubject ?? "personal")
+      : "";
 
   const empleadoBlock = selfMode
     ? `<section class="${SEC_BOX} space-y-3" aria-labelledby="rh-nr-sec-empleado">
         <h3 id="rh-nr-sec-empleado" class="${SEC_TITLE}">${escapeHtml(empleadoTituloSeccion)}</h3>
         <p class="text-sm font-medium text-slate-800">${escapeHtml(p.fixedEmpleado!.displayLine)}</p>
-        <p class="text-xs text-slate-500">${escapeHtml(empleadoAyudaFija)}</p>
+        <p class="text-xs text-slate-500">${escapeHtml(textoAyudaFijoEmpleado)}</p>
         <input type="hidden" name="empleado_id" id="rh-nr-empleado-id" value="${escapeHtml(p.fixedEmpleado!.directoryId)}" />
       </section>`
     : `<section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-empleado" data-rh-nr-empleado-section>
         <h3 id="rh-nr-sec-empleado" class="${SEC_TITLE}">Empleado</h3>
-        <p class="text-xs text-slate-500">Busca y selecciona la persona para la que registras la solicitud.</p>
+        <p class="text-xs text-slate-500">${escapeHtml(empleadoSectionIntro)}</p>
         <div class="space-y-3">
           <div>
             <label for="rh-nr-empleado-q" class="${LABEL}">Buscar empleado</label>
@@ -327,13 +478,33 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       </p>`
     : `<p class="text-xs leading-relaxed text-slate-500">La solicitud será registrada en el sistema y seguirá el flujo correspondiente.</p>`;
 
+  const chipIncluyePermisoSinGoce =
+    p.showUnpaidLeaveType === true && p.supervisorOcultarPermisoSinGoceEnTipo !== true;
+
+  const avisoTipoSupervisorSinPermisoSinGoce =
+    p.showSupervisorSolicitudSubject &&
+    !revision &&
+    p.supervisorSolicitudSubject === "personal" &&
+    p.showUnpaidLeaveType &&
+    !p.showPaidLeaveTypes
+      ? `<p class="mt-1.5 text-xs leading-relaxed text-slate-500">
+          En solicitud personal solo puedes usar <strong class="font-medium text-slate-700">Vacaciones</strong> u
+          <strong class="font-medium text-slate-700">Home Office</strong>. El permiso sin goce solo aplica al registrar una solicitud para un miembro del equipo.
+        </p>`
+      : "";
+
   return `
-    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}>
+    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formSupEquipoSinMotivoAttr}>
     <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
     ${revisionCallout}
 
+      ${supervisorSujetoSection}
+
       <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
-        <h3 id="rh-nr-sec-tipo" class="${SEC_TITLE}">Tipo de solicitud</h3>
+        <div>
+          <h3 id="rh-nr-sec-tipo" class="${SEC_TITLE}">Tipo de solicitud</h3>
+          ${avisoTipoSupervisorSinPermisoSinGoce}
+        </div>
         ${
           revision ?
             `<div class="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3.5 shadow-sm">
@@ -365,30 +536,18 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
           </div>
         </div>`
           : p.showUnpaidLeaveType ?
-            `<div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
-          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconVacaciones(vacActive)}
-            <span>Vacaciones</span>
-          </button>
-          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconHome(hoActive)}
-            <span>Home Office</span>
-          </button>
-          <button type="button" role="tab" aria-selected="${permisoSinGoceActive}" data-rh-nr-tipo="permiso_sin_goce_sueldo" class="${permisoSinGoceActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconHome(permisoSinGoceActive)}
-            <span>Permiso sin goce</span>
-          </button>
-        </div>`
-          : `<div class="flex gap-1.5 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/60" role="tablist">
-          <button type="button" role="tab" aria-selected="${vacActive}" data-rh-nr-tipo="vacaciones" class="${vacActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconVacaciones(vacActive)}
-            <span>Vacaciones</span>
-          </button>
-          <button type="button" role="tab" aria-selected="${hoActive}" data-rh-nr-tipo="home_office" class="${hoActive ? TAB_ACTIVE : TAB_INACTIVE}">
-            ${iconHome(hoActive)}
-            <span>Home Office</span>
-          </button>
-        </div>`
+            `${buildRhTipoChipRowHtml({
+              vacActive,
+              hoActive,
+              permisoActive: permisoSinGoceActive,
+              showPermisoSinGoce: chipIncluyePermisoSinGoce,
+            })}`
+          : `${buildRhTipoChipRowHtml({
+              vacActive,
+              hoActive,
+              permisoActive: permisoSinGoceActive,
+              showPermisoSinGoce: false,
+            })}`
         }
       </section>
 
@@ -465,17 +624,28 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       <section class="space-y-2" aria-labelledby="rh-nr-sec-comentarios">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id="rh-nr-sec-comentarios" class="${SEC_TITLE} !mb-0">Comentarios</h3>
-          <span class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Opcional</span>
+          <span class="text-[10px] font-medium uppercase tracking-wide text-slate-400">${
+            p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ? "Obligatorio" : "Opcional"
+          }</span>
         </div>
         <textarea
           id="rh-nr-comentarios"
           name="comentarios"
           rows="5"
-          placeholder="Agrega notas adicionales sobre esta solicitud…"
+          ${p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ? "required" : ""}
+          placeholder="${
+            p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ?
+              "Describe el contexto y la justificación del permiso para el colaborador…"
+            : "Agrega notas adicionales sobre esta solicitud…"
+          }"
           aria-describedby="rh-nr-comentarios-help"
           class="min-h-[7.5rem] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/65 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
         >${escapeHtml(comentariosValue)}</textarea>
-        <p id="rh-nr-comentarios-help" class="text-xs text-slate-500">Agrega notas adicionales sobre esta solicitud si el contexto lo requiere.</p>
+        <p id="rh-nr-comentarios-help" class="text-xs text-slate-500">${
+          p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ?
+            "En solicitudes de equipo, el contexto del permiso sin goce se registra solo aquí."
+          : "Agrega notas adicionales sobre esta solicitud si el contexto lo requiere."
+        }</p>
       </section>
 
       <div class="flex gap-2.5 rounded-xl border border-slate-100 bg-slate-50/90 px-4 py-3">
@@ -520,6 +690,8 @@ export function computeRhModalFormUi(
   fechaFin: string,
   motivo: string,
   empleadoSelectorOmitted = false,
+  comentarios = "",
+  permisoSinGoceMotivoViaComentarios = false,
 ): RhModalComputedUi {
   const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
@@ -558,7 +730,12 @@ export function computeRhModalFormUi(
   }
 
   const empOk = empleadoSelectorOmitted || selectedEmpleadoId.trim() !== "";
-  const motivoOk = tipo !== "permiso_sin_goce_sueldo" || motivo.trim().length > 0;
+  const motivoOk =
+    tipo !== "permiso_sin_goce_sueldo" ?
+      true
+    : permisoSinGoceMotivoViaComentarios ?
+      comentarios.trim().length > 0
+    : motivo.trim().length > 0;
   const canSubmit =
     empOk &&
     bothDates &&
@@ -600,11 +777,24 @@ export function applyRhModalLiveFeedback(
   const fi = modalHost.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
   const ff = modalHost.querySelector("#rh-nr-fin") as HTMLInputElement | null;
   const motivo = modalHost.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
+  const comentariosEl = modalHost.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null;
+  const formEl = modalHost.querySelector("#rh-nr-form") as HTMLFormElement | null;
   if (!fi || !ff) return;
 
   const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
+  const permisoViaComentarios = formEl?.hasAttribute("data-rh-nr-sup-equipo-sin-motivo") === true;
 
-  const ui = computeRhModalFormUi(tipo, contextoVac, empVal, fi.value, ff.value, motivo?.value ?? "", selfMode);
+  const ui = computeRhModalFormUi(
+    tipo,
+    contextoVac,
+    empVal,
+    fi.value,
+    ff.value,
+    motivo?.value ?? "",
+    selfMode,
+    comentariosEl?.value ?? "",
+    permisoViaComentarios,
+  );
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;
   ff.className = `${CONTROL} font-medium tabular-nums ${ui.fechaFinInvalid ? CONTROL_INVALID : ""}`;
