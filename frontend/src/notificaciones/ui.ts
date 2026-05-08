@@ -35,7 +35,9 @@ export function summarizeNotificacionMessage(message: string, maxLen: number): s
 export function renderNotificacionBadge(unreadCount: number): string {
   if (unreadCount <= 0) return "";
   const text = unreadCount > 99 ? "99+" : String(unreadCount);
-  return `<span class="absolute -top-1 -right-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">${escapeHtml(text)}</span>`;
+  const wide = unreadCount > 9;
+  const box = wide ? "min-w-[17px] px-[3px]" : "size-[15px] px-px";
+  return `<span aria-hidden="true" class="pointer-events-none absolute -right-0.5 -top-[3px] inline-flex ${box} h-[15px] items-center justify-center rounded-full bg-red-600 text-[9px] font-semibold tabular-nums leading-none text-white ring-[2px] ring-white">${escapeHtml(text)}</span>`;
 }
 
 function buildListItemAriaLabel(item: NotificacionApiItem, previewMax: number): string {

@@ -199,8 +199,8 @@ function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
-    mainClass: "pt-0 pb-10",
-    mainHtml: `<div class="rh-dashboard-page -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div></div>`,
+    mainClass: "py-0",
+    mainHtml: `<div class="rh-dashboard-page flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div></div>`,
   });
 
   void loadEmpleadoPersonalDashboard(container);

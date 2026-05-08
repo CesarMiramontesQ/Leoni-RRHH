@@ -22,12 +22,32 @@ function escapeHtmlText(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatRolLabel(rol: string | null): string {
+  if (!rol) return "";
+  const labels: Record<string, string> = {
+    empleado: "Empleado",
+    supervisor: "Supervisor",
+    rh: "RH",
+    director: "Director",
+    gerente: "Gerente",
+  };
+  return labels[rol] ?? rol.charAt(0).toUpperCase() + rol.slice(1).toLowerCase();
+}
+
+/** Contenedor de enlace: altura estable, paddings coherentes entre drawer / rail / ancho completo. */
+const navLinkBase =
+  "group/nav relative flex min-h-11 w-full items-center gap-x-3 rounded px-3 py-2 text-sm leading-snug outline-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:max-lg:justify-center md:max-lg:px-2 lg:justify-start";
+
 const navInactive =
-  "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold text-text-primary hover:bg-surface hover:text-leoni-blue";
-const navIconInactive = "size-6 shrink-0 text-text-muted group-hover:text-leoni-blue";
+  `${navLinkBase} border border-transparent font-semibold text-text-primary hover:bg-shell-hover hover:text-text-primary`;
+
+const navIconInactive =
+  "size-5 shrink-0 text-text-muted transition-colors duration-150 group-hover/nav:text-text-primary md:max-lg:mx-auto";
+
 const navActive =
-  "group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-leoni-blue";
-const navIconActive = "size-6 shrink-0 text-leoni-blue";
+  `${navLinkBase} border border-transparent bg-shell-active-ring font-bold text-text-primary before:pointer-events-none before:absolute before:start-0 before:top-1/2 before:h-[1.875rem] before:w-[3px] before:-translate-y-1/2 before:rounded-e before:bg-accent`;
+
+const navIconActive = "size-5 shrink-0 text-text-primary md:max-lg:mx-auto";
 let shellUiAbortController: AbortController | null = null;
 
 export type ShellNavKey =
@@ -57,16 +77,18 @@ function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: 
   const isActive = def.key != null && activeNav === def.key;
   const cls = isActive ? navActive : navInactive;
   const ic = isActive ? navIconActive : navIconInactive;
-  const labelInner =
+  const escapedLabel = escapeHtmlText(def.label);
+  const ariaCurrent = isActive ? ` aria-current="page"` : "";
+  const labelWrap =
     def.labelWrapClass != null ?
-      `<span class="${def.labelWrapClass}">${def.label}</span>`
-    : def.label;
+      `<span class="${def.labelWrapClass} md:max-lg:sr-only">${def.label}</span>`
+    : `<span class="md:max-lg:sr-only">${def.label}</span>`;
   return `<li>
-    <a href="${href}" class="${cls}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="${ic}">
+    <a href="${href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">
         ${def.svgPaths}
       </svg>
-      ${labelInner}
+      ${labelWrap}
     </a>
   </li>`;
 }
@@ -167,8 +189,8 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
   const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
   const ajustesLi = navItemLi(activeNav, rol, NAV_AJUSTES);
   if (empleadosLi.trim() === "" && ajustesLi.trim() === "") return "";
-  return `<li class="mt-auto">
-    <ul role="list" class="-mx-2 space-y-1">
+  return `<li class="mt-auto pt-6">
+    <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
       ${empleadosLi}
       ${ajustesLi}
     </ul>
@@ -185,20 +207,21 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
     talentoLis.trim() === "" ?
       ""
     : `<li>
-          <div class="text-xs/6 font-semibold text-text-muted">Talento</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-1">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden">Talento</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3">
             ${talentoLis}
           </ul>
         </li>`;
 
   return `
-    <div class="relative flex h-16 shrink-0 items-center">
-      <img src="/leoni-logo.png" alt="Leoni" class="h-8 w-auto max-w-full object-contain object-left" />
+    <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
+      <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
     </div>
     <nav class="relative flex flex-1 flex-col">
-      <ul role="list" class="flex flex-1 flex-col gap-y-7">
+      <ul role="list" class="flex flex-1 flex-col gap-y-6">
         <li>
-          <ul role="list" class="-mx-2 space-y-1">
+          <div class="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden">Menú principal</div>
+          <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
             ${primaryLis}
           </ul>
         </li>
@@ -231,10 +254,15 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const body = sidebarBody(options.activeNav);
   const userName = escapeHtmlText(getUserDisplayNameFromAccessToken());
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
+  const rawRol = getRolFromAccessToken();
+  const userRolLine =
+    rawRol ?
+      `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
+    : "";
 
   container.innerHTML = `
 <el-dialog>
-  <dialog id="sidebar" class="backdrop:bg-transparent lg:hidden">
+  <dialog id="sidebar" class="backdrop:bg-transparent md:hidden">
     <el-dialog-backdrop class="fixed inset-0 bg-gray-900/80 transition-opacity duration-300 ease-linear data-closed:opacity-0"></el-dialog-backdrop>
 
     <div tabindex="0" class="fixed inset-0 flex focus:outline-none">
@@ -248,7 +276,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
           </button>
         </div>
 
-        <div class="relative flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
+        <div class="relative flex grow flex-col gap-y-4 overflow-y-auto bg-white px-5 pb-5 pt-2">
           ${body}
         </div>
       </el-dialog-panel>
@@ -256,43 +284,49 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </dialog>
 </el-dialog>
 
-<div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-  <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border bg-white px-6 pb-4">
+<div class="relative z-40 hidden md:fixed md:inset-y-0 md:flex md:w-[4.75rem] md:flex-col lg:hidden">
+  <div class="flex grow flex-col gap-y-4 overflow-y-auto border-r border-border bg-white px-2 pb-4 pt-1">
     ${body}
   </div>
 </div>
 
-<div class="min-h-full bg-surface lg:pl-72">
-  <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-border bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8">
-    <button type="button" command="show-modal" commandfor="sidebar" class="-m-2.5 p-2.5 text-text-muted hover:text-text-primary lg:hidden">
+<div class="relative z-40 hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
+  <div class="flex grow flex-col gap-y-4 overflow-y-auto border-r border-border bg-white px-6 pb-4 pt-1">
+    ${body}
+  </div>
+</div>
+
+<div class="min-h-full bg-surface md:pl-[4.75rem] lg:pl-72">
+  <div class="sticky top-0 z-40 flex min-h-[3.75rem] shrink-0 items-center gap-x-3 border-b border-border bg-white px-4 py-2 shadow-[0_2px_8px_-2px_rgb(15_23_42/0.06)] sm:gap-x-5 sm:px-6 lg:px-8">
+    <button type="button" command="show-modal" commandfor="sidebar" class="flex items-center rounded-lg p-2 text-text-muted transition-colors hover:bg-shell-hover hover:text-text-primary md:hidden">
       <span class="sr-only">Abrir menú</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0">
         <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
 
-    <div aria-hidden="true" class="h-6 w-px bg-text-primary/10 lg:hidden"></div>
+    <div aria-hidden="true" class="flex h-6 w-px shrink-0 bg-text-primary/10 md:hidden"></div>
 
-    <div class="flex min-w-0 flex-1 items-center gap-x-4 self-stretch lg:gap-x-6">
+    <div class="flex min-w-0 flex-1 flex-row items-center gap-x-5 sm:gap-x-8">
       <p
         id="app-shell-page-title"
-        class="min-w-0 flex-1 truncate text-lg font-semibold text-text-primary"
+        class="min-w-0 flex-1 truncate text-lg font-semibold leading-tight tracking-tight text-text-primary sm:text-xl"
         title="${tituloNavbar}"
       >
         ${tituloNavbar}
       </p>
-      <div class="flex items-center gap-x-4 lg:gap-x-6">
-        <div id="app-shell-notifications-wrapper" class="relative">
+      <div class="flex shrink-0 items-center gap-x-6 sm:gap-x-10">
+        <div id="app-shell-notifications-wrapper" class="relative flex shrink-0 items-center">
           <button
             type="button"
             id="app-shell-notifications"
-            class="relative -m-2.5 p-2.5 text-text-muted hover:text-text-primary"
+            class="relative flex size-10 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-shell-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2"
             aria-expanded="false"
             aria-haspopup="true"
             aria-controls="app-shell-notifications-panel"
           >
             <span class="sr-only">Ver notificaciones</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0">
               <path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <span id="app-shell-notifications-badge"></span>
@@ -316,18 +350,25 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
           </div>
         </div>
 
-        <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-text-primary/10"></div>
+        <div aria-hidden="true" class="hidden h-6 w-px shrink-0 bg-text-primary/10 sm:block"></div>
 
-        <el-dropdown class="relative">
-          <button type="button" class="relative flex items-center" title="${userName}" aria-label="Menú de ${userName}">
-            <span class="absolute -inset-1.5"></span>
-            <span class="sr-only">Menú de ${userName}</span>
-            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white outline -outline-offset-1 outline-black/5">${userInitials}</span>
-            <span class="hidden lg:flex lg:items-center">
-              <span aria-hidden="true" class="ml-4 text-sm/6 font-semibold text-text-primary">${userName}</span>
-              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="ml-2 size-5 text-text-muted">
-                <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-              </svg>
+        <el-dropdown class="relative flex items-center">
+          <button
+            type="button"
+            class="relative z-10 flex max-w-[18rem] items-center gap-3 rounded-lg border border-transparent py-1.5 pl-1 pr-2 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-shell-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 sm:gap-4 sm:pl-2"
+            title="${userName}"
+            aria-label="Menú de usuario de ${userName}"
+          >
+            <span class="sr-only">Menú de usuario de ${userName}</span>
+            <span class="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-[0.6875rem] font-semibold text-white shadow-sm ring-[1px] ring-black/10 ring-inset">${userInitials}</span>
+            <span class="hidden min-w-0 flex-col leading-tight lg:flex lg:items-start">
+              <span class="flex items-center gap-1.5">
+                <span class="truncate text-start text-sm font-semibold text-text-primary">${userName}</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-text-muted">
+                  <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                </svg>
+              </span>
+              ${userRolLine}
             </span>
           </button>
           <el-menu anchor="bottom end" popover class="w-40 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">

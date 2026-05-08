@@ -110,9 +110,9 @@ import {
 
 /** Mismo contenedor visual que Solicitudes (`#rh-comedor-page` activa estilos en `style.css`). */
 const COMEDOR_DASHBOARD_PAGE_SHELL =
-  "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
-const COMEDOR_DASHBOARD_MAIN_CLASS = "pt-0 pb-5 sm:pb-6";
+const COMEDOR_DASHBOARD_MAIN_CLASS = "py-0";
 
 type RhComedorState = {
   statsState: ComedorPanelState;

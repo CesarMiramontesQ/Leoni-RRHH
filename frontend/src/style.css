@@ -4,6 +4,8 @@
 @theme {
   --color-leoni-blue:       #002147;
   --color-leoni-blue-light: #0D3D66;
+  /* Alineado con design.md — acento solo para focos / indicadores */
+  --color-accent:           #2563eb;
   --color-leoni-green:      #00C853;
   --color-leoni-black:      #000000;
   --color-leoni-dark:       #1A2433;
@@ -11,6 +13,9 @@
   --color-text-primary:     #002147;
   --color-text-muted:       #5A6880;
   --color-border:           #D1DCE8;
+  /* Sidebar / shell: tintes muy suaves (sin hex sueltos en TS) */
+  --color-shell-hover:       rgb(239 246 255);
+  --color-shell-active-ring: rgb(219 234 254);
 
   /* KPI directorio: icono intenso + tinte suave (activo más vivo, inactivo rojo más claro) */
   --color-kpi-metric-total-icon:    #1d4ed8;
@@ -55,9 +60,13 @@ body {
 .notif-dropdown-panel {
   --notif-dd-transition: opacity 180ms ease, transform 180ms ease, visibility 0ms linear 180ms;
   position: absolute;
-  right: 0;
+  /* Debajo del botón y alineado a la derecha del wrapper (.relative junto al icono).
+     Sin `top`, `top:auto` usa la «static position» en flex y el panel puede colocarse mal (p. ej. a la izquierda). */
+  top: 100%;
+  inset-inline-start: auto;
+  inset-inline-end: 0;
   z-index: 50;
-  margin-top: 0.5rem;
+  margin-top: 0.375rem;
   display: flex;
   width: min(380px, calc(100vw - 24px));
   max-height: min(480px, calc(100vh - 90px));
