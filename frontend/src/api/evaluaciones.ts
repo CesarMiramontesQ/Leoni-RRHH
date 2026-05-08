@@ -96,6 +96,32 @@ export async function bulkCreateEvaluaciones(
   return res.json();
 }
 
+export interface CompetenciaResumenItem {
+  competencia_id: number;
+  competencia_nombre: string;
+  categoria: string;
+  nivel_requerido: number;
+  nivel_actual: number;
+  gap: number;
+}
+
+export interface EmpleadoResumen {
+  empleado_id: number;
+  empleado_nombre: string;
+  area_nombre: string | null;
+  competencias: CompetenciaResumenItem[];
+  cumplimiento_pct: number;
+  total_competencias: number;
+  evaluadas: number;
+  con_gap: number;
+}
+
+export async function getEmpleadoResumen(empleadoId: number): Promise<EmpleadoResumen | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/resumen`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export const NIVEL_LABELS: Record<number, string> = {
   0: "N/A",
   1: "Básico",

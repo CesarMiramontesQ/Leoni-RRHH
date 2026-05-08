@@ -11,11 +11,16 @@ Responsabilidades:
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
-from app.models.talento import Competencia, EvaluacionCompetencia
+from app.models.talento import Competencia, CompetenciaRequisito, EvaluacionCompetencia, PuestoPerfil
 from app.repositories.evaluacion_repository import EvaluacionRepository
 from app.schemas.evaluaciones import (
+    EmpleadoCompetenciaResumen,
+    EmpleadoResumenResponse,
     EvaluacionBulkCreate,
     EvaluacionCreate,
     EvaluacionListResponse,
@@ -61,7 +66,6 @@ class EvaluacionService:
         raise ForbiddenError("Solo RH o supervisores pueden crear evaluaciones")
 
     async def _get_empleado(self, empleado_id: int) -> Empleado:
-        from sqlalchemy import select
         result = await self.db.execute(
             select(Empleado).where(Empleado.id == empleado_id)
         )
@@ -71,7 +75,6 @@ class EvaluacionService:
         return emp
 
     async def _get_competencia(self, competencia_id: int) -> Competencia:
-        from sqlalchemy import select
         result = await self.db.execute(
             select(Competencia).where(
                 Competencia.id == competencia_id,
@@ -201,3 +204,86 @@ class EvaluacionService:
 
         await self.db.commit()
         return {"creadas": creadas, "errores": errores}
+
+    async def resumen_empleado(
+        self, empleado_id: int, current_user: Empleado
+    ) -> EmpleadoResumenResponse:
+        rol = current_user.rol.nombre if current_user.rol else None
+        if rol not in ("rh", "supervisor") and current_user.id != empleado_id:
+            raise ForbiddenError("Solo puedes ver tu propio resumen")
+        if rol == "supervisor" and current_user.id != empleado_id:
+            target = await self._get_empleado(empleado_id)
+            if current_user.area_id != target.area_id:
+                raise ForbiddenError("Supervisor solo puede ver resumen de su area")
+
+        emp = await self._get_empleado(empleado_id)
+
+        # Get competencia requisitos for perfiles in the employee's area
+        requisitos_result = await self.db.execute(
+            select(CompetenciaRequisito)
+            .options(selectinload(CompetenciaRequisito.competencia))
+            .join(PuestoPerfil)
+            .where(
+                PuestoPerfil.area_id == emp.area_id,
+                PuestoPerfil.activo.is_(True),
+            )
+        )
+        requisitos = requisitos_result.scalars().all()
+
+        # Get employee's evaluations
+        evaluaciones = await self.repo.list_by_empleado(empleado_id)
+        eval_map = {ev.competencia_id: ev.nivel_actual for ev in evaluaciones}
+
+        # Build per-competencia resumen (deduplicate by competencia, take max nivel_requerido)
+        competencia_reqs: dict[int, tuple[str, str, int]] = {}
+        for req in requisitos:
+            comp = req.competencia
+            if not comp or not comp.activo:
+                continue
+            existing = competencia_reqs.get(comp.id)
+            if existing is None or req.nivel_requerido > existing[2]:
+                competencia_reqs[comp.id] = (comp.nombre, comp.categoria or "tecnica", req.nivel_requerido)
+
+        items: list[EmpleadoCompetenciaResumen] = []
+        for comp_id, (nombre, categoria, nivel_req) in sorted(competencia_reqs.items(), key=lambda x: x[1][0]):
+            nivel_act = eval_map.get(comp_id, 0)
+            gap = max(0, nivel_req - nivel_act)
+            items.append(EmpleadoCompetenciaResumen(
+                competencia_id=comp_id,
+                competencia_nombre=nombre,
+                categoria=categoria,
+                nivel_requerido=nivel_req,
+                nivel_actual=nivel_act,
+                gap=gap,
+            ))
+
+        total = len(items)
+        evaluadas = sum(1 for i in items if eval_map.get(i.competencia_id) is not None)
+        con_gap = sum(1 for i in items if i.gap > 0)
+
+        if total > 0:
+            cumplimiento = sum(
+                min(i.nivel_actual / i.nivel_requerido, 1.0) if i.nivel_requerido > 0 else 1.0
+                for i in items
+            ) / total * 100
+        else:
+            cumplimiento = 0.0
+
+        area_nombre = None
+        if emp.area_id:
+            from app.models.catalogos import Area
+            area_result = await self.db.execute(
+                select(Area.descripcion).where(Area.area_id == emp.area_id)
+            )
+            area_nombre = area_result.scalar_one_or_none()
+
+        return EmpleadoResumenResponse(
+            empleado_id=emp.id,
+            empleado_nombre=emp.nombre,
+            area_nombre=area_nombre,
+            competencias=items,
+            cumplimiento_pct=round(cumplimiento, 1),
+            total_competencias=total,
+            evaluadas=evaluadas,
+            con_gap=con_gap,
+        )

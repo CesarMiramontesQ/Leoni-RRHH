@@ -193,7 +193,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   function renderRow(ev: Evaluacion): string {
     const fecha = ev.fecha_evaluacion ? new Date(ev.fecha_evaluacion).toLocaleDateString("es-MX") : "-";
     return `<tr>
-      <td class="px-4 py-3 text-sm text-gray-900">${ev.empleado_nombre ?? `ID ${ev.empleado_id}`}</td>
+      <td class="px-4 py-3 text-sm"><a href="#/evaluaciones/empleado/${ev.empleado_id}" class="text-blue-600 hover:text-blue-800 font-medium">${ev.empleado_nombre ?? `ID ${ev.empleado_id}`}</a></td>
       <td class="px-4 py-3 text-sm text-gray-700">${ev.competencia_nombre ?? `ID ${ev.competencia_id}`}</td>
       <td class="px-4 py-3 text-sm">${renderNivelBadge(ev.nivel_actual)}</td>
       <td class="px-4 py-3 text-sm text-gray-500">${ev.evaluador_nombre ?? "-"}</td>

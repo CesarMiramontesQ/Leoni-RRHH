@@ -19,6 +19,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.evaluaciones import (
+    EmpleadoResumenResponse,
     EvaluacionBulkCreate,
     EvaluacionCreate,
     EvaluacionListResponse,
@@ -42,6 +43,19 @@ async def evaluaciones_por_empleado(
     """Todas las evaluaciones de un empleado."""
     service = EvaluacionService(db)
     return await service.listar_por_empleado(
+        empleado_id=empleado_id, current_user=current_user
+    )
+
+
+@router.get("/empleado/{empleado_id}/resumen", response_model=EmpleadoResumenResponse)
+async def resumen_empleado(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resumen de competencias: requeridas vs evaluadas, gaps y cumplimiento %."""
+    service = EvaluacionService(db)
+    return await service.resumen_empleado(
         empleado_id=empleado_id, current_user=current_user
     )
 

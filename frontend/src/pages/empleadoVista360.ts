@@ -219,9 +219,9 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
     <aside class="rounded-2xl border border-border/80 bg-gradient-to-b from-white to-slate-50/60 p-5 shadow-sm ring-1 ring-slate-900/5">
       <h3 class="text-sm font-semibold text-text-primary">Competencias</h3>
       <div class="mt-4">${vista360CompetenciasCardHtml([])}</div>
-      <button type="button" disabled title="Próximamente"
-        class="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed">
-        Ver evaluación completa</button>
+      <a href="#/evaluaciones/empleado/${data.usuario.id}"
+        class="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-leoni-blue transition hover:bg-leoni-blue/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+        Ver evaluación completa</a>
     </aside>`;
 
   const panel = (id: Vista360TabId, inner: string): string => {

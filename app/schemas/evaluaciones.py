@@ -62,3 +62,14 @@ class EmpleadoCompetenciaResumen(BaseModel):
     nivel_requerido: int
     nivel_actual: int
     gap: int
+
+
+class EmpleadoResumenResponse(BaseModel):
+    empleado_id: int
+    empleado_nombre: str
+    area_nombre: Optional[str] = None
+    competencias: list[EmpleadoCompetenciaResumen]
+    cumplimiento_pct: float
+    total_competencias: int
+    evaluadas: int
+    con_gap: int
