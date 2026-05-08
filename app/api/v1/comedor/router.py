@@ -188,11 +188,11 @@ async def mis_fechas_ocupadas_comedor(
 
 @router.get("/accesos/mis-proximas-reservas", response_model=list[ComedorMisReservaItem])
 async def mis_proximas_reservas_comedor(
-    limite: int = Query(5, ge=1, le=20),
+    limite: int = Query(5, ge=1, le=200),
     current_user: Empleado = Depends(role_checker(["empleado"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Top N reservas próximas del empleado desde hoy (por defecto 5)."""
+    """Top N reservas próximas del empleado desde hoy (por defecto 5, máx. 200)."""
     service = ComedorService(db)
     return await service.list_mis_proximas_reservas(
         current_user=current_user,

@@ -495,7 +495,11 @@ components:
         empleado_nombre:
           type: string
           default: ""
+        empleado_no_empleado:
+          type: [string, "null"]
         empleado_area:
+          type: [string, "null"]
+        empleado_puesto:
           type: [string, "null"]
         empleado_foto:
           type: [string, "null"]
@@ -3046,7 +3050,7 @@ paths:
             type: integer
             default: 5
             minimum: 1
-            maximum: 20
+            maximum: 200
       responses:
         "200":
           description: Reservas proximas

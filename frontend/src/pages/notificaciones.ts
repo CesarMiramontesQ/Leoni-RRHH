@@ -32,6 +32,27 @@ function filterItems(items: NotificacionApiItem[], filter: NotificationFilter): 
   return items.filter((i) => i.is_read);
 }
 
+function notificacionTs(iso: string): number {
+  const ts = new Date(iso).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function sortByFechaDesc(items: NotificacionApiItem[]): NotificacionApiItem[] {
+  return [...items].sort((a, b) => notificacionTs(b.created_at) - notificacionTs(a.created_at));
+}
+
+function selectVisibleItems(items: NotificacionApiItem[]): NotificacionApiItem[] {
+  const sorted = sortByFechaDesc(items);
+  const unread = sorted.filter((item) => !item.is_read);
+  const read = sorted.filter((item) => item.is_read);
+
+  if (unread.length === 0) return read.slice(0, 10);
+  if (unread.length >= 10) return unread;
+
+  const remaining = Math.max(10 - unread.length, 0);
+  return sortByFechaDesc([...unread, ...read.slice(0, remaining)]);
+}
+
 function isUnauthorizedError(error: unknown): boolean {
   return typeof error === "object" && error != null && "status" in error && (error as { status?: unknown }).status === 401;
 }
@@ -65,7 +86,8 @@ function notificacionesPageHtml(state: PageState): string {
   } else if (state.items.length === 0) {
     body = renderNotificationsEmptyGlobal();
   } else {
-    const filtered = filterItems(state.items, state.filter);
+    const visibleItems = state.filter === "all" ? selectVisibleItems(state.items) : sortByFechaDesc(state.items);
+    const filtered = filterItems(visibleItems, state.filter);
     if (filtered.length === 0) {
       body = renderNotificationsEmptyFiltered(state.filter);
     } else {

@@ -4,6 +4,7 @@ import {
   RH_LISTADO_SURFACE,
   RH_SOLICITUDES_BTN_PRIMARY,
 } from "../../ui/uiTokens.ts";
+import { paginationRange } from "../../ui/uiUtils.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
 
 type ComedorProximaReservaRow = {
@@ -13,6 +14,8 @@ type ComedorProximaReservaRow = {
   estado_acceso: string;
 };
 
+export const COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE = 10;
+
 export type ComedorDashboardEmpleadoViewState = {
   calendarState: ComedorPanelState;
   calendar: ComedorCalendarMonth | null;
@@ -20,6 +23,7 @@ export type ComedorDashboardEmpleadoViewState = {
   proximasState: ComedorPanelState;
   proximas: readonly ComedorProximaReservaRow[];
   proximasError: string | null;
+  proximasPage: number;
   editingReservaId: number | null;
   editTipoComida: string;
   isSavingEdition: boolean;
@@ -88,6 +92,45 @@ function formatFechaLarga(isoYmd: string): string {
   return `${dias[value.getDay()]} ${value.getDate()} de ${meses[value.getMonth()]} ${value.getFullYear()}`;
 }
 
+function renderPagination(
+  currentPage: number,
+  totalPages: number,
+  totalItems: number,
+  rangeStart: number,
+  rangeEnd: number,
+): string {
+  if (totalPages <= 1) {
+    return `<footer class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-4 py-3 sm:px-6">
+      <p class="text-xs text-slate-500 sm:text-sm">Mostrando <span class="font-semibold text-slate-700">${totalItems}</span> de <span class="font-semibold text-slate-700">${totalItems}</span></p>
+    </footer>`;
+  }
+  const pageButtons = paginationRange(totalPages, currentPage)
+    .map((entry) => {
+      if (entry === "ellipsis") {
+        return '<span class="flex min-h-9 items-center px-2 text-sm text-slate-500">…</span>';
+      }
+      const active = entry === currentPage;
+      return `<button type="button" data-comedor-empleado-proximas-page="${entry}" class="${
+        active
+          ? "min-h-9 min-w-9 rounded-lg bg-leoni-blue px-3 text-sm font-bold text-white shadow-md transition hover:bg-leoni-blue-light"
+          : "min-h-9 min-w-9 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+      }">${entry}</button>`;
+    })
+    .join("");
+  return `<footer class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-4 py-3 sm:px-6">
+    <p class="text-xs text-slate-500 sm:text-sm">Mostrando <span class="font-semibold text-slate-700">${rangeStart}</span>–<span class="font-semibold text-slate-700">${rangeEnd}</span> de <span class="font-semibold text-slate-700">${totalItems}</span></p>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" data-comedor-empleado-proximas-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""} class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+        Anterior
+      </button>
+      <div class="flex items-center gap-1">${pageButtons}</div>
+      <button type="button" data-comedor-empleado-proximas-page="${currentPage + 1}" ${currentPage >= totalPages ? "disabled" : ""} class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
+        Siguiente
+      </button>
+    </div>
+  </footer>`;
+}
+
 function renderProximas(state: ComedorDashboardEmpleadoViewState): string {
   if (state.proximasState === "loading") {
     return `<section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -101,11 +144,24 @@ function renderProximas(state: ComedorDashboardEmpleadoViewState): string {
     </section>`;
   }
   if (state.proximas.length === 0) {
-    return `<section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 class="text-sm font-semibold text-slate-800">Próximas asistencias</h3>
-      <p class="mt-2 text-sm text-slate-500">No tienes registros próximos.</p>
+    return `<section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div class="px-4 py-3 sm:px-6">
+        <h3 class="text-sm font-semibold text-gray-900">Próximos registros</h3>
+      </div>
+      <div class="px-4 py-12 text-center sm:px-6" role="status">
+        <p class="text-sm font-semibold text-slate-800">No tienes registros próximos</p>
+        <p class="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-slate-500">Cuando agregues una comida futura aparecerá aquí.</p>
+      </div>
     </section>`;
   }
+
+  const totalItems = state.proximas.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, state.proximasPage || 1), totalPages);
+  const startIndex = (currentPage - 1) * COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE;
+  const endIndex = Math.min(startIndex + COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE, totalItems);
+  const pageItems = state.proximas.slice(startIndex, endIndex);
+
   return `<section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="px-4 py-3 sm:px-6">
       <h3 class="text-sm font-semibold text-gray-900">Próximos registros</h3>
@@ -121,7 +177,7 @@ function renderProximas(state: ComedorDashboardEmpleadoViewState): string {
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 bg-white">
-          ${state.proximas
+          ${pageItems
             .map(
               (item) => `<tr>
                 <td class="whitespace-nowrap px-4 py-3 text-gray-900 sm:px-6">${formatFechaLarga(item.fecha_servicio)}</td>
@@ -151,6 +207,7 @@ function renderProximas(state: ComedorDashboardEmpleadoViewState): string {
         </tbody>
       </table>
     </div>
+    ${renderPagination(currentPage, totalPages, totalItems, startIndex + 1, endIndex)}
     ${renderEditModal(state)}
   </section>`;
 }

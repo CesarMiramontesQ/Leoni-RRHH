@@ -208,6 +208,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     }>,
   ): void {
     const modoRevision = revisionSolicitudId != null;
+    const empleadoSelfMode = !modoRevision && fixedSelfId != null;
+    const singleDayHomeOfficeEmpleado = empleadoSelfMode && tipo === "home_office";
+    const hideMotivoEmpleado = empleadoSelfMode && (tipo === "home_office" || tipo === "vacaciones");
     const snap = readFormSnapshot();
 
     let fixedEmpleado:
@@ -228,8 +231,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const selectedEmpleadoId =
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
-    const fechaFin = preserve.fechaFin ?? snap.fechaFin;
-    const motivo = preserve.motivo ?? snap.motivo;
+    const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
+    const fechaFin = singleDayHomeOfficeEmpleado ? fechaInicio : fechaFinBase;
+    const motivoBase = preserve.motivo ?? snap.motivo;
+    const motivo = hideMotivoEmpleado ? "" : motivoBase;
     const comentarios = preserve.comentarios ?? snap.comentarios;
     const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
     const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
@@ -276,6 +281,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado,
       modoRevision,
       submitLabel: preserve.submitLabel,
+      singleDayHomeOfficeMode: singleDayHomeOfficeEmpleado,
+      showMotivoField: !hideMotivoEmpleado,
     });
     bindFormInteractions();
     applyRhModalLiveFeedback(host, tipo, contextoVac);
@@ -288,6 +295,12 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
     const fin = host.querySelector("#rh-nr-fin") as HTMLInputElement | null;
     const motivo = host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
+    const isSingleDayHomeOfficeEmpleado = revisionSolicitudId == null && fixedSelfId != null && tipo === "home_office";
+
+    function syncSingleDayHomeOfficeFechaFin(): void {
+      if (!isSingleDayHomeOfficeEmpleado || !inicio || !fin) return;
+      fin.value = inicio.value;
+    }
 
     if (!host.querySelector("#rh-nr-form[data-rh-nr-revision]")) {
       host.querySelectorAll("[data-rh-nr-tipo]").forEach((btn) => {
@@ -368,9 +381,17 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       );
     }
 
-    inicio?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
+    inicio?.addEventListener(
+      "input",
+      () => {
+        syncSingleDayHomeOfficeFechaFin();
+        refreshLiveFormState();
+      },
+      { signal: options.signal },
+    );
     fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
+    syncSingleDayHomeOfficeFechaFin();
 
     form?.addEventListener(
       "submit",
@@ -402,7 +423,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           return;
         }
         const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
-        const fecha_fin = String(fd.get("fecha_fin") ?? "").trim();
+        const singleDayHomeOfficeEmpleado = revisionSolicitudId == null && fixedSelfId != null && tipo === "home_office";
+        const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
+        const fecha_fin = singleDayHomeOfficeEmpleado ? fecha_inicio : fecha_fin_raw;
         if (!fecha_inicio || !fecha_fin) {
           showError("Indica fecha de inicio y fecha de fin.");
           return;

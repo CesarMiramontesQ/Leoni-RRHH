@@ -164,6 +164,10 @@ export type RhNewRequestFormParams = {
   /** Corrección tras `changes_requested`: tipo y empleado fijos; solo fechas y comentarios. */
   modoRevision?: boolean;
   submitLabel?: string;
+  /** Empleado + Home Office: selección de un solo día (fecha_fin = fecha_inicio). */
+  singleDayHomeOfficeMode?: boolean;
+  /** Controla visibilidad del bloque de Motivo. */
+  showMotivoField?: boolean;
 };
 
 export const RESUMEN_BASE =
@@ -248,6 +252,10 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     : p.tipo === "paternidad" ? "Paternidad"
     : "Permiso sin goce de sueldo";
   const submitLabel = p.submitLabel ?? "Enviar solicitud";
+  const singleDayMode = p.singleDayHomeOfficeMode === true;
+  const showMotivoField = p.showMotivoField !== false;
+  const motivoValue = p.motivo ?? "";
+  const comentariosValue = p.comentarios ?? "";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
   </svg>`;
@@ -393,17 +401,33 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
 
       <section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-fechas">
         <h3 id="rh-nr-sec-fechas" class="${SEC_TITLE}">Rango de fechas</h3>
-        <p class="text-xs text-slate-500">Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango.</p>
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
-          <div>
-            <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
-            <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
-          </div>
-          <div>
-            <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
-            <input id="rh-nr-fin" name="fecha_fin" type="date" required class="${ffClass}" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
-          </div>
-        </div>
+        <p class="text-xs text-slate-500">
+          ${
+            singleDayMode ?
+              "Para Home Office se permite seleccionar únicamente un día."
+            : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
+          }
+        </p>
+        ${
+          singleDayMode ?
+            `<div class="grid grid-cols-1 gap-5">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+                <input id="rh-nr-fin" name="fecha_fin" type="hidden" value="${escapeHtml(p.fechaInicio)}" />
+              </div>
+            </div>`
+          : `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required class="${ffClass}" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+              </div>
+            </div>`
+        }
       </section>
 
       <section class="space-y-2" aria-labelledby="rh-nr-sec-resumen">
@@ -417,22 +441,26 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         </div>
       </section>
 
-      <section class="space-y-2" aria-labelledby="rh-nr-sec-motivo">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 id="rh-nr-sec-motivo" class="${SEC_TITLE} !mb-0">Motivo</h3>
-          <span class="text-[10px] font-medium uppercase tracking-wide text-slate-400">${p.tipo === "permiso_sin_goce_sueldo" ? "Obligatorio" : "Opcional"}</span>
-        </div>
-        <textarea
-          id="rh-nr-motivo"
-          name="motivo"
-          rows="3"
-          ${p.tipo === "permiso_sin_goce_sueldo" ? "required" : ""}
-          placeholder="Describe el motivo de la solicitud…"
-          aria-describedby="rh-nr-motivo-help"
-          class="min-h-[6rem] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/65 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
-        >${escapeHtml(p.motivo)}</textarea>
-        <p id="rh-nr-motivo-help" class="text-xs text-slate-500">Especifica la justificación principal del permiso.</p>
-      </section>
+      ${
+        showMotivoField ?
+          `<section class="space-y-2" aria-labelledby="rh-nr-sec-motivo">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 id="rh-nr-sec-motivo" class="${SEC_TITLE} !mb-0">Motivo</h3>
+              <span class="text-[10px] font-medium uppercase tracking-wide text-slate-400">${p.tipo === "permiso_sin_goce_sueldo" ? "Obligatorio" : "Opcional"}</span>
+            </div>
+            <textarea
+              id="rh-nr-motivo"
+              name="motivo"
+              rows="3"
+              ${p.tipo === "permiso_sin_goce_sueldo" ? "required" : ""}
+              placeholder="Describe el motivo de la solicitud…"
+              aria-describedby="rh-nr-motivo-help"
+              class="min-h-[6rem] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/65 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
+            >${escapeHtml(motivoValue)}</textarea>
+            <p id="rh-nr-motivo-help" class="text-xs text-slate-500">Especifica la justificación principal del permiso.</p>
+          </section>`
+        : `<input type="hidden" id="rh-nr-motivo" name="motivo" value="${escapeHtml(motivoValue)}" />`
+      }
 
       <section class="space-y-2" aria-labelledby="rh-nr-sec-comentarios">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -446,7 +474,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
           placeholder="Agrega notas adicionales sobre esta solicitud…"
           aria-describedby="rh-nr-comentarios-help"
           class="min-h-[7.5rem] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/65 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
-        >${escapeHtml(p.comentarios)}</textarea>
+        >${escapeHtml(comentariosValue)}</textarea>
         <p id="rh-nr-comentarios-help" class="text-xs text-slate-500">Agrega notas adicionales sobre esta solicitud si el contexto lo requiere.</p>
       </section>
 

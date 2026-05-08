@@ -29,6 +29,10 @@ export type RhSolicitudTablaFila = {
   empleado_id: string;
   /** Nombre crudo (p. ej. `APELLIDO, NOMBRE`); la UI aplica `formatNombreEmpleadoUi`. */
   empleado_nombre_raw: string;
+  /** Número de empleado (preferido para vistas de detalle de colaborador). */
+  empleado_no_empleado?: string | null;
+  /** Puesto del colaborador (si viene del API). */
+  empleado_puesto?: string | null;
   foto_url: string | null;
   /** Etiqueta tipo `#SOL-1234` o número de folio. */
   numero_folio: string;

@@ -265,12 +265,12 @@ async def test_crear_solicitud_mismo_tipo_sin_solape_retorna_201(client: AsyncCl
 
 
 # ---------------------------------------------------------------------------
-# TC-SOL-004c: Periodos que se solapan pero fechas inicio/fin distintas → 201
+# TC-SOL-004c: Periodos que se solapan (mismo tipo, fechas distintas) → 409
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_periodos_solapados_pero_no_duplicado_exacto_201(
+async def test_crear_solicitud_periodos_solapados_mismo_tipo_retorna_409(
     client: AsyncClient, db
 ):
     empleado = await make_empleado(db, rol="empleado", email="sol004c@leoni.test")
@@ -291,6 +291,87 @@ async def test_crear_solicitud_periodos_solapados_pero_no_duplicado_exacto_201(
             "fecha_inicio": "2026-05-05",
             "fecha_fin": "2026-05-09",
             "comentarios": "Otro tramo",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 409
+    detail = response.json().get("detail") or ""
+    assert "empalma" in detail.lower()
+    assert "01/05/2026" in detail
+    assert "10/05/2026" in detail
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-004d: Empalme entre tipos distintos (vacaciones + home_office) → 409
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_empalme_tipos_distintos_retorna_409(
+    client: AsyncClient, db
+):
+    empleado = await make_empleado(db, rol="empleado", email="sol004d@leoni.test")
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="vacaciones",
+        estado="approved",
+        fecha_inicio=date(2026, 6, 1),
+        fecha_fin=date(2026, 6, 5),
+    )
+
+    headers = await auth_headers(client, empleado)
+    # Home Office del empleado debe ser un solo día; cae dentro del rango de vacaciones aprobadas.
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-03",
+            "fecha_fin": "2026-06-03",
+            "comentarios": "HO durante vacaciones",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 409
+    detail = response.json().get("detail") or ""
+    assert "empalma" in detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-004e: Empalme contra solicitud cancelada/rechazada → 201 (no bloquea)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
+    client: AsyncClient, db
+):
+    empleado = await make_empleado(db, rol="empleado", email="sol004e@leoni.test")
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="vacaciones",
+        estado="cancelled",
+        fecha_inicio=date(2026, 7, 1),
+        fecha_fin=date(2026, 7, 10),
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="vacaciones",
+        estado="rejected",
+        fecha_inicio=date(2026, 7, 1),
+        fecha_fin=date(2026, 7, 10),
+    )
+
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-07-05",
+            "fecha_fin": "2026-07-08",
+            "comentarios": "Reintento tras cancelación/rechazo",
         },
         headers=headers,
     )
@@ -391,6 +472,46 @@ async def test_listar_solicitudes_empleado_solo_ve_las_suyas(client: AsyncClient
     # Empleado A solo debe ver sus propias solicitudes
     for item in items:
         assert item["empleado_id"] == emp_a.id
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-007B: Listar solicitudes — empleado solo ve tipos habilitados
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_listar_solicitudes_empleado_oculta_tipos_no_habilitados(client: AsyncClient, db):
+    empleado = await make_empleado(db, rol="empleado", email="sol007c@leoni.test")
+    await make_solicitud(db, empleado_id=empleado.id, tipo="vacaciones")
+    await make_solicitud(db, empleado_id=empleado.id, tipo="home_office")
+    await make_solicitud(db, empleado_id=empleado.id, tipo="permiso_sin_goce_sueldo")
+    await make_solicitud(db, empleado_id=empleado.id, tipo="paternidad")
+
+    headers = await auth_headers(client, empleado)
+    response = await client.get("/api/v1/solicitudes", headers=headers)
+
+    assert response.status_code == 200
+    tipos = {item["tipo"] for item in response.json()["items"]}
+    assert tipos.issubset({"vacaciones", "home_office", "permiso_sin_goce_sueldo"})
+    assert "paternidad" not in tipos
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-007C: Listar solicitudes — empleado no recibe estado overridden
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_listar_solicitudes_empleado_oculta_estado_overridden(client: AsyncClient, db):
+    empleado = await make_empleado(db, rol="empleado", email="sol007d@leoni.test")
+    await make_solicitud(db, empleado_id=empleado.id, tipo="vacaciones", estado="pending")
+    await make_solicitud(db, empleado_id=empleado.id, tipo="vacaciones", estado="overridden")
+
+    headers = await auth_headers(client, empleado)
+    response = await client.get("/api/v1/solicitudes", headers=headers)
+
+    assert response.status_code == 200
+    estados = {item["estado"] for item in response.json()["items"]}
+    assert "pending" in estados
+    assert "overridden" not in estados
 
 
 # ---------------------------------------------------------------------------
@@ -1394,7 +1515,7 @@ async def test_override_solicitud_ya_overridden_retorna_409(client: AsyncClient,
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tipo", ["vacaciones", "home_office"])
+@pytest.mark.parametrize("tipo", ["vacaciones"])
 async def test_crear_solicitud_tipos_validos(tipo, client: AsyncClient, db):
     import uuid
     email = f"sol027_{tipo}_{uuid.uuid4().hex[:6]}@leoni.test"
@@ -1412,6 +1533,43 @@ async def test_crear_solicitud_tipos_validos(tipo, client: AsyncClient, db):
     )
     assert response.status_code == 201
     assert response.json()["tipo"] == tipo
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_empleado_un_dia_valido(client: AsyncClient, db):
+    empleado = await make_empleado(db, rol="empleado", email="sol027_ho1@leoni.test")
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-02",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tipo"] == "home_office"
+    assert body["fecha_inicio"] == "2026-06-02"
+    assert body["fecha_fin"] == "2026-06-02"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: AsyncClient, db):
+    empleado = await make_empleado(db, rol="empleado", email="sol027_ho2@leoni.test")
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-06",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "solo se permite un día" in response.text
 
 
 @pytest.mark.asyncio

@@ -109,7 +109,9 @@ class SolicitudResponse(BaseModel):
     created_at: datetime
     # Enriquecimiento para listados y UI (no son columnas de `solicitudes`).
     empleado_nombre: str = ""
+    empleado_no_empleado: Optional[str] = None
     empleado_area: Optional[str] = None
+    empleado_puesto: Optional[str] = None
     empleado_foto: Optional[str] = None
     lider_id: Optional[int] = None
     lider_nombre: Optional[str] = None

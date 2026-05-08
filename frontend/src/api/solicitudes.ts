@@ -13,7 +13,9 @@ export type SolicitudApiItem = {
   motivo?: string | null;
   comentarios?: string | null;
   empleado_nombre?: string;
+  empleado_no_empleado?: string | null;
   empleado_area?: string | null;
+  empleado_puesto?: string | null;
   empleado_foto?: string | null;
   lider_id?: number | null;
   lider_nombre?: string | null;
@@ -141,6 +143,12 @@ function toFila(item: SolicitudApiItem): RhSolicitudTablaFila {
     id: item.id,
     empleado_id: String(item.empleado_id),
     empleado_nombre_raw: empleadoNombreRaw,
+    empleado_no_empleado:
+      typeof item.empleado_no_empleado === "string" && item.empleado_no_empleado.trim() ?
+        item.empleado_no_empleado.trim()
+      : null,
+    empleado_puesto:
+      typeof item.empleado_puesto === "string" && item.empleado_puesto.trim() ? item.empleado_puesto.trim() : null,
     foto_url: typeof item.empleado_foto === "string" && item.empleado_foto.trim() ? item.empleado_foto.trim() : null,
     numero_folio: `SOL-${item.id}`,
     area,

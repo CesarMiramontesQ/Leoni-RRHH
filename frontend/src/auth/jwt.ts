@@ -146,6 +146,18 @@ export function getEmpleadoIdFromAccessToken(): string | null {
   return null;
 }
 
+/** Número de empleado de sesión (`num` en JWT actual). */
+export function getNoEmpleadoFromAccessToken(): string | null {
+  const p = getAccessTokenPayload();
+  if (!p) return null;
+  for (const k of ["num", "no_empleado", "noEmpleado"] as const) {
+    const v = p[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return null;
+}
+
 /**
  * Identificador numérico del directorio para mocks de solicitudes y modal (p. ej. `emp-1001` → 1001).
  * Solo acepta prefijo `emp-` + dígitos o una cadena numérica pura.

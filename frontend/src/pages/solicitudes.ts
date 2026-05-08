@@ -117,6 +117,10 @@ function isTipo(v: string): v is RhSolicitudTipoCodigo {
   );
 }
 
+function isTipoPermitidoParaEmpleado(v: string): v is RhSolicitudTipoCodigo {
+  return v === "vacaciones" || v === "home_office" || v === "permiso_sin_goce_sueldo";
+}
+
 function isEstado(v: string): v is RhSolicitudEstadoCodigo {
   return (
     v === "pending" ||
@@ -126,6 +130,10 @@ function isEstado(v: string): v is RhSolicitudEstadoCodigo {
     v === "cancelled" ||
     v === "overridden"
   );
+}
+
+function isEstadoPermitidoParaEmpleado(v: string): v is RhSolicitudEstadoCodigo {
+  return v !== "overridden" && isEstado(v);
 }
 
 function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "estado" | "empleado_id"> {
@@ -242,6 +250,12 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const initialFilters = getInitialFiltersFromHash();
+  if (pageRole === "empleado" && initialFilters.tipo && !isTipoPermitidoParaEmpleado(initialFilters.tipo)) {
+    initialFilters.tipo = "";
+  }
+  if (pageRole === "empleado" && initialFilters.estado && !isEstadoPermitidoParaEmpleado(initialFilters.estado)) {
+    initialFilters.estado = "";
+  }
   const initialEmpleadoDirFromHash = initialFilters.empleado_id;
   const personalSectionUi = {
     ...pageUi,
@@ -661,11 +675,23 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         const name = sel.getAttribute("data-rh-sol-filter");
         const value = sel.value;
         selectedState.page = 1;
-        if (name === "tipo") selectedState.tipo = value === "" ? "" : isTipo(value) ? value : "";
+        if (name === "tipo") {
+          const tipoValido = value === "" ? "" : isTipo(value) ? value : "";
+          selectedState.tipo =
+            pageRole === "empleado" && tipoValido !== "" && !isTipoPermitidoParaEmpleado(tipoValido) ?
+              ""
+            : tipoValido;
+        }
         else if (name === "area") selectedState.area_id = value;
         else if (name === "supervisor") selectedState.supervisor_id = value;
         else if (name === "empleado") selectedState.empleado_id = value;
-        else if (name === "estado") selectedState.estado = value === "" ? "" : isEstado(value) ? value : "";
+        else if (name === "estado") {
+          const estadoValido = value === "" ? "" : isEstado(value) ? value : "";
+          selectedState.estado =
+            pageRole === "empleado" && estadoValido !== "" && !isEstadoPermitidoParaEmpleado(estadoValido) ?
+              ""
+            : estadoValido;
+        }
         paint();
         return;
       }

@@ -32,6 +32,7 @@ export type ComedorNewRequestModalOptions = {
    */
   loadFechasBloqueadas?: () => Promise<readonly string[]>;
   menuFieldLabel?: string;
+  showObservacionesField?: boolean;
   loadMenuOptions: () => Promise<readonly ComedorMenuOption[]>;
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
   onSubmit: (payload: ComedorCreateRequestPayload) => Promise<unknown> | unknown;
@@ -211,6 +212,7 @@ export function mountComedorNewRequestModal(
       state: formState,
       allowExternalPeople,
       allowEmployeeSearch,
+      allowEmployeeSelection: !(fixedEmployee && !allowEmployeeSearch),
       errors,
       isSubmitting,
       menuOptions: catalog.menus,
@@ -222,6 +224,7 @@ export function mountComedorNewRequestModal(
       isSearchingEmployees,
       searchEmployeesError,
       selectedEmployee: selectedEmployee(),
+      showObservacionesField: options.showObservacionesField ?? true,
     });
     bindInteractions();
   }

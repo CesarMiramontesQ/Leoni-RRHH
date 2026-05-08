@@ -4,7 +4,9 @@ Repositorios para el dominio solicitudes.
 Solo contiene queries SQLAlchemy — sin logica de negocio.
 """
 
-from sqlalchemy import select, update
+from datetime import date
+
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -30,6 +32,7 @@ class SolicitudRepository(BaseRepository[Solicitud]):
             .options(
                 selectinload(Solicitud.empleado).selectinload(Empleado.area),
                 selectinload(Solicitud.empleado).selectinload(Empleado.lider),
+                selectinload(Solicitud.empleado).selectinload(Empleado.puesto),
             )
         )
         if filters:
@@ -54,6 +57,7 @@ class SolicitudRepository(BaseRepository[Solicitud]):
             .options(
                 selectinload(Solicitud.empleado).selectinload(Empleado.area),
                 selectinload(Solicitud.empleado).selectinload(Empleado.lider),
+                selectinload(Solicitud.empleado).selectinload(Empleado.puesto),
                 selectinload(Solicitud.aprobaciones),
             )
             .where(Solicitud.id == solicitud_id)
@@ -65,8 +69,14 @@ class SolicitudRepository(BaseRepository[Solicitud]):
         empleado_id: int,
         cursor: int | None,
         limit: int,
+        tipos_permitidos: list[str] | None = None,
+        estados_excluidos: list[str] | None = None,
     ) -> tuple[list[Solicitud], int | None]:
         filters = [Solicitud.empleado_id == empleado_id]
+        if tipos_permitidos:
+            filters.append(Solicitud.tipo.in_(tipos_permitidos))
+        if estados_excluidos:
+            filters.append(~Solicitud.estado.in_(estados_excluidos))
         return await self.list_paginated(cursor=cursor, limit=limit, filters=filters)
 
     async def list_by_equipo(
@@ -77,6 +87,61 @@ class SolicitudRepository(BaseRepository[Solicitud]):
     ) -> tuple[list[Solicitud], int | None]:
         filters = [Solicitud.empleado_id.in_(empleado_ids)]
         return await self.list_paginated(cursor=cursor, limit=limit, filters=filters)
+
+    async def find_first_overlapping_active(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+        estados_activos: list[str],
+        exclude_solicitud_id: int | None = None,
+    ) -> Solicitud | None:
+        """
+        Devuelve la primera solicitud del empleado cuyo rango se traslapa con
+        [fecha_inicio, fecha_fin] (incluyente) y cuyo estado está en `estados_activos`.
+
+        Regla de empalme: dos rangos [a, b] y [c, d] se empalman si `a <= d AND b >= c`.
+        Sirve tanto para solicitudes de un solo día como para rangos.
+
+        Si `exclude_solicitud_id` se proporciona, esa solicitud se ignora (útil al editar).
+        """
+        filters = [
+            Solicitud.empleado_id == empleado_id,
+            Solicitud.estado.in_(estados_activos),
+            Solicitud.fecha_inicio <= fecha_fin,
+            Solicitud.fecha_fin >= fecha_inicio,
+        ]
+        if exclude_solicitud_id is not None:
+            filters.append(Solicitud.id != exclude_solicitud_id)
+        result = await self.db.execute(
+            select(Solicitud)
+            .where(and_(*filters))
+            .order_by(Solicitud.fecha_inicio.asc(), Solicitud.id.asc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def count_overlapping_active(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+        estados_activos: list[str],
+        exclude_solicitud_id: int | None = None,
+    ) -> int:
+        """Cuenta solicitudes activas del empleado cuyo rango se traslapa con el dado."""
+        filters = [
+            Solicitud.empleado_id == empleado_id,
+            Solicitud.estado.in_(estados_activos),
+            Solicitud.fecha_inicio <= fecha_fin,
+            Solicitud.fecha_fin >= fecha_inicio,
+        ]
+        if exclude_solicitud_id is not None:
+            filters.append(Solicitud.id != exclude_solicitud_id)
+        result = await self.db.execute(select(func.count(Solicitud.id)).where(and_(*filters)))
+        return int(result.scalar_one() or 0)
 
     async def marcar_estado_aprobada_si_pending(self, solicitud_id: int) -> bool:
         """

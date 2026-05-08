@@ -38,6 +38,8 @@ export type BuildComedorNewRequestFormParams = {
   isSearchingEmployees: boolean;
   searchEmployeesError: string | null;
   selectedEmployee: ComedorEmployeeOption | null;
+  showObservacionesField?: boolean;
+  allowEmployeeSelection?: boolean;
 };
 
 function personTabClass(active: boolean): string {
@@ -110,17 +112,22 @@ function renderEmployeeSearchResults(
 function renderSelectedEmployeeCard(employee: ComedorEmployeeOption | null): string {
   if (!employee) return "";
   return `
-    <article class="mt-3 flex items-center gap-3 rounded-xl border border-leoni-blue/35 bg-leoni-blue/5 px-3 py-2">
-      <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue/15 text-xs font-semibold text-leoni-blue">
+    <article class="mt-2 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm sm:p-4">
+      <div class="flex items-start gap-3">
+      <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue/15 text-xs font-semibold text-leoni-blue sm:size-11">
         ${escapeHtml(employee.nombre.slice(0, 2).toUpperCase())}
       </span>
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold text-slate-800">${escapeHtml(employee.nombre)}</p>
-        <p class="truncate text-xs text-slate-500">${escapeHtml(employee.numero)} · ${escapeHtml(employee.area)}</p>
+        <p class="truncate text-sm font-semibold text-slate-900 sm:text-[15px]">${escapeHtml(employee.nombre)}</p>
+        <div class="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600 sm:grid-cols-2 sm:gap-2">
+          <p class="truncate rounded-lg bg-slate-50 px-2.5 py-1"><span class="font-semibold text-slate-700">Número:</span> ${escapeHtml(employee.numero)}</p>
+          <p class="truncate rounded-lg bg-slate-50 px-2.5 py-1"><span class="font-semibold text-slate-700">Área:</span> ${escapeHtml(employee.area)}</p>
+        </div>
       </div>
       <span class="inline-flex size-5 items-center justify-center rounded-full bg-leoni-blue text-white" aria-hidden="true">
         <svg viewBox="0 0 20 20" fill="currentColor" class="size-3.5"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-8 8a1 1 0 0 1-1.42-.007l-4-4a1 1 0 0 1 1.414-1.414l3.293 3.294 7.293-7.294a1 1 0 0 1 1.414.007Z" clip-rule="evenodd"/></svg>
       </span>
+      </div>
     </article>`;
 }
 
@@ -182,6 +189,8 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     isSearchingEmployees,
     searchEmployeesError,
     selectedEmployee,
+    showObservacionesField = true,
+    allowEmployeeSelection = true,
   } = params;
   const fieldClass =
     "h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20";
@@ -237,6 +246,12 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
               ${renderSelectedEmployeeCard(selectedEmployee)}
               ${fieldError(errors.employee)}
             </section>`
+            : !allowEmployeeSelection
+              ? `<section>
+                   <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Registro para</label>
+                   ${renderSelectedEmployeeCard(selectedEmployee)}
+                   ${fieldError(errors.employee)}
+                 </section>`
             : employeeOptions.length > 0
               ? `<section>
                    <label for="comedor-modal-employee-select" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Registro para</label>
@@ -286,7 +301,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
       }
 
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
+        <div class="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm sm:p-4">
           <label for="comedor-modal-menu" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(menuFieldLabel)}</label>
           <select
             id="comedor-modal-menu"
@@ -299,47 +314,49 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
           ${fieldError(errors.menuId)}
         </div>
 
-        <div>
+        <div class="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-sm sm:p-4">
           <label for="comedor-modal-date-start" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Rango de fechas</label>
+          <div class="grid grid-cols-1 gap-2.5">
+            <div class="relative">
+              <input
+                id="comedor-modal-date-start"
+                type="date"
+                data-comedor-modal-date-start
+                value="${escapeHtml(state.fechaInicio)}"
+                ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
+                class="${dateClassStart}"
+                aria-invalid="${errors.fechaInicio ? "true" : "false"}"
+              />
+              <span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-slate-400" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
+                  <path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.75A2.25 2.25 0 0 1 18 6.25v9.5A2.25 2.25 0 0 1 15.75 18h-11.5A2.25 2.25 0 0 1 2 15.75v-9.5A2.25 2.25 0 0 1 4.25 4H5V2.75A.75.75 0 0 1 5.75 2Zm10.75 6H3.5v7.75c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V8Z" clip-rule="evenodd" />
+                </svg>
+              </span>
+            </div>
+            ${fieldError(errors.fechaInicio)}
+            <div class="relative">
+              <input
+                id="comedor-modal-date-end"
+                type="date"
+                data-comedor-modal-date-end
+                value="${escapeHtml(state.fechaFin)}"
+                ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
+                class="${dateClassEnd}"
+                aria-invalid="${errors.fechaFin ? "true" : "false"}"
+              />
+              <span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-slate-400" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
+                  <path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.75A2.25 2.25 0 0 1 18 6.25v9.5A2.25 2.25 0 0 1 15.75 18h-11.5A2.25 2.25 0 0 1 2 15.75v-9.5A2.25 2.25 0 0 1 4.25 4H5V2.75A.75.75 0 0 1 5.75 2Zm10.75 6H3.5v7.75c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V8Z" clip-rule="evenodd" />
+                </svg>
+              </span>
+            </div>
+            ${fieldError(errors.fechaFin)}
+          </div>
           ${
             fechaMinIso
-              ? `<p class="mb-1.5 text-xs text-slate-500">Solo puedes registrar dentro de la ventana permitida (hasta jueves previo). Fechas disponibles desde ${escapeHtml(fechaMinIso)}.</p>`
+              ? `<p class="mt-2 text-xs text-slate-500">Solo puedes registrar dentro de la ventana permitida (hasta jueves previo). Fechas disponibles desde ${escapeHtml(fechaMinIso)}.</p>`
               : ""
           }
-          <div class="relative">
-            <input
-              id="comedor-modal-date-start"
-              type="date"
-              data-comedor-modal-date-start
-              value="${escapeHtml(state.fechaInicio)}"
-              ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
-              class="${dateClassStart}"
-              aria-invalid="${errors.fechaInicio ? "true" : "false"}"
-            />
-            <span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-slate-400" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
-                <path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.75A2.25 2.25 0 0 1 18 6.25v9.5A2.25 2.25 0 0 1 15.75 18h-11.5A2.25 2.25 0 0 1 2 15.75v-9.5A2.25 2.25 0 0 1 4.25 4H5V2.75A.75.75 0 0 1 5.75 2Zm10.75 6H3.5v7.75c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V8Z" clip-rule="evenodd" />
-              </svg>
-            </span>
-          </div>
-          ${fieldError(errors.fechaInicio)}
-          <div class="relative mt-2">
-            <input
-              id="comedor-modal-date-end"
-              type="date"
-              data-comedor-modal-date-end
-              value="${escapeHtml(state.fechaFin)}"
-              ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
-              class="${dateClassEnd}"
-              aria-invalid="${errors.fechaFin ? "true" : "false"}"
-            />
-            <span class="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-slate-400" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
-                <path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.75A2.25 2.25 0 0 1 18 6.25v9.5A2.25 2.25 0 0 1 15.75 18h-11.5A2.25 2.25 0 0 1 2 15.75v-9.5A2.25 2.25 0 0 1 4.25 4H5V2.75A.75.75 0 0 1 5.75 2Zm10.75 6H3.5v7.75c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V8Z" clip-rule="evenodd" />
-              </svg>
-            </span>
-          </div>
-          ${fieldError(errors.fechaFin)}
           ${
             fechasBloqueadasCount > 0
               ? `<p class="mt-1.5 text-xs text-slate-500" id="comedor-modal-date-hint">Ya tienes reservas en ${fechasBloqueadasCount} día${
@@ -350,15 +367,19 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
         </div>
       </section>
 
-      <section>
-        <label for="comedor-modal-observaciones" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Observaciones o comentarios</label>
-        <textarea
-          id="comedor-modal-observaciones"
-          data-comedor-modal-observaciones
-          class="${textareaClass}"
-          placeholder="Ej: Sin cebolla, entrega en área de carga..."
-        >${escapeHtml(state.observaciones)}</textarea>
-      </section>
+      ${
+        showObservacionesField ?
+          `<section>
+            <label for="comedor-modal-observaciones" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Observaciones o comentarios</label>
+            <textarea
+              id="comedor-modal-observaciones"
+              data-comedor-modal-observaciones
+              class="${textareaClass}"
+              placeholder="Ej: Sin cebolla, entrega en área de carga..."
+            >${escapeHtml(state.observaciones)}</textarea>
+          </section>`
+        : ""
+      }
 
       <footer class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
         <button

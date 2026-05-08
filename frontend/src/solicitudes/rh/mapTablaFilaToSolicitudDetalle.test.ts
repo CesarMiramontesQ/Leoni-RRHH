@@ -5,6 +5,8 @@ import type { RhSolicitudTablaFila } from "./types.ts";
 const filaBase: RhSolicitudTablaFila = {
   id: 501,
   empleado_id: "42",
+  empleado_no_empleado: "00042",
+  empleado_puesto: "Operador general",
   empleado_nombre_raw: "PÉREZ, JUAN",
   foto_url: null,
   numero_folio: "SOL-501",
@@ -27,10 +29,10 @@ describe("mapTablaFilaToSolicitudDetallePendiente", () => {
     expect(vm?.solicitud.comentario_empleado).toBe("Comentario real desde API");
   });
 
-  it("soloLectura: id de empleado desde la fila y puesto sin dato simulado", () => {
+it("soloLectura: prioriza número de empleado y puesto desde la fila/API", () => {
     const vm = mapTablaFilaToSolicitudDetallePendiente(filaBase, { soloLectura: true });
-    expect(vm?.empleado.id_empleado).toBe("42");
-    expect(vm?.empleado.puesto).toBe("—");
+    expect(vm?.empleado.id_empleado).toBe("00042");
+    expect(vm?.empleado.puesto).toBe("Operador general");
   });
 
   it("soloLectura: misma solicitud que modo aprobador (fechas y tipo)", () => {

@@ -5,6 +5,7 @@ import {
   canAccessEmpleadoPersonalDashboard,
   getEmpleadoDirectoryNumericIdFromAccessToken,
   getEmpleadoIdFromAccessToken,
+  getNoEmpleadoFromAccessToken,
   getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
@@ -17,6 +18,7 @@ import {
   etiquetaTipoComida,
   primerLunesReservaComedorPermitidoIso,
 } from "../utils/comedorReservaFechas.ts";
+import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import {
   cancelarComedorAcceso,
   crearComedorRhRegistro,
@@ -61,6 +63,7 @@ import type {
 import { getEmpleadosPage } from "../api/empleados.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
+  COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE,
   renderComedorDashboardEmpleado,
   type ComedorDashboardEmpleadoViewState,
 } from "../components/comedor/comedorDashboardEmpleado.ts";
@@ -182,6 +185,7 @@ type EmpleadoComedorState = {
   calendarError: string | null;
   proximasState: ComedorPanelState;
   proximasError: string | null;
+  proximasPage: number;
   editingReservaId: number | null;
   editTipoComida: string;
   isSavingEdition: boolean;
@@ -193,6 +197,7 @@ type EmpleadoComedorState = {
   | "calendarError"
   | "proximasState"
   | "proximasError"
+  | "proximasPage"
   | "editingReservaId"
   | "editTipoComida"
   | "isSavingEdition"
@@ -206,6 +211,7 @@ function toEmpleadoViewState(state: EmpleadoComedorState): ComedorDashboardEmple
     proximasState: state.proximasState,
     proximas: state.proximas,
     proximasError: state.proximasError,
+    proximasPage: state.proximasPage,
     editingReservaId: state.editingReservaId,
     editTipoComida: state.editTipoComida,
     isSavingEdition: state.isSavingEdition,
@@ -996,6 +1002,44 @@ async function searchComedorEmployeesFromDb(query: string): Promise<readonly Com
     area: item.area?.descripcion ?? "Sin área",
     avatarUrl: null,
   }));
+}
+
+async function resolveEmpleadoOptionForComedor(
+  empleadoId: string | null,
+  empleadoNombre: string,
+  noEmpleadoJwt: string | null,
+): Promise<ComedorEmployeeOption | null> {
+  if (!empleadoId && !noEmpleadoJwt && !empleadoNombre.trim()) return null;
+  const numeroFallback = formatNoEmpleadoDisplay(noEmpleadoJwt || empleadoId || "");
+  const base: ComedorEmployeeOption = {
+    id: empleadoId ?? "",
+    nombre: empleadoNombre.trim() || "Empleado",
+    numero: numeroFallback || "—",
+    area: "Sin área",
+    avatarUrl: null,
+  };
+  const q = (noEmpleadoJwt || empleadoId || empleadoNombre).trim();
+  if (!q) return base;
+  try {
+    const page = await getEmpleadosPage({ page: 1, page_size: 8, q });
+    const exactByNoEmpleado = noEmpleadoJwt ?
+      page.items.find((item) => formatNoEmpleadoDisplay(item.no_empleado) === formatNoEmpleadoDisplay(noEmpleadoJwt))
+    : undefined;
+    const exactByEmpleadoId = empleadoId ?
+      page.items.find((item) => String(item.empleado_id) === String(empleadoId))
+    : undefined;
+    const picked = exactByNoEmpleado ?? exactByEmpleadoId ?? page.items[0];
+    if (!picked) return base;
+    return {
+      id: String(picked.empleado_id),
+      nombre: picked.nombre || base.nombre,
+      numero: formatNoEmpleadoDisplay(picked.no_empleado) || base.numero,
+      area: picked.area?.descripcion ?? base.area,
+      avatarUrl: null,
+    };
+  } catch {
+    return base;
+  }
 }
 
 function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): void {
@@ -2626,6 +2670,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     proximasState: "loading",
     proximas: [],
     proximasError: null,
+    proximasPage: 1,
     editingReservaId: null,
     editTipoComida: "casera",
     isSavingEdition: false,
@@ -2680,9 +2725,18 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     state.proximasError = null;
     paint();
     try {
-      const rows = await getComedorMisProximasReservas(5);
+      const rows = await getComedorMisProximasReservas(200);
       if (signal.aborted) return;
-      state.proximas = rows.filter((row) => row.estado_acceso.trim().toUpperCase() !== "EXPIRADO");
+      const hoyIso = dateToIso(new Date());
+      const filtered = rows.filter(
+        (row) =>
+          row.estado_acceso.trim().toUpperCase() !== "EXPIRADO" &&
+          row.fecha_servicio >= hoyIso,
+      );
+      filtered.sort((a, b) => a.fecha_servicio.localeCompare(b.fecha_servicio));
+      state.proximas = filtered;
+      const totalPages = Math.max(1, Math.ceil(filtered.length / COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE));
+      if (state.proximasPage > totalPages) state.proximasPage = totalPages;
       state.proximasState = "ready";
     } catch (error) {
       if (signal.aborted) return;
@@ -2724,12 +2778,15 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     const modalHost = container.querySelector<HTMLElement>("#comedor-empleado-new-request-modal-host");
     const empleadoId = getEmpleadoIdFromAccessToken();
     const empleadoNombre = getUserDisplayNameFromAccessToken();
+    const noEmpleadoJwt = getNoEmpleadoFromAccessToken();
+    const empleadoOption = await resolveEmpleadoOptionForComedor(empleadoId, empleadoNombre, noEmpleadoJwt);
     const newRequestModal =
       modalHost ?
         mountComedorNewRequestModal(modalHost, {
           toastContainer: container,
           allowExternalPeople: false,
           allowEmployeeSearch: false,
+          showObservacionesField: false,
           fechaMinReservaIso,
           loadFechasBloqueadas: async () => {
             const desde = fechaMinReservaIso;
@@ -2738,16 +2795,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
             return fechas;
           },
           menuFieldLabel: "Opción de comida",
-          fixedEmployee:
-            empleadoId ?
-              {
-                id: empleadoId,
-                nombre: empleadoNombre,
-                numero: empleadoId,
-                area: "Sin area",
-                avatarUrl: null,
-              }
-            : null,
+          fixedEmployee: empleadoOption,
           loadMenuOptions: async () => [
             { id: "casera", label: "Opción A" },
             { id: "saludable", label: "Opción B" },
@@ -2802,6 +2850,25 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
         }
         if (target.closest("[data-comedor-retry-proximas]")) {
           void loadProximas();
+          return;
+        }
+
+        const pageBtn = target.closest<HTMLButtonElement>("[data-comedor-empleado-proximas-page]");
+        if (pageBtn) {
+          if (pageBtn.disabled) return;
+          const requested = Number.parseInt(
+            pageBtn.getAttribute("data-comedor-empleado-proximas-page") ?? "",
+            10,
+          );
+          if (!Number.isFinite(requested) || requested < 1) return;
+          const totalPages = Math.max(
+            1,
+            Math.ceil(state.proximas.length / COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE),
+          );
+          const next = Math.min(Math.max(1, requested), totalPages);
+          if (next === state.proximasPage) return;
+          state.proximasPage = next;
+          paint();
           return;
         }
 

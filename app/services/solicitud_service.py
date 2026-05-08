@@ -73,11 +73,35 @@ _TIPOS_GOCE_SUELDO_RH = frozenset({
     "defuncion",
     "paternidad",
 })
+_TIPOS_VISIBLE_EMPLEADO = frozenset({
+    "vacaciones",
+    "home_office",
+    "permiso_sin_goce_sueldo",
+})
+_ESTADOS_NO_VISIBLES_EMPLEADO = frozenset({"overridden"})
 
 # Duplicidad exacta (mismo colaborador, mismas fechas inicio/fin): solo estos estados
 # cuentan como «ya existe»; rechazadas/canceladas permiten volver a registrar esas fechas.
 _ESTADOS_DUPLICADO_EXACTO = frozenset({"pending", "approved", "overridden", "changes_requested"})
+# Empalme/solape (mismo colaborador, rangos que se traslapan, cualquier tipo): se usa el
+# mismo conjunto de estados activos. Solicitudes rechazadas o canceladas no bloquean.
+_ESTADOS_EMPALME_ACTIVO = _ESTADOS_DUPLICADO_EXACTO
 _MSG_SOLICITUD_YA_EXISTE = "Esta solicitud ya existe"
+
+
+def _format_fecha_es(d: date) -> str:
+    return d.strftime("%d/%m/%Y")
+
+
+def _msg_empalme_solicitudes(existente: Solicitud) -> str:
+    """Mensaje claro y único cuando una nueva solicitud se empalma con otra activa."""
+    tipo_legible = (existente.tipo or "").replace("_", " ").strip() or "otra"
+    return (
+        f"Ya existe una solicitud activa de {tipo_legible} del "
+        f"{_format_fecha_es(existente.fecha_inicio)} al {_format_fecha_es(existente.fecha_fin)} "
+        "que se empalma con estas fechas. No es posible registrar dos solicitudes "
+        "que se traslapen, aunque sean de tipos distintos."
+    )
 
 
 def _dias_solicitud_inclusive(fecha_inicio: date, fecha_fin: date) -> int:
@@ -179,14 +203,19 @@ def _solicitud_to_response(s: Solicitud, empleado_ctx: Empleado | None = None) -
     emp = empleado_ctx if empleado_ctx is not None else s.empleado
     nombre = (emp.nombre if emp else "") or ""
     area_desc: str | None = None
+    no_empleado: str | None = None
+    puesto_desc: str | None = None
     foto: str | None = None
     lid_id: int | None = None
     lid_nom: str | None = None
     if emp:
+        no_empleado = (emp.no_empleado or "").strip() or None
         foto = emp.foto
         lid_id = emp.lider_id
         if emp.area is not None:
             area_desc = emp.area.descripcion
+        if emp.puesto is not None and emp.puesto.descripcion:
+            puesto_desc = emp.puesto.descripcion
         if emp.lider is not None:
             lid_nom = emp.lider.nombre
 
@@ -202,7 +231,9 @@ def _solicitud_to_response(s: Solicitud, empleado_ctx: Empleado | None = None) -
         comentarios=s.comentarios,
         created_at=s.created_at,
         empleado_nombre=nombre,
+        empleado_no_empleado=no_empleado,
         empleado_area=area_desc,
+        empleado_puesto=puesto_desc,
         empleado_foto=foto,
         lider_id=lid_id,
         lider_nombre=lid_nom,
@@ -366,10 +397,18 @@ class SolicitudService:
 
         else:
             items, next_cursor = await self.repo.list_by_empleado(
-                empleado_id=current_user.id, cursor=cursor, limit=limit
+                empleado_id=current_user.id,
+                cursor=cursor,
+                limit=limit,
+                tipos_permitidos=list(_TIPOS_VISIBLE_EMPLEADO),
+                estados_excluidos=list(_ESTADOS_NO_VISIBLES_EMPLEADO),
             )
             total = await self.repo.count(
-                filters=[Solicitud.empleado_id == current_user.id]
+                filters=[
+                    Solicitud.empleado_id == current_user.id,
+                    Solicitud.tipo.in_(_TIPOS_VISIBLE_EMPLEADO),
+                    ~Solicitud.estado.in_(_ESTADOS_NO_VISIBLES_EMPLEADO),
+                ]
             )
 
         return PaginatedResponse(
@@ -502,6 +541,10 @@ class SolicitudService:
 
         fecha_inicio = data.fecha_inicio
         fecha_fin = data.fecha_fin
+        if rol == "empleado" and data.tipo == "home_office" and fecha_fin != fecha_inicio:
+            raise DomainValidationError(
+                detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
+            )
         if data.tipo == "permiso_sin_goce_sueldo" and rol not in (
             "supervisor",
             "gerente",
@@ -534,6 +577,15 @@ class SolicitudService:
         )
         if duplicado > 0:
             raise ConflictError(detail=_MSG_SOLICITUD_YA_EXISTE)
+
+        empalme = await self.repo.find_first_overlapping_active(
+            empleado_id=target.id,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+        )
+        if empalme is not None:
+            raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
 
         if data.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(
@@ -984,6 +1036,16 @@ class SolicitudService:
         )
         if duplicado > 0:
             raise ConflictError(detail=_MSG_SOLICITUD_YA_EXISTE)
+
+        empalme = await self.repo.find_first_overlapping_active(
+            empleado_id=current_user.id,
+            fecha_inicio=data.fecha_inicio,
+            fecha_fin=data.fecha_fin,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=solicitud_id,
+        )
+        if empalme is not None:
+            raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
 
         if solicitud.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(

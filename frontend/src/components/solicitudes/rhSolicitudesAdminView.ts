@@ -472,9 +472,19 @@ function renderFilters(
   const wrapCls = FILTER_FIELD_WRAP;
   const wrapTipoEstadoEquipo = clusterEquipo ? " sm:min-w-[12rem] sm:max-w-[14rem] sm:flex-none" : "";
 
+  const tiposPermitidosEmpleado = new Set<RhSolicitudTipoCodigo>([
+    "vacaciones",
+    "home_office",
+    "permiso_sin_goce_sueldo",
+  ]);
+  const tiposVisibles =
+    vm.ui.variant === "empleado" ?
+      opt.tipos.filter((t) => tiposPermitidosEmpleado.has(t.id))
+    : opt.tipos;
+
   const tipoOpts =
     `<option value="" ${f.tipo === "" ? "selected" : ""}>Todos los tipos</option>` +
-    opt.tipos
+    tiposVisibles
       .map(
         (t) =>
           `<option value="${escapeHtml(t.id)}" ${f.tipo === t.id ? "selected" : ""}>${escapeHtml(t.label)}</option>`,
@@ -508,9 +518,12 @@ function renderFilters(
       )
       .join("");
 
+  const estadosVisibles =
+    vm.ui.variant === "empleado" ? opt.estados.filter((e) => e.id !== "overridden") : opt.estados;
+
   const estOpts =
     `<option value="" ${f.estado === "" ? "selected" : ""}>Todos los estados</option>` +
-    opt.estados
+    estadosVisibles
       .map(
         (e) =>
           `<option value="${escapeHtml(e.id)}" ${f.estado === e.id ? "selected" : ""}>${escapeHtml(e.label)}</option>`,
