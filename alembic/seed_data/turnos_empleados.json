@@ -1,0 +1,5490 @@
+[
+  {
+    "no_empleado": "25",
+    "nombre": "IBARRA GARCIA, FRANCISCO JAVIER",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "38",
+    "nombre": "LOPEZ ORTIZ, MARCO ANTONIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "42",
+    "nombre": "QUEZADA  GOMEZ, MIGUEL ALBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "46",
+    "nombre": "SERRANO CHAVEZ, SALVADOR DAVID",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "53",
+    "nombre": "AREVALO OLIVAS, JOAQUIN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "57",
+    "nombre": "BAQUERA GONZALEZ, ERIKA IVONNE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "63",
+    "nombre": "ZAMARRON ARMENTA, LORENZO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "64",
+    "nombre": "SERRANO CHAVEZ, RAMON ADRIAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "68",
+    "nombre": "AGUIRRE GARDEA, EDUARDO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "70",
+    "nombre": "FLORES GUTIERREZ, VICTOR ELIAS",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "80",
+    "nombre": "REYES SALAS, ADRIAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "85",
+    "nombre": "MARIN PEREZ, JOSE LUIS",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "90",
+    "nombre": "LUNA PARRA, LIDIA MARIA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "93",
+    "nombre": "VILLALBA RIOS, MANUEL ALONSO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "97",
+    "nombre": "AVILA CASTILLO, EVERARDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "107",
+    "nombre": "RAMIREZ CAMPOS, JUAN DAVID",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "108",
+    "nombre": "BARRAZA SUAREZ, JESUS DAVID",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "122",
+    "nombre": "DOMINGUEZ ROSALES, MANUEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "135",
+    "nombre": "BUSTILLOS ALCANTAR, GUADALUPE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "137",
+    "nombre": "GONZALEZ WEEKE, JOSE LUIS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "165",
+    "nombre": "TAPIA MARISCAL, JAVIER",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "170",
+    "nombre": "BORUNDA VAZQUEZ, MARIA MONSERRAT",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "173",
+    "nombre": "ORDOÑEZ MALDONADO , GERARDO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "174",
+    "nombre": "RODRIGUEZ ARIZMENDI, LUIS ARTURO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "177",
+    "nombre": "COLLAZO BRIANO, HECTOR",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "197",
+    "nombre": "GARCIA NEVAREZ, EMILIO HUMBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "202",
+    "nombre": "PINELA PRADO, ALI",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "224",
+    "nombre": "CURIEL  RODRIGUEZ, HUGO DAVID",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "240",
+    "nombre": "DE LA PEÑA RICO, ROGELIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "248",
+    "nombre": "CISNEROS ORNELAS , EDILBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "299",
+    "nombre": "GRIJALVA ERIVES, LUIS",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "321",
+    "nombre": "GONZALEZ GUTIERREZ , CESAR ALFONSO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "323",
+    "nombre": "MARQUEZ  RAMOS, NEPOMUCENO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "324",
+    "nombre": "MONTOYA CANO, ALEJANDRO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "328",
+    "nombre": "NAVARRO GUERRERO, MIGUEL ANGEL",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "338",
+    "nombre": "PRIETO  MIRANDA, EDGAR AGUSTIN",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "343",
+    "nombre": "CUEVAS PEREZ, JOSE LAURO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "371",
+    "nombre": "ARCE PIÑON, KHALEBB JOAQUIN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "380",
+    "nombre": "GRANILLO RODRIGUEZ, MANUEL OCTAVIO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "399",
+    "nombre": "GONZALEZ GAMBOA, PABLO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "406",
+    "nombre": "CERVANTES GONZALEZ, ALBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "418",
+    "nombre": "GONZALEZ GONZALEZ, JESUS JOEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "482",
+    "nombre": "DOMINGUEZ CAMPOS, BLADIMIR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "512",
+    "nombre": "ARMENDARIZ CHAVIRA, JORGE ALBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "516",
+    "nombre": "RANGEL CASTILLO, OSCAR TOMAS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "520",
+    "nombre": "ALAMOS ACOSTA, GABRIEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "544",
+    "nombre": "CHAVIRA ONTIVEROS, JORGE ALBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "552",
+    "nombre": "ARAGON VARGAS, LUZ ANGELICA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "09B"
+  },
+  {
+    "no_empleado": "556",
+    "nombre": "PEÑA CASTILLO, CARLOS ARTEMIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "559",
+    "nombre": "MERAZ QUEZADA, NOLBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "573",
+    "nombre": "GUTIERREZ CALDERON, MIGUEL EDMUNDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "587",
+    "nombre": "VIZCARRA AMADO, SARA GUADALUPE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "616",
+    "nombre": "OLIVAS TORRES, GUADALUPE",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "628",
+    "nombre": "BAHENA TORRES, OSCAR",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "635",
+    "nombre": "ROMO ROMERO, MANUEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "636",
+    "nombre": "VAZQUEZ MACIAS, JESUS ANTONIO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "647",
+    "nombre": "ARAGON VARGAS, RAMON GILBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "650",
+    "nombre": "JACOBO RODRIGUEZ, MARCOS",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "651",
+    "nombre": "LOPEZ MUÑOZ, URBANO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "652",
+    "nombre": "CEBALLOS HOLGUIN, GUILLERMO RAFAEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "653",
+    "nombre": "HERNANDEZ HERNANDEZ, OSCAR",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "681",
+    "nombre": "MERCADO MENDEZ, RUBEN ARMANDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "685",
+    "nombre": "MARQUEZ RIOS, RICARDO DOLORES",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "689",
+    "nombre": "CASTILLO CASTILLO, MANUEL ALFREDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "696",
+    "nombre": "VELETA ROJO, JESUS ELIAS",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "729",
+    "nombre": "VILLALBA ORTIZ, MIGUEL ANGEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "732",
+    "nombre": "RAMIREZ GONZALEZ, NOE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "738",
+    "nombre": "DELGADO RASCON, ADRIAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "743",
+    "nombre": "RODRIGUEZ SALCIDO, ALDO DAMIAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "760",
+    "nombre": "JACOBO RODRIGUEZ, RAUL ALEJANDRO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "773",
+    "nombre": "RASCON OLIVAS, JORGE ALBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "774",
+    "nombre": "ARANA PORTILLO, RACIEL OLIVER",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "775",
+    "nombre": "CARRILLO GUTIERREZ, JOSE ANSELMO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "776",
+    "nombre": "GONZALEZ CHACON, ZULEMA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "779",
+    "nombre": "BUSTILLOS BERRELLEZA, HUMBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "784",
+    "nombre": "GONZALEZ JAQUEZ, MIGUEL ANGEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "790",
+    "nombre": "LUCERO MOLINA, JUAN CARLOS",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "791",
+    "nombre": "MARIN REGALADO, OMAR",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "820",
+    "nombre": "MATA MARTINEZ, GUILLERMO ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "829",
+    "nombre": "FLORES CHAVEZ, JAVIER",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "842",
+    "nombre": "FERNANDEZ BUSTILLOS, JORGE IVAN",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "7"
+  },
+  {
+    "no_empleado": "844",
+    "nombre": "CARO CERROS, MARCO ANTONIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "856",
+    "nombre": "BELTRAN CATAÑO, ERIK",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "868",
+    "nombre": "LEYVA MENDOZA, LIZETH ELISA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "869",
+    "nombre": "HERNANDEZ HERNANDEZ, ALMA LIZBETH",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "09B"
+  },
+  {
+    "no_empleado": "878",
+    "nombre": "MEZA MORENO, ROGELIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "904",
+    "nombre": "CARREON ROJO, GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "909",
+    "nombre": "GUILLEN QUINTANA, OSCAR OSWALDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "910",
+    "nombre": "REYNOSO RODRIGUEZ, CARLOS ROBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "917",
+    "nombre": "AVILES CORRAL, DAVID ALONSO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "918",
+    "nombre": "MIRANDA PEÑA, JORGE OMAR",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "924",
+    "nombre": "PORTILLO HERNANDEZ, OMAR",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "938",
+    "nombre": "VARGAS GONZALEZ, CESAR RAMON",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "950",
+    "nombre": "OCHOA MEDINA, MANUEL SAIN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "951",
+    "nombre": "RIVERA BURCIAGA, MIGUEL JESUS JOSE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "952",
+    "nombre": "ESPARZA PEREZ, PASCUAL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "954",
+    "nombre": "MANRIQUEZ DELGADO, JESUS UBALDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "957",
+    "nombre": "MACIAS VILLA, HECTOR",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "970",
+    "nombre": "FIGUEROA MENDOZA, ALFONSO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "972",
+    "nombre": "VENTURA GONZALEZ, ALFREDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "973",
+    "nombre": "VALDEZ CANO, FELIPE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "974",
+    "nombre": "GUILLEN SAENZ, YEIMY GABRIELA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "976",
+    "nombre": "RASCON BUSTILLOS, SOCORRO IVAN",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1000",
+    "nombre": "RIVERA RUELAS, JOHANN ASBEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "1012",
+    "nombre": "DIAZ GODINEZ, JOSE ALBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1014",
+    "nombre": "ZAPATA FLORES, DANIEL",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1027",
+    "nombre": "SUAREZ RODRIGUEZ, GABRIEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1054",
+    "nombre": "JIMENEZ FIERRO, JONATHAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "1057",
+    "nombre": "CANO CAMPOS, NOE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1069",
+    "nombre": "GALAVIZ GUERRA, JESUS EDIVEN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1097",
+    "nombre": "MENDOZA CHAVEZ, LUIS CARLOS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1106",
+    "nombre": "LOPEZ DIAZ, MOISES LUCIO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "7"
+  },
+  {
+    "no_empleado": "1110",
+    "nombre": "CADENA SILVA, JOSE LUIS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1113",
+    "nombre": "SAENZ MENDOZA, LAURA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1118",
+    "nombre": "PERALTA DOMINGUEZ, RAMON HORACIO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1119",
+    "nombre": "SOSA GRANILLO, JOSE ALONSO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "1142",
+    "nombre": "REYNOSO RODRIGUEZ, EDGAR ALFONSO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1144",
+    "nombre": "JURADO HOLGUIN, ADARIK",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1156",
+    "nombre": "DELVAL RUIZ, RUDY",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1196",
+    "nombre": "CHACON AGUILAR, JUAN CARLOS",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "1207",
+    "nombre": "MIRAMONTES MONJE, FELIPE",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "1209",
+    "nombre": "DOMINGUEZ MENDOZA, JORGE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1213",
+    "nombre": "GARCIA DOMINGUEZ, JUAN CARLOS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "1214",
+    "nombre": "MINGURA CASTILLO, REYALEJANDRO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1216",
+    "nombre": "AGUERO RAMIREZ, JOSE NOEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1217",
+    "nombre": "ORDOÑEZ PEÑA, ARON",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "1221",
+    "nombre": "MARISCAL RIOS, IVAN",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1228",
+    "nombre": "CORRAL MONTAÑEZ, JACINTO IVAN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "1236",
+    "nombre": "PEREZ VEYNA, DAVID",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1248",
+    "nombre": "MENDEZ MENDEZ, ABRAHAM EDEN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1256",
+    "nombre": "PEREZ TORRES, SERGIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1259",
+    "nombre": "QUEZADA ROMERO, FABIOLA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "1261",
+    "nombre": "ESTRADA CHAVEZ, EFREN EMANUEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1263",
+    "nombre": "ESCUDERO CERA, ADRIAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1288",
+    "nombre": "CORDERO TORRES, SILVERIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1291",
+    "nombre": "GUTIERREZ PONCE, LUIS NORBERTO",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1309",
+    "nombre": "MANCINAS PILLADO, ALONSO REYES",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "1317",
+    "nombre": "ARIAS OLIVAS, BRAULIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1336",
+    "nombre": "CORRAL HERRERA, JHONATAN",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "1368",
+    "nombre": "MARTINEZ MENDOZA, ANGEL GIBRANN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "1369",
+    "nombre": "DOMINGUEZ MENDOZA, ESTEBAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1382",
+    "nombre": "GONZALEZ PEÑA, OMAR ERASMO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1385",
+    "nombre": "MENDOZA ORTEGA, ISMAEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "1391",
+    "nombre": "PEREZ SOTO, MARTIN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "1400",
+    "nombre": "CERVANTES CERVANTES, DIANA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1408",
+    "nombre": "GONZALEZ GRANILLO, OMAR EDUARDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1416",
+    "nombre": "MOLINA SAENZ, MARIA LORETO",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "1429",
+    "nombre": "DIAZ PARRA, OMAR FRANCISCO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1434",
+    "nombre": "RAMIREZ GONZALEZ, DANIEL",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1451",
+    "nombre": "MEJIA MARQUEZ, ANDRES",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1460",
+    "nombre": "GARCIA QUINTANA, ROSA ISELA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1462",
+    "nombre": "DE LA TORRE LUGO, LUIS ANGEL",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1468",
+    "nombre": "VILLARREAL CASTILLO, JOSE MIGUEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1469",
+    "nombre": "MILLAN MARTINEZ, LUIS CARLOS",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "1471",
+    "nombre": "RODRIGUEZ MUÑOZ, LUIS FERNANDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "7"
+  },
+  {
+    "no_empleado": "1482",
+    "nombre": "REYNOSO CAMPOS, GABRIEL GUSTAVO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1509",
+    "nombre": "ROMERO CRUZ, ELIESER",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "1517",
+    "nombre": "GUEREQUE GRANADOS, JAIME CESAR",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1533",
+    "nombre": "ENRIQUEZ PEREZ, JORGE IRAN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1535",
+    "nombre": "TENA MENDOZA, WILFREDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1552",
+    "nombre": "CORRAL ROBLES, ARMANDO",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1555",
+    "nombre": "ROMERO ARAGON, LUIS ARTURO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1556",
+    "nombre": "GONZALEZ CISNEROS, RICARDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1574",
+    "nombre": "MONGE MONGE, FELIPE DE JESUS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1612",
+    "nombre": "RAMIREZ CHAPARRO, JOSE ALBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "2"
+  },
+  {
+    "no_empleado": "1625",
+    "nombre": "ARIAS GONZALEZ, FERNANDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "1626",
+    "nombre": "QUINTANA CHACARITO, SERGIO FRANCISCO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "1628",
+    "nombre": "CARO CARO, SERGIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1646",
+    "nombre": "ROJO VILLALBA, ROGELIO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1648",
+    "nombre": "QUINTEROS BANDA, DANIEL HUMBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1656",
+    "nombre": "TREVIZO TERRAZAS, ERNESTO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1658",
+    "nombre": "LOYA OLIVAS, ADRIAN ERNESTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1661",
+    "nombre": "DOMINGUEZ GONZALEZ, ELDER",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "1663",
+    "nombre": "MURILLO LIMAS, LORENZO ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "1670",
+    "nombre": "PONCE DE LEON MORALES, RAMONA YADIRA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1701",
+    "nombre": "RASCON VIOLETA, JESUS JOSE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "1713",
+    "nombre": "LOYA PALMA, JAVIER ALONSO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "1718",
+    "nombre": "PEREA RASCON, LEONEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "1720",
+    "nombre": "GUADERRAMA CISNEROS, CESAR",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1723",
+    "nombre": "LOPEZ MORALES, NOE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1730",
+    "nombre": "HERNANDEZ OLVERA, NORA LISETH",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1731",
+    "nombre": "REGALADO FLORES, JESUS JOVANY",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1739",
+    "nombre": "NEVAREZ LOPEZ, ESMERALDA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "9"
+  },
+  {
+    "no_empleado": "1766",
+    "nombre": "NAJERA REYES, ALVARO GABRIEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1774",
+    "nombre": "BARRERA ROMERO, MARCO ANTONIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1781",
+    "nombre": "MUÑOZ , LAURA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1802",
+    "nombre": "CARRASCO MONRREAL, PEDRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1809",
+    "nombre": "SAUZAMEDA LOYA, MANUEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1810",
+    "nombre": "PEÑA DURAN, CARLOS IVAN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1819",
+    "nombre": "ARGUELLES ESPINOZA, EMIGDIO OSBALDO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1845",
+    "nombre": "RODRIGUEZ SINALOA, LUIS ALEJANDRO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1848",
+    "nombre": "FLORES ALARCON, HECTOR GERARDO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "1855",
+    "nombre": "PROVENCIO GODINA, ELEAZAR",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "1862",
+    "nombre": "SINALOA PEÑA, ISIDRO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "1864",
+    "nombre": "MACIAS PEREZ, MANUEL ALBERTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "1865",
+    "nombre": "VALENZUELA ANDAZOLA, CESAR IVAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1875",
+    "nombre": "SALDIVAR MORALES, SALVADOR IVAN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1881",
+    "nombre": "SANCHEZ HERNANDEZ, CASIMIRO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "1898",
+    "nombre": "DE LA ROSA LEYVA, DAVID OMAR",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "1922",
+    "nombre": "LOPEZ MENDOZA, HECTOR HUGO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "1971",
+    "nombre": "ESTRADA RODARTE, OSCAR OCTAVIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1974",
+    "nombre": "TARANGO PIÑON, JOSAHANDY",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "1979",
+    "nombre": "RIOS TORRES, FRANCISCO JAVIER",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "1999",
+    "nombre": "RIVERA GUTIERREZ, JESUS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2009",
+    "nombre": "RODRIGUEZ OCAÑA, OSCAR ARNOLDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2019",
+    "nombre": "GONZALEZ RAMOS, JESUS MANUEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2029",
+    "nombre": "ESTRADA RODRIGUEZ, DANIEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "2032",
+    "nombre": "VELETA SINALOA, FABIAN LEONARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "2035",
+    "nombre": "MORAN RUIZ, CESAR ALAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2052",
+    "nombre": "MEDINA PORTILLO, PAMELA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2059",
+    "nombre": "MUÑOZ TERRAZAS, DANIEL",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2061",
+    "nombre": "LUEVANO DELGADILLO, MARIO RODOLFO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "2080",
+    "nombre": "FERNANDEZ LOPEZ, NESTOR DAVID",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "2096",
+    "nombre": "AMADOR ORTEGA, GERARDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2097",
+    "nombre": "CORTE DE LA ROSA, CARLOS IVAN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2098",
+    "nombre": "NEVAREZ MARQUEZ, DANIEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "2110",
+    "nombre": "CORDOVA MUÑOZ, HUGO MANUEL",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2150",
+    "nombre": "CHAVARRIA ARMAS, LUIS CARLOS",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2156",
+    "nombre": "GARDEA BORUNDA, ISIDRO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2157",
+    "nombre": "GONZALEZ VALENZUELA, ADOLFO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2165",
+    "nombre": "ARVIZO MORALES, ROGELIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "2169",
+    "nombre": "MORALES GONZALEZ, ADILENE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2174",
+    "nombre": "BUSTILLOS MORENO, OBED",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2193",
+    "nombre": "MILLAN NUÑEZ, EVER IVAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2195",
+    "nombre": "GUILLEN PORTILLO, FRANCISCO JAVIER",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "2200",
+    "nombre": "VILLARREAL AVIÑA, LUIS CARLOS",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2201",
+    "nombre": "ERIVES LEGARDA, EVER OBED",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2211",
+    "nombre": "CAMPOY CONTRERAS, MARIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2224",
+    "nombre": "RIVERA BERNAL, SARAHI",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2233",
+    "nombre": "CEPEDA CALDERON, LUIS ARTURO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2250",
+    "nombre": "PONCE ROSAS, JESUS ALEJANDRO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2251",
+    "nombre": "RODRIGUEZ , JUAN MANUEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2254",
+    "nombre": "PONCE DOMINGUEZ, LUIS ARMANDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2261",
+    "nombre": "HOLGUIN CARRASCO, WBALDO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2317",
+    "nombre": "GAMBOA ORTIZ, OCTAVIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "2320",
+    "nombre": "ARMENTA PAVON, DANIEL SAMUEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2323",
+    "nombre": "CANO CASTILLO, CRUZ ALEJANDRO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2331",
+    "nombre": "ROBLES MALDONADO, NEHLANIA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2339",
+    "nombre": "PANIAGUA PEREZ, JOSE MARTIN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2344",
+    "nombre": "GALLEGOS GARCIA, LUIS ALBERTO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2354",
+    "nombre": "MENDOZA MADRID, DANIEL FERNANDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2356",
+    "nombre": "SILVA PALACIOS, DAVID ALONSO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2369",
+    "nombre": "ARMENTA PAVON, SAUL",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2381",
+    "nombre": "CERECERES MUÑOZ, KARLA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2384",
+    "nombre": "PEREZ PEREZ, HUGO OVEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "2391",
+    "nombre": "GARCIA MENDEZ, GUILLERMO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2394",
+    "nombre": "LEDEZMA AGUILAR, DIEGO ARMANDO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2415",
+    "nombre": "GARCIA BRISEÑO, IRAN ALBERTO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "2435",
+    "nombre": "CARO CARO, DIEGO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2442",
+    "nombre": "GUTIERREZ ESTEBANE, KARINA VIRIDIANA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2445",
+    "nombre": "RIVERA GAMBOA, VICTOR HUGO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2446",
+    "nombre": "OLIVAS DURAN, CESAR FELIPE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2448",
+    "nombre": "MORALES SALAZAR, RUBEN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2451",
+    "nombre": "MORENO OLIVAS, JORGE ELIAS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "2479",
+    "nombre": "ESPARZA , RAMON ANTONIO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2502",
+    "nombre": "CRUZ VILLA, MANUEL ARTEMIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "2503",
+    "nombre": "BUSTILLOS PACHECO, BLANCA ISSEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2507",
+    "nombre": "BELTRAN AGUIRRE, BRANDON YAEL",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2520",
+    "nombre": "SOTO TORRES, LIBORIO SAUL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2522",
+    "nombre": "BUSTILLOS HERNANDEZ, DANIEL ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2532",
+    "nombre": "PALMA BENCOMO, RAUL ADRIAN",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2534",
+    "nombre": "QUEZADA ARMENDARIZ, ALEXANDRO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "2541",
+    "nombre": "TREVIZO GONZALEZ, LUIS ENRIQUE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2544",
+    "nombre": "PAYAN VENZOR, CARLOS DANIEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2555",
+    "nombre": "MIRANDA MONTAÑEZ, OSBALDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2556",
+    "nombre": "MARTINEZ VENEGAS, LUIS",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "2561",
+    "nombre": "VALENZUELA ANDAZOLA, JORGE DAVID",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2578",
+    "nombre": "ROJO NAVARRO, CRYSTAL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2603",
+    "nombre": "GUTIERREZ ROMERO, ARISTEO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2604",
+    "nombre": "RASCON MORELES, EDUARDO ALEJANDRO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2625",
+    "nombre": "SALAZAR MORALES, LAZARO RUBEN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "2635",
+    "nombre": "JACOBO RODRIGUEZ, IRVING JOVANY",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2640",
+    "nombre": "BUSTILLOS ESPINO, ALMA ERIKA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "2652",
+    "nombre": "BARAY ARMENDARIZ, MARTHA VERONICA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2719",
+    "nombre": "VEGA SEHUE, JOSE ELOY",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "4"
+  },
+  {
+    "no_empleado": "2740",
+    "nombre": "LOPEZ MATA, ENRIQUE ALONSO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "2743",
+    "nombre": "SALCIDO TERRAZAS, ARIANA JEANNETTE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2750",
+    "nombre": "VILLEZCAS DE LA CRUZ, ADAN GUSTAVO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "2760",
+    "nombre": "CASTILLO GONZALEZ, RAFAEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2776",
+    "nombre": "CASTAÑON RUIZ, MARISOL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2793",
+    "nombre": "FERNANDEZ GONZALEZ, JOEL",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2801",
+    "nombre": "LUEVANO PEREZ, SERGIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2812",
+    "nombre": "CRUZ ESPINO, JOSE LUIS",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "2822",
+    "nombre": "NEVAREZ MARQUEZ, LUIS CARLOS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "2824",
+    "nombre": "DOMINGUEZ MIRAMONTES, OSCAR OMAR",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2829",
+    "nombre": "ARMENTA ORTIZ, FELIX",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2849",
+    "nombre": "ROBLES BORJA, EDITH GUADALUPE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "2850",
+    "nombre": "DELVAL HERNANDEZ, JOSUE MARTIN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2854",
+    "nombre": "PEREZ OROZCO, JUAN JOSE",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "2897",
+    "nombre": "SINALOA PORTILLO, DAVID NOE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "2910",
+    "nombre": "DE LA PEÑA MENDOZA, RAUL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "2933",
+    "nombre": "FIERRO DOMINGUEZ, BERTHA IDALIA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2946",
+    "nombre": "CHAVEZ CANTON, KARIME",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "2949",
+    "nombre": "MADRID ANDREW, ESGAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2969",
+    "nombre": "SOTO TORRES, MANUEL ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "2970",
+    "nombre": "ACOSTA GONZALEZ, MARCO ANTONIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3001",
+    "nombre": "RIVERA ORTIZ, DARIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3025",
+    "nombre": "LUCERO LUNA, LUIS ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3026",
+    "nombre": "CASTILLO VILLEGAS, ELFIDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3028",
+    "nombre": "MIRAMONTES MENDOZA, JOSE AARON",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3048",
+    "nombre": "MARTINEZ VASQUEZ, MAYRA BERENISSE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3061",
+    "nombre": "RIVERA VARELA, ANA LAURA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3072",
+    "nombre": "JACOBO MONTES, OSBALDO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3077",
+    "nombre": "RAMIREZ GONZALEZ, GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3090",
+    "nombre": "MORENO AVILA, ERICK",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3101",
+    "nombre": "VILLALOBOS ORPINEL, JOHANA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3105",
+    "nombre": "PEREZ GUEVARA, JOSE FRANCISCO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3120",
+    "nombre": "REYNOSO TREVIZO, DIANA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3123",
+    "nombre": "VARELA VARELA, MARIA ELIZABETH",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3129",
+    "nombre": "ARREGUIN RAMIREZ, JUAN LUIS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3132",
+    "nombre": "DOMINGUEZ BUSTOS, JORGE ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3142",
+    "nombre": "MARTINEZ AGUERO, MIRNA ALEJANDRA",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3144",
+    "nombre": "HIGINE CERVANTES, RAFAEL ARTURO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3145",
+    "nombre": "RIVERA AREVALO, JESUS OMAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3152",
+    "nombre": "CHABLE RAMOS, MARCO ANTONIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3160",
+    "nombre": "FERNANDEZ OLIVAS, MIGUEL ANGEL",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3173",
+    "nombre": "RODRIGUEZ NAÑEZ, GERONIMO EDUARDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3179",
+    "nombre": "CHACON HERNANDEZ, ANA KAREN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3191",
+    "nombre": "VAZQUEZ CARMONA, ANGEL MAURICIO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3199",
+    "nombre": "ORTEGA COLMENERO, KARINA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3200",
+    "nombre": "MARQUEZ RIVAS, MANUEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3218",
+    "nombre": "PERALTA PARRA, RAMON ANDRES",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3220",
+    "nombre": "MANQUERA TERRAZAS, MARIA DE LOS ANGELES",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3239",
+    "nombre": "GARCIA GARCIA, HUGO ALBERTO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3240",
+    "nombre": "LOYA MERAZ, VICTOR MANUEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3244",
+    "nombre": "CORDOVA VILLALOBOS, WILMER SANTANA",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3251",
+    "nombre": "MONTAÑO GONZALEZ, ROCIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3254",
+    "nombre": "RAMOS SERVIN, CRUZ AIDE",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3266",
+    "nombre": "ANAYA VALENZUELA, LAURA KARINA",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3271",
+    "nombre": "CANO MURILLO, CESAR ARTURO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3284",
+    "nombre": "PRIETO CASTILLO, ANAIS",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3291",
+    "nombre": "CORNELIO RODRIGUEZ, JAIR ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3297",
+    "nombre": "MARQUEZ HERRERA, JOSE BRIGIDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3335",
+    "nombre": "BATISTA SALIDO, GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3386",
+    "nombre": "PALACIOS VARGAS, MIGUEL ANGEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3389",
+    "nombre": "LOERA GARCIA, JESUS ARTURO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3395",
+    "nombre": "TREVIZO GUTIERREZ, MIGUEL ANGEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3397",
+    "nombre": "IBARRA CARBALLO, GERMAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3428",
+    "nombre": "CRUZ GONZALEZ, MARIA ANA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "3437",
+    "nombre": "ARAIZA HERNANDEZ, LUIS ALBERTO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3438",
+    "nombre": "SAENZ SAENZ, BLANCA AZUZENA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3446",
+    "nombre": "RIVERA GUTIERREZ, OMAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3447",
+    "nombre": "BURCIAGA ARIAS, ERIC ALAN",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3467",
+    "nombre": "VILLALBA QUEZADA, GUSTAVO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3478",
+    "nombre": "FLORES GARCIA, NOHEMI JANETH",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3479",
+    "nombre": "DELGADO SOSA, BRENDA RAQUEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3482",
+    "nombre": "POLANCO VALLES, GUILLERMINA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3495",
+    "nombre": "BANDA ARMENDARIZ, CARLOS ARTURO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3497",
+    "nombre": "QUIÑONES RAMOS, MARIA GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3500",
+    "nombre": "CARDENAS MONARREZ, LAURA EDITH",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3503",
+    "nombre": "DE LA TORRE LUGO, LIDIA RUTH",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "16"
+  },
+  {
+    "no_empleado": "3507",
+    "nombre": "SALAZAR CEBALLOS, LUIS ARMANDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3519",
+    "nombre": "HERNANDEZ PEÑA, ANA LORENA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3521",
+    "nombre": "RUELAS ZAPATA, OSCAR IVAN",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3522",
+    "nombre": "HERNANDEZ PEÑA, LILIA EVA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3528",
+    "nombre": "BANDA ENRIQUEZ, SAIRA CRISTINA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3543",
+    "nombre": "MORALES GONZALEZ, MARCOS ARMANDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3546",
+    "nombre": "RIOS MENDOZA, LUIS ARMANDO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3556",
+    "nombre": "RIVERA TREVIZO, NORMA ELISA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3557",
+    "nombre": "MOLINA NUÑEZ, RIGOBERTO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3561",
+    "nombre": "GRANADOS IRIGOYEN, AURELIA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3563",
+    "nombre": "MONGE MARTINEZ, MONICA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3565",
+    "nombre": "VENTURA GONZALEZ, GUSTAVO IVAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3566",
+    "nombre": "MUÑOZ AVITIA, JULIO CESAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3579",
+    "nombre": "NAVARRO GUTIERREZ, RAUL ALFONSO",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3580",
+    "nombre": "DE LA LOMA CORTES, JORGE ALEJANDRO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3581",
+    "nombre": "RODRIGUEZ ARAUJO, GABRIEL ROSARIO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3614",
+    "nombre": "RAMIREZ LOYA, LUIS ALFONSO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "7"
+  },
+  {
+    "no_empleado": "3616",
+    "nombre": "RAMIREZ MANRIQUEZ, CLAUDIA IRENE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3623",
+    "nombre": "RAMIREZ ARCE, RICARDO ABRAHAM",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3630",
+    "nombre": "VALLADARES MARQUEZ, EDGAR",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3640",
+    "nombre": "OCHOA CALDERON, MARCO ANTONIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3654",
+    "nombre": "MONTAÑO RODRIGUEZ, MIGUEL ISAI",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3660",
+    "nombre": "BANDA SALAZAR, GABRIEL RICARDO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3665",
+    "nombre": "HERNANDEZ ESTRADA, JAVIER ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3675",
+    "nombre": "RODRIGUEZ GAMBOA, GERARDO ALFREDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3685",
+    "nombre": "DOMINGUEZ CAMPOS, ANDRES",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3687",
+    "nombre": "CORDERO RUIZ, CYNTHIA JAZMIN",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3690",
+    "nombre": "AGUILAR RAMIREZ, MIGUEL EDUARDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3692",
+    "nombre": "VELETA PEREZ, JESUS ANTONIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3696",
+    "nombre": "CUEVAS AREVALO, KEVIN JOSE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3703",
+    "nombre": "DE LA PEÑA MENDOZA, LUI",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3707",
+    "nombre": "RAMOS BUSTILLOS, LUIS ARMANDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3714",
+    "nombre": "VILLALVA VICUÑA, ANGEL HUGO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3723",
+    "nombre": "COLMENERO LEON, LUIS ADRIAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3730",
+    "nombre": "RODRIGUEZ FLORES, IDELFONSO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3734",
+    "nombre": "RIOS SIERRA, JHOVANY DAISY",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3735",
+    "nombre": "GALAVIZ ACOSTA, LUIS ESTEVAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3744",
+    "nombre": "LOPEZ ACOSTA, GERARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3760",
+    "nombre": "QUEZADA CORDERO, MIGUEL ALBERTO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3784",
+    "nombre": "CANO MENDOZA, CESAR",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3786",
+    "nombre": "GONZALEZ MALDONADO, JESUS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3799",
+    "nombre": "PEREZ RONQUILLO, NELSON JESUS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3810",
+    "nombre": "JASSO HERNANDEZ, VIRIDIANA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3813",
+    "nombre": "CATAÑO VELETA, YAHIR EDUARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3823",
+    "nombre": "ANCHONDO OCHOA, DANIEL ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3836",
+    "nombre": "ACOSTA LEDEZMA, MILCA LAINETH",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "3849",
+    "nombre": "RODRIGUEZ MEDINA, CARLOS ALONSO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "3850",
+    "nombre": "MARTINEZ NUÑEZ, JORGE",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3856",
+    "nombre": "SANGABRIEL LANDA, BRAYAN OMAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3860",
+    "nombre": "OCON SALAMANCA, JULIO CESAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3862",
+    "nombre": "CARREON IBARRA, HUGO JARED",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3867",
+    "nombre": "CANO CASTILLO, LUIS DAVID",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3875",
+    "nombre": "ORDOÑEZ , PAMELA ALEXANDRA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3879",
+    "nombre": "DELVAL HERNANDEZ, YUREN EMMANUEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3880",
+    "nombre": "PORTILLO CARDENAS, ANDREA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3884",
+    "nombre": "FERNANDEZ ROMERO, DIANA LIZETH",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3885",
+    "nombre": "PERALTA PARRA, CAROL SELENA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3887",
+    "nombre": "FRIAS PEREZ, EDGAR IVAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3902",
+    "nombre": "AMAYA BANDA, FLOR ADELINA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3907",
+    "nombre": "RODRIGUEZ NAJERA, IVAN ARMANDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3909",
+    "nombre": "LOPEZ VAZQUEZ, FRANCISCO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3911",
+    "nombre": "MARQUEZ RASCON, JUAN CARLOS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3914",
+    "nombre": "CHAVEZ ARMENDARIZ, CARLOS",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "3917",
+    "nombre": "GONZALEZ CORTES, IRMA VALERIA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3918",
+    "nombre": "MONTAÑO , SYLVIA MARGARITA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3919",
+    "nombre": "ACOSTA LEDEZMA, CINTHYA ALEJANDRA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3923",
+    "nombre": "OROZCO CADENA, ERICK ERNESTO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3928",
+    "nombre": "HERNANDEZ PEREZ, MANUELA VERONICA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3935",
+    "nombre": "AGUAYO RENOVA, LINDA",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "3936",
+    "nombre": "MONTES GARCIA, DANIEL ALONSO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "3945",
+    "nombre": "PEÑA SILVA, DAVID EDUARDO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3947",
+    "nombre": "QUEZADA RODRIGUEZ, RAUDEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3951",
+    "nombre": "DOMINGUEZ ARMENTA, ANGELICA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3966",
+    "nombre": "VINIEGRA VILLEGAS, LAZARO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3967",
+    "nombre": "LEON OROZCO, ELENO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3972",
+    "nombre": "BENCOMO BENCOMO, MA. MAGDALENA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3973",
+    "nombre": "GUTIERREZ , OSCAR ALAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "3978",
+    "nombre": "GONZALEZ PAYAN, JOSE LUIS",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3990",
+    "nombre": "RAMOS MURILLO, DANIEL ADRIAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "3991",
+    "nombre": "CARRILLO CARRILLO, EDUARDO ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "3994",
+    "nombre": "RASCON VARELA, EDITH ENEHIDA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3995",
+    "nombre": "SALINAS QUEZADA, LUZ MARIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "3997",
+    "nombre": "MONTOYA JUAREZ, EVA DALILA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "3998",
+    "nombre": "TOVAR DIAZ, ANAHIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4003",
+    "nombre": "NAVA FLORES, GABRIELA",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4005",
+    "nombre": "RASCON CARRASCO, ALMA ROSA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4010",
+    "nombre": "RODRIGUEZ BALDERRAMA, REYNA YADIRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4015",
+    "nombre": "ORDOÑEZ ERIVES, SARAY YAMILETH",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4020",
+    "nombre": "OCHOA ALVARADO, KATYA MARCELA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4021",
+    "nombre": "GONZALEZ PORTILLO, ERIK ANTOLIN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4034",
+    "nombre": "GUTIERREZ BACA, NOEL ISMAEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4043",
+    "nombre": "GUTIERREZ ESTEBANE, MICHEL",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4047",
+    "nombre": "NUÑEZ MORALES, MAYRA ISABEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4048",
+    "nombre": "MEDRANO CISNEROS, ALEJANDRA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4049",
+    "nombre": "LOPEZ DOMINGUEZ, MARIBEL",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4057",
+    "nombre": "PEREZ CHAVEZ, ETHEL IVONNE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4058",
+    "nombre": "GONZALEZ GONZALEZ, BRENDA YUDITH",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4060",
+    "nombre": "GUANESPEN GRANILLO, MORAYMA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4066",
+    "nombre": "HERNANDEZ GOMEZ, MARCO ANTONIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4076",
+    "nombre": "MALDONADO DOMINGUEZ, CARLOS ALBERTO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4078",
+    "nombre": "GASTELUM AGUIRRE, ELMER",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4092",
+    "nombre": "BEJARANO CASTAÑEDA, IVAN FRANCISCO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4100",
+    "nombre": "ROMERO LARA, ERICK JAVIER",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4104",
+    "nombre": "MURILLO POLANCO, MIGUEL ADRIAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4106",
+    "nombre": "MORENO BEJARANO, GABRIELA YANETH",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4108",
+    "nombre": "AVITIA DOMINGUEZ, RENE",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4111",
+    "nombre": "LOYA PEREA, JESUS MANUEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4125",
+    "nombre": "NEVAREZ FLORES, MARIANA AYDEE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4126",
+    "nombre": "TREVIZO ORTIZ, GLADIS ADRIANA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4127",
+    "nombre": "SALMERON PATIÑA, ELDA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4130",
+    "nombre": "LORENZO ISIDRO, JOSE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4131",
+    "nombre": "DURAN GUTIERREZ, CLAUDIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4136",
+    "nombre": "PRIETO AYALA, MARIO EDUARDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4138",
+    "nombre": "HERNANDEZ HERNANDEZ, GABRIEL OBED",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4146",
+    "nombre": "RASCON LOPEZ, ANNA DELIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4149",
+    "nombre": "HERNANDEZ PEREZ, MARLEN GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4152",
+    "nombre": "ESCARCEGA MENDOZA, GLORIA ISELA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4161",
+    "nombre": "ARRIAGA TELLO, JOEL IVAN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4162",
+    "nombre": "CRUZ GONZALEZ, KEVIN ALEXI",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4164",
+    "nombre": "AYALA MUÑOZ, CESAR ALAN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4165",
+    "nombre": "RIVAS RASCON, HORACIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4168",
+    "nombre": "VILLAR CAMPOS, MIRIAM AURORA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4171",
+    "nombre": "CARMONA PARRA, SANDRA JANNETH",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4173",
+    "nombre": "CEBALLOS ACOSTA, MYRNA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4179",
+    "nombre": "MARTINEZ GUTIERREZ, ELIAS EDUARDO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4181",
+    "nombre": "ESTRADA CASTILLO, ALEXIS UBER",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4214",
+    "nombre": "DIAZ PONCE, ANTONIO IVAN",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4218",
+    "nombre": "ARMENTA GOMEZ, MARIA HORTENSIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4219",
+    "nombre": "NICOLAS CRUZ, GUADALUPE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "4227",
+    "nombre": "RANGEL MOLINA, JORDAN JESUS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4228",
+    "nombre": "CERECERES ORTIZ, ALAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4229",
+    "nombre": "OLIVAS ORTEGA, UBER",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4237",
+    "nombre": "ARMENTA NAVA, SAYRA JAZMIN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4247",
+    "nombre": "OROZCO ZAPATA, LILIA NOHEMI",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4258",
+    "nombre": "PARRA JIMENEZ, KEVIN ALAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4262",
+    "nombre": "VILLA QUEZADA, MARISELA",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4265",
+    "nombre": "ESCARCEGA MERAZ, YUSTIN JUAN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4275",
+    "nombre": "RODRIGUEZ CASTAÑEDA, LUCIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4278",
+    "nombre": "MENDOZA TORRES, DIEGO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4282",
+    "nombre": "RIVAS QUEZADA, MAYRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4283",
+    "nombre": "CRUZ TALAMANTES, ERIKA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4294",
+    "nombre": "MENDOZA MORALES, DAYRA PILAR",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4296",
+    "nombre": "PEREZ RIOS, KENYA LIZETH",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4299",
+    "nombre": "TORRES GONZALEZ, LUIS JAVIER",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4308",
+    "nombre": "BOJORQUEZ GONZALEZ, DENISSE AZUCENA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4311",
+    "nombre": "DURAN CHAVEZ, SUSANA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4315",
+    "nombre": "NAVA MENDOZA, KARLA RAMONA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4323",
+    "nombre": "SOTO HERRERA, KARLA ALEJANDRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4324",
+    "nombre": "MILLAN BUSTILLOS, YADIRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4330",
+    "nombre": "VARGAS LOYA, ISMAEL ANTONIO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4333",
+    "nombre": "CARMONA DOMINGUEZ, GABRIELA IVETTE",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4337",
+    "nombre": "HERNANDEZ HERNANDEZ, CINTIA ROCIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4341",
+    "nombre": "CASTAÑEDA CASTAÑEDA, ELVIA MARIELA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4342",
+    "nombre": "GUERRA HERNANDEZ, MARTHA LIDIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4355",
+    "nombre": "LOPEZ MARIN, MARLIN ALEJANDRA",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4359",
+    "nombre": "OCHOA MARTINEZ, OCTAVIO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4371",
+    "nombre": "REYES DEL VALLE, JOSE ALFREDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4388",
+    "nombre": "VALDEZ CASTILLO, MARIA ISABEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4389",
+    "nombre": "SINALOA CHAPARRO, MARIA LIZBETH",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4406",
+    "nombre": "PEREZ CUESTAS, MARIA DEL PILAR",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4410",
+    "nombre": "OCHOA GASSON, MONICA STEFANIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4412",
+    "nombre": "GUADERRAMA BUSTILLOS, LIZETH BERENICE",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4417",
+    "nombre": "MENDEZ MUÑOZ, CLARITZA PAOLA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4419",
+    "nombre": "LEYVA OROZCO, LILIANA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4420",
+    "nombre": "LOERA PUERTA, EDWIN ARTURO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4429",
+    "nombre": "ENRIQUEZ ADAME, OSCAR YAHIR",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4430",
+    "nombre": "MACIAS CARMONA, MARIA INES",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4435",
+    "nombre": "RODRIGUEZ RODRIGUEZ, ARNULFO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4439",
+    "nombre": "URQUIDI NUÑEZ, KARLA LUCIA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4443",
+    "nombre": "RUIZ MENDOZA, RAFAEL JOSE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4444",
+    "nombre": "DIAZ MEDINA, JESSICA KARINA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4449",
+    "nombre": "SAENZ RASCON, VIOLETA GALILEA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4452",
+    "nombre": "LOPEZ GONZALEZ, SUSANA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4453",
+    "nombre": "DELGADO RASCON, JARIDSI",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4455",
+    "nombre": "CORTEZ RODRIGUEZ, CESAR ARTURO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4467",
+    "nombre": "VILLA GONZALEZ, BRAYAN ROSALIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4468",
+    "nombre": "ROMERO RAMIREZ, ANGELA JACKELINE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4469",
+    "nombre": "DOMINGUEZ BANDA, SERGIO IVAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4472",
+    "nombre": "MURUAGA PAVIA, NATAN DAVID",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4475",
+    "nombre": "QUEZADA MONTES, ARLETTE NAYELI",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4481",
+    "nombre": "GIRON GODINA, FLOR LILIANA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4485",
+    "nombre": "GOMEZ AVENDAÑO, SARA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4486",
+    "nombre": "LOPEZ RODRIGUEZ, BRYAN ISAI",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4487",
+    "nombre": "ORDOÑEZ FIERRO, CHRISTIAN MOISES",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4488",
+    "nombre": "MORENO ARAGONEZ, ALMA MIREYA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4495",
+    "nombre": "MANCINAS GONZALEZ, ARACELI",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4496",
+    "nombre": "PARRA NAVIDAD, CELIA JOSEFINA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4497",
+    "nombre": "VILLALOBOS GONZALEZ, MARIA DEL CARMEN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "4498",
+    "nombre": "ANAYA VALENZUELA, KENNIA IVETHE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4502",
+    "nombre": "ROMERO ACOSTA, PALOMA",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4506",
+    "nombre": "GONZALEZ PONCE DE LEON, DANIEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4510",
+    "nombre": "GRACIA VALENZUELA, ILDEFONSO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4514",
+    "nombre": "GONZALEZ MENDOZA, AIDE ERNESTINA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4521",
+    "nombre": "CORREDOR MADRID, PERLA ISABEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4528",
+    "nombre": "CORDERO MORENO, ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4529",
+    "nombre": "CHAVEZ LOYA, DIANA MARIBEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4533",
+    "nombre": "MARQUEZ VILLESCAS, MARLEN REFUGIO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4537",
+    "nombre": "DIAZ GRAJEDA, ROSENDO ROMAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4538",
+    "nombre": "ZAMARRON SOTO, CESAR EDEN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4541",
+    "nombre": "JARAMILLO PALACIOS, MIGUEL ANGEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4543",
+    "nombre": "DIAZ MARQUEZ, CYNTHIA MARLEN",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4545",
+    "nombre": "VILLEGAS VENZOR, DIEGO ALONSO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4550",
+    "nombre": "CHAVEZ VALDEZ, SILVIA JUDITH",
+    "clasificacion": "A",
+    "comedor": 3,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4553",
+    "nombre": "CHACON OLIVAS, TANIA SARAHI",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4560",
+    "nombre": "GARCIA NUÑEZ, ALFREDO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4563",
+    "nombre": "ACOSTA GARCIA, CARLOS MANUEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4565",
+    "nombre": "VECINO BUSTILLOS, ARBEY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4571",
+    "nombre": "NAJERA LOPEZ, OSCAR ALEXIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4574",
+    "nombre": "ORNELAS BURROLA, RICARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4579",
+    "nombre": "SINALOA PEREZ, JOEL JOAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4584",
+    "nombre": "MARQUEZ NUÑEZ, ERICK LEONEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4585",
+    "nombre": "CRUZ PALMA, GAUDENCIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4586",
+    "nombre": "LEDEZMA SALINAS, LUIS EDUARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4591",
+    "nombre": "MIRANDA CASTELLANOS, JONATHAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4596",
+    "nombre": "SIAS FALCON, JESUS EDUARDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4599",
+    "nombre": "TRUJILLO TERAN, JOSE SOCORRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4601",
+    "nombre": "LOPEZ ONTIVEROS, SAUL GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4608",
+    "nombre": "JUAREZ OCHOA, JESUS JOSUE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4611",
+    "nombre": "QUEZADA GONZALEZ, JUAN DANIEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4612",
+    "nombre": "CANDELAS PARRA, JESUS MANUEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4613",
+    "nombre": "MARRUFO ORTIZ, ALEXIS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4617",
+    "nombre": "CRUZ GARCIA, OSCAR IVAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4618",
+    "nombre": "CORRAL MONTAÑEZ, KARINA IVETTE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4630",
+    "nombre": "RODRIGUEZ PEREZ, RAQUEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4635",
+    "nombre": "MONARREZ , CESAR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4637",
+    "nombre": "GUEREÑA NEVAREZ, LUIS ANGEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4638",
+    "nombre": "VALENZUELA PONCE, OSVALDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4640",
+    "nombre": "HERNANDEZ ESTRADA, EDGAR GIOVANNI",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4641",
+    "nombre": "MIRANDA RASCON, MARTIN OSBALDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4649",
+    "nombre": "GONZALEZ SERNA, FABIOLA JHOALY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4650",
+    "nombre": "ORDUÑO MORALES, ROCIO GABRIELA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4651",
+    "nombre": "FLORES RODRIGUEZ, IRVIN ALEXIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4652",
+    "nombre": "BLASCO SANCHEZ, ADALBERTO",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4657",
+    "nombre": "ROMUALDO SANTIAGO, HIPOLITO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4660",
+    "nombre": "PEDROZA ROJO, ARIEL LEONARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4663",
+    "nombre": "MARQUEZ PILLADO, JESUS ALEXIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4664",
+    "nombre": "MOLINA NAYARES, JESUS DANIEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4666",
+    "nombre": "NUÑEZ NAVARRETE, MANUEL OCTAVIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4667",
+    "nombre": "SALCIDO PEREZ, LUIS CARLOS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4668",
+    "nombre": "CHAVEZ DOMINGUEZ, MANUEL ALFONSO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "4672",
+    "nombre": "CARAVEO BUSTILLOS, CARLOS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4676",
+    "nombre": "CRUZ MARQUEZ, JESUS GUILLERMO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4682",
+    "nombre": "MENDOZA OLIVAS, DENISSE RUBY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4691",
+    "nombre": "ARMAS CHACON, TANIA ROSALBA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4692",
+    "nombre": "PEREZ RIOS, IVAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4695",
+    "nombre": "GUTIERREZ QUEZADA, BRAYAN EVISAY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4698",
+    "nombre": "BATISTA DOMINGUEZ, KEVIN IVAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4700",
+    "nombre": "ROSAS GUTIERREZ, ULISES",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4701",
+    "nombre": "GUTIERREZ GONZALEZ, KEVIN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4703",
+    "nombre": "LUJAN LUJAN, ALDO RAFAEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4704",
+    "nombre": "CHAVEZ CARDENAS, JOSEFINA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4709",
+    "nombre": "LUEVANO RIVERA, BRYAN JOSUA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4711",
+    "nombre": "CARRASCO CHAVEZ, JAVIER IVAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4712",
+    "nombre": "MORA POMPA, DIEGO ARMANDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4713",
+    "nombre": "MANCINAS MORENO, JOSE NOE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4714",
+    "nombre": "RAMOS CHACON, ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4717",
+    "nombre": "MALDONADO DOMINGUEZ, JUAN RAMON",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4718",
+    "nombre": "LEDEZMA LEDEZMA, JUHANZY ANTONIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4725",
+    "nombre": "LINARES GRANADOS, JOEL EDUARDO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4733",
+    "nombre": "GONZALEZ CABALLERO, GABRIELA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4735",
+    "nombre": "MENDEZ MIRAMONTES, BENJAMIN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4738",
+    "nombre": "DOMINGUEZ GARCIA, JORGE ALBERTO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4740",
+    "nombre": "SOTO TORRES, CRISTINA JUDITH",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4743",
+    "nombre": "GOMEZ ESCUDERO, MOISES",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4746",
+    "nombre": "NUÑEZ ORDOÑEZ, CLAUDIA PATRICIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4749",
+    "nombre": "QUINTANA VEGA, LILIANA YANETH",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4750",
+    "nombre": "CARRASCO MACIAS, JUAN PABLO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4751",
+    "nombre": "SANTUARIO DOMINGUEZ, RICARDO ENRIQUE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4752",
+    "nombre": "CHAVEZ GONZALEZ, AUNER ARTURO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4753",
+    "nombre": "DIAZ GRAJEDA, DORA ALICIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4754",
+    "nombre": "OCAÑA CASTILLO, KARINA MARISOL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4755",
+    "nombre": "MARTINEZ CASTRO, JOSE PABLO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "4757",
+    "nombre": "PORTILLO VILLALOBOS, LESLIE ALEXANDRA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4761",
+    "nombre": "RAMOS GONZALEZ, CINTIA LIZETH",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4762",
+    "nombre": "DE LA CRUZ RAMOS, PERLA ADRIANA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4763",
+    "nombre": "LOPEZ RAMOS, LAURA ANAHI",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4765",
+    "nombre": "MARIZCAL PARRA, DIANET ADRIANA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4766",
+    "nombre": "AGUAYO TORRES, ERIK JOAQUIN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4768",
+    "nombre": "MATA RENTERIA, ARMANDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4769",
+    "nombre": "ROMERO GONZALEZ, HUGO ALEXIS",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4771",
+    "nombre": "MONTES JURADO, CARLOS MANUEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4772",
+    "nombre": "HERNANDEZ LOPEZ, MARIANO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4773",
+    "nombre": "RAMOS BUSTILLOS, IRIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4774",
+    "nombre": "ANDAZOLA OROZCO, HEIDY ALEJANDRA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4775",
+    "nombre": "HERNANDEZ AREVALO, JAZMIN CORELI",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4776",
+    "nombre": "GONZALEZ PASEÑO, RITA YESENIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4780",
+    "nombre": "MORALES SANCHEZ, DANIEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4781",
+    "nombre": "OLIVAS ARMENTA, SANDRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4783",
+    "nombre": "CHACON SANTOS, JUAN CARLOS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4786",
+    "nombre": "CADENA ORTIZ, FABIOLA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4787",
+    "nombre": "RODRIGUEZ RUBIO, LUIS ABEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4788",
+    "nombre": "REYES VECINO, ALAN JARED",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4790",
+    "nombre": "BARAY DOMINGUEZ, CARLOS ANDRES",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4791",
+    "nombre": "RAMOS RIOS, NOE RICARDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4792",
+    "nombre": "ALVAREZ PEREZ, ANALILIA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4794",
+    "nombre": "FLORES ARAUJO, CLAUDIA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4795",
+    "nombre": "CHAVARRIA RAMIREZ, ALEXIS EDUARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4797",
+    "nombre": "RAMIREZ ARCE, NORMA ARACELY",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4799",
+    "nombre": "ALAMOS ACOSTA, KEVIN EDIEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4800",
+    "nombre": "MARQUEZ MEDRANO, FRANCISCO JAVIER",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4801",
+    "nombre": "SAUCEDO AGUIRRE, DULCE MARIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4802",
+    "nombre": "RODRIGUEZ RAMOS, JESUS ANTONIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4806",
+    "nombre": "GARCIA PALMA, SULMA YAJAYRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4807",
+    "nombre": "CRUZ VILLALBA, SINDY ALEJANDRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4808",
+    "nombre": "GARCIA MENDEZ, DIANA REBECA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4809",
+    "nombre": "GUTIERREZ RODRIGUEZ, AXEL YAIR",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4811",
+    "nombre": "PEREZ RIOS, MARIO",
+    "clasificacion": "I",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4815",
+    "nombre": "QUEZADA GONZALEZ, IRVIN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4823",
+    "nombre": "VENZOR MOLINAR, LUIS ANGEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4826",
+    "nombre": "MENDOZA CASTELLANOS, MARIAN JOSEFINA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4827",
+    "nombre": "PONCE DE LEON GARCIA, JORGE ANGEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4828",
+    "nombre": "QUINTANA CRUZ, JOSE DAVID",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4831",
+    "nombre": "PALLARES CORONA, REYNA SELENE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "4832",
+    "nombre": "MENA CARRIZOSA, LUIS GERARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4835",
+    "nombre": "DURAN CHAPARRO, LIZBETH",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4838",
+    "nombre": "MILLAN LOPEZ, JONATHAN RODRIGO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4841",
+    "nombre": "SINALOA CRUZ, SANDRA FLOR",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "1"
+  },
+  {
+    "no_empleado": "4845",
+    "nombre": "MOLINAR GRAJEDA, BRENDA PAULINA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4846",
+    "nombre": "RENTERIA CHAVEZ, RICARDO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4850",
+    "nombre": "FLORES VEGA, WILIAMS JAAZIEL PAUL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4852",
+    "nombre": "CORRAL ESCARCEGA, JAZIEL ELEY",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4853",
+    "nombre": "MARES GONZALEZ, BIRIDIANA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4855",
+    "nombre": "SINALOA MARTINEZ, VANESSA VIGNEY",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4858",
+    "nombre": "MENDEZ MENDEZ, GERARDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4860",
+    "nombre": "OCHOA PARRA, ANA ARACELI",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4861",
+    "nombre": "LOPEZ ANDAZOLA, MANUEL ALBERTO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4862",
+    "nombre": "AVITIA HERRERA, BRIGITTE",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4867",
+    "nombre": "VECINO CRUZ, EYRA GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4868",
+    "nombre": "QUINTANA VACA, MARIA DE JESUS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4870",
+    "nombre": "CARREON HEREDIA, RUBI ALEJANDRA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4872",
+    "nombre": "PEREZ LEON, BRENDA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4874",
+    "nombre": "VECINO RODRIGUEZ, YONI ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4875",
+    "nombre": "CORREDOR PEREA, CRISTIAN EDUARDO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4877",
+    "nombre": "CERDA MUÑOZ, VICTOR STHIVEEN",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4878",
+    "nombre": "LOYA FROESE, KARIME GISELLE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4879",
+    "nombre": "HERNANDEZ ORTIZ, ALEJANDRA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "10"
+  },
+  {
+    "no_empleado": "4880",
+    "nombre": "QUEZADA MARES, CRUZ AMANDA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4882",
+    "nombre": "BATISTA ORDOÑEZ, LLUVIA YATZIRY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4883",
+    "nombre": "SINALOA GONZALEZ, MANUELA IDALI",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4884",
+    "nombre": "RASCON CRUZ, KARELY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4887",
+    "nombre": "CERA MERAZ, KARIME ZULEY",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4889",
+    "nombre": "SIAS ARMENTA, KEUDY LETICIA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4890",
+    "nombre": "CALZADILLAS MENDEZ, MARIO ANTONIO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4891",
+    "nombre": "NUÑEZ BARRALLASCO, VIRGINIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4895",
+    "nombre": "ROMERO OROZCO, DULCE IVETH",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4897",
+    "nombre": "TELLO CARRASCO, BRANDON SAID",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4898",
+    "nombre": "RUIZ GONZALEZ, REYES ALAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4899",
+    "nombre": "MONTES CASTILLO, JOSE LUIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4901",
+    "nombre": "BANDA BANDA, GUSTAVO ALONSO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4903",
+    "nombre": "DOMINGUEZ RASCON, JESUS ADRIAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4905",
+    "nombre": "NUÑEZ TORRES, ELOY EMISEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4906",
+    "nombre": "RASCON RASCON, MARGARITO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4907",
+    "nombre": "ACOSTA VAZQUEZ, ALEJANDRO DAVID",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4909",
+    "nombre": "PINELA MORALES, ALI",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4910",
+    "nombre": "RUEDA TOVAR, MAURO GABRIEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4912",
+    "nombre": "SOTO ORTIZ, ERNESTO ALFREDO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4913",
+    "nombre": "RODRIGUEZ GUERRERO, JESUS ALEXIS",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4915",
+    "nombre": "ZAVALA GAXIOLA, DOLORES ESTEBAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4918",
+    "nombre": "GONZALEZ RODRIGUEZ, LIZETH ALEJANDRA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4919",
+    "nombre": "CRUZ GONZALEZ, JUAN DIEGO",
+    "clasificacion": "I",
+    "comedor": 2,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4920",
+    "nombre": "MORAN PARRA, YAHIR SIMON",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4922",
+    "nombre": "GONZALEZ GONZALEZ, BRENDA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4924",
+    "nombre": "LUCERO GUTIERREZ, OSCAR EDUARDO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4925",
+    "nombre": "TORRES NEVAREZ, PABLO ALBERTO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4926",
+    "nombre": "HERNANDEZ VAZQUEZ, URIEL ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4927",
+    "nombre": "QUINTANA RASCON, YASMIN AZUCENA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4928",
+    "nombre": "HERNANDEZ BENCOMO, JORGE IVAN",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4929",
+    "nombre": "RUIZ RASCON, LUIS GUMARO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4930",
+    "nombre": "HERNANDEZ CASTILLO, KEVIN HERNAN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4933",
+    "nombre": "MORENO SANDOVAL, JAIR HANIEL",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4935",
+    "nombre": "VICUÑA GONZALEZ, LIDIA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4937",
+    "nombre": "GARCIA CHAVEZ, ISRAEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4938",
+    "nombre": "BUSTILLOS LOPEZ, JOSE RODOLFO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4939",
+    "nombre": "MUÑOZ GAMBOA, JORGE",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4940",
+    "nombre": "CHACON PADILLA, CARLOS DAREY",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4945",
+    "nombre": "BUSTILLOS RASCON, JAIME",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4947",
+    "nombre": "ALAMOS GRANILLO, JOSE ELENO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4948",
+    "nombre": "GIRON CUEVAS, CARLOS DANIEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4949",
+    "nombre": "GONZALEZ ESTRADA, KEIDY SELENE",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4950",
+    "nombre": "VALENZUELA MEDINA, JORGE LUIS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4951",
+    "nombre": "MARTINEZ HERNANDEZ, WENDY YAQUELIN",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4952",
+    "nombre": "MARRUFO ZAPATA, NORMA IDALY",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4953",
+    "nombre": "VILLALOBOS GONZALEZ, ERIKA MARIA",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4954",
+    "nombre": "ALMANZA CHAPARRO, BRENDA LIZBETH",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4955",
+    "nombre": "VALDEZ ARREOLA, MAGDIEL ISAIAS",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4956",
+    "nombre": "PORTILLO VALENZUELA, JESUS ADILEE",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4957",
+    "nombre": "DOMINGUEZ GIRON, ALAN GUILLERMO",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4961",
+    "nombre": "BLANCO RAMIREZ, YUREM JACIEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4963",
+    "nombre": "MENDOZA CARDONA, JESUS DANIEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "4964",
+    "nombre": "DERMA ONTIVEROS, SELMA SULAMA",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4965",
+    "nombre": "GILL JIMENEZ, MARTIN",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4967",
+    "nombre": "MALDONADO MORENO, BRENDA EDITH",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4968",
+    "nombre": "HERNANDEZ CASTRELLON, BRYAN ALONSO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4970",
+    "nombre": "ARMENDARIZ PEREZ, JOSE ALBERTO",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT321"
+  },
+  {
+    "no_empleado": "4972",
+    "nombre": "ARBALLO ORDOÑEZ, KARLA VANESSA",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "4973",
+    "nombre": "FIERRO HERNANDEZ, RAUDEL SALVADOR",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4974",
+    "nombre": "ARVIZU PEREZ, WENDY YANELLY",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4975",
+    "nombre": "LOZANO GILL, DULCE MICHEL",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4977",
+    "nombre": "DELGADO RASCON, PAOLA ANAHI",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "4979",
+    "nombre": "RAMOS RAMOS, EMMANUEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4980",
+    "nombre": "MONTAÑO CORRAL, MIREILY GUADALUPE",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4981",
+    "nombre": "CASTILLO RODRIGUEZ, KEVIN YOHEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4983",
+    "nombre": "SINALOA PORTILLO, ALDO SAMUEL",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "ROT213"
+  },
+  {
+    "no_empleado": "4984",
+    "nombre": "MUÑOZ VELETA, CESAR ARMANDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4985",
+    "nombre": "MENDOZA DELGADO, PERLA LIZETT",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4986",
+    "nombre": "MOLINAR MARQUEZ, CARMEN VALERIA",
+    "clasificacion": "D",
+    "comedor": 2,
+    "turno": "ROT132"
+  },
+  {
+    "no_empleado": "4988",
+    "nombre": "DOMINGUEZ MADRID, DIEGO ALEJANDRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "15"
+  },
+  {
+    "no_empleado": "4989",
+    "nombre": "ANDAZOLA , MIGUEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4990",
+    "nombre": "NAJERA ROJO, SOCORRO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4991",
+    "nombre": "ERIVES ESTRADA, RITA YAZMIN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4992",
+    "nombre": "OSORIO ESPINOZA, DEREK ANDRE",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4993",
+    "nombre": "VAZQUEZ REED, PABLO ANTONIO",
+    "clasificacion": "A",
+    "comedor": 2,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "4994",
+    "nombre": "MORENO VALENZUELA, EDBERTO YOVANI",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "02B"
+  },
+  {
+    "no_empleado": "4995",
+    "nombre": "NAJERA DIAZ, AYLIN DAENA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4996",
+    "nombre": "DOMINGUEZ LICANO, LIZZETH ROSALIA",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "4997",
+    "nombre": "NAVARRETE VELETA, JESUS KALEB",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "4998",
+    "nombre": "VENZOR MONTELONGO, UBALDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "5000",
+    "nombre": "ENRIQUEZ ESCARCEGA, LUIS ANGEL",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G9"
+  },
+  {
+    "no_empleado": "5001",
+    "nombre": "GASPAR CERA, CRISTIAN ALEXIS",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5003",
+    "nombre": "DURAN MELENDEZ, ALEX IVAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "5004",
+    "nombre": "RUBIO RAMIREZ, MOISES",
+    "clasificacion": "I",
+    "comedor": 1,
+    "turno": "G7"
+  },
+  {
+    "no_empleado": "5005",
+    "nombre": "VALDIVIEZO CHAVEZ, OSCAR ADRIAN",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "5006",
+    "nombre": "CASTILLO RASCON, MANUEL ANTONIO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G5"
+  },
+  {
+    "no_empleado": "5007",
+    "nombre": "CHANES SIGALA, JOSUE OSMANN",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "G11"
+  },
+  {
+    "no_empleado": "5009",
+    "nombre": "CAMUÑEZ HERNANDEZ, IRVIN GERARDO",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5010",
+    "nombre": "ALMANZA ORPINEL, JOEL IRAN",
+    "clasificacion": "D",
+    "comedor": 3,
+    "turno": "5"
+  },
+  {
+    "no_empleado": "5011",
+    "nombre": "LOPEZ RAMOS, ALEXIS ALBERTO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5012",
+    "nombre": "RAMIREZ RAMIREZ, JAVIER ANTONIO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5013",
+    "nombre": "DOMINGUEZ GONZALEZ, JORGE AARON",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5014",
+    "nombre": "HERNANDEZ LOYA, JUAN RAYMUNDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5015",
+    "nombre": "SOTO HERNANDEZ, KIMBERLY",
+    "clasificacion": "A",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5016",
+    "nombre": "MARTINEZ RAMOS, GERARDO",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  },
+  {
+    "no_empleado": "5017",
+    "nombre": "TORRES HIGINIO, WALTER",
+    "clasificacion": "D",
+    "comedor": 1,
+    "turno": "05A"
+  }
+]

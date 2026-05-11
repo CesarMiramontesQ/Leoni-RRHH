@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.comedor import ComedorRegistro
     from app.models.notificaciones import Notificacion
     from app.models.auditoria import AuditLog
+    from app.models.turnos_empleados import TurnoEmpleado
     from app.models.catalogos import (
         Area,
         Categoria,
@@ -104,6 +105,11 @@ class Empleado(Base):
     )
     email_alterno: Mapped[Optional["Email"]] = relationship(
         "Email",
+        back_populates="empleado",
+        uselist=False,
+    )
+    turno_empleado: Mapped[Optional["TurnoEmpleado"]] = relationship(
+        "TurnoEmpleado",
         back_populates="empleado",
         uselist=False,
     )
