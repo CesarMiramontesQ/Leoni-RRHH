@@ -150,7 +150,7 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Home Office por aprobar",
     },
     {
-      title: esGerente ? "Total estructura" : "Total colaboradores",
+      title: esGerente ? "Miembro de mi equipo" : "Total colaboradores",
       accent: "blue",
       icon: iconColaboradores(),
       value: fmtPersonas(t?.team_collaborators_count ?? null),
