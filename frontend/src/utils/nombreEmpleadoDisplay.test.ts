@@ -69,6 +69,14 @@ describe("inicialesDesdeNombreDisplay", () => {
     expect(inicialesDesdeNombreDisplay("KARIME GISELLE LOYA")).toBe("KL");
     expect(inicialesDesdeNombreDisplay("CARLOS ROBERTO REYNOSO")).toBe("CR");
   });
+
+  it("con un solo token y singleTokenUnaLetra, solo la primera letra", () => {
+    expect(inicialesDesdeNombreDisplay("MARIA", { singleTokenUnaLetra: true })).toBe("M");
+  });
+
+  it("con un solo token sin opción, conserva dos letras del token", () => {
+    expect(inicialesDesdeNombreDisplay("MARIA")).toBe("MA");
+  });
 });
 
 describe("capitalizarNombreTituloUi", () => {

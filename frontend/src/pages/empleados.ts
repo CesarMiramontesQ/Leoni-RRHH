@@ -121,7 +121,7 @@ function nombreEmpleadoTablaMostrar(raw: string): string {
 
 function inicialesEmpleadoTabla(raw: string): string {
   const display = formatNombreEmpleadoUi(raw) || raw.trim();
-  return inicialesDesdeNombreDisplay(display);
+  return inicialesDesdeNombreDisplay(display, { singleTokenUnaLetra: true });
 }
 
 type State = {
@@ -196,12 +196,18 @@ function buildEmpleadosListParams(state: State, isRh: boolean, kpiGestionEquipo:
   return base;
 }
 
-function empleadoAvatarCellHtml(foto: string | null | undefined, iniciales: string): string {
+function empleadoAvatarCellHtml(
+  foto: string | null | undefined,
+  iniciales: string,
+  nombreTitle: string,
+): string {
   const url = foto?.trim();
-  if (url) {
-    return `<img src="${escapeHtml(url)}" alt="" class="size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />`;
-  }
-  return `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(iniciales)}</span>`;
+  const fallbackSpan = `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white" title="${escapeHtml(nombreTitle)}">${escapeHtml(iniciales)}</span>`;
+  if (!url) return fallbackSpan;
+  return `<span class="relative inline-flex shrink-0">
+    <img src="${escapeHtml(url)}" alt="" width="40" height="40" decoding="async" loading="lazy" data-emp-tabla-avatar class="size-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />
+    <span hidden class="emp-tabla-avatar-fallback--swap flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white" title="${escapeHtml(nombreTitle)}">${escapeHtml(iniciales)}</span>
+  </span>`;
 }
 
 function antiguedadCeldaHtml(registro: string | null): string {
@@ -576,7 +582,7 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
     : avatarRhFallback;
 
   const avatar = isLider
-    ? empleadoAvatarCellHtml(u.foto ?? null, ini)
+    ? empleadoAvatarCellHtml(u.foto ?? null, ini, name)
     : isRh
       ? avatarRh
       : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
@@ -1137,16 +1143,20 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     );
   }
 
-  const rhEmpleadosPage = container.querySelector("#rh-empleados-page");
-  rhEmpleadosPage?.addEventListener(
+  /** Avatares con `<img>`: fallback a iniciales si falla la carga (RH y vista supervisor en `#empleados-root`). */
+  empleadosRoot?.addEventListener(
     "error",
     (ev) => {
       const el = ev.target;
       if (!(el instanceof HTMLImageElement)) return;
-      if (!el.hasAttribute("data-rh-sol-avatar")) return;
+      if (!el.hasAttribute("data-rh-sol-avatar") && !el.hasAttribute("data-emp-tabla-avatar")) return;
       el.classList.add("hidden");
       const fb = el.nextElementSibling;
-      if (fb instanceof HTMLElement && fb.classList.contains("rh-sol-avatar-fallback--swap")) {
+      if (
+        fb instanceof HTMLElement &&
+        (fb.classList.contains("rh-sol-avatar-fallback--swap") ||
+          fb.classList.contains("emp-tabla-avatar-fallback--swap"))
+      ) {
         fb.removeAttribute("hidden");
       }
     },

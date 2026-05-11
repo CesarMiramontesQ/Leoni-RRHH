@@ -65,17 +65,31 @@ export function formatNombreEmpleadoUi(
   return display;
 }
 
+export type InicialesDesdeNombreDisplayOptions = {
+  /**
+   * Con un solo token, devolver solo la primera letra mayúscula (listado empleados).
+   * Por defecto se mantienen dos letras del mismo token (comportamiento previo en el resto de la app).
+   */
+  singleTokenUnaLetra?: boolean;
+};
+
 /**
  * Iniciales a partir del nombre ya en formato de pantalla (p. ej. salida de `formatNombreEmpleadoUi`).
  * Primer nombre + primer apellido: primera letra del primer token y del último token del display
  * (tras omitir segundo apellido suele quedar `NOMBRE(S) PATERNO` → iniciales correctas).
  */
-export function inicialesDesdeNombreDisplay(display: string): string {
+export function inicialesDesdeNombreDisplay(
+  display: string,
+  options?: InicialesDesdeNombreDisplayOptions,
+): string {
   const parts = display.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) {
     const w = parts[0]!;
     const a = (w[0] ?? "").toUpperCase();
+    if (options?.singleTokenUnaLetra) {
+      return a || "?";
+    }
     const b = (w[1] ?? "").toUpperCase();
     return (a + b) || a || "?";
   }
