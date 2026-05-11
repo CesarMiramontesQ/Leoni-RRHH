@@ -22,6 +22,7 @@ from app.models.roles import Rol
 from app.models.solicitudes import Solicitud
 from app.models.incidencias import Incidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
+from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.usuario_repository import ModoEstadoListado, UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.empleados import AreaResponse, PuestoResponse
@@ -38,6 +39,7 @@ from app.schemas.usuarios import (
     UsuarioResumenResponse,
     UsuarioResponse,
     UsuarioVista360Response,
+    Vista360TurnoEmpleado,
 )
 from app.utils.audit_logger import audit_background
 
@@ -385,12 +387,28 @@ class UsuarioService:
         )
         actas = list(result.scalars().all())
 
+        turno_empleado: Vista360TurnoEmpleado | None = None
+        if self._get_rol(current_user) == "rh":
+            r_te = await self.db.execute(
+                select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == usuario.no_empleado)
+            )
+            te = r_te.scalar_one_or_none()
+            comedor_txt: str | None = None
+            turno_txt: str | None = None
+            if te is not None:
+                if te.comedor is not None:
+                    comedor_txt = str(te.comedor)
+                if te.turno and str(te.turno).strip():
+                    turno_txt = str(te.turno).strip()
+            turno_empleado = Vista360TurnoEmpleado(comedor=comedor_txt, turno=turno_txt)
+
         return UsuarioVista360Response(
             usuario=UsuarioResponse.model_validate(usuario),
             solicitudes_recientes=[SolicitudBrief.model_validate(s) for s in solicitudes],
             incidencias_activas=[IncidenciaBrief.model_validate(i) for i in incidencias],
             actas_firmadas=[ActaBrief.model_validate(a) for a in actas],
             saldo_vacaciones=0,
+            turno_empleado=turno_empleado,
         )
 
     async def get_metricas(

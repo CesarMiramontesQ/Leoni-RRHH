@@ -372,6 +372,18 @@ components:
           type: string
           format: date-time
 
+    Vista360TurnoEmpleado:
+      type: object
+      description: Datos de turnos_empleados; la API solo lo incluye cuando el solicitante tiene rol rh.
+      properties:
+        comedor:
+          type: string
+          nullable: true
+          description: Valor de la columna comedor (entero en BD, serializado como texto).
+        turno:
+          type: string
+          nullable: true
+
     UsuarioVista360Response:
       type: object
       required:
@@ -397,6 +409,11 @@ components:
             $ref: "#/components/schemas/ActaBrief"
         saldo_vacaciones:
           type: integer
+        turno_empleado:
+          allOf:
+            - $ref: "#/components/schemas/Vista360TurnoEmpleado"
+          nullable: true
+          description: Presente solo para rol rh; ausente o null para otros roles.
 
     MetricasUsuarioResponse:
       type: object

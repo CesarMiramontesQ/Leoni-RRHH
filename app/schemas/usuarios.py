@@ -145,6 +145,13 @@ class ActaBrief(BaseModel):
     created_at: datetime
 
 
+class Vista360TurnoEmpleado(BaseModel):
+    """Filas de `turnos_empleados` (comedor numérico + turno). Solo se envía cuando el solicitante es RH."""
+
+    comedor: Optional[str] = None
+    turno: Optional[str] = None
+
+
 class UsuarioVista360Response(BaseModel):
     model_config = {"from_attributes": True}
     usuario: UsuarioResponse
@@ -152,6 +159,7 @@ class UsuarioVista360Response(BaseModel):
     incidencias_activas: list[IncidenciaBrief]
     actas_firmadas: list[ActaBrief]
     saldo_vacaciones: int
+    turno_empleado: Optional[Vista360TurnoEmpleado] = None
 
 
 class MetricasUsuarioResponse(BaseModel):
