@@ -287,6 +287,10 @@ const KPI_NUM_CLS =
 const KPI_SUB_CLS = "mt-2 text-sm font-medium leading-snug text-slate-500";
 const KPI_MICRO_CLS = "mt-1 text-xs text-slate-400";
 
+/** Misma cáscara visual que las tarjetas KPI de empleados RH (reutilizada en vista supervisor). */
+const RH_EMPLEADOS_KPI_CARD_SHELL =
+  "flex min-h-[10.5rem] flex-col rounded-[14px] border p-5 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.1)]";
+
 type LiderKpiResaltado = { resaltarEquipo: boolean; resaltarContratos: boolean };
 
 function liderKpiUiDesdeState(s: State): LiderKpiResaltado {
@@ -309,6 +313,14 @@ function renderKpis(
   liderKpi: LiderKpiResaltado | null,
 ): string {
   if (!isRh && kpiGestionEquipo && liderKpi) {
+    const kpiLiderCardCls =
+      getRolFromAccessToken() === "supervisor"
+        ? `${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(148,163,184,0.32)] bg-linear-to-br from-white to-[#f8fbff]`
+        : "min-h-[9.5rem] rounded-xl border bg-white p-5 shadow-sm";
+    const kpiLiderGridCls =
+      getRolFromAccessToken() === "supervisor"
+        ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:gap-3"
+        : "grid grid-cols-1 gap-4 md:grid-cols-2";
     const ringEq = kpiLiderCardRing(liderKpi.resaltarEquipo);
     const ringCt = kpiLiderCardRing(liderKpi.resaltarContratos);
     const todoAlDia =
@@ -319,8 +331,8 @@ function renderKpis(
           </p>`
         : "";
     return `
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <button type="button" data-emp-kpi="equipo" class="group flex min-h-[9.5rem] w-full flex-col rounded-xl border bg-white p-5 text-left shadow-sm transition ${ringEq}">
+    <div class="${kpiLiderGridCls}">
+      <button type="button" data-emp-kpi="equipo" class="group flex w-full flex-col text-left transition ${kpiLiderCardCls} ${ringEq}">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Número de colaboradores</p>
           ${kpiMetricIconBox(
@@ -334,7 +346,7 @@ function renderKpis(
         <p class="${KPI_SUB_CLS}">Activo(s) en tu alcance · quita el filtro de contratos</p>
         <p class="${KPI_MICRO_CLS}">Clic para restablecer vista de equipo</p>
       </button>
-      <button type="button" data-emp-kpi="contratos" class="group flex min-h-[9.5rem] w-full flex-col rounded-xl border bg-white p-5 text-left shadow-sm transition ${ringCt}">
+      <button type="button" data-emp-kpi="contratos" class="group flex w-full flex-col text-left transition ${kpiLiderCardCls} ${ringCt}">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Contratos por vencer</p>
           ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
@@ -392,8 +404,6 @@ function renderKpis(
       </p>`;
 
   const sinLiderResaltar = r.sin_lider_asignado > 50;
-  const kpiShell =
-    "flex min-h-[10.5rem] flex-col rounded-[14px] border p-5 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.1)]";
   const titleKpi = "text-[13px] font-bold leading-tight text-[#475569]";
   const numPlantilla = `${KPI_NUM_CLS} text-[#0c2340]`;
   const numActivos = `${KPI_NUM_CLS} text-emerald-900`;
@@ -401,7 +411,7 @@ function renderKpis(
 
   return `
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="${kpiShell} border-[rgba(37,99,235,0.2)] bg-linear-to-br from-white to-[#eff6ff]">
+      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(37,99,235,0.2)] bg-linear-to-br from-white to-[#eff6ff]">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Total de plantilla</h2>
           ${kpiMetricIconBox("total", svgKpiTotalPlantilla())}
@@ -410,7 +420,7 @@ function renderKpis(
         <p class="${KPI_SUB_CLS}">Registro actual de personas en nómina</p>
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Variación vs mes anterior: pendiente de datos</p>
       </article>
-      <article class="${kpiShell} border-emerald-200/60 bg-linear-to-br from-white to-emerald-50/90">
+      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} border-emerald-200/60 bg-linear-to-br from-white to-emerald-50/90">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Activos</h2>
           ${kpiMetricIconBox(
@@ -427,7 +437,7 @@ function renderKpis(
         </p>
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
       </article>
-      <article class="${kpiShell} bg-linear-to-br from-white to-amber-50/80${bordeContratosRh}">
+      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} bg-linear-to-br from-white to-amber-50/80${bordeContratosRh}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Contratos por vencer</h2>
           ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
@@ -437,7 +447,7 @@ function renderKpis(
         ${estadoContratosRh}
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
       </article>
-      <article class="${kpiShell} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}">
+      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Sin Líder Asignado</h2>
           ${kpiMetricIconBox("sinLider", svgKpiSinLider())}
@@ -539,9 +549,13 @@ function estadoBadgeRh(estado: EstadoEmpleadoResponse | null): string {
   return `<span class="${base} rh-sol-badge-estado--rejected">${dotEstado("bg-red-400")}${escapeHtml(label)}</span>`;
 }
 
-function rowAccionesLiderHtml(u: UsuarioListItem, name: string): string {
+function rowAccionesLiderHtml(
+  u: UsuarioListItem,
+  name: string,
+  tdClass = "relative w-px px-2 py-3 align-middle",
+): string {
   const empDir = String(u.empleado_id);
-  return `<td class="relative w-px px-2 py-3 align-middle" data-emp-row-nolink>
+  return `<td class="${tdClass}" data-emp-row-nolink>
     <details class="group/act relative">
       <summary
         class="inline-flex list-none cursor-pointer items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue [&::-webkit-details-marker]:hidden"
@@ -571,6 +585,7 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
   const isLider = mode === "lider";
   const jefeRol = getRolFromAccessToken();
   const ocultarLider = isLider && jefeRol === "supervisor";
+  const useRhTableChrome = isRh || (isLider && jefeRol === "supervisor");
 
   const fotoUrl = u.foto?.trim();
   const avatarRhFallback = `<span class="rh-sol-avatar-fallback flex size-10 shrink-0 items-center justify-center rounded-full border border-[rgba(148,163,184,0.35)] bg-linear-to-br from-[#dbeafe] to-[#eff6ff] text-xs font-bold tracking-tight text-[#082f5f] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" title="${escapeHtml(name)}">${escapeHtml(ini)}</span>`;
@@ -586,20 +601,27 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
     : isRh
       ? avatarRh
       : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
-  const nombreCls = isLider
-    ? "text-sm font-bold text-slate-900 group-hover:text-leoni-blue"
-    : "text-sm font-semibold leading-snug text-[#0f172a] group-hover:text-leoni-blue";
-  const emailCls = isRh
+  const nombreCls = useRhTableChrome
+    ? "text-sm font-semibold leading-snug text-[#0f172a] group-hover:text-leoni-blue"
+    : isLider
+      ? "text-sm font-bold text-slate-900 group-hover:text-leoni-blue"
+      : "text-sm font-semibold leading-snug text-[#0f172a] group-hover:text-leoni-blue";
+  const emailCls = useRhTableChrome
     ? "mt-0.5 text-[13px] leading-snug text-[#64748b]"
     : isLider
       ? "mt-0.5 text-xs leading-tight text-slate-500"
       : "text-xs text-slate-400";
-  const userStack = isLider
-    ? `<div class="min-w-0 flex-1">
+  const userStack = useRhTableChrome
+    ? `<div class="min-w-0">
           <p class="${nombreCls}">${escapeHtml(name)}</p>
           <p class="${emailCls}">${escapeHtml(email)}</p>
         </div>`
-    : `<div class="min-w-0">
+    : isLider
+      ? `<div class="min-w-0 flex-1">
+          <p class="${nombreCls}">${escapeHtml(name)}</p>
+          <p class="${emailCls}">${escapeHtml(email)}</p>
+        </div>`
+      : `<div class="min-w-0">
           <p class="${nombreCls}">${escapeHtml(name)}</p>
           <p class="${emailCls}">${escapeHtml(email)}</p>
         </div>`;
@@ -614,16 +636,22 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
         <span class="block truncate" title="${escapeHtml(sup)}">${escapeHtml(sup)}</span>
       </td>`;
   const colAntiguedad = isLider
-    ? `<td class="whitespace-nowrap px-4 py-4 align-middle">${antiguedadCeldaHtml(u.registro)}</td>`
+    ? `<td class="whitespace-nowrap ${useRhTableChrome ? "px-3 py-3 align-middle sm:px-4" : "px-4 py-4 align-middle"}">${antiguedadCeldaHtml(u.registro)}</td>`
     : "";
-  const colAccionesLider = isLider ? rowAccionesLiderHtml(u, name) : "";
+  const colAccionesLider = isLider
+    ? rowAccionesLiderHtml(
+        u,
+        name,
+        useRhTableChrome ? "relative w-px px-3 py-3 align-middle sm:px-4" : "relative w-px px-2 py-3 align-middle",
+      )
+    : "";
 
-  const trCls = isRh
+  const trCls = useRhTableChrome
     ? "group rh-sol-data-row rh-sol-data-row--interactive cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue"
     : "group cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue";
 
-  const tdPad = isRh ? "px-3 py-3 align-middle sm:px-4" : "px-4 py-4 align-middle";
-  const celdaEmpleadoInner = isRh
+  const tdPad = useRhTableChrome ? "px-3 py-3 align-middle sm:px-4" : "px-4 py-4 align-middle";
+  const celdaEmpleadoInner = useRhTableChrome
     ? `<div class="rh-sol-empleado-celda flex min-w-0 items-center gap-3">
           ${avatar}
           ${userStack}
@@ -633,11 +661,11 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
           ${userStack}
         </div>`;
 
-  const numCell = isRh
+  const numCell = useRhTableChrome
     ? `<span class="inline-flex rounded-lg border border-[rgba(148,163,184,0.32)] bg-[linear-gradient(135deg,#f8fafc_0%,#f1f5f9_100%)] px-2.5 py-1 text-sm font-semibold tabular-nums text-[#475569]">#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}</span>`
     : `#${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}`;
 
-  const estadoUi = isRh ? estadoBadgeRh(u.estado) : estadoPill(u.estado);
+  const estadoUi = useRhTableChrome ? estadoBadgeRh(u.estado) : estadoPill(u.estado);
 
   return `
     <tr
@@ -649,11 +677,11 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
       <td class="${tdPad}">
         ${celdaEmpleadoInner}
       </td>
-      <td class="whitespace-nowrap ${tdPad} text-right text-sm tabular-nums ${isRh ? "" : "text-slate-500"}">${numCell}</td>
-      <td class="max-w-[10rem] ${tdPad} ${isRh ? "text-[13px] text-[#334155]" : "text-sm text-slate-700"}">
+      <td class="whitespace-nowrap ${tdPad} text-right text-sm tabular-nums ${useRhTableChrome ? "" : "text-slate-500"}">${numCell}</td>
+      <td class="max-w-[10rem] ${tdPad} ${useRhTableChrome ? "text-[13px] text-[#334155]" : "text-sm text-slate-700"}">
         <span class="block truncate" title="${escapeHtml(area)}">${escapeHtml(area)}</span>
       </td>
-      <td class="max-w-[14rem] ${tdPad} ${isRh ? "text-[13px] text-[#334155]" : "text-sm text-slate-700"}">
+      <td class="max-w-[14rem] ${tdPad} ${useRhTableChrome ? "text-[13px] text-[#334155]" : "text-sm text-slate-700"}">
         <span class="block truncate" title="${puestoTitle}">${escapeHtml(puesto)}</span>
       </td>
       ${colLider}
@@ -901,6 +929,146 @@ function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage,
     </div>`;
 }
 
+/** Listado empleados vista supervisor: mismos patrones de superficie/filtros/tabla que RH (sin columna Líder). */
+function renderPanelLiderSupervisorRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage): string {
+  const colCount = 7;
+  const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
+  const from = pg.total === 0 ? 0 : (pg.page - 1) * pg.page_size + 1;
+  const to = Math.min(pg.page * pg.page_size, pg.total);
+  const pages = paginationRange(totalPages, pg.page);
+
+  const rows =
+    pg.items.length === 0
+      ? `<tr><td colspan="${colCount}" class="p-0">
+    <div class="rh-sol-empty px-4 py-12 sm:px-6" role="status">
+      <p class="rh-sol-empty__title text-center text-sm font-semibold text-[#0f172a]">No se encontraron empleados</p>
+      <p class="rh-sol-empty__sub mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">Prueba ajustando los filtros de búsqueda.</p>
+    </div>
+  </td></tr>`
+      : pg.items.map((u) => rowHtml(u, "lider")).join("");
+
+  const pageButtons = pages
+    .map((x) => {
+      if (x === "ellipsis") {
+        return `<span class="flex min-h-8 items-center px-1.5 text-xs text-slate-500 sm:text-sm">…</span>`;
+      }
+      const active = x === pg.page;
+      const cls = active
+        ? "min-h-8 min-w-8 rounded-lg bg-[#1e40af] px-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] sm:px-2.5 sm:text-sm"
+        : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
+      return `<button type="button" data-emp-page="${x}" class="${cls}">${x}</button>`;
+    })
+    .join("");
+
+  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
+  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
+  const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
+            <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
+            <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
+
+  const clearVisible = filtrosActivos(state, false, true);
+  const clearBtn = clearVisible
+    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
+        <button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear w-full sm:w-auto">Limpiar filtros</button>
+      </div>`
+    : "";
+
+  const countHtml = `<p class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[#0f172a]">${escapeHtml(String(pg.total))}</span> empleados</p>`;
+
+  const searchWrap = `
+    <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
+      <label for="emp-search" class="${RH_LISTADO_LABEL}">Búsqueda</label>
+      <div class="relative mt-1">
+        ${iconSearchInput()}
+        <input
+          id="emp-search"
+          type="search"
+          name="emp-search"
+          autocomplete="off"
+          enterkeyhint="search"
+          placeholder="Nombre, ID o número…"
+          value="${escapeHtml(state.q)}"
+          class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
+        />
+        <span data-emp-search-loading class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted" aria-hidden="true">
+          <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+      </div>
+    </div>`;
+
+  const filtrosInner = `
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
+        ${searchWrap}
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}</div>
+        ${clearBtn}
+      </div>`;
+
+  const pageSizeOpts = [10, 25, 50, 100]
+    .map((n) => `<option value="${n}" ${n === state.page_size ? "selected" : ""}>${n}</option>`)
+    .join("");
+
+  return `
+    <div class="flex flex-col gap-5">
+      <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros del listado de empleados">
+        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Filtros de búsqueda</h2>
+          ${countHtml}
+        </div>
+        ${filtrosInner}
+      </section>
+      <section data-emp-table-region class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
+      <div class="max-h-[min(72vh,780px)] overflow-auto">
+        <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
+        <table class="min-w-[880px] w-full text-left">
+          <thead class="rh-sol-thead">
+            <tr>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Empleado</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH} text-right">Número</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Área</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Puesto</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Ingreso / antigüedad</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH}">Estatus</th>
+              <th scope="col" class="${EMP_RH_TABLE_TH} text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="rh-sol-tbody divide-y divide-slate-100/90">${rows}</tbody>
+        </table>
+      </div>
+      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <p class="text-xs font-medium text-slate-600 sm:text-sm">
+            Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${pg.total}</span> empleados
+          </p>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <label for="emp-page-size" class="text-xs font-medium text-slate-600 sm:text-sm">Registros por página</label>
+            <select id="emp-page-size" name="emp-page-size" class="rh-sol-filter-select min-h-[38px] rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-800 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 hover:border-[rgba(100,116,139,0.45)] sm:text-sm ${FIELD_FOCUS}">
+              ${pageSizeOpts}
+            </select>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end">
+          <button type="button" data-emp-page="${pg.page - 1}" ${pg.page <= 1 ? "disabled" : ""}
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
+            <span class="sr-only">Anterior</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+          </button>
+          ${pageButtons}
+          <button type="button" data-emp-page="${pg.page + 1}" ${pg.page >= totalPages ? "disabled" : ""}
+            class="inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2">
+            <span class="sr-only">Siguiente</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+          </button>
+        </div>
+      </div>
+      </section>
+    </div>`;
+}
+
 function renderPanel(
   state: State,
   catalogo: CatalogoFiltros,
@@ -910,6 +1078,10 @@ function renderPanel(
 ): string {
   if (mode === "rh") {
     return renderPanelRh(state, catalogo, pg, liderUiForFilters);
+  }
+
+  if (mode === "lider" && getRolFromAccessToken() === "supervisor") {
+    return renderPanelLiderSupervisorRh(state, catalogo, pg);
   }
 
   const isLider = mode === "lider";
@@ -1064,6 +1236,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
 
   const isRh = canAccessUsuariosAdmin();
   const kpiGestionEquipo = canAccessEmpleadosKpiGestionEquipo();
+  const supervisorRhShell = !isRh && getRolFromAccessToken() === "supervisor";
 
   const state: State = {
     page: 1,
@@ -1085,7 +1258,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   mountAppShell(container, {
     pageTitle: "Empleados",
     activeNav: "empleados",
-    ...(isRh ? { mainClass: empleadosMainClass } : {}),
+    ...(isRh || supervisorRhShell ? { mainClass: empleadosMainClass } : {}),
     mainHtml: isRh
       ? `<div id="rh-empleados-page" class="${empleadosPageShellClass}">
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
@@ -1094,7 +1267,15 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         <div id="empleados-panel">${renderTableLoadingRh()}</div>
       </div>
     </div>`
-      : `
+      : supervisorRhShell
+        ? `<div class="${empleadosPageShellClass}">
+      <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+        ${renderEmpleadosHeroRh()}
+        <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
+        <div id="empleados-panel">${renderTableLoadingRh()}</div>
+      </div>
+    </div>`
+        : `
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER}">
         <div id="empleados-kpis">
           <div class="flex items-center gap-3 py-4 text-sm text-text-muted">
@@ -1196,7 +1377,10 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     if (background) {
       setSearchLoading(true);
     } else {
-      panel.innerHTML = isRh ? renderTableLoadingRh() : `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
+      panel.innerHTML =
+        isRh || supervisorRhShell
+          ? renderTableLoadingRh()
+          : `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
     }
     try {
       const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRh, kpiGestionEquipo));
