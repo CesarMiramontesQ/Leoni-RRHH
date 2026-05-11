@@ -886,8 +886,34 @@ function renderDetalleHtml(
               Cerrar
             </button>
           </div>
-          <div class="mt-3 max-h-[58vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">Presiona "Generar escrito" para obtener un escrito de apoyo.</p>
+          <div class="relative mt-3 min-h-[200px] max-h-[58vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div
+              data-rh-acta-ia-loading-panel
+              class="hidden min-h-[180px] flex-col items-center justify-center gap-3 px-4 py-10 text-center"
+              role="status"
+              aria-live="polite"
+            >
+              <svg
+                class="size-10 shrink-0 animate-spin text-[#1e40af]"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"
+                ></path>
+              </svg>
+              <p data-rh-acta-ia-loading-message class="text-sm font-semibold text-slate-800"></p>
+              <p class="max-w-sm text-xs leading-relaxed text-slate-500">
+                Estamos elaborando el escrito; evita cerrar esta ventana hasta finalizar.
+              </p>
+            </div>
+            <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+              Presiona "Generar escrito" para obtener un escrito de apoyo.
+            </p>
           </div>
           <div class="mt-4 flex flex-wrap justify-end gap-2">
             ${
@@ -944,6 +970,12 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   const page: HTMLElement = pageNode;
   let isImprovingWithIa = false;
   let isRegeneratingIa = false;
+  let iaLoadingMessageInterval: ReturnType<typeof setInterval> | null = null;
+  const IA_MODAL_LOADING_MESSAGES = [
+    "Generando escrito...",
+    "Consultando fundamentos legales...",
+    "La IA está preparando el documento...",
+  ];
   let iaTextoMejorado = "";
   let hasIaRecommendation = false;
   let actaData: ActaDetailResponse | null = null;
@@ -1077,6 +1109,76 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     modal.classList.toggle("flex", open);
   }
 
+  function clearIaModalLoadingMessageInterval(): void {
+    if (iaLoadingMessageInterval !== null) {
+      clearInterval(iaLoadingMessageInterval);
+      iaLoadingMessageInterval = null;
+    }
+  }
+
+  function setIaModalGenerationUi(active: boolean): void {
+    const modal = page.querySelector<HTMLElement>("[data-rh-acta-ia-modal]");
+    const panel = page.querySelector<HTMLElement>("[data-rh-acta-ia-loading-panel]");
+    const textEl = page.querySelector<HTMLElement>("[data-rh-acta-ia-text]");
+    if (active) {
+      clearIaModalLoadingMessageInterval();
+      const msgEl = page.querySelector<HTMLElement>("[data-rh-acta-ia-loading-message]");
+      let idx = 0;
+      const bump = (): void => {
+        if (!msgEl) return;
+        msgEl.textContent = IA_MODAL_LOADING_MESSAGES[idx % IA_MODAL_LOADING_MESSAGES.length];
+        idx += 1;
+      };
+      bump();
+      iaLoadingMessageInterval = window.setInterval(bump, 2500);
+      modal?.setAttribute("aria-busy", "true");
+      panel?.classList.remove("hidden");
+      panel?.classList.add("flex");
+      textEl?.classList.add("hidden");
+    } else {
+      clearIaModalLoadingMessageInterval();
+      modal?.removeAttribute("aria-busy");
+      panel?.classList.add("hidden");
+      panel?.classList.remove("flex");
+      textEl?.classList.remove("hidden");
+    }
+  }
+
+  function setIaModalChromeLocked(locked: boolean): void {
+    page
+      .querySelectorAll<HTMLButtonElement>("[data-rh-acta-ia-modal-close], [data-rh-acta-ia-close-primary]")
+      .forEach((btn) => {
+        btn.disabled = locked;
+        btn.classList.toggle("pointer-events-none", locked);
+        btn.classList.toggle("opacity-50", locked);
+        btn.classList.toggle("cursor-not-allowed", locked);
+      });
+    const overlay = page.querySelector<HTMLElement>("[data-rh-acta-ia-modal-overlay]");
+    if (overlay) {
+      overlay.classList.toggle("cursor-not-allowed", locked);
+      if (locked) overlay.dataset.iaBlocked = "1";
+      else delete overlay.dataset.iaBlocked;
+    }
+  }
+
+  function syncIaEscritoAsideButtons(): void {
+    const viewBtns = page.querySelectorAll<HTMLButtonElement>("[data-rh-acta-ia-view]");
+    const locked = isImprovingWithIa || isRegeneratingIa;
+    viewBtns.forEach((btn) => {
+      btn.disabled = locked;
+      btn.classList.toggle("cursor-not-allowed", locked);
+      btn.classList.toggle("opacity-60", locked);
+    });
+    const improveBtn = page.querySelector<HTMLButtonElement>("[data-rh-acta-ia-improve]");
+    if (!improveBtn) return;
+    if (!isImprovingWithIa) {
+      improveBtn.disabled = isRegeneratingIa;
+      improveBtn.classList.toggle("cursor-not-allowed", isRegeneratingIa);
+      improveBtn.classList.toggle("opacity-70", isRegeneratingIa);
+      if (!isRegeneratingIa) improveBtn.innerHTML = getImproveBtnIdleHtml();
+    }
+  }
+
   function setIaModalText(
     message: string,
     tone: "loading" | "default" | "error" = "default",
@@ -1110,13 +1212,13 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   }
 
   async function generateIaRecommendation(): Promise<void> {
+    setIaModalGenerationUi(true);
+    setIaModalChromeLocked(true);
     setIaCopyEnabled(false);
-    setIaModalText("Generando escrito de apoyo...", "loading");
     try {
       const response = await improveActaWithIa(actaId, signal);
       iaTextoMejorado = response.texto_mejorado.trim();
       hasIaRecommendation = Boolean(iaTextoMejorado);
-      setIaActionButton();
       setIaModalText(iaTextoMejorado || "No se recibió contenido para mostrar.");
       setIaCopyEnabled(Boolean(iaTextoMejorado));
       showIaStatus("Se generó y guardó el escrito.", "success");
@@ -1127,6 +1229,10 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       setIaModalText(message, "error");
       setIaCopyEnabled(Boolean(iaTextoMejorado));
       showIaStatus(message, "error");
+    } finally {
+      clearIaModalLoadingMessageInterval();
+      setIaModalGenerationUi(false);
+      setIaModalChromeLocked(false);
     }
   }
 
@@ -1327,14 +1433,18 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         return;
       }
 
-      const closeIaModalTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-ia-modal-close], [data-rh-acta-ia-modal-overlay], [data-rh-acta-ia-close-primary]");
+      const closeIaModalTrigger = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-rh-acta-ia-modal-close], [data-rh-acta-ia-modal-overlay], [data-rh-acta-ia-close-primary]",
+      );
       if (closeIaModalTrigger) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
         setIaModalOpen(false);
         return;
       }
 
       const viewBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-view]");
       if (viewBtn) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
         setIaModalOpen(true);
         if (iaTextoMejorado.trim()) {
           setIaModalText(iaTextoMejorado);
@@ -1355,12 +1465,17 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         setIaModalOpen(true);
         isImprovingWithIa = true;
         setIaImproveLoading(true);
+        setIaRegenerateLoading(true);
+        syncIaEscritoAsideButtons();
         void (async () => {
           try {
             await generateIaRecommendation();
           } finally {
             isImprovingWithIa = false;
             setIaImproveLoading(false);
+            setIaRegenerateLoading(false);
+            if (actaData) setIaActionButton();
+            syncIaEscritoAsideButtons();
           }
         })();
         return;
@@ -1375,12 +1490,15 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         if (isImprovingWithIa || isRegeneratingIa) return;
         isRegeneratingIa = true;
         setIaRegenerateLoading(true);
+        syncIaEscritoAsideButtons();
         void (async () => {
           try {
             await generateIaRecommendation();
           } finally {
             isRegeneratingIa = false;
             setIaRegenerateLoading(false);
+            if (actaData) setIaActionButton();
+            syncIaEscritoAsideButtons();
           }
         })();
         return;
@@ -1388,6 +1506,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const copyBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-copy]");
       if (copyBtn) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
         if (!iaTextoMejorado.trim()) return;
         void navigator.clipboard
           .writeText(iaTextoMejorado)

@@ -129,6 +129,8 @@ def _response_has_spanish_recomendacion_signals(text: str) -> bool:
     signals = (
         "ley federal del trabajo",
         "fundamento",
+        "fundamentación",
+        "fundamentacion",
         "recomendación",
         "recomendacion",
         "resumen",
@@ -140,6 +142,8 @@ def _response_has_spanish_recomendacion_signals(text: str) -> bool:
         "articulo",
         "incumplimiento",
         "lft",
+        "comparecen",
+        "antecedentes",
     )
     return sum(1 for s in signals if s in low) >= 2
 
@@ -200,10 +204,12 @@ async def _ollama_completar_redaccion_acta(
     model = settings.OLLAMA_MODEL
     base_temp = settings.OLLAMA_TEMPERATURE if temperature is None else temperature
     temp = max(0.0, min(base_temp, 1.0))
-    opts = {
+    opts: dict = {
         "temperature": temp,
         "num_predict": settings.OLLAMA_NUM_PREDICT,
     }
+    if settings.OLLAMA_NUM_CTX >= 2048:
+        opts["num_ctx"] = settings.OLLAMA_NUM_CTX
     url_base = settings.OLLAMA_URL.rstrip("/")
 
     chat_payload: dict = {
@@ -232,13 +238,16 @@ async def _ollama_completar_redaccion_acta(
             (resp.text or "")[:500],
         )
 
+    gen_opts: dict = {"num_predict": settings.OLLAMA_NUM_PREDICT}
+    if settings.OLLAMA_NUM_CTX >= 2048:
+        gen_opts["num_ctx"] = settings.OLLAMA_NUM_CTX
     gen_body: dict = {
         "model": model,
         "prompt": user_prompt,
         "system": system_prompt,
         "temperature": temp,
         "stream": False,
-        "options": {"num_predict": settings.OLLAMA_NUM_PREDICT},
+        "options": gen_opts,
     }
     if "qwen" in model.lower():
         gen_body["think"] = False
@@ -368,18 +377,66 @@ async def _llamar_ollama(contexto: dict) -> str:
     )
 
 
+def _trim_preface_hasta_resumen_hechos(text: str) -> str:
+    """
+    Si el modelo añade unas lineas antes de RESUMEN DE HECHOS:, recorta hasta esa ancla.
+    """
+    s = (text or "").strip()
+    if not s:
+        return s
+    low = s.lower()
+    key = "resumen de hechos"
+    pos = low.find(key)
+    if pos <= 0 or pos > 1400:
+        return s
+    return s[pos:].strip()
+
+
+def _recomendacion_legal_ia_es_basura_meta(text: str) -> bool:
+    """
+    Detecta respuestas que repiten instrucciones o hablan de claves JSON en lugar de redactar.
+    No exige que el titulo sea la primera linea literal (evita falsos rechazos).
+    """
+    raw = (text or "").strip()
+    if len(raw) < 120:
+        return True
+    t = raw.lower()
+    head = t[:3200]
+    if "basado en la información proporcionada" in head:
+        return True
+    if "basado en la informacion proporcionada" in head:
+        return True
+    if "se pueden extraer las siguientes conclusiones" in head:
+        return True
+    if "siguientes conclusiones" in head and "empleado_objetivo" in head[:2800]:
+        return True
+    if "reglas de identidad y roles" in t:
+        return True
+    # Debe parecer el entregable estructurado (secciones del prompt o acta sustancial).
+    anclas = (
+        "resumen de hechos",
+        "fundamentación legal",
+        "fundamentacion legal",
+        "artículos aplicables",
+        "articulos aplicables",
+        "posibles incumplimientos",
+        "redacción formal del acta administrativa",
+        "redaccion formal del acta administrativa",
+        "limitaciones:",
+    )
+    n_anclas = sum(1 for a in anclas if a in t)
+    if n_anclas >= 2:
+        return False
+    if n_anclas >= 1 and len(t) >= 900:
+        return False
+    if "acta administrativa" in t and len(t) >= 1400:
+        return False
+    return True
+
+
 async def _mejorar_redaccion_acta(contexto: dict) -> str:
     ctx_str = json.dumps(contexto, ensure_ascii=False, indent=2)
     prompt = USER_RECOMENDACION_LEGAL_IA_TEMPLATE.format(detalle_acta=ctx_str)
-    prompt = (
-        f"{prompt}\n\n"
-        "Reglas de identidad y roles (obligatorias):\n"
-        "- El unico empleado sujeto del acta es el definido en empleado_objetivo.\n"
-        "- NO cambies el empleado sujeto por ninguna persona mencionada en personas relacionadas.\n"
-        "- personas_relacionadas_testigos solo puede figurar como testigos.\n"
-        "- persona_responsable_legal solo como responsable legal/RH.\n"
-        "- Si faltan datos, conserva neutralidad y no inventes nombres, cargos ni relaciones."
-    )
     timeout = httpx.Timeout(
         timeout=settings.OLLAMA_HTTP_TIMEOUT,
         connect=15.0,
@@ -393,11 +450,16 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
                 temperature=settings.OLLAMA_ACTA_TEMPERATURE,
             )
             texto_raw = _strip_model_think_artifacts(texto_raw)
+            texto_raw = _trim_preface_hasta_resumen_hechos(texto_raw)
             if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_recomendacion_signals(
                 texto_raw
             ):
                 raise ValueError(
                     "El modelo devolvio razonamiento visible en lugar de la recomendacion legal"
+                )
+            if _recomendacion_legal_ia_es_basura_meta(texto_raw):
+                raise ValueError(
+                    "El modelo devolvio meta-instrucciones en lugar del escrito legal estructurado"
                 )
             if not texto_raw.strip():
                 raise ValueError("Respuesta vacia de Ollama")
@@ -607,6 +669,17 @@ class ActaService:
                 "...[descripción truncada por límite de contexto; conserva este texto si editas]"
             )
 
+        def _trunc_campo_acta(val: str | None, lim: int, etiqueta: str) -> str:
+            s = (val or "").strip()
+            if len(s) <= lim:
+                return s
+            return f"{s[:lim].rstrip()}\n...[{etiqueta} truncada por límite de contexto]"
+
+        evidencia_rag = _trunc_campo_acta(acta.evidencia, 2500, "evidencia")
+        evidencia_ctx = _trunc_campo_acta(acta.evidencia, lim_desc, "evidencia")
+        borrador_ia = _trunc_campo_acta(acta.contenido_ia, lim_desc, "borrador IA")
+        borrador_final = _trunc_campo_acta(acta.contenido_final, lim_desc, "borrador contenido final")
+
         contexto = {
             "empleado_objetivo": {
                 "nombre": acta.empleado_nombre or "",
@@ -624,6 +697,10 @@ class ActaService:
             "personas_involucradas": acta.personas_involucradas or "",
             "personas_relacionadas_testigos": acta.testigos or "",
             "persona_responsable_legal": acta.responsable_rh or "",
+            "evidencia": evidencia_ctx,
+            "incidencia_id": acta.incidencia_id,
+            "borrador_contenido_ia": borrador_ia or None,
+            "borrador_contenido_final": borrador_final or None,
         }
         # RAG legal: recupera solo fragmentos relevantes; si falla, conserva fallback completo.
         try:
@@ -632,6 +709,10 @@ class ActaService:
                 f"fundamento_legal: {acta.fundamento_legal or ''}\n"
                 f"articulo_inciso: {acta.articulo_inciso or ''}\n"
                 f"hechos: {texto_original}\n"
+                f"lugar_incidente: {acta.lugar_incidente or ''}\n"
+                f"personas_involucradas: {acta.personas_involucradas or ''}\n"
+                f"testigos: {acta.testigos or ''}\n"
+                f"evidencia: {evidencia_rag}\n"
                 f"area: {acta.area_departamento or ''}\n"
                 f"puesto: {acta.puesto or ''}\n"
             )
