@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 
 _MAX_ERRORS = 100
 
+# No se importan a incidencias locales (solo lectura API de lista sigue mostrándolas).
+_TIPOS_EXCLUIDOS_SYNC_BONO = frozenset(
+    {
+        "progresivo",
+        "progresivo_historico",
+        "progesivo",  # variante con typo que a veces aparece en origen
+    }
+)
+
 
 class BonoProductividadSyncService:
     def __init__(self, db: AsyncSession):
@@ -192,8 +201,14 @@ class BonoProductividadSyncService:
         omitidos_dup = 0
         omitidos_sin_empleado = 0
         omitidos_invalidos = 0
+        omitidos_tipo_excluido = 0
 
         for row in bono_rows:
+            tipo = str(row.get("tipo") or "otro").strip() or "otro"
+            if tipo.lower() in _TIPOS_EXCLUIDOS_SYNC_BONO:
+                omitidos_tipo_excluido += 1
+                continue
+
             local_empleado_id: int | None = None
             try:
                 bono_emp_id = row.get("empleado_id")
@@ -211,7 +226,6 @@ class BonoProductividadSyncService:
                 omitidos_sin_empleado += 1
                 continue
 
-            tipo = str(row.get("tipo") or "otro").strip() or "otro"
             fecha = self._safe_date(row.get("fecha"))
             semana_id = self._safe_int(row.get("semana_id"))
             numero_semana = self._safe_int(row.get("numero_semana"))
@@ -260,7 +274,8 @@ class BonoProductividadSyncService:
 
         logger.info(
             "BONO_SYNC | dry_run=%s leidos=%s considerados=%s insertados=%s actualizados=%s "
-            "omitidos_duplicado=%s omitidos_sin_empleado=%s omitidos_invalidos=%s",
+            "omitidos_duplicado=%s omitidos_sin_empleado=%s omitidos_invalidos=%s "
+            "omitidos_tipo_excluido=%s",
             dry_run,
             total_leidos,
             total_considerados,
@@ -269,6 +284,7 @@ class BonoProductividadSyncService:
             omitidos_dup,
             omitidos_sin_empleado,
             omitidos_invalidos,
+            omitidos_tipo_excluido,
         )
 
         return BonoIncidenciasSyncResponse(
@@ -280,5 +296,6 @@ class BonoProductividadSyncService:
             total_omitidos_duplicado=omitidos_dup,
             total_omitidos_sin_empleado=omitidos_sin_empleado,
             total_omitidos_invalidos=omitidos_invalidos,
+            total_omitidos_tipo_excluido=omitidos_tipo_excluido,
             errores=errores,
         )

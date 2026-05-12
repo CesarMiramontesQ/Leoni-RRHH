@@ -96,6 +96,10 @@ class BonoIncidenciasSyncResponse(BaseModel):
     total_omitidos_duplicado: int
     total_omitidos_sin_empleado: int
     total_omitidos_invalidos: int
+    total_omitidos_tipo_excluido: int = Field(
+        default=0,
+        description="Filas de bono no importadas por tipo (p. ej. progresivo / progresivo_historico).",
+    )
     errores: list[BonoSyncErrorItem] = Field(default_factory=list)
     mapeo_campos: dict[str, str] = Field(
         default_factory=lambda: {

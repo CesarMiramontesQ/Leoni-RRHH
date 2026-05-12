@@ -1963,6 +1963,7 @@ components:
         - total_omitidos_duplicado
         - total_omitidos_sin_empleado
         - total_omitidos_invalidos
+        - total_omitidos_tipo_excluido
         - errores
         - mapeo_campos
       properties:
@@ -1982,6 +1983,10 @@ components:
           type: integer
         total_omitidos_invalidos:
           type: integer
+        total_omitidos_tipo_excluido:
+          type: integer
+          description: >-
+            Filas de bono no importadas por tipo excluido del sync (progresivo, progresivo_historico).
         errores:
           type: array
           items:
@@ -2101,6 +2106,7 @@ paths:
       description: >-
         Lee incidencias desde bono_productividad (solo lectura), mapea a la tabla local
         `incidencias` de la base principal y evita duplicados por llave BONO::<tipo>::<id>.
+        No importa tipos progresivo ni progresivo_historico.
         Por seguridad, dry_run=true por defecto.
       operationId: bono_productividad_incidencias_sync
       security:

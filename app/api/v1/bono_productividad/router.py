@@ -77,6 +77,7 @@ async def listar_incidencias_bono(
     description=(
         "Lee incidencias desde bono_productividad (solo lectura), mapea a la tabla local `incidencias` "
         "en la BD principal y evita duplicados por llave de origen BONO::<tipo>::<id>. "
+        "No importa tipos progresivo ni progresivo_historico. "
         "Por seguridad, `dry_run=true` es el default (no inserta)."
     ),
 )
