@@ -41,6 +41,8 @@ tags:
     description: Gestion de competencias y matriz de competencias por area
   - name: Talento - Puestos Perfil
     description: Perfiles de puesto con competencias, habilidades y generacion IA
+  - name: Bono productividad
+    description: Lectura de datos en la base externa bono_productividad (PostgreSQL)
 
 components:
   securitySchemes:
@@ -1800,6 +1802,62 @@ components:
               type:
                 type: string
 
+    BonoIncidenciaConsolidadaItem:
+      type: object
+      required: [tipo, id, empleado_id]
+      properties:
+        tipo:
+          type: string
+          example: calidad
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+          nullable: true
+        nombre:
+          type: string
+          nullable: true
+        fecha:
+          type: string
+          format: date
+          nullable: true
+        semana_id:
+          type: integer
+          nullable: true
+        numero_semana:
+          type: integer
+          nullable: true
+        categoria:
+          type: string
+          nullable: true
+        detalle:
+          type: string
+          nullable: true
+        descuento_porcentaje:
+          type: number
+          format: float
+          nullable: true
+        estatus_id:
+          type: integer
+          nullable: true
+        area:
+          type: string
+          nullable: true
+        subarea:
+          type: string
+          nullable: true
+
+    BonoIncidenciasListaResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BonoIncidenciaConsolidadaItem"
+
     MessageResponse:
       type: object
       required: [message]
@@ -1849,6 +1907,59 @@ paths:
                   status:
                     type: string
                     example: ok
+
+  /api/v1/bono-productividad/incidencias:
+    get:
+      tags: [Bono productividad]
+      summary: Incidencias consolidadas (calidad, seguridad, progresivo)
+      description: >
+        Sin query params devuelve todas las incidencias (activas e historicas) de las seis fuentes.
+        Los filtros son opcionales: use solo los que necesite para acotar.
+      operationId: bono_productividad_incidencias_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: query
+          required: false
+          description: Opcional. Vacio = sin filtro (todos los empleados).
+          schema:
+            type: integer
+        - name: no_empleado
+          in: query
+          required: false
+          description: Opcional. Vacio = sin filtro.
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          required: false
+          description: >-
+            Opcional. Vacio = sin filtro (todos los tipos). Valores: calidad, calidad_historico,
+            seguridad, seguridad_historico, progresivo, progresivo_historico
+          schema:
+            type: string
+        - name: semana_id
+          in: query
+          required: false
+          description: Opcional. Vacio = sin filtro (todas las semanas).
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista consolidada desde bono_productividad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonoIncidenciasListaResponse"
+        "401":
+          description: No autenticado
+        "403":
+          description: Rol no autorizado
+        "422":
+          description: Parametro tipo invalido
+        "503":
+          description: BD externa no disponible o error de consulta
 
   # ── Autenticacion ───────────────────────────────────
   /api/v1/auth/login:

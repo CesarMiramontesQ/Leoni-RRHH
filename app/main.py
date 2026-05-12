@@ -178,6 +178,7 @@ from app.api.v1.notificaciones.router import router as notificaciones_router
 from app.api.v1.organigrama.router import router as organigrama_router
 from app.api.v1.puestos_perfil.router import router as puestos_perfil_router
 from app.api.v1.competencias.router import router as competencias_router
+from app.api.v1.bono_productividad.router import router as bono_productividad_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -191,6 +192,7 @@ app.include_router(notificaciones_router)
 app.include_router(organigrama_router)
 app.include_router(puestos_perfil_router)
 app.include_router(competencias_router)
+app.include_router(bono_productividad_router)
 
 
 # ── Root ──────────────────────────────────────────────────────
