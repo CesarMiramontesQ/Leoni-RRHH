@@ -1,4 +1,7 @@
-import { formatNombreEmpleadoUi } from "./nombreEmpleadoDisplay.ts";
+import {
+  formatNombreEmpleadoIncidenciasUi,
+  formatNombreEmpleadoUi,
+} from "./nombreEmpleadoDisplay.ts";
 
 /** Normaliza texto para búsqueda insensible a acentos y mayúsculas. */
 export function normalizeTextoBusquedaEmpleado(s: string): string {
@@ -22,11 +25,17 @@ export type CamposBusquedaEmpleadoFila = {
  */
 export function textoNormalizadoHaystackEmpleado(row: CamposBusquedaEmpleadoFila): string {
   const nombreUi = formatNombreEmpleadoUi(row.empleado_nombre_raw) || "";
+  const nombreIncidenciasUi = formatNombreEmpleadoIncidenciasUi(row.empleado_nombre_raw) || "";
   const folio = row.numero_folio.trim();
   const folioSinHash = folio.startsWith("#") ? folio.slice(1) : folio;
-  const partes = [row.empleado_nombre_raw, nombreUi, row.empleado_id, folio, folioSinHash].filter(
-    (x) => x != null && String(x).trim() !== "",
-  );
+  const partes = [
+    row.empleado_nombre_raw,
+    nombreUi,
+    nombreIncidenciasUi,
+    row.empleado_id,
+    folio,
+    folioSinHash,
+  ].filter((x) => x != null && String(x).trim() !== "");
   return normalizeTextoBusquedaEmpleado(partes.join(" "));
 }
 

@@ -65,6 +65,14 @@ export function formatNombreEmpleadoUi(
   return display;
 }
 
+/**
+ * Vista incidencias RH: orden `APELLIDOS, NOMBRE` → nombre completo, capitalización título,
+ * sin omitir segundo apellido (ej. `TOVAR DIAZ, ANAHIS` → `Anahis Tovar Diaz`).
+ */
+export function formatNombreEmpleadoIncidenciasUi(raw: string | null | undefined): string {
+  return formatNombreEmpleadoUi(raw, { titulo: true, omitirSegundoApellido: false });
+}
+
 export type InicialesDesdeNombreDisplayOptions = {
   /**
    * Con un solo token, devolver solo la primera letra mayúscula (listado empleados).

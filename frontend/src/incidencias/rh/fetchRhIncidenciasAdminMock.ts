@@ -7,7 +7,11 @@ import type {
   RhIncidenciasAdminViewModel,
   RhIncidenciaTablaFila,
   RhIncidenciasUiConfig,
+  RhIncidenciaListFilters,
 } from "./types.ts";
+import { emptyRhIncidenciaListFilters } from "./types.ts";
+import type { IncidenciasListPageApi } from "../../api/incidencias.ts";
+import { incidenciaApiItemToTablaFila } from "../../api/incidencias.ts";
 
 const MOCK_DELAY_MS = 380;
 
@@ -34,6 +38,35 @@ export async function fetchRhIncidenciasAdminDatasetMock(
   };
 }
 
+export function buildRhIncidenciasAdminViewModelFromApi(
+  api: IncidenciasListPageApi,
+  filterDraft: RhIncidenciaListFilters,
+  appliedFilters: RhIncidenciaListFilters,
+  ui: RhIncidenciasUiConfig,
+  tiposRegistrados: readonly string[],
+): RhIncidenciasAdminViewModel {
+  const items = api.items.map(incidenciaApiItemToTablaFila);
+  const table = {
+    items,
+    total: api.total,
+    page: api.page,
+    page_size: api.page_size,
+  };
+  const tableStatus = table.total === 0 ? "empty" : "ready";
+  return {
+    resumen: api.resumen,
+    resumenStatus: "ready",
+    filterOptions: buildRhIncidenciaFilterOptions([]),
+    tiposRegistrados,
+    filterDraft,
+    appliedFilters,
+    ui,
+    tableStatus,
+    table,
+    tableErrorMessage: undefined,
+  };
+}
+
 export function buildRhIncidenciasAdminViewModel(
   rows: readonly RhIncidenciaTablaFila[],
   filterOptions: RhIncidenciasAdminViewModel["filterOptions"],
@@ -44,11 +77,14 @@ export function buildRhIncidenciasAdminViewModel(
   const filtered = filterRhIncidenciaRows(rows, filters);
   const table = paginateRhIncidencias(filtered, filters);
   const tableStatus = table.total === 0 ? "empty" : "ready";
+  const emptyList = emptyRhIncidenciaListFilters();
   return {
     resumen,
     resumenStatus: "ready",
     filterOptions,
-    filters,
+    tiposRegistrados: [],
+    filterDraft: emptyList,
+    appliedFilters: emptyList,
     ui,
     tableStatus,
     table,

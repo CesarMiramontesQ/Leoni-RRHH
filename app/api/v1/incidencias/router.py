@@ -1,8 +1,19 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
+from app.schemas.incidencias import IncidenciasListPageResponse, IncidenciasTiposResponse
+from app.services.incidencia_service import IncidenciaService
 
 router = APIRouter(prefix="/api/v1/incidencias", tags=["Incidencias"])
+
+
+def _svc(db: AsyncSession = Depends(get_db)) -> IncidenciaService:
+    return IncidenciaService(db)
 
 
 @router.get("/")
@@ -10,11 +21,59 @@ async def health():
     return {"modulo": "incidencias", "status": "activo", "version": "1.0.0"}
 
 
-@router.get("")
+@router.get("", response_model=IncidenciasListPageResponse)
 async def list_incidencias(
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "supervisor"])),
+    current_user: Empleado = Depends(
+        role_checker(["rh", "gerente", "supervisor", "director"])
+    ),
+    svc: IncidenciaService = Depends(_svc),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=10),
+    tipo: str | None = Query(None, description="Coincide exactamente con la columna tipo"),
+    empleado_id: int | None = Query(None),
+    no_empleado: str | None = Query(None),
+    nombre: str | None = Query(None),
+    fecha: date | None = Query(None),
+    semana_id: int | None = Query(None),
+    numero_semana: int | None = Query(None),
+    categoria: str | None = Query(None),
+    estatus_id: int | None = Query(None),
+    area: str | None = Query(None),
+    subarea: str | None = Query(None),
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
 ):
-    return {"items": [], "next_cursor": None, "total": 0}
+    """Listado paginado con filtros; máximo 10 registros por página."""
+    return await svc.list_incidencias_paginated(
+        current_user,
+        page,
+        page_size,
+        tipo=tipo.strip() if tipo and tipo.strip() else None,
+        empleado_id=empleado_id,
+        no_empleado=no_empleado.strip() if no_empleado and no_empleado.strip() else None,
+        nombre=nombre.strip() if nombre and nombre.strip() else None,
+        fecha=fecha,
+        semana_id=semana_id,
+        numero_semana=numero_semana,
+        categoria=categoria.strip() if categoria and categoria.strip() else None,
+        estatus_id=estatus_id,
+        area=area.strip() if area and area.strip() else None,
+        subarea=subarea.strip() if subarea and subarea.strip() else None,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )
+
+
+@router.get("/tipos", response_model=IncidenciasTiposResponse)
+async def list_incidencias_tipos(
+    current_user: Empleado = Depends(
+        role_checker(["rh", "gerente", "supervisor", "director"])
+    ),
+    svc: IncidenciaService = Depends(_svc),
+):
+    """Valores distintos de `tipo` registrados en el alcance del usuario."""
+    items = await svc.list_tipos_registrados(current_user)
+    return IncidenciasTiposResponse(items=items)
 
 
 @router.post("")
@@ -27,7 +86,7 @@ async def create_incidencia(
 @router.get("/{id}")
 async def get_incidencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["rh", "gerente", "supervisor", "director"])),
 ):
     return {"message": "Endpoint en desarrollo", "id": id}
 

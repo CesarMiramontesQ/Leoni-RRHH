@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   capitalizarNombreTituloUi,
+  formatNombreEmpleadoIncidenciasUi,
   formatNombreEmpleadoUi,
   inicialesDesdeNombreDisplay,
   quitarSegundoApellidoUi,
@@ -60,6 +61,13 @@ describe("formatNombreEmpleadoUi", () => {
     expect(formatNombreEmpleadoUi("BORUNDA VAZQUEZ, MARIA MONSERRAT", { titulo: true })).toBe(
       "Maria Monserrat Borunda",
     );
+  });
+});
+
+describe("formatNombreEmpleadoIncidenciasUi", () => {
+  it("reordena, conserva ambos apellidos y capitaliza título", () => {
+    expect(formatNombreEmpleadoIncidenciasUi("TOVAR DIAZ, ANAHIS")).toBe("Anahis Tovar Diaz");
+    expect(formatNombreEmpleadoIncidenciasUi("QUEZADA ROMERO, FABIOLA")).toBe("Fabiola Quezada Romero");
   });
 });
 

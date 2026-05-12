@@ -187,8 +187,8 @@ export function getEmpleadoDirectoryNumericIdFromAccessToken(): number | null {
   return parseEmpleadoDirectoryNumericId(raw);
 }
 
-/** Vista de incidencias laborales (`#/incidencias`): RH, gerente y supervisor. */
+/** Vista de incidencias laborales (`#/incidencias`): RH, director, gerente y supervisor. */
 export function canAccessRhIncidenciasPage(): boolean {
   const r = getRolFromAccessToken();
-  return r === "rh" || r === "gerente" || r === "supervisor";
+  return r === "rh" || r === "director" || r === "gerente" || r === "supervisor";
 }

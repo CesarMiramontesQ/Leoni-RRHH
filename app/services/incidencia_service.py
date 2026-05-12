@@ -6,7 +6,7 @@ Subida de evidencias: almacena en /data/evidencias/incidencias/{year}/{month}/{u
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import BackgroundTasks
@@ -17,12 +17,19 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.incidencias import Incidencia
 from app.repositories.empleado_repository import EmpleadoRepository
-from app.repositories.incidencia_repository import EvidenciaRepository, IncidenciaRepository
+from app.repositories.incidencia_repository import (
+    EvidenciaRepository,
+    IncidenciaRepository,
+    build_incidencia_query_filters,
+    filtro_tipos_visibles_en_listados,
+)
 from app.schemas import PaginatedResponse
 from app.schemas.incidencias import (
     EvidenciaResponse,
     IncidenciaCreate,
     IncidenciaResponse,
+    IncidenciasKpiResumen,
+    IncidenciasListPageResponse,
 )
 from app.utils.audit_logger import audit_background
 
@@ -39,8 +46,50 @@ class IncidenciaService:
         self.empleado_repo = EmpleadoRepository(db)
         self.db = db
 
+    @staticmethod
+    def _texto_puesto_y_supervisor(emp: Empleado | None) -> tuple[str | None, str | None]:
+        if emp is None:
+            return None, None
+        puesto_txt: str | None = None
+        if emp.puesto is not None and emp.puesto.descripcion:
+            p = str(emp.puesto.descripcion).strip()
+            puesto_txt = p or None
+        sup_txt: str | None = None
+        if emp.lider is not None and emp.lider.nombre:
+            s = str(emp.lider.nombre).strip()
+            sup_txt = s or None
+        return puesto_txt, sup_txt
+
+    async def _empleado_reportante_para_incidencia(self, inc: Incidencia) -> Empleado | None:
+        """Prioriza búsqueda por `no_empleado` en tabla empleados; si no hay coincidencia, usa FK `empleado_id`."""
+        no = (inc.no_empleado or "").strip()
+        if no:
+            emp = await self.empleado_repo.get_by_no_empleado_con_puesto_y_lider(no)
+            if emp is not None:
+                return emp
+        return await self.empleado_repo.get_with_area_y_lider(inc.empleado_id)
+
+    async def _enriquecer_incidencia_response(self, inc: Incidencia, r: IncidenciaResponse) -> None:
+        emp = await self._empleado_reportante_para_incidencia(inc)
+        puesto_txt, sup_txt = self._texto_puesto_y_supervisor(emp)
+        r.puesto = puesto_txt
+        r.supervisor_directo = sup_txt
+
     def _get_rol(self, current_user: Empleado) -> str:
         return current_user.rol.nombre if current_user.rol else "empleado"
+
+    async def _scope_filters_for_list(self, current_user: Empleado) -> list:
+        """Restricción por rol sobre empleado_id (vacío = sin restricción adicional)."""
+        rol = self._get_rol(current_user)
+        if rol in ("director", "rh"):
+            return []
+        if rol in ("gerente", "supervisor"):
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
+            ids = [e.id for e in subordinados] + [current_user.id]
+            return [Incidencia.empleado_id.in_(ids)]
+        return [Incidencia.empleado_id == current_user.id]
 
     # ── Listado ──────────────────────────────────────────────────────────────
 
@@ -50,35 +99,20 @@ class IncidenciaService:
         limit: int,
         current_user: Empleado,
     ) -> PaginatedResponse[IncidenciaResponse]:
-        rol = self._get_rol(current_user)
-
-        if rol in ("director", "rh"):
-            items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
-            total = await self.repo.count()
-        elif rol in ("gerente", "supervisor"):
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
-            )
-            ids = [e.id for e in subordinados] + [current_user.id]
-            items, next_cursor = await self.repo.list_paginated(
-                cursor=cursor,
-                limit=limit,
-                filters=[Incidencia.empleado_id.in_(ids)],
-            )
-            total = await self.repo.count(filters=[Incidencia.empleado_id.in_(ids)])
-        else:
-            items, next_cursor = await self.repo.list_by_empleado(
-                empleado_id=current_user.id, cursor=cursor, limit=limit
-            )
-            total = await self.repo.count(
-                filters=[Incidencia.empleado_id == current_user.id]
-            )
+        scope = await self._scope_filters_for_list(current_user)
+        list_filters = [*scope, filtro_tipos_visibles_en_listados()]
+        filters = list_filters if list_filters else None
+        items, next_cursor = await self.repo.list_paginated(
+            cursor=cursor, limit=limit, filters=filters
+        )
+        total = await self.repo.count(filters=filters)
 
         response_items = []
         for item in items:
             count = await self.repo.count_evidencias(item.id)
             r = IncidenciaResponse.model_validate(item)
             r.evidencias_count = count
+            await self._enriquecer_incidencia_response(item, r)
             response_items.append(r)
 
         return PaginatedResponse(
@@ -86,6 +120,86 @@ class IncidenciaService:
             next_cursor=next_cursor,
             total=total,
         )
+
+    async def list_incidencias_paginated(
+        self,
+        current_user: Empleado,
+        page: int,
+        page_size: int,
+        *,
+        tipo: str | None = None,
+        empleado_id: int | None = None,
+        no_empleado: str | None = None,
+        nombre: str | None = None,
+        fecha: date | None = None,
+        semana_id: int | None = None,
+        numero_semana: int | None = None,
+        categoria: str | None = None,
+        estatus_id: int | None = None,
+        area: str | None = None,
+        subarea: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+    ) -> IncidenciasListPageResponse:
+        page_size = min(10, max(1, page_size))
+        page = max(1, page)
+
+        scope = await self._scope_filters_for_list(current_user)
+        user_filters = build_incidencia_query_filters(
+            tipo=tipo,
+            empleado_id=empleado_id,
+            no_empleado=no_empleado,
+            nombre=nombre,
+            fecha=fecha,
+            semana_id=semana_id,
+            numero_semana=numero_semana,
+            categoria=categoria,
+            estatus_id=estatus_id,
+            area=area,
+            subarea=subarea,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        )
+        all_filters = [*scope, filtro_tipos_visibles_en_listados(), *user_filters]
+        filters_arg = all_filters if all_filters else None
+
+        total = await self.repo.count(filters=filters_arg)
+        offset = (page - 1) * page_size
+        if total == 0:
+            page = 1
+        elif offset >= total:
+            page = max(1, (total + page_size - 1) // page_size)
+            offset = (page - 1) * page_size
+
+        items = await self.repo.list_offset(offset, page_size, filters_arg)
+        abiertas, en_inv, resueltas, criticas = await self.repo.aggregate_kpis(filters_arg)
+
+        response_items: list[IncidenciaResponse] = []
+        for item in items:
+            count = await self.repo.count_evidencias(item.id)
+            r = IncidenciaResponse.model_validate(item)
+            r.evidencias_count = count
+            await self._enriquecer_incidencia_response(item, r)
+            response_items.append(r)
+
+        return IncidenciasListPageResponse(
+            items=response_items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            resumen=IncidenciasKpiResumen(
+                abiertas=abiertas,
+                en_investigacion=en_inv,
+                resueltas=resueltas,
+                criticas=criticas,
+            ),
+        )
+
+    async def list_tipos_registrados(self, current_user: Empleado) -> list[str]:
+        """Tipos distintos en incidencias visibles para el rol del usuario."""
+        scope = await self._scope_filters_for_list(current_user)
+        tipos_filters = [*scope, filtro_tipos_visibles_en_listados()]
+        return await self.repo.distinct_tipos(filters=tipos_filters)
 
     # ── Obtener uno ──────────────────────────────────────────────────────────
 
@@ -106,6 +220,7 @@ class IncidenciaService:
         count = await self.repo.count_evidencias(id)
         r = IncidenciaResponse.model_validate(incidencia)
         r.evidencias_count = count
+        await self._enriquecer_incidencia_response(incidencia, r)
         return r
 
     # ── Crear ────────────────────────────────────────────────────────────────
@@ -187,6 +302,7 @@ class IncidenciaService:
 
         r = IncidenciaResponse.model_validate(incidencia)
         r.evidencias_count = 0
+        await self._enriquecer_incidencia_response(incidencia, r)
         return r
 
     # ── Subir evidencia ───────────────────────────────────────────────────────

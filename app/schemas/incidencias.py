@@ -64,6 +64,34 @@ class IncidenciaResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     evidencias_count: int = 0
+    # Catálogo empleados (resueltos por `no_empleado` de la incidencia o por `empleado_id`).
+    puesto: Optional[str] = None
+    supervisor_directo: Optional[str] = None
+
+
+class IncidenciasKpiResumen(BaseModel):
+    """Totales para tarjetas de resumen (vista listado)."""
+
+    abiertas: int
+    en_investigacion: int
+    resueltas: int
+    criticas: int
+
+
+class IncidenciasListPageResponse(BaseModel):
+    """Listado paginado por offset/página (máx. 10 ítems recomendado en cliente)."""
+
+    items: list[IncidenciaResponse]
+    total: int
+    page: int
+    page_size: int
+    resumen: IncidenciasKpiResumen
+
+
+class IncidenciasTiposResponse(BaseModel):
+    """Valores distintos de `tipo` visibles para el usuario según su rol (ordenados)."""
+
+    items: list[str]
 
 
 class EvidenciaResponse(BaseModel):

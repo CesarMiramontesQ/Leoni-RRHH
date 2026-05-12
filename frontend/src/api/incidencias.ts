@@ -1,18 +1,48 @@
 import { fetchWithAuth } from "./http.ts";
-import type { RhIncidenciaEstadoCodigo, RhIncidenciaTablaFila, RhIncidenciaTipoCodigo } from "../incidencias/rh/types.ts";
+import type {
+  RhIncidenciaEstadoCodigo,
+  RhIncidenciaListFilters,
+  RhIncidenciaPrioridadCodigo,
+  RhIncidenciaTablaFila,
+  RhIncidenciaTipoCodigo,
+} from "../incidencias/rh/types.ts";
+import { emptyRhIncidenciaListFilters } from "../incidencias/rh/types.ts";
 
-type IncidenciaApiItem = {
+export type IncidenciasKpiApi = {
+  abiertas: number;
+  en_investigacion: number;
+  resueltas: number;
+  criticas: number;
+};
+
+export type IncidenciaApiItem = {
   id: number;
   empleado_id: number;
   tipo: string;
-  estado: string;
+  no_empleado?: string | null;
+  nombre?: string | null;
+  fecha?: string | null;
+  semana_id?: number | null;
+  numero_semana?: number | null;
+  categoria?: string | null;
+  detalle?: string | null;
+  descuento_porcentaje?: number | null;
+  estatus_id?: number | null;
+  area?: string | null;
+  subarea?: string | null;
+  puesto?: string | null;
+  supervisor_directo?: string | null;
   created_at: string;
+  updated_at: string;
+  evidencias_count?: number;
 };
 
-type IncidenciasApiPage = {
+export type IncidenciasListPageApi = {
   items: IncidenciaApiItem[];
-  next_cursor: number | null;
   total: number;
+  page: number;
+  page_size: number;
+  resumen: IncidenciasKpiApi;
 };
 
 export type IncidenciasFetchError = {
@@ -31,42 +61,171 @@ async function readErrorDetail(res: Response): Promise<string> {
   return raw || res.statusText || "Error";
 }
 
-function toTipo(tipo: string): RhIncidenciaTipoCodigo {
-  if (tipo === "retardo") return "retardo";
-  if (tipo === "dano_equipo") return "dano_equipo";
-  if (tipo === "indisciplina") return "indisciplina";
-  return "falta_injustificada";
-}
+export type IncidenciasTiposApi = {
+  items: string[];
+};
 
-function toEstado(estado: string): RhIncidenciaEstadoCodigo {
-  if (estado === "cerrado" || estado === "closed" || estado === "resolved") return "cerrado";
-  if (estado === "en_investigacion" || estado === "in_review") return "en_investigacion";
-  return "abierto";
-}
-
-function toFila(item: IncidenciaApiItem): RhIncidenciaTablaFila {
-  return {
-    id: item.id,
-    empleado_id: String(item.empleado_id),
-    empleado_nombre_raw: `Empleado #${item.empleado_id}`,
-    foto_url: null,
-    numero_folio: `INC-${item.id}`,
-    area: "Sin área",
-    supervisor_id: "",
-    supervisor_nombre: "Sin supervisor",
-    tipo: toTipo(item.tipo),
-    fecha: item.created_at.slice(0, 10),
-    estado: toEstado(item.estado),
-    prioridad: "media",
-  };
-}
-
-export async function getIncidenciasRows(limit = 100): Promise<RhIncidenciaTablaFila[]> {
-  const res = await fetchWithAuth(`/api/v1/incidencias?limit=${limit}`);
+export async function fetchIncidenciasTiposRegistrados(): Promise<string[]> {
+  const res = await fetchWithAuth("/api/v1/incidencias/tipos");
   if (!res.ok) {
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail } as IncidenciasFetchError;
   }
-  const page = (await res.json()) as IncidenciasApiPage;
-  return page.items.map(toFila);
+  const data = (await res.json()) as IncidenciasTiposApi;
+  return Array.isArray(data.items) ? data.items : [];
+}
+
+function parseOptionalInt(s: string): number | undefined {
+  const t = s.trim();
+  if (!t) return undefined;
+  const n = Number.parseInt(t, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseOptionalDate(s: string): string | undefined {
+  const t = s.trim();
+  if (!t) return undefined;
+  return t;
+}
+
+/** Serializa filtros aplicados y paginación a query string (omitir vacíos). */
+export function buildIncidenciasListQuery(
+  filters: RhIncidenciaListFilters,
+  page: number,
+  pageSize: number,
+): string {
+  const p = new URLSearchParams();
+  p.set("page", String(Math.max(1, page)));
+  p.set("page_size", String(Math.min(10, Math.max(1, pageSize))));
+  const tipo = filters.tipo.trim();
+  if (tipo) p.set("tipo", tipo);
+  const eid = parseOptionalInt(filters.empleado_id);
+  if (eid !== undefined) p.set("empleado_id", String(eid));
+  const noEmp = filters.no_empleado.trim();
+  if (noEmp) p.set("no_empleado", noEmp);
+  const nom = filters.nombre.trim();
+  if (nom) p.set("nombre", nom);
+  const fecha = parseOptionalDate(filters.fecha);
+  if (fecha) p.set("fecha", fecha);
+  const sid = parseOptionalInt(filters.semana_id);
+  if (sid !== undefined) p.set("semana_id", String(sid));
+  const nsem = parseOptionalInt(filters.numero_semana);
+  if (nsem !== undefined) p.set("numero_semana", String(nsem));
+  const cat = filters.categoria.trim();
+  if (cat) p.set("categoria", cat);
+  const est = parseOptionalInt(filters.estatus_id);
+  if (est !== undefined) p.set("estatus_id", String(est));
+  const ar = filters.area.trim();
+  if (ar) p.set("area", ar);
+  const sub = filters.subarea.trim();
+  if (sub) p.set("subarea", sub);
+  const fi = parseOptionalDate(filters.fecha_inicio);
+  if (fi) p.set("fecha_inicio", fi);
+  const ff = parseOptionalDate(filters.fecha_fin);
+  if (ff) p.set("fecha_fin", ff);
+  return p.toString();
+}
+
+function inferTipoCodigo(tipo: string): RhIncidenciaTipoCodigo {
+  const t = tipo.toLowerCase();
+  if (t.includes("retardo")) return "retardo";
+  if (t.includes("daño") || t.includes("dano") || t.includes("equipo")) return "dano_equipo";
+  if (t.includes("indisciplina") || t.includes("disciplina")) return "indisciplina";
+  if (t.includes("falta") || t.includes("ausencia")) return "falta_injustificada";
+  return "indisciplina";
+}
+
+function inferEstadoFromEstatus(estatusId: number | null | undefined): RhIncidenciaEstadoCodigo {
+  if (estatusId == null || estatusId === 1) return "abierto";
+  if (estatusId === 2) return "en_investigacion";
+  return "cerrado";
+}
+
+function inferPrioridad(desc: number | null | undefined): RhIncidenciaPrioridadCodigo {
+  const d = desc ?? 0;
+  if (d >= 50) return "critica";
+  if (d >= 25) return "alta";
+  if (d >= 10) return "media";
+  return "baja";
+}
+
+/** Texto de API/JSON a string recortada; vacío si nulo o sin contenido. */
+function strCampoIncidencia(v: string | null | undefined): string {
+  if (v == null) return "";
+  const t = String(v).trim();
+  return t;
+}
+
+export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhIncidenciaTablaFila {
+  const fechaNegocio = item.fecha?.trim();
+  const fechaDisplay =
+    fechaNegocio && fechaNegocio.length >= 10 ? fechaNegocio.slice(0, 10) : "";
+  const nombre = item.nombre?.trim();
+  const supervisorDirecto = item.supervisor_directo?.trim();
+  const puestoApi = item.puesto?.trim();
+  return {
+    id: item.id,
+    empleado_id: String(item.empleado_id),
+    empleado_nombre_raw: nombre && nombre.length > 0 ? nombre : `Empleado #${item.empleado_id}`,
+    foto_url: null,
+    numero_folio: `INC-${item.id}`,
+    area: strCampoIncidencia(item.area),
+    supervisor_id: "",
+    supervisor_nombre: supervisorDirecto || "—",
+    tipo: inferTipoCodigo(item.tipo),
+    tipo_texto: item.tipo,
+    fecha: fechaDisplay,
+    estado: inferEstadoFromEstatus(item.estatus_id ?? null),
+    prioridad: inferPrioridad(item.descuento_porcentaje ?? null),
+    descripcion: item.detalle?.trim() || undefined,
+    no_empleado: item.no_empleado,
+    semana_id: item.semana_id ?? null,
+    numero_semana: item.numero_semana ?? null,
+    categoria: item.categoria,
+    detalle: item.detalle,
+    descuento_porcentaje: item.descuento_porcentaje ?? null,
+    estatus_id: item.estatus_id ?? null,
+    subarea: strCampoIncidencia(item.subarea) || null,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    supervisor_directo: item.supervisor_directo ?? null,
+    puesto: item.puesto ?? null,
+    puesto_empleado: puestoApi,
+  };
+}
+
+export async function fetchIncidenciasListPage(
+  filters: RhIncidenciaListFilters,
+  page: number,
+  pageSize = 10,
+): Promise<IncidenciasListPageApi> {
+  const qs = buildIncidenciasListQuery(filters, page, pageSize);
+  const res = await fetchWithAuth(`/api/v1/incidencias?${qs}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as IncidenciasFetchError;
+  }
+  return (await res.json()) as IncidenciasListPageApi;
+}
+
+/**
+ * Acumula filas de incidencias para consumidores legacy (p. ej. dashboard líder).
+ * Pagina internamente en bloques de 10 hasta cubrir `limit` o agotar resultados.
+ */
+export async function getIncidenciasRows(limit = 100): Promise<RhIncidenciaTablaFila[]> {
+  const filters = emptyRhIncidenciaListFilters();
+  const out: RhIncidenciaTablaFila[] = [];
+  let page = 1;
+  const pageSize = 10;
+  const maxPages = Math.ceil(limit / pageSize) + 2;
+  while (out.length < limit && page <= maxPages) {
+    const data = await fetchIncidenciasListPage(filters, page, pageSize);
+    for (const it of data.items) {
+      out.push(incidenciaApiItemToTablaFila(it));
+      if (out.length >= limit) break;
+    }
+    if (data.items.length === 0 || page * pageSize >= data.total) break;
+    page += 1;
+  }
+  return out.slice(0, limit);
 }

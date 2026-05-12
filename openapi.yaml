@@ -688,6 +688,51 @@ components:
         evidencias_count:
           type: integer
           default: 0
+        puesto:
+          type: [string, "null"]
+          description: Descripción de puesto desde catálogo empleados (por no_empleado o empleado_id).
+        supervisor_directo:
+          type: [string, "null"]
+          description: Nombre del líder directo desde tabla empleados.
+
+    IncidenciasKpiResumen:
+      type: object
+      required: [abiertas, en_investigacion, resueltas, criticas]
+      properties:
+        abiertas:
+          type: integer
+        en_investigacion:
+          type: integer
+        resueltas:
+          type: integer
+        criticas:
+          type: integer
+
+    IncidenciasListPageResponse:
+      type: object
+      required: [items, total, page, page_size, resumen]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        resumen:
+          $ref: "#/components/schemas/IncidenciasKpiResumen"
+
+    IncidenciasTiposResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
 
     EvidenciaResponse:
       type: object
@@ -2651,27 +2696,105 @@ paths:
   /api/v1/incidencias:
     get:
       tags: [Incidencias]
-      summary: Listar incidencias
-      description: Stub — retorna lista vacia. En desarrollo.
+      summary: Listar incidencias paginadas
+      description: >
+        Listado paginado (máximo 10 registros por página) con filtros opcionales.
+        Los roles RH y director ven el universo completo; gerente y supervisor solo su equipo;
+        el resumen KPI aplica los mismos filtros y alcance.
+        No incluye filas cuyo `tipo` sea `progresivo` ni `progresivo_historico` (uso interno).
       operationId: incidencias_list
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 10
+        - name: tipo
+          in: query
+          required: false
+          description: Coincide exactamente con la columna tipo.
+          schema:
+            type: string
+        - name: empleado_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: no_empleado
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: nombre
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: semana_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: numero_semana
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: categoria
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: estatus_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: subarea
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha_inicio
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
       responses:
         "200":
-          description: Lista de incidencias
+          description: Página de incidencias y resumen KPI filtrado
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/IncidenciaResponse"
-                  next_cursor:
-                    type: [integer, "null"]
-                  total:
-                    type: integer
+                $ref: "#/components/schemas/IncidenciasListPageResponse"
     post:
       tags: [Incidencias]
       summary: Registrar incidencia
@@ -2692,6 +2815,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /api/v1/incidencias/tipos:
+    get:
+      tags: [Incidencias]
+      summary: Listar tipos de incidencia registrados
+      description: >
+        Valores distintos de la columna `tipo` en la tabla de incidencias, respetando el mismo
+        alcance por rol que el listado principal.
+        Excluye `progresivo` y `progresivo_historico`.
+      operationId: incidencias_tipos_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tipos ordenados alfabéticamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasTiposResponse"
 
   /api/v1/incidencias/{id}:
     get:
