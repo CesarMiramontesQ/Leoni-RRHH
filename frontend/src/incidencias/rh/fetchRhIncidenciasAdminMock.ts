@@ -1,5 +1,5 @@
 import { buildRhIncidenciaFilterOptions } from "./buildRhIncidenciaFilterOptions.ts";
-import { computeRhIncidenciaStats } from "./computeRhIncidenciaStats.ts";
+import { computeRhIncidenciasEstadisticasFromFilas } from "./computeRhIncidenciasEstadisticasFromFilas.ts";
 import { filterRhIncidenciaRows, paginateRhIncidencias } from "./filterAndPaginateRhIncidencias.ts";
 import { buildRhIncidenciasMockFilas } from "./mockDataset.ts";
 import type {
@@ -8,6 +8,7 @@ import type {
   RhIncidenciaTablaFila,
   RhIncidenciasUiConfig,
   RhIncidenciaListFilters,
+  RhIncidenciasEstadisticasData,
 } from "./types.ts";
 import { emptyRhIncidenciaListFilters } from "./types.ts";
 import type { IncidenciasListPageApi } from "../../api/incidencias.ts";
@@ -40,6 +41,9 @@ export async function fetchRhIncidenciasAdminDatasetMock(
 
 export function buildRhIncidenciasAdminViewModelFromApi(
   api: IncidenciasListPageApi,
+  estadisticas: RhIncidenciasEstadisticasData | null,
+  estadisticasStatus: "loading" | "ready" | "error",
+  estadisticasErrorMessage: string | undefined,
   filterDraft: RhIncidenciaListFilters,
   appliedFilters: RhIncidenciaListFilters,
   ui: RhIncidenciasUiConfig,
@@ -54,8 +58,10 @@ export function buildRhIncidenciasAdminViewModelFromApi(
   };
   const tableStatus = table.total === 0 ? "empty" : "ready";
   return {
-    resumen: api.resumen,
-    resumenStatus: "ready",
+    estadisticas,
+    estadisticasStatus,
+    estadisticasErrorMessage,
+    resumenListado: api.resumen,
     filterOptions: buildRhIncidenciaFilterOptions([]),
     tiposRegistrados,
     filterDraft,
@@ -73,14 +79,16 @@ export function buildRhIncidenciasAdminViewModel(
   filters: RhIncidenciaFilterState,
   ui: RhIncidenciasUiConfig,
 ): RhIncidenciasAdminViewModel {
-  const resumen = computeRhIncidenciaStats(rows);
+  const estadisticas = computeRhIncidenciasEstadisticasFromFilas(rows);
   const filtered = filterRhIncidenciaRows(rows, filters);
   const table = paginateRhIncidencias(filtered, filters);
   const tableStatus = table.total === 0 ? "empty" : "ready";
   const emptyList = emptyRhIncidenciaListFilters();
   return {
-    resumen,
-    resumenStatus: "ready",
+    estadisticas,
+    estadisticasStatus: "ready",
+    estadisticasErrorMessage: undefined,
+    resumenListado: null,
     filterOptions,
     tiposRegistrados: [],
     filterDraft: emptyList,

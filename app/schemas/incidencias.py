@@ -6,7 +6,7 @@ Schemas Pydantic v2 para el dominio incidencias y evidencias.
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class IncidenciaCreate(BaseModel):
@@ -92,6 +92,53 @@ class IncidenciasTiposResponse(BaseModel):
     """Valores distintos de `tipo` visibles para el usuario según su rol (ordenados)."""
 
     items: list[str]
+
+
+class IncidenciaAreaTotalItem(BaseModel):
+    area: str
+    total: int
+
+
+class IncidenciaSubareaTotalItem(BaseModel):
+    subarea: str
+    total: int
+    # Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
+    area: str | None = None
+
+
+class IncidenciaEmpleadoTotalItem(BaseModel):
+    empleado_id: int
+    no_empleado: str | None = None
+    nombre: str | None = None
+    total: int
+
+
+class IncidenciaTipoDistribucionItem(BaseModel):
+    tipo: str
+    total: int
+    porcentaje: float
+
+
+class IncidenciaSerieMensualItem(BaseModel):
+    """Bucket mensual (fecha de negocio o fecha de alta) para tendencia en dashboard."""
+
+    periodo: str  # YYYY-MM
+    total: int
+
+
+class IncidenciasEstadisticasResponse(BaseModel):
+    """Agregados para analítica del listado (mismos filtros y alcance que GET /incidencias)."""
+
+    total_incidencias: int
+    incidencias_seguridad: int
+    incidencias_calidad: int
+    areas_con_mas_incidencias: list[IncidenciaAreaTotalItem]
+    subareas_con_mas_incidencias: list[IncidenciaSubareaTotalItem]
+    empleados_con_mas_incidencias: list[IncidenciaEmpleadoTotalItem]
+    incidencias_por_tipo: list[IncidenciaTipoDistribucionItem]
+    incidencias_por_mes: list[IncidenciaSerieMensualItem] = Field(default_factory=list)
+    total_periodo_anterior: int | None = None
+    variacion_total_pct: float | None = None
 
 
 class EvidenciaResponse(BaseModel):

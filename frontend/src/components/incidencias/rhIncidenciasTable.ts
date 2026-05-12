@@ -23,7 +23,16 @@ const TABLE_TH =
 
 function filtrosActivosTabla(vm: RhIncidenciasAdminViewModel): boolean {
   const a = vm.appliedFilters;
-  return a.tipo.trim().length > 0 || a.no_empleado.trim().length > 0 || a.nombre.trim().length > 0;
+  return (
+    a.tipo.trim().length > 0 ||
+    a.no_empleado.trim().length > 0 ||
+    a.nombre.trim().length > 0 ||
+    a.fecha_inicio.trim().length > 0 ||
+    a.fecha_fin.trim().length > 0 ||
+    a.area.trim().length > 0 ||
+    a.subarea.trim().length > 0 ||
+    a.estatus_id.trim().length > 0
+  );
 }
 
 function celdaTextoTruncado(val: string, maxLen = 48): string {

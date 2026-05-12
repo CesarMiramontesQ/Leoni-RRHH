@@ -2,6 +2,14 @@
  * Contratos de la vista administrativa de incidencias (rol RH).
  */
 
+/** Resumen KPI del listado (respuesta `resumen` de GET /incidencias). */
+export type RhIncidenciasListadoResumen = {
+  abiertas: number;
+  en_investigacion: number;
+  resueltas: number;
+  criticas: number;
+};
+
 export type RhIncidenciaEstadoCodigo = "abierto" | "en_investigacion" | "cerrado";
 
 export type RhIncidenciaPrioridadCodigo = "baja" | "media" | "alta" | "critica";
@@ -82,6 +90,26 @@ export type RhIncidenciaResumenKpi = {
   criticas: number;
 };
 
+/** Respuesta de GET /api/v1/incidencias/estadisticas (analítica filtrada). */
+export type RhIncidenciasEstadisticasData = {
+  total_incidencias: number;
+  incidencias_seguridad: number;
+  incidencias_calidad: number;
+  areas_con_mas_incidencias: { area: string; total: number }[];
+  subareas_con_mas_incidencias: { subarea: string; total: number; area?: string | null }[];
+  empleados_con_mas_incidencias: {
+    empleado_id: number;
+    no_empleado: string | null;
+    nombre: string | null;
+    total: number;
+  }[];
+  incidencias_por_tipo: { tipo: string; total: number; porcentaje: number }[];
+  /** Serie mensual (YYYY-MM) desde el backend; vacía si no hay datos. */
+  incidencias_por_mes: { periodo: string; total: number }[];
+  total_periodo_anterior?: number | null;
+  variacion_total_pct?: number | null;
+};
+
 /** Filtros del listado (consulta servidor); valores en string para inputs HTML. */
 export type RhIncidenciaListFilters = {
   tipo: string;
@@ -156,8 +184,11 @@ export type RhIncidenciasUiConfig = {
 };
 
 export type RhIncidenciasAdminViewModel = {
-  resumen: RhIncidenciaResumenKpi | null;
-  resumenStatus: "loading" | "ready" | "error";
+  estadisticas: RhIncidenciasEstadisticasData | null;
+  estadisticasStatus: "loading" | "ready" | "error";
+  estadisticasErrorMessage?: string;
+  /** Resumen de estatus del listado (misma petición que la tabla). */
+  resumenListado: RhIncidenciasListadoResumen | null;
   filterOptions: RhIncidenciaFilterOptions;
   /** Valores de `tipo` distintos desde API (alcance por rol). */
   tiposRegistrados: readonly string[];

@@ -20,13 +20,27 @@ const SELECT_FILTER_EXTRA =
 
 function filtrosDraftActivos(f: RhIncidenciaListFilters): boolean {
   return (
-    f.tipo.trim().length > 0 || f.no_empleado.trim().length > 0 || f.nombre.trim().length > 0
+    f.tipo.trim().length > 0 ||
+    f.no_empleado.trim().length > 0 ||
+    f.nombre.trim().length > 0 ||
+    f.fecha_inicio.trim().length > 0 ||
+    f.fecha_fin.trim().length > 0 ||
+    f.area.trim().length > 0 ||
+    f.subarea.trim().length > 0 ||
+    f.estatus_id.trim().length > 0
   );
 }
 
 function filtrosAppliedActivos(a: RhIncidenciaListFilters): boolean {
   return (
-    a.tipo.trim().length > 0 || a.no_empleado.trim().length > 0 || a.nombre.trim().length > 0
+    a.tipo.trim().length > 0 ||
+    a.no_empleado.trim().length > 0 ||
+    a.nombre.trim().length > 0 ||
+    a.fecha_inicio.trim().length > 0 ||
+    a.fecha_fin.trim().length > 0 ||
+    a.area.trim().length > 0 ||
+    a.subarea.trim().length > 0 ||
+    a.estatus_id.trim().length > 0
   );
 }
 
@@ -81,10 +95,30 @@ function tipoSelectField(f: RhIncidenciaListFilters, tiposApi: readonly string[]
 </div>`;
 }
 
+function estatusSelectField(f: RhIncidenciaListFilters): string {
+  const selected = f.estatus_id.trim();
+  return `<div class="min-w-0">
+  <label for="rh-inc-f-est" class="${RH_LISTADO_LABEL}">${escapeIncHtml(INC_COPY.filtroEstado)}</label>
+  <div class="grid grid-cols-1">
+    <select
+      id="rh-inc-f-est"
+      name="estatus_id"
+      data-rh-inc-filter-field="estatus_id"
+      class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}"
+    >
+      <option value="" ${selected === "" ? "selected" : ""}>${escapeIncHtml(INC_COPY.optCualquierEstado)}</option>
+      <option value="1" ${selected === "1" ? "selected" : ""}>${escapeIncHtml(INC_COPY.optEstatusAbierto)}</option>
+      <option value="2" ${selected === "2" ? "selected" : ""}>${escapeIncHtml(INC_COPY.optEstatusInvestigacion)}</option>
+    </select>
+    ${SELECT_CHEVRON}
+  </div>
+</div>`;
+}
+
 function renderFilters(vm: RhIncidenciasAdminViewModel, opts?: { resultCount?: number | null }): string {
   const countHtml =
     opts?.resultCount !== null && opts?.resultCount !== undefined
-      ? `<p class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[#0f172a]">${escapeIncHtml(String(opts.resultCount))}</span> incidencias</p>`
+      ? `<p class="rh-sol-filters__count text-xs font-medium text-[color:var(--color-text-secondary)]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[color:var(--color-text-primary)]">${escapeIncHtml(String(opts.resultCount))}</span> incidencias</p>`
       : "";
 
   const f = vm.filterDraft;
@@ -105,59 +139,86 @@ function renderFilters(vm: RhIncidenciasAdminViewModel, opts?: { resultCount?: n
 
   const wrapCls = FILTER_FIELD_WRAP;
   const grid = `
-    <div class="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
       <div class="${wrapCls}">${tipoSelectField(f, vm.tiposRegistrados)}</div>
+      <div class="${wrapCls}">${estatusSelectField(f)}</div>
       <div class="${wrapCls}">${textField("rh-inc-f-noemp", INC_COPY.filtroNoEmpleado, "no_empleado", f, "text")}</div>
       <div class="${wrapCls}">${textField("rh-inc-f-nom", INC_COPY.colNombre, "nombre", f, "search")}</div>
+      <div class="${wrapCls}">${textField("rh-inc-f-fi", INC_COPY.filtroFechaDesde, "fecha_inicio", f, "date")}</div>
+      <div class="${wrapCls}">${textField("rh-inc-f-ff", INC_COPY.filtroFechaHasta, "fecha_fin", f, "date")}</div>
+      <div class="${wrapCls}">${textField("rh-inc-f-area", INC_COPY.filtroAreaContiene, "area", f, "search")}</div>
+      <div class="${wrapCls}">${textField("rh-inc-f-sub", INC_COPY.filtroSubareaContiene, "subarea", f, "search")}</div>
     </div>`;
 
   const inner = `
       <div class="flex flex-col gap-3">
         ${grid}
-        <p class="text-xs text-[#64748b]">${escapeIncHtml(INC_COPY.filtrosAplicadosHint)}</p>
+        <p class="text-xs text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.filtrosAplicadosHint)}</p>
         <div class="flex flex-wrap items-end gap-2 sm:gap-3">
           ${applyBtn}
           ${clearBtn}
         </div>
       </div>`;
 
-  return `
-    <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="${escapeIncHtml(INC_COPY.filtrosSeccionAria)}">
-      <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">${escapeIncHtml(INC_COPY.filtrosTitulo)}</h2>
+  const desktopTitle = `
+      <div class="mb-3 hidden flex-col gap-2 sm:flex-row sm:items-end sm:justify-between lg:flex">
+        <h2 class="text-sm font-semibold tracking-tight text-[color:var(--color-text-primary)] sm:text-base">${escapeIncHtml(INC_COPY.filtrosTitulo)}</h2>
         ${countHtml}
+      </div>`;
+
+  const mobileCountBadge =
+    opts?.resultCount !== null && opts?.resultCount !== undefined
+      ? `<span class="text-xs text-[color:var(--color-text-muted)]"><span class="font-semibold tabular-nums text-[color:var(--color-text-primary)]">${escapeIncHtml(String(opts.resultCount))}</span> en listado</span>`
+      : "";
+
+  const mobileSummary = `
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:hidden [&::-webkit-details-marker]:hidden">
+        <span class="text-sm font-semibold text-[color:var(--color-text-primary)]">${escapeIncHtml(INC_COPY.filtrosToggleMobile)}</span>
+        <div class="flex items-center gap-2">
+          ${mobileCountBadge}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 shrink-0 text-[color:var(--color-text-muted)] transition-transform duration-200 group-open:rotate-180" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </div>
+      </summary>`;
+
+  return `
+    <details class="${RH_LISTADO_SURFACE} rh-sol-filters-card group rounded-lg border border-[color:var(--color-border)] shadow-sm open:shadow-sm" open aria-label="${escapeIncHtml(INC_COPY.filtrosSeccionAria)}">
+      ${mobileSummary}
+      <div class="border-t border-[color:var(--color-border)] px-4 pb-4 pt-3 sm:px-5 lg:border-t-0 lg:p-5 lg:pt-5">
+        ${desktopTitle}
+        ${inner}
       </div>
-      ${inner}
-    </section>`;
+    </details>`;
 }
 
 function renderFiltersSkeleton(): string {
   const cell = `
     <div class="min-w-0 animate-pulse">
-      <div class="mb-1 h-3 w-24 max-w-full rounded bg-slate-200"></div>
-      <div class="h-[42px] w-full rounded-[12px] bg-slate-100"></div>
+      <div class="mb-1 h-3 w-24 max-w-full rounded bg-[color:var(--color-surface-container-high)]"></div>
+      <div class="h-[42px] w-full rounded-[12px] bg-[color:var(--color-surface-container)]"></div>
     </div>`;
   const wrapCls = FILTER_FIELD_WRAP;
-  const slots = Array.from({ length: 3 }, () => `<div class="${wrapCls}">${cell}</div>`).join("");
+  const slots = Array.from({ length: 8 }, () => `<div class="${wrapCls}">${cell}</div>`).join("");
   return `
-    <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-hidden="true" aria-label="Cargando filtros">
-      <div class="mb-3 h-5 w-48 animate-pulse rounded-md bg-slate-200/80"></div>
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        ${slots}
+    <div class="${RH_LISTADO_SURFACE} rh-sol-filters-card rounded-lg border border-[color:var(--color-border)] shadow-sm" aria-hidden="true" aria-label="Cargando filtros">
+      <div class="px-4 py-3 sm:px-5">
+        <div class="mb-3 h-5 w-48 animate-pulse rounded-md bg-[color:var(--color-surface-container-high)]"></div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          ${slots}
+        </div>
       </div>
-    </section>`;
+    </div>`;
 }
 
 /** Barra de filtros o skeleton según estado de carga (patrón Solicitudes). */
 export function renderRhIncidenciasFiltersSection(vm: RhIncidenciasAdminViewModel): string {
-  if (vm.tableStatus === "error" && vm.resumenStatus === "error") {
+  if (vm.tableStatus === "error") {
     return "";
   }
-  const filtersLoading = vm.resumenStatus === "loading" || vm.tableStatus === "loading";
+  const filtersLoading = vm.estadisticasStatus === "loading" && vm.tableStatus === "loading";
   if (filtersLoading) {
     return renderFiltersSkeleton();
   }
   const resultCount =
-    vm.table && vm.tableStatus !== "loading" && vm.tableStatus !== "error" ? vm.table.total : null;
+    vm.table && vm.tableStatus !== "loading" ? vm.table.total : null;
   return renderFilters(vm, { resultCount });
 }

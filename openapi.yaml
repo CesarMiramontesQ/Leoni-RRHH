@@ -734,6 +734,109 @@ components:
           items:
             type: string
 
+    IncidenciaAreaTotalItem:
+      type: object
+      required: [area, total]
+      properties:
+        area:
+          type: string
+        total:
+          type: integer
+
+    IncidenciaSubareaTotalItem:
+      type: object
+      required: [subarea, total]
+      properties:
+        subarea:
+          type: string
+        total:
+          type: integer
+        area:
+          type: [string, "null"]
+          description: Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
+
+    IncidenciaEmpleadoTotalItem:
+      type: object
+      required: [empleado_id, total]
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: [string, "null"]
+        nombre:
+          type: [string, "null"]
+        total:
+          type: integer
+
+    IncidenciaTipoDistribucionItem:
+      type: object
+      required: [tipo, total, porcentaje]
+      properties:
+        tipo:
+          type: string
+        total:
+          type: integer
+        porcentaje:
+          type: number
+
+    IncidenciaSerieMensualItem:
+      type: object
+      required: [periodo, total]
+      properties:
+        periodo:
+          type: string
+          description: Mes calendario en formato YYYY-MM
+        total:
+          type: integer
+
+    IncidenciasEstadisticasResponse:
+      type: object
+      required:
+        - total_incidencias
+        - incidencias_seguridad
+        - incidencias_calidad
+        - areas_con_mas_incidencias
+        - subareas_con_mas_incidencias
+        - empleados_con_mas_incidencias
+        - incidencias_por_tipo
+        - incidencias_por_mes
+      properties:
+        total_incidencias:
+          type: integer
+        incidencias_seguridad:
+          type: integer
+          description: Heurística por coincidencia de texto «seguridad» en categoría o tipo.
+        incidencias_calidad:
+          type: integer
+          description: Heurística por coincidencia de texto «calidad» en categoría o tipo.
+        areas_con_mas_incidencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaAreaTotalItem"
+        subareas_con_mas_incidencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaSubareaTotalItem"
+        empleados_con_mas_incidencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaEmpleadoTotalItem"
+        incidencias_por_tipo:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaTipoDistribucionItem"
+        incidencias_por_mes:
+          type: array
+          description: Serie mensual para tendencia (fecha de negocio o fecha de alta).
+          items:
+            $ref: "#/components/schemas/IncidenciaSerieMensualItem"
+        total_periodo_anterior:
+          type: [integer, "null"]
+          description: Total en el periodo inmediatamente anterior al rango fecha_inicio/fecha_fin (mismos filtros).
+        variacion_total_pct:
+          type: [number, "null"]
+          description: Variación porcentual vs. total_periodo_anterior; nulo si no aplica o no hay base comparable.
+
     EvidenciaResponse:
       type: object
       required: [id, nombre_original, mime_type, tamano_bytes, created_at]
@@ -2840,6 +2943,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/IncidenciasTiposResponse"
+
+  /api/v1/incidencias/estadisticas:
+    get:
+      tags: [Incidencias]
+      summary: Estadísticas analíticas de incidencias
+      description: >
+        Agregados con los mismos filtros y alcance por rol que el listado principal.
+        Totales, conteos heurísticos seguridad/calidad, top 10 por área/subárea/empleado y
+        distribución por tipo.
+        Excluye tipos internos `progresivo` y `progresivo_historico`.
+      operationId: incidencias_estadisticas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tipo
+          in: query
+          required: false
+          description: Coincide exactamente con la columna tipo.
+          schema:
+            type: string
+        - name: empleado_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: no_empleado
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: nombre
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: semana_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: numero_semana
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: categoria
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: estatus_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: subarea
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha_inicio
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Agregados filtrados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasEstadisticasResponse"
 
   /api/v1/incidencias/{id}:
     get:

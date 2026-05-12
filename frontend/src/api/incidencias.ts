@@ -5,6 +5,7 @@ import type {
   RhIncidenciaPrioridadCodigo,
   RhIncidenciaTablaFila,
   RhIncidenciaTipoCodigo,
+  RhIncidenciasEstadisticasData,
 } from "../incidencias/rh/types.ts";
 import { emptyRhIncidenciaListFilters } from "../incidencias/rh/types.ts";
 
@@ -88,15 +89,8 @@ function parseOptionalDate(s: string): string | undefined {
   return t;
 }
 
-/** Serializa filtros aplicados y paginación a query string (omitir vacíos). */
-export function buildIncidenciasListQuery(
-  filters: RhIncidenciaListFilters,
-  page: number,
-  pageSize: number,
-): string {
-  const p = new URLSearchParams();
-  p.set("page", String(Math.max(1, page)));
-  p.set("page_size", String(Math.min(10, Math.max(1, pageSize))));
+/** Query string de filtros (sin paginación), compartido por listado y estadísticas. */
+export function appendIncidenciasFilterParams(p: URLSearchParams, filters: RhIncidenciaListFilters): void {
   const tipo = filters.tipo.trim();
   if (tipo) p.set("tipo", tipo);
   const eid = parseOptionalInt(filters.empleado_id);
@@ -123,6 +117,24 @@ export function buildIncidenciasListQuery(
   if (fi) p.set("fecha_inicio", fi);
   const ff = parseOptionalDate(filters.fecha_fin);
   if (ff) p.set("fecha_fin", ff);
+}
+
+/** Serializa filtros aplicados y paginación a query string (omitir vacíos). */
+export function buildIncidenciasListQuery(
+  filters: RhIncidenciaListFilters,
+  page: number,
+  pageSize: number,
+): string {
+  const p = new URLSearchParams();
+  p.set("page", String(Math.max(1, page)));
+  p.set("page_size", String(Math.min(10, Math.max(1, pageSize))));
+  appendIncidenciasFilterParams(p, filters);
+  return p.toString();
+}
+
+export function buildIncidenciasEstadisticasQuery(filters: RhIncidenciaListFilters): string {
+  const p = new URLSearchParams();
+  appendIncidenciasFilterParams(p, filters);
   return p.toString();
 }
 
@@ -191,6 +203,40 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
     supervisor_directo: item.supervisor_directo ?? null,
     puesto: item.puesto ?? null,
     puesto_empleado: puestoApi,
+  };
+}
+
+export async function fetchIncidenciasEstadisticas(
+  filters: RhIncidenciaListFilters,
+): Promise<RhIncidenciasEstadisticasData> {
+  const qs = buildIncidenciasEstadisticasQuery(filters);
+  const suffix = qs.length > 0 ? `?${qs}` : "";
+  const res = await fetchWithAuth(`/api/v1/incidencias/estadisticas${suffix}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as IncidenciasFetchError;
+  }
+  const raw = (await res.json()) as Partial<RhIncidenciasEstadisticasData>;
+  const sumTipos = (raw.incidencias_por_tipo ?? []).reduce((s, x) => s + x.total, 0);
+  const totalFallback =
+    typeof raw.total_incidencias === "number" && raw.total_incidencias >= 0
+      ? raw.total_incidencias
+      : sumTipos;
+  return {
+    total_incidencias: totalFallback,
+    incidencias_seguridad: raw.incidencias_seguridad ?? 0,
+    incidencias_calidad: raw.incidencias_calidad ?? 0,
+    areas_con_mas_incidencias: raw.areas_con_mas_incidencias ?? [],
+    subareas_con_mas_incidencias: raw.subareas_con_mas_incidencias ?? [],
+    empleados_con_mas_incidencias: raw.empleados_con_mas_incidencias ?? [],
+    incidencias_por_tipo: raw.incidencias_por_tipo ?? [],
+    incidencias_por_mes: raw.incidencias_por_mes ?? [],
+    total_periodo_anterior:
+      typeof raw.total_periodo_anterior === "number" ? raw.total_periodo_anterior : null,
+    variacion_total_pct:
+      typeof raw.variacion_total_pct === "number" && Number.isFinite(raw.variacion_total_pct)
+        ? raw.variacion_total_pct
+        : null,
   };
 }
 
