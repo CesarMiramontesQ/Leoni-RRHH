@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://leoni:leoni_dev_pass@localhost:5432/leoni_rh"
 
+    # PostgreSQL bono_productividad (solo lectura; independiente de DATABASE_URL)
+    BONO_DB_HOST: str = ""
+    BONO_DB_PORT: int = 5433
+    BONO_DB_NAME: str = ""
+    BONO_DB_USER: str = ""
+    BONO_DB_PASSWORD: str = ""
+    BONO_DB_ENGINE: str = "postgresql"
+
     # JWT
     JWT_SECRET: str = "change-this-secret-in-production"
     JWT_ALGORITHM: str = "HS256"
