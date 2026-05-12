@@ -16,7 +16,7 @@ export type SolicitudBrief = {
 export type IncidenciaBrief = {
   id: number;
   tipo: string;
-  estado: string;
+  estatus_id: number | null;
   created_at: string;
 };
 

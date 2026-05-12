@@ -248,20 +248,16 @@ async def make_incidencia(
     db: AsyncSession,
     *,
     empleado_id: int,
-    registrado_por: int | None = None,
     tipo: str = "tardanza",
-    estado: str = "open",
-    descripcion: str = "Incidencia de prueba generada en test",
+    detalle: str = "Incidencia de prueba generada en test",
 ):
     """Factory para crear una Incidencia directamente en DB."""
     from app.models.incidencias import Incidencia
 
     incidencia = Incidencia(
-        empleado_id=empleado_id,
-        registrado_por=registrado_por or empleado_id,
         tipo=tipo,
-        estado=estado,
-        descripcion=descripcion,
+        empleado_id=empleado_id,
+        detalle=detalle,
     )
     db.add(incidencia)
     await db.flush()

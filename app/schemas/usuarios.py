@@ -134,7 +134,7 @@ class IncidenciaBrief(BaseModel):
     model_config = {"from_attributes": True}
     id: int
     tipo: str
-    estado: str
+    estatus_id: Optional[int] = None
     created_at: datetime
 
 

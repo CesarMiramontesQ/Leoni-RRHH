@@ -350,14 +350,14 @@ components:
 
     IncidenciaBrief:
       type: object
-      required: [id, tipo, estado, created_at]
+      required: [id, tipo, created_at]
       properties:
         id:
           type: integer
         tipo:
           type: string
-        estado:
-          type: string
+        estatus_id:
+          type: [integer, "null"]
         created_at:
           type: string
           format: date-time
@@ -616,19 +616,39 @@ components:
     # ── Incidencias ───────────────────────────────────
     IncidenciaCreate:
       type: object
-      required: [empleado_id, tipo, descripcion]
+      required: [empleado_id, tipo]
       properties:
         empleado_id:
           type: integer
         tipo:
           type: string
-          enum: [falta, retardo, conducta, accidente, otro]
-        descripcion:
-          type: string
+        no_empleado:
+          type: [string, "null"]
+        nombre:
+          type: [string, "null"]
+        fecha:
+          type: [string, "null"]
+          format: date
+        semana_id:
+          type: [integer, "null"]
+        numero_semana:
+          type: [integer, "null"]
+        categoria:
+          type: [string, "null"]
+        detalle:
+          type: [string, "null"]
+        descuento_porcentaje:
+          type: [number, "null"]
+        estatus_id:
+          type: [integer, "null"]
+        area:
+          type: [string, "null"]
+        subarea:
+          type: [string, "null"]
 
     IncidenciaResponse:
       type: object
-      required: [id, empleado_id, tipo, descripcion, estado, registrado_por, created_at]
+      required: [id, empleado_id, tipo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -636,14 +656,33 @@ components:
           type: integer
         tipo:
           type: string
-        descripcion:
-          type: string
-        estado:
-          type: string
-          enum: [open, in_review, resolved, closed]
-        registrado_por:
-          type: integer
+        no_empleado:
+          type: [string, "null"]
+        nombre:
+          type: [string, "null"]
+        fecha:
+          type: [string, "null"]
+          format: date
+        semana_id:
+          type: [integer, "null"]
+        numero_semana:
+          type: [integer, "null"]
+        categoria:
+          type: [string, "null"]
+        detalle:
+          type: [string, "null"]
+        descuento_porcentaje:
+          type: [number, "null"]
+        estatus_id:
+          type: [integer, "null"]
+        area:
+          type: [string, "null"]
+        subarea:
+          type: [string, "null"]
         created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
         evidencias_count:
@@ -1858,6 +1897,55 @@ components:
           items:
             $ref: "#/components/schemas/BonoIncidenciaConsolidadaItem"
 
+    BonoSyncErrorItem:
+      type: object
+      required: [error]
+      properties:
+        source_key:
+          type: string
+          nullable: true
+        error:
+          type: string
+
+    BonoIncidenciasSyncResponse:
+      type: object
+      required:
+        - dry_run
+        - total_leidos_bono
+        - total_considerados
+        - total_insertados
+        - total_actualizados_existentes
+        - total_omitidos_duplicado
+        - total_omitidos_sin_empleado
+        - total_omitidos_invalidos
+        - errores
+        - mapeo_campos
+      properties:
+        dry_run:
+          type: boolean
+        total_leidos_bono:
+          type: integer
+        total_considerados:
+          type: integer
+        total_insertados:
+          type: integer
+        total_actualizados_existentes:
+          type: integer
+        total_omitidos_duplicado:
+          type: integer
+        total_omitidos_sin_empleado:
+          type: integer
+        total_omitidos_invalidos:
+          type: integer
+        errores:
+          type: array
+          items:
+            $ref: "#/components/schemas/BonoSyncErrorItem"
+        mapeo_campos:
+          type: object
+          additionalProperties:
+            type: string
+
     MessageResponse:
       type: object
       required: [message]
@@ -1960,6 +2048,46 @@ paths:
           description: Parametro tipo invalido
         "503":
           description: BD externa no disponible o error de consulta
+
+  /api/v1/bono-productividad/incidencias/sync:
+    post:
+      tags: [Bono productividad]
+      summary: Sincronizar incidencias de bono hacia incidencias locales
+      description: >-
+        Lee incidencias desde bono_productividad (solo lectura), mapea a la tabla local
+        `incidencias` de la base principal y evita duplicados por llave BONO::<tipo>::<id>.
+        Por seguridad, dry_run=true por defecto.
+      operationId: bono_productividad_incidencias_sync
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: dry_run
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Si es true, no inserta; solo calcula conteos.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Límite opcional de registros a procesar.
+      responses:
+        "200":
+          description: Resultado de sincronización
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonoIncidenciasSyncResponse"
+        "401":
+          description: No autenticado
+        "403":
+          description: Rol no autorizado
+        "503":
+          description: Error de lectura/inserción en proceso de sincronización
 
   # ── Autenticacion ───────────────────────────────────
   /api/v1/auth/login:

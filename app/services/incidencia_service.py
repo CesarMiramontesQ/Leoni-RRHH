@@ -1,11 +1,6 @@
 # app/services/incidencia_service.py
 """
 Logica de negocio del dominio incidencias.
-
-Flujo de estados:
-  OPEN → IN_REVIEW → RESOLVED → CLOSED
-
-Al cerrar con tipo falta/retardo: se encola en TRESS para nomina.
 Subida de evidencias: almacena en /data/evidencias/incidencias/{year}/{month}/{uuid}.{ext}
 """
 
@@ -14,19 +9,17 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import BackgroundTasks, UploadFile
+from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
-from app.integrations.tress.queue import encolar_tress
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.incidencias import Incidencia
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.incidencia_repository import EvidenciaRepository, IncidenciaRepository
 from app.schemas import PaginatedResponse
 from app.schemas.incidencias import (
-    INCIDENCIA_TRANSICIONES_VALIDAS,
     EvidenciaResponse,
     IncidenciaCreate,
     IncidenciaResponse,
@@ -34,9 +27,6 @@ from app.schemas.incidencias import (
 from app.utils.audit_logger import audit_background
 
 logger = logging.getLogger(__name__)
-
-# Tipos que generan registro en nomina al cerrar
-_TIPOS_NOMINA = {"falta", "retardo"}
 
 # Directorio base para evidencias
 _EVIDENCIAS_BASE = Path("/data/evidencias/incidencias")
@@ -146,11 +136,19 @@ class IncidenciaService:
                 )
 
         incidencia = await self.repo.create({
-            "empleado_id": data.empleado_id,
             "tipo": data.tipo,
-            "descripcion": data.descripcion,
-            "estado": "open",
-            "registrado_por": current_user.id,
+            "empleado_id": data.empleado_id,
+            "no_empleado": data.no_empleado,
+            "nombre": data.nombre,
+            "fecha": data.fecha,
+            "semana_id": data.semana_id,
+            "numero_semana": data.numero_semana,
+            "categoria": data.categoria,
+            "detalle": data.detalle,
+            "descuento_porcentaje": data.descuento_porcentaje,
+            "estatus_id": data.estatus_id,
+            "area": data.area,
+            "subarea": data.subarea,
         })
 
         audit_background(
@@ -163,7 +161,7 @@ class IncidenciaService:
             datos_despues={
                 "empleado_id": incidencia.empleado_id,
                 "tipo": incidencia.tipo,
-                "estado": incidencia.estado,
+                "estatus_id": incidencia.estatus_id,
             },
         )
 
@@ -191,71 +189,6 @@ class IncidenciaService:
         r.evidencias_count = 0
         return r
 
-    # ── Cambiar estado ────────────────────────────────────────────────────────
-
-    async def cambiar_estado(
-        self,
-        id: int,
-        nuevo_estado: str,
-        current_user: Empleado,
-        background_tasks: BackgroundTasks,
-    ) -> IncidenciaResponse:
-        rol = self._get_rol(current_user)
-        if rol not in ("rh", "gerente", "director"):
-            raise ForbiddenError(detail="Se requiere rol rh o gerente para cambiar el estado")
-
-        incidencia = await self.repo.get(id)
-        if not incidencia:
-            raise NotFoundError(entidad="Incidencia", id=id)
-
-        # Validar transicion
-        transiciones_permitidas = INCIDENCIA_TRANSICIONES_VALIDAS.get(
-            incidencia.estado, set()
-        )
-        if nuevo_estado not in transiciones_permitidas:
-            raise DomainValidationError(
-                detail=(
-                    f"Transicion no permitida: '{incidencia.estado}' → '{nuevo_estado}'. "
-                    f"Transiciones validas desde '{incidencia.estado}': "
-                    f"{sorted(transiciones_permitidas) or 'ninguna'}"
-                )
-            )
-
-        datos_antes = {"estado": incidencia.estado}
-        incidencia = await self.repo.update(id, {"estado": nuevo_estado})
-
-        # Si se cierra con tipo falta/retardo → encolar TRESS
-        if nuevo_estado == "closed" and incidencia.tipo in _TIPOS_NOMINA:
-            empleado = await self.empleado_repo.get(incidencia.empleado_id)
-            if empleado:
-                await encolar_tress(
-                    db=self.db,
-                    accion="REGISTRAR_INCIDENCIA",
-                    payload={
-                        "empleado_num": empleado.no_empleado,
-                        "tipo": incidencia.tipo,
-                        "descripcion": incidencia.descripcion,
-                        "fecha": str(incidencia.created_at.date()),
-                        "referencia_id": incidencia.id,
-                    },
-                )
-
-        audit_background(
-            background_tasks=background_tasks,
-            db=self.db,
-            accion="INCIDENCIA_ESTADO_CHANGED",
-            modulo="incidencias",
-            usuario_id=current_user.id,
-            entidad_id=id,
-            datos_antes=datos_antes,
-            datos_despues={"estado": nuevo_estado},
-        )
-
-        count = await self.repo.count_evidencias(id)
-        r = IncidenciaResponse.model_validate(incidencia)
-        r.evidencias_count = count
-        return r
-
     # ── Subir evidencia ───────────────────────────────────────────────────────
 
     async def subir_evidencia(
@@ -274,9 +207,6 @@ class IncidenciaService:
         incidencia = await self.repo.get(incidencia_id)
         if not incidencia:
             raise NotFoundError(entidad="Incidencia", id=incidencia_id)
-
-        if incidencia.estado == "closed":
-            raise ConflictError(detail="No se pueden subir evidencias a una incidencia cerrada")
 
         # Construir path
         now = datetime.now(timezone.utc)

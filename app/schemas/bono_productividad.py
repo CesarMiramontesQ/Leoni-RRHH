@@ -82,6 +82,40 @@ class BonoIncidenciasListaResponse(BaseModel):
     items: list[BonoIncidenciaConsolidadaItem] = Field(default_factory=list)
 
 
+class BonoSyncErrorItem(BaseModel):
+    source_key: str | None = None
+    error: str
+
+
+class BonoIncidenciasSyncResponse(BaseModel):
+    dry_run: bool
+    total_leidos_bono: int
+    total_considerados: int
+    total_insertados: int
+    total_actualizados_existentes: int
+    total_omitidos_duplicado: int
+    total_omitidos_sin_empleado: int
+    total_omitidos_invalidos: int
+    errores: list[BonoSyncErrorItem] = Field(default_factory=list)
+    mapeo_campos: dict[str, str] = Field(
+        default_factory=lambda: {
+            "bono.tipo": "incidencias.tipo",
+            "bono.empleado_id": "incidencias.empleado_id (match con empleados.empleado_id)",
+            "bono.no_empleado": "incidencias.no_empleado",
+            "bono.nombre": "incidencias.nombre",
+            "bono.fecha": "incidencias.fecha",
+            "bono.semana_id": "incidencias.semana_id",
+            "bono.numero_semana": "incidencias.numero_semana",
+            "bono.categoria": "incidencias.categoria",
+            "bono.detalle": "incidencias.detalle",
+            "bono.descuento_porcentaje": "incidencias.descuento_porcentaje",
+            "bono.estatus_id": "incidencias.estatus_id",
+            "bono.area": "incidencias.area",
+            "bono.subarea": "incidencias.subarea",
+        }
+    )
+
+
 def json_safe_item(row: dict) -> dict:
     """Normaliza tipos típicos de asyncpg/Decimal antes de model_validate."""
     out = dict(row)

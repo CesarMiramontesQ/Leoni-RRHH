@@ -15,15 +15,6 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
     def __init__(self, db: AsyncSession):
         super().__init__(Incidencia, db)
 
-    async def list_by_estado(
-        self,
-        estado: str,
-        cursor: int | None,
-        limit: int,
-    ) -> tuple[list[Incidencia], int | None]:
-        filters = [Incidencia.estado == estado]
-        return await self.list_paginated(cursor=cursor, limit=limit, filters=filters)
-
     async def list_by_empleado(
         self,
         empleado_id: int,
@@ -38,7 +29,6 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
             select(Incidencia)
             .options(
                 selectinload(Incidencia.empleado),
-                selectinload(Incidencia.registrador),
             )
             .where(Incidencia.id == id)
         )

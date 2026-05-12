@@ -262,7 +262,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
             (i) => `
         <li class="px-5 py-4">
           <p class="font-semibold text-text-primary">${escapeHtml(i.tipo)}</p>
-          <p class="mt-0.5 text-sm text-text-muted">Estado: ${escapeHtml(i.estado)} · ${escapeHtml(formatFechaHora(i.created_at))}</p>
+          <p class="mt-0.5 text-sm text-text-muted">Estatus: ${escapeHtml(i.estatus_id === null ? "Sin estatus" : String(i.estatus_id))} · ${escapeHtml(formatFechaHora(i.created_at))}</p>
         </li>`,
           )
           .join("")}</ul>`;

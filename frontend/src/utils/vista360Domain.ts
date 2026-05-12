@@ -26,10 +26,11 @@ export function buildTimelineItems(data: UsuarioVista360): TimelineItem[] {
     });
   }
   for (const i of data.incidencias_activas) {
+    const estatusTxt = i.estatus_id === null ? "Sin estatus" : `Estatus ${i.estatus_id}`;
     raw.push({
       t: Date.parse(i.created_at),
       title: `Incidencia: ${i.tipo}`,
-      subtitle: `Estado: ${i.estado}`,
+      subtitle: estatusTxt,
       atIso: i.created_at,
     });
   }

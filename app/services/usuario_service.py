@@ -369,11 +369,9 @@ class UsuarioService:
 
         result = await self.db.execute(
             select(Incidencia)
-            .where(
-                Incidencia.empleado_id == id,
-                Incidencia.estado.notin_(["closed"]),
-            )
+            .where(Incidencia.empleado_id == id)
             .order_by(Incidencia.id.desc())
+            .limit(10)
         )
         incidencias = list(result.scalars().all())
 
