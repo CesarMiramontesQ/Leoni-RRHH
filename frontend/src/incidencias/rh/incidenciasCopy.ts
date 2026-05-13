@@ -4,8 +4,6 @@
 
 export const INC_COPY = {
   tituloPagina: "Incidencias",
-  subtitulo:
-    "Consulta tendencias, prioriza áreas críticas y revisa el detalle operativo en un solo lugar.",
   listadoTitulo: "Listado de incidencias",
   listadoSubtitulo: (total: number) =>
     total === 1 ? "1 incidencia encontrada" : `${total} incidencias encontradas`,
@@ -30,6 +28,15 @@ export const INC_COPY = {
   analiticaTendenciaSub: "Volumen según fecha de la incidencia o fecha de alta",
   verRankingCompleto: "Ver ranking completo",
   kpiTotal: "Total de incidencias",
+  /** Título KPI en dos líneas (tarjetas analítica). */
+  kpiTotalLine1: "Total",
+  kpiTotalLine2: "de incidencias",
+  kpiSeguridadLine1: "Incidencias",
+  kpiSeguridadLine2: "de seguridad",
+  kpiCalidadLine1: "Incidencias",
+  kpiCalidadLine2: "de calidad",
+  kpiAreaTopLine1: "Área",
+  kpiAreaTopLine2: "crítica",
   kpiTotalContexto: (abiertas: number, enInv: number) =>
     `${abiertas} abiertas · ${enInv} en investigación`,
   kpiSeguridad: "Incidencias de seguridad",

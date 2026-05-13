@@ -14,12 +14,11 @@ import {
 import {
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_SURFACE,
-  RH_SOLICITUDES_BTN_PRIMARY,
 } from "./rhIncidenciasPageStyles.ts";
 
 /** Cabecera de tabla (mismo patrón que Solicitudes / `.rh-sol-th` en style.css). */
 const TABLE_TH =
-  "rh-sol-th sticky top-0 z-20 whitespace-nowrap border-b border-[rgba(148,163,184,0.28)] px-2 py-3 text-[13px] font-semibold tracking-tight text-[#334155] sm:px-3";
+  "rh-sol-th sticky top-0 z-20 whitespace-nowrap border-b border-[rgba(148,163,184,0.28)] px-2 py-3 text-[12px] font-bold uppercase tracking-wide text-[#334155] sm:px-3";
 
 function filtrosActivosTabla(vm: RhIncidenciasAdminViewModel): boolean {
   const a = vm.appliedFilters;
@@ -42,6 +41,18 @@ function celdaTextoTruncado(val: string, maxLen = 48): string {
   return `<span class="block max-w-[14rem] truncate sm:max-w-[18rem]" title="${escapeIncHtml(raw)}">${escapeIncHtml(t)}</span>`;
 }
 
+function tipoBadge(tipoUi: string): string {
+  const lower = tipoUi.toLowerCase();
+  const cls = lower.includes("seguridad")
+    ? "rh-inc-type-pill--seguridad"
+    : lower.includes("calidad")
+      ? "rh-inc-type-pill--calidad"
+      : lower.includes("retardo") || lower.includes("tard")
+        ? "rh-inc-type-pill--tiempo"
+        : "rh-inc-type-pill--default";
+  return `<span class="rh-inc-type-pill ${cls}" title="${escapeIncHtml(tipoUi)}">${escapeIncHtml(tipoUi)}</span>`;
+}
+
 /** Nombre colaborador en listado incidencias: título y orden natural (APELLIDOS, NOMBRE → Nombre Apellidos). */
 function nombreEmpleadoIncidenciaTabla(raw: string): string {
   const f = formatNombreEmpleadoIncidenciasUi(raw).trim();
@@ -60,9 +71,6 @@ function renderIncidenciasEmptyState(vm: RhIncidenciasAdminViewModel): string {
         <p class="rh-sol-empty__sub mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
         <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
           ${showClear ? `<button type="button" data-rh-inc-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear">${escapeIncHtml(INC_COPY.limpiarFiltros)}</button>` : ""}
-          <button type="button" id="rh-inc-nueva-empty" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary">
-            <span aria-hidden="true">+</span> ${escapeIncHtml(INC_COPY.nueva)}
-          </button>
         </div>
       </div>
     </section>`;
@@ -129,14 +137,14 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
       const tipoUi = labelTipoIncidenciaUi((row.tipo_texto ?? row.tipo).trim() || String(row.tipo));
       return `
     <tr class="rh-sol-data-row transition-colors">
-      <td class="whitespace-nowrap px-2 py-2 align-middle text-sm text-slate-700 sm:px-3">${escapeIncHtml(fmtTablaCelda(row.no_empleado))}</td>
-      <td class="max-w-[12rem] px-2 py-2 align-middle text-sm text-slate-800 sm:px-3">${celdaTextoTruncado(nombreEmpleadoIncidenciaTabla(row.empleado_nombre_raw), 36)}</td>
-      <td class="max-w-[10rem] px-2 py-2 align-middle text-sm text-slate-800 sm:px-3">${celdaTextoTruncado(tipoUi, 40)}</td>
-      <td class="max-w-[14rem] px-2 py-2 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.detalle), 80)}</td>
-      <td class="max-w-[10rem] px-2 py-2 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.area), 32)}</td>
-      <td class="max-w-[10rem] px-2 py-2 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.subarea), 32)}</td>
-      <td class="whitespace-nowrap px-2 py-2 align-middle text-right sm:px-3">
-        <button type="button" class="${RH_LISTADO_BTN_GHOST} px-2.5 py-1.5 text-xs font-semibold" data-rh-inc-ver="1" data-rh-inc-id="${row.id}">
+      <td class="whitespace-nowrap px-2 py-3 align-middle text-sm text-slate-700 sm:px-3"><span class="rh-inc-noempleado-pill">${escapeIncHtml(fmtTablaCelda(row.no_empleado))}</span></td>
+      <td class="max-w-[12rem] px-2 py-3 align-middle text-sm font-semibold text-slate-900 sm:px-3">${celdaTextoTruncado(nombreEmpleadoIncidenciaTabla(row.empleado_nombre_raw), 36)}</td>
+      <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-800 sm:px-3">${tipoBadge(tipoUi)}</td>
+      <td class="max-w-[14rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.detalle), 80)}</td>
+      <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.area), 32)}</td>
+      <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.subarea), 32)}</td>
+      <td class="whitespace-nowrap px-2 py-3 align-middle text-right sm:px-3">
+        <button type="button" class="${RH_LISTADO_BTN_GHOST} min-h-9 px-3 py-1.5 text-xs font-semibold" data-rh-inc-ver="1" data-rh-inc-id="${row.id}" aria-label="${escapeIncHtml(`${INC_COPY.accionVer} ${nombreEmpleadoIncidenciaTabla(row.empleado_nombre_raw)}`)}">
           ${escapeIncHtml(INC_COPY.accionVer)}
         </button>
       </td>
@@ -162,7 +170,7 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
     .join("");
 
   const footer = `
-      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+      <div class="flex shrink-0 flex-col gap-2 border-t border-slate-100 bg-slate-50/70 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
         <p class="text-xs font-medium text-slate-600 sm:text-sm">
           ${escapeIncHtml(INC_COPY.mostrando(from, to, tbl.total))}
           <span class="mt-1 block text-[11px] font-normal text-slate-500 sm:mt-0 sm:inline sm:before:content-['_·_']">Máximo 10 registros por página.</span>
@@ -194,20 +202,20 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
       const tipoUi = labelTipoIncidenciaUi((row.tipo_texto ?? row.tipo).trim() || String(row.tipo));
       return `
       <article
-        class="rounded-[14px] border border-[rgba(148,163,184,0.22)] bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-[rgba(100,116,139,0.35)]"
+        class="rh-inc-mobile-card rounded-2xl border border-[rgba(148,163,184,0.22)] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-[rgba(100,116,139,0.35)]"
       >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <p class="min-w-0 flex-1 truncate text-sm font-bold text-[#0f172a]">${escapeIncHtml(nombreEmpleadoIncidenciaTabla(row.empleado_nombre_raw))}</p>
+          ${tipoBadge(tipoUi)}
         </div>
-        <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-[#667085]">
+        <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-[#667085]">
           <div><dt>${escapeIncHtml(INC_COPY.colNoEmpleado)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.no_empleado))}</dd></div>
-          <div class="col-span-2"><dt>${escapeIncHtml(INC_COPY.colTipo)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${celdaTextoTruncado(tipoUi, 80)}</dd></div>
           <div class="col-span-2"><dt>${escapeIncHtml(INC_COPY.colDetalle)}</dt><dd class="mt-0.5 line-clamp-2 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.detalle))}</dd></div>
           <div><dt>${escapeIncHtml(INC_COPY.colArea)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.area))}</dd></div>
           <div><dt>${escapeIncHtml(INC_COPY.colSubarea)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.subarea))}</dd></div>
         </dl>
         <div class="mt-3 flex justify-end">
-          <button type="button" class="${RH_LISTADO_BTN_GHOST} px-2.5 py-1.5 text-xs font-semibold" data-rh-inc-ver="1" data-rh-inc-id="${row.id}">
+          <button type="button" class="${RH_LISTADO_BTN_GHOST} min-h-9 px-3 py-1.5 text-xs font-semibold" data-rh-inc-ver="1" data-rh-inc-id="${row.id}">
             ${escapeIncHtml(INC_COPY.accionVer)}
           </button>
         </div>
