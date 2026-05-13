@@ -74,9 +74,12 @@ type NavItemDef = {
 type NavGroupDef = {
   id: string;
   label: string;
-  svgPaths: string;
   children: readonly NavItemDef[];
 };
+
+/** Encabezado de sección del sidebar (mismo criterio visual que «Talento»). */
+const navSectionHeadingClass =
+  "text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden";
 
 function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: NavItemDef): string {
   if (!isShellNavItemVisibleForRol(rol, def.id)) return "";
@@ -100,43 +103,15 @@ function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: 
   </li>`;
 }
 
-function navGroupLi(activeNav: ShellNavKey | undefined, rol: string | null, def: NavGroupDef): string {
+function navSectionFromGroup(activeNav: ShellNavKey | undefined, rol: string | null, def: NavGroupDef): string {
   const visibleChildren = def.children.filter((child) => isShellNavItemVisibleForRol(rol, child.id));
   if (visibleChildren.length === 0) return "";
-  const isParentActive = visibleChildren.some((child) => child.key != null && child.key === activeNav);
   const childHtml = visibleChildren.map((child) => navItemLi(activeNav, rol, child)).join("");
-  const parentClass = isParentActive ? navActive : navInactive;
-  const parentIconClass = isParentActive ? navIconActive : navIconInactive;
   const escapedLabel = escapeHtmlText(def.label);
-  const ariaCurrent = isParentActive ? ` aria-current="page"` : "";
-  const expandedAttr = isParentActive ? "true" : "false";
-  const contentClass = isParentActive ? "mt-1 space-y-1 pl-4" : "mt-1 hidden space-y-1 pl-4";
-  return `<li data-shell-nav-group data-group-id="${def.id}">
-    <button
-      type="button"
-      class="${parentClass}"
-      title="${escapedLabel}"
-      data-shell-nav-group-trigger
-      aria-expanded="${expandedAttr}"${ariaCurrent}
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${parentIconClass}">
-        ${def.svgPaths}
-      </svg>
-      <span class="flex min-w-0 flex-1 items-center justify-between gap-2 md:max-lg:sr-only">
-        <span>${def.label}</span>
-        <svg
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-          class="size-4 shrink-0 text-text-muted transition-transform duration-150 data-[expanded=true]:rotate-180"
-          data-shell-nav-group-chevron
-          data-expanded="${expandedAttr}"
-        >
-          <path fill-rule="evenodd" d="M5.22 7.22a.75.75 0 0 1 1.06 0L10 10.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-        </svg>
-      </span>
-    </button>
-    <ul role="list" class="${contentClass}" data-shell-nav-group-content>
+  const headingId = `shell-nav-section-${def.id}`;
+  return `<li>
+    <div id="${headingId}" class="${navSectionHeadingClass}">${escapedLabel}</div>
+    <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${headingId}">
       ${childHtml}
     </ul>
   </li>`;
@@ -210,14 +185,11 @@ const NAV_GROUPS: readonly NavGroupDef[] = [
   {
     id: "laborales",
     label: "Laborales",
-    svgPaths: `<path d="M3.75 5.25A1.5 1.5 0 0 1 5.25 3.75h13.5a1.5 1.5 0 0 1 1.5 1.5v13.5a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V5.25Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M7.5 8.25h9m-9 3.75h9m-9 3.75h5.25" stroke-linecap="round" stroke-linejoin="round" />`,
     children: NAV_LABORALES,
   },
   {
     id: "comedor-group",
     label: "Comedor",
-    // Heroicons outline "cake" — lectura clara de comida / comedor (evita icono tipo rejilla/#).
-    svgPaths: `<path d="M12 8.25V6.75M12 8.25C10.6448 8.25 9.30281 8.30616 7.97608 8.41627C6.84499 8.51015 6 9.47323 6 10.6082V13.1214M12 8.25C13.3552 8.25 14.6972 8.30616 16.0239 8.41627C17.155 8.51015 18 9.47323 18 10.6082V13.1214M15 8.25V6.75M9 8.25V6.75M21 16.5L19.5 17.25C18.5557 17.7221 17.4443 17.7221 16.5 17.25C15.5557 16.7779 14.4443 16.7779 13.5 17.25C12.5557 17.7221 11.4443 17.7221 10.5 17.25C9.55573 16.7779 8.44427 16.7779 7.5 17.25C6.55573 17.7221 5.44427 17.7221 4.5 17.25L3 16.5M18 13.1214C16.0344 12.8763 14.032 12.75 12 12.75C9.96804 12.75 7.96557 12.8763 6 13.1214M18 13.1214C18.3891 13.1699 18.7768 13.2231 19.163 13.2809C20.2321 13.4408 21 14.3747 21 15.4557V20.625C21 21.2463 20.4963 21.75 19.875 21.75H4.125C3.50368 21.75 3 21.2463 3 20.625V15.4557C3 14.3747 3.76793 13.4408 4.83697 13.2809C5.22316 13.2231 5.61086 13.1699 6 13.1214M12.2652 3.10983C12.4117 3.25628 12.4117 3.49372 12.2652 3.64016C12.1188 3.78661 11.8813 3.78661 11.7349 3.64016C11.5884 3.49372 11.5884 3.25628 11.7349 3.10983C11.8104 3.03429 12.0001 2.84467 12.0001 2.84467C12.0001 2.84467 12.1943 3.03893 12.2652 3.10983ZM9.26522 3.10983C9.41167 3.25628 9.41167 3.49372 9.26522 3.64016C9.11878 3.78661 8.88134 3.78661 8.73489 3.64016C8.58844 3.49372 8.58844 3.25628 8.73489 3.10983C8.81044 3.03429 9.00005 2.84467 9.00005 2.84467C9.00005 2.84467 9.19432 3.03893 9.26522 3.10983ZM15.2652 3.10983C15.4117 3.25628 15.4117 3.49372 15.2652 3.64016C15.1188 3.78661 14.8813 3.78661 14.7349 3.64016C14.5884 3.49372 14.5884 3.25628 14.7349 3.10983C14.8104 3.03429 15.0001 2.84467 15.0001 2.84467C15.0001 2.84467 15.1943 3.03893 15.2652 3.10983Z" stroke-linecap="round" stroke-linejoin="round" />`,
     children: NAV_COMEDOR,
   },
 ];
@@ -272,54 +244,38 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
 function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const rol = getRolFromAccessToken();
   const primaryLis = NAV_PRIMARY.map((d) => navItemLi(activeNav, rol, d)).join("");
-  const groupedLis = NAV_GROUPS.map((g) => navGroupLi(activeNav, rol, g)).join("");
+  const groupSectionLis = NAV_GROUPS.map((g) => navSectionFromGroup(activeNav, rol, g)).join("");
 
   const talentoLis = NAV_TALENTO.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const talentoHeadingId = "shell-nav-section-talento";
   const talentoBlock =
     talentoLis.trim() === "" ?
       ""
     : `<li>
-          <div class="text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden">Talento</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3">
+          <div id="${talentoHeadingId}" class="${navSectionHeadingClass}">Talento</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${talentoHeadingId}">
             ${talentoLis}
           </ul>
         </li>`;
 
+  const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
   return `
     <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
       <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
     </div>
     <nav class="relative flex flex-1 flex-col">
-      <ul role="list" class="flex flex-1 flex-col gap-y-6">
+      <ul role="list" class="flex flex-1 flex-col gap-y-5">
         <li>
-          <div class="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden">Menú principal</div>
-          <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
+          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
             ${primaryLis}
-            ${groupedLis}
           </ul>
         </li>
+        ${groupSectionLis}
         ${talentoBlock}
         ${footerGestionHtml(activeNav, rol)}
       </ul>
     </nav>`;
-}
-
-function wireSidebarSubmenuToggles(container: HTMLElement, signal: AbortSignal): void {
-  const groups = container.querySelectorAll<HTMLElement>("[data-shell-nav-group]");
-  groups.forEach((group) => {
-    const trigger = group.querySelector<HTMLButtonElement>("[data-shell-nav-group-trigger]");
-    const content = group.querySelector<HTMLElement>("[data-shell-nav-group-content]");
-    const chevron = group.querySelector<HTMLElement>("[data-shell-nav-group-chevron]");
-    if (!trigger || !content || !chevron) return;
-
-    trigger.addEventListener("click", () => {
-      const expanded = trigger.getAttribute("aria-expanded") === "true";
-      const nextExpanded = !expanded;
-      trigger.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
-      chevron.setAttribute("data-expanded", nextExpanded ? "true" : "false");
-      content.classList.toggle("hidden", !nextExpanded);
-    }, { signal });
-  });
 }
 
 export type AppShellOptions = {
@@ -477,8 +433,6 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </main>
 </div>
 `;
-  wireSidebarSubmenuToggles(container, signal);
-
   container.querySelector("#app-shell-sign-out")?.addEventListener("click", () => {
     if (options.onSignOut) {
       options.onSignOut();
