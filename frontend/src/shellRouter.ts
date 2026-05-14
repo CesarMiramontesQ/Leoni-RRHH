@@ -13,6 +13,7 @@ import { mountPuestos } from "./pages/puestos.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
+import { mountCapacitaciones } from "./pages/capacitaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 
@@ -106,7 +107,9 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
         return;
       }
     }
-    if (h.startsWith("#/evaluaciones")) {
+    if (h.startsWith("#/capacitaciones")) {
+      mountCapacitaciones(container, signal);
+    } else if (h.startsWith("#/evaluaciones")) {
       mountEvaluaciones(container, signal);
     } else if (h.startsWith("#/empleados")) {
       mountEmpleados(container, signal);
