@@ -43,6 +43,8 @@ tags:
     description: Perfiles de puesto con competencias, habilidades y generacion IA
   - name: Talento - Evaluaciones
     description: Evaluaciones de competencias por empleado (CRUD, bulk, permisos por rol)
+  - name: Talento - Capacitaciones
+    description: Gestion de capacitaciones (CRUD, inscripciones, catalogo)
 
 components:
   securitySchemes:
@@ -1841,6 +1843,197 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EvaluacionCreate"
+
+    # ── Capacitaciones ────────────────────────────────
+    CapacitacionCreate:
+      type: object
+      required: [nombre, duracion_horas, modalidad]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 255
+        descripcion:
+          type: [string, "null"]
+        duracion_horas:
+          type: integer
+          minimum: 1
+        modalidad:
+          type: string
+          enum: [presencial, online, mixta]
+        instructor:
+          type: [string, "null"]
+          maxLength: 255
+        fecha_inicio:
+          type: [string, "null"]
+          format: date-time
+        fecha_fin:
+          type: [string, "null"]
+          format: date-time
+        cupo_maximo:
+          type: [integer, "null"]
+          minimum: 1
+        area_id:
+          type: [integer, "null"]
+        competencias_asociadas:
+          type: [array, "null"]
+          items:
+            type: object
+
+    CapacitacionUpdate:
+      type: object
+      properties:
+        nombre:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 255
+        descripcion:
+          type: [string, "null"]
+        duracion_horas:
+          type: [integer, "null"]
+          minimum: 1
+        modalidad:
+          type: [string, "null"]
+          enum: [presencial, online, mixta]
+        instructor:
+          type: [string, "null"]
+          maxLength: 255
+        fecha_inicio:
+          type: [string, "null"]
+          format: date-time
+        fecha_fin:
+          type: [string, "null"]
+          format: date-time
+        cupo_maximo:
+          type: [integer, "null"]
+          minimum: 1
+        area_id:
+          type: [integer, "null"]
+        competencias_asociadas:
+          type: [array, "null"]
+          items:
+            type: object
+        estado:
+          type: [string, "null"]
+          enum: [activa, cancelada, finalizada]
+
+    CapacitacionResponse:
+      type: object
+      required: [id, nombre, duracion_horas, modalidad, estado, inscritos_count, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        descripcion:
+          type: [string, "null"]
+        duracion_horas:
+          type: integer
+        modalidad:
+          type: string
+        instructor:
+          type: [string, "null"]
+        fecha_inicio:
+          type: [string, "null"]
+          format: date-time
+        fecha_fin:
+          type: [string, "null"]
+          format: date-time
+        cupo_maximo:
+          type: [integer, "null"]
+        area_id:
+          type: [integer, "null"]
+        area_nombre:
+          type: [string, "null"]
+        competencias_asociadas:
+          type: [array, "null"]
+          items:
+            type: object
+        estado:
+          type: string
+        inscritos_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CapacitacionListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapacitacionResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    InscripcionCreate:
+      type: object
+      required: [capacitacion_id, empleado_id]
+      properties:
+        capacitacion_id:
+          type: integer
+        empleado_id:
+          type: integer
+
+    InscripcionUpdate:
+      type: object
+      properties:
+        estado:
+          type: [string, "null"]
+          enum: [inscrito, en_curso, completado, cancelado]
+        calificacion:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+
+    InscripcionResponse:
+      type: object
+      required: [id, capacitacion_id, empleado_id, estado, fecha_inscripcion]
+      properties:
+        id:
+          type: integer
+        capacitacion_id:
+          type: integer
+        capacitacion_nombre:
+          type: [string, "null"]
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: [string, "null"]
+        estado:
+          type: string
+        calificacion:
+          type: [integer, "null"]
+        fecha_inscripcion:
+          type: string
+          format: date-time
+        fecha_completado:
+          type: [string, "null"]
+          format: date-time
+
+    InscripcionListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InscripcionResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -4180,3 +4373,248 @@ paths:
                     type: array
                     items:
                       type: string
+
+  # ── Talento - Capacitaciones ───────────────────────────────────────────────
+
+  /api/v1/capacitaciones:
+    get:
+      tags: [Talento - Capacitaciones]
+      summary: Listar capacitaciones (paginado, filtros)
+      operationId: listar_capacitaciones
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+        - name: modalidad
+          in: query
+          schema: { type: string, enum: [presencial, online, mixta] }
+        - name: estado
+          in: query
+          schema: { type: string, enum: [activa, cancelada, finalizada] }
+        - name: busqueda
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Lista paginada de capacitaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapacitacionListResponse"
+    post:
+      tags: [Talento - Capacitaciones]
+      summary: Crear capacitacion (solo RH)
+      operationId: crear_capacitacion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapacitacionCreate"
+      responses:
+        "201":
+          description: Capacitacion creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapacitacionResponse"
+
+  /api/v1/capacitaciones/mis-inscripciones:
+    get:
+      tags: [Talento - Capacitaciones]
+      summary: Mis inscripciones (usuario autenticado)
+      operationId: mis_inscripciones
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: Lista paginada de inscripciones del usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InscripcionListResponse"
+
+  /api/v1/capacitaciones/{id}:
+    get:
+      tags: [Talento - Capacitaciones]
+      summary: Detalle de capacitacion
+      operationId: obtener_capacitacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Detalle de la capacitacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapacitacionResponse"
+        "404":
+          description: Capacitacion no encontrada
+    put:
+      tags: [Talento - Capacitaciones]
+      summary: Actualizar capacitacion (solo RH)
+      operationId: actualizar_capacitacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapacitacionUpdate"
+      responses:
+        "200":
+          description: Capacitacion actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapacitacionResponse"
+        "404":
+          description: Capacitacion no encontrada
+    delete:
+      tags: [Talento - Capacitaciones]
+      summary: Eliminar capacitacion — soft delete (solo RH)
+      operationId: eliminar_capacitacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Capacitacion eliminada
+        "404":
+          description: Capacitacion no encontrada
+
+  /api/v1/capacitaciones/{id}/inscripciones:
+    post:
+      tags: [Talento - Capacitaciones]
+      summary: Inscribir empleado en capacitacion
+      operationId: inscribir_empleado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InscripcionCreate"
+      responses:
+        "201":
+          description: Inscripcion creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InscripcionResponse"
+        "400":
+          description: Capacitacion no activa o llena
+        "409":
+          description: Empleado ya inscrito
+    get:
+      tags: [Talento - Capacitaciones]
+      summary: Listar inscripciones de una capacitacion
+      operationId: listar_inscripciones_capacitacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: Lista paginada de inscripciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InscripcionListResponse"
+        "403":
+          description: Permisos insuficientes
+
+  /api/v1/capacitaciones/inscripciones/{inscripcion_id}:
+    put:
+      tags: [Talento - Capacitaciones]
+      summary: Actualizar inscripcion (solo RH)
+      operationId: actualizar_inscripcion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inscripcion_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InscripcionUpdate"
+      responses:
+        "200":
+          description: Inscripcion actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InscripcionResponse"
+        "404":
+          description: Inscripcion no encontrada
+    delete:
+      tags: [Talento - Capacitaciones]
+      summary: Cancelar inscripcion
+      operationId: cancelar_inscripcion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inscripcion_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Inscripcion cancelada
+        "400":
+          description: No se puede cancelar (completada)
+        "403":
+          description: Solo puedes cancelar tus propias inscripciones
+        "409":
+          description: Ya esta cancelada

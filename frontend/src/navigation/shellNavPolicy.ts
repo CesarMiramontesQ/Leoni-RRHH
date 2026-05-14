@@ -11,6 +11,7 @@ export type AppShellNavItemId =
   | "comedor"
   | "empleados"
   | "evaluaciones"
+  | "capacitaciones"
   | "reportes"
   | "notificaciones"
   | "puestos"
@@ -22,6 +23,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "solicitudes",
   "comedor",
   "notificaciones",
+  "capacitaciones",
 ]);
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
@@ -51,6 +53,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
+  if (h.startsWith("#/capacitaciones")) return true;
   return false;
 }
 
@@ -63,5 +66,6 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
   if (h.startsWith("#/evaluaciones")) return true;
+  if (h.startsWith("#/capacitaciones")) return true;
   return true;
 }
