@@ -136,7 +136,7 @@ function renderCardGrid(): string {
           <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${ownerInitials(p.owner)}</span>
           <span class="text-xs text-slate-600">${escapeHtml(p.owner)}</span>
         </div>
-        <button type="button" class="text-xs font-semibold text-leoni-blue hover:underline">Abrir →</button>
+        <a href="#/puestos/101" class="text-xs font-semibold text-leoni-blue hover:underline">Abrir →</a>
       </div>
     </div>
   `).join("");

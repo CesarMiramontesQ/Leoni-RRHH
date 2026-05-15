@@ -10,6 +10,7 @@ import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
 import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
+import { mountPerfilPuestoDetalle } from "./pages/perfilPuestoDetalle.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
@@ -124,6 +125,14 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
+    const puestoDetalleMatch = h.match(/^#\/puestos\/(\d+)/);
+    if (puestoDetalleMatch) {
+      const id = Number.parseInt(puestoDetalleMatch[1] ?? "", 10);
+      if (!Number.isNaN(id)) {
+        mountPerfilPuestoDetalle(container, id);
+        return;
+      }
+    }
     if (h.startsWith("#/puestos")) {
       mountPuestos(container, signal);
       return;
