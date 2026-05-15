@@ -20,6 +20,14 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/reportes"), titulo: "Reporte comedor" },
   { match: (h) => h.startsWith("#/puestos"), titulo: "Perfiles de Puesto" },
   { match: (h) => h.startsWith("#/competencias"), titulo: "Matriz de Competencias" },
+  { match: (h) => h.startsWith("#/capacidades"), titulo: "Matriz de Capacidades" },
+  { match: (h) => h.startsWith("#/habilidades"), titulo: "Matriz de Habilidades" },
+  { match: (h) => h.startsWith("#/cursos"), titulo: "Manejo de Cursos" },
+  { match: (h) => h.startsWith("#/opls"), titulo: "Manejo de OPLs" },
+  { match: (h) => h.startsWith("#/evidencias"), titulo: "Motor de Evidencias" },
+  { match: (h) => h.startsWith("#/sugerencias"), titulo: "Motor de Sugerencias" },
+  { match: (h) => h.startsWith("#/encuestas"), titulo: "Encuestas Post Curso" },
+  { match: (h) => h.startsWith("#/level-up"), titulo: "Level Up" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];
 

@@ -55,17 +55,17 @@ Diseño (Stitch) → Demo hardcodeada (Track A) → Backend + modelos (Track B) 
 
 ## Track A — Demo (páginas hardcodeadas)
 
-### Sprint A1 — Navegación + Layout base
+### Sprint A1 — Navegación + Layout base ✅
 
 **Objetivo:** Sidebar extendida con todas las rutas Level Up, shell visual.
 
-- [ ] Agregar sección "Formación" al nav: Capacitaciones (existente), Cursos, OPLs
-- [ ] Agregar sección "Cumplimiento" al nav: Evidencias, Sugerencias, Encuestas
-- [ ] Agregar ruta `#/capacidades` (separada de competencias)
-- [ ] Agregar ruta `#/habilidades`
-- [ ] Agregar ruta `#/level-up` (dashboard)
-- [ ] Registrar todas las rutas nuevas en `shellRouter.ts`
-- [ ] Cada ruta renderiza placeholder con título
+- [x] Agregar sección "Formación" al nav: Capacidades, Habilidades, Cursos, OPLs
+- [x] Agregar sección "Cumplimiento" al nav: Evidencias, Sugerencias, Encuestas
+- [x] Agregar ruta `#/capacidades` (separada de competencias)
+- [x] Agregar ruta `#/habilidades`
+- [x] Agregar ruta `#/level-up` (dashboard)
+- [x] Registrar todas las rutas nuevas en `shellRouter.ts`
+- [x] Cada ruta renderiza placeholder con título
 
 ### Sprint A2 — Pantallas core (5, 6, 7, 8)
 

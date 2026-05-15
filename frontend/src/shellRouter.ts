@@ -16,6 +16,16 @@ import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountCapacitaciones } from "./pages/capacitaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
+import {
+  mountLevelUpDashboard,
+  mountCapacidades,
+  mountHabilidades,
+  mountCursos,
+  mountOPLs,
+  mountEvidencias,
+  mountSugerencias,
+  mountEncuestas,
+} from "./pages/levelUp.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -78,6 +88,39 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/actas")) {
       mountActas(container);
+      return;
+    }
+
+    if (h.startsWith("#/level-up")) {
+      mountLevelUpDashboard(container);
+      return;
+    }
+    if (h.startsWith("#/capacidades")) {
+      mountCapacidades(container);
+      return;
+    }
+    if (h.startsWith("#/habilidades")) {
+      mountHabilidades(container);
+      return;
+    }
+    if (h.startsWith("#/cursos")) {
+      mountCursos(container);
+      return;
+    }
+    if (h.startsWith("#/opls")) {
+      mountOPLs(container);
+      return;
+    }
+    if (h.startsWith("#/evidencias")) {
+      mountEvidencias(container);
+      return;
+    }
+    if (h.startsWith("#/sugerencias")) {
+      mountSugerencias(container);
+      return;
+    }
+    if (h.startsWith("#/encuestas")) {
+      mountEncuestas(container);
       return;
     }
 
