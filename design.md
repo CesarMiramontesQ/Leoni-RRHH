@@ -860,36 +860,531 @@ Sin ilustraciones decorativas. Empty states usan solo texto. Login usa foto hero
 
 ---
 
-## 12. Stitch Screens Reference
+## 12. Level Up — Extended Design Tokens
 
-Las 19 pantallas visibles del proyecto Stitch que definen el target UI:
+> Extensiones del design system para el modulo Level Up (desarrollo, capacitacion, matrices de capacidades/habilidades, OPLs, evidencias, encuestas). Estos tokens se agregan al sistema existente sin reemplazarlo.
 
-### Dashboard & Overview
+### 12.1 Heatmap / Capability Level Scale
+
+Escala de 5 niveles para matrices de capacidades. Usada en celdas de heatmap y barras de progreso por colaborador.
+
+```css
+:root {
+  /* ── Capability Levels (navy scale) ──────────────────── */
+  --level-0:          #F0EDEF;  /* N/A — sin dato */
+  --level-0-text:     #94A3B8;
+  --level-1:          #E2E8F0;  /* 1 — Inicial */
+  --level-1-text:     #475569;
+  --level-2:          #CBD5E1;  /* 2 — Basico */
+  --level-2-text:     #334155;
+  --level-3:          #93C5FD;  /* 3 — Competente */
+  --level-3-text:     #FFFFFF;
+  --level-4:          #2563EB;  /* 4 — Avanzado */
+  --level-4-text:     #FFFFFF;
+  --level-5:          #0A1628;  /* 5 — Experto */
+  --level-5-text:     #FFFFFF;
+
+  /* ── Gap indicator ───────────────────────────────────── */
+  --level-gap:        #EF4444;  /* Borde de brecha */
+  --level-gap-bg:     rgba(239, 68, 68, 0.08);
+}
+```
+
+**Tailwind utilities** (agregar a `style.css` como `@layer utilities`):
+
+```css
+@layer utilities {
+  .heat-0 { background: var(--level-0); color: var(--level-0-text); }
+  .heat-1 { background: var(--level-1); color: var(--level-1-text); }
+  .heat-2 { background: var(--level-2); color: var(--level-2-text); }
+  .heat-3 { background: var(--level-3); color: var(--level-3-text); }
+  .heat-4 { background: var(--level-4); color: var(--level-4-text); }
+  .heat-5 { background: var(--level-5); color: var(--level-5-text); }
+  .heat-gap { box-shadow: inset 0 0 0 2px var(--level-gap); }
+}
+```
+
+### 12.2 Skill Level Scale (4 niveles)
+
+Para matrices de habilidades. Representada como barras discretas (no heatmap continuo).
+
+| Nivel | Valor | Label | Color de barra |
+|---|---|---|---|
+| 1 | 25% | Basico | `--color-border` (#CBD5E1) |
+| 2 | 50% | Intermedio | `--color-text-secondary` (#64748B) |
+| 3 | 75% | Avanzado | `--color-accent` (#2563EB) |
+| 4 | 100% | Experto | `--color-primary` (#0A1628) |
+
+Barra con brecha: usar `--color-accent` en vez de `--color-primary` cuando `nivel_actual < nivel_requerido`.
+
+### 12.3 Monospace Font Token
+
+Para IDs, codigos, valores numericos tabulares en matrices y tablas de Level Up:
+
+```css
+:root {
+  --font-family-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+```
+
+**Tailwind**: `font-mono` ya mapea a este valor. Usar clase `.tabular-nums` para alineacion numerica.
+
+**Uso**: IDs de OPL (`OPL-2041`), codigos de capacidad (`CR-01`), scores (`4.6`), porcentajes en matriz, versiones (`v4`).
+
+### 12.4 Status Tones — Level Up Specific
+
+Extensiones al sistema de badges existente para estados de Level Up:
+
+| Estado | Mapeo a badge existente | Ejemplo |
+|---|---|---|
+| Completada | `badgeApproved` (emerald) | Capacitacion completada |
+| En curso | `badgePending` (amber) | Capacitacion activa |
+| Pendiente | `badgeOpen` (blue) | Pendiente de programar |
+| Vencida | `badgeRejected` (red) | Capacitacion vencida |
+| Sugerido | `badgeChangesRequested` (sky) | Sugerencia del motor |
+| Vigente | `badgeApproved` (emerald) | OPL vigente |
+| Reentrenamiento | `badgePending` (amber) | OPL requiere reentrenamiento |
+| Borrador | `badgeOpen` (blue) | OPL en revision |
+| En revision | `badgePending` (amber) | Evidencia en bandeja |
+| Esperando firma | `badgeOpen` (blue) | Evidencia esperando siguiente firma |
+| Devuelta | `badgeRejected` (red) | Evidencia rechazada |
+
+---
+
+## 13. Level Up — Layout Templates
+
+### 13.1 Layout F — Operational Dashboard (Level Up)
+
+KPIs con sparklines + grid de 2 columnas + fila inferior. Usado por: Dashboard Level Up (#1).
+
+```
+[Page Header: eyebrow + title + description + actions]
+[KPI] [KPI] [KPI] [KPI]                    ← grid-cols-1 sm:2 xl:4, con sparkline
+[Brechas por area (barras)]  | [Proximas capacitaciones (timeline)]  ← grid 1.35fr 1fr
+[Evidencias pendientes (tabla)] | [Sugerencias (cards)]              ← grid 1.35fr 1fr
+```
+
+**KPI card con sparkline:**
+
+```html
+<article class="rounded-xl border border-border bg-white p-4 shadow-sm flex flex-col gap-2.5">
+  <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+  <div class="flex items-end justify-between gap-3">
+    <p class="text-3xl font-bold tabular-nums tracking-tight text-text-primary">
+      {value}<sup class="ml-0.5 text-sm font-normal text-text-muted">{suffix}</sup>
+    </p>
+    <div class="flex items-end gap-0.5 h-7">
+      <!-- Sparkline bars -->
+    </div>
+  </div>
+  <div class="flex items-center justify-between text-xs text-text-muted">
+    <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold
+      {delta > 0 ? 'bg-success-bg text-success-text' : 'bg-danger-bg text-danger-text'}">
+      {delta}
+    </span>
+    <span>{subtitle}</span>
+  </div>
+</article>
+```
+
+### 13.2 Layout G — Matrix / Heatmap
+
+Grid scrollable con header sticky y filas de colaboradores. Usado por: Matriz de capacidades (#2), Matriz de habilidades (#4).
+
+```
+[Page Header: eyebrow + title + sub + actions]
+[Legend bar: niveles + marcadores + evaluador]
+[Card container scrollable]
+  [Grid: col-fija(persona) + col-fija(req) + cols-scroll(capacidades) + col-fija(score)]
+[Footer summary: brechas detectadas, colaboradores afectados, capacidad critica]
+```
+
+**Heatmap cell:**
+
+```html
+<div class="grid place-items-center h-8 rounded text-xs font-bold font-mono
+  heat-{nivel} {isGap ? 'heat-gap' : ''}"
+  title="{capacidad} — Nivel {nivel}">
+  {nivel}
+</div>
+```
+
+**Legend row:**
+
+```html
+<div class="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface-container-low px-3 py-2.5 text-xs">
+  <span class="font-semibold text-text-secondary">Nivel de dominio</span>
+  <!-- Level swatches -->
+  <span class="flex items-center gap-1.5">
+    <span class="inline-block w-5 h-3.5 rounded heat-{n}"></span>
+    <span class="text-text-muted">{n} · {label}</span>
+  </span>
+  <!-- Gap marker -->
+  <span class="flex items-center gap-1.5">
+    <span class="inline-block w-5 h-3.5 rounded border-2 border-danger"></span>
+    <span class="text-text-muted">Brecha vs. perfil</span>
+  </span>
+</div>
+```
+
+### 13.3 Layout H — Master-Detail (Queue)
+
+Panel izquierdo con lista seleccionable + panel derecho con detalle. Usado por: OPLs (#9), Evidencias (#10).
+
+```
+[Page Header + alert banner (si aplica)]
+[Left panel 420px: tabs + scrollable list]  |  [Right panel flex-1: detail content]
+```
+
+**Queue item (selected state):**
+
+```html
+<div class="px-3.5 py-3 border-b border-border border-l-3
+  {selected ? 'bg-active-tint border-l-accent' : 'border-l-transparent'}">
+  <!-- Row 1: ID + type badge + priority -->
+  <!-- Row 2: title -->
+  <!-- Row 3: avatar + name + meta -->
+</div>
+```
+
+### 13.4 Layout I — Catalog Cards Grid
+
+Grid de tarjetas enriquecidas con KPIs integrados. Usado por: Perfiles de puesto lista (#5), Catalogo de cursos (#8).
+
+```
+[Page Header + actions]
+[Summary KPIs: 4 cards compactas]           ← grid-cols-1 sm:2 xl:4
+[Card container]
+  [Toggle: Tarjetas | Tabla | Comparar]
+  [Grid de cards: repeat(auto-fill, minmax(280px, 1fr))]
+```
+
+**Profile/Course card:**
+
+```html
+<article class="rounded-xl border border-border bg-white p-4 flex flex-col gap-3">
+  <div class="flex items-center justify-between">
+    <span class="font-mono text-xs text-text-muted">{code}</span>
+    <span class="badge...">{cumplimiento}%</span>
+  </div>
+  <div>
+    <h3 class="text-sm font-semibold text-text-primary">{nombre}</h3>
+    <p class="text-xs text-text-muted mt-0.5">{area}</p>
+  </div>
+  <div class="grid grid-cols-2 gap-2 text-xs">
+    <!-- Metrics: personas, cursos, OPLs, evidencias -->
+  </div>
+  <div class="mt-auto pt-3 border-t border-border flex items-center justify-between">
+    <!-- Owner avatar + "Abrir" link -->
+  </div>
+</article>
+```
+
+### 13.5 Layout J — Suggestion Cards (Horizontal)
+
+Cards horizontales con justificacion dual y acciones. Usado por: Motor de sugerencias (#11).
+
+```
+[Page Header + actions]
+[KPI strip: 4 cards]
+[Scrollable list of suggestion cards]
+```
+
+**Suggestion card:**
+
+```html
+<article class="rounded-xl border border-border bg-white p-4
+  grid grid-cols-[1.4fr_1fr_220px] gap-6 items-stretch
+  {featured ? 'border-l-3 border-l-accent' : ''}">
+  <!-- Col 1: badges + title + reason + tags + metrics -->
+  <!-- Col 2: justification panel (brecha % bar + sector % bar + benchmark text) -->
+  <!-- Col 3: priority stars + actions (Aprobar / Posponer / Descartar) -->
+</article>
+```
+
+### 13.6 Layout K — Survey Results
+
+Tabla de scores con barras de progreso + panel lateral de distribucion. Usado por: Encuestas post curso (#12).
+
+```
+[Page Header]
+[KPI strip: 5 cards]                        ← grid-cols-2 sm:3 xl:5
+[Left 1.55fr: Score table]  |  [Right 1fr: Distribucion + Comentarios]
+```
+
+---
+
+## 14. Level Up — Component Patterns
+
+### 14.1 Sparkline (mini bar chart)
+
+Representacion compacta de tendencia dentro de KPI cards.
+
+```html
+<div class="flex items-end gap-0.5 h-7" aria-hidden="true">
+  {values.map(v => `
+    <span class="flex-1 rounded-sm bg-accent/30"
+      style="height: ${(v / max) * 100}%"></span>
+  `)}
+</div>
+```
+
+- Height fijo: `h-7` (28px)
+- Color: `bg-accent/30` (30% opacity del accent)
+- Gap: `gap-0.5` (2px)
+- Radius: `rounded-sm` (2px)
+
+### 14.2 Progress Bar con Marker (nivel requerido)
+
+Barra de progreso con indicador vertical del nivel requerido.
+
+```html
+<div class="relative h-2.5 rounded-full bg-slate-100">
+  <!-- Current level -->
+  <div class="absolute inset-y-0 left-0 rounded-full
+    {hasGap ? 'bg-accent' : 'bg-primary'}"
+    style="width: {(current / max) * 100}%"></div>
+  <!-- Required marker -->
+  <div class="absolute top-[-3px] bottom-[-3px] w-0.5 bg-text-primary"
+    style="left: {(required / max) * 100}%"></div>
+</div>
+```
+
+### 14.3 Plan de Desarrollo Timeline (vertical)
+
+Timeline vertical con pasos numerados y estados.
+
+```html
+<div class="grid grid-cols-[24px_1fr] gap-3 py-3 border-b border-border">
+  <!-- Step indicator -->
+  <div class="flex flex-col items-center gap-1">
+    <div class="size-5.5 rounded-full grid place-items-center text-xs font-bold
+      {completed ? 'bg-success text-white' : 'bg-surface-container border border-border text-text-secondary'}">
+      {completed ? '✓' : stepNumber}
+    </div>
+    {!isLast && '<div class="flex-1 w-0.5 bg-border"></div>'}
+  </div>
+  <!-- Content -->
+  <div>
+    <p class="font-mono text-[10px] uppercase text-text-muted">{fase}</p>
+    <p class="font-semibold text-sm mt-0.5">{curso}</p>
+    <div class="flex items-center gap-2 mt-1.5">
+      <span class="badge...">{estado}</span>
+      <span class="text-xs text-text-muted">{fecha}</span>
+      {score && '<span class="badge font-mono">★ {score}</span>'}
+    </div>
+  </div>
+</div>
+```
+
+### 14.4 Version Timeline (OPLs)
+
+Timeline horizontal compacto para historial de versiones.
+
+```html
+<div class="grid grid-cols-[32px_1fr] gap-3 pb-3">
+  <div class="flex flex-col items-center">
+    <span class="font-mono text-xs font-bold rounded-md px-1.5 py-0.5 grid place-items-center
+      {isCurrent ? 'bg-warning-bg text-warning-text' : 'bg-surface-container text-text-secondary'}">
+      {version}
+    </span>
+    {!isLast && '<div class="flex-1 w-0.5 bg-border mt-1"></div>'}
+  </div>
+  <div>
+    <div class="flex justify-between">
+      <span class="text-xs text-text-muted">{fecha} · {autor}</span>
+      {isCurrent && '<span class="badge...">Actual</span>'}
+    </div>
+    <p class="text-sm mt-0.5">{descripcion}</p>
+  </div>
+</div>
+```
+
+### 14.5 Validation Checklist
+
+Lista de verificacion para bandeja de evidencias.
+
+```html
+<div class="flex items-center gap-2.5 rounded-md border border-border bg-surface-container-low px-2.5 py-2">
+  <div class="size-4.5 rounded grid place-items-center
+    {checked ? 'bg-success border border-success-text' : 'bg-white border border-border'}">
+    {checked && '<svg class="size-3 text-white"><!-- checkmark --></svg>'}
+  </div>
+  <span class="text-sm font-medium">{label}</span>
+  {!checked && '<span class="badge ml-auto...">Pendiente</span>'}
+</div>
+```
+
+### 14.6 Signature / Firma Card
+
+Card de firma requerida en evidencias.
+
+```html
+<div class="flex items-center gap-2.5 rounded-lg border border-border p-2.5">
+  <!-- Avatar -->
+  <div class="flex-1 min-w-0">
+    <p class="text-sm font-semibold truncate">{nombre}</p>
+    <p class="text-xs text-text-muted">{rol}</p>
+  </div>
+  <span class="badge {state === 'pending' ? 'amber' : 'blue'}">
+    {state === 'pending' ? 'Tu turno' : 'En espera'}
+  </span>
+</div>
+```
+
+### 14.7 Cumplimiento Bar (area)
+
+Barra horizontal con porcentaje y semaforo para vista de cumplimiento por area.
+
+```html
+<div class="grid grid-cols-[180px_1fr_60px_70px] items-center gap-3">
+  <div>
+    <p class="text-sm font-semibold">{area}</p>
+    <p class="text-xs text-text-muted">{personas} personas</p>
+  </div>
+  <div class="relative h-5 rounded-md overflow-hidden bg-slate-100">
+    <div class="absolute inset-y-0 left-0 bg-primary rounded-md" style="width: {cumpl}%"></div>
+    <div class="absolute inset-y-0 rounded-md bg-accent/40" style="left: {cumpl}%; width: {100-cumpl}%"></div>
+    <span class="absolute right-2 inset-y-0 flex items-center text-xs font-mono font-semibold text-white">
+      {cumpl}%
+    </span>
+  </div>
+  <span class="font-mono text-sm text-right">{brechas}</span>
+  <span class="badge {cumpl >= 90 ? 'emerald' : cumpl >= 80 ? 'amber' : 'red'}">
+    {cumpl >= 90 ? 'Verde' : cumpl >= 80 ? 'Ambar' : 'Rojo'}
+  </span>
+</div>
+```
+
+### 14.8 Calendar Date Block
+
+Bloque de fecha para proximas capacitaciones.
+
+```html
+<div class="text-center rounded-lg border border-border bg-surface-container-low px-2 py-1.5">
+  <p class="text-xl font-bold leading-none">{dia}</p>
+  <p class="text-[9px] font-semibold tracking-wider text-text-muted uppercase mt-0.5">{mes}</p>
+</div>
+```
+
+### 14.9 Stacked Avatars
+
+Grupo de avatares superpuestos para personal impactado.
+
+```html
+<div class="flex items-center">
+  {people.slice(0, 8).map((p, i) => `
+    <span class="size-6 rounded-full grid place-items-center text-[10px] font-semibold
+      ring-2 ring-white ${i > 0 ? '-ml-2.5' : ''}"
+      style="background: {bg}; color: {fg}">
+      {initials}
+    </span>
+  `)}
+  {remaining > 0 && `
+    <span class="size-6 rounded-full grid place-items-center text-[10px] font-semibold
+      bg-surface-container border-2 border-white -ml-2.5 text-text-secondary">
+      +{remaining}
+    </span>
+  `}
+</div>
+```
+
+---
+
+## 15. Level Up — Navigation Structure
+
+El modulo Level Up se integra al sidebar existente extendiendo la seccion "Talento" y agregando una seccion "Cumplimiento".
+
+### Sidebar (extension de NAV_TALENTO + nueva seccion)
+
+```
+TALENTO
+  Perfiles de Puesto          → #/puestos
+  Matriz de Competencias      → #/competencias      (renombrar: "Requisitos por puesto")
+  Matriz de Capacidades       → #/capacidades       (NUEVO — heatmap por colaborador)
+  Matriz de Habilidades       → #/habilidades       (NUEVO)
+  Capacitaciones         [84] → #/capacitaciones
+  Manejo de Cursos       [42] → #/cursos            (NUEVO)
+  Manejo de OPLs        [127] → #/opls              (NUEVO)
+
+CUMPLIMIENTO                                         (NUEVA SECCION)
+  Motor de Evidencias    [18] → #/evidencias        (NUEVO)
+  Motor de Sugerencias   [11] → #/sugerencias       (NUEVO)
+  Encuestas Post Curso        → #/encuestas         (NUEVO)
+```
+
+### Rutas nuevas
+
+| Ruta | Pagina | Layout |
+|---|---|---|
+| `#/level-up` | Dashboard Level Up | F (Operational Dashboard) |
+| `#/puestos/:id` | Perfil de puesto detalle | C (Detail/Profile) |
+| `#/capacidades` | Matriz de capacidades | G (Matrix/Heatmap) |
+| `#/habilidades` | Matriz de habilidades | G (Matrix/Heatmap) |
+| `#/cursos` | Catalogo de cursos | I (Catalog Cards) |
+| `#/opls` | Manejo de OPLs | H (Master-Detail) |
+| `#/evidencias` | Bandeja de evidencias | H (Master-Detail) |
+| `#/sugerencias` | Motor de sugerencias | J (Suggestion Cards) |
+| `#/encuestas` | Encuestas post curso | K (Survey Results) |
+
+---
+
+## 16. Stitch Screens Reference
+
+### Original — HCM Platform (project `1746412759455982581`)
+
+Las 15 pantallas originales del sistema RRHH:
+
+#### Dashboard & Overview
 1. Dashboard Profesional — Gestion de Talento (Refinado)
 2. Panel de Gestion de Talento — Vista de Supervisor (Optimizado)
 3. Panel de Gestion de Talento — Optimizado con IA
 
-### Talent & Career
+#### Talent & Career
 4. Vista de Supervisor — Gestion de Talento
 5. Mi Desarrollo (PDI) — LEONI LCS
 6. Detalle de Desarrollo y Plan de Carrera — Vista del Gerente
 7. Gestion de PDI — Vista del Gerente
 
-### Training & Learning
+#### Training & Learning
 8. Capacitaciones — Gestion de Aprendizaje (Interfaz Unificada)
 9. Catalogo de Capacitacion — Optimizado y Refinado (3 variantes)
 10. Catalogo de Capacitacion — Recomendaciones IA
 
-### Competencies & Evaluation
+#### Competencies & Evaluation
 11. Matriz de Competencias — Configuracion por Area
 12. Matriz de Competencias — Configuracion Optimizada
 13. Evaluacion y Feedback — Gestion de Talento
 
-### Positions & Opportunities
+#### Positions & Opportunities
 14. Oportunidades de Crecimiento — Vacantes Internas
 15. Definicion de Perfiles de Puesto — Configuracion con IA
 
 Stitch project ID: `1746412759455982581`
+
+### Level Up — Modulo de Desarrollo (Stitch export local)
+
+12 pantallas diseñadas en `/Downloads/Level Up/`:
+
+#### Dashboard
+16. Dashboard Level Up — Resumen operativo (screens-1.jsx: `ScreenDashboard`)
+
+#### Matrices y Personas
+17. Matriz de Capacidades — Heatmap por colaborador (screens-1.jsx: `ScreenCapabilityMatrix`)
+18. Detalle de Colaborador — Capacidades + Plan de desarrollo (screens-1.jsx: `ScreenColaboradorDetail`)
+19. Matriz de Habilidades — Tecnicas, blandas, operativas (screens-1.jsx: `ScreenSkillsMatrix`)
+
+#### Perfiles y Formacion
+20. Perfiles de Puesto — Lista de tarjetas (screens-2.jsx: `ScreenProfilesList`)
+21. Perfil de Puesto — Detalle completo (screens-2.jsx: `ScreenProfileDetail`)
+22. Capacitaciones — Tabla de asignaciones (screens-2.jsx: `ScreenTrainings`)
+23. Catalogo de Cursos — Cards por categoria (screens-2.jsx: `ScreenCourses`)
+24. Manejo de OPLs — Master-detail con versiones (screens-2.jsx: `ScreenOPLs`)
+
+#### Cumplimiento
+25. Bandeja de Evidencias — Validacion y firma (screens-3.jsx: `ScreenEvidences`)
+26. Motor de Sugerencias — Justificacion dual (screens-3.jsx: `ScreenSuggestions`)
+27. Encuestas Post Curso — Scores y comentarios (screens-3.jsx: `ScreenSurveys`)
 
 ---
 
