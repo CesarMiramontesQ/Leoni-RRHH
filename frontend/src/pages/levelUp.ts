@@ -175,11 +175,230 @@ export function mountLevelUpDashboard(container: HTMLElement): void {
   });
 }
 
+// ── Capacidades: tipos y datos fake ─────────────────────────────────────────
+
+interface CapEmployee {
+  id: string;
+  name: string;
+  puesto: string;
+  area: string;
+}
+
+interface Capability {
+  code: string;
+  label: string;
+}
+
+const CAP_EMPLOYEES: CapEmployee[] = [
+  { id: "E-1042", name: "María Ortega Reyes", puesto: "Operadora de Crimpado", area: "Cableado · Línea 3" },
+  { id: "E-1118", name: "Jorge Salazar Núñez", puesto: "Técnico de Crimpado", area: "Cableado · Línea 1" },
+  { id: "E-1207", name: "Lucía Mendoza Vargas", puesto: "Operadora de Ensamble", area: "Ensamble · Línea 5" },
+  { id: "E-1314", name: "Rafael Cuevas Trejo", puesto: "Líder de Línea", area: "Cableado · Línea 3" },
+  { id: "E-1402", name: "Sandra Peña Galván", puesto: "Inspectora de Calidad", area: "Calidad · Cableado" },
+  { id: "E-1520", name: "Adrián Carmona Soto", puesto: "Operador de Ensamble", area: "Ensamble · Línea 2" },
+  { id: "E-1633", name: "Patricia Loera Beltrán", puesto: "Operadora de Prueba E.", area: "Prueba Eléctrica" },
+  { id: "E-1701", name: "Diego Hurtado Vidal", puesto: "Operador de Crimpado", area: "Cableado · Línea 1" },
+  { id: "E-1815", name: "Ana Karina Reséndiz", puesto: "Operadora de Ensamble", area: "Ensamble · Línea 5" },
+  { id: "E-1909", name: "Hugo Cárdenas Olvera", puesto: "Técnico Mantenimiento", area: "Mantenimiento" },
+  { id: "E-2014", name: "Brenda Valdez Aguilar", puesto: "Operadora de Crimpado", area: "Cableado · Línea 1" },
+  { id: "E-2122", name: "Tomás Ibarra Maldonado", puesto: "Operador de Prueba E.", area: "Prueba Eléctrica" },
+];
+
+const CAP_CAPABILITIES: Capability[] = [
+  { code: "CR-01", label: "Crimpado manual" },
+  { code: "CR-02", label: "Crimpado automatizado" },
+  { code: "EN-01", label: "Ensamble de arnés" },
+  { code: "EN-02", label: "Ruteo en tablero" },
+  { code: "CT-01", label: "Continuidad eléctrica" },
+  { code: "CT-02", label: "Hi-Pot" },
+  { code: "QA-01", label: "Inspección visual IPC-A-620" },
+  { code: "QA-02", label: "Lectura de plano eléctrico" },
+  { code: "SE-01", label: "Seguridad eléctrica LOTO" },
+  { code: "MT-01", label: "Cambio de herramental" },
+];
+
+const CAP_REQ: number[] = [3, 2, 3, 2, 3, 2, 4, 3, 4, 2];
+
+const CAP_MATRIX: number[][] = [
+  [4, 2, 3, 1, 3, 2, 4, 3, 4, 2],
+  [5, 4, 4, 3, 4, 3, 5, 4, 5, 4],
+  [2, 1, 4, 3, 3, 2, 3, 3, 4, 1],
+  [5, 5, 5, 5, 5, 4, 5, 5, 5, 5],
+  [3, 2, 3, 2, 4, 4, 5, 5, 4, 2],
+  [1, 0, 3, 2, 2, 1, 2, 2, 3, 1],
+  [3, 2, 2, 1, 5, 4, 4, 4, 4, 2],
+  [2, 1, 1, 0, 2, 1, 2, 2, 3, 0],
+  [3, 2, 4, 3, 3, 2, 3, 3, 4, 2],
+  [4, 3, 3, 2, 3, 2, 3, 3, 5, 5],
+  [2, 1, 2, 1, 2, 1, 3, 2, 3, 1],
+  [3, 2, 2, 1, 5, 4, 4, 4, 4, 3],
+];
+
+function capCellColor(level: number, required: number): string {
+  if (level === 0) return "bg-slate-50 text-slate-400";
+  if (level < required) {
+    const gap = required - level;
+    if (gap >= 2) return "bg-red-200 text-red-900";
+    return "bg-red-100 text-red-800";
+  }
+  if (level === required) return "bg-amber-100 text-amber-900";
+  // level > required
+  const excess = level - required;
+  if (excess >= 2) return "bg-emerald-300 text-emerald-900";
+  return "bg-emerald-100 text-emerald-900";
+}
+
+function capCellBorder(level: number, required: number): string {
+  if (level < required) return "ring-1 ring-inset ring-red-300";
+  return "";
+}
+
+function computeCapKpis(): { capacidades: number; evaluados: number; promedio: string; brechas: number } {
+  const capacidades = CAP_CAPABILITIES.length;
+  const evaluados = CAP_EMPLOYEES.length;
+  let totalLevel = 0;
+  let totalCells = 0;
+  let brechas = 0;
+  for (let ei = 0; ei < CAP_MATRIX.length; ei++) {
+    for (let ci = 0; ci < CAP_MATRIX[ei].length; ci++) {
+      totalLevel += CAP_MATRIX[ei][ci];
+      totalCells++;
+      if (CAP_MATRIX[ei][ci] < CAP_REQ[ci]) brechas++;
+    }
+  }
+  const promedio = (totalLevel / totalCells).toFixed(1);
+  return { capacidades, evaluados, promedio, brechas };
+}
+
+function renderCapKpis(): string {
+  const kpis = computeCapKpis();
+  const items = [
+    { label: "Capacidades", value: String(kpis.capacidades), sub: "En el perfil evaluado" },
+    { label: "Personas evaluadas", value: String(kpis.evaluados), sub: "Cableado y Ensamble" },
+    { label: "Nivel promedio", value: kpis.promedio, sup: "/5", sub: "Todos los colaboradores" },
+    { label: "Brechas activas", value: String(kpis.brechas), sub: "Celdas debajo del requerido" },
+  ];
+  return `
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    ${items.map(k => `
+      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <p class="text-xs font-medium text-text-muted">${escapeHtml(k.label)}</p>
+        <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${k.value}${k.sup ? `<span class="text-sm font-medium text-slate-400">${k.sup}</span>` : ""}</p>
+        <p class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(k.sub)}</p>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function renderCapLegend(): string {
+  return `
+  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-slate-50 px-4 py-2.5 text-[11px]">
+    <span class="font-semibold text-slate-600">Nivel de dominio</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-red-200 ring-1 ring-inset ring-red-300" aria-hidden="true"></span>Brecha &ge;2</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-red-100 ring-1 ring-inset ring-red-300" aria-hidden="true"></span>Brecha 1</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-amber-100" aria-hidden="true"></span>Cumple</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-emerald-100" aria-hidden="true"></span>Excede +1</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-emerald-300" aria-hidden="true"></span>Excede +2</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-slate-50 ring-1 ring-inset ring-slate-200" aria-hidden="true"></span>Sin evaluar</span>
+    <span class="ml-auto text-slate-500">Actualizado: 11/05/26 · Evaluador: R. Cuevas</span>
+  </div>`;
+}
+
+function renderCapHeatmap(): string {
+  // Column headers
+  const colHeaders = CAP_CAPABILITIES.map(c =>
+    `<th class="px-1 py-2 text-center align-bottom">
+      <div class="flex flex-col items-center gap-0.5">
+        <span class="text-[9px] font-mono text-slate-400">${escapeHtml(c.code)}</span>
+        <span class="text-[10px] font-semibold leading-tight text-slate-700 [writing-mode:vertical-rl] rotate-180 h-16">${escapeHtml(c.label)}</span>
+      </div>
+    </th>`
+  ).join("");
+
+  // Required row
+  const reqCells = CAP_REQ.map(r =>
+    `<td class="px-1 py-1.5 text-center"><span class="inline-flex size-7 items-center justify-center rounded bg-slate-100 font-mono text-[11px] font-bold text-slate-600">${r}</span></td>`
+  ).join("");
+
+  // Employee rows
+  const empRows = CAP_EMPLOYEES.map((emp, ei) => {
+    const row = CAP_MATRIX[ei];
+    const total = row.reduce((s, v, i) => s + Math.min(v, CAP_REQ[i]) / CAP_REQ[i], 0);
+    const score = Math.round((total / row.length) * 100);
+    const scoreTone = score >= 90 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : score >= 75 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-red-200 bg-red-50 text-red-800";
+    const initials = emp.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+
+    const cells = row.map((v, i) => {
+      const color = capCellColor(v, CAP_REQ[i]);
+      const border = capCellBorder(v, CAP_REQ[i]);
+      return `<td class="px-1 py-1 text-center"><span class="inline-flex size-7 items-center justify-center rounded text-[11px] font-semibold tabular-nums ${color} ${border}">${v}</span></td>`;
+    }).join("");
+
+    return `
+    <tr class="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+      <td class="sticky left-0 z-10 bg-white px-2 py-1.5">
+        <div class="flex items-center gap-2 min-w-[180px]">
+          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${escapeHtml(initials)}</span>
+          <div class="min-w-0">
+            <div class="truncate text-xs font-semibold text-slate-900">${escapeHtml(emp.name)}</div>
+            <div class="truncate text-[10px] text-slate-500">${escapeHtml(emp.puesto)} · ${escapeHtml(emp.area)}</div>
+          </div>
+        </div>
+      </td>
+      ${cells}
+      <td class="px-2 py-1.5 text-center"><span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold tabular-nums ${scoreTone}">${score}%</span></td>
+    </tr>`;
+  }).join("");
+
+  return `
+  <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex flex-col">
+    <div class="overflow-x-auto flex-1">
+      <table class="w-full min-w-[900px] border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-slate-200">
+            <th class="sticky left-0 z-10 bg-white px-2 py-2 text-left text-xs font-semibold text-slate-500 min-w-[200px]">Colaborador</th>
+            ${colHeaders}
+            <th class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500">SCORE</th>
+          </tr>
+          <tr class="bg-slate-50 border-b border-slate-200">
+            <td class="sticky left-0 z-10 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-600">Perfil requerido</td>
+            ${reqCells}
+            <td class="px-2 py-1.5 text-center text-[10px] text-slate-400">&mdash;</td>
+          </tr>
+        </thead>
+        <tbody>
+          ${empRows}
+        </tbody>
+      </table>
+    </div>
+    <div class="border-t border-slate-100 bg-slate-50 px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px] text-slate-600">
+      <span><b class="font-mono text-sm text-slate-900">${computeCapKpis().brechas}</b> brechas detectadas</span>
+      <span><b class="font-mono text-sm text-slate-900">11</b> colaboradores con brecha activa</span>
+      <span><b class="font-mono text-sm text-slate-900">3</b> capacidades cr&iacute;ticas con cumplimiento &lt; 70%</span>
+      <span class="ml-auto"><b class="font-semibold">CR-02 · Crimpado automatizado</b> es la capacidad con mayor brecha</span>
+    </div>
+  </div>`;
+}
+
+function renderCapacidadesPage(): string {
+  return `
+  <div class="flex flex-col gap-5">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Capacidades · Cableado y Ensamble</p>
+      <h1 class="mt-1 text-lg font-semibold text-text-primary">Matriz de capacidades</h1>
+      <p class="mt-1 text-sm text-text-muted">Comparaci&oacute;n entre el nivel requerido por puesto y el nivel actual de cada colaborador. Las celdas con borde indican brecha vs. el perfil requerido.</p>
+    </div>
+    ${renderCapKpis()}
+    ${renderCapLegend()}
+    ${renderCapHeatmap()}
+  </div>`;
+}
+
 export function mountCapacidades(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Matriz de Capacidades",
     activeNav: "capacidades",
-    mainHtml: levelUpStub("Matriz de capacidades", "Heatmap de nivel actual vs. requerido por colaborador."),
+    mainHtml: renderCapacidadesPage(),
   });
 }
 
