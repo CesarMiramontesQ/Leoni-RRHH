@@ -1568,7 +1568,7 @@ function renderSugKpis(): string {
   return `
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
     ${kpis.map(k => `
-      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
+      <div class="rounded-xl border border-border bg-white p-4">
         <p class="text-xs font-medium text-text-muted">${escapeHtml(k.label)}</p>
         <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${k.value}</p>
         <p class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(k.sub)}</p>
@@ -1650,7 +1650,7 @@ function renderSugCard(sug: SugerenciaItem): string {
     </div>`;
 
   return `
-  <div class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-white p-5 shadow-sm lg:grid-cols-[1.4fr_1fr_220px] ${featuredBorder}">
+  <div class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-white p-5 lg:grid-cols-[1.4fr_1fr_220px] ${featuredBorder}">
     ${col1}
     ${col2}
     ${col3}
