@@ -1423,11 +1423,269 @@ export function mountEvidencias(container: HTMLElement): void {
   });
 }
 
+// ── Sugerencias: tipos y datos fake ──────────────────────────────────────────
+
+type SugFuente = "Brecha interna" | "Mercado laboral";
+type SugImpacto = "Alto" | "Medio" | "Bajo";
+
+interface SugerenciaItem {
+  id: string;
+  titulo: string;
+  fuente: SugFuente;
+  impacto: SugImpacto;
+  prio: number; // stars filled out of 4
+  razon: string;
+  capCubre: string[];
+  areas: string[];
+  personas: number;
+  dur: string;
+  costo: string;
+  proveedor: string;
+  brechaPct: number;
+  mercadoPct: number;
+  benchmark: string;
+  featured?: boolean;
+  badge?: string;
+}
+
+const FAKE_SUGERENCIAS: SugerenciaItem[] = [
+  {
+    id: "SUG-118",
+    titulo: "Diagnóstico de continuidad · nivel avanzado",
+    fuente: "Brecha interna",
+    impacto: "Alto",
+    prio: 3,
+    razon: "14 colaboradores en Línea 5 están dos niveles por debajo del requerido en CT-01 Continuidad eléctrica.",
+    capCubre: ["CT-01", "CT-02", "QA-02"],
+    areas: ["Cableado · L3", "Ensamble · L5"],
+    personas: 14,
+    dur: "12h",
+    costo: "$ 38,000",
+    proveedor: "Interno · Patricia Loera",
+    brechaPct: 38,
+    mercadoPct: 72,
+    benchmark: "En el sector automotriz mexicano, 72% de plantas tier-1 incluyen un curso avanzado de continuidad eléctrica para operadores con +18m de antigüedad.",
+    featured: true,
+    badge: "Recomendada",
+  },
+  {
+    id: "SUG-117",
+    titulo: "IPC/WHMA-A-620 Rev.D · actualización 2026",
+    fuente: "Mercado laboral",
+    impacto: "Medio",
+    prio: 2,
+    razon: "IPC actualizó Rev.D en enero 2026; las plantas certificadas requieren reentrenamiento dentro de 12 meses.",
+    capCubre: ["QA-01", "QA-02"],
+    areas: ["Calidad", "Inspección"],
+    personas: 14,
+    dur: "32h",
+    costo: "$ 124,000",
+    proveedor: "Externo · IPC México",
+    brechaPct: 0,
+    mercadoPct: 89,
+    benchmark: "89% de plantas tier-1 ya están en proceso de re-certificación a Rev.D según índice ANIA 2026.",
+  },
+  {
+    id: "SUG-116",
+    titulo: "Resolución de problemas · método 8D",
+    fuente: "Brecha interna",
+    impacto: "Medio",
+    prio: 2,
+    razon: "Líderes de línea con nivel 2/4 en habilidad BL-03 resolución de problemas. Identificado en evaluación 360 marzo 2026.",
+    capCubre: ["BL-03"],
+    areas: ["Operaciones", "Líderes"],
+    personas: 24,
+    dur: "8h",
+    costo: "$ 28,000",
+    proveedor: "Externo · Crehana",
+    brechaPct: 41,
+    mercadoPct: 64,
+    benchmark: "64% de plantas IATF 16949 capacitan a sus líderes en 8D dentro del primer año.",
+  },
+  {
+    id: "SUG-115",
+    titulo: "Polivalencia: Ruteo en tablero",
+    fuente: "Brecha interna",
+    impacto: "Medio",
+    prio: 1,
+    razon: "Para absorber el aumento de demanda Q3, se requiere 18 polivalencias adicionales en EN-02 Ruteo.",
+    capCubre: ["EN-02"],
+    areas: ["Ensamble · L2", "Ensamble · L5"],
+    personas: 18,
+    dur: "6h",
+    costo: "$ 22,000",
+    proveedor: "Interno · Jorge Salazar",
+    brechaPct: 28,
+    mercadoPct: 0,
+    benchmark: "No aplica · sugerencia 100% por necesidad operativa interna.",
+  },
+];
+
+function sugFuentePill(fuente: SugFuente): string {
+  const styles: Record<SugFuente, { border: string; bg: string; text: string; dot: string }> = {
+    "Brecha interna": { border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600", dot: "bg-blue-500" },
+    "Mercado laboral": { border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-600", dot: "bg-blue-400" },
+  };
+  const s = styles[fuente];
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border ${s.border} ${s.bg} px-2 py-0.5 text-[10px] font-semibold ${s.text}"><span class="size-1.5 shrink-0 rounded-full ${s.dot}" aria-hidden="true"></span>${escapeHtml(fuente)}</span>`;
+}
+
+function sugImpactoPill(impacto: SugImpacto): string {
+  const styles: Record<SugImpacto, string> = {
+    "Alto": "border-red-200 bg-red-50 text-red-700",
+    "Medio": "border-amber-200 bg-amber-50 text-amber-700",
+    "Bajo": "border-blue-200 bg-blue-50 text-blue-600",
+  };
+  return `<span class="inline-flex items-center rounded-full border ${styles[impacto]} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(impacto)}</span>`;
+}
+
+function sugStarRating(filled: number, total: number = 4): string {
+  const stars: string[] = [];
+  for (let i = 0; i < total; i++) {
+    if (i < filled) {
+      stars.push(`<span class="text-blue-500 text-sm">&#9733;</span>`);
+    } else {
+      stars.push(`<span class="text-slate-300 text-sm">&#9733;</span>`);
+    }
+  }
+  return `<span class="inline-flex items-center gap-0.5">${stars.join("")}</span>`;
+}
+
+function sugProgressBar(pct: number, color: string): string {
+  return `
+  <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+    <div class="h-full rounded-full ${color}" style="width: ${pct}%"></div>
+  </div>`;
+}
+
+function renderSugKpis(): string {
+  const kpis = [
+    { label: "Sugerencias activas", value: "11", sub: "7 por brecha · 4 por mercado" },
+    { label: "Impacto alto", value: "3", sub: "Bloquean cumplimiento operativo" },
+    { label: "Inversión sugerida", value: "$ 312k", sub: "Acumulado anual estimado" },
+    { label: "Personas alcanzables", value: "142", sub: "Si se aprueban todas" },
+  ];
+  return `
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    ${kpis.map(k => `
+      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <p class="text-xs font-medium text-text-muted">${escapeHtml(k.label)}</p>
+        <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${k.value}</p>
+        <p class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(k.sub)}</p>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function renderSugCard(sug: SugerenciaItem): string {
+  const featuredBorder = sug.featured ? "border-l-[3px] border-l-blue-500" : "";
+
+  // Column 1: Main content
+  const pills = `
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-600">${escapeHtml(sug.id)}</span>
+      ${sugFuentePill(sug.fuente)}
+      ${sugImpactoPill(sug.impacto)}
+      ${sug.badge ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">${escapeHtml(sug.badge)}</span>` : ""}
+    </div>`;
+
+  const capPills = sug.capCubre.map(c => `<span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-600">${escapeHtml(c)}</span>`).join("");
+  const areaPills = sug.areas.map(a => `<span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">${escapeHtml(a)}</span>`).join("");
+
+  const col1 = `
+    <div class="flex flex-col gap-2.5 min-w-0">
+      ${pills}
+      <p class="text-[15px] font-medium text-slate-900 leading-tight">${escapeHtml(sug.titulo)}</p>
+      <p class="text-xs text-slate-500 leading-relaxed">${escapeHtml(sug.razon)}</p>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        ${capPills}
+        <span class="text-slate-300">|</span>
+        ${areaPills}
+      </div>
+      <div class="flex items-center gap-4 flex-wrap text-[11px] text-slate-600 mt-1">
+        <span><b class="font-semibold text-slate-800">${sug.personas}</b> personas</span>
+        <span><b class="font-semibold text-slate-800">${escapeHtml(sug.dur)}</b> duración</span>
+        <span><b class="font-semibold text-slate-800">${escapeHtml(sug.costo)}</b> inversión est.</span>
+        <span>${escapeHtml(sug.proveedor)}</span>
+      </div>
+    </div>`;
+
+  // Column 2: Justification panel
+  const col2 = `
+    <div class="rounded-lg bg-slate-50 p-4 flex flex-col gap-3">
+      <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Justificación</p>
+      <div class="flex flex-col gap-2">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[11px] text-slate-600">Brecha interna</span>
+            <span class="text-[11px] font-semibold tabular-nums text-slate-800">${sug.brechaPct}%</span>
+          </div>
+          ${sugProgressBar(sug.brechaPct, "bg-blue-500")}
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[11px] text-slate-600">Adopción del sector</span>
+            <span class="text-[11px] font-semibold tabular-nums text-slate-800">${sug.mercadoPct}%</span>
+          </div>
+          ${sugProgressBar(sug.mercadoPct, "bg-blue-400")}
+        </div>
+      </div>
+      <div class="mt-1">
+        <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Benchmark</p>
+        <p class="text-[11px] text-slate-600 leading-relaxed">${escapeHtml(sug.benchmark)}</p>
+      </div>
+    </div>`;
+
+  // Column 3: Actions
+  const col3 = `
+    <div class="flex flex-col gap-3 items-center justify-start">
+      <div class="text-center">
+        <p class="text-[10px] font-semibold text-slate-500 mb-1">Prioridad</p>
+        ${sugStarRating(sug.prio)}
+      </div>
+      <div class="w-full border-t border-slate-200"></div>
+      <button class="${BTN_PRIMARY} !text-[11px] !px-3 !py-1.5 w-full opacity-60 cursor-not-allowed" disabled>Aprobar y programar</button>
+      <button class="${BTN_SECONDARY} !text-[11px] !px-3 !py-1.5 w-full opacity-60 cursor-not-allowed" disabled>Posponer</button>
+      <button class="rounded-md px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100 transition w-full opacity-60 cursor-not-allowed" disabled>Descartar</button>
+    </div>`;
+
+  return `
+  <div class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-white p-5 shadow-sm lg:grid-cols-[1.4fr_1fr_220px] ${featuredBorder}">
+    ${col1}
+    ${col2}
+    ${col3}
+  </div>`;
+}
+
+function renderSugerenciasPage(): string {
+  return `
+  <div class="flex flex-col gap-5">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Motor de sugerencias &middot; 11 propuestas activas</p>
+        <h1 class="mt-1 text-lg font-semibold text-text-primary">Cursos sugeridos por brecha y mercado</h1>
+        <p class="mt-1 text-sm text-text-muted max-w-3xl">Recomendaciones generadas a partir de brechas internas detectadas y comparaci&oacute;n contra est&aacute;ndares del sector automotriz / manufactura.</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>Todas las fuentes</button>
+        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Justificaci&oacute;n PDF</button>
+        <button class="${BTN_PRIMARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled>Aprobar selecci&oacute;n</button>
+      </div>
+    </div>
+
+    ${renderSugKpis()}
+
+    <div class="flex flex-col gap-4">
+      ${FAKE_SUGERENCIAS.map(sug => renderSugCard(sug)).join("")}
+    </div>
+  </div>`;
+}
+
 export function mountSugerencias(container: HTMLElement): void {
   mountAppShell(container, {
-    pageTitle: "Motor de Sugerencias",
+    pageTitle: "Sugerencias",
     activeNav: "sugerencias",
-    mainHtml: levelUpStub("Cursos sugeridos", "Recomendaciones por brecha interna y estándares del sector."),
+    mainHtml: renderSugerenciasPage(),
   });
 }
 
