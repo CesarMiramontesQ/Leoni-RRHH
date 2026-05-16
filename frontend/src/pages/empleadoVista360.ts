@@ -11,7 +11,7 @@ import { vista360CompetenciasCardHtml } from "../components/vista360/progressBar
 import { vista360ProfileHeaderHtml } from "../components/vista360/profileHeader.ts";
 import { vista360TabButtonClass, vista360TabsHtml, type Vista360TabId } from "../components/vista360/tabs.ts";
 
-const VISTA360_TAB_IDS: Vista360TabId[] = ["resumen", "incidencias", "historial", "beneficios"];
+const VISTA360_TAB_IDS: Vista360TabId[] = ["resumen", "incidencias", "historial", "beneficios", "capacidades", "plan_desarrollo"];
 
 /** Lee `?tab=` del hash `#/empleados/{id}?tab=historial`. */
 export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
@@ -131,6 +131,119 @@ function listSectionHtml(title: string, items: string[]): string {
     <div>
       <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(title)}</h4>
       <ul class="mt-2 list-none p-0 m-0">${lis}</ul>
+    </div>`;
+}
+
+// ─── Screen 3: Capacidades vs perfil requerido (fake data) ───
+const FAKE_CAPABILITIES = [
+  { code: "CR-01", label: "Crimpado manual", cur: 3, req: 4 },
+  { code: "CR-02", label: "Crimpado automatizado", cur: 2, req: 4 },
+  { code: "EN-01", label: "Ensamble general", cur: 4, req: 4 },
+  { code: "EN-02", label: "Ensamble tablero", cur: 3, req: 5 },
+  { code: "RT-01", label: "Ruteo en tablero", cur: 2, req: 3 },
+  { code: "SO-01", label: "Soldadura manual", cur: 3, req: 3 },
+  { code: "IP-01", label: "Inspección visual IPC", cur: 2, req: 4 },
+  { code: "SE-01", label: "Seguridad eléctrica LOTO", cur: 4, req: 4 },
+];
+
+function renderCapacidadesPanel(): string {
+  const gapCount = FAKE_CAPABILITIES.filter((c) => c.cur < c.req).length;
+  const rows = FAKE_CAPABILITIES.map((c) => {
+    const gap = c.cur < c.req;
+    const pctCur = (c.cur / 5) * 100;
+    const pctReq = (c.req / 5) * 100;
+    const barColor = gap ? "bg-blue-500" : "bg-slate-700";
+    const markerLeft = `calc(${pctReq}% - 1px)`;
+    return `
+      <div class="grid grid-cols-[64px_1fr_220px_40px_40px] items-center gap-3">
+        <span class="font-mono text-xs text-slate-400">${c.code}</span>
+        <span class="text-xs font-semibold text-text-primary">${c.label}</span>
+        <div class="relative h-2.5 rounded-full bg-slate-100">
+          <div class="absolute inset-y-0 left-0 rounded-full ${barColor}" style="width:${pctCur}%"></div>
+          <div class="absolute -top-0.5 -bottom-0.5 w-0.5 bg-slate-800" style="left:${markerLeft}"></div>
+        </div>
+        <span class="font-mono text-xs font-semibold ${gap ? "text-blue-600" : "text-text-primary"}">${c.cur}</span>
+        <span class="font-mono text-xs text-slate-400">/${c.req}</span>
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="rounded-xl border border-border bg-white">
+      <div class="flex items-center justify-between border-b border-border px-5 py-4">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary">Capacidades vs. perfil requerido</h3>
+          <p class="mt-0.5 text-xs text-text-muted">Operador de Ensamble · Línea 2 · ${gapCount} brechas detectadas</p>
+        </div>
+        <a href="#/capacidades" class="text-xs font-semibold text-blue-600 hover:underline">Ver matriz completa →</a>
+      </div>
+      <div class="flex flex-col gap-3 p-5">${rows}</div>
+      <div class="flex items-center gap-6 border-t border-border bg-slate-50 px-5 py-3 text-xs text-slate-600">
+        <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-5 rounded-full bg-blue-500"></span> Nivel actual (brecha)</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-5 rounded-full bg-slate-700"></span> Nivel actual (OK)</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-0.5 bg-slate-800"></span> Requerido</span>
+      </div>
+    </div>`;
+}
+
+// ─── Screen 3: Plan de desarrollo (fake data) ───
+const FAKE_PLAN = [
+  { fase: "1 · Inducción extendida", curso: "Seguridad eléctrica LOTO", estado: "completada" as const, fecha: "02/04/26", score: 4.6 },
+  { fase: "2 · Operación", curso: "Crimpado manual nivel 2", estado: "en curso" as const, fecha: "13/05/26", score: null },
+  { fase: "3 · Operación", curso: "Ruteo en tablero · básico", estado: "pendiente" as const, fecha: "27/05/26", score: null },
+  { fase: "4 · Calidad", curso: "IPC-A-620 · Inspección visual", estado: "pendiente" as const, fecha: "10/06/26", score: null },
+  { fase: "5 · Polivalencia", curso: "OPL-2041 · Cambio herramental", estado: "sugerido" as const, fecha: "Por agendar", score: null },
+];
+
+function planEstadoBadge(estado: string): string {
+  const map: Record<string, string> = {
+    completada: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "en curso": "bg-amber-50 text-amber-700 border-amber-200",
+    pendiente: "bg-slate-50 text-slate-600 border-slate-200",
+    sugerido: "bg-blue-50 text-blue-600 border-blue-200",
+  };
+  const cls = map[estado] ?? map["pendiente"];
+  return `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cls}"><span class="size-1.5 rounded-full bg-current"></span>${estado}</span>`;
+}
+
+function renderPlanDesarrolloPanel(): string {
+  const steps = FAKE_PLAN.map((p, i) => {
+    const isLast = i === FAKE_PLAN.length - 1;
+    const circleBase = "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold";
+    const circleClass =
+      p.estado === "completada"
+        ? `${circleBase} bg-emerald-500 text-white`
+        : `${circleBase} border border-slate-300 bg-slate-100 text-slate-500`;
+    const circleContent = p.estado === "completada" ? "✓" : String(i + 1);
+    const connector = isLast ? "" : `<div class="mx-auto mt-1 w-0.5 flex-1 bg-slate-200"></div>`;
+    const scoreHtml = p.score != null ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">★ ${p.score}</span>` : "";
+    return `
+      <div class="grid grid-cols-[24px_1fr] gap-3" style="min-height:${isLast ? "auto" : "72px"}">
+        <div class="flex flex-col items-center">
+          <div class="${circleClass}">${circleContent}</div>
+          ${connector}
+        </div>
+        <div class="pb-3">
+          <p class="font-mono text-[10px] uppercase tracking-wide text-slate-400">${p.fase}</p>
+          <p class="mt-0.5 text-sm font-semibold text-text-primary">${p.curso}</p>
+          <div class="mt-1.5 flex flex-wrap items-center gap-2">
+            ${planEstadoBadge(p.estado)}
+            <span class="text-xs text-slate-400">${p.fecha}</span>
+            ${scoreHtml}
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="rounded-xl border border-border bg-white">
+      <div class="flex items-center justify-between border-b border-border px-5 py-4">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary">Plan de desarrollo</h3>
+          <p class="mt-0.5 text-xs text-text-muted">Generado a partir de brechas · Aprobado 14/03/26</p>
+        </div>
+        <span class="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-blue-700">${FAKE_PLAN.length} etapas</span>
+      </div>
+      <div class="p-5">${steps}</div>
     </div>`;
 }
 
@@ -288,11 +401,16 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
       <p class="mt-2 text-sm text-text-muted">Días (según registro en sistema; integración TRESS pendiente).</p>
     </div>`;
 
+  const capacidadesInner = renderCapacidadesPanel();
+  const planDesarrolloInner = renderPlanDesarrolloPanel();
+
   const panels =
     panel("resumen", resumenInner) +
     panel("incidencias", incidenciasInner) +
     panel("historial", historialInner) +
-    panel("beneficios", beneficiosInner);
+    panel("beneficios", beneficiosInner) +
+    panel("capacidades", capacidadesInner) +
+    panel("plan_desarrollo", planDesarrolloInner);
 
   return `
     <div id="v360-loaded" class="space-y-6">
