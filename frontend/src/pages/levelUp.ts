@@ -2,15 +2,6 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_SECONDARY } from "../ui/uiTokens.ts";
 
-function levelUpStub(title: string, subtitle: string): string {
-  return `
-    <div class="rounded-lg border border-border bg-white px-6 py-10 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Level Up</p>
-      <h1 class="mt-1 text-lg font-semibold text-text-primary">${title}</h1>
-      <p class="mt-2 text-sm text-text-muted">${subtitle}</p>
-    </div>`;
-}
-
 // ── Cursos: tipos y datos fake ───────────────────────────────────────────
 
 type CursoCat = "Técnico" | "Calidad" | "Seguridad" | "Operativo" | "Blanda";
@@ -168,11 +159,316 @@ function renderCursosPage(activeCat: "Todos" | CursoCat): string {
   </div>`;
 }
 
+// ── Dashboard: tipos, datos fake y helpers ──────────────────────────────────
+
+interface DashKpi {
+  label: string;
+  value: string;
+  suffix?: string;
+  spark: number[];
+  delta: string;
+  deltaPositive: boolean;
+  sub: string;
+}
+
+interface DashAreaRow {
+  nombre: string;
+  personas: number;
+  cumplimiento: number;
+  brechas: number;
+}
+
+interface DashCapacitacion {
+  dia: string;
+  mes: string;
+  curso: string;
+  instructor: string;
+  modalidad: string;
+  cuposUsados: number;
+  cuposTotal: number;
+}
+
+interface DashEvidencia {
+  colaborador: string;
+  curso: string;
+  tipo: "documento" | "video";
+  subida: string;
+  estado: string;
+  estadoColor: "warn" | "info";
+}
+
+interface DashSugerencia {
+  nombre: string;
+  razon: string;
+  impacto: "Alto" | "Medio";
+  fuente: string;
+}
+
+const DASH_KPIS: DashKpi[] = [
+  { label: "Cumplimiento global", value: "87", suffix: "%", spark: [12,14,13,15,17,16,18,19,18,20,21,22], delta: "+2.4", deltaPositive: true, sub: "vs. abril 2026" },
+  { label: "Brechas críticas abiertas", value: "34", spark: [44,46,42,41,40,38,40,37,36,35,34,34], delta: "-6", deltaPositive: true, sub: "11 colaboradores · 4 áreas" },
+  { label: "Capacitaciones activas", value: "84", spark: [50,55,52,60,58,65,68,72,75,78,80,84], delta: "+12", deltaPositive: true, sub: "esta semana · 6 vencidas" },
+  { label: "Score medio post curso", value: "4.4", suffix: "/5", spark: [40,42,41,43,44,43,44,45,44,44,45,44], delta: "+0.2", deltaPositive: true, sub: "218 encuestas mes" },
+];
+
+const DASH_AREAS: DashAreaRow[] = [
+  { nombre: "Cableado · Línea 1", personas: 28, cumplimiento: 92, brechas: 5 },
+  { nombre: "Cableado · Línea 3", personas: 32, cumplimiento: 78, brechas: 12 },
+  { nombre: "Ensamble · Línea 2", personas: 24, cumplimiento: 84, brechas: 7 },
+  { nombre: "Ensamble · Línea 5", personas: 36, cumplimiento: 71, brechas: 14 },
+  { nombre: "Prueba Eléctrica", personas: 18, cumplimiento: 88, brechas: 4 },
+  { nombre: "Calidad", personas: 14, cumplimiento: 95, brechas: 2 },
+  { nombre: "Mantenimiento", personas: 22, cumplimiento: 81, brechas: 9 },
+];
+
+const DASH_CAPACITACIONES: DashCapacitacion[] = [
+  { dia: "13", mes: "MAY", curso: "IPC-A-620 · Inspección visual", instructor: "Sandra Peña", modalidad: "Aula B-2", cuposUsados: 12, cuposTotal: 14 },
+  { dia: "14", mes: "MAY", curso: "Seguridad eléctrica LOTO", instructor: "Hugo Cárdenas", modalidad: "Aula A-1", cuposUsados: 18, cuposTotal: 20 },
+  { dia: "14", mes: "MAY", curso: "OPL-2041 · Cambio herramental", instructor: "Rafael Cuevas", modalidad: "En piso · L3", cuposUsados: 8, cuposTotal: 8 },
+  { dia: "16", mes: "MAY", curso: "Lectura de plano eléctrico", instructor: "Jorge Salazar", modalidad: "Aula B-1", cuposUsados: 6, cuposTotal: 12 },
+  { dia: "18", mes: "MAY", curso: "Hi-Pot · Operación segura", instructor: "Patricia Loera", modalidad: "Lab E.E.", cuposUsados: 4, cuposTotal: 10 },
+];
+
+const DASH_EVIDENCIAS: DashEvidencia[] = [
+  { colaborador: "Diego Hurtado Vidal", curso: "OPL-2041 · Cambio herramental", tipo: "documento", subida: "hace 2h", estado: "En revisión", estadoColor: "warn" },
+  { colaborador: "Brenda Valdez Aguilar", curso: "Crimpado manual · Nivel 2", tipo: "video", subida: "hace 5h", estado: "En revisión", estadoColor: "warn" },
+  { colaborador: "Adrián Carmona Soto", curso: "IPC-A-620 · Inspección visual", tipo: "documento", subida: "hace 6h", estado: "Esperando firma", estadoColor: "info" },
+];
+
+const DASH_SUGERENCIAS: DashSugerencia[] = [
+  { nombre: "Diagnóstico de continuidad · avanzado", razon: "Brecha L5 · 14 personas debajo del nivel", impacto: "Alto", fuente: "Brecha interna" },
+  { nombre: "IPC/WHMA-A-620 Rev.D 2026", razon: "Estándar sector · cambio versión ene 2026", impacto: "Medio", fuente: "Mercado laboral" },
+];
+
+function dashSparkline(values: number[], color: string): string {
+  if (values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 64;
+  const h = 24;
+  const padding = 2;
+  const points = values.map((v, i) => {
+    const x = padding + (i / (values.length - 1)) * (w - padding * 2);
+    const y = h - padding - ((v - min) / range) * (h - padding * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg width="${w}" height="${h}" class="shrink-0" aria-hidden="true"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function renderDashHeader(): string {
+  return `
+  <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="text-xs font-medium text-text-muted">Inicio · Planta Hermosillo</p>
+      <h1 class="mt-0.5 text-xl font-bold text-text-primary">Resumen operativo</h1>
+      <p class="mt-1 text-sm text-text-muted">Vista consolidada de capacitación, brechas y cumplimiento de la planta para la semana del 12 al 18 de mayo.</p>
+    </div>
+    <div class="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
+      <button type="button" class="${BTN_SECONDARY} opacity-60 cursor-not-allowed" disabled>Semana 19</button>
+      <button type="button" class="${BTN_SECONDARY} opacity-60 cursor-not-allowed" disabled>Exportar</button>
+      <button type="button" class="${BTN_PRIMARY} opacity-60 cursor-not-allowed" disabled>Asignar capacitación</button>
+    </div>
+  </div>`;
+}
+
+function renderDashKpis(): string {
+  return `
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    ${DASH_KPIS.map(k => `
+      <div class="rounded-xl border border-border bg-white p-4">
+        <p class="text-xs font-medium text-text-muted">${escapeHtml(k.label)}</p>
+        <div class="mt-2 flex items-end justify-between gap-2">
+          <p class="text-2xl font-bold tabular-nums text-text-primary">${k.value}${k.suffix ? `<span class="text-sm font-medium text-slate-400">${k.suffix}</span>` : ""}</p>
+          ${dashSparkline(k.spark, "var(--color-accent, #2563EB)")}
+        </div>
+        <div class="mt-2 flex items-center gap-1.5">
+          <span class="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700">
+            <span aria-hidden="true">${k.deltaPositive ? "↑" : "↓"}</span>${k.delta}
+          </span>
+          <span class="text-[11px] text-slate-500">${escapeHtml(k.sub)}</span>
+        </div>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function dashSemaforoPill(cumplimiento: number): string {
+  if (cumplimiento >= 90) return `<span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Verde</span>`;
+  if (cumplimiento >= 80) return `<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Ámbar</span>`;
+  return `<span class="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-800">Rojo</span>`;
+}
+
+function renderDashAreas(): string {
+  return `
+  <div class="rounded-xl border border-border bg-white">
+    <div class="flex flex-col gap-1 border-b border-slate-100 px-5 py-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-text-primary">Cumplimiento y brechas por área</h2>
+      </div>
+      <p class="text-xs text-text-muted">Brechas activas detectadas por la matriz de capacidades</p>
+      <div class="mt-2 flex items-center gap-3">
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600"><span class="inline-block size-2.5 rounded-sm bg-blue-500" aria-hidden="true"></span>Cumplimiento</span>
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600"><span class="inline-block size-2.5 rounded-sm bg-red-400" aria-hidden="true"></span>Brechas</span>
+      </div>
+    </div>
+    <div class="flex flex-col divide-y divide-slate-100 px-5">
+      ${DASH_AREAS.map(a => {
+        const brecha = 100 - a.cumplimiento;
+        return `
+        <div class="flex items-center gap-3 py-3">
+          <div class="w-36 shrink-0">
+            <p class="text-sm font-medium text-text-primary">${escapeHtml(a.nombre)}</p>
+            <p class="text-[11px] text-slate-500">${a.personas} personas</p>
+          </div>
+          <div class="relative flex h-5 flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div class="flex h-full items-center justify-end rounded-l-full bg-blue-500 pr-1.5 text-[10px] font-semibold text-white" style="width:${a.cumplimiento}%">${a.cumplimiento}%</div>
+            <div class="h-full bg-red-400" style="width:${brecha}%"></div>
+          </div>
+          <span class="w-12 text-right text-xs font-semibold tabular-nums text-slate-700">${a.brechas}</span>
+          ${dashSemaforoPill(a.cumplimiento)}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+function renderDashCapacitaciones(): string {
+  return `
+  <div class="rounded-xl border border-border bg-white">
+    <div class="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+      <div>
+        <h2 class="text-sm font-semibold text-text-primary">Próximas capacitaciones</h2>
+        <p class="mt-0.5 text-xs text-text-muted">Semana en curso · 5 sesiones programadas</p>
+      </div>
+      <button type="button" class="text-xs font-semibold text-blue-600 opacity-60 cursor-not-allowed" disabled>Ver calendario ›</button>
+    </div>
+    <div class="flex flex-col divide-y divide-slate-100">
+      ${DASH_CAPACITACIONES.map(c => {
+        const cupoFull = c.cuposUsados >= c.cuposTotal;
+        const cupoCls = cupoFull
+          ? "border-red-200 bg-red-50 text-red-800"
+          : "border-slate-200 bg-slate-50 text-slate-700";
+        return `
+        <div class="flex items-center gap-3 px-5 py-3">
+          <div class="flex size-10 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
+            <span class="text-sm font-bold leading-none text-text-primary">${c.dia}</span>
+            <span class="text-[9px] font-semibold uppercase text-slate-500">${c.mes}</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(c.curso)}</p>
+            <p class="text-[11px] text-slate-500">${escapeHtml(c.instructor)} · ${escapeHtml(c.modalidad)}</p>
+          </div>
+          <span class="inline-flex items-center rounded-full border ${cupoCls} px-2 py-0.5 text-[10px] font-semibold tabular-nums">${c.cuposUsados}/${c.cuposTotal}</span>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+function renderDashEvidencias(): string {
+  const tipoIcon = (tipo: "documento" | "video"): string => {
+    if (tipo === "documento") return `<svg class="size-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>`;
+    return `<svg class="size-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>`;
+  };
+
+  return `
+  <div class="rounded-xl border border-border bg-white">
+    <div class="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+      <div>
+        <h2 class="text-sm font-semibold text-text-primary">Evidencias pendientes de validar</h2>
+        <p class="mt-0.5 text-xs text-text-muted">18 evidencias en bandeja · SLA promedio 1.4 días</p>
+      </div>
+      <button type="button" class="text-xs font-semibold text-blue-600 opacity-60 cursor-not-allowed" disabled>Ir a bandeja ›</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            <th class="px-5 py-2">Colaborador</th>
+            <th class="px-3 py-2">Curso / OPL</th>
+            <th class="px-3 py-2">Tipo</th>
+            <th class="px-3 py-2">Subida</th>
+            <th class="px-3 py-2">Estado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          ${DASH_EVIDENCIAS.map(e => {
+            const initials = e.colaborador.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+            const estadoCls = e.estadoColor === "warn"
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : "border-blue-200 bg-blue-50 text-blue-800";
+            const tipoCls = "border-slate-200 bg-slate-50 text-slate-700";
+            return `
+            <tr>
+              <td class="px-5 py-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${initials}</span>
+                  <span class="text-sm font-medium text-text-primary">${escapeHtml(e.colaborador)}</span>
+                </div>
+              </td>
+              <td class="px-3 py-2.5 text-xs text-slate-700">${escapeHtml(e.curso)}</td>
+              <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 rounded-full border ${tipoCls} px-2 py-0.5 text-[10px] font-semibold">${tipoIcon(e.tipo)}${e.tipo}</span></td>
+              <td class="px-3 py-2.5 text-xs text-slate-500">${escapeHtml(e.subida)}</td>
+              <td class="px-3 py-2.5"><span class="inline-flex items-center rounded-full border ${estadoCls} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(e.estado)}</span></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderDashSugerencias(): string {
+  return `
+  <div class="rounded-xl border border-border bg-white">
+    <div class="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+      <div>
+        <h2 class="text-sm font-semibold text-text-primary">Sugerencias del motor</h2>
+        <p class="mt-0.5 text-xs text-text-muted">Justificadas por brechas y mercado</p>
+      </div>
+      <span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-blue-800">11</span>
+    </div>
+    <div class="flex flex-col gap-3 p-5">
+      ${DASH_SUGERENCIAS.map(s => {
+        const impactoCls = s.impacto === "Alto"
+          ? "border-red-200 bg-red-50 text-red-800"
+          : "border-amber-200 bg-amber-50 text-amber-800";
+        return `
+        <div class="rounded-lg border border-slate-200 p-3">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700">${escapeHtml(s.fuente)}</span>
+            <span class="inline-flex items-center rounded-full border ${impactoCls} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(s.impacto)}</span>
+          </div>
+          <p class="mt-2 text-sm font-medium text-text-primary">${escapeHtml(s.nombre)}</p>
+          <p class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(s.razon)}</p>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+function renderDashboardPage(): string {
+  return `
+  <div class="flex flex-col gap-5">
+    ${renderDashHeader()}
+    ${renderDashKpis()}
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1.35fr_1fr]">
+      ${renderDashAreas()}
+      ${renderDashCapacitaciones()}
+    </div>
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1.35fr_1fr]">
+      ${renderDashEvidencias()}
+      ${renderDashSugerencias()}
+    </div>
+  </div>`;
+}
+
 export function mountLevelUpDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Level Up",
     activeNav: "level-up",
-    mainHtml: levelUpStub("Resumen operativo", "Vista consolidada de capacitación, brechas y cumplimiento."),
+    mainHtml: renderDashboardPage(),
   });
 }
 
