@@ -1689,10 +1689,265 @@ export function mountSugerencias(container: HTMLElement): void {
   });
 }
 
+// ── Encuestas: tipos y datos fake ───────────────────────────────────────────
+
+interface EncuestaCurso {
+  id: string;
+  nombre: string;
+  instructor: string;
+  proveedor: string;
+  n: number;
+  contenido: number;
+  instructorScore: number;
+  utilidad: number;
+  trend: number[];
+  score: number;
+  warn: boolean;
+}
+
+interface EncuestaComentario {
+  score: number;
+  nombre: string;
+  curso: string;
+  texto: string;
+  sentimiento: "positivo" | "neutro" | "mejora";
+}
+
+const FAKE_ENC_CURSOS: EncuestaCurso[] = [
+  { id: "CR-101", nombre: "Crimpado manual · Inducción", instructor: "Jorge Salazar", proveedor: "Interno", n: 42, contenido: 4.6, instructorScore: 4.8, utilidad: 4.5, trend: [4.2, 4.4, 4.5, 4.6, 4.6], score: 4.6, warn: false },
+  { id: "QA-006", nombre: "IPC-A-620 · Inspección visual", instructor: "Sandra Peña", proveedor: "IPC México", n: 38, contenido: 4.8, instructorScore: 4.7, utilidad: 4.9, trend: [4.5, 4.6, 4.7, 4.7, 4.8], score: 4.8, warn: false },
+  { id: "SE-001", nombre: "Seguridad eléctrica LOTO", instructor: "Hugo Cárdenas", proveedor: "Interno", n: 56, contenido: 4.4, instructorScore: 4.3, utilidad: 4.5, trend: [4.1, 4.2, 4.3, 4.3, 4.4], score: 4.4, warn: false },
+  { id: "OP-110", nombre: "5S en piso de producción", instructor: "Mariana Cervantes", proveedor: "Interno", n: 48, contenido: 4.9, instructorScore: 4.8, utilidad: 4.7, trend: [4.6, 4.7, 4.8, 4.8, 4.9], score: 4.8, warn: false },
+  { id: "CT-021", nombre: "Continuidad eléctrica · básico", instructor: "Patricia Loera", proveedor: "Interno", n: 32, contenido: 4.5, instructorScore: 4.6, utilidad: 4.4, trend: [4.3, 4.4, 4.4, 4.5, 4.5], score: 4.5, warn: false },
+  { id: "BL-040", nombre: "Comunicación operativa", instructor: "Ext. · Crehana", proveedor: "Crehana", n: 24, contenido: 3.2, instructorScore: 3.0, utilidad: 3.4, trend: [3.8, 3.6, 3.4, 3.2, 3.2], score: 3.2, warn: true },
+  { id: "MT-031", nombre: "Cambio de herramental", instructor: "Rafael Cuevas", proveedor: "Interno", n: 28, contenido: 4.4, instructorScore: 4.5, utilidad: 4.3, trend: [4.2, 4.3, 4.3, 4.4, 4.4], score: 4.4, warn: false },
+  { id: "CR-203", nombre: "Crimpado especial · alta corriente", instructor: "Jorge Salazar", proveedor: "Interno", n: 16, contenido: 4.1, instructorScore: 4.3, utilidad: 4.0, trend: [4.0, 4.0, 4.1, 4.1, 4.1], score: 4.2, warn: false },
+  { id: "SE-015", nombre: "Manejo de químicos industriales", instructor: "Hugo Cárdenas", proveedor: "Interno", n: 44, contenido: 4.6, instructorScore: 4.4, utilidad: 4.5, trend: [4.3, 4.4, 4.5, 4.5, 4.6], score: 4.5, warn: false },
+  { id: "BL-055", nombre: "Liderazgo de equipos operativos", instructor: "Ext. · Crehana", proveedor: "Crehana", n: 18, contenido: 3.1, instructorScore: 2.8, utilidad: 3.3, trend: [3.6, 3.4, 3.2, 3.0, 3.1], score: 3.1, warn: true },
+  { id: "QA-310", nombre: "Metrología aplicada a arneses", instructor: "Sandra Peña", proveedor: "Interno", n: 22, contenido: 4.4, instructorScore: 4.5, utilidad: 4.3, trend: [4.2, 4.3, 4.3, 4.4, 4.4], score: 4.4, warn: false },
+  { id: "SE-022", nombre: "Primeros auxilios · NOM-030", instructor: "Ext. · Cruz Roja", proveedor: "Cruz Roja", n: 52, contenido: 4.7, instructorScore: 4.8, utilidad: 4.6, trend: [4.5, 4.6, 4.7, 4.7, 4.7], score: 4.7, warn: false },
+];
+
+const FAKE_ENC_COMENTARIOS: EncuestaComentario[] = [
+  { score: 5, nombre: "María Ortega Reyes", curso: "Crimpado manual", texto: "Excelente curso, aprendí técnicas que aplico diario en la línea. El instructor domina el tema.", sentimiento: "positivo" },
+  { score: 5, nombre: "Lucía Mendoza Vargas", curso: "5S en producción", texto: "Muy práctico y dinámico. Las fotos de antes/después en nuestra propia línea hicieron la diferencia.", sentimiento: "positivo" },
+  { score: 4, nombre: "Rafael Cuevas Trejo", curso: "IPC-A-620", texto: "Buen contenido técnico, aunque el ritmo fue rápido para quienes no tienen experiencia previa en inspección.", sentimiento: "neutro" },
+  { score: 2, nombre: "Adrián Carmona Soto", curso: "Comunicación operativa", texto: "El instructor no conocía nuestro contexto de planta. Los ejemplos eran de oficina, no de piso de producción.", sentimiento: "mejora" },
+  { score: 5, nombre: "Patricia Loera Beltrán", curso: "Continuidad eléctrica", texto: "Muy útil la práctica con el equipo real. Ahora puedo diagnosticar fallas sin esperar al técnico.", sentimiento: "positivo" },
+  { score: 3, nombre: "Diego Hurtado Vidal", curso: "Liderazgo equipos", texto: "El tema es relevante pero la plataforma en línea tuvo muchos problemas de conexión. Difícil concentrarse.", sentimiento: "mejora" },
+];
+
+function encSparkline(values: number[], color: string): string {
+  if (values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 48;
+  const h = 20;
+  const padding = 2;
+  const points = values.map((v, i) => {
+    const x = padding + (i / (values.length - 1)) * (w - padding * 2);
+    const y = h - padding - ((v - min) / range) * (h - padding * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg width="${w}" height="${h}" class="shrink-0" aria-hidden="true"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function encScorePill(score: number): string {
+  let cls: string;
+  if (score >= 4.5) cls = "border-emerald-200 bg-emerald-50 text-emerald-800";
+  else if (score >= 4.0) cls = "border-blue-200 bg-blue-50 text-blue-800";
+  else if (score >= 3.5) cls = "border-amber-200 bg-amber-50 text-amber-800";
+  else cls = "border-red-200 bg-red-50 text-red-800";
+  return `<span class="inline-flex items-center gap-1 rounded-full border ${cls} px-2 py-0.5 text-[10px] font-semibold tabular-nums"><svg class="size-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.176 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.065 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69l1.286-3.957z"/></svg>${score.toFixed(1)}</span>`;
+}
+
+function encHorizBar(value: number, max: number, color: string): string {
+  const pct = Math.round((value / max) * 100);
+  return `
+  <div class="flex items-center gap-1.5">
+    <div class="h-1.5 w-16 rounded-full bg-slate-100 overflow-hidden">
+      <div class="h-full rounded-full ${color}" style="width: ${pct}%"></div>
+    </div>
+    <span class="text-[10px] font-semibold tabular-nums text-slate-600">${value.toFixed(1)}</span>
+  </div>`;
+}
+
+function renderEncKpis(): string {
+  const kpis: Array<{ label: string; value: string; sub: string; sup?: string; isText?: boolean }> = [
+    { label: "Encuestas recibidas", value: "612", sub: "Tasa de respuesta 84%" },
+    { label: "Score medio", value: "4.4", sup: "/5", sub: "+0.2 vs. trimestre anterior" },
+    { label: "NPS interno", value: "+58", sub: "Excelente · ≥ 50" },
+    { label: "Cursos en alerta", value: "2", sub: "Score < 3.5 o NPS < 20" },
+    { label: "Proveedor mejor calif.", value: "IPC México", sub: "4.7 promedio · 3 cursos", isText: true },
+  ];
+  return `
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    ${kpis.map(k => `
+      <div class="rounded-xl border border-border bg-white p-4">
+        <p class="text-xs font-medium text-text-muted">${escapeHtml(k.label)}</p>
+        <p class="mt-1 ${k.isText ? "text-base" : "text-2xl"} font-bold tabular-nums text-text-primary">${k.value}${k.sup ? `<span class="text-sm font-medium text-slate-400">${k.sup}</span>` : ""}</p>
+        <p class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(k.sub)}</p>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function renderEncTabla(): string {
+  const rows = FAKE_ENC_CURSOS.map(c => {
+    const alertBadge = c.warn ? `<span class="ml-1.5 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700">Alerta</span>` : "";
+    const trendColor = c.warn ? "var(--color-red-500, #ef4444)" : "var(--color-slate-400, #94a3b8)";
+    return `
+    <tr class="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+      <td class="px-3 py-2.5">
+        <div class="flex items-center gap-1.5">
+          <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-500">${escapeHtml(c.id)}</span>
+          <span class="text-xs font-medium text-slate-900 truncate max-w-[180px]">${escapeHtml(c.nombre)}</span>
+          ${alertBadge}
+        </div>
+      </td>
+      <td class="px-3 py-2.5 text-xs text-slate-600">${escapeHtml(c.instructor)}</td>
+      <td class="px-3 py-2.5 text-center font-mono text-xs font-semibold tabular-nums text-slate-700">${c.n}</td>
+      <td class="px-3 py-2.5">${encHorizBar(c.contenido, 5, c.contenido >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
+      <td class="px-3 py-2.5">${encHorizBar(c.instructorScore, 5, c.instructorScore >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
+      <td class="px-3 py-2.5">${encHorizBar(c.utilidad, 5, c.utilidad >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
+      <td class="px-3 py-2.5 text-center">${encSparkline(c.trend, trendColor)}</td>
+      <td class="px-3 py-2.5 text-center">${encScorePill(c.score)}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+  <div class="rounded-xl border border-border bg-white flex flex-col overflow-hidden">
+    <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+      <div>
+        <p class="text-sm font-semibold text-text-primary">Score por curso</p>
+        <p class="text-[11px] text-slate-500">Promedio &uacute;ltimos 90 d&iacute;as &middot; 218 encuestas activas</p>
+      </div>
+      <div class="flex items-center gap-1 rounded-lg border border-border bg-slate-50 p-1" role="tablist">
+        <button type="button" role="tab" aria-selected="true" class="rounded-md bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white">Curso</button>
+        <button type="button" role="tab" aria-selected="false" class="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 opacity-60 cursor-not-allowed" disabled>Instructor</button>
+        <button type="button" role="tab" aria-selected="false" class="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 opacity-60 cursor-not-allowed" disabled>Proveedor</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[800px] border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 bg-slate-50">
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Curso</th>
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instructor</th>
+            <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">N</th>
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Contenido</th>
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instructor</th>
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Utilidad</th>
+            <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tendencia</th>
+            <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderEncDistribucion(): string {
+  const data = [
+    { star: 5, count: 412, pct: 67, color: "bg-emerald-500" },
+    { star: 4, count: 128, pct: 21, color: "bg-blue-500" },
+    { star: 3, count: 44, pct: 7, color: "bg-amber-400" },
+    { star: 2, count: 18, pct: 3, color: "bg-blue-400" },
+    { star: 1, count: 10, pct: 2, color: "bg-red-500" },
+  ];
+  const rows = data.map(d => `
+    <div class="flex items-center gap-2.5">
+      <span class="w-3 text-right text-xs font-semibold tabular-nums text-slate-700">${d.star}</span>
+      <svg class="size-3.5 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.176 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.065 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69l1.286-3.957z"/></svg>
+      <div class="h-2.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+        <div class="h-full rounded-full ${d.color}" style="width: ${d.pct}%"></div>
+      </div>
+      <span class="w-8 text-right font-mono text-[11px] font-semibold tabular-nums text-slate-700">${d.count}</span>
+      <span class="w-8 text-right text-[11px] text-slate-500 tabular-nums">${d.pct}%</span>
+    </div>
+  `).join("");
+
+  return `
+  <div class="rounded-xl border border-border bg-white p-5 flex flex-col gap-4">
+    <div>
+      <p class="text-sm font-semibold text-text-primary">Distribuci&oacute;n de respuestas</p>
+      <p class="text-[11px] text-slate-500">Escala 1 a 5 &middot; 612 encuestas</p>
+    </div>
+    <div class="flex flex-col gap-2.5">
+      ${rows}
+    </div>
+  </div>`;
+}
+
+function renderEncComentarios(): string {
+  const sentColors: Record<string, string> = {
+    positivo: "border-l-emerald-400",
+    neutro: "border-l-amber-400",
+    mejora: "border-l-blue-400",
+  };
+  const items = FAKE_ENC_COMENTARIOS.map(c => {
+    const cursoPill = `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">${escapeHtml(c.curso)}</span>`;
+    return `
+    <div class="border-l-[3px] ${sentColors[c.sentimiento]} rounded-r-lg bg-slate-50 px-3 py-2.5">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-[11px] font-semibold text-amber-500">&starf; ${c.score}</span>
+        <span class="text-[11px] font-medium text-slate-700">${escapeHtml(c.nombre)}</span>
+        ${cursoPill}
+      </div>
+      <p class="mt-1.5 text-xs italic text-slate-600 leading-relaxed">&ldquo;${escapeHtml(c.texto)}&rdquo;</p>
+    </div>`;
+  }).join("");
+
+  return `
+  <div class="rounded-xl border border-border bg-white p-5 flex flex-col gap-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-semibold text-text-primary">Comentarios destacados</p>
+        <p class="text-[11px] text-slate-500">Filtrados por sentimiento y curso</p>
+      </div>
+      <button class="text-xs font-medium text-blue-600 hover:text-blue-800 transition opacity-60 cursor-not-allowed" disabled>Ver todos &rsaquo;</button>
+    </div>
+    <div class="flex flex-col gap-2.5">
+      ${items}
+    </div>
+  </div>`;
+}
+
+function renderEncuestasPage(): string {
+  return `
+  <div class="flex flex-col gap-5">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Encuestas &middot; &Uacute;ltimos 90 d&iacute;as</p>
+        <h1 class="mt-1 text-lg font-semibold text-text-primary">Resultados post curso</h1>
+        <p class="mt-1 text-sm text-text-muted max-w-3xl">Score consolidado por curso, instructor y proveedor; insumo para la mejora continua de la oferta formativa de la planta.</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Q2 2026</button>
+        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Reporte ejecutivo</button>
+      </div>
+    </div>
+
+    ${renderEncKpis()}
+
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr]">
+      ${renderEncTabla()}
+      <div class="flex flex-col gap-5">
+        ${renderEncDistribucion()}
+        ${renderEncComentarios()}
+      </div>
+    </div>
+  </div>`;
+}
+
 export function mountEncuestas(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Encuestas Post Curso",
     activeNav: "encuestas",
-    mainHtml: levelUpStub("Resultados post curso", "Score consolidado por curso, instructor y proveedor."),
+    mainHtml: renderEncuestasPage(),
   });
 }
