@@ -62,7 +62,7 @@ async function readErrorDetail(res: Response): Promise<string> {
   return raw || res.statusText || "Error";
 }
 
-export type IncidenciasTiposApi = {
+export type IncidenciasCatalogItemsApi = {
   items: string[];
 };
 
@@ -72,7 +72,31 @@ export async function fetchIncidenciasTiposRegistrados(): Promise<string[]> {
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail } as IncidenciasFetchError;
   }
-  const data = (await res.json()) as IncidenciasTiposApi;
+  const data = (await res.json()) as IncidenciasCatalogItemsApi;
+  return Array.isArray(data.items) ? data.items : [];
+}
+
+export async function fetchIncidenciasAreasRegistradas(): Promise<string[]> {
+  const res = await fetchWithAuth("/api/v1/incidencias/areas");
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as IncidenciasFetchError;
+  }
+  const data = (await res.json()) as IncidenciasCatalogItemsApi;
+  return Array.isArray(data.items) ? data.items : [];
+}
+
+export async function fetchIncidenciasSubareasRegistradas(area?: string): Promise<string[]> {
+  const p = new URLSearchParams();
+  const ar = area?.trim();
+  if (ar) p.set("area", ar);
+  const qs = p.toString();
+  const res = await fetchWithAuth(`/api/v1/incidencias/subareas${qs ? `?${qs}` : ""}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as IncidenciasFetchError;
+  }
+  const data = (await res.json()) as IncidenciasCatalogItemsApi;
   return Array.isArray(data.items) ? data.items : [];
 }
 

@@ -324,6 +324,27 @@ class IncidenciaService:
         tipos_filters = [*scope, filtro_tipos_visibles_en_listados()]
         return await self.repo.distinct_tipos(filters=tipos_filters)
 
+    async def list_areas_registradas(self, current_user: Empleado) -> list[str]:
+        """Áreas distintas en incidencias visibles para el rol del usuario."""
+        scope = await self._scope_filters_for_list(current_user)
+        catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
+        return await self.repo.distinct_areas(filters=catalog_filters)
+
+    async def list_subareas_registradas(
+        self,
+        current_user: Empleado,
+        *,
+        area: str | None = None,
+    ) -> list[str]:
+        """Subáreas distintas; si `area` viene definida, solo las de esa área."""
+        scope = await self._scope_filters_for_list(current_user)
+        catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
+        area_val = area.strip() if area and area.strip() else None
+        return await self.repo.distinct_subareas(
+            catalog_filters,
+            area=area_val,
+        )
+
     # ── Obtener uno ──────────────────────────────────────────────────────────
 
     async def get_incidencia(

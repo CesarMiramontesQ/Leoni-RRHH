@@ -734,6 +734,24 @@ components:
           items:
             type: string
 
+    IncidenciasAreasResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+
+    IncidenciasSubareasResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+
     IncidenciaAreaTotalItem:
       type: object
       required: [area, total]
@@ -2943,6 +2961,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/IncidenciasTiposResponse"
+
+  /api/v1/incidencias/areas:
+    get:
+      tags: [Incidencias]
+      summary: Listar áreas con incidencias registradas
+      description: >
+        Valores distintos de la columna `area` (vacíos como «(sin área)»), con el mismo alcance
+        por rol que el listado principal. Excluye tipos internos `progresivo` y `progresivo_historico`.
+      operationId: incidencias_areas_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Áreas ordenadas alfabéticamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasAreasResponse"
+
+  /api/v1/incidencias/subareas:
+    get:
+      tags: [Incidencias]
+      summary: Listar subáreas con incidencias registradas
+      description: >
+        Valores distintos de la columna `subarea` (vacíos como «(sin subárea)»), con el mismo
+        alcance por rol que el listado principal. Si se envía `area`, solo subáreas de esa área.
+      operationId: incidencias_subareas_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Valor exacto del catálogo de áreas; acota las subáreas devueltas.
+      responses:
+        "200":
+          description: Subáreas ordenadas alfabéticamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasSubareasResponse"
 
   /api/v1/incidencias/estadisticas:
     get:

@@ -1,11 +1,14 @@
 import { canAccessRhIncidenciasPage, getRolFromAccessToken } from "../auth/jwt.ts";
 import {
+  fetchIncidenciasAreasRegistradas,
   fetchIncidenciasEstadisticas,
   fetchIncidenciasListPage,
+  fetchIncidenciasSubareasRegistradas,
   fetchIncidenciasTiposRegistrados,
   incidenciaApiItemToTablaFila,
   type IncidenciasFetchError,
 } from "../api/incidencias.ts";
+import { patchRhIncidenciaSubareaSelect } from "../components/incidencias/rhIncidenciasFilters.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
@@ -13,9 +16,13 @@ import {
   mountIncidenciasDonutPorTipoChart,
   mountIncidenciasSubareasBarChart,
   mountIncidenciasTendenciaPorMesChart,
+  RH_INC_AREAS_BAR_CHART_ID,
+  RH_INC_SUBAREAS_BAR_CHART_ID,
+  RH_INC_TENDENCIA_CHART_ID,
+  RH_INC_TIPO_DOUGHNUT_CHART_ID,
 } from "../components/incidencias/rhIncidenciasCharts.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
-import { destroyChartsIn } from "../charts/index.ts";
+import { destroyChart, destroyChartsIn } from "../charts/index.ts";
 import {
   mountRhIncidenciaDetalleModal,
   type RhIncidenciaDetalleModalHandle,
@@ -26,7 +33,10 @@ import {
 } from "../components/solicitudes/solicitudesNuevaIncidenciaModal.ts";
 import { INC_COPY } from "../incidencias/rh/incidenciasCopy.ts";
 import { buildRhIncidenciaFilterOptions } from "../incidencias/rh/buildRhIncidenciaFilterOptions.ts";
-import { buildRhIncidenciasAdminViewModelFromApi } from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
+import {
+  buildRhIncidenciasAdminViewModelFromApi,
+  type RhIncidenciasFilterCatalog,
+} from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
 import {
   emptyRhIncidenciaListFilters,
   type RhIncidenciaListFilters,
@@ -58,6 +68,17 @@ function cloneFilters(f: RhIncidenciaListFilters): RhIncidenciaListFilters {
   return { ...f };
 }
 
+const FILTER_FIELDS: (keyof RhIncidenciaListFilters)[] = [
+  "tipo",
+  "no_empleado",
+  "nombre",
+  "fecha_inicio",
+  "fecha_fin",
+  "area",
+  "subarea",
+  "estatus_id",
+];
+
 /** Solo los criterios expuestos en la UI de filtros (resto en blanco para la petición). */
 function filtrosVisiblesAplicados(d: RhIncidenciaListFilters): RhIncidenciaListFilters {
   return {
@@ -73,15 +94,40 @@ function filtrosVisiblesAplicados(d: RhIncidenciaListFilters): RhIncidenciaListF
   };
 }
 
+/** Lee valores actuales del DOM (el date picker suele disparar `change`, no `input`). */
+function readFiltersFromDom(root: ParentNode, base: RhIncidenciaListFilters): RhIncidenciaListFilters {
+  const next = { ...base };
+  for (const field of FILTER_FIELDS) {
+    const el = root.querySelector<HTMLInputElement | HTMLSelectElement>(
+      `[data-rh-inc-filter-field="${field}"]`,
+    );
+    if (el) next[field] = el.value;
+  }
+  return next;
+}
+
+function fechasRangoListo(f: RhIncidenciaListFilters): boolean {
+  const fi = f.fecha_inicio.trim();
+  const ff = f.fecha_fin.trim();
+  if (!fi || !ff) return false;
+  return fi <= ff;
+}
+
 type ChartsHold =
   | { kind: "ready"; data: RhIncidenciasEstadisticasData }
   | { kind: "error"; message: string };
+
+const EMPTY_CATALOG: RhIncidenciasFilterCatalog = {
+  tiposRegistrados: [],
+  areasRegistradas: [],
+  subareasRegistradas: [],
+};
 
 function loadingViewModel(
   filterDraft: RhIncidenciaListFilters,
   appliedFilters: RhIncidenciaListFilters,
   ui: RhIncidenciasUiConfig,
-  tiposRegistrados: readonly string[],
+  catalog: RhIncidenciasFilterCatalog,
   chartsHold?: ChartsHold,
 ): RhIncidenciasAdminViewModel {
   if (!chartsHold) {
@@ -91,7 +137,9 @@ function loadingViewModel(
       estadisticasErrorMessage: undefined,
       resumenListado: null,
       filterOptions: buildRhIncidenciaFilterOptions([]),
-      tiposRegistrados,
+      tiposRegistrados: catalog.tiposRegistrados,
+      areasRegistradas: catalog.areasRegistradas,
+      subareasRegistradas: catalog.subareasRegistradas,
       filterDraft: cloneFilters(filterDraft),
       appliedFilters: cloneFilters(appliedFilters),
       ui,
@@ -107,7 +155,9 @@ function loadingViewModel(
       estadisticasErrorMessage: undefined,
       resumenListado: null,
       filterOptions: buildRhIncidenciaFilterOptions([]),
-      tiposRegistrados,
+      tiposRegistrados: catalog.tiposRegistrados,
+      areasRegistradas: catalog.areasRegistradas,
+      subareasRegistradas: catalog.subareasRegistradas,
       filterDraft: cloneFilters(filterDraft),
       appliedFilters: cloneFilters(appliedFilters),
       ui,
@@ -122,7 +172,9 @@ function loadingViewModel(
     estadisticasErrorMessage: chartsHold.message,
     resumenListado: null,
     filterOptions: buildRhIncidenciaFilterOptions([]),
-    tiposRegistrados,
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
     filterDraft: cloneFilters(filterDraft),
     appliedFilters: cloneFilters(appliedFilters),
     ui,
@@ -137,7 +189,7 @@ function errorViewModel(
   filterDraft: RhIncidenciaListFilters,
   appliedFilters: RhIncidenciaListFilters,
   ui: RhIncidenciasUiConfig,
-  tiposRegistrados: readonly string[],
+  catalog: RhIncidenciasFilterCatalog,
 ): RhIncidenciasAdminViewModel {
   return {
     estadisticas: null,
@@ -145,7 +197,9 @@ function errorViewModel(
     estadisticasErrorMessage: message,
     resumenListado: null,
     filterOptions: buildRhIncidenciaFilterOptions([]),
-    tiposRegistrados,
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
     filterDraft: cloneFilters(filterDraft),
     appliedFilters: cloneFilters(appliedFilters),
     ui,
@@ -157,17 +211,6 @@ function errorViewModel(
 
 const INCIDENCIAS_PAGE_SHELL_CLASS =
   "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
-
-const FILTER_FIELDS: (keyof RhIncidenciaListFilters)[] = [
-  "tipo",
-  "no_empleado",
-  "nombre",
-  "fecha_inicio",
-  "fecha_fin",
-  "area",
-  "subarea",
-  "estatus_id",
-];
 
 export function mountIncidencias(container: HTMLElement, signal: AbortSignal): void {
   const incidenciasMainClass = "pt-0 pb-5 sm:pb-6";
@@ -185,16 +228,25 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   const uiConfig = incidenciasUiConfig();
   let filterDraft = emptyRhIncidenciaListFilters();
   let appliedFilters = emptyRhIncidenciaListFilters();
-  let tiposRegistrados: string[] = [];
+  let filterCatalog: RhIncidenciasFilterCatalog = { ...EMPTY_CATALOG };
   let page = 1;
   let currentRows: RhIncidenciaTablaFila[] = [];
   let lastEstadisticas: RhIncidenciasEstadisticasData | null = null;
   let lastEstadisticasStatus: "ready" | "error" = "ready";
   let lastEstadisticasError: string | undefined;
+  let loadSeq = 0;
+
+  function destroyIncidenciasChartRegistry(): void {
+    destroyChart(RH_INC_TENDENCIA_CHART_ID);
+    destroyChart(RH_INC_TIPO_DOUGHNUT_CHART_ID);
+    destroyChart(RH_INC_AREAS_BAR_CHART_ID);
+    destroyChart(RH_INC_SUBAREAS_BAR_CHART_ID);
+  }
 
   function paintVm(vm: RhIncidenciasAdminViewModel): void {
     const inner = container.querySelector("#rh-incidencias-inner");
     if (!inner) return;
+    destroyIncidenciasChartRegistry();
     destroyChartsIn(inner);
     inner.innerHTML = renderRhIncidenciasAdminView(vm);
     if (vm.estadisticasStatus === "ready" && vm.estadisticas) {
@@ -213,14 +265,42 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     }
   }
 
-  async function load(refreshEstadisticas: boolean): Promise<void> {
-    if (tiposRegistrados.length === 0) {
-      try {
-        tiposRegistrados = await fetchIncidenciasTiposRegistrados();
-      } catch {
-        tiposRegistrados = [];
-      }
+  async function loadSubareasCatalog(area: string): Promise<void> {
+    try {
+      const items = await fetchIncidenciasSubareasRegistradas(area.trim() || undefined);
+      filterCatalog = { ...filterCatalog, subareasRegistradas: items };
+    } catch {
+      filterCatalog = { ...filterCatalog, subareasRegistradas: [] };
     }
+  }
+
+  async function ensureFilterCatalog(): Promise<void> {
+    const needTipos = filterCatalog.tiposRegistrados.length === 0;
+    const needAreas = filterCatalog.areasRegistradas.length === 0;
+    const needSubareas = filterCatalog.subareasRegistradas.length === 0;
+    if (!needTipos && !needAreas && !needSubareas) return;
+
+    const [tipos, areas, subareas] = await Promise.all([
+      needTipos ? fetchIncidenciasTiposRegistrados().catch(() => [] as string[]) : Promise.resolve(filterCatalog.tiposRegistrados),
+      needAreas ? fetchIncidenciasAreasRegistradas().catch(() => [] as string[]) : Promise.resolve(filterCatalog.areasRegistradas),
+      needSubareas
+        ? fetchIncidenciasSubareasRegistradas(filterDraft.area.trim() || undefined).catch(
+            () => [] as string[],
+          )
+        : Promise.resolve(filterCatalog.subareasRegistradas),
+    ]);
+    filterCatalog = {
+      tiposRegistrados: [...tipos],
+      areasRegistradas: [...areas],
+      subareasRegistradas: [...subareas],
+    };
+  }
+
+  async function load(refreshEstadisticas: boolean): Promise<void> {
+    const seq = ++loadSeq;
+    const isStale = (): boolean => seq !== loadSeq;
+
+    await ensureFilterCatalog();
     let chartsHold: ChartsHold | undefined;
     if (!refreshEstadisticas) {
       if (lastEstadisticasStatus === "ready" && lastEstadisticas !== null) {
@@ -232,9 +312,11 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         };
       }
     }
-    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, tiposRegistrados, chartsHold));
+    if (isStale()) return;
+    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, filterCatalog, chartsHold));
     try {
       const pageData = await fetchIncidenciasListPage(appliedFilters, page, 10);
+      if (isStale()) return;
       currentRows = pageData.items.map(incidenciaApiItemToTablaFila);
       if (refreshEstadisticas) {
         try {
@@ -249,6 +331,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
             fetchError?.detail || "No se pudieron cargar las estadísticas de incidencias.";
         }
       }
+      if (isStale()) return;
       paintVm(
         buildRhIncidenciasAdminViewModelFromApi(
           pageData,
@@ -258,10 +341,11 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
           filterDraft,
           appliedFilters,
           uiConfig,
-          tiposRegistrados,
+          filterCatalog,
         ),
       );
     } catch (error) {
+      if (isStale()) return;
       const fetchError = error as IncidenciasFetchError;
       if (fetchError?.status === 401) {
         clearAuth();
@@ -278,7 +362,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
           filterDraft,
           appliedFilters,
           uiConfig,
-          tiposRegistrados,
+          filterCatalog,
         ),
       );
     }
@@ -289,7 +373,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     activeNav: "incidencias",
     mainClass: incidenciasMainClass,
     mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
-      <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel(filterDraft, appliedFilters, uiConfig, []))}</div>
+      <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel(filterDraft, appliedFilters, uiConfig, EMPTY_CATALOG))}</div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>
     </div>`,
@@ -334,10 +418,15 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         filterDraft = emptyRhIncidenciaListFilters();
         appliedFilters = emptyRhIncidenciaListFilters();
         page = 1;
-        void load(true);
+        void (async () => {
+          await loadSubareasCatalog("");
+          void load(true);
+        })();
         return;
       }
       if (t.closest("[data-rh-inc-apply-filters]")) {
+        if (!pageRoot) return;
+        filterDraft = readFiltersFromDom(pageRoot, filterDraft);
         const next = filtrosVisiblesAplicados(filterDraft);
         filterDraft = cloneFilters(next);
         appliedFilters = cloneFilters(next);
@@ -366,15 +455,43 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     { signal },
   );
 
+  function syncFilterFieldFromDom(el: HTMLInputElement | HTMLSelectElement): void {
+    const name = el.getAttribute("data-rh-inc-filter-field");
+    if (!name) return;
+    if (!FILTER_FIELDS.includes(name as keyof RhIncidenciaListFilters)) return;
+    filterDraft = { ...filterDraft, [name]: el.value } as RhIncidenciaListFilters;
+  }
+
+  function maybeAutoApplyFechaRango(field: string): void {
+    if (field !== "fecha_inicio" && field !== "fecha_fin") return;
+    if (!fechasRangoListo(filterDraft)) return;
+    const next = filtrosVisiblesAplicados(filterDraft);
+    filterDraft = cloneFilters(next);
+    appliedFilters = cloneFilters(next);
+    page = 1;
+    void load(true);
+  }
+
   pageRoot?.addEventListener(
     "change",
     (e) => {
-      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-inc-filter-field]");
-      if (!sel) return;
-      const name = sel.getAttribute("data-rh-inc-filter-field");
-      if (!name) return;
-      if (!FILTER_FIELDS.includes(name as keyof RhIncidenciaListFilters)) return;
-      filterDraft = { ...filterDraft, [name]: sel.value } as RhIncidenciaListFilters;
+      const el = (e.target as HTMLElement).closest<HTMLInputElement | HTMLSelectElement>(
+        "[data-rh-inc-filter-field]",
+      );
+      if (!el) return;
+      syncFilterFieldFromDom(el);
+      const name = el.getAttribute("data-rh-inc-filter-field") ?? "";
+      if (name === "area") {
+        filterDraft = { ...filterDraft, subarea: "" };
+        void (async () => {
+          await loadSubareasCatalog(filterDraft.area);
+          if (pageRoot) {
+            patchRhIncidenciaSubareaSelect(pageRoot, filterDraft, filterCatalog.subareasRegistradas);
+          }
+        })();
+        return;
+      }
+      maybeAutoApplyFechaRango(name);
     },
     { signal },
   );
@@ -384,10 +501,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     (e) => {
       const inp = (e.target as HTMLElement).closest<HTMLInputElement>("[data-rh-inc-filter-field]");
       if (!inp) return;
-      const name = inp.getAttribute("data-rh-inc-filter-field");
-      if (!name) return;
-      if (!FILTER_FIELDS.includes(name as keyof RhIncidenciaListFilters)) return;
-      filterDraft = { ...filterDraft, [name]: inp.value } as RhIncidenciaListFilters;
+      syncFilterFieldFromDom(inp);
     },
     { signal },
   );

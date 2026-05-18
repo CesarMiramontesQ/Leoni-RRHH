@@ -60,9 +60,13 @@ def build_incidencia_query_filters(
     if estatus_id is not None:
         conds.append(Incidencia.estatus_id == estatus_id)
     if area and area.strip():
-        conds.append(Incidencia.area.ilike(f"%{area.strip()}%"))
+        sin_ar = literal("(sin área)", type_=String)
+        area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
+        conds.append(area_key == area.strip())
     if subarea and subarea.strip():
-        conds.append(Incidencia.subarea.ilike(f"%{subarea.strip()}%"))
+        sin_sub = literal("(sin subárea)", type_=String)
+        sub_key = func.coalesce(func.nullif(func.trim(Incidencia.subarea), ""), sin_sub)
+        conds.append(sub_key == subarea.strip())
     if fecha_inicio is not None:
         conds.append(
             and_(Incidencia.fecha.isnot(None), Incidencia.fecha >= fecha_inicio)
@@ -104,6 +108,35 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
                 stmt = stmt.where(condition)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def distinct_areas(self, filters: list | None = None) -> list[str]:
+        sin = literal("(sin área)", type_=String)
+        area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin)
+        stmt = select(area_key).select_from(Incidencia).distinct().order_by(area_key.asc())
+        if filters:
+            for condition in filters:
+                stmt = stmt.where(condition)
+        result = await self.db.execute(stmt)
+        return [str(r[0]) for r in result.all()]
+
+    async def distinct_subareas(
+        self,
+        filters: list | None = None,
+        *,
+        area: str | None = None,
+    ) -> list[str]:
+        sin_sub = literal("(sin subárea)", type_=String)
+        sub_key = func.coalesce(func.nullif(func.trim(Incidencia.subarea), ""), sin_sub)
+        stmt = select(sub_key).select_from(Incidencia).distinct().order_by(sub_key.asc())
+        if filters:
+            for condition in filters:
+                stmt = stmt.where(condition)
+        if area and area.strip():
+            sin_ar = literal("(sin área)", type_=String)
+            area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
+            stmt = stmt.where(area_key == area.strip())
+        result = await self.db.execute(stmt)
+        return [str(r[0]) for r in result.all()]
 
     async def list_offset(
         self,

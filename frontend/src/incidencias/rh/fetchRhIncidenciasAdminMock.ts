@@ -39,6 +39,12 @@ export async function fetchRhIncidenciasAdminDatasetMock(
   };
 }
 
+export type RhIncidenciasFilterCatalog = {
+  tiposRegistrados: readonly string[];
+  areasRegistradas: readonly string[];
+  subareasRegistradas: readonly string[];
+};
+
 export function buildRhIncidenciasAdminViewModelFromApi(
   api: IncidenciasListPageApi,
   estadisticas: RhIncidenciasEstadisticasData | null,
@@ -47,7 +53,7 @@ export function buildRhIncidenciasAdminViewModelFromApi(
   filterDraft: RhIncidenciaListFilters,
   appliedFilters: RhIncidenciaListFilters,
   ui: RhIncidenciasUiConfig,
-  tiposRegistrados: readonly string[],
+  catalog: RhIncidenciasFilterCatalog,
 ): RhIncidenciasAdminViewModel {
   const items = api.items.map(incidenciaApiItemToTablaFila);
   const table = {
@@ -63,7 +69,9 @@ export function buildRhIncidenciasAdminViewModelFromApi(
     estadisticasErrorMessage,
     resumenListado: api.resumen,
     filterOptions: buildRhIncidenciaFilterOptions([]),
-    tiposRegistrados,
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
     filterDraft,
     appliedFilters,
     ui,
@@ -91,6 +99,8 @@ export function buildRhIncidenciasAdminViewModel(
     resumenListado: null,
     filterOptions,
     tiposRegistrados: [],
+    areasRegistradas: [],
+    subareasRegistradas: [],
     filterDraft: emptyList,
     appliedFilters: emptyList,
     ui,

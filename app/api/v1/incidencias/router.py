@@ -7,8 +7,10 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.incidencias import (
+    IncidenciasAreasResponse,
     IncidenciasEstadisticasResponse,
     IncidenciasListPageResponse,
+    IncidenciasSubareasResponse,
     IncidenciasTiposResponse,
 )
 from app.services.incidencia_service import IncidenciaService
@@ -78,6 +80,31 @@ async def list_incidencias_tipos(
     """Valores distintos de `tipo` registrados en el alcance del usuario."""
     items = await svc.list_tipos_registrados(current_user)
     return IncidenciasTiposResponse(items=items)
+
+
+@router.get("/areas", response_model=IncidenciasAreasResponse)
+async def list_incidencias_areas(
+    current_user: Empleado = Depends(
+        role_checker(["rh", "gerente", "supervisor", "director"])
+    ),
+    svc: IncidenciaService = Depends(_svc),
+):
+    """Áreas distintas con incidencias en el alcance del usuario."""
+    items = await svc.list_areas_registradas(current_user)
+    return IncidenciasAreasResponse(items=items)
+
+
+@router.get("/subareas", response_model=IncidenciasSubareasResponse)
+async def list_incidencias_subareas(
+    current_user: Empleado = Depends(
+        role_checker(["rh", "gerente", "supervisor", "director"])
+    ),
+    svc: IncidenciaService = Depends(_svc),
+    area: str | None = Query(None, description="Filtra subáreas de esta área (valor exacto del catálogo)"),
+):
+    """Subáreas distintas con incidencias; opcionalmente acotadas a un área."""
+    items = await svc.list_subareas_registradas(current_user, area=area)
+    return IncidenciasSubareasResponse(items=items)
 
 
 @router.get("/estadisticas", response_model=IncidenciasEstadisticasResponse)

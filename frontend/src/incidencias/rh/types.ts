@@ -192,6 +192,10 @@ export type RhIncidenciasAdminViewModel = {
   filterOptions: RhIncidenciaFilterOptions;
   /** Valores de `tipo` distintos desde API (alcance por rol). */
   tiposRegistrados: readonly string[];
+  /** Áreas con incidencias visibles (catálogo para filtro select). */
+  areasRegistradas: readonly string[];
+  /** Subáreas con incidencias visibles (catálogo para filtro select). */
+  subareasRegistradas: readonly string[];
   /** Borrador de filtros (inputs). */
   filterDraft: RhIncidenciaListFilters;
   /** Filtros enviados al backend en la última carga. */

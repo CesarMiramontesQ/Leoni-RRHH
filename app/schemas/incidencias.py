@@ -94,6 +94,18 @@ class IncidenciasTiposResponse(BaseModel):
     items: list[str]
 
 
+class IncidenciasAreasResponse(BaseModel):
+    """Áreas distintas con al menos una incidencia visible para el usuario (ordenadas)."""
+
+    items: list[str]
+
+
+class IncidenciasSubareasResponse(BaseModel):
+    """Subáreas distintas con al menos una incidencia visible (opcionalmente filtradas por área)."""
+
+    items: list[str]
+
+
 class IncidenciaAreaTotalItem(BaseModel):
     area: str
     total: int

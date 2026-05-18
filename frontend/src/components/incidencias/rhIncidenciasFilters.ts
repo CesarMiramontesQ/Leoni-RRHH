@@ -67,6 +67,42 @@ function textField(
 </div>`;
 }
 
+function catalogSelectField(opts: {
+  id: string;
+  label: string;
+  field: "area" | "subarea";
+  f: RhIncidenciaListFilters;
+  items: readonly string[];
+  emptyLabel: string;
+}): string {
+  const selected = opts.f[opts.field].trim();
+  const seen = new Set(opts.items);
+  const merged =
+    selected && !seen.has(selected) ? [selected, ...opts.items] : [...opts.items];
+  const optionHtml =
+    `<option value="" ${selected === "" ? "selected" : ""}>${escapeIncHtml(opts.emptyLabel)}</option>` +
+    merged
+      .map(
+        (v) =>
+          `<option value="${escapeIncHtml(v)}" ${selected === v ? "selected" : ""}>${escapeIncHtml(v)}</option>`,
+      )
+      .join("");
+  return `<div class="min-w-0">
+  <label for="${opts.id}" class="${RH_LISTADO_LABEL}">${escapeIncHtml(opts.label)}</label>
+  <div class="grid grid-cols-1">
+    <select
+      id="${opts.id}"
+      name="${opts.field}"
+      data-rh-inc-filter-field="${opts.field}"
+      class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}"
+    >
+      ${optionHtml}
+    </select>
+    ${SELECT_CHEVRON}
+  </div>
+</div>`;
+}
+
 function tipoSelectField(f: RhIncidenciaListFilters, tiposApi: readonly string[]): string {
   const selected = f.tipo.trim();
   const seen = new Set(tiposApi);
@@ -125,8 +161,22 @@ function renderFilters(vm: RhIncidenciasAdminViewModel, opts?: { resultCount?: n
       <div class="${wrapCls}">${textField("rh-inc-f-noemp", INC_COPY.filtroNoEmpleado, "no_empleado", f, "text")}</div>
       <div class="${wrapCls}">${textField("rh-inc-f-fi", INC_COPY.filtroFechaDesde, "fecha_inicio", f, "date")}</div>
       <div class="${wrapCls}">${textField("rh-inc-f-ff", INC_COPY.filtroFechaHasta, "fecha_fin", f, "date")}</div>
-      <div class="${wrapCls}">${textField("rh-inc-f-area", INC_COPY.filtroAreaContiene, "area", f, "search")}</div>
-      <div class="${wrapCls}">${textField("rh-inc-f-sub", INC_COPY.filtroSubareaContiene, "subarea", f, "search")}</div>
+      <div class="${wrapCls}">${catalogSelectField({
+        id: "rh-inc-f-area",
+        label: INC_COPY.filtroArea,
+        field: "area",
+        f,
+        items: vm.areasRegistradas,
+        emptyLabel: INC_COPY.optTodasAreas,
+      })}</div>
+      <div class="${wrapCls}">${catalogSelectField({
+        id: "rh-inc-f-sub",
+        label: INC_COPY.filtroSubarea,
+        field: "subarea",
+        f,
+        items: vm.subareasRegistradas,
+        emptyLabel: INC_COPY.optTodasSubareas,
+      })}</div>
     </div>`;
 
   const inner = `
@@ -208,4 +258,28 @@ export function renderRhIncidenciasFiltersSection(vm: RhIncidenciasAdminViewMode
   const resultCount =
     vm.table && vm.tableStatus !== "loading" ? vm.table.total : null;
   return renderFilters(vm, { resultCount });
+}
+
+/** Actualiza solo las opciones del select de subárea (sin re-render completo). */
+export function patchRhIncidenciaSubareaSelect(
+  root: ParentNode,
+  f: RhIncidenciaListFilters,
+  subareas: readonly string[],
+): void {
+  const sel = root.querySelector<HTMLSelectElement>('[data-rh-inc-filter-field="subarea"]');
+  if (!sel) return;
+  const selected = f.subarea.trim();
+  const seen = new Set(subareas);
+  const merged =
+    selected && !seen.has(selected) ? [selected, ...subareas] : [...subareas];
+  const html =
+    `<option value="">${escapeIncHtml(INC_COPY.optTodasSubareas)}</option>` +
+    merged
+      .map(
+        (v) =>
+          `<option value="${escapeIncHtml(v)}">${escapeIncHtml(v)}</option>`,
+      )
+      .join("");
+  sel.innerHTML = html;
+  sel.value = merged.includes(selected) ? selected : "";
 }
