@@ -1,6 +1,10 @@
 import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
-import { renderIncidenciasDonutPorTipo, renderIncidenciasTendenciaPorMes } from "./rhIncidenciasCharts.ts";
+import {
+  renderIncidenciasAreasBarChart,
+  renderIncidenciasDonutPorTipo,
+  renderIncidenciasTendenciaPorMes,
+} from "./rhIncidenciasCharts.ts";
 import { RH_LISTADO_SURFACE } from "./rhIncidenciasPageStyles.ts";
 import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
 
@@ -95,35 +99,6 @@ function rankingExtraDetails(slug: string, rowsHtmlTop: string, rowsHtmlRest: st
     </details>`;
 }
 
-function areaBarsBlock(
-  rows: readonly { area: string; total: number }[],
-  totalGeneral: number,
-): { top: string; rest: string } {
-  const topRows = rows.slice(0, TOP);
-  const max = Math.max(1, ...topRows.map((r) => r.total));
-  const rowHtml = (r: { area: string; total: number }, idx: number) => {
-    const barPct = Math.min(100, Math.max(6, Math.round((r.total / max) * 100)));
-    const delTotal = pctDelTotal(r.total, totalGeneral);
-    const isLead = idx === 0;
-    const leadCls = isLead ? "rounded-md bg-slate-50 px-2 -mx-0.5" : "";
-    return `
-      <div class="flex flex-col gap-1 border-b border-[color:var(--color-border)] py-2.5 first:pt-0 last:border-b-0 last:pb-0 ${leadCls}">
-        <div class="flex items-start justify-between gap-2 text-xs">
-          <span class="min-w-0 flex-1 font-medium leading-snug text-[color:var(--color-text-primary)]" title="${escapeIncHtml(r.area)}">${escapeIncHtml(r.area)}</span>
-          <span class="shrink-0 text-right">
-            <span class="text-sm font-bold tabular-nums text-[color:var(--color-text-primary)]">${escapeIncHtml(String(r.total))}</span>
-            <span class="ml-1.5 text-[10px] font-medium tabular-nums text-[color:var(--color-text-muted)]">${escapeIncHtml(delTotal)}%</span>
-          </span>
-        </div>
-        <div class="h-2 max-w-[min(100%,12rem)] overflow-hidden rounded-full bg-slate-100">
-          <div class="h-full max-w-full rounded-full bg-[color:var(--color-text-primary)] opacity-80" style="width:${barPct}%"></div>
-        </div>
-      </div>`;
-  };
-  const top = topRows.map((r, i) => rowHtml(r, i)).join("");
-  const rest = rows.slice(TOP).map((r, i) => rowHtml(r, i + TOP)).join("");
-  return { top, rest };
-}
 
 function subareaBarsBlock(
   rows: readonly { subarea: string; total: number; area?: string | null }[],
@@ -281,13 +256,9 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
       </div>
     </section>`;
 
-  const areasSplit = areaBarsBlock(d.areas_con_mas_incidencias, total);
   const subSplit = subareaBarsBlock(d.subareas_con_mas_incidencias, total);
 
-  const areasBody =
-    d.areas_con_mas_incidencias.length === 0
-      ? `<p class="py-6 text-center text-xs text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</p>`
-      : rankingExtraDetails("areas", areasSplit.top, areasSplit.rest);
+  const areasBody = renderIncidenciasAreasBarChart(d.areas_con_mas_incidencias);
 
   const subBody =
     d.subareas_con_mas_incidencias.length === 0
@@ -296,7 +267,7 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
 
   const rankings = `
     <section class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="${escapeIncHtml(INC_COPY.analiticaRankingsAria)}">
-      ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody)}
+      ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody, true)}
       ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subBody)}
     </section>`;
 

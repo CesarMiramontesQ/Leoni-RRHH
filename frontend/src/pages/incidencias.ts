@@ -9,6 +9,7 @@ import {
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
+  mountIncidenciasAreasBarChart,
   mountIncidenciasDonutPorTipoChart,
   mountIncidenciasTendenciaPorMesChart,
 } from "../components/incidencias/rhIncidenciasCharts.ts";
@@ -198,6 +199,11 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     if (vm.estadisticasStatus === "ready" && vm.estadisticas) {
       mountIncidenciasTendenciaPorMesChart(inner, vm.estadisticas.incidencias_por_mes ?? []);
       mountIncidenciasDonutPorTipoChart(inner, vm.estadisticas.incidencias_por_tipo ?? []);
+      mountIncidenciasAreasBarChart(
+        inner,
+        vm.estadisticas.areas_con_mas_incidencias ?? [],
+        vm.estadisticas.total_incidencias ?? 0,
+      );
     }
   }
 
