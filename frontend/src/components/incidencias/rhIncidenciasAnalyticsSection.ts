@@ -70,13 +70,13 @@ function kpiSkeleton(): string {
 
 function chartPairSkeleton(): string {
   return `<div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch" aria-hidden="true">
-      <div class="${CARD} min-h-[280px] animate-pulse space-y-3 lg:col-span-7">
+      <div class="${CARD} h-full min-h-[360px] w-full animate-pulse space-y-3 lg:col-span-7">
       <div class="h-4 w-48 rounded bg-slate-200"></div>
-      <div class="h-44 w-full rounded-md bg-slate-100"></div>
+      <div class="min-h-[280px] w-full rounded-md bg-slate-100"></div>
     </div>
-    <div class="${CARD} min-h-[260px] animate-pulse space-y-3 lg:col-span-5">
+    <div class="${CARD} h-full min-h-[360px] w-full animate-pulse space-y-3 lg:col-span-5">
       <div class="h-4 w-40 rounded bg-slate-200"></div>
-      <div class="mx-auto h-40 w-40 rounded-full bg-slate-100"></div>
+      <div class="min-h-[280px] w-full rounded-md bg-slate-100"></div>
     </div>
   </div>`;
 }
@@ -163,19 +163,27 @@ function subareaBarsBlock(
   return { top, rest };
 }
 
-function cardShell(slug: string, title: string, subtitle: string | undefined, body: string): string {
+function cardShell(
+  slug: string,
+  title: string,
+  subtitle: string | undefined,
+  body: string,
+  stretch = false,
+): string {
   const hid = `rh-inc-anl-${slug}-h`;
   const sub =
     subtitle && subtitle.length > 0
       ? `<p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">${escapeIncHtml(subtitle)}</p>`
       : "";
+  const cardCls = stretch ? `${CARD} h-full w-full min-w-0` : CARD;
+  const bodyCls = stretch ? "min-h-0 flex flex-1 flex-col" : "min-h-0 flex-1 text-left";
   return `
-    <article class="${CARD}" aria-labelledby="${hid}">
+    <article class="${cardCls}" aria-labelledby="${hid}">
       <header class="mb-4 shrink-0 text-center">
         <h3 id="${hid}" class="text-base font-bold tracking-tight text-[color:var(--color-text-primary)]">${escapeIncHtml(title)}</h3>
         ${sub}
       </header>
-      <div class="min-h-0 flex-1 text-left">${body}</div>
+      <div class="${bodyCls}">${body}</div>
     </article>`;
 }
 
@@ -265,11 +273,11 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
 
   const bloquePrincipal = `
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch" aria-label="${escapeIncHtml(INC_COPY.analiticaBloquePrincipalAria)}">
-      <div class="lg:col-span-7">
-        ${cardShell("tendencia", INC_COPY.analiticaTendenciaTitulo, INC_COPY.analiticaTendenciaSub, tendencia)}
+      <div class="h-full w-full min-w-0 lg:col-span-7">
+        ${cardShell("tendencia", INC_COPY.analiticaTendenciaTitulo, INC_COPY.analiticaTendenciaSub, tendencia, true)}
       </div>
-      <div class="lg:col-span-5">
-        ${cardShell("tipo", INC_COPY.analiticaTipoTitulo, INC_COPY.analiticaTipoSub, donut)}
+      <div class="h-full w-full min-w-0 lg:col-span-5">
+        ${cardShell("tipo", INC_COPY.analiticaTipoTitulo, INC_COPY.analiticaTipoSub, donut, true)}
       </div>
     </section>`;
 
