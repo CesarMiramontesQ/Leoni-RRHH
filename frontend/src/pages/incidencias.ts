@@ -8,7 +8,9 @@ import {
 } from "../api/incidencias.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
+import { mountIncidenciasTendenciaPorMesChart } from "../components/incidencias/rhIncidenciasCharts.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
+import { destroyChartsIn } from "../charts/index.ts";
 import {
   mountRhIncidenciaDetalleModal,
   type RhIncidenciaDetalleModalHandle,
@@ -187,7 +189,12 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
 
   function paintVm(vm: RhIncidenciasAdminViewModel): void {
     const inner = container.querySelector("#rh-incidencias-inner");
-    if (inner) inner.innerHTML = renderRhIncidenciasAdminView(vm);
+    if (!inner) return;
+    destroyChartsIn(inner);
+    inner.innerHTML = renderRhIncidenciasAdminView(vm);
+    if (vm.estadisticasStatus === "ready" && vm.estadisticas) {
+      mountIncidenciasTendenciaPorMesChart(inner, vm.estadisticas.incidencias_por_mes ?? []);
+    }
   }
 
   async function load(refreshEstadisticas: boolean): Promise<void> {

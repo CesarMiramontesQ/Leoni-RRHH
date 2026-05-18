@@ -1,9 +1,15 @@
 /**
- * Gráficas ligeras en SVG para incidencias (sin dependencias externas).
+ * Gráficas de incidencias: dona en SVG; tendencia mensual con Chart.js.
  */
 
+import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
 import { labelTipoIncidenciaUi } from "../../incidencias/rh/tipoIncidenciaDisplay.ts";
 import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
+
+export const RH_INC_TENDENCIA_CHART_ID = "rh-inc-tendencia-mes";
+
+const TENDENCIA_RED_ALPHA = 0.2;
+const TENDENCIA_LINE_TENSION_SMOOTH = 0.4;
 
 export type DonutTipoRow = { tipo: string; total: number; porcentaje: number };
 
@@ -57,6 +63,15 @@ function etiquetaMesCorto(periodo: string): string {
   return `${pref} ${y.slice(2)}`;
 }
 
+function colorConAlpha(hex: string, alpha: number): string {
+  const raw = hex.replace("#", "").trim();
+  if (raw.length !== 6) return `rgba(239, 68, 68, ${alpha})`;
+  const r = Number.parseInt(raw.slice(0, 2), 16);
+  const g = Number.parseInt(raw.slice(2, 4), 16);
+  const b = Number.parseInt(raw.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 /** Dona: distribución por tipo; segmentos con color por categoría y tooltips nativos. */
 export function renderIncidenciasDonutPorTipo(rows: readonly DonutTipoRow[]): string {
   const total = rows.reduce((s, r) => s + r.total, 0);
@@ -107,49 +122,61 @@ export function renderIncidenciasDonutPorTipo(rows: readonly DonutTipoRow[]): st
     </div>`;
 }
 
-/** Columnas mensuales con tooltips; prioridad visual alta (área amplia). */
-export function renderIncidenciasColumnasPorMes(rows: readonly SerieMesRow[]): string {
+/** Contenedor canvas para tendencia mensual (Chart.js se monta tras pintar el DOM). */
+export function renderIncidenciasTendenciaPorMes(rows: readonly SerieMesRow[]): string {
   if (rows.length === 0) {
     return `<div class="flex min-h-[180px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">Sin datos de tendencia en el periodo</div>`;
   }
-  const vbW = 560;
-  const vbH = 220;
-  const padL = 40;
-  const padR = 16;
-  const padB = 44;
-  const padT = 20;
-  const innerW = vbW - padL - padR;
-  const innerH = vbH - padT - padB;
-  const max = Math.max(1, ...rows.map((r) => r.total));
-  const n = rows.length;
-  const gap = 6;
-  const barW = Math.max(8, (innerW - gap * (n - 1)) / n);
-  const cols: string[] = [];
-  rows.forEach((r, i) => {
-    const x = padL + i * (barW + gap);
-    const h = (r.total / max) * innerH;
-    const y = padT + innerH - h;
-    const tip = `${r.periodo}: ${r.total} incidencias`;
-    cols.push(
-      `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 2)}" rx="3" fill="var(--color-leoni-blue)" opacity="0.78"><title>${escapeIncHtml(tip)}</title></rect>`,
-    );
-    const lx = x + barW / 2;
-    const lab = etiquetaMesCorto(r.periodo);
-    cols.push(
-      `<text x="${lx}" y="${vbH - 12}" text-anchor="middle" class="fill-[color:var(--color-text-muted)] text-[9px] font-medium">${escapeIncHtml(lab)}</text>`,
-    );
+  return renderChartCanvas({
+    chartId: RH_INC_TENDENCIA_CHART_ID,
+    ariaLabel: "Tendencia de incidencias por mes",
+    heightClass: "h-[220px]",
+    className: "w-full min-w-0 overflow-x-auto",
   });
-  const gridY = [0, 0.25, 0.5, 0.75, 1].map((t) => {
-    const y = padT + innerH * (1 - t);
-    const val = Math.round(max * t);
-    return `<line x1="${padL}" y1="${y}" x2="${vbW - padR}" y2="${y}" stroke="var(--color-border)" stroke-opacity="0.45" stroke-width="1" />
-      <text x="${padL - 8}" y="${y + 4}" text-anchor="end" class="fill-[color:var(--color-text-muted)] text-[10px] font-medium tabular-nums">${val}</text>`;
+}
+
+/** Monta la gráfica de líneas con datos reales de `incidencias_por_mes`. */
+export function mountIncidenciasTendenciaPorMesChart(root: ParentNode, rows: readonly SerieMesRow[]): void {
+  if (rows.length === 0) return;
+
+  const labels = rows.map((r) => etiquetaMesCorto(r.periodo));
+  const values = rows.map((r) => r.total);
+
+  mountChart(root, RH_INC_TENDENCIA_CHART_ID, ({ colors }) => {
+    const borderColor = colors.danger;
+    const backgroundColor = colorConAlpha(borderColor, TENDENCIA_RED_ALPHA);
+    return {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values,
+            fill: "start",
+            borderColor,
+            backgroundColor,
+          },
+        ],
+      },
+      options: {
+        plugins: {
+          filler: {
+            propagate: false,
+          },
+          legend: {
+            display: false,
+          },
+        },
+        interaction: {
+          intersect: false,
+        },
+        elements: {
+          line: {
+            tension: TENDENCIA_LINE_TENSION_SMOOTH,
+          },
+        },
+        ...chartCartesianScales(colors),
+      },
+    };
   });
-  return `
-    <div class="w-full overflow-x-auto">
-      <svg viewBox="0 0 ${vbW} ${vbH}" class="h-[220px] min-w-[320px] w-full max-w-full" role="img" aria-label="Tendencia de incidencias por mes">
-        ${gridY.join("")}
-        ${cols.join("")}
-      </svg>
-    </div>`;
 }

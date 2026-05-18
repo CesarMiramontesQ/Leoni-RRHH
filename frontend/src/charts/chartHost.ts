@@ -75,6 +75,11 @@ export function renderChartCanvas(opts: {
     </div>`;
 }
 
+/** Instancia activa por id (p. ej. para acciones como suavizar línea). */
+export function getChart(chartId: string): Chart | undefined {
+  return registry.get(chartId);
+}
+
 /** Destruye una instancia registrada por id. */
 export function destroyChart(chartId: string): void {
   const existing = registry.get(chartId);

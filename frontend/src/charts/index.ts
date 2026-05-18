@@ -15,6 +15,7 @@ export {
   destroyAllCharts,
   destroyChart,
   destroyChartsIn,
+  getChart,
   mountChart,
   renderChartCanvas,
   type ChartConfigFactory,

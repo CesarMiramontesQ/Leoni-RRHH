@@ -1,6 +1,6 @@
 import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
-import { renderIncidenciasColumnasPorMes, renderIncidenciasDonutPorTipo } from "./rhIncidenciasCharts.ts";
+import { renderIncidenciasDonutPorTipo, renderIncidenciasTendenciaPorMes } from "./rhIncidenciasCharts.ts";
 import { RH_LISTADO_SURFACE } from "./rhIncidenciasPageStyles.ts";
 import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
 
@@ -260,7 +260,7 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
     </section>`;
 
   const serie = d.incidencias_por_mes ?? [];
-  const tendencia = renderIncidenciasColumnasPorMes(serie);
+  const tendencia = renderIncidenciasTendenciaPorMes(serie);
   const donut = renderIncidenciasDonutPorTipo(d.incidencias_por_tipo);
 
   const bloquePrincipal = `
