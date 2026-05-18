@@ -1,5 +1,5 @@
 /**
- * Gráficas de incidencias RH con Chart.js (tendencia line, distribución doughnut, áreas bar).
+ * Gráficas de incidencias RH con Chart.js (tendencia line, doughnut, rankings bar).
  */
 
 import type { Plugin } from "chart.js";
@@ -10,15 +10,16 @@ import { labelTipoIncidenciaUi } from "../../incidencias/rh/tipoIncidenciaDispla
 export const RH_INC_TENDENCIA_CHART_ID = "rh-inc-tendencia-mes";
 export const RH_INC_TIPO_DOUGHNUT_CHART_ID = "rh-inc-tipo-doughnut";
 export const RH_INC_AREAS_BAR_CHART_ID = "rh-inc-areas-bar";
+export const RH_INC_SUBAREAS_BAR_CHART_ID = "rh-inc-subareas-bar";
 
 /** Altura compartida del área de gráfica (tendencia + distribución por tipo). */
 export const RH_INC_ANALYTICS_CHART_HEIGHT_CLASS = "h-[280px]";
 
-/** Altura del ranking por área (barras verticales). */
-export const RH_INC_AREAS_BAR_CHART_HEIGHT_CLASS = "h-[260px]";
+/** Altura de rankings por área/subárea (barras verticales). */
+export const RH_INC_RANKING_BAR_CHART_HEIGHT_CLASS = "h-[260px]";
 
-const AREAS_BAR_TOP = 5;
-const AREAS_BAR_FILL_ALPHA = 0.5;
+const RANKING_BAR_TOP = 5;
+const RANKING_BAR_FILL_ALPHA = 0.5;
 
 const TENDENCIA_RED_ALPHA = 0.2;
 const TENDENCIA_LINE_TENSION_SMOOTH = 0.4;
@@ -28,6 +29,8 @@ export type DonutTipoRow = { tipo: string; total: number; porcentaje: number };
 export type SerieMesRow = { periodo: string; total: number };
 
 export type AreaRankingRow = { area: string; total: number };
+
+export type SubareaRankingRow = { subarea: string; total: number; area?: string | null };
 
 /** Color por tipo (valores resueltos para canvas Chart.js). */
 function fillColorForTipo(tipoRaw: string): string {
@@ -177,7 +180,7 @@ export function renderIncidenciasAreasBarChart(rows: readonly AreaRankingRow[]):
       ${renderChartCanvas({
         chartId: RH_INC_AREAS_BAR_CHART_ID,
         ariaLabel: "Áreas con más incidencias",
-        heightClass: RH_INC_AREAS_BAR_CHART_HEIGHT_CLASS,
+        heightClass: RH_INC_RANKING_BAR_CHART_HEIGHT_CLASS,
         className: "relative w-full min-w-0",
       })}
     </div>`;
@@ -189,7 +192,7 @@ export function mountIncidenciasAreasBarChart(
   rows: readonly AreaRankingRow[],
   totalGeneral: number,
 ): void {
-  const topRows = rows.slice(0, AREAS_BAR_TOP);
+  const topRows = rows.slice(0, RANKING_BAR_TOP);
   if (topRows.length === 0) return;
 
   const labels = topRows.map((r) => r.area);
@@ -197,7 +200,7 @@ export function mountIncidenciasAreasBarChart(
 
   mountChart(root, RH_INC_AREAS_BAR_CHART_ID, ({ colors }) => {
     const borderColor = colors.accent;
-    const backgroundColor = colorConAlpha(borderColor, AREAS_BAR_FILL_ALPHA);
+    const backgroundColor = colorConAlpha(borderColor, RANKING_BAR_FILL_ALPHA);
     return {
       type: "bar",
       data: {
@@ -225,6 +228,88 @@ export function mountIncidenciasAreasBarChart(
               title: (items) => {
                 const row = topRows[items[0]?.dataIndex ?? -1];
                 return row?.area ?? "";
+              },
+              label: (ctx) => {
+                const row = topRows[ctx.dataIndex];
+                if (!row) return "";
+                const pct =
+                  totalGeneral > 0
+                    ? (Math.round((1000 * row.total) / totalGeneral) / 10).toFixed(1)
+                    : "0";
+                return ` ${row.total} (${pct}% del total)`;
+              },
+            },
+          },
+        },
+        ...chartCartesianScales(colors),
+      },
+    };
+  });
+}
+
+/** Contenedor canvas para ranking por subárea (Chart.js bar vertical). */
+export function renderIncidenciasSubareasBarChart(rows: readonly SubareaRankingRow[]): string {
+  if (rows.length === 0) {
+    return `<div class="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">Sin datos por subárea</div>`;
+  }
+  return `
+    <div class="rh-inc-chart-panel flex w-full min-w-0 flex-1 flex-col justify-center">
+      ${renderChartCanvas({
+        chartId: RH_INC_SUBAREAS_BAR_CHART_ID,
+        ariaLabel: "Subáreas con más incidencias",
+        heightClass: RH_INC_RANKING_BAR_CHART_HEIGHT_CLASS,
+        className: "relative w-full min-w-0",
+      })}
+    </div>`;
+}
+
+/** Monta barras verticales con `subareas_con_mas_incidencias` (top 5). @see https://www.chartjs.org/docs/latest/samples/bar/vertical.html */
+export function mountIncidenciasSubareasBarChart(
+  root: ParentNode,
+  rows: readonly SubareaRankingRow[],
+  totalGeneral: number,
+): void {
+  const topRows = rows.slice(0, RANKING_BAR_TOP);
+  if (topRows.length === 0) return;
+
+  const labels = topRows.map((r) => r.subarea);
+  const values = topRows.map((r) => r.total);
+
+  mountChart(root, RH_INC_SUBAREAS_BAR_CHART_ID, ({ colors }) => {
+    const borderColor = cssVar("--color-leoni-blue-light", "#0D3D66");
+    const backgroundColor = colorConAlpha(borderColor, RANKING_BAR_FILL_ALPHA);
+    return {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Incidencias",
+            data: values,
+            borderColor,
+            backgroundColor,
+            borderWidth: 1,
+            borderRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const row = topRows[items[0]?.dataIndex ?? -1];
+                return row?.subarea ?? "";
+              },
+              afterTitle: (items) => {
+                const row = topRows[items[0]?.dataIndex ?? -1];
+                const ar = row?.area?.trim();
+                return ar && ar.length > 0 ? ar : "";
               },
               label: (ctx) => {
                 const row = topRows[ctx.dataIndex];

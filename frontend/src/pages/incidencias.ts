@@ -11,6 +11,7 @@ import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
   mountIncidenciasAreasBarChart,
   mountIncidenciasDonutPorTipoChart,
+  mountIncidenciasSubareasBarChart,
   mountIncidenciasTendenciaPorMesChart,
 } from "../components/incidencias/rhIncidenciasCharts.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
@@ -202,6 +203,11 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       mountIncidenciasAreasBarChart(
         inner,
         vm.estadisticas.areas_con_mas_incidencias ?? [],
+        vm.estadisticas.total_incidencias ?? 0,
+      );
+      mountIncidenciasSubareasBarChart(
+        inner,
+        vm.estadisticas.subareas_con_mas_incidencias ?? [],
         vm.estadisticas.total_incidencias ?? 0,
       );
     }

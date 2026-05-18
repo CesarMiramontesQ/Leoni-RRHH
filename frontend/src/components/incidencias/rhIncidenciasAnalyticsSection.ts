@@ -3,12 +3,11 @@ import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts"
 import {
   renderIncidenciasAreasBarChart,
   renderIncidenciasDonutPorTipo,
+  renderIncidenciasSubareasBarChart,
   renderIncidenciasTendenciaPorMes,
 } from "./rhIncidenciasCharts.ts";
 import { RH_LISTADO_SURFACE } from "./rhIncidenciasPageStyles.ts";
 import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
-
-const TOP = 5;
 
 const CARD =
   `${RH_LISTADO_SURFACE} rh-inc-analytics-card flex min-h-0 flex-col rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm sm:p-4`;
@@ -24,11 +23,6 @@ const ICO_SHIELD = `<span class="${KPI_ICON_WRAP}" aria-hidden="true"><svg viewB
 const ICO_CHECK = `<span class="${KPI_ICON_WRAP}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></span>`;
 
 const ICO_MAP = `<span class="${KPI_ICON_WRAP}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg></span>`;
-
-function pctDelTotal(parte: number, total: number): string {
-  if (total <= 0) return "0";
-  return (Math.round((1000 * parte) / total) / 10).toFixed(1);
-}
 
 function kpiCard(opts: {
   iconHtml: string;
@@ -85,58 +79,6 @@ function chartPairSkeleton(): string {
   </div>`;
 }
 
-function rankingExtraDetails(slug: string, rowsHtmlTop: string, rowsHtmlRest: string): string {
-  if (!rowsHtmlRest.trim()) return rowsHtmlTop;
-  return `
-    ${rowsHtmlTop}
-    <details class="mt-2 border-t border-[color:var(--color-border)] pt-2">
-      <summary class="cursor-pointer list-none text-xs font-semibold text-[color:var(--color-text-secondary)] underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
-        ${escapeIncHtml(INC_COPY.verRankingCompleto)}
-      </summary>
-      <div class="mt-2 space-y-0" data-rh-inc-ranking-rest="${slug}">
-        ${rowsHtmlRest}
-      </div>
-    </details>`;
-}
-
-
-function subareaBarsBlock(
-  rows: readonly { subarea: string; total: number; area?: string | null }[],
-  totalGeneral: number,
-): { top: string; rest: string } {
-  const topRows = rows.slice(0, TOP);
-  const max = Math.max(1, ...topRows.map((r) => r.total));
-  const rowHtml = (r: (typeof rows)[number], idx: number) => {
-    const barPct = Math.min(100, Math.max(6, Math.round((r.total / max) * 100)));
-    const delTotal = pctDelTotal(r.total, totalGeneral);
-    const ar = r.area?.trim();
-    const meta =
-      ar && ar.length > 0
-        ? `<span class="block text-[10px] font-medium text-[color:var(--color-text-muted)]">${escapeIncHtml(ar)}</span>`
-        : "";
-    const isLead = idx === 0;
-    const leadCls = isLead ? "rounded-md bg-slate-50 px-2 -mx-0.5" : "";
-    return `
-      <div class="flex flex-col gap-1 border-b border-[color:var(--color-border)] py-2 first:pt-0 last:border-b-0 last:pb-0 ${leadCls}">
-        <div class="flex items-start justify-between gap-2 text-xs">
-          <span class="min-w-0 flex-1 font-medium leading-snug text-[color:var(--color-text-primary)]" title="${escapeIncHtml(r.subarea)}">
-            ${escapeIncHtml(r.subarea)}
-            ${meta}
-          </span>
-          <span class="shrink-0 text-right">
-            <span class="text-sm font-bold tabular-nums text-[color:var(--color-text-primary)]">${escapeIncHtml(String(r.total))}</span>
-            <span class="ml-1.5 text-[10px] font-medium tabular-nums text-[color:var(--color-text-muted)]">${escapeIncHtml(delTotal)}%</span>
-          </span>
-        </div>
-        <div class="h-2 max-w-[min(100%,12rem)] overflow-hidden rounded-full bg-slate-100">
-          <div class="h-full rounded-full bg-[color:var(--color-leoni-blue-light)] opacity-90" style="width:${barPct}%"></div>
-        </div>
-      </div>`;
-  };
-  const top = topRows.map((r, i) => rowHtml(r, i)).join("");
-  const rest = rows.slice(TOP).map((r, i) => rowHtml(r, i + TOP)).join("");
-  return { top, rest };
-}
 
 function cardShell(
   slug: string,
@@ -256,19 +198,13 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
       </div>
     </section>`;
 
-  const subSplit = subareaBarsBlock(d.subareas_con_mas_incidencias, total);
-
   const areasBody = renderIncidenciasAreasBarChart(d.areas_con_mas_incidencias);
-
-  const subBody =
-    d.subareas_con_mas_incidencias.length === 0
-      ? `<p class="py-6 text-center text-xs text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</p>`
-      : rankingExtraDetails("subareas", subSplit.top, subSplit.rest);
+  const subareasBody = renderIncidenciasSubareasBarChart(d.subareas_con_mas_incidencias);
 
   const rankings = `
     <section class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="${escapeIncHtml(INC_COPY.analiticaRankingsAria)}">
       ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody, true)}
-      ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subBody)}
+      ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subareasBody, true)}
     </section>`;
 
   return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">
