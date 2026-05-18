@@ -749,13 +749,14 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
           return { competencia_id, puesto_id, nivel };
         });
         try {
-          const data = await updateMatrizBulk({ cambios });
-          celdas = data.celdas;
-          competencias = data.competencias;
-          puestos = data.puestos;
-          resumen = data.resumen;
-          gaps = data.gaps;
+          await updateMatrizBulk({ cambios });
           celdasModificadas = new Map();
+          const matrizData = await getMatrizData(filters);
+          celdas = matrizData.celdas;
+          competencias = matrizData.competencias;
+          puestos = matrizData.puestos;
+          resumen = matrizData.resumen;
+          gaps = matrizData.gaps;
           paint();
         } catch (err: unknown) {
           const fe = err as CompetenciasFetchError;

@@ -16,6 +16,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -29,6 +30,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.catalogos import Area
+    from app.models.empleados import Empleado
 
 
 class PuestoPerfil(Base):
@@ -148,4 +150,149 @@ class CompetenciaRequisito(Base):
         return (
             f"<CompetenciaRequisito competencia_id={self.competencia_id} "
             f"puesto_perfil_id={self.puesto_perfil_id} nivel={self.nivel_requerido}>"
+        )
+
+
+class EvaluacionCompetencia(Base):
+    __tablename__ = "evaluaciones_competencia"
+    __table_args__ = (
+        UniqueConstraint(
+            "empleado_id", "competencia_id", name="uq_evaluacion_vigente"
+        ),
+        CheckConstraint(
+            "nivel_actual >= 0 AND nivel_actual <= 4",
+            name="ck_nivel_actual_rango",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.id"), nullable=False
+    )
+    competencia_id: Mapped[int] = mapped_column(
+        ForeignKey("competencias.id", ondelete="CASCADE"), nullable=False
+    )
+    nivel_actual: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto",
+    )
+    evaluador_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_evaluacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    empleado: Mapped["Empleado"] = relationship(
+        "Empleado", foreign_keys=[empleado_id]
+    )
+    competencia: Mapped["Competencia"] = relationship("Competencia")
+    evaluador: Mapped[Optional["Empleado"]] = relationship(
+        "Empleado", foreign_keys=[evaluador_id]
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<EvaluacionCompetencia empleado_id={self.empleado_id} "
+            f"competencia_id={self.competencia_id} nivel={self.nivel_actual}>"
+        )
+
+
+class Capacitacion(Base):
+    __tablename__ = "capacitaciones"
+    __table_args__ = (
+        Index("ix_capacitaciones_activo_estado", "activo", "estado"),
+        Index("ix_capacitaciones_area_id", "area_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    duracion_horas: Mapped[int] = mapped_column(Integer, nullable=False)
+    modalidad: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'presencial' | 'online' | 'mixta'
+    instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    fecha_inicio: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    fecha_fin: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cupo_maximo: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    area_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("areas.area_id"), nullable=True
+    )
+    competencias_asociadas: Mapped[Optional[list]] = mapped_column(
+        JSONB, nullable=True, default=list
+    )
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="activa"
+    )  # 'activa' | 'cancelada' | 'finalizada'
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
+    inscripciones: Mapped[List["Inscripcion"]] = relationship(
+        "Inscripcion", back_populates="capacitacion", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Capacitacion id={self.id} nombre={self.nombre} estado={self.estado}>"
+
+
+class Inscripcion(Base):
+    __tablename__ = "inscripciones_capacitacion"
+    __table_args__ = (
+        UniqueConstraint(
+            "capacitacion_id", "empleado_id", name="uq_inscripcion_cap_emp"
+        ),
+        Index("ix_inscripciones_empleado_id", "empleado_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    capacitacion_id: Mapped[int] = mapped_column(
+        ForeignKey("capacitaciones.id"), nullable=False
+    )
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.id"), nullable=False
+    )
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="inscrito"
+    )  # 'inscrito' | 'en_curso' | 'completado' | 'cancelado'
+    calificacion: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    fecha_inscripcion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fecha_completado: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    capacitacion: Mapped["Capacitacion"] = relationship(
+        "Capacitacion", back_populates="inscripciones"
+    )
+    empleado: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[empleado_id])
+
+    def __repr__(self) -> str:
+        return (
+            f"<Inscripcion id={self.id} capacitacion_id={self.capacitacion_id} "
+            f"empleado_id={self.empleado_id} estado={self.estado}>"
         )

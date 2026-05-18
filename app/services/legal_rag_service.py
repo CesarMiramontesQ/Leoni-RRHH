@@ -18,10 +18,15 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import httpx
-from langchain_community.vectorstores import Chroma
-from langchain_core.documents import Document
-from langchain_ollama import OllamaEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+try:
+    from langchain_community.vectorstores import Chroma
+    from langchain_core.documents import Document
+    from langchain_ollama import OllamaEmbeddings
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    _HAS_LANGCHAIN = True
+except ImportError:
+    _HAS_LANGCHAIN = False
 
 from app.core.config import settings
 
@@ -65,7 +70,8 @@ class LegalRagService:
     """Vector store legal en disco; la ingesta explícita vía scripts o rebuild_index."""
 
     def __init__(self) -> None:
-        pass
+        if not _HAS_LANGCHAIN:
+            logger.warning("langchain no disponible — RAG legal deshabilitado")
 
     @staticmethod
     def _project_root() -> Path:
@@ -78,7 +84,9 @@ class LegalRagService:
             return p
         return self._project_root() / p
 
-    def _make_embeddings(self) -> OllamaEmbeddings:
+    def _make_embeddings(self):  # type: ignore[return]
+        if not _HAS_LANGCHAIN:
+            return None
         base = settings.OLLAMA_URL.rstrip("/")
         return OllamaEmbeddings(model=settings.OLLAMA_EMBED_MODEL, base_url=base)
 
@@ -147,6 +155,8 @@ class LegalRagService:
 
     async def has_documents(self) -> bool:
         """True si existe índice Chroma con al menos un documento."""
+        if not _HAS_LANGCHAIN:
+            return False
         n = await asyncio.to_thread(self._sync_document_count)
         return n > 0
 
@@ -224,6 +234,9 @@ class LegalRagService:
 
     async def rebuild_index(self, *, force: bool = False) -> None:
         """Borra (si force) y regenera el índice Chroma desde reference/legal-documents/."""
+        if not _HAS_LANGCHAIN:
+            logger.warning("rebuild_index omitido: langchain no disponible")
+            return
         await asyncio.to_thread(self._sync_rebuild_index, force)
 
     def _sync_similarity_search(self, query: str, k: int) -> list[str]:
@@ -257,6 +270,8 @@ class LegalRagService:
         query: str,
         top_k: int | None = None,
     ) -> list[str]:
+        if not _HAS_LANGCHAIN:
+            return []
         k = top_k or settings.LEGAL_RAG_TOP_K
         k = max(1, k)
         return await asyncio.to_thread(self._sync_similarity_search, query, k)

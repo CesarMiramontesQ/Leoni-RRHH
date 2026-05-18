@@ -134,5 +134,8 @@ class Settings(BaseSettings):
             return [ip.strip() for ip in v.split(",") if ip.strip()]
         return v
 
+    # Stitch (Google design tool) — opcional
+    STITCH_API_KEY: str = ""
+
 
 settings = Settings()
