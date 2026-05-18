@@ -42,8 +42,8 @@ export function addYearsToIsoString(isoYmd: string, years: number): string {
 
 export function etiquetaTipoComida(tipo: string): string {
   const map: Record<string, string> = {
-    casera: "Casera",
-    saludable: "Saludable",
+    casera: "Opción A",
+    saludable: "Opción B",
   };
   return map[tipo] ?? tipo;
 }

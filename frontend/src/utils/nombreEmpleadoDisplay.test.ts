@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   capitalizarNombreTituloUi,
+  formatNombreEmpleadoIncidenciasUi,
   formatNombreEmpleadoUi,
   inicialesDesdeNombreDisplay,
   quitarSegundoApellidoUi,
@@ -63,11 +64,26 @@ describe("formatNombreEmpleadoUi", () => {
   });
 });
 
+describe("formatNombreEmpleadoIncidenciasUi", () => {
+  it("reordena, conserva ambos apellidos y capitaliza título", () => {
+    expect(formatNombreEmpleadoIncidenciasUi("TOVAR DIAZ, ANAHIS")).toBe("Anahis Tovar Diaz");
+    expect(formatNombreEmpleadoIncidenciasUi("QUEZADA ROMERO, FABIOLA")).toBe("Fabiola Quezada Romero");
+  });
+});
+
 describe("inicialesDesdeNombreDisplay", () => {
   it("primer token + último token del nombre mostrado", () => {
     expect(inicialesDesdeNombreDisplay("FABIOLA QUEZADA")).toBe("FQ");
     expect(inicialesDesdeNombreDisplay("KARIME GISELLE LOYA")).toBe("KL");
     expect(inicialesDesdeNombreDisplay("CARLOS ROBERTO REYNOSO")).toBe("CR");
+  });
+
+  it("con un solo token y singleTokenUnaLetra, solo la primera letra", () => {
+    expect(inicialesDesdeNombreDisplay("MARIA", { singleTokenUnaLetra: true })).toBe("M");
+  });
+
+  it("con un solo token sin opción, conserva dos letras del token", () => {
+    expect(inicialesDesdeNombreDisplay("MARIA")).toBe("MA");
   });
 });
 

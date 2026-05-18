@@ -1,5 +1,5 @@
 import { buildRhIncidenciaFilterOptions } from "./buildRhIncidenciaFilterOptions.ts";
-import { computeRhIncidenciaStats } from "./computeRhIncidenciaStats.ts";
+import { computeRhIncidenciasEstadisticasFromFilas } from "./computeRhIncidenciasEstadisticasFromFilas.ts";
 import { filterRhIncidenciaRows, paginateRhIncidencias } from "./filterAndPaginateRhIncidencias.ts";
 import { buildRhIncidenciasMockFilas } from "./mockDataset.ts";
 import type {
@@ -7,7 +7,12 @@ import type {
   RhIncidenciasAdminViewModel,
   RhIncidenciaTablaFila,
   RhIncidenciasUiConfig,
+  RhIncidenciaListFilters,
+  RhIncidenciasEstadisticasData,
 } from "./types.ts";
+import { emptyRhIncidenciaListFilters } from "./types.ts";
+import type { IncidenciasListPageApi } from "../../api/incidencias.ts";
+import { incidenciaApiItemToTablaFila } from "../../api/incidencias.ts";
 
 const MOCK_DELAY_MS = 380;
 
@@ -34,21 +39,70 @@ export async function fetchRhIncidenciasAdminDatasetMock(
   };
 }
 
+export type RhIncidenciasFilterCatalog = {
+  tiposRegistrados: readonly string[];
+  areasRegistradas: readonly string[];
+  subareasRegistradas: readonly string[];
+};
+
+export function buildRhIncidenciasAdminViewModelFromApi(
+  api: IncidenciasListPageApi,
+  estadisticas: RhIncidenciasEstadisticasData | null,
+  estadisticasStatus: "loading" | "ready" | "error",
+  estadisticasErrorMessage: string | undefined,
+  filterDraft: RhIncidenciaListFilters,
+  appliedFilters: RhIncidenciaListFilters,
+  ui: RhIncidenciasUiConfig,
+  catalog: RhIncidenciasFilterCatalog,
+): RhIncidenciasAdminViewModel {
+  const items = api.items.map(incidenciaApiItemToTablaFila);
+  const table = {
+    items,
+    total: api.total,
+    page: api.page,
+    page_size: api.page_size,
+  };
+  const tableStatus = table.total === 0 ? "empty" : "ready";
+  return {
+    estadisticas,
+    estadisticasStatus,
+    estadisticasErrorMessage,
+    resumenListado: api.resumen,
+    filterOptions: buildRhIncidenciaFilterOptions([]),
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
+    filterDraft,
+    appliedFilters,
+    ui,
+    tableStatus,
+    table,
+    tableErrorMessage: undefined,
+  };
+}
+
 export function buildRhIncidenciasAdminViewModel(
   rows: readonly RhIncidenciaTablaFila[],
   filterOptions: RhIncidenciasAdminViewModel["filterOptions"],
   filters: RhIncidenciaFilterState,
   ui: RhIncidenciasUiConfig,
 ): RhIncidenciasAdminViewModel {
-  const resumen = computeRhIncidenciaStats(rows);
+  const estadisticas = computeRhIncidenciasEstadisticasFromFilas(rows);
   const filtered = filterRhIncidenciaRows(rows, filters);
   const table = paginateRhIncidencias(filtered, filters);
   const tableStatus = table.total === 0 ? "empty" : "ready";
+  const emptyList = emptyRhIncidenciaListFilters();
   return {
-    resumen,
-    resumenStatus: "ready",
+    estadisticas,
+    estadisticasStatus: "ready",
+    estadisticasErrorMessage: undefined,
+    resumenListado: null,
     filterOptions,
-    filters,
+    tiposRegistrados: [],
+    areasRegistradas: [],
+    subareasRegistradas: [],
+    filterDraft: emptyList,
+    appliedFilters: emptyList,
     ui,
     tableStatus,
     table,

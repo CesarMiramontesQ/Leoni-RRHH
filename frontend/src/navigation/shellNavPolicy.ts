@@ -2,6 +2,9 @@
  * Visibilidad del menú lateral y rutas permitidas por rol (fuente única para app shell + router).
  */
 
+/** Mostrar «Organigrama» en el sidebar. La ruta `#/organigrama` sigue disponible para RH. */
+export const ORGANIGRAMA_MENU_VISIBLE = false;
+
 export type AppShellNavItemId =
   | "dashboard"
   | "organigrama"
@@ -13,7 +16,6 @@ export type AppShellNavItemId =
   | "evaluaciones"
   | "capacitaciones"
   | "reportes"
-  | "notificaciones"
   | "puestos"
   | "competencias"
   | "ajustes";
@@ -22,7 +24,6 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "solicitudes",
   "comedor",
-  "notificaciones",
   "capacitaciones",
 ]);
 
@@ -37,6 +38,7 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
  * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.
  */
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+  if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (RH_ONLY_NAV_IDS.has(itemId)) return rol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return rol === "rh" || rol === "director" || rol === "gerente";

@@ -6,8 +6,10 @@ from app.core.dependencies import role_checker
 from app.models.empleados import Empleado
 from app.schemas import PaginatedResponse
 from app.schemas.actas import (
+    ActaAnularRequest,
     ActaCreateRequest,
     ActaEditarRequest,
+    ActasDashboardMetricasResponse,
     ActaMejoraIaResponse,
     ActaResponse,
 )
@@ -36,6 +38,18 @@ async def list_actas(
     )
 
 
+@router.get(
+    "/metricas-dashboard",
+    response_model=ActasDashboardMetricasResponse,
+)
+async def actas_metricas_dashboard(
+    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ActaService(db)
+    return await service.get_dashboard_metricas(current_user=current_user)
+
+
 @router.post("", response_model=ActaResponse, status_code=status.HTTP_201_CREATED)
 async def create_acta(
     body: ActaCreateRequest,
@@ -57,7 +71,7 @@ async def generar_acta(
     current_user: Empleado = Depends(role_checker(["rh"])),
 ):
     # TODO: Llamar a Ollama LLM para generar borrador
-    return {"message": "Generacion con IA en desarrollo", "incidencia_id": incidencia_id}
+    return {"message": "Generación desde incidencia en desarrollo", "incidencia_id": incidencia_id}
 
 
 @router.get("/{id}", response_model=ActaResponse)
@@ -110,6 +124,34 @@ async def firmar_acta(
     current_user: Empleado = Depends(role_checker(["gerente", "director", "rh"])),
 ):
     return {"message": "Endpoint en desarrollo", "id": id}
+
+
+@router.put("/{id}/aprobar", response_model=ActaResponse)
+async def aprobar_acta(
+    id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ActaService(db)
+    return await service.aprobar_acta(
+        id=id,
+        current_user=current_user,
+    )
+
+
+@router.put("/{id}/anular", response_model=ActaResponse)
+async def anular_acta(
+    id: int,
+    body: ActaAnularRequest,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ActaService(db)
+    return await service.anular_acta(
+        id=id,
+        data=body,
+        current_user=current_user,
+    )
 
 
 @router.get("/{id}/pdf")

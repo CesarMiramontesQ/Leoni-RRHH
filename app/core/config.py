@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://leoni:leoni_dev_pass@localhost:5432/leoni_rh"
 
+    # PostgreSQL bono_productividad (solo lectura; independiente de DATABASE_URL)
+    BONO_DB_HOST: str = ""
+    BONO_DB_PORT: int = 5433
+    BONO_DB_NAME: str = ""
+    BONO_DB_USER: str = ""
+    BONO_DB_PASSWORD: str = ""
+    BONO_DB_ENGINE: str = "postgresql"
+
     # JWT
     JWT_SECRET: str = "change-this-secret-in-production"
     JWT_ALGORITHM: str = "HS256"
@@ -35,15 +43,22 @@ class Settings(BaseSettings):
     OLLAMA_HTTP_TIMEOUT: float = 180.0
     # Limita tokens de salida para acabar antes y reducir 500 por tiempo de espera interno.
     OLLAMA_NUM_PREDICT: int = 1536
+    # Ventana de contexto (tokens) para /api/chat y /api/generate. Si Ollama loguea
+    # "truncating input prompt" limit=4096, sube este valor (p. ej. 16384) para actas+RAG.
+    OLLAMA_NUM_CTX: int = 16384
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
 
     # Legal RAG (Chroma + LangChain; ingest vía scripts/actas_rag/ingest.py)
     LEGAL_RAG_CHROMA_PATH: str = "storage/legal-rag-chroma"
     LEGAL_RAG_CHUNK_SIZE: int = 1000
     LEGAL_RAG_CHUNK_OVERLAP: int = 200
-    LEGAL_RAG_TOP_K: int = 6
+    # Fragmentos recuperados por consulta (subir si el prompt legal queda “vacío”).
+    LEGAL_RAG_TOP_K: int = 12
+    # Caracteres por fragmento enviado al LLM tras similarity_search (antes 750 fijo;
+    # debe ser >= LEGAL_RAG_CHUNK_SIZE para no truncar el chunk íntegro).
+    LEGAL_RAG_SNIPPET_MAX_CHARS: int = 1600
     # Máximo de caracteres totales del marco legal inyectados en el prompt (varios chunks).
-    LEGAL_REFERENCE_PROMPT_MAX_CHARS: int = 4500
+    LEGAL_REFERENCE_PROMPT_MAX_CHARS: int = 15000
     # Si la descripción de hechos es enorme, se trunca solo para la llamada a IA.
     ACTA_DESCRIPCION_IA_MAX_CHARS: int = 8000
 

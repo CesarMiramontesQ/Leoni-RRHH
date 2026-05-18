@@ -4,7 +4,11 @@
 
 import type { RhSolicitudTipoCodigo } from "../../solicitudes/rh/types.ts";
 
-export type EmpleadoPendingRequestType = "vacation" | "homeOffice";
+export type EmpleadoPendingRequestType =
+  | "vacation"
+  | "homeOffice"
+  | "permiso_sin_goce"
+  | "goce_sueldo";
 
 /** Estados de solicitud mostrados en el calendario del empleado (valores API). */
 export type SolicitudEstadoCalendarioEmpleado = "approved" | "pending";

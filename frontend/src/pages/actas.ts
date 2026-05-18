@@ -64,8 +64,10 @@ type ActasTableData = {
   page_size: number;
 };
 
+type ActasKpiMetricId = "todas" | ActaEstadoCodigo;
+
 type ActasStatCard = {
-  id: ActaEstadoCodigo;
+  id: ActasKpiMetricId;
   titulo: string;
   microcopy: string;
   valor: number;
@@ -220,9 +222,9 @@ function badgeEstado(estado: ActaEstadoCodigo): string {
     case "en_proceso":
       return `<span class="${base} rh-sol-badge-estado--pending">${dot("bg-amber-400")}En proceso</span>`;
     case "firmada":
-      return `<span class="${base} rh-sol-badge-estado--approved">${dot("bg-emerald-500")}Firmada</span>`;
-    case "cerrada":
-      return `<span class="${base} rh-sol-badge-estado--cancelled">${dot("bg-slate-400")}Cerrada</span>`;
+      return `<span class="${base} rh-sol-badge-estado--approved">${dot("bg-emerald-500")}Aprobada</span>`;
+    case "anulada":
+      return `<span class="${base} rh-sol-badge-estado--cancelled">${dot("bg-slate-400")}Anulada</span>`;
     default:
       return escapeHtml(estado);
   }
@@ -269,12 +271,12 @@ function normalizeNumeroEmpleadoDisplay(value: string | null | undefined): strin
 }
 
 function mapBackendEstadoToTableEstado(
-  estado: "draft" | "pending_sign" | "signed" | "archived",
+  estado: ActaListItem["estado"],
 ): ActaEstadoCodigo {
-  if (estado === "pending_sign") return "en_proceso";
-  if (estado === "signed") return "firmada";
-  if (estado === "archived") return "cerrada";
-  return "abierta";
+  if (estado === "cancelled") return "anulada";
+  if (estado === "pending_sign" || estado === "draft") return "en_proceso";
+  if (estado === "signed" || estado === "archived") return "firmada";
+  return "en_proceso";
 }
 
 function mapActaListItemToRow(item: ActaListItem): ActaTablaFila {
@@ -323,10 +325,10 @@ function celdaEmpleado(row: ActaTablaFila): string {
 function renderActasHeaderMeta(allRows: readonly ActaTablaFila[], loading: boolean): string {
   if (loading) return "";
   const total = allRows.length;
-  const abiertas = allRows.filter((r) => r.estado === "abierta").length;
+  const enProceso = allRows.filter((r) => r.estado === "en_proceso").length;
   return `<div class="rh-sol-header__stats mt-3 flex flex-wrap items-center gap-2" role="status" aria-live="polite">
     <span class="rh-sol-header__badge rh-sol-header__badge--total"><span class="tabular-nums">${escapeHtml(String(total))}</span><span class="rh-sol-header__badge-text">actas</span></span>
-    <span class="rh-sol-header__badge rh-sol-header__badge--acta-abiertas"><span class="tabular-nums">${escapeHtml(String(abiertas))}</span><span class="rh-sol-header__badge-text">abiertas</span></span>
+    <span class="rh-sol-header__badge rh-sol-header__badge--acta-abiertas"><span class="tabular-nums">${escapeHtml(String(enProceso))}</span><span class="rh-sol-header__badge-text">en proceso</span></span>
   </div>`;
 }
 
@@ -362,10 +364,10 @@ function renderStatsCards(rows: readonly ActaTablaFila[], filters: ActasFilterSt
 
   const cardsData: readonly ActasStatCard[] = [
     {
-      id: "abierta",
-      titulo: "Actas abiertas",
-      microcopy: "Requieren atención",
-      valor: rows.filter((row) => row.estado === "abierta").length,
+      id: "todas",
+      titulo: "Todas las actas",
+      microcopy: "Registros en el listado",
+      valor: rows.length,
       toneClass: "rh-sol-kpi-card--inc-abiertas",
       icon: iconReloj,
     },
@@ -379,17 +381,17 @@ function renderStatsCards(rows: readonly ActaTablaFila[], filters: ActasFilterSt
     },
     {
       id: "firmada",
-      titulo: "Firmadas",
-      microcopy: "Completadas",
+      titulo: "Aprobadas",
+      microcopy: "Aprobación RH",
       valor: rows.filter((row) => row.estado === "firmada").length,
       toneClass: "rh-sol-kpi-card--aprobadas",
       icon: iconCheck,
     },
     {
-      id: "cerrada",
-      titulo: "Cerradas",
-      microcopy: "Archivadas",
-      valor: rows.filter((row) => row.estado === "cerrada").length,
+      id: "anulada",
+      titulo: "Anuladas",
+      microcopy: "Canceladas",
+      valor: rows.filter((row) => row.estado === "anulada").length,
       toneClass: "rh-sol-kpi-card--acta-cerrada",
       icon: iconArchivo,
     },
@@ -397,7 +399,7 @@ function renderStatsCards(rows: readonly ActaTablaFila[], filters: ActasFilterSt
 
   const cards = cardsData
     .map((card) => {
-      const selected = filters.estado === card.id;
+      const selected = card.id === "todas" ? filters.estado === "" : filters.estado === card.id;
       const ring = selected ? " ring-2 ring-[#1e40af]/35 ring-offset-2" : "";
       return `
       <button
@@ -877,7 +879,7 @@ export function mountActas(container: HTMLElement): void {
               supervisor_nombre: created.supervisor_directo ?? payload.formData.supervisorDirecto,
               tipo: mapModalTipoToTableTipo(created.tipo_falta ?? payload.formData.tipoFalta),
               fecha: created.fecha_evento ?? payload.formData.fechaEvento,
-              estado: "abierta",
+              estado: "en_proceso",
             });
             state.page = 1;
             paint();
@@ -982,7 +984,13 @@ export function mountActas(container: HTMLElement): void {
     const metric = target.closest<HTMLButtonElement>("[data-rh-actas-metric]");
     if (metric) {
       const value = metric.getAttribute("data-rh-actas-metric");
-      if (value === "abierta" || value === "en_proceso" || value === "firmada" || value === "cerrada") {
+      if (value === "todas") {
+        state.estado = "";
+        state.page = 1;
+        paint();
+        return;
+      }
+      if (value === "en_proceso" || value === "firmada" || value === "anulada") {
         state.estado = state.estado === value ? "" : value;
         state.page = 1;
         paint();

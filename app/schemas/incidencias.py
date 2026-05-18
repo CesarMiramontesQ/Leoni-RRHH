@@ -3,73 +3,154 @@
 Schemas Pydantic v2 para el dominio incidencias y evidencias.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
-
-
-INCIDENCIA_TIPOS_VALIDOS = {"falta", "retardo", "conducta", "accidente", "otro"}
-INCIDENCIA_ESTADOS_VALIDOS = {"open", "in_review", "resolved", "closed"}
-INCIDENCIA_TRANSICIONES_VALIDAS = {
-    "open": {"in_review"},
-    "in_review": {"resolved"},
-    "resolved": {"closed"},
-    "closed": set(),
-}
+from pydantic import BaseModel, Field
 
 
 class IncidenciaCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
-    empleado_id: int
     tipo: str
-    descripcion: str
-
-    @field_validator("tipo")
-    @classmethod
-    def validar_tipo(cls, v: str) -> str:
-        if v not in INCIDENCIA_TIPOS_VALIDOS:
-            raise ValueError(f"tipo debe ser uno de: {sorted(INCIDENCIA_TIPOS_VALIDOS)}")
-        return v
+    empleado_id: int
+    no_empleado: Optional[str] = None
+    nombre: Optional[str] = None
+    fecha: Optional[date] = None
+    semana_id: Optional[int] = None
+    numero_semana: Optional[int] = None
+    categoria: Optional[str] = None
+    detalle: Optional[str] = None
+    descuento_porcentaje: Optional[float] = None
+    estatus_id: Optional[int] = None
+    area: Optional[str] = None
+    subarea: Optional[str] = None
 
 
 class IncidenciaUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
-    # Solo el estado puede actualizarse — el workflow lo controla el service
-    estado: Optional[str] = None
-
-    @field_validator("estado")
-    @classmethod
-    def validar_estado(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in INCIDENCIA_ESTADOS_VALIDOS:
-            raise ValueError(f"estado debe ser uno de: {sorted(INCIDENCIA_ESTADOS_VALIDOS)}")
-        return v
-
-
-class IncidenciaEstadoRequest(BaseModel):
-    nuevo_estado: str
-
-    @field_validator("nuevo_estado")
-    @classmethod
-    def validar_estado(cls, v: str) -> str:
-        if v not in INCIDENCIA_ESTADOS_VALIDOS:
-            raise ValueError(f"nuevo_estado debe ser uno de: {sorted(INCIDENCIA_ESTADOS_VALIDOS)}")
-        return v
+    tipo: Optional[str] = None
+    no_empleado: Optional[str] = None
+    nombre: Optional[str] = None
+    fecha: Optional[date] = None
+    semana_id: Optional[int] = None
+    numero_semana: Optional[int] = None
+    categoria: Optional[str] = None
+    detalle: Optional[str] = None
+    descuento_porcentaje: Optional[float] = None
+    estatus_id: Optional[int] = None
+    area: Optional[str] = None
+    subarea: Optional[str] = None
 
 
 class IncidenciaResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
-    empleado_id: int
     tipo: str
-    descripcion: str
-    estado: str
-    registrado_por: int
+    empleado_id: int
+    no_empleado: Optional[str] = None
+    nombre: Optional[str] = None
+    fecha: Optional[date] = None
+    semana_id: Optional[int] = None
+    numero_semana: Optional[int] = None
+    categoria: Optional[str] = None
+    detalle: Optional[str] = None
+    descuento_porcentaje: Optional[float] = None
+    estatus_id: Optional[int] = None
+    area: Optional[str] = None
+    subarea: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
     evidencias_count: int = 0
+    # Catálogo empleados (resueltos por `no_empleado` de la incidencia o por `empleado_id`).
+    puesto: Optional[str] = None
+    supervisor_directo: Optional[str] = None
+
+
+class IncidenciasKpiResumen(BaseModel):
+    """Totales para tarjetas de resumen (vista listado)."""
+
+    abiertas: int
+    en_investigacion: int
+    resueltas: int
+    criticas: int
+
+
+class IncidenciasListPageResponse(BaseModel):
+    """Listado paginado por offset/página (máx. 10 ítems recomendado en cliente)."""
+
+    items: list[IncidenciaResponse]
+    total: int
+    page: int
+    page_size: int
+    resumen: IncidenciasKpiResumen
+
+
+class IncidenciasTiposResponse(BaseModel):
+    """Valores distintos de `tipo` visibles para el usuario según su rol (ordenados)."""
+
+    items: list[str]
+
+
+class IncidenciasAreasResponse(BaseModel):
+    """Áreas distintas con al menos una incidencia visible para el usuario (ordenadas)."""
+
+    items: list[str]
+
+
+class IncidenciasSubareasResponse(BaseModel):
+    """Subáreas distintas con al menos una incidencia visible (opcionalmente filtradas por área)."""
+
+    items: list[str]
+
+
+class IncidenciaAreaTotalItem(BaseModel):
+    area: str
+    total: int
+
+
+class IncidenciaSubareaTotalItem(BaseModel):
+    subarea: str
+    total: int
+    # Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
+    area: str | None = None
+
+
+class IncidenciaEmpleadoTotalItem(BaseModel):
+    empleado_id: int
+    no_empleado: str | None = None
+    nombre: str | None = None
+    total: int
+
+
+class IncidenciaTipoDistribucionItem(BaseModel):
+    tipo: str
+    total: int
+    porcentaje: float
+
+
+class IncidenciaSerieMensualItem(BaseModel):
+    """Bucket mensual (fecha de negocio o fecha de alta) para tendencia en dashboard."""
+
+    periodo: str  # YYYY-MM
+    total: int
+
+
+class IncidenciasEstadisticasResponse(BaseModel):
+    """Agregados para analítica del listado (mismos filtros y alcance que GET /incidencias)."""
+
+    total_incidencias: int
+    incidencias_seguridad: int
+    incidencias_calidad: int
+    areas_con_mas_incidencias: list[IncidenciaAreaTotalItem]
+    subareas_con_mas_incidencias: list[IncidenciaSubareaTotalItem]
+    empleados_con_mas_incidencias: list[IncidenciaEmpleadoTotalItem]
+    incidencias_por_tipo: list[IncidenciaTipoDistribucionItem]
+    incidencias_por_mes: list[IncidenciaSerieMensualItem] = Field(default_factory=list)
+    total_periodo_anterior: int | None = None
+    variacion_total_pct: float | None = None
 
 
 class EvidenciaResponse(BaseModel):

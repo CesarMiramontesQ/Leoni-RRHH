@@ -152,6 +152,14 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
     showEditar: showRh,
   });
 
+  const te = data.turno_empleado;
+  const personalesPrimeraFila = showRh
+    ? vista360FieldRowText("Comedor", te?.comedor ?? null)
+    : vista360FieldRowText("Fecha de nacimiento", null);
+  const laboralesTurnoOHorario = showRh
+    ? vista360FieldRowText("Turno", te?.turno ?? null)
+    : vista360FieldRowText("Horario", null);
+
   const quickActions = `
     <div class="rounded-2xl border border-border/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
       <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500/90">Acciones rápidas</p>
@@ -173,7 +181,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
     iconSvg: iconUser,
     iconTone: "blue",
     bodyHtml:
-      vista360FieldRowText("Fecha de nacimiento", null) +
+      personalesPrimeraFila +
       vista360FieldRowText("CURP", null) +
       vista360FieldRowText("NSS", null),
   });
@@ -184,7 +192,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
     iconTone: "emerald",
     bodyHtml:
       vista360FieldRowText("Área", u.area?.descripcion ?? null) +
-      vista360FieldRowText("Horario", null) +
+      laboralesTurnoOHorario +
       vista360FieldRowText("Centro de costos", null),
   });
 
@@ -254,7 +262,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
             (i) => `
         <li class="px-5 py-4">
           <p class="font-semibold text-text-primary">${escapeHtml(i.tipo)}</p>
-          <p class="mt-0.5 text-sm text-text-muted">Estado: ${escapeHtml(i.estado)} · ${escapeHtml(formatFechaHora(i.created_at))}</p>
+          <p class="mt-0.5 text-sm text-text-muted">Estatus: ${escapeHtml(i.estatus_id === null ? "Sin estatus" : String(i.estatus_id))} · ${escapeHtml(formatFechaHora(i.created_at))}</p>
         </li>`,
           )
           .join("")}</ul>`;

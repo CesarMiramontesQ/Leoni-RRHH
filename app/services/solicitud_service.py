@@ -19,7 +19,7 @@ Al rechazar/cancelar: NO se encola en TRESS.
 """
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from fastapi import BackgroundTasks
@@ -61,16 +61,62 @@ logger = logging.getLogger(__name__)
 _TRESS_ACCION_MAP = {
     "vacaciones": "REGISTRAR_VACACIONES",
     "home_office": "REGISTRAR_HOME_OFFICE",
+    "matrimonio": "REGISTRAR_GOCE_SUELDO_MATRIMONIO",
+    "incapacidad_interna": "REGISTRAR_GOCE_SUELDO_INCAPACIDAD_INTERNA",
+    "defuncion": "REGISTRAR_GOCE_SUELDO_DEFUNCION",
+    "paternidad": "REGISTRAR_GOCE_SUELDO_PATERNIDAD",
+    "permiso_sin_goce_sueldo": "REGISTRAR_PERMISO_SIN_GOCE_SUELDO",
 }
+_TIPOS_GOCE_SUELDO_RH = frozenset({
+    "matrimonio",
+    "incapacidad_interna",
+    "defuncion",
+    "paternidad",
+})
+_TIPOS_VISIBLE_EMPLEADO = frozenset({
+    "vacaciones",
+    "home_office",
+    "permiso_sin_goce_sueldo",
+})
+_ESTADOS_NO_VISIBLES_EMPLEADO = frozenset({"overridden"})
 
 # Duplicidad exacta (mismo colaborador, mismas fechas inicio/fin): solo estos estados
 # cuentan como «ya existe»; rechazadas/canceladas permiten volver a registrar esas fechas.
 _ESTADOS_DUPLICADO_EXACTO = frozenset({"pending", "approved", "overridden", "changes_requested"})
+# Empalme/solape (mismo colaborador, rangos que se traslapan, cualquier tipo): se usa el
+# mismo conjunto de estados activos. Solicitudes rechazadas o canceladas no bloquean.
+_ESTADOS_EMPALME_ACTIVO = _ESTADOS_DUPLICADO_EXACTO
 _MSG_SOLICITUD_YA_EXISTE = "Esta solicitud ya existe"
+
+
+def _format_fecha_es(d: date) -> str:
+    return d.strftime("%d/%m/%Y")
+
+
+def _msg_empalme_solicitudes(existente: Solicitud) -> str:
+    """Mensaje claro y único cuando una nueva solicitud se empalma con otra activa."""
+    tipo_legible = (existente.tipo or "").replace("_", " ").strip() or "otra"
+    return (
+        f"Ya existe una solicitud activa de {tipo_legible} del "
+        f"{_format_fecha_es(existente.fecha_inicio)} al {_format_fecha_es(existente.fecha_fin)} "
+        "que se empalma con estas fechas. No es posible registrar dos solicitudes "
+        "que se traslapen, aunque sean de tipos distintos."
+    )
 
 
 def _dias_solicitud_inclusive(fecha_inicio: date, fecha_fin: date) -> int:
     return (fecha_fin - fecha_inicio).days + 1
+
+
+def _sumar_dias_habiles(fecha_inicio: date, dias_habiles: int) -> date:
+    """Suma días hábiles (lunes-viernes) sobre fecha_inicio inclusive."""
+    cursor = fecha_inicio
+    acumulados = 1
+    while acumulados < dias_habiles:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            acumulados += 1
+    return cursor
 
 
 async def _resolver_fila_saldo_vacaciones_tress(no_empleado: str) -> dict:
@@ -157,14 +203,19 @@ def _solicitud_to_response(s: Solicitud, empleado_ctx: Empleado | None = None) -
     emp = empleado_ctx if empleado_ctx is not None else s.empleado
     nombre = (emp.nombre if emp else "") or ""
     area_desc: str | None = None
+    no_empleado: str | None = None
+    puesto_desc: str | None = None
     foto: str | None = None
     lid_id: int | None = None
     lid_nom: str | None = None
     if emp:
+        no_empleado = (emp.no_empleado or "").strip() or None
         foto = emp.foto
         lid_id = emp.lider_id
         if emp.area is not None:
             area_desc = emp.area.descripcion
+        if emp.puesto is not None and emp.puesto.descripcion:
+            puesto_desc = emp.puesto.descripcion
         if emp.lider is not None:
             lid_nom = emp.lider.nombre
 
@@ -176,10 +227,13 @@ def _solicitud_to_response(s: Solicitud, empleado_ctx: Empleado | None = None) -
         fecha_fin=s.fecha_fin,
         estado=s.estado,
         nivel_actual=s.nivel_actual,
+        motivo=s.motivo,
         comentarios=s.comentarios,
         created_at=s.created_at,
         empleado_nombre=nombre,
+        empleado_no_empleado=no_empleado,
         empleado_area=area_desc,
+        empleado_puesto=puesto_desc,
         empleado_foto=foto,
         lider_id=lid_id,
         lider_nombre=lid_nom,
@@ -343,10 +397,18 @@ class SolicitudService:
 
         else:
             items, next_cursor = await self.repo.list_by_empleado(
-                empleado_id=current_user.id, cursor=cursor, limit=limit
+                empleado_id=current_user.id,
+                cursor=cursor,
+                limit=limit,
+                tipos_permitidos=list(_TIPOS_VISIBLE_EMPLEADO),
+                estados_excluidos=list(_ESTADOS_NO_VISIBLES_EMPLEADO),
             )
             total = await self.repo.count(
-                filters=[Solicitud.empleado_id == current_user.id]
+                filters=[
+                    Solicitud.empleado_id == current_user.id,
+                    Solicitud.tipo.in_(_TIPOS_VISIBLE_EMPLEADO),
+                    ~Solicitud.estado.in_(_ESTADOS_NO_VISIBLES_EMPLEADO),
+                ]
             )
 
         return PaginatedResponse(
@@ -474,33 +536,72 @@ class SolicitudService:
         2) Saldo de vacaciones (solo tipo vacaciones, lectura TRESS).
         3) Persistencia y notificaciones.
         """
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
         target = await self._resolver_empleado_objetivo_crear_solicitud(data, current_user)
+
+        fecha_inicio = data.fecha_inicio
+        fecha_fin = data.fecha_fin
+        if rol == "empleado" and data.tipo == "home_office" and fecha_fin != fecha_inicio:
+            raise DomainValidationError(
+                detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
+            )
+        if data.tipo == "permiso_sin_goce_sueldo" and rol not in (
+            "supervisor",
+            "gerente",
+            "rh",
+            "director",
+        ):
+            raise ForbiddenError(
+                detail="Solo supervisor, gerente, RH o director pueden crear permisos sin goce de sueldo"
+            )
+        if data.tipo in _TIPOS_GOCE_SUELDO_RH:
+            if rol != "rh":
+                raise ForbiddenError(
+                    detail="Solo RH puede crear solicitudes con goce de sueldo"
+                )
+            if data.tipo == "matrimonio":
+                fecha_fin = fecha_inicio + timedelta(days=1)
+            elif data.tipo == "defuncion":
+                fecha_fin = fecha_inicio + timedelta(days=2)
+            elif data.tipo == "paternidad":
+                fecha_fin = _sumar_dias_habiles(fecha_inicio, 7)
+            # incapacidad_interna mantiene la fecha_fin indicada por RH.
 
         duplicado = await self.repo.count(
             filters=[
                 Solicitud.empleado_id == target.id,
-                Solicitud.fecha_inicio == data.fecha_inicio,
-                Solicitud.fecha_fin == data.fecha_fin,
+                Solicitud.fecha_inicio == fecha_inicio,
+                Solicitud.fecha_fin == fecha_fin,
                 Solicitud.estado.in_(_ESTADOS_DUPLICADO_EXACTO),
             ]
         )
         if duplicado > 0:
             raise ConflictError(detail=_MSG_SOLICITUD_YA_EXISTE)
 
+        empalme = await self.repo.find_first_overlapping_active(
+            empleado_id=target.id,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+        )
+        if empalme is not None:
+            raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
+
         if data.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(
                 empleado=target,
-                fecha_inicio=data.fecha_inicio,
-                fecha_fin=data.fecha_fin,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
             )
 
         solicitud = await self.repo.create({
             "empleado_id": target.id,
             "tipo": data.tipo,
-            "fecha_inicio": data.fecha_inicio,
-            "fecha_fin": data.fecha_fin,
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
             "estado": "pending",
             "nivel_actual": 1,
+            "motivo": data.motivo,
             "comentarios": data.comentarios,
         })
 
@@ -524,8 +625,8 @@ class SolicitudService:
             destinatario_id=target.id,
             asunto="Tu solicitud fue enviada",
             cuerpo=(
-                f"Tu solicitud de <b>{data.tipo}</b> del {data.fecha_inicio} al "
-                f"{data.fecha_fin} fue enviada y esta en revision."
+                f"Tu solicitud de <b>{data.tipo}</b> del {fecha_inicio} al "
+                f"{fecha_fin} fue enviada y esta en revision."
             ),
             canal="in_app",
             target_url="#/solicitudes",
@@ -547,7 +648,7 @@ class SolicitudService:
                 asunto=f"Nueva solicitud de {nombre_empleado}",
                 cuerpo=(
                     f"Se ha generado una solicitud de <b>{tipo}</b> "
-                    f"del {data.fecha_inicio} al {data.fecha_fin}. "
+                    f"del {fecha_inicio} al {fecha_fin}. "
                     "Por favor rev&iacute;sala en la plataforma."
                 ),
                 canal="in_app",
@@ -935,6 +1036,16 @@ class SolicitudService:
         )
         if duplicado > 0:
             raise ConflictError(detail=_MSG_SOLICITUD_YA_EXISTE)
+
+        empalme = await self.repo.find_first_overlapping_active(
+            empleado_id=current_user.id,
+            fecha_inicio=data.fecha_inicio,
+            fecha_fin=data.fecha_fin,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=solicitud_id,
+        )
+        if empalme is not None:
+            raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
 
         if solicitud.tipo == "vacaciones":
             await self._validar_saldo_vacaciones_crear(

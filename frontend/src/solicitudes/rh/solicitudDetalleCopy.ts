@@ -42,7 +42,7 @@ export const SD_COPY = {
     "Esta solicitud es tuya: no puedes aprobarla ni rechazarla tú mismo. Debe actuar otro aprobador de la cadena.",
 
   lblNombre: "Nombre",
-  lblIdEmpleado: "ID de empleado",
+  lblIdEmpleado: "Número de empleado",
   lblArea: "Área",
   lblPuesto: "Puesto",
   lblSupervisor: "Supervisor",

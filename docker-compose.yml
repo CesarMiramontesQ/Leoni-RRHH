@@ -23,12 +23,22 @@ services:
       context: .
       target: development
     container_name: leoni_rh_backend
+    # Postgres en el host (p. ej. puerto 5433): accesible sin `.env` en la máquina local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     environment:
       DATABASE_URL: postgresql+asyncpg://leoni:leoni_dev_pass@postgres:5432/leoni_rh
+      # Bono productividad (solo lectura): defaults en compose; opcional `${BONO_DB_*}` solo si defines esas claves en un `.env` junto al compose (p. ej. CI)
+      BONO_DB_HOST: ${BONO_DB_HOST:-host.docker.internal}
+      BONO_DB_PORT: ${BONO_DB_PORT:-5433}
+      BONO_DB_NAME: ${BONO_DB_NAME:-bono_productividad}
+      BONO_DB_USER: ${BONO_DB_USER:-bono_user}
+      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD:-bono_password}
+      BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
       APP_ENV: development
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
@@ -36,6 +46,7 @@ services:
       OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.3}
       OLLAMA_HTTP_TIMEOUT: ${OLLAMA_HTTP_TIMEOUT:-180}
       OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-1536}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-16384}
       # Chroma: evita intentos de telemetría fallidos en consola durante ingest/RAG
       ANONYMIZED_TELEMETRY: "false"
     depends_on:

@@ -131,6 +131,11 @@ export function buildRhIncidenciasMockFilas(): RhIncidenciaTablaFila[] {
     };
 
     const detalleComun = {
+      tipo_texto: tipo,
+      no_empleado: String(45000 + (i % 500)),
+      subarea: `Subárea ${(i % 8) + 1} — ${area}`,
+      categoria: `Categoría ${i % 5}`,
+      detalle: `Detalle registrado en sistema (mock #${i}).`,
       descripcion:
         estado === "cerrado"
           ? "Caso cerrado tras revisión documental y entrevistas. Se aplicó la medida acordada con el área legal y " +

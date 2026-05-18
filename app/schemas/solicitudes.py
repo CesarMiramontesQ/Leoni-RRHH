@@ -14,7 +14,15 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
-SOLICITUD_TIPOS_VALIDOS = {"vacaciones", "home_office"}
+SOLICITUD_TIPOS_VALIDOS = {
+    "vacaciones",
+    "home_office",
+    "matrimonio",
+    "incapacidad_interna",
+    "defuncion",
+    "paternidad",
+    "permiso_sin_goce_sueldo",
+}
 SOLICITUD_ESTADOS_VALIDOS = {
     "pending",
     "approved",
@@ -36,6 +44,7 @@ class SolicitudCreate(BaseModel):
     tipo: str
     fecha_inicio: date
     fecha_fin: date
+    motivo: Optional[str] = None
     comentarios: Optional[str] = None
     empleado_id: Optional[int] = Field(
         default=None,
@@ -59,6 +68,15 @@ class SolicitudCreate(BaseModel):
         if fecha_inicio and v < fecha_inicio:
             raise ValueError("fecha_fin debe ser mayor o igual a fecha_inicio")
         return v
+
+    @field_validator("motivo")
+    @classmethod
+    def validar_motivo(cls, v: Optional[str], info) -> Optional[str]:
+        tipo = info.data.get("tipo")
+        txt = (v or "").strip()
+        if tipo == "permiso_sin_goce_sueldo" and not txt:
+            raise ValueError("motivo es obligatorio para permiso sin goce de sueldo")
+        return txt or None
 
 
 class SolicitudUpdate(BaseModel):
@@ -86,11 +104,14 @@ class SolicitudResponse(BaseModel):
     fecha_fin: date
     estado: str
     nivel_actual: int
+    motivo: Optional[str]
     comentarios: Optional[str]
     created_at: datetime
     # Enriquecimiento para listados y UI (no son columnas de `solicitudes`).
     empleado_nombre: str = ""
+    empleado_no_empleado: Optional[str] = None
     empleado_area: Optional[str] = None
+    empleado_puesto: Optional[str] = None
     empleado_foto: Optional[str] = None
     lider_id: Optional[int] = None
     lider_nombre: Optional[str] = None

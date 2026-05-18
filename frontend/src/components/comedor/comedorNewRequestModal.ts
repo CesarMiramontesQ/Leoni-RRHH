@@ -17,11 +17,20 @@ type Catalog = {
   menus: readonly ComedorMenuOption[];
 };
 
+export type ComedorSupervisorBeneficiaryModalConfig = {
+  /** Ficha del supervisor en sesión (beneficiario en «Registro personal»). */
+  self: ComedorEmployeeOption;
+  /** Solo subordinados directos; el supervisor debe estar excluido. */
+  loadTeamOptions: () => Promise<readonly ComedorEmployeeOption[]>;
+};
+
 export type ComedorNewRequestModalOptions = {
   toastContainer: HTMLElement;
   allowExternalPeople?: boolean;
   allowEmployeeSearch?: boolean;
   loadEmployeeOptions?: () => Promise<readonly ComedorEmployeeOption[]>;
+  /** Solo rol supervisor (comedor líder): selector personal vs equipo; no combinar con `loadEmployeeOptions` para el mismo flujo. */
+  supervisorBeneficiaryConfig?: ComedorSupervisorBeneficiaryModalConfig;
   defaultEmployeeId?: string | null;
   fixedEmployee?: ComedorEmployeeOption | null;
   /** ISO yyyy-mm-dd para `min` del date input y validación. */
@@ -32,6 +41,7 @@ export type ComedorNewRequestModalOptions = {
    */
   loadFechasBloqueadas?: () => Promise<readonly string[]>;
   menuFieldLabel?: string;
+  showObservacionesField?: boolean;
   loadMenuOptions: () => Promise<readonly ComedorMenuOption[]>;
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
   onSubmit: (payload: ComedorCreateRequestPayload) => Promise<unknown> | unknown;
@@ -52,11 +62,16 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-function initialState(initialEmployeeId: string | null): ComedorNewRequestFormState {
+function initialState(
+  initialEmployeeId: string | null,
+  supervisorBeneficiaryConfig: ComedorSupervisorBeneficiaryModalConfig | undefined,
+): ComedorNewRequestFormState {
+  const selfId = supervisorBeneficiaryConfig?.self.id ?? null;
   return {
     personType: "interno",
     employeeSearch: "",
-    selectedEmployeeId: initialEmployeeId,
+    selectedEmployeeId: supervisorBeneficiaryConfig ? selfId : initialEmployeeId,
+    supervisorRecipientScope: supervisorBeneficiaryConfig ? "personal" : null,
     externalPeopleCount: "1",
     menuId: "",
     fechaInicio: "",
@@ -90,17 +105,39 @@ function validateForm(
   fixedEmployeeId: string | null,
   fechaMinReservaIso: string | null | undefined,
   fechasBloqueadas: ReadonlySet<string> | null,
+  supervisorBeneficiaryConfig: ComedorSupervisorBeneficiaryModalConfig | undefined,
+  teamEmployeeIds: ReadonlySet<string>,
 ): ComedorNewRequestFormErrors {
   const errors: ComedorNewRequestFormErrors = {};
   if (state.personType !== "interno" && state.personType !== "externo") {
     errors.personType = "Selecciona un tipo de persona.";
   }
-  const effectiveSelectedEmployeeId =
-    state.personType === "interno" && !allowEmployeeSearch
-      ? (state.selectedEmployeeId || fixedEmployeeId)
-      : state.selectedEmployeeId;
-  if (state.personType === "interno" && !effectiveSelectedEmployeeId) {
-    errors.employee = "Selecciona un empleado.";
+  if (state.personType === "interno") {
+    if (supervisorBeneficiaryConfig) {
+      if (state.supervisorRecipientScope === "team") {
+        if (teamEmployeeIds.size === 0) {
+          errors.employee = "No hay colaboradores en tu equipo directo para este registro.";
+        } else if (!state.selectedEmployeeId) {
+          errors.employee = "Selecciona un integrante del equipo.";
+        } else if (state.selectedEmployeeId === supervisorBeneficiaryConfig.self.id) {
+          errors.employee = "Selecciona un integrante del equipo.";
+        } else if (!teamEmployeeIds.has(state.selectedEmployeeId)) {
+          errors.employee = "Selecciona un integrante válido del equipo.";
+        }
+      } else if (state.supervisorRecipientScope === "personal") {
+        if (!supervisorBeneficiaryConfig.self.id.trim()) {
+          errors.employee = "No se pudo identificar tu empleado en sesión.";
+        }
+      }
+    } else {
+      const effectiveSelectedEmployeeId =
+        state.personType === "interno" && !allowEmployeeSearch
+          ? (state.selectedEmployeeId || fixedEmployeeId)
+          : state.selectedEmployeeId;
+      if (!effectiveSelectedEmployeeId) {
+        errors.employee = "Selecciona un empleado.";
+      }
+    }
   }
   if (allowExternalPeople && state.personType === "externo") {
     const peopleCount = Number.parseInt(state.externalPeopleCount, 10);
@@ -137,9 +174,15 @@ function validateForm(
 function firstInvalidSelector(
   errors: ComedorNewRequestFormErrors,
   allowExternalPeople: boolean,
+  allowEmployeeSearch: boolean,
+  supervisorTeamEmpty: boolean,
 ): string | null {
   if (errors.personType) return "[data-comedor-modal-person-type='interno']";
-  if (errors.employee) return "#comedor-modal-employee-search";
+  if (errors.employee) {
+    if (allowEmployeeSearch) return "#comedor-modal-employee-search";
+    if (supervisorTeamEmpty) return "[data-comedor-modal-supervisor-scope='team']";
+    return "#comedor-modal-employee-select";
+  }
   if (allowExternalPeople && errors.externalPeopleCount) return "#comedor-modal-external-count";
   if (errors.menuId) return "#comedor-modal-menu";
   if (errors.fechaInicio) return "#comedor-modal-date-start";
@@ -176,9 +219,10 @@ export function mountComedorNewRequestModal(
   const fechaMinReservaIso = options.fechaMinReservaIso ?? null;
   const menuFieldLabel = options.menuFieldLabel;
   const loadFechasBloqueadas = options.loadFechasBloqueadas;
+  const supervisorBeneficiaryConfig = options.supervisorBeneficiaryConfig;
   let fechasBloqueadasSet: ReadonlySet<string> | null = null;
   let catalog: Catalog | null = null;
-  let formState = initialState(defaultEmployeeId);
+  let formState = initialState(defaultEmployeeId, supervisorBeneficiaryConfig);
   let errors: ComedorNewRequestFormErrors = {};
   let isSubmitting = false;
   let searchResults: readonly ComedorEmployeeOption[] = [];
@@ -188,16 +232,24 @@ export function mountComedorNewRequestModal(
   let searchToken = 0;
   const employeeSelectionCache = new Map<string, ComedorEmployeeOption>();
   let employeeOptions: readonly ComedorEmployeeOption[] = fixedEmployee ? [fixedEmployee] : [];
+  let teamOnlyEmployeeOptions: readonly ComedorEmployeeOption[] = [];
 
   function isOpen(): boolean {
     return !overlayEl.classList.contains("hidden");
   }
 
   function selectedEmployee(): ComedorEmployeeOption | null {
+    if (supervisorBeneficiaryConfig && formState.supervisorRecipientScope === "personal") {
+      return supervisorBeneficiaryConfig.self;
+    }
     if (!allowEmployeeSearch && fixedEmployee) return fixedEmployee;
     if (!formState.selectedEmployeeId) return null;
     const option = employeeOptions.find((employee) => employee.id === formState.selectedEmployeeId);
     if (option) return option;
+    const teamOption = teamOnlyEmployeeOptions.find(
+      (employee) => employee.id === formState.selectedEmployeeId,
+    );
+    if (teamOption) return teamOption;
     return (
       searchResults.find((employee) => employee.id === formState.selectedEmployeeId) ??
       employeeSelectionCache.get(formState.selectedEmployeeId) ??
@@ -211,6 +263,7 @@ export function mountComedorNewRequestModal(
       state: formState,
       allowExternalPeople,
       allowEmployeeSearch,
+      allowEmployeeSelection: !(fixedEmployee && !allowEmployeeSearch),
       errors,
       isSubmitting,
       menuOptions: catalog.menus,
@@ -222,6 +275,9 @@ export function mountComedorNewRequestModal(
       isSearchingEmployees,
       searchEmployeesError,
       selectedEmployee: selectedEmployee(),
+      showObservacionesField: options.showObservacionesField ?? true,
+      supervisorSelfOption: supervisorBeneficiaryConfig?.self ?? null,
+      teamEmployeeOptions: supervisorBeneficiaryConfig ? teamOnlyEmployeeOptions : undefined,
     });
     bindInteractions();
   }
@@ -230,7 +286,7 @@ export function mountComedorNewRequestModal(
     overlayEl.classList.add("hidden");
     overlayEl.classList.remove("flex");
     document.body.style.overflow = "";
-    formState = initialState(defaultEmployeeId);
+    formState = initialState(defaultEmployeeId, supervisorBeneficiaryConfig);
     formState.personType = "interno";
     errors = {};
     isSubmitting = false;
@@ -258,7 +314,7 @@ export function mountComedorNewRequestModal(
       try {
         const menus = await options.loadMenuOptions();
         catalog = { menus };
-        if (options.loadEmployeeOptions) {
+        if (options.loadEmployeeOptions && !options.supervisorBeneficiaryConfig) {
           employeeOptions = await options.loadEmployeeOptions();
           for (const row of employeeOptions) {
             employeeSelectionCache.set(row.id, row);
@@ -276,6 +332,17 @@ export function mountComedorNewRequestModal(
         return;
       }
     }
+    if (supervisorBeneficiaryConfig) {
+      try {
+        teamOnlyEmployeeOptions = await supervisorBeneficiaryConfig.loadTeamOptions();
+        for (const row of teamOnlyEmployeeOptions) {
+          employeeSelectionCache.set(row.id, row);
+        }
+        employeeSelectionCache.set(supervisorBeneficiaryConfig.self.id, supervisorBeneficiaryConfig.self);
+      } catch {
+        teamOnlyEmployeeOptions = [];
+      }
+    }
     fechasBloqueadasSet = new Set();
     if (loadFechasBloqueadas) {
       try {
@@ -285,7 +352,7 @@ export function mountComedorNewRequestModal(
         fechasBloqueadasSet = new Set();
       }
     }
-    formState = initialState(defaultEmployeeId);
+    formState = initialState(defaultEmployeeId, supervisorBeneficiaryConfig);
     errors = {};
     isSubmitting = false;
     searchResults = [];
@@ -293,7 +360,12 @@ export function mountComedorNewRequestModal(
     searchEmployeesError = null;
     renderForm();
     window.requestAnimationFrame(() => {
-      bodyEl.querySelector<HTMLElement>("[data-comedor-modal-person-type='interno']")?.focus();
+      const focusSupervisor =
+        bodyEl.querySelector<HTMLElement>("[data-comedor-modal-supervisor-scope='personal']");
+      const focusInternoTab = bodyEl.querySelector<HTMLElement>(
+        "[data-comedor-modal-person-type='interno']",
+      );
+      (focusSupervisor ?? focusInternoTab)?.focus();
     });
   }
 
@@ -318,6 +390,31 @@ export function mountComedorNewRequestModal(
   function bindInteractions(): void {
     const form = bodyEl.querySelector("#comedor-new-request-form");
     if (!(form instanceof HTMLFormElement)) return;
+
+    form.querySelectorAll<HTMLButtonElement>("[data-comedor-modal-supervisor-scope]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (!supervisorBeneficiaryConfig) return;
+        const raw = button.getAttribute("data-comedor-modal-supervisor-scope");
+        if (raw !== "personal" && raw !== "team") return;
+        formState.supervisorRecipientScope = raw;
+        if (raw === "personal") {
+          formState.selectedEmployeeId = supervisorBeneficiaryConfig.self.id;
+        } else {
+          formState.selectedEmployeeId = null;
+        }
+        formState.employeeSearch = "";
+        searchResults = [];
+        isSearchingEmployees = false;
+        searchEmployeesError = null;
+        searchToken += 1;
+        if (searchDebounceTimer != null) {
+          window.clearTimeout(searchDebounceTimer);
+          searchDebounceTimer = null;
+        }
+        errors.employee = undefined;
+        renderForm();
+      });
+    });
 
     form.querySelectorAll<HTMLButtonElement>("[data-comedor-modal-person-type]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -452,10 +549,21 @@ export function mountComedorNewRequestModal(
         fixedEmployeeId,
         fechaMinReservaIso,
         fechasBloqueadasSet,
+        supervisorBeneficiaryConfig,
+        new Set(teamOnlyEmployeeOptions.map((row) => row.id)),
       );
       if (Object.keys(errors).length > 0) {
         renderForm();
-        const selector = firstInvalidSelector(errors, allowExternalPeople);
+        const selector = firstInvalidSelector(
+          errors,
+          allowExternalPeople,
+          allowEmployeeSearch,
+          Boolean(
+            supervisorBeneficiaryConfig &&
+              formState.supervisorRecipientScope === "team" &&
+              teamOnlyEmployeeOptions.length === 0,
+          ),
+        );
         if (selector) bodyEl.querySelector<HTMLElement>(selector)?.focus();
         return;
       }
@@ -464,8 +572,13 @@ export function mountComedorNewRequestModal(
       try {
         const employeeId =
           formState.personType === "interno"
-            ? (formState.selectedEmployeeId || fixedEmployeeId)
+            ? supervisorBeneficiaryConfig && formState.supervisorRecipientScope === "personal"
+              ? supervisorBeneficiaryConfig.self.id
+              : (formState.selectedEmployeeId || fixedEmployeeId)
             : null;
+        const esRegistroPersonalSupervisor =
+          Boolean(supervisorBeneficiaryConfig && formState.supervisorRecipientScope === "personal");
+
         const payload: ComedorCreateRequestPayload = {
           personType: formState.personType,
           employeeId: formState.personType === "interno" ? employeeId : null,
@@ -476,6 +589,7 @@ export function mountComedorNewRequestModal(
           menuId: formState.menuId,
           fechas: buildDatesInRangeInclusive(formState.fechaInicio, formState.fechaFin),
           observaciones: formState.observaciones.trim(),
+          ...(esRegistroPersonalSupervisor ? { supervisorSelfRegistration: true } : {}),
         };
         const result = await options.onSubmit(payload);
         await Promise.resolve(options.onSuccess?.(result, payload));

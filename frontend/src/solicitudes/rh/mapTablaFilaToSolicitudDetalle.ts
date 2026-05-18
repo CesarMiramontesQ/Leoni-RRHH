@@ -5,6 +5,15 @@ import type { SolicitudDetallePendienteVm } from "./solicitudDetalleTypes.ts";
 import type { RhSolicitudTablaFila } from "./types.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 
+function normalizeNoEmpleado(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  const num = Number(value);
+  if (Number.isFinite(num)) return String(Math.trunc(num));
+  const match = value.match(/^\d+/);
+  return match ? match[0] : value;
+}
+
 function fmtFechaDisplay(iso: string): string {
   const p = iso.trim().split("-");
   if (p.length !== 3) return iso;
@@ -37,12 +46,23 @@ export function mapTablaFilaToSolicitudDetallePendiente(
   const totalDias = calcularDiasSolicitadosInclusive(row.fecha_inicio, row.fecha_fin);
   const saldoRestante = Math.max(0, extra.saldo_actual - totalDias);
   const tipoBadge =
-    row.tipo === "vacaciones" ? SD_COPY.badgeVacacionesPendiente : SD_COPY.badgeHomeOfficePendiente;
+    row.tipo === "vacaciones" ? SD_COPY.badgeVacacionesPendiente
+    : row.tipo === "home_office" ? SD_COPY.badgeHomeOfficePendiente
+    : row.tipo === "permiso_sin_goce_sueldo" ? "Permiso sin goce · Pendiente"
+    : row.tipo === "matrimonio" ? "Matrimonio · Pendiente"
+    : row.tipo === "incapacidad_interna" ? "Incapacidad interna · Pendiente"
+    : row.tipo === "defuncion" ? "Defunción · Pendiente"
+    : "Paternidad · Pendiente";
   const comentarioApi =
     typeof row.comentarios === "string" && row.comentarios.trim() ? row.comentarios.trim() : "";
   const comentarioEmp = comentarioApi || extra.comentario_empleado.trim();
-  const idEmpleadoUi = row.empleado_id.trim() || "—";
-  const puestoUi = soloLectura ? "—" : extra.puesto;
+  const noEmpleadoUi =
+    typeof row.empleado_no_empleado === "string" && row.empleado_no_empleado.trim() ?
+      normalizeNoEmpleado(row.empleado_no_empleado)
+    : "";
+  const idEmpleadoUi = noEmpleadoUi || row.empleado_id.trim() || "—";
+  const puestoUi =
+    typeof row.empleado_puesto === "string" && row.empleado_puesto.trim() ? row.empleado_puesto.trim() : extra.puesto;
 
   return {
     id: String(row.id),

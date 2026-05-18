@@ -160,6 +160,10 @@ class LegalRagService:
         n = await asyncio.to_thread(self._sync_document_count)
         return n > 0
 
+    async def index_chunk_count(self) -> int:
+        """Número de chunks en el índice Chroma (0 si no existe o falla lectura)."""
+        return await asyncio.to_thread(self._sync_document_count)
+
     def _split_documents(self, file_path: Path, raw_text: str) -> list[Document]:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=max(200, settings.LEGAL_RAG_CHUNK_SIZE),
@@ -251,7 +255,7 @@ class LegalRagService:
             logger.warning("Fallo similarity_search RAG legal: %s", exc)
             return []
 
-        max_snippet = 750
+        max_snippet = max(400, settings.LEGAL_RAG_SNIPPET_MAX_CHARS)
         out: list[str] = []
         for d in docs:
             src = d.metadata.get("source", "documento")

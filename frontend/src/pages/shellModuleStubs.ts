@@ -19,7 +19,6 @@ export function mountComedorStub(container: HTMLElement): void {
 export function mountNotificacionesStub(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Notificaciones",
-    activeNav: "notificaciones",
     mainHtml: stubMain("Notificaciones"),
   });
 }

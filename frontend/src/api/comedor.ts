@@ -256,6 +256,8 @@ export type ComedorRhRegistroResponseApi = {
 
 export type ComedorCodigoExternoApiItem = {
   id: number;
+  comedor_id: number;
+  comedor_nombre: string;
   fecha_inicio: string;
   fecha_fin: string;
   cantidad_personas: number;
@@ -375,6 +377,26 @@ export async function getComedorRhProximosRegistros(
   params.set("filtro_estado", opts?.filtroEstado ?? "todos");
   if (opts?.buscar?.trim()) params.set("buscar", opts.buscar.trim());
   const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/proximos-registros?${params.toString()}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorRhProximosRegistrosPageApi;
+}
+
+/** Registros operativos en un rango de fechas (inclusive); usado por Reporte comedor (RH). */
+export async function getComedorRhRegistrosReporte(
+  desdeIso: string,
+  hastaIso: string,
+  page: number,
+  pageSize: 10 | 50,
+  opts?: { buscar?: string; filtroEstado?: ComedorRhProximosFiltroEstado },
+): Promise<ComedorRhProximosRegistrosPageApi> {
+  const params = new URLSearchParams();
+  params.set("desde", desdeIso.slice(0, 10));
+  params.set("hasta", hastaIso.slice(0, 10));
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  params.set("filtro_estado", opts?.filtroEstado ?? "todos");
+  if (opts?.buscar?.trim()) params.set("buscar", opts.buscar.trim());
+  const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/registros-reporte?${params.toString()}`);
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorRhProximosRegistrosPageApi;
 }

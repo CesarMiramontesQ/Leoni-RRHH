@@ -35,7 +35,7 @@ export type ActaListItem = {
   supervisor_directo: string | null;
   tipo_falta: string | null;
   fecha_evento: string | null;
-  estado: "draft" | "pending_sign" | "signed" | "archived";
+  estado: "draft" | "pending_sign" | "signed" | "archived" | "cancelled";
   created_at: string;
 };
 
@@ -58,7 +58,7 @@ export type ActaDetailResponse = {
   responsable_rh: string | null;
   evidencia: string | null;
   ia_recomendacion: string | null;
-  estado: "draft" | "pending_sign" | "signed" | "archived";
+  estado: "draft" | "pending_sign" | "signed" | "archived" | "cancelled";
   created_at: string;
 };
 
@@ -79,6 +79,11 @@ export type ActaPageResponse = {
   items: ActaListItem[];
   next_cursor: number | null;
   total: number;
+};
+
+export type ActasDashboardMetricasResponse = {
+  en_proceso: number;
+  pendientes_firma: number;
 };
 
 export type ActaImproveWithIaResponse = {
@@ -117,6 +122,12 @@ export async function createActaAdministrativa(payload: ActaCreatePayload): Prom
 
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaCreateResponse;
+}
+
+export async function getActasDashboardMetricas(): Promise<ActasDashboardMetricasResponse> {
+  const res = await fetchWithAuth("/api/v1/actas/metricas-dashboard");
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActasDashboardMetricasResponse;
 }
 
 export async function getActasPage(params: {
@@ -164,6 +175,39 @@ export async function updateActaAdministrativa(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaDetailResponse;
+}
+
+export async function approveActaAdministrativa(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ActaDetailResponse> {
+  const res = await fetchWithAuth(`/api/v1/actas/${id}/aprobar`, {
+    method: "PUT",
+    signal,
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaDetailResponse;
+}
+
+export type ActaAnularPayload = {
+  motivo?: string | null;
+};
+
+export async function anularActaAdministrativa(
+  id: number,
+  payload: ActaAnularPayload = {},
+  signal?: AbortSignal,
+): Promise<ActaDetailResponse> {
+  const res = await fetchWithAuth(`/api/v1/actas/${id}/anular`, {
+    method: "PUT",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ motivo: payload.motivo?.trim() || null }),
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaDetailResponse;

@@ -13,7 +13,16 @@ class Solicitud(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
     tipo: Mapped[str] = mapped_column(
-        Enum("vacaciones", "home_office", name="solicitud_tipo_enum"),
+        Enum(
+            "vacaciones",
+            "home_office",
+            "matrimonio",
+            "incapacidad_interna",
+            "defuncion",
+            "paternidad",
+            "permiso_sin_goce_sueldo",
+            name="solicitud_tipo_enum",
+        ),
         nullable=False,
     )
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
@@ -32,6 +41,7 @@ class Solicitud(Base):
         default="pending",
     )
     nivel_actual: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

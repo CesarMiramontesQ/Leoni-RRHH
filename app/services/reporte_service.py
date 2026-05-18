@@ -50,11 +50,9 @@ class ReporteService:
         )
         solicitudes_por_estado = dict(sol_result.all())
 
-        # Abiertas = open | in_review (no resolved/closed)
+        # Sin columna `estado`, el KPI cuenta incidencias registradas.
         inc_result = await self.db.execute(
-            select(func.count()).where(
-                Incidencia.estado.in_(["open", "in_review"])
-            )
+            select(func.count()).select_from(Incidencia)
         )
         incidencias_abiertas = inc_result.scalar_one()
 

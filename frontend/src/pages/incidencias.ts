@@ -1,8 +1,28 @@
 import { canAccessRhIncidenciasPage, getRolFromAccessToken } from "../auth/jwt.ts";
-import { getIncidenciasRows, type IncidenciasFetchError } from "../api/incidencias.ts";
+import {
+  fetchIncidenciasAreasRegistradas,
+  fetchIncidenciasEstadisticas,
+  fetchIncidenciasListPage,
+  fetchIncidenciasSubareasRegistradas,
+  fetchIncidenciasTiposRegistrados,
+  incidenciaApiItemToTablaFila,
+  type IncidenciasFetchError,
+} from "../api/incidencias.ts";
+import { patchRhIncidenciaSubareaSelect } from "../components/incidencias/rhIncidenciasFilters.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
+import {
+  mountIncidenciasAreasBarChart,
+  mountIncidenciasDonutPorTipoChart,
+  mountIncidenciasSubareasBarChart,
+  mountIncidenciasTendenciaPorMesChart,
+  RH_INC_AREAS_BAR_CHART_ID,
+  RH_INC_SUBAREAS_BAR_CHART_ID,
+  RH_INC_TENDENCIA_CHART_ID,
+  RH_INC_TIPO_DOUGHNUT_CHART_ID,
+} from "../components/incidencias/rhIncidenciasCharts.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
+import { destroyChart, destroyChartsIn } from "../charts/index.ts";
 import {
   mountRhIncidenciaDetalleModal,
   type RhIncidenciaDetalleModalHandle,
@@ -13,15 +33,17 @@ import {
 } from "../components/solicitudes/solicitudesNuevaIncidenciaModal.ts";
 import { INC_COPY } from "../incidencias/rh/incidenciasCopy.ts";
 import { buildRhIncidenciaFilterOptions } from "../incidencias/rh/buildRhIncidenciaFilterOptions.ts";
-import { buildRhIncidenciasAdminViewModel } from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
-import { filterRhIncidenciaRows } from "../incidencias/rh/filterAndPaginateRhIncidencias.ts";
-import type {
-  RhIncidenciaEstadoCodigo,
-  RhIncidenciaFilterState,
-  RhIncidenciasAdminViewModel,
-  RhIncidenciasUiConfig,
-  RhIncidenciaTipoCodigo,
-  RhIncidenciaTablaFila,
+import {
+  buildRhIncidenciasAdminViewModelFromApi,
+  type RhIncidenciasFilterCatalog,
+} from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
+import {
+  emptyRhIncidenciaListFilters,
+  type RhIncidenciaListFilters,
+  type RhIncidenciasAdminViewModel,
+  type RhIncidenciasEstadisticasData,
+  type RhIncidenciasUiConfig,
+  type RhIncidenciaTablaFila,
 } from "../incidencias/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
@@ -42,65 +64,149 @@ function incidenciasUiConfig(): RhIncidenciasUiConfig {
   return { modoFiltros: "estandar", mostrarFiltroSupervisor: true };
 }
 
-function loadingViewModel(): RhIncidenciasAdminViewModel {
+function cloneFilters(f: RhIncidenciaListFilters): RhIncidenciaListFilters {
+  return { ...f };
+}
+
+const FILTER_FIELDS: (keyof RhIncidenciaListFilters)[] = [
+  "tipo",
+  "no_empleado",
+  "nombre",
+  "fecha_inicio",
+  "fecha_fin",
+  "area",
+  "subarea",
+  "estatus_id",
+];
+
+/** Solo los criterios expuestos en la UI de filtros (resto en blanco para la petición). */
+function filtrosVisiblesAplicados(d: RhIncidenciaListFilters): RhIncidenciaListFilters {
   return {
-    resumen: null,
-    resumenStatus: "loading",
+    ...emptyRhIncidenciaListFilters(),
+    tipo: d.tipo,
+    no_empleado: d.no_empleado,
+    nombre: d.nombre,
+    fecha_inicio: d.fecha_inicio,
+    fecha_fin: d.fecha_fin,
+    area: d.area,
+    subarea: d.subarea,
+    estatus_id: d.estatus_id,
+  };
+}
+
+/** Lee valores actuales del DOM (el date picker suele disparar `change`, no `input`). */
+function readFiltersFromDom(root: ParentNode, base: RhIncidenciaListFilters): RhIncidenciaListFilters {
+  const next = { ...base };
+  for (const field of FILTER_FIELDS) {
+    const el = root.querySelector<HTMLInputElement | HTMLSelectElement>(
+      `[data-rh-inc-filter-field="${field}"]`,
+    );
+    if (el) next[field] = el.value;
+  }
+  return next;
+}
+
+function fechasRangoListo(f: RhIncidenciaListFilters): boolean {
+  const fi = f.fecha_inicio.trim();
+  const ff = f.fecha_fin.trim();
+  if (!fi || !ff) return false;
+  return fi <= ff;
+}
+
+type ChartsHold =
+  | { kind: "ready"; data: RhIncidenciasEstadisticasData }
+  | { kind: "error"; message: string };
+
+const EMPTY_CATALOG: RhIncidenciasFilterCatalog = {
+  tiposRegistrados: [],
+  areasRegistradas: [],
+  subareasRegistradas: [],
+};
+
+function loadingViewModel(
+  filterDraft: RhIncidenciaListFilters,
+  appliedFilters: RhIncidenciaListFilters,
+  ui: RhIncidenciasUiConfig,
+  catalog: RhIncidenciasFilterCatalog,
+  chartsHold?: ChartsHold,
+): RhIncidenciasAdminViewModel {
+  if (!chartsHold) {
+    return {
+      estadisticas: null,
+      estadisticasStatus: "loading",
+      estadisticasErrorMessage: undefined,
+      resumenListado: null,
+      filterOptions: buildRhIncidenciaFilterOptions([]),
+      tiposRegistrados: catalog.tiposRegistrados,
+      areasRegistradas: catalog.areasRegistradas,
+      subareasRegistradas: catalog.subareasRegistradas,
+      filterDraft: cloneFilters(filterDraft),
+      appliedFilters: cloneFilters(appliedFilters),
+      ui,
+      tableStatus: "loading",
+      table: null,
+      tableErrorMessage: undefined,
+    };
+  }
+  if (chartsHold.kind === "ready") {
+    return {
+      estadisticas: chartsHold.data,
+      estadisticasStatus: "ready",
+      estadisticasErrorMessage: undefined,
+      resumenListado: null,
+      filterOptions: buildRhIncidenciaFilterOptions([]),
+      tiposRegistrados: catalog.tiposRegistrados,
+      areasRegistradas: catalog.areasRegistradas,
+      subareasRegistradas: catalog.subareasRegistradas,
+      filterDraft: cloneFilters(filterDraft),
+      appliedFilters: cloneFilters(appliedFilters),
+      ui,
+      tableStatus: "loading",
+      table: null,
+      tableErrorMessage: undefined,
+    };
+  }
+  return {
+    estadisticas: null,
+    estadisticasStatus: "error",
+    estadisticasErrorMessage: chartsHold.message,
+    resumenListado: null,
     filterOptions: buildRhIncidenciaFilterOptions([]),
-    filters: {
-      area_id: "",
-      empleado_busqueda: "",
-      supervisor_id: "",
-      tipo: "",
-      estado: "",
-      periodo: "30d",
-      page: 1,
-      page_size: 10,
-    },
-    ui: incidenciasUiConfig(),
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
+    filterDraft: cloneFilters(filterDraft),
+    appliedFilters: cloneFilters(appliedFilters),
+    ui,
     tableStatus: "loading",
     table: null,
     tableErrorMessage: undefined,
   };
 }
 
-function errorViewModel(message: string): RhIncidenciasAdminViewModel {
+function errorViewModel(
+  message: string,
+  filterDraft: RhIncidenciaListFilters,
+  appliedFilters: RhIncidenciaListFilters,
+  ui: RhIncidenciasUiConfig,
+  catalog: RhIncidenciasFilterCatalog,
+): RhIncidenciasAdminViewModel {
   return {
-    resumen: null,
-    resumenStatus: "error",
+    estadisticas: null,
+    estadisticasStatus: "error",
+    estadisticasErrorMessage: message,
+    resumenListado: null,
     filterOptions: buildRhIncidenciaFilterOptions([]),
-    filters: {
-      area_id: "",
-      empleado_busqueda: "",
-      supervisor_id: "",
-      tipo: "",
-      estado: "",
-      periodo: "30d",
-      page: 1,
-      page_size: 10,
-    },
-    ui: incidenciasUiConfig(),
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
+    filterDraft: cloneFilters(filterDraft),
+    appliedFilters: cloneFilters(appliedFilters),
+    ui,
     tableStatus: "error",
     table: null,
     tableErrorMessage: message,
   };
-}
-
-function isTipo(v: string): v is RhIncidenciaTipoCodigo {
-  return (
-    v === "falta_injustificada" ||
-    v === "retardo" ||
-    v === "indisciplina" ||
-    v === "dano_equipo"
-  );
-}
-
-function isEstado(v: string): v is RhIncidenciaEstadoCodigo {
-  return v === "abierto" || v === "en_investigacion" || v === "cerrado";
-}
-
-function isPeriodo(v: string): v is RhIncidenciaFilterState["periodo"] {
-  return v === "30d" || v === "90d" || v === "365d" || v === "all";
 }
 
 const INCIDENCIAS_PAGE_SHELL_CLASS =
@@ -119,61 +225,146 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     return;
   }
 
-  let allRows: RhIncidenciaTablaFila[] = [];
-  let filterOpts = buildRhIncidenciaFilterOptions([]);
-
-  const state: RhIncidenciaFilterState = {
-    area_id: "",
-    empleado_busqueda: "",
-    supervisor_id: "",
-    tipo: "",
-    estado: "",
-    periodo: "30d",
-    page: 1,
-    page_size: 10,
-  };
-
   const uiConfig = incidenciasUiConfig();
+  let filterDraft = emptyRhIncidenciaListFilters();
+  let appliedFilters = emptyRhIncidenciaListFilters();
+  let filterCatalog: RhIncidenciasFilterCatalog = { ...EMPTY_CATALOG };
+  let page = 1;
+  let currentRows: RhIncidenciaTablaFila[] = [];
+  let lastEstadisticas: RhIncidenciasEstadisticasData | null = null;
+  let lastEstadisticasStatus: "ready" | "error" = "ready";
+  let lastEstadisticasError: string | undefined;
+  let loadSeq = 0;
 
-  let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function clampPage(): void {
-    const filtered = filterRhIncidenciaRows(allRows, state);
-    const totalPages = Math.max(1, Math.ceil(filtered.length / state.page_size) || 1);
-    if (state.page > totalPages) state.page = totalPages;
-    if (state.page < 1) state.page = 1;
+  function destroyIncidenciasChartRegistry(): void {
+    destroyChart(RH_INC_TENDENCIA_CHART_ID);
+    destroyChart(RH_INC_TIPO_DOUGHNUT_CHART_ID);
+    destroyChart(RH_INC_AREAS_BAR_CHART_ID);
+    destroyChart(RH_INC_SUBAREAS_BAR_CHART_ID);
   }
 
-  function paint(): void {
-    if (!uiConfig.mostrarFiltroSupervisor) state.supervisor_id = "";
-    clampPage();
-    const vm = buildRhIncidenciasAdminViewModel(allRows, filterOpts, state, uiConfig);
+  function paintVm(vm: RhIncidenciasAdminViewModel): void {
     const inner = container.querySelector("#rh-incidencias-inner");
-    const active = document.activeElement;
-    let restoreEmpSearch: { start: number; end: number; dir: "forward" | "backward" | "none" } | null = null;
-    if (active instanceof HTMLInputElement && active.matches("[data-rh-inc-empleado-busqueda]")) {
-      restoreEmpSearch = {
-        start: active.selectionStart ?? active.value.length,
-        end: active.selectionEnd ?? active.value.length,
-        dir:
-          active.selectionDirection === "backward"
-            ? "backward"
-            : active.selectionDirection === "none"
-              ? "none"
-              : "forward",
-      };
+    if (!inner) return;
+    destroyIncidenciasChartRegistry();
+    destroyChartsIn(inner);
+    inner.innerHTML = renderRhIncidenciasAdminView(vm);
+    if (vm.estadisticasStatus === "ready" && vm.estadisticas) {
+      mountIncidenciasTendenciaPorMesChart(inner, vm.estadisticas.incidencias_por_mes ?? []);
+      mountIncidenciasDonutPorTipoChart(inner, vm.estadisticas.incidencias_por_tipo ?? []);
+      mountIncidenciasAreasBarChart(
+        inner,
+        vm.estadisticas.areas_con_mas_incidencias ?? [],
+        vm.estadisticas.total_incidencias ?? 0,
+      );
+      mountIncidenciasSubareasBarChart(
+        inner,
+        vm.estadisticas.subareas_con_mas_incidencias ?? [],
+        vm.estadisticas.total_incidencias ?? 0,
+      );
     }
-    if (inner) inner.innerHTML = renderRhIncidenciasAdminView(vm);
-    if (restoreEmpSearch) {
-      const el = container.querySelector<HTMLInputElement>("[data-rh-inc-empleado-busqueda]");
-      if (el) {
-        el.focus();
+  }
+
+  async function loadSubareasCatalog(area: string): Promise<void> {
+    try {
+      const items = await fetchIncidenciasSubareasRegistradas(area.trim() || undefined);
+      filterCatalog = { ...filterCatalog, subareasRegistradas: items };
+    } catch {
+      filterCatalog = { ...filterCatalog, subareasRegistradas: [] };
+    }
+  }
+
+  async function ensureFilterCatalog(): Promise<void> {
+    const needTipos = filterCatalog.tiposRegistrados.length === 0;
+    const needAreas = filterCatalog.areasRegistradas.length === 0;
+    const needSubareas = filterCatalog.subareasRegistradas.length === 0;
+    if (!needTipos && !needAreas && !needSubareas) return;
+
+    const [tipos, areas, subareas] = await Promise.all([
+      needTipos ? fetchIncidenciasTiposRegistrados().catch(() => [] as string[]) : Promise.resolve(filterCatalog.tiposRegistrados),
+      needAreas ? fetchIncidenciasAreasRegistradas().catch(() => [] as string[]) : Promise.resolve(filterCatalog.areasRegistradas),
+      needSubareas
+        ? fetchIncidenciasSubareasRegistradas(filterDraft.area.trim() || undefined).catch(
+            () => [] as string[],
+          )
+        : Promise.resolve(filterCatalog.subareasRegistradas),
+    ]);
+    filterCatalog = {
+      tiposRegistrados: [...tipos],
+      areasRegistradas: [...areas],
+      subareasRegistradas: [...subareas],
+    };
+  }
+
+  async function load(refreshEstadisticas: boolean): Promise<void> {
+    const seq = ++loadSeq;
+    const isStale = (): boolean => seq !== loadSeq;
+
+    await ensureFilterCatalog();
+    let chartsHold: ChartsHold | undefined;
+    if (!refreshEstadisticas) {
+      if (lastEstadisticasStatus === "ready" && lastEstadisticas !== null) {
+        chartsHold = { kind: "ready", data: lastEstadisticas };
+      } else if (lastEstadisticasStatus === "error") {
+        chartsHold = {
+          kind: "error",
+          message: lastEstadisticasError || "No se pudieron cargar las estadísticas de incidencias.",
+        };
+      }
+    }
+    if (isStale()) return;
+    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, filterCatalog, chartsHold));
+    try {
+      const pageData = await fetchIncidenciasListPage(appliedFilters, page, 10);
+      if (isStale()) return;
+      currentRows = pageData.items.map(incidenciaApiItemToTablaFila);
+      if (refreshEstadisticas) {
         try {
-          el.setSelectionRange(restoreEmpSearch.start, restoreEmpSearch.end, restoreEmpSearch.dir);
-        } catch {
-          /* noop */
+          lastEstadisticas = await fetchIncidenciasEstadisticas(appliedFilters);
+          lastEstadisticasStatus = "ready";
+          lastEstadisticasError = undefined;
+        } catch (err) {
+          const fetchError = err as IncidenciasFetchError;
+          lastEstadisticas = null;
+          lastEstadisticasStatus = "error";
+          lastEstadisticasError =
+            fetchError?.detail || "No se pudieron cargar las estadísticas de incidencias.";
         }
       }
+      if (isStale()) return;
+      paintVm(
+        buildRhIncidenciasAdminViewModelFromApi(
+          pageData,
+          lastEstadisticas,
+          lastEstadisticasStatus,
+          lastEstadisticasError,
+          filterDraft,
+          appliedFilters,
+          uiConfig,
+          filterCatalog,
+        ),
+      );
+    } catch (error) {
+      if (isStale()) return;
+      const fetchError = error as IncidenciasFetchError;
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
+      currentRows = [];
+      paintVm(
+        errorViewModel(
+          fetchError?.detail || "Error inesperado al cargar incidencias.",
+          filterDraft,
+          appliedFilters,
+          uiConfig,
+          filterCatalog,
+        ),
+      );
     }
   }
 
@@ -182,7 +373,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     activeNav: "incidencias",
     mainClass: incidenciasMainClass,
     mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
-      <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel())}</div>
+      <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel(filterDraft, appliedFilters, uiConfig, EMPTY_CATALOG))}</div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>
     </div>`,
@@ -223,34 +414,31 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         nuevaIncidenciaModal?.open();
         return;
       }
-      if (t.closest("#rh-inc-filtros-av")) {
-        showEmpleadosToast(container, "Filtros avanzados en integracion.", "error");
-        return;
-      }
       if (t.closest("[data-rh-inc-clear-filters]")) {
-        state.area_id = "";
-        state.empleado_busqueda = "";
-        state.supervisor_id = "";
-        state.tipo = "";
-        state.estado = "";
-        state.periodo = "30d";
-        state.page = 1;
-        paint();
+        filterDraft = emptyRhIncidenciaListFilters();
+        appliedFilters = emptyRhIncidenciaListFilters();
+        page = 1;
+        void (async () => {
+          await loadSubareasCatalog("");
+          void load(true);
+        })();
         return;
       }
-      if (t.closest("[data-rh-inc-historial]")) {
-        showEmpleadosToast(container, "Historial no disponible en esta version.", "error");
+      if (t.closest("[data-rh-inc-apply-filters]")) {
+        if (!pageRoot) return;
+        filterDraft = readFiltersFromDom(pageRoot, filterDraft);
+        const next = filtrosVisiblesAplicados(filterDraft);
+        filterDraft = cloneFilters(next);
+        appliedFilters = cloneFilters(next);
+        page = 1;
+        void load(true);
         return;
       }
-      if (t.closest("[data-rh-inc-ev-descarga]")) {
-        showEmpleadosToast(container, "Descarga de evidencia no disponible.", "error");
-        return;
-      }
-      const row = t.closest<HTMLElement>("[data-rh-inc-row]");
-      if (row) {
-        const raw = row.getAttribute("data-rh-inc-id");
+      const verBtn = t.closest<HTMLElement>("[data-rh-inc-ver]");
+      if (verBtn) {
+        const raw = verBtn.getAttribute("data-rh-inc-id");
         const id = raw ? Number.parseInt(raw, 10) : NaN;
-        const fila = Number.isFinite(id) ? allRows.find((r) => r.id === id) : undefined;
+        const fila = Number.isFinite(id) ? currentRows.find((r) => r.id === id) : undefined;
         if (fila) detalleModal?.open(fila);
         return;
       }
@@ -259,26 +447,51 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         const raw = pageBtn.getAttribute("data-rh-inc-page");
         const n = raw ? Number.parseInt(raw, 10) : NaN;
         if (!Number.isNaN(n)) {
-          state.page = n;
-          paint();
+          page = n;
+          void load(false);
         }
       }
     },
     { signal },
   );
 
+  function syncFilterFieldFromDom(el: HTMLInputElement | HTMLSelectElement): void {
+    const name = el.getAttribute("data-rh-inc-filter-field");
+    if (!name) return;
+    if (!FILTER_FIELDS.includes(name as keyof RhIncidenciaListFilters)) return;
+    filterDraft = { ...filterDraft, [name]: el.value } as RhIncidenciaListFilters;
+  }
+
+  function maybeAutoApplyFechaRango(field: string): void {
+    if (field !== "fecha_inicio" && field !== "fecha_fin") return;
+    if (!fechasRangoListo(filterDraft)) return;
+    const next = filtrosVisiblesAplicados(filterDraft);
+    filterDraft = cloneFilters(next);
+    appliedFilters = cloneFilters(next);
+    page = 1;
+    void load(true);
+  }
+
   pageRoot?.addEventListener(
-    "keydown",
-    (e: Event) => {
-      const ke = e as KeyboardEvent;
-      const tr = (ke.target as HTMLElement | null)?.closest?.("[data-rh-inc-row]");
-      if (!tr) return;
-      if (ke.key !== "Enter" && ke.key !== " ") return;
-      ke.preventDefault();
-      const raw = tr.getAttribute("data-rh-inc-id");
-      const id = raw ? Number.parseInt(raw, 10) : NaN;
-      const fila = Number.isFinite(id) ? allRows.find((r) => r.id === id) : undefined;
-      if (fila) detalleModal?.open(fila);
+    "change",
+    (e) => {
+      const el = (e.target as HTMLElement).closest<HTMLInputElement | HTMLSelectElement>(
+        "[data-rh-inc-filter-field]",
+      );
+      if (!el) return;
+      syncFilterFieldFromDom(el);
+      const name = el.getAttribute("data-rh-inc-filter-field") ?? "";
+      if (name === "area") {
+        filterDraft = { ...filterDraft, subarea: "" };
+        void (async () => {
+          await loadSubareasCatalog(filterDraft.area);
+          if (pageRoot) {
+            patchRhIncidenciaSubareaSelect(pageRoot, filterDraft, filterCatalog.subareasRegistradas);
+          }
+        })();
+        return;
+      }
+      maybeAutoApplyFechaRango(name);
     },
     { signal },
   );
@@ -286,76 +499,17 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   pageRoot?.addEventListener(
     "input",
     (e) => {
-      if (uiConfig.modoFiltros !== "rh") return;
-      const inp = (e.target as HTMLElement).closest<HTMLInputElement>("[data-rh-inc-empleado-busqueda]");
+      const inp = (e.target as HTMLElement).closest<HTMLInputElement>("[data-rh-inc-filter-field]");
       if (!inp) return;
-      state.empleado_busqueda = inp.value;
-      state.page = 1;
-      if (empleadoBusquedaDebounceTimer != null) window.clearTimeout(empleadoBusquedaDebounceTimer);
-      empleadoBusquedaDebounceTimer = window.setTimeout(() => {
-        empleadoBusquedaDebounceTimer = null;
-        paint();
-      }, 200);
-    },
-    { signal },
-  );
-
-  pageRoot?.addEventListener(
-    "change",
-    (e) => {
-      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-inc-filter]");
-      if (sel) {
-        const name = sel.getAttribute("data-rh-inc-filter");
-        const value = sel.value;
-        state.page = 1;
-        if (name === "area") state.area_id = value;
-        else if (name === "supervisor") state.supervisor_id = value;
-        else if (name === "tipo") state.tipo = value === "" ? "" : isTipo(value) ? value : "";
-        else if (name === "estado") state.estado = value === "" ? "" : isEstado(value) ? value : "";
-        else if (name === "periodo") state.periodo = isPeriodo(value) ? value : "30d";
-        paint();
-        return;
-      }
-      const ps = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-inc-page-size]");
-      if (ps) {
-        const n = Number.parseInt(ps.value, 10);
-        state.page_size = Number.isNaN(n) ? 10 : n;
-        state.page = 1;
-        paint();
-      }
+      syncFilterFieldFromDom(inp);
     },
     { signal },
   );
 
   signal.addEventListener("abort", () => {
-    if (empleadoBusquedaDebounceTimer != null) {
-      window.clearTimeout(empleadoBusquedaDebounceTimer);
-      empleadoBusquedaDebounceTimer = null;
-    }
     nuevaIncidenciaModal?.destroy();
     detalleModal?.destroy();
   });
 
-  void (async () => {
-    try {
-      allRows = await getIncidenciasRows();
-      filterOpts = buildRhIncidenciaFilterOptions(allRows);
-      paint();
-    } catch (error) {
-      const fetchError = error as IncidenciasFetchError;
-      if (fetchError?.status === 401) {
-        clearAuth();
-        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
-          abortAuthenticatedShell();
-          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
-        });
-        return;
-      }
-      allRows = [];
-      filterOpts = buildRhIncidenciaFilterOptions([]);
-      const errVm = errorViewModel(fetchError?.detail || "Error inesperado al cargar incidencias.");
-      const inner = container.querySelector("#rh-incidencias-inner");
-      if (inner) inner.innerHTML = renderRhIncidenciasAdminView(errVm);
-    }
-  })();
+  void load(true);
 }

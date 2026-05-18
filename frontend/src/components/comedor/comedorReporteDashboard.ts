@@ -2,25 +2,18 @@ import type {
   ReporteComedorEmpleadoRow,
   ReporteComedorKpi,
   ReporteComedorKpiId,
-  ReporteComedorMainTab,
-  ReporteComedorSortDirection,
-  ReporteComedorSortKey,
   ReporteComedorViewState,
 } from "../../comedor/reportes/types.ts";
-import { diasEnPeriodoCalendario, serieDiariaTotales } from "../../comedor/reportes/reporteAggregations.ts";
+import { serieDiariaTotales, serieDiariaTotalesOperativo } from "../../comedor/reportes/reporteAggregations.ts";
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
-import { escapeComedorHtml, renderEmpleadoAvatarCell } from "./comedorUiUtils.ts";
-import { renderComedorRhProximosRegistrosTable } from "./comedorRhProximosRegistrosTable.ts";
+import { escapeComedorHtml } from "./comedorUiUtils.ts";
 import {
   renderReporteFilterToolbarGlobal,
+  renderReporteMainHeaderCard,
   renderReporteRhRestrictedNotice,
-  renderReporteTabAreas,
-  renderReporteTabComedor,
-  renderReporteTabEmpleados,
+  renderReporteTabDetalle,
+  reporteOperativoRowsScoped,
 } from "./comedorReporteAnalytics.ts";
-import { FIELD_FOCUS } from "../../ui/uiTokens.ts";
-
-const REPORTE_DETALLE_SEARCH_ICON = `<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg></span>`;
 
 function iconForKpi(id: ReporteComedorKpi["icono"]): string {
   if (id === "empleados") {
@@ -39,12 +32,6 @@ function downloadIcon(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4"><path d="M12 3.75v11.25m0 0 3.75-3.75M12 15 8.25 11.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 15.75v1.125A2.625 2.625 0 0 0 7.125 19.5h9.75a2.625 2.625 0 0 0 2.625-2.625V15.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
-function formatFilterDate(dateIso: string): string {
-  const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return dateIso;
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
-}
-
 function parseDiasMes(diasMes: string): { asistidos: number; esperados: number; ratio: number } {
   const [asistidosRaw, esperadosRaw] = diasMes.split("/");
   const asistidos = Number.parseInt((asistidosRaw ?? "").trim(), 10);
@@ -52,51 +39,6 @@ function parseDiasMes(diasMes: string): { asistidos: number; esperados: number; 
   const safeAsistidos = Number.isFinite(asistidos) ? asistidos : 0;
   const safeEsperados = Number.isFinite(esperados) && esperados > 0 ? esperados : 1;
   return { asistidos: safeAsistidos, esperados: safeEsperados, ratio: safeAsistidos / safeEsperados };
-}
-
-function formatHeroDate(dateIso: string): string {
-  const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return dateIso;
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
-}
-
-function renderHero(state: ReporteComedorViewState): string {
-  const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
-  const ini = formatHeroDate(state.selectedFechaInicioIso);
-  const fin = formatHeroDate(state.selectedFechaFinIso);
-  const updated =
-    state.lastUpdatedLabel ?
-      `<span class="inline-flex items-center rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm">Actualizado ${escapeComedorHtml(state.lastUpdatedLabel)}</span>`
-    : "";
-  return `
-    <header class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white bg-[radial-gradient(1200px_circle_at_100%_-10%,rgba(37,99,235,0.07),transparent_45%)] p-6 shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/5 sm:p-7">
-      <div class="pointer-events-none absolute -right-12 top-0 size-52 rounded-full bg-leoni-blue/6 blur-3xl sm:size-64"></div>
-      <div class="relative flex flex-col gap-5">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div class="min-w-0 flex-1 space-y-2">
-            <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-[1.75rem]">Reporte comedor</h1>
-            <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Tablero analítico para monitoreo de asistencia, consumo y costos de comedor.</p>
-          </div>
-          ${updated ? `<div class="shrink-0 sm:pt-1">${updated}</div>` : ""}
-        </div>
-        <div class="h-px w-full bg-gradient-to-r from-slate-200/0 via-slate-200 to-slate-200/0"></div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
-          <div class="min-w-0">
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Periodo seleccionado</p>
-            <p class="mt-1.5 break-words text-sm font-semibold text-slate-900">
-              <span class="text-slate-800">${escapeComedorHtml(ini)}</span>
-              <span class="mx-1.5 font-normal text-slate-400">—</span>
-              <span class="text-slate-800">${escapeComedorHtml(fin)}</span>
-            </p>
-          </div>
-          <div class="flex shrink-0 items-center">
-            <span class="inline-flex items-center rounded-full border border-slate-200/90 bg-slate-50 px-3 py-1.5 text-xs font-semibold tabular-nums text-slate-700 shadow-sm">
-              ${dias} día${dias === 1 ? "" : "s"} en el rango
-            </span>
-          </div>
-        </div>
-      </div>
-    </header>`;
 }
 
 function kpiDashVisual(kpi: ReporteComedorKpi, state: ReporteComedorViewState): {
@@ -182,19 +124,23 @@ function normalizeKpiSecondary(kpi: ReporteComedorKpi, modo: ReporteComedorViewS
 }
 
 function sparklineForKpi(state: ReporteComedorViewState, kpi: ReporteComedorKpi, trendColor: string): string {
-  if (
-    state.kpisModo === "rh_resumen" &&
-    kpi.id === "total_registros_resumen" &&
-    state.rhResumenDiario &&
-    state.rhResumenDiario.length > 0
-  ) {
-    const serie = serieDiariaTotales(state.rhResumenDiario).slice(-14);
-    return renderSparkline(serie, trendColor);
+  if (state.kpisModo === "rh_resumen" && kpi.id === "total_registros_resumen") {
+    if (
+      state.selectedAreaFilter === "todos" &&
+      state.rhResumenDiario &&
+      state.rhResumenDiario.length > 0
+    ) {
+      const serie = serieDiariaTotales(state.rhResumenDiario, "todos").slice(-14);
+      return renderSparkline(serie, trendColor);
+    }
+    const scoped = reporteOperativoRowsScoped(state);
+    const serieOp = serieDiariaTotalesOperativo(scoped, state.selectedFechaInicioIso, state.selectedFechaFinIso).slice(
+      -14,
+    );
+    if (serieOp.length > 0) return renderSparkline(serieOp, trendColor);
   }
   return renderSparkline(sparklineValuesForKpi(kpi.id), trendColor);
 }
-
-const KPI_CAL_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-[18px]" aria-hidden="true"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 function renderKpis(state: ReporteComedorViewState): string {
   const skeletonCount = state.kpisModo === "rh_resumen" ? 8 : 4;
@@ -238,28 +184,7 @@ function renderKpis(state: ReporteComedorViewState): string {
   if (state.kpisModo !== "rh_resumen") {
     ordered = [...ordered].sort((a, b) => (a.id === "costo_estimado" ? -1 : b.id === "costo_estimado" ? 1 : 0));
   }
-  const dias = diasEnPeriodoCalendario(state.selectedFechaInicioIso, state.selectedFechaFinIso);
-  const fuenteResumen =
-    state.kpisModo === "rh_resumen" ?
-      "Consolidado diario RH (caseras + saludables) y KPIs operativos filtrados por periodo y comedor."
-    : "Referencia de la semana actual del comedor (API estadísticas / proyecciones).";
-  const contextStrip = `
-    <div class="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/40 to-sky-50/30 px-4 py-3.5 shadow-sm ring-1 ring-slate-900/5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-      <div class="flex min-w-0 items-start gap-3">
-        <div class="flex shrink-0 rounded-[14px] p-2 rh-dash-kpi-icon rh-dash-kpi-icon--sky" aria-hidden="true">${KPI_CAL_ICON}</div>
-        <div class="min-w-0">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Contexto del periodo</p>
-          <p class="mt-1 text-sm font-semibold leading-snug text-slate-900">
-            Del ${escapeComedorHtml(formatFilterDate(state.selectedFechaInicioIso))} al ${escapeComedorHtml(formatFilterDate(state.selectedFechaFinIso))}
-          </p>
-          <p class="mt-0.5 text-xs text-slate-600">${dias} día${dias === 1 ? "" : "s"} analizados · consolidado operativo</p>
-        </div>
-      </div>
-      <p class="text-xs leading-relaxed text-slate-500 sm:max-w-[min(100%,22rem)] sm:text-right">${escapeComedorHtml(fuenteResumen)}</p>
-    </div>`;
-  return `<section class="space-y-4 sm:space-y-5">
-    ${contextStrip}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  return `<section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       ${ordered
         .map((kpi) => {
           const vis = kpiDashVisual(kpi, state);
@@ -277,153 +202,7 @@ function renderKpis(state: ReporteComedorViewState): string {
           </article>`;
         })
         .join("")}
-    </div>
   </section>`;
-}
-
-function menuBadge(menu: ReporteComedorEmpleadoRow["menu"]): string {
-  if (menu === "dieta") {
-    return '<span class="inline-flex items-center rounded-full border border-violet-200 bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-900">Dieta</span>';
-  }
-  return '<span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">Normal</span>';
-}
-
-function filteredAndSortedRows(state: ReporteComedorViewState): readonly ReporteComedorEmpleadoRow[] {
-  const baseRows = state.table?.empleados ?? [];
-  const needle = state.tableSearch.trim().toLowerCase();
-  const filtered =
-    needle.length === 0 ?
-      baseRows
-    : baseRows.filter((row) => `${row.nombre} ${row.noEmpleado} ${row.area} ${row.diasMes}`.toLowerCase().includes(needle));
-  return [...filtered].sort((a, b) => {
-    let comparison = 0;
-    if (state.tableSortKey === "nombre") comparison = a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
-    if (state.tableSortKey === "dias_mes") comparison = parseDiasMes(a.diasMes).ratio - parseDiasMes(b.diasMes).ratio;
-    if (state.tableSortKey === "menu") comparison = a.menu.localeCompare(b.menu);
-    if (state.tableSortKey === "estado") comparison = Number(a.activo) - Number(b.activo);
-    return state.tableSortDirection === "asc" ? comparison : comparison * -1;
-  });
-}
-
-function sortArrow(active: boolean, direction: ReporteComedorSortDirection): string {
-  if (!active) return '<span class="text-slate-300">↕</span>';
-  return `<span class="text-leoni-blue">${direction === "asc" ? "↑" : "↓"}</span>`;
-}
-
-function sortableHeader(title: string, key: ReporteComedorSortKey, state: ReporteComedorViewState, extraClass = ""): string {
-  const active = state.tableSortKey === key;
-  return `<th scope="col" class="sticky top-0 z-10 bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B] shadow-[inset_0_-1px_0_rgba(226,232,240,0.9)] ${extraClass}">
-      <button type="button" data-comedor-reporte-sort="${key}" class="inline-flex items-center gap-1 rounded-md hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
-        ${escapeComedorHtml(title)}
-        ${sortArrow(active, state.tableSortDirection)}
-      </button>
-    </th>`;
-}
-
-function renderTable(state: ReporteComedorViewState): string {
-  const searchInputClasses = `min-h-10 w-full rounded-[10px] border border-slate-300 bg-white py-2 pr-3 pl-9 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}`;
-  if (state.tableState === "loading") {
-    return `
-      <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
-        <div class="animate-pulse p-4 sm:p-5">
-          <div class="h-10 rounded-[10px] bg-slate-100"></div>
-          <div class="mt-3 h-10 rounded-[10px] bg-slate-100"></div>
-          <div class="mt-3 h-10 rounded-[10px] bg-slate-100"></div>
-        </div>
-      </section>`;
-  }
-  if (state.tableState === "error") {
-    return `
-      <section class="rounded-2xl border border-red-200/90 bg-red-50/95 px-4 py-4 text-sm text-red-800 shadow-sm" role="alert">
-        <p class="font-semibold">No fue posible cargar la tabla de empleados.</p>
-        <p class="mt-1">${escapeComedorHtml(state.tableError ?? "Error inesperado.")}</p>
-        <button type="button" data-comedor-reporte-retry-table class="mt-3 inline-flex rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2">
-          Reintentar
-        </button>
-      </section>`;
-  }
-  const rows = filteredAndSortedRows(state);
-  if (state.tableState === "empty" || rows.length === 0) {
-    return `
-      <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
-        <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
-          <label class="relative block w-full sm:max-w-md">
-            ${REPORTE_DETALLE_SEARCH_ICON}
-            <span class="sr-only">Buscar en detalle de registros</span>
-            <input
-              type="search"
-              value="${escapeComedorHtml(state.tableSearch)}"
-              data-comedor-reporte-search
-              placeholder="Buscar por nombre, número o área"
-              class="${searchInputClasses}"
-            />
-          </label>
-        </div>
-        <div class="border border-dashed border-slate-200/90 bg-slate-50/60 px-5 py-14 text-center">
-          <div class="mx-auto mb-3 inline-flex size-11 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6 text-slate-400" aria-hidden="true"><path d="M9 17v-6m3 4v-4m3 5v-9M5 3h14a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-4 3V5a2 2 0 0 1 2-2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <p class="text-sm font-semibold text-slate-900">No hay registros en este periodo.</p>
-          <p class="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600">Prueba ajustando el rango de fechas o el comedor seleccionado.</p>
-        </div>
-      </section>`;
-  }
-  return `
-    <section class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5">
-      <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-        <p class="text-sm font-semibold text-slate-900">Empleados evaluados</p>
-        <label class="relative block w-full sm:max-w-md">
-          ${REPORTE_DETALLE_SEARCH_ICON}
-          <span class="sr-only">Buscar en detalle de registros</span>
-          <input
-            type="search"
-            value="${escapeComedorHtml(state.tableSearch)}"
-            data-comedor-reporte-search
-            placeholder="Buscar por nombre, número o área"
-            class="${searchInputClasses}"
-          />
-        </label>
-      </div>
-      <div class="-mx-px overflow-x-auto border-t border-slate-100">
-        <table class="min-w-[940px] w-full border-collapse text-left">
-          <thead class="[&_th]:whitespace-nowrap">
-            <tr>
-              ${sortableHeader("Empleado", "nombre", state)}
-              ${sortableHeader("Días (mes)", "dias_mes", state, "text-right")}
-              ${sortableHeader("Menú", "menu", state)}
-              ${sortableHeader("Estado", "estado", state, "whitespace-nowrap")}
-              <th scope="col" class="sticky top-0 z-10 bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B] shadow-[inset_0_-1px_0_rgba(226,232,240,0.9)]">Acción</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            ${rows
-              .map((row) => {
-                return `<tr class="motion-safe:transition-colors motion-safe:duration-150 hover:bg-slate-50/90">
-                    <td class="px-4 py-3">
-                      ${renderEmpleadoAvatarCell(row.nombre, row.noEmpleado, row.avatarUrl)}
-                      <p class="mt-1 pl-11 text-xs text-slate-500">${escapeComedorHtml(row.area)}</p>
-                    </td>
-                    <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">${escapeComedorHtml(row.diasMes)}</td>
-                    <td class="whitespace-nowrap px-4 py-3">${menuBadge(row.menu)}</td>
-                    <td class="whitespace-nowrap px-4 py-3">
-                      ${
-                        row.activo ?
-                          '<span class="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-900">Activo</span>'
-                        : '<span class="inline-flex items-center rounded-full border border-rose-300 bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-900">Inactivo</span>'
-                      }
-                    </td>
-                    <td class="whitespace-nowrap px-4 py-3">
-                      <button type="button" data-comedor-reporte-open-detail="${escapeComedorHtml(row.id)}" class="inline-flex items-center rounded-md border border-leoni-blue/40 bg-white px-2.5 py-1 text-xs font-semibold text-leoni-blue transition hover:bg-leoni-blue/10">
-                        Ver análisis
-                      </button>
-                    </td>
-                  </tr>`;
-              })
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-    </section>`;
 }
 
 function renderSparklineCard(values: readonly number[]): string {
@@ -733,103 +512,26 @@ function renderProfilePanel(state: ReporteComedorViewState): string {
     </section>`;
 }
 
-function reporteWorkspaceCopy(tab: ReporteComedorMainTab): { title: string; subtitle: string } {
-  switch (tab) {
-    case "comedor":
-      return {
-        title: "Reporte por comedor",
-        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
-      };
-    case "empleados":
-      return {
-        title: "Reporte por empleados",
-        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
-      };
-    case "areas":
-      return {
-        title: "Reporte por áreas",
-        subtitle: "Datos del periodo seleccionado filtrados por comedor.",
-      };
-    case "detalle":
-      return {
-        title: "Detalle de registros",
-        subtitle:
-          "Tabla de evaluación (placeholder) y reservas futuras filtradas por estado. La lista operativa muestra fechas desde hoy; cruza con el periodo seleccionado usando la fecha de servicio de cada fila.",
-      };
-    default:
-      return { title: "", subtitle: "" };
-  }
-}
-
-function renderReporteWorkspaceIntro(state: ReporteComedorViewState): string {
-  const { title, subtitle } = reporteWorkspaceCopy(state.reporteMainTab);
+function renderReporteWorkspaceIntro(): string {
   return `
     <div class="flex flex-col gap-1">
-      <h2 class="text-lg font-semibold tracking-tight text-slate-900">${escapeComedorHtml(title)}</h2>
-      <p class="max-w-3xl text-sm leading-relaxed text-slate-600">${escapeComedorHtml(subtitle)}</p>
+      <h2 class="text-lg font-semibold tracking-tight text-slate-900">Registros del periodo</h2>
+      <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Accesos con fecha de servicio dentro del rango y filtros aplicados en la parte superior (periodo, comedor y área).</p>
     </div>`;
 }
 
-function renderMainTabSegment(state: ReporteComedorViewState): string {
-  const tabs: { id: ReporteComedorMainTab; label: string }[] = [
-    { id: "comedor", label: "Por comedor" },
-    { id: "empleados", label: "Por empleados" },
-    { id: "areas", label: "Por áreas" },
-    { id: "detalle", label: "Detalle de registros" },
-  ];
-  const buttons = tabs
-    .map((t) => {
-      const active = state.reporteMainTab === t.id;
-      return `<button type="button" role="tab" aria-selected="${active}" data-comedor-reporte-main-tab="${t.id}" class="min-h-10 shrink-0 rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap motion-safe:transition motion-safe:duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 sm:px-4 ${
-        active ?
-          "bg-leoni-blue text-white shadow-[0_6px_16px_rgba(0,33,71,0.22)]"
-        : "border border-slate-200/85 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
-      }">${escapeComedorHtml(t.label)}</button>`;
-    })
-    .join("");
-  return `<div class="-mx-1 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Vistas del reporte comedor">
-    <div class="inline-flex min-w-full gap-1 rounded-xl border border-slate-200/85 bg-slate-50/95 p-1 shadow-inner sm:flex-wrap">${buttons}</div>
-  </div>`;
-}
-
-function renderActiveTabBody(state: ReporteComedorViewState): string {
-  const esRh = getRolFromAccessToken() === "rh";
-  if (!esRh) return renderReporteRhRestrictedNotice();
-  if (state.reporteMainTab === "comedor") return renderReporteTabComedor(state);
-  if (state.reporteMainTab === "empleados") return renderReporteTabEmpleados(state);
-  if (state.reporteMainTab === "areas") return renderReporteTabAreas(state);
-  return "";
-}
-
 export function renderComedorReporteDashboard(state: ReporteComedorViewState): string {
-  const bloqueRhProximos =
-    getRolFromAccessToken() === "rh" && state.reporteMainTab === "detalle"
-      ? renderComedorRhProximosRegistrosTable(
-          state.rhFuturosState,
-          state.rhFuturos,
-          state.rhFuturosError,
-          {
-            statusFilter: state.rhFuturosStatusFilter,
-            search: state.rhFuturosSearch,
-          },
-        )
-      : "";
-
-  const workspaceIntro = renderReporteWorkspaceIntro(state);
-  const tabContent =
-    state.reporteMainTab === "detalle" ?
-      `<div class="flex flex-col gap-5">${renderTable(state)}${bloqueRhProximos}</div>`
-    : renderActiveTabBody(state);
+  const esRh = getRolFromAccessToken() === "rh";
+  const tabContent = `<div class="flex flex-col gap-5">${esRh ? renderReporteTabDetalle(state) : renderReporteRhRestrictedNotice()}</div>`;
 
   return `
     <div class="flex min-h-0 flex-col gap-5 sm:gap-6">
-      ${renderHero(state)}
+      ${renderReporteMainHeaderCard(state)}
       ${renderReporteFilterToolbarGlobal(state)}
       ${renderKpis(state)}
       <section class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-6 lg:p-7">
-        ${renderMainTabSegment(state)}
-        <div class="mt-6 space-y-6 border-t border-slate-100 pt-6">
-          ${workspaceIntro}
+        <div class="space-y-6">
+          ${renderReporteWorkspaceIntro()}
           ${tabContent}
         </div>
       </section>

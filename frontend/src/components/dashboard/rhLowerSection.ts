@@ -69,6 +69,10 @@ function lineClasses(line: RhCalendarDayLine): string {
       return `${base} rh-cal-badge--vacaciones`;
     case "ho":
       return `${base} rh-cal-badge--ho`;
+    case "sin_goce":
+      return `${base} rh-cal-badge--sin-goce`;
+    case "goce_sueldo":
+      return `${base} rh-cal-badge--goce-sueldo`;
     default:
       return `${base} rh-cal-badge--muted`;
   }
@@ -94,6 +98,12 @@ function renderMobileMetricDots(metrics: RhCalendarDayMetrics | undefined): stri
   }
   if (kinds.has("ho")) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-violet-600" title="Home Office"></span>');
+  }
+  if (kinds.has("sin_goce")) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-slate-600" title="Sin goce"></span>');
+  }
+  if (kinds.has("goce_sueldo")) {
+    dots.push('<span class="size-1.5 shrink-0 rounded-full bg-sky-600" title="Con goce"></span>');
   }
   if (metrics.showWarning) {
     dots.push('<span class="size-1.5 shrink-0 rounded-full bg-orange-400" title="Alerta"></span>');
@@ -255,7 +265,7 @@ export function renderRhCalendarReplaceable(
   }
 
   const legend = `
-    <div class="rh-cal-legend flex flex-wrap gap-x-6 gap-y-2.5 text-xs">
+    <div class="rh-cal-legend flex flex-wrap gap-x-6 gap-y-1 text-xs leading-tight">
       <span class="rh-cal-legend__item">
         <span class="rh-cal-legend__swatch rh-cal-legend__swatch--normal" aria-hidden="true"></span>
         <span class="rh-cal-legend__label">Normal</span>
@@ -272,12 +282,20 @@ export function renderRhCalendarReplaceable(
         <span class="rh-cal-legend__swatch rh-cal-legend__swatch--ho" aria-hidden="true"></span>
         <span class="rh-cal-legend__label">Home Office</span>
       </span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--sin-goce" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Permiso sin goce</span>
+      </span>
+      <span class="rh-cal-legend__item">
+        <span class="rh-cal-legend__swatch rh-cal-legend__swatch--goce-sueldo" aria-hidden="true"></span>
+        <span class="rh-cal-legend__label">Permiso con goce</span>
+      </span>
     </div>`;
 
   const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
-        `<div role="columnheader" class="rh-cal-colhead py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
+        `<div role="columnheader" class="rh-cal-colhead py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
     )
     .join("");
 
@@ -366,11 +384,11 @@ export function renderRhCalendarReplaceable(
           </button>
         </div>
       </div>
-      <div class="mt-5 border-t border-border/50 pt-4">
+      <div class="mt-4 border-t border-border/50 pt-2 pb-3">
         ${legend}
       </div>
     </header>
-    <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6">
+    <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6 sm:pt-5">
       ${viewMode === "week"
         ? weeklyPlanner
         : `<div

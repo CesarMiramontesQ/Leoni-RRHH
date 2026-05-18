@@ -10,6 +10,23 @@ export const ROL_EMPLEADO = "empleado" as const;
 export const ROL_SUPERVISOR = "supervisor" as const;
 export const ROL_GERENTE = "gerente" as const;
 
+/** Tipos de solicitud que deben aparecer en calendarios de dashboards (Vac, HO, sin goce, con goce). */
+export const SOLICITUD_TIPOS_DASHBOARD_CALENDARIO = [
+  "vacaciones",
+  "home_office",
+  "permiso_sin_goce_sueldo",
+  "matrimonio",
+  "incapacidad_interna",
+  "defuncion",
+  "paternidad",
+] as const satisfies readonly RhSolicitudTipoCodigo[];
+
+const _SET_SOLICITUD_TIPOS_DASHBOARD = new Set<string>(SOLICITUD_TIPOS_DASHBOARD_CALENDARIO);
+
+export function esSolicitudTipoCalendarioDashboard(tipo: string): tipo is RhSolicitudTipoCodigo {
+  return _SET_SOLICITUD_TIPOS_DASHBOARD.has(tipo);
+}
+
 /** Valores `estado` en API usados en el calendario del empleado. */
 export const SOLICITUD_ESTADO_API = {
   APROBADO: "approved",
@@ -35,7 +52,13 @@ export type CalendarBadgeInput = {
 };
 
 function typeLabel(tipo: RhSolicitudTipoCodigo): string {
-  return tipo === "vacaciones" ? "Vacaciones" : "Home Office";
+  if (tipo === "vacaciones") return "Vacaciones";
+  if (tipo === "home_office") return "Home Office";
+  if (tipo === "matrimonio") return "Matrimonio";
+  if (tipo === "incapacidad_interna") return "Incapacidad interna";
+  if (tipo === "defuncion") return "Defunción";
+  if (tipo === "permiso_sin_goce_sueldo") return "Permiso sin goce";
+  return "Paternidad";
 }
 
 function roleWantsOwner(role: string | null | undefined): role is typeof ROL_SUPERVISOR | typeof ROL_GERENTE {

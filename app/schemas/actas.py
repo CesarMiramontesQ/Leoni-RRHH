@@ -47,6 +47,12 @@ class ActaCreateRequest(BaseModel):
     evidencia: Optional[str] = None
 
 
+class ActaAnularRequest(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    motivo: Optional[str] = None
+
+
 class ActaEditarRequest(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
@@ -102,6 +108,13 @@ class ActaResponse(BaseModel):
     created_at: datetime
     aprobaciones: list[ActaAprobacionResponse] = []
     firmantes_pendientes: list[str] = []
+
+
+class ActasDashboardMetricasResponse(BaseModel):
+    """Conteos para tarjeta operativa RH (alineado a estados del listado de actas)."""
+
+    en_proceso: int
+    pendientes_firma: int
 
 
 class ActaMejoraIaResponse(BaseModel):

@@ -1,3 +1,4 @@
+import type { RhSolicitudTipoCodigo } from "../../solicitudes/rh/types.ts";
 import type { EmpleadoPendingRequestType } from "../empleado/types.ts";
 
 /** Métricas personales del líder (mismo significado que dashboard empleado). */
@@ -17,7 +18,13 @@ export type LiderTeamStats = {
   team_collaborators_count: number | null;
 };
 
-export type LiderApprovalRequestType = "vacation" | "home_office" | "permiso" | "incidencia";
+export type LiderApprovalRequestType =
+  | "vacation"
+  | "home_office"
+  | "permiso_sin_goce"
+  | "goce_sueldo"
+  | "permiso"
+  | "incidencia";
 
 export type LiderApprovalRequestRow = {
   id: string;
@@ -29,7 +36,13 @@ export type LiderApprovalRequestRow = {
   status: string;
 };
 
-export type TeamCalendarEventKind = "meal" | "vacation" | "home_office" | "incident";
+export type TeamCalendarEventKind =
+  | "meal"
+  | "vacation"
+  | "home_office"
+  | "permiso_sin_goce"
+  | "goce_sueldo"
+  | "incident";
 
 export type TeamCalendarLine = {
   kind: TeamCalendarEventKind;
@@ -40,10 +53,12 @@ export type TeamCalendarLine = {
   meal_type_label?: string;
   /** Solo para comidas: hora de registro (HH:mm) cuando existe. */
   meal_time_label?: string;
+  /** Solo para comidas: id del empleado (solo visual; comparar con sesión para propio vs equipo). */
+  meal_empleado_id?: string;
   /** Solo para solicitudes: estado canónico API (`approved` / `pending`). */
   request_status?: "approved" | "pending";
-  /** Solo para solicitudes: tipo de solicitud para etiqueta. */
-  request_type?: "vacation" | "home_office";
+  /** Código de tipo (`vacaciones`, `permiso_sin_goce_sueldo`, etc.). */
+  request_tipo?: RhSolicitudTipoCodigo;
   /** Dueño de la solicitud (comparado con usuario en sesión). */
   owner_id?: string;
   owner_name?: string;

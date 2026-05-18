@@ -16,7 +16,7 @@ export type SolicitudBrief = {
 export type IncidenciaBrief = {
   id: number;
   tipo: string;
-  estado: string;
+  estatus_id: number | null;
   created_at: string;
 };
 
@@ -26,12 +26,19 @@ export type ActaBrief = {
   created_at: string;
 };
 
+/** Datos de `turnos_empleados`; la API solo lo incluye para solicitantes con rol RH. */
+export type Vista360TurnoEmpleado = {
+  comedor: string | null;
+  turno: string | null;
+};
+
 export type UsuarioVista360 = {
   usuario: UsuarioVista360Usuario;
   solicitudes_recientes: SolicitudBrief[];
   incidencias_activas: IncidenciaBrief[];
   actas_firmadas: ActaBrief[];
   saldo_vacaciones: number;
+  turno_empleado?: Vista360TurnoEmpleado | null;
 };
 
 async function readErrorDetail(res: Response): Promise<string> {

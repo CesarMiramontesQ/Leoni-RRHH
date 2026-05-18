@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 import httpx
 from fastapi import BackgroundTasks
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -39,20 +39,22 @@ from app.models.empleados import Empleado
 from app.repositories.acta_repository import ActaAprobacionRepository, ActaRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.services.acta_rag_prompts import (
-    SYSTEM_GENERAR_ACTA_FORMAL,
-    USER_GENERAR_ACTA_TEMPLATE,
+    SYSTEM_RECOMENDACION_LEGAL_IA,
+    USER_RECOMENDACION_LEGAL_IA_TEMPLATE,
 )
 from app.services.legal_rag_service import legal_rag_service
 from app.schemas import PaginatedResponse
 from app.schemas.actas import (
+    ActaAnularRequest,
     ActaAprobacionResponse,
     ActaCreateRequest,
     ActaEditarRequest,
     ActaFirmarRequest,
     ActaGenerarRequest,
+    ActasDashboardMetricasResponse,
     ActaResponse,
 )
-from app.utils.audit_logger import audit_background
+from app.utils.audit_logger import audit_background, log_action
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,31 @@ def _response_has_spanish_acta_signals(text: str) -> bool:
     return sum(1 for s in signals if s in low) >= 2
 
 
+def _response_has_spanish_recomendacion_signals(text: str) -> bool:
+    """True si la respuesta parece una recomendación legal en español (no solo razonamiento)."""
+    low = (text or "").lower()
+    signals = (
+        "ley federal del trabajo",
+        "fundamento",
+        "fundamentación",
+        "fundamentacion",
+        "recomendación",
+        "recomendacion",
+        "resumen",
+        "riesgo",
+        "trabajador",
+        "patrón",
+        "patron",
+        "artículo",
+        "articulo",
+        "incumplimiento",
+        "lft",
+        "comparecen",
+        "antecedentes",
+    )
+    return sum(1 for s in signals if s in low) >= 2
+
+
 def _trim_preface_before_acta(text: str) -> str:
     """
     Modelos tipo Qwen3 Thinking suelen volcar párrafos en inglés antes del acta en español.
@@ -177,10 +204,12 @@ async def _ollama_completar_redaccion_acta(
     model = settings.OLLAMA_MODEL
     base_temp = settings.OLLAMA_TEMPERATURE if temperature is None else temperature
     temp = max(0.0, min(base_temp, 1.0))
-    opts = {
+    opts: dict = {
         "temperature": temp,
         "num_predict": settings.OLLAMA_NUM_PREDICT,
     }
+    if settings.OLLAMA_NUM_CTX >= 2048:
+        opts["num_ctx"] = settings.OLLAMA_NUM_CTX
     url_base = settings.OLLAMA_URL.rstrip("/")
 
     chat_payload: dict = {
@@ -209,13 +238,16 @@ async def _ollama_completar_redaccion_acta(
             (resp.text or "")[:500],
         )
 
+    gen_opts: dict = {"num_predict": settings.OLLAMA_NUM_PREDICT}
+    if settings.OLLAMA_NUM_CTX >= 2048:
+        gen_opts["num_ctx"] = settings.OLLAMA_NUM_CTX
     gen_body: dict = {
         "model": model,
         "prompt": user_prompt,
         "system": system_prompt,
         "temperature": temp,
         "stream": False,
-        "options": {"num_predict": settings.OLLAMA_NUM_PREDICT},
+        "options": gen_opts,
     }
     if "qwen" in model.lower():
         gen_body["think"] = False
@@ -345,18 +377,66 @@ async def _llamar_ollama(contexto: dict) -> str:
     )
 
 
+def _trim_preface_hasta_resumen_hechos(text: str) -> str:
+    """
+    Si el modelo añade unas lineas antes de RESUMEN DE HECHOS:, recorta hasta esa ancla.
+    """
+    s = (text or "").strip()
+    if not s:
+        return s
+    low = s.lower()
+    key = "resumen de hechos"
+    pos = low.find(key)
+    if pos <= 0 or pos > 1400:
+        return s
+    return s[pos:].strip()
+
+
+def _recomendacion_legal_ia_es_basura_meta(text: str) -> bool:
+    """
+    Detecta respuestas que repiten instrucciones o hablan de claves JSON en lugar de redactar.
+    No exige que el titulo sea la primera linea literal (evita falsos rechazos).
+    """
+    raw = (text or "").strip()
+    if len(raw) < 120:
+        return True
+    t = raw.lower()
+    head = t[:3200]
+    if "basado en la información proporcionada" in head:
+        return True
+    if "basado en la informacion proporcionada" in head:
+        return True
+    if "se pueden extraer las siguientes conclusiones" in head:
+        return True
+    if "siguientes conclusiones" in head and "empleado_objetivo" in head[:2800]:
+        return True
+    if "reglas de identidad y roles" in t:
+        return True
+    # Debe parecer el entregable estructurado (secciones del prompt o acta sustancial).
+    anclas = (
+        "resumen de hechos",
+        "fundamentación legal",
+        "fundamentacion legal",
+        "artículos aplicables",
+        "articulos aplicables",
+        "posibles incumplimientos",
+        "redacción formal del acta administrativa",
+        "redaccion formal del acta administrativa",
+        "limitaciones:",
+    )
+    n_anclas = sum(1 for a in anclas if a in t)
+    if n_anclas >= 2:
+        return False
+    if n_anclas >= 1 and len(t) >= 900:
+        return False
+    if "acta administrativa" in t and len(t) >= 1400:
+        return False
+    return True
+
+
 async def _mejorar_redaccion_acta(contexto: dict) -> str:
     ctx_str = json.dumps(contexto, ensure_ascii=False, indent=2)
-    prompt = USER_GENERAR_ACTA_TEMPLATE.format(contexto=ctx_str)
-    prompt = (
-        f"{prompt}\n\n"
-        "Reglas de identidad y roles (obligatorias):\n"
-        "- El unico empleado sujeto del acta es el definido en empleado_objetivo.\n"
-        "- NO cambies el empleado sujeto por ninguna persona mencionada en personas relacionadas.\n"
-        "- personas_relacionadas_testigos solo puede figurar como testigos.\n"
-        "- persona_responsable_legal solo como responsable legal/RH.\n"
-        "- Si faltan datos, conserva neutralidad y no inventes nombres, cargos ni relaciones."
-    )
+    prompt = USER_RECOMENDACION_LEGAL_IA_TEMPLATE.format(detalle_acta=ctx_str)
     timeout = httpx.Timeout(
         timeout=settings.OLLAMA_HTTP_TIMEOUT,
         connect=15.0,
@@ -366,30 +446,31 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
             texto_raw = await _ollama_completar_redaccion_acta(
                 client,
                 user_prompt=prompt,
-                system_prompt=SYSTEM_GENERAR_ACTA_FORMAL,
+                system_prompt=SYSTEM_RECOMENDACION_LEGAL_IA,
                 temperature=settings.OLLAMA_ACTA_TEMPERATURE,
             )
             texto_raw = _strip_model_think_artifacts(texto_raw)
-            texto_raw = _trim_preface_before_acta(texto_raw)
-            marcado = _extract_acta_between_markers(texto_raw)
-            if marcado:
-                return marcado
-            if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_acta_signals(
+            texto_raw = _trim_preface_hasta_resumen_hechos(texto_raw)
+            if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_recomendacion_signals(
                 texto_raw
             ):
                 raise ValueError(
-                    "El modelo devolvio razonamiento visible en lugar del texto del acta"
+                    "El modelo devolvio razonamiento visible en lugar de la recomendacion legal"
+                )
+            if _recomendacion_legal_ia_es_basura_meta(texto_raw):
+                raise ValueError(
+                    "El modelo devolvio meta-instrucciones en lugar del escrito legal estructurado"
                 )
             if not texto_raw.strip():
                 raise ValueError("Respuesta vacia de Ollama")
             return texto_raw.strip()
     except Exception as exc:
         logger.warning(
-            "No se pudo mejorar redaccion del acta con IA: %s",
+            "No se pudo mejorar la redacción del acta (asistente legal): %s",
             exc,
         )
         raise ServiceUnavailableError(
-            detail="No fue posible generar la sugerencia con IA en este momento. Intenta nuevamente."
+            detail="No fue posible generar el escrito de apoyo en este momento. Intenta nuevamente."
         ) from exc
 
 
@@ -516,6 +597,36 @@ class ActaService:
             total=total,
         )
 
+    async def get_dashboard_metricas(
+        self,
+        current_user: Empleado,
+    ) -> ActasDashboardMetricasResponse:
+        """Cuenta actas en proceso y pendientes de firma con el mismo alcance que list_actas."""
+        rol = self._get_rol(current_user)
+        emp_filters: list = []
+        if rol in ("director", "rh"):
+            pass
+        elif rol == "gerente":
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
+            ids = [e.id for e in subordinados] + [current_user.id]
+            emp_filters = [ActaAdministrativa.empleado_id.in_(ids)]
+        else:
+            emp_filters = [ActaAdministrativa.empleado_id == current_user.id]
+
+        async def _count_estados(estados: tuple[str, ...]) -> int:
+            where_parts = [ActaAdministrativa.estado.in_(estados), *emp_filters]
+            result = await self.db.execute(select(func.count()).where(*where_parts))
+            return int(result.scalar_one())
+
+        en_proceso = await _count_estados(("draft", "pending_sign"))
+        pendientes_firma = await _count_estados(("pending_sign",))
+        return ActasDashboardMetricasResponse(
+            en_proceso=en_proceso,
+            pendientes_firma=pendientes_firma,
+        )
+
     # ── Obtener uno ──────────────────────────────────────────────────────────
 
     async def get_acta(
@@ -540,10 +651,14 @@ class ActaService:
         current_user: Empleado,
     ) -> str:
         acta = await self.get_acta(id=id, current_user=current_user)
+        if acta.estado in ("signed", "archived", "cancelled"):
+            raise ConflictError(
+                detail="El escrito no se puede modificar porque el acta ya está cerrada"
+            )
         texto_original = (acta.descripcion_hechos or "").strip()
         if not texto_original:
             raise ConflictError(
-                detail="El acta no tiene descripcion de hechos para mejorar con IA"
+                detail="El acta no tiene descripción de hechos para generar el escrito de apoyo."
             )
 
         desc_ia = texto_original
@@ -551,8 +666,19 @@ class ActaService:
         if len(desc_ia) > lim_desc:
             desc_ia = (
                 f"{desc_ia[:lim_desc].rstrip()}\n"
-                "...[descripcion truncada para la llamada a IA; conserva este texto si editas]"
+                "...[descripción truncada por límite de contexto; conserva este texto si editas]"
             )
+
+        def _trunc_campo_acta(val: str | None, lim: int, etiqueta: str) -> str:
+            s = (val or "").strip()
+            if len(s) <= lim:
+                return s
+            return f"{s[:lim].rstrip()}\n...[{etiqueta} truncada por límite de contexto]"
+
+        evidencia_rag = _trunc_campo_acta(acta.evidencia, 2500, "evidencia")
+        evidencia_ctx = _trunc_campo_acta(acta.evidencia, lim_desc, "evidencia")
+        borrador_ia = _trunc_campo_acta(acta.contenido_ia, lim_desc, "borrador IA")
+        borrador_final = _trunc_campo_acta(acta.contenido_final, lim_desc, "borrador contenido final")
 
         contexto = {
             "empleado_objetivo": {
@@ -571,6 +697,10 @@ class ActaService:
             "personas_involucradas": acta.personas_involucradas or "",
             "personas_relacionadas_testigos": acta.testigos or "",
             "persona_responsable_legal": acta.responsable_rh or "",
+            "evidencia": evidencia_ctx,
+            "incidencia_id": acta.incidencia_id,
+            "borrador_contenido_ia": borrador_ia or None,
+            "borrador_contenido_final": borrador_final or None,
         }
         # RAG legal: recupera solo fragmentos relevantes; si falla, conserva fallback completo.
         try:
@@ -579,6 +709,10 @@ class ActaService:
                 f"fundamento_legal: {acta.fundamento_legal or ''}\n"
                 f"articulo_inciso: {acta.articulo_inciso or ''}\n"
                 f"hechos: {texto_original}\n"
+                f"lugar_incidente: {acta.lugar_incidente or ''}\n"
+                f"personas_involucradas: {acta.personas_involucradas or ''}\n"
+                f"testigos: {acta.testigos or ''}\n"
+                f"evidencia: {evidencia_rag}\n"
                 f"area: {acta.area_departamento or ''}\n"
                 f"puesto: {acta.puesto or ''}\n"
             )
@@ -659,7 +793,7 @@ class ActaService:
             "incidencia_id": data.incidencia_id,
             "contenido_ia": contenido_ia,
             "contenido_final": None,
-            "estado": "draft",
+            "estado": "pending_sign",
             "generado_por": current_user.id,
         })
 
@@ -716,7 +850,7 @@ class ActaService:
             "incidencia_id": None,
             "contenido_ia": None,
             "contenido_final": None,
-            "estado": "draft",
+            "estado": "pending_sign",
             "generado_por": current_user.id,
         })
 
@@ -755,9 +889,9 @@ class ActaService:
         if not acta:
             raise NotFoundError(entidad="Acta", id=id)
 
-        if acta.estado != "draft":
+        if acta.estado not in ("draft", "pending_sign"):
             raise ConflictError(
-                detail=f"Solo se pueden editar actas en estado 'draft', estado actual: '{acta.estado}'"
+                detail=f"Solo se pueden editar actas en estado 'pending_sign', estado actual: '{acta.estado}'"
             )
 
         datos_antes = {
@@ -903,6 +1037,111 @@ class ActaService:
             usuario_id=current_user.id,
             entidad_id=id,
             datos_despues={"firmante_id": current_user.id, "rol": rol},
+        )
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        return await self._build_response(acta)
+
+    async def aprobar_acta(
+        self,
+        id: int,
+        current_user: Empleado,
+    ) -> ActaResponse:
+        rol = self._get_rol(current_user)
+        if rol != "rh":
+            raise ForbiddenError(detail="Solo RH puede aprobar actas")
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        if not acta:
+            raise NotFoundError(entidad="Acta", id=id)
+
+        if acta.estado == "cancelled":
+            raise ConflictError(detail="No se puede aprobar un acta anulada")
+        if acta.estado in ("signed", "archived"):
+            raise ConflictError(detail="El acta ya se encuentra aprobada")
+
+        ahora = datetime.now(timezone.utc)
+        firma_existente = await self.repo.get_aprobacion_by_firmante(
+            acta_id=id,
+            firmante_id=current_user.id,
+        )
+        if firma_existente and firma_existente.firma_timestamp:
+            raise ConflictError(detail="Ya aprobaste esta acta anteriormente")
+
+        if firma_existente:
+            await self.aprobacion_repo.update(
+                firma_existente.id,
+                {
+                    "firma_timestamp": ahora,
+                    "comentario": "Aprobación de acta",
+                    "rol_firmante": "rh",
+                },
+            )
+        else:
+            await self.aprobacion_repo.create({
+                "acta_id": id,
+                "firmante_id": current_user.id,
+                "rol_firmante": "rh",
+                "firma_timestamp": ahora,
+                "comentario": "Aprobación de acta",
+            })
+
+        await self.repo.update(id, {"estado": "archived"})
+
+        await log_action(
+            db=self.db,
+            accion="ACTA_APPROVED",
+            modulo="actas",
+            usuario_id=current_user.id,
+            entidad_id=id,
+            datos_despues={
+                "accion": "Aprobación de acta",
+                "acta_id": id,
+                "aprobador_id": current_user.id,
+                "aprobador_nombre": current_user.nombre,
+                "rol": rol,
+                "fecha_aprobacion": ahora.isoformat(),
+                "estado": "archived",
+            },
+        )
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        return await self._build_response(acta)
+
+    async def anular_acta(
+        self,
+        id: int,
+        data: ActaAnularRequest,
+        current_user: Empleado,
+    ) -> ActaResponse:
+        rol = self._get_rol(current_user)
+        if rol != "rh":
+            raise ForbiddenError(detail="Solo RH puede anular actas")
+
+        acta = await self.repo.get_with_aprobaciones(id)
+        if not acta:
+            raise NotFoundError(entidad="Acta", id=id)
+
+        if acta.estado == "cancelled":
+            raise ConflictError(detail="El acta ya está anulada")
+        if acta.estado in ("signed", "archived"):
+            raise ConflictError(detail="No se puede anular un acta ya aprobada")
+
+        motivo = (data.motivo or "").strip() or None
+        await self.repo.update(id, {"estado": "cancelled"})
+
+        await log_action(
+            db=self.db,
+            accion="ACTA_CANCELLED",
+            modulo="actas",
+            usuario_id=current_user.id,
+            entidad_id=id,
+            datos_despues={
+                "accion": "Anulación de acta",
+                "acta_id": id,
+                "motivo": motivo,
+                "estado": "cancelled",
+            },
         )
 
         acta = await self.repo.get_with_aprobaciones(id)

@@ -106,7 +106,19 @@ function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]):
 }
 
 function isTipo(v: string): v is RhSolicitudTipoCodigo {
-  return v === "vacaciones" || v === "home_office";
+  return (
+    v === "vacaciones" ||
+    v === "home_office" ||
+    v === "permiso_sin_goce_sueldo" ||
+    v === "matrimonio" ||
+    v === "incapacidad_interna" ||
+    v === "defuncion" ||
+    v === "paternidad"
+  );
+}
+
+function isTipoPermitidoParaEmpleado(v: string): v is RhSolicitudTipoCodigo {
+  return v === "vacaciones" || v === "home_office" || v === "permiso_sin_goce_sueldo";
 }
 
 function isEstado(v: string): v is RhSolicitudEstadoCodigo {
@@ -120,20 +132,32 @@ function isEstado(v: string): v is RhSolicitudEstadoCodigo {
   );
 }
 
-function getInitialFiltersFromHash(): Pick<RhSolicitudFilterState, "tipo" | "estado" | "empleado_id"> {
+function isEstadoPermitidoParaEmpleado(v: string): v is RhSolicitudEstadoCodigo {
+  return v !== "overridden" && isEstado(v);
+}
+
+type SolicitudesHashDeepLinkFilters = Pick<RhSolicitudFilterState, "tipo" | "estado" | "empleado_id"> & {
+  /** Solo supervisor/gerente (vista partida): filtros aplican solo al bloque indicado (evita contaminar Mis solicitudes). */
+  seccion: "personal" | "equipo" | null;
+};
+
+function parseSolicitudesHashDeepLink(): SolicitudesHashDeepLinkFilters {
   const hash = window.location.hash || "";
   const queryIndex = hash.indexOf("?");
-  if (queryIndex < 0) return { tipo: "", estado: "", empleado_id: "" };
+  if (queryIndex < 0) return { tipo: "", estado: "", empleado_id: "", seccion: null };
   const rawQuery = hash.slice(queryIndex + 1);
   const params = new URLSearchParams(rawQuery);
   const tipo = params.get("tipo") ?? "";
   const estado = params.get("estado") ?? "";
   const empleadoDir = params.get("empleado_dir") ?? "";
   const empleado_id = /^\d+$/.test(empleadoDir.trim()) ? empleadoDir.trim() : "";
+  const seccionRaw = (params.get("seccion") ?? params.get("alcance") ?? "").trim().toLowerCase();
+  const seccion = seccionRaw === "personal" || seccionRaw === "equipo" ? seccionRaw : null;
   return {
     tipo: isTipo(tipo) ? tipo : "",
     estado: isEstado(estado) ? estado : "",
     empleado_id,
+    seccion,
   };
 }
 
@@ -185,7 +209,7 @@ function renderSplitSolicitudesView(
         <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
           <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
             <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Solicitudes</h1>
-            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de vacaciones y home office</p>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de solicitudes del personal</p>
             ${renderSolicitudesSplitHeroMeta(personalVm, equipoVm)}
           </div>
           <div class="rh-sol-header__toolbar rh-sol-header__toolbar--dual flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-nowrap md:items-center md:justify-end md:gap-2.5">${exportBtn}${nuevaBtn}</div>
@@ -205,9 +229,9 @@ function renderSplitSolicitudesView(
 }
 
 export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): void {
-  const solicitudesMainClass = "pt-0 pb-5 sm:pb-6";
+  const solicitudesMainClass = "py-0";
   const solicitudesPageShellClass =
-    "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+    "rh-dashboard-page relative flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
   if (!canAccessSolicitudesPage()) {
     mountAppShell(container, {
@@ -233,8 +257,25 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
-  const initialFilters = getInitialFiltersFromHash();
-  const initialEmpleadoDirFromHash = initialFilters.empleado_id;
+
+  const hashDeepLink = parseSolicitudesHashDeepLink();
+  if (
+    pageRole === "empleado" &&
+    hashDeepLink.tipo &&
+    !isTipoPermitidoParaEmpleado(hashDeepLink.tipo)
+  ) {
+    hashDeepLink.tipo = "";
+  }
+  if (
+    pageRole === "empleado" &&
+    hashDeepLink.estado &&
+    !isEstadoPermitidoParaEmpleado(hashDeepLink.estado)
+  ) {
+    hashDeepLink.estado = "";
+  }
+
+  /** Scroll suave tras pintar vista partida cuando el hash trae `seccion`/`alcance`. */
+  let solicitudesDeepLinkScrollTarget: Exclude<SolicitudesScope, "main"> | null = null;
   const personalSectionUi = {
     ...pageUi,
     role: "empleado" as const,
@@ -259,21 +300,48 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   let teamFilterOpts = buildRhSolicitudFilterOptions([]);
   let empleadoVacacionesDisponibles: number | null = null;
 
-  const state: RhSolicitudFilterState = {
-    tipo: initialFilters.tipo,
+  const neutFilterState = (): RhSolicitudFilterState => ({
+    tipo: "",
     area_id: "",
     supervisor_id: "",
     empleado_id: "",
     empleado_busqueda: "",
-    estado: initialFilters.estado,
+    estado: "",
     page: 1,
     page_size: 10,
-  };
-  const personalState: RhSolicitudFilterState = { ...state };
-  const teamState: RhSolicitudFilterState = {
-    ...state,
-    ...(initialEmpleadoDirFromHash ? { empleado_id: initialEmpleadoDirFromHash } : {}),
-  };
+  });
+
+  let state: RhSolicitudFilterState;
+  let personalState: RhSolicitudFilterState;
+  let teamState: RhSolicitudFilterState;
+
+  if (!isSplitGestorRole) {
+    solicitudesDeepLinkScrollTarget = null;
+    state = {
+      ...neutFilterState(),
+      tipo: hashDeepLink.tipo,
+      estado: hashDeepLink.estado,
+      empleado_id: hashDeepLink.empleado_id,
+    };
+    personalState = state;
+    teamState = state;
+  } else {
+    solicitudesDeepLinkScrollTarget = hashDeepLink.seccion;
+    const t = hashDeepLink.tipo;
+    const e = hashDeepLink.estado;
+    const emp = hashDeepLink.empleado_id;
+    if (hashDeepLink.seccion === "equipo") {
+      personalState = neutFilterState();
+      teamState = { ...neutFilterState(), tipo: t, estado: e, empleado_id: emp };
+    } else if (hashDeepLink.seccion === "personal") {
+      personalState = { ...neutFilterState(), tipo: t, estado: e };
+      teamState = neutFilterState();
+    } else {
+      personalState = { ...neutFilterState(), tipo: t, estado: e };
+      teamState = { ...neutFilterState(), tipo: t, estado: e, empleado_id: emp };
+    }
+    state = { ...personalState };
+  }
 
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -358,6 +426,22 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
             showNewRequestButton: pageUi.showNewRequestButton,
           })
         : renderRhSolicitudesAdminView(vm);
+      const scrollDeep = solicitudesDeepLinkScrollTarget;
+      if (isSplitGestorRole && scrollDeep === "equipo" && equipoVm.tableStatus !== "loading") {
+        solicitudesDeepLinkScrollTarget = null;
+        requestAnimationFrame(() => {
+          document.getElementById("rh-sol-seccion-equipo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      if (isSplitGestorRole && scrollDeep === "personal" && personalVm.tableStatus !== "loading") {
+        solicitudesDeepLinkScrollTarget = null;
+        requestAnimationFrame(() => {
+          document.getElementById("rh-sol-seccion-personal")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      }
     }
     if (restoreEmpSearch) {
       const scope = active instanceof Element ? scopeFromInteractiveElement(active) : "main";
@@ -434,6 +518,12 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         });
       },
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
+      allowPaidLeaveTypes: pageRole === "rh",
+      allowUnpaidLeaveType: pageRole === "supervisor" || pageRole === "gerente" || pageRole === "rh",
+      wideForSupervisor: pageRole === "supervisor",
+      supervisorSolicitudSubjectSelector: pageRole === "supervisor" && sessionEmpleadoDirId != null,
+      supervisorDirectoryId:
+        pageRole === "supervisor" && sessionEmpleadoDirId != null ? sessionEmpleadoDirId : undefined,
     });
   }
 
@@ -651,11 +741,23 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         const name = sel.getAttribute("data-rh-sol-filter");
         const value = sel.value;
         selectedState.page = 1;
-        if (name === "tipo") selectedState.tipo = value === "" ? "" : isTipo(value) ? value : "";
+        if (name === "tipo") {
+          const tipoValido = value === "" ? "" : isTipo(value) ? value : "";
+          selectedState.tipo =
+            pageRole === "empleado" && tipoValido !== "" && !isTipoPermitidoParaEmpleado(tipoValido) ?
+              ""
+            : tipoValido;
+        }
         else if (name === "area") selectedState.area_id = value;
         else if (name === "supervisor") selectedState.supervisor_id = value;
         else if (name === "empleado") selectedState.empleado_id = value;
-        else if (name === "estado") selectedState.estado = value === "" ? "" : isEstado(value) ? value : "";
+        else if (name === "estado") {
+          const estadoValido = value === "" ? "" : isEstado(value) ? value : "";
+          selectedState.estado =
+            pageRole === "empleado" && estadoValido !== "" && !isEstadoPermitidoParaEmpleado(estadoValido) ?
+              ""
+            : estadoValido;
+        }
         paint();
         return;
       }

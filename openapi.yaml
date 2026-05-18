@@ -41,6 +41,8 @@ tags:
     description: Gestion de competencias y matriz de competencias por area
   - name: Talento - Puestos Perfil
     description: Perfiles de puesto con competencias, habilidades y generacion IA
+  - name: Bono productividad
+    description: Lectura de datos en la base externa bono_productividad (PostgreSQL)
   - name: Talento - Evaluaciones
     description: Evaluaciones de competencias por empleado (CRUD, bulk, permisos por rol)
   - name: Talento - Capacitaciones
@@ -352,14 +354,14 @@ components:
 
     IncidenciaBrief:
       type: object
-      required: [id, tipo, estado, created_at]
+      required: [id, tipo, created_at]
       properties:
         id:
           type: integer
         tipo:
           type: string
-        estado:
-          type: string
+        estatus_id:
+          type: [integer, "null"]
         created_at:
           type: string
           format: date-time
@@ -375,6 +377,18 @@ components:
         created_at:
           type: string
           format: date-time
+
+    Vista360TurnoEmpleado:
+      type: object
+      description: Datos de turnos_empleados; la API solo lo incluye cuando el solicitante tiene rol rh.
+      properties:
+        comedor:
+          type: string
+          nullable: true
+          description: Valor de la columna comedor (entero en BD, serializado como texto).
+        turno:
+          type: string
+          nullable: true
 
     UsuarioVista360Response:
       type: object
@@ -401,6 +415,11 @@ components:
             $ref: "#/components/schemas/ActaBrief"
         saldo_vacaciones:
           type: integer
+        turno_empleado:
+          allOf:
+            - $ref: "#/components/schemas/Vista360TurnoEmpleado"
+          nullable: true
+          description: Presente solo para rol rh; ausente o null para otros roles.
 
     MetricasUsuarioResponse:
       type: object
@@ -430,7 +449,14 @@ components:
       properties:
         tipo:
           type: string
-          enum: [vacaciones, home_office]
+          enum: [vacaciones, home_office, matrimonio, incapacidad_interna, defuncion, paternidad, permiso_sin_goce_sueldo]
+          description: >
+            Tipos especiales (`matrimonio`, `incapacidad_interna`, `defuncion`, `paternidad`)
+            solo pueden ser creados por RH. Reglas automáticas:
+            matrimonio=2 días, defuncion=3 días, paternidad=7 días hábiles,
+            incapacidad_interna con duración manual.
+            El tipo `permiso_sin_goce_sueldo` solo puede crearlo supervisor, gerente,
+            RH o director, y requiere `motivo`.
         fecha_inicio:
           type: string
           format: date
@@ -438,6 +464,9 @@ components:
           type: string
           format: date
           description: Debe ser >= fecha_inicio
+        motivo:
+          type: [string, "null"]
+          description: Obligatorio cuando `tipo=permiso_sin_goce_sueldo`.
         comentarios:
           type: [string, "null"]
         empleado_id:
@@ -458,6 +487,7 @@ components:
         - fecha_fin
         - estado
         - nivel_actual
+        - motivo
         - comentarios
         - created_at
       properties:
@@ -478,6 +508,8 @@ components:
           enum: [pending, approved, rejected, cancelled, overridden, changes_requested]
         nivel_actual:
           type: integer
+        motivo:
+          type: [string, "null"]
         comentarios:
           type: [string, "null"]
         created_at:
@@ -486,7 +518,11 @@ components:
         empleado_nombre:
           type: string
           default: ""
+        empleado_no_empleado:
+          type: [string, "null"]
         empleado_area:
+          type: [string, "null"]
+        empleado_puesto:
           type: [string, "null"]
         empleado_foto:
           type: [string, "null"]
@@ -584,19 +620,39 @@ components:
     # ── Incidencias ───────────────────────────────────
     IncidenciaCreate:
       type: object
-      required: [empleado_id, tipo, descripcion]
+      required: [empleado_id, tipo]
       properties:
         empleado_id:
           type: integer
         tipo:
           type: string
-          enum: [falta, retardo, conducta, accidente, otro]
-        descripcion:
-          type: string
+        no_empleado:
+          type: [string, "null"]
+        nombre:
+          type: [string, "null"]
+        fecha:
+          type: [string, "null"]
+          format: date
+        semana_id:
+          type: [integer, "null"]
+        numero_semana:
+          type: [integer, "null"]
+        categoria:
+          type: [string, "null"]
+        detalle:
+          type: [string, "null"]
+        descuento_porcentaje:
+          type: [number, "null"]
+        estatus_id:
+          type: [integer, "null"]
+        area:
+          type: [string, "null"]
+        subarea:
+          type: [string, "null"]
 
     IncidenciaResponse:
       type: object
-      required: [id, empleado_id, tipo, descripcion, estado, registrado_por, created_at]
+      required: [id, empleado_id, tipo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -604,19 +660,204 @@ components:
           type: integer
         tipo:
           type: string
-        descripcion:
-          type: string
-        estado:
-          type: string
-          enum: [open, in_review, resolved, closed]
-        registrado_por:
-          type: integer
+        no_empleado:
+          type: [string, "null"]
+        nombre:
+          type: [string, "null"]
+        fecha:
+          type: [string, "null"]
+          format: date
+        semana_id:
+          type: [integer, "null"]
+        numero_semana:
+          type: [integer, "null"]
+        categoria:
+          type: [string, "null"]
+        detalle:
+          type: [string, "null"]
+        descuento_porcentaje:
+          type: [number, "null"]
+        estatus_id:
+          type: [integer, "null"]
+        area:
+          type: [string, "null"]
+        subarea:
+          type: [string, "null"]
         created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
         evidencias_count:
           type: integer
           default: 0
+        puesto:
+          type: [string, "null"]
+          description: Descripción de puesto desde catálogo empleados (por no_empleado o empleado_id).
+        supervisor_directo:
+          type: [string, "null"]
+          description: Nombre del líder directo desde tabla empleados.
+
+    IncidenciasKpiResumen:
+      type: object
+      required: [abiertas, en_investigacion, resueltas, criticas]
+      properties:
+        abiertas:
+          type: integer
+        en_investigacion:
+          type: integer
+        resueltas:
+          type: integer
+        criticas:
+          type: integer
+
+    IncidenciasListPageResponse:
+      type: object
+      required: [items, total, page, page_size, resumen]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        resumen:
+          $ref: "#/components/schemas/IncidenciasKpiResumen"
+
+    IncidenciasTiposResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+
+    IncidenciasAreasResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+
+    IncidenciasSubareasResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+
+    IncidenciaAreaTotalItem:
+      type: object
+      required: [area, total]
+      properties:
+        area:
+          type: string
+        total:
+          type: integer
+
+    IncidenciaSubareaTotalItem:
+      type: object
+      required: [subarea, total]
+      properties:
+        subarea:
+          type: string
+        total:
+          type: integer
+        area:
+          type: [string, "null"]
+          description: Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
+
+    IncidenciaEmpleadoTotalItem:
+      type: object
+      required: [empleado_id, total]
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: [string, "null"]
+        nombre:
+          type: [string, "null"]
+        total:
+          type: integer
+
+    IncidenciaTipoDistribucionItem:
+      type: object
+      required: [tipo, total, porcentaje]
+      properties:
+        tipo:
+          type: string
+        total:
+          type: integer
+        porcentaje:
+          type: number
+
+    IncidenciaSerieMensualItem:
+      type: object
+      required: [periodo, total]
+      properties:
+        periodo:
+          type: string
+          description: Mes calendario en formato YYYY-MM
+        total:
+          type: integer
+
+    IncidenciasEstadisticasResponse:
+      type: object
+      required:
+        - total_incidencias
+        - incidencias_seguridad
+        - incidencias_calidad
+        - areas_con_mas_incidencias
+        - subareas_con_mas_incidencias
+        - empleados_con_mas_incidencias
+        - incidencias_por_tipo
+        - incidencias_por_mes
+      properties:
+        total_incidencias:
+          type: integer
+        incidencias_seguridad:
+          type: integer
+          description: Heurística por coincidencia de texto «seguridad» en categoría o tipo.
+        incidencias_calidad:
+          type: integer
+          description: Heurística por coincidencia de texto «calidad» en categoría o tipo.
+        areas_con_mas_incidencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaAreaTotalItem"
+        subareas_con_mas_incidencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaSubareaTotalItem"
+        empleados_con_mas_incidencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaEmpleadoTotalItem"
+        incidencias_por_tipo:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaTipoDistribucionItem"
+        incidencias_por_mes:
+          type: array
+          description: Serie mensual para tendencia (fecha de negocio o fecha de alta).
+          items:
+            $ref: "#/components/schemas/IncidenciaSerieMensualItem"
+        total_periodo_anterior:
+          type: [integer, "null"]
+          description: Total en el periodo inmediatamente anterior al rango fecha_inicio/fecha_fin (mismos filtros).
+        variacion_total_pct:
+          type: [number, "null"]
+          description: Variación porcentual vs. total_periodo_anterior; nulo si no aplica o no hay base comparable.
 
     EvidenciaResponse:
       type: object
@@ -735,6 +976,12 @@ components:
         comentario:
           type: [string, "null"]
 
+    ActaAnularRequest:
+      type: object
+      properties:
+        motivo:
+          type: [string, "null"]
+
     ActaResponse:
       type: object
       required: [id, empleado_id, estado, generado_por, created_at]
@@ -788,6 +1035,7 @@ components:
           type: [string, "null"]
         estado:
           type: string
+          enum: [draft, pending_sign, signed, archived, cancelled]
         generado_por:
           type: integer
         created_at:
@@ -810,6 +1058,17 @@ components:
       properties:
         texto_mejorado:
           type: string
+
+    ActasDashboardMetricasResponse:
+      type: object
+      required: [en_proceso, pendientes_firma]
+      properties:
+        en_proceso:
+          type: integer
+          description: Actas en borrador o pendientes de firma (draft + pending_sign)
+        pendientes_firma:
+          type: integer
+          description: Actas en estado pending_sign
 
     PaginatedActaResponse:
       type: object
@@ -1066,6 +1325,7 @@ components:
           type: string
         password_temporal:
           type: string
+          description: PIN numérico aleatorio de 4 dígitos (0000-9999), único por pase dentro del mismo lote.
 
     ComedorRhCredencialTemporal:
       type: object
@@ -1100,10 +1360,15 @@ components:
 
     ComedorCodigoExternoItem:
       type: object
-      required: [id, fecha_inicio, fecha_fin, cantidad_personas, tipo_comida, codigo_acceso, password_temporal, estatus, usados]
+      required:
+        [id, comedor_id, comedor_nombre, fecha_inicio, fecha_fin, cantidad_personas, tipo_comida, codigo_acceso, password_temporal, estatus, usados]
       properties:
         id:
           type: integer
+        comedor_id:
+          type: integer
+        comedor_nombre:
+          type: string
         fecha_inicio:
           type: string
           format: date
@@ -1118,6 +1383,7 @@ components:
           type: string
         password_temporal:
           type: string
+          description: Contraseña temporal; las credenciales generadas actualmente son PIN de 4 dígitos.
         estatus:
           type: string
           enum: [ACTIVO, USADO_PARCIAL, USADO_TOTAL, VENCIDO]
@@ -1745,6 +2011,116 @@ components:
               type:
                 type: string
 
+    BonoIncidenciaConsolidadaItem:
+      type: object
+      required: [tipo, id, empleado_id]
+      properties:
+        tipo:
+          type: string
+          example: calidad
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+          nullable: true
+        nombre:
+          type: string
+          nullable: true
+        fecha:
+          type: string
+          format: date
+          nullable: true
+        semana_id:
+          type: integer
+          nullable: true
+        numero_semana:
+          type: integer
+          nullable: true
+        categoria:
+          type: string
+          nullable: true
+        detalle:
+          type: string
+          nullable: true
+        descuento_porcentaje:
+          type: number
+          format: float
+          nullable: true
+        estatus_id:
+          type: integer
+          nullable: true
+        area:
+          type: string
+          nullable: true
+        subarea:
+          type: string
+          nullable: true
+
+    BonoIncidenciasListaResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BonoIncidenciaConsolidadaItem"
+
+    BonoSyncErrorItem:
+      type: object
+      required: [error]
+      properties:
+        source_key:
+          type: string
+          nullable: true
+        error:
+          type: string
+
+    BonoIncidenciasSyncResponse:
+      type: object
+      required:
+        - dry_run
+        - total_leidos_bono
+        - total_considerados
+        - total_insertados
+        - total_actualizados_existentes
+        - total_omitidos_duplicado
+        - total_omitidos_sin_empleado
+        - total_omitidos_invalidos
+        - total_omitidos_tipo_excluido
+        - errores
+        - mapeo_campos
+      properties:
+        dry_run:
+          type: boolean
+        total_leidos_bono:
+          type: integer
+        total_considerados:
+          type: integer
+        total_insertados:
+          type: integer
+        total_actualizados_existentes:
+          type: integer
+        total_omitidos_duplicado:
+          type: integer
+        total_omitidos_sin_empleado:
+          type: integer
+        total_omitidos_invalidos:
+          type: integer
+        total_omitidos_tipo_excluido:
+          type: integer
+          description: >-
+            Filas de bono no importadas por tipo excluido del sync (progresivo, progresivo_historico).
+        errores:
+          type: array
+          items:
+            $ref: "#/components/schemas/BonoSyncErrorItem"
+        mapeo_campos:
+          type: object
+          additionalProperties:
+            type: string
+
     MessageResponse:
       type: object
       required: [message]
@@ -2077,6 +2453,100 @@ paths:
                   status:
                     type: string
                     example: ok
+
+  /api/v1/bono-productividad/incidencias:
+    get:
+      tags: [Bono productividad]
+      summary: Incidencias consolidadas (calidad, seguridad, progresivo)
+      description: >
+        Sin query params devuelve todas las incidencias (activas e historicas) de las seis fuentes.
+        Los filtros son opcionales: use solo los que necesite para acotar.
+      operationId: bono_productividad_incidencias_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: query
+          required: false
+          description: Opcional. Vacio = sin filtro (todos los empleados).
+          schema:
+            type: integer
+        - name: no_empleado
+          in: query
+          required: false
+          description: Opcional. Vacio = sin filtro.
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          required: false
+          description: >-
+            Opcional. Vacio = sin filtro (todos los tipos). Valores: calidad, calidad_historico,
+            seguridad, seguridad_historico, progresivo, progresivo_historico
+          schema:
+            type: string
+        - name: semana_id
+          in: query
+          required: false
+          description: Opcional. Vacio = sin filtro (todas las semanas).
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista consolidada desde bono_productividad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonoIncidenciasListaResponse"
+        "401":
+          description: No autenticado
+        "403":
+          description: Rol no autorizado
+        "422":
+          description: Parametro tipo invalido
+        "503":
+          description: BD externa no disponible o error de consulta
+
+  /api/v1/bono-productividad/incidencias/sync:
+    post:
+      tags: [Bono productividad]
+      summary: Sincronizar incidencias de bono hacia incidencias locales
+      description: >-
+        Lee incidencias desde bono_productividad (solo lectura), mapea a la tabla local
+        `incidencias` de la base principal y evita duplicados por llave BONO::<tipo>::<id>.
+        No importa tipos progresivo ni progresivo_historico.
+        Por seguridad, dry_run=true por defecto.
+      operationId: bono_productividad_incidencias_sync
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: dry_run
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Si es true, no inserta; solo calcula conteos.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Límite opcional de registros a procesar.
+      responses:
+        "200":
+          description: Resultado de sincronización
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonoIncidenciasSyncResponse"
+        "401":
+          description: No autenticado
+        "403":
+          description: Rol no autorizado
+        "503":
+          description: Error de lectura/inserción en proceso de sincronización
 
   # ── Autenticacion ───────────────────────────────────
   /api/v1/auth/login:
@@ -2640,27 +3110,105 @@ paths:
   /api/v1/incidencias:
     get:
       tags: [Incidencias]
-      summary: Listar incidencias
-      description: Stub — retorna lista vacia. En desarrollo.
+      summary: Listar incidencias paginadas
+      description: >
+        Listado paginado (máximo 10 registros por página) con filtros opcionales.
+        Los roles RH y director ven el universo completo; gerente y supervisor solo su equipo;
+        el resumen KPI aplica los mismos filtros y alcance.
+        No incluye filas cuyo `tipo` sea `progresivo` ni `progresivo_historico` (uso interno).
       operationId: incidencias_list
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 10
+        - name: tipo
+          in: query
+          required: false
+          description: Coincide exactamente con la columna tipo.
+          schema:
+            type: string
+        - name: empleado_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: no_empleado
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: nombre
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: semana_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: numero_semana
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: categoria
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: estatus_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: subarea
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha_inicio
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
       responses:
         "200":
-          description: Lista de incidencias
+          description: Página de incidencias y resumen KPI filtrado
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/IncidenciaResponse"
-                  next_cursor:
-                    type: [integer, "null"]
-                  total:
-                    type: integer
+                $ref: "#/components/schemas/IncidenciasListPageResponse"
     post:
       tags: [Incidencias]
       summary: Registrar incidencia
@@ -2681,6 +3229,158 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /api/v1/incidencias/tipos:
+    get:
+      tags: [Incidencias]
+      summary: Listar tipos de incidencia registrados
+      description: >
+        Valores distintos de la columna `tipo` en la tabla de incidencias, respetando el mismo
+        alcance por rol que el listado principal.
+        Excluye `progresivo` y `progresivo_historico`.
+      operationId: incidencias_tipos_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tipos ordenados alfabéticamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasTiposResponse"
+
+  /api/v1/incidencias/areas:
+    get:
+      tags: [Incidencias]
+      summary: Listar áreas con incidencias registradas
+      description: >
+        Valores distintos de la columna `area` (vacíos como «(sin área)»), con el mismo alcance
+        por rol que el listado principal. Excluye tipos internos `progresivo` y `progresivo_historico`.
+      operationId: incidencias_areas_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Áreas ordenadas alfabéticamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasAreasResponse"
+
+  /api/v1/incidencias/subareas:
+    get:
+      tags: [Incidencias]
+      summary: Listar subáreas con incidencias registradas
+      description: >
+        Valores distintos de la columna `subarea` (vacíos como «(sin subárea)»), con el mismo
+        alcance por rol que el listado principal. Si se envía `area`, solo subáreas de esa área.
+      operationId: incidencias_subareas_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Valor exacto del catálogo de áreas; acota las subáreas devueltas.
+      responses:
+        "200":
+          description: Subáreas ordenadas alfabéticamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasSubareasResponse"
+
+  /api/v1/incidencias/estadisticas:
+    get:
+      tags: [Incidencias]
+      summary: Estadísticas analíticas de incidencias
+      description: >
+        Agregados con los mismos filtros y alcance por rol que el listado principal.
+        Totales, conteos heurísticos seguridad/calidad, top 10 por área/subárea/empleado y
+        distribución por tipo.
+        Excluye tipos internos `progresivo` y `progresivo_historico`.
+      operationId: incidencias_estadisticas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tipo
+          in: query
+          required: false
+          description: Coincide exactamente con la columna tipo.
+          schema:
+            type: string
+        - name: empleado_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: no_empleado
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: nombre
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: semana_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: numero_semana
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: categoria
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: estatus_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: area
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: subarea
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fecha_inicio
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Agregados filtrados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidenciasEstadisticasResponse"
 
   /api/v1/incidencias/{id}:
     get:
@@ -2850,11 +3550,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
 
+  /api/v1/actas/metricas-dashboard:
+    get:
+      tags: [Actas Administrativas]
+      summary: Metricas para dashboard operativo (actas en proceso y pendientes de firma)
+      operationId: actas_metricas_dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Conteos segun visibilidad del usuario (mismo alcance que el listado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActasDashboardMetricasResponse"
+
   /api/v1/actas/generar/{incidencia_id}:
     post:
       tags: [Actas Administrativas]
-      summary: Generar acta con IA desde incidencia
-      description: Integracion con Ollama LLM. En desarrollo.
+      summary: Generar acta desde incidencia
+      description: Borrador assistido desde incidencia. En desarrollo.
       operationId: actas_generar_ia
       security:
         - BearerAuth: []
@@ -2901,7 +3616,7 @@ paths:
   /api/v1/actas/{id}/mejorar-ia:
     post:
       tags: [Actas Administrativas]
-      summary: Mejorar texto del acta con IA
+      summary: Generar escrito de apoyo para el acta
       operationId: actas_mejorar_ia
       security:
         - BearerAuth: []
@@ -2913,7 +3628,7 @@ paths:
             type: integer
       responses:
         "200":
-          description: Texto mejorado
+          description: Escrito de apoyo generado
           content:
             application/json:
               schema:
@@ -2922,7 +3637,7 @@ paths:
   /api/v1/actas/{id}/editar:
     put:
       tags: [Actas Administrativas]
-      summary: Editar acta en estado DRAFT
+      summary: Editar acta en estado En revisión
       operationId: actas_editar
       security:
         - BearerAuth: []
@@ -2972,6 +3687,63 @@ paths:
                     type: string
                   id:
                     type: integer
+
+  /api/v1/actas/{id}/aprobar:
+    put:
+      tags: [Actas Administrativas]
+      summary: Aprobar acta (solo RH)
+      operationId: actas_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acta aprobada (archivada)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+        "403":
+          description: Solo RH puede aprobar
+        "409":
+          description: Acta ya aprobada o anulada
+
+  /api/v1/actas/{id}/anular:
+    put:
+      tags: [Actas Administrativas]
+      summary: Anular acta (solo RH)
+      description: Solo en borrador o en proceso (draft / pending_sign). No aplica si ya esta aprobada.
+      operationId: actas_anular
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActaAnularRequest"
+      responses:
+        "200":
+          description: Acta anulada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaResponse"
+        "403":
+          description: Solo RH puede anular
+        "409":
+          description: Acta ya anulada o ya aprobada
 
   /api/v1/actas/{id}/pdf:
     get:
@@ -3223,7 +3995,7 @@ paths:
             type: integer
             default: 5
             minimum: 1
-            maximum: 20
+            maximum: 200
       responses:
         "200":
           description: Reservas proximas
@@ -3388,6 +4160,60 @@ paths:
       responses:
         "200":
           description: Pagina de registros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorRhProximosRegistrosPage"
+
+  /api/v1/comedor/accesos/rh/registros-reporte:
+    get:
+      tags: [Comedor]
+      summary: Registros operativos por rango de fechas (RH)
+      description: >-
+        Listado paginado para analítica del Reporte comedor; incluye fechas pasadas y futuras dentro del rango [desde, hasta].
+      operationId: comedor_rh_registros_reporte
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: buscar
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: filtro_estado
+          in: query
+          schema:
+            type: string
+            enum: [todos, confirmado, cancelado]
+            default: todos
+      responses:
+        "200":
+          description: Pagina de registros en el rango
           content:
             application/json:
               schema:

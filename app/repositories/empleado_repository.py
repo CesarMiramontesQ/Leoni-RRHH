@@ -77,6 +77,24 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_no_empleado_con_puesto_y_lider(self, no_empleado: str) -> Empleado | None:
+        """Mismo criterio de búsqueda que `get_by_no_empleado`, con puesto y líder cargados."""
+        variantes = self._no_empleado_variantes(no_empleado)
+        if not variantes:
+            return None
+        variantes_lower = [v.lower() for v in variantes]
+        result = await self.db.execute(
+            select(Empleado)
+            .options(
+                selectinload(Empleado.puesto),
+                selectinload(Empleado.lider),
+            )
+            .where(
+                func.lower(Empleado.no_empleado).in_(variantes_lower),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_empleado_id(self, empleado_id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado).where(Empleado.empleado_id == empleado_id)
@@ -98,6 +116,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             .options(
                 selectinload(Empleado.area),
                 selectinload(Empleado.lider),
+                selectinload(Empleado.puesto),
             )
             .where(Empleado.id == id)
         )

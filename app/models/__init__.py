@@ -9,6 +9,7 @@ from app.models.catalogos import (
     Subarea,
 )
 from app.models.empleados import Empleado
+from app.models.turnos_empleados import TurnoEmpleado
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
@@ -35,6 +36,7 @@ __all__ = [
     "EstadoEmpleado",
     "ClasificacionEmpleado",
     "Empleado",
+    "TurnoEmpleado",
     "Solicitud",
     "SolicitudAprobacion",
     "Incidencia",

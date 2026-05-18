@@ -140,7 +140,10 @@ class ComedorRhPaseExternoItem(BaseModel):
     """Un código/contraseña por comensal externo; usuario de terminal = codigo_acceso."""
 
     codigo_acceso: str
-    password_temporal: str
+    password_temporal: str = Field(
+        ...,
+        description="PIN numérico aleatorio de 4 dígitos (0000-9999), único por pase dentro del mismo lote.",
+    )
 
 
 class ComedorRhCredencialTemporal(BaseModel):
@@ -158,6 +161,8 @@ class ComedorRhRegistroResponse(BaseModel):
 
 class ComedorCodigoExternoItem(BaseModel):
     id: int
+    comedor_id: int
+    comedor_nombre: str
     fecha_inicio: date
     fecha_fin: date
     cantidad_personas: int

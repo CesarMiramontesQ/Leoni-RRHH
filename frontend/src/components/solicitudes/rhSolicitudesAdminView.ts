@@ -80,7 +80,22 @@ function badgeTipo(t: RhSolicitudTipoCodigo): string {
   if (t === "vacaciones") {
     return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--vacaciones inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Vacaciones</span>`;
   }
-  return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--ho inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Home Office</span>`;
+  if (t === "home_office") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--ho inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Home Office</span>`;
+  }
+  if (t === "matrimonio") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Matrimonio</span>`;
+  }
+  if (t === "incapacidad_interna") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Incapacidad interna</span>`;
+  }
+  if (t === "defuncion") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Defunción</span>`;
+  }
+  if (t === "permiso_sin_goce_sueldo") {
+    return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Permiso sin goce</span>`;
+  }
+  return `<span class="rh-sol-badge-tipo rh-sol-badge-tipo--goce inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-0.5 text-xs font-semibold">Paternidad</span>`;
 }
 
 function dot(cls: string): string {
@@ -457,9 +472,19 @@ function renderFilters(
   const wrapCls = FILTER_FIELD_WRAP;
   const wrapTipoEstadoEquipo = clusterEquipo ? " sm:min-w-[12rem] sm:max-w-[14rem] sm:flex-none" : "";
 
+  const tiposPermitidosEmpleado = new Set<RhSolicitudTipoCodigo>([
+    "vacaciones",
+    "home_office",
+    "permiso_sin_goce_sueldo",
+  ]);
+  const tiposVisibles =
+    vm.ui.variant === "empleado" ?
+      opt.tipos.filter((t) => tiposPermitidosEmpleado.has(t.id))
+    : opt.tipos;
+
   const tipoOpts =
     `<option value="" ${f.tipo === "" ? "selected" : ""}>Todos los tipos</option>` +
-    opt.tipos
+    tiposVisibles
       .map(
         (t) =>
           `<option value="${escapeHtml(t.id)}" ${f.tipo === t.id ? "selected" : ""}>${escapeHtml(t.label)}</option>`,
@@ -493,9 +518,12 @@ function renderFilters(
       )
       .join("");
 
+  const estadosVisibles =
+    vm.ui.variant === "empleado" ? opt.estados.filter((e) => e.id !== "overridden") : opt.estados;
+
   const estOpts =
     `<option value="" ${f.estado === "" ? "selected" : ""}>Todos los estados</option>` +
-    opt.estados
+    estadosVisibles
       .map(
         (e) =>
           `<option value="${escapeHtml(e.id)}" ${f.estado === e.id ? "selected" : ""}>${escapeHtml(e.label)}</option>`,
@@ -1015,7 +1043,7 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
         <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
           <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
             <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Solicitudes</h1>
-            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de vacaciones y home office</p>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y aprobación de solicitudes del personal</p>
             ${renderSolicitudesHeaderMeta(vm)}
           </div>
           ${toolbarGestor}
@@ -1041,8 +1069,10 @@ export function renderRhSolicitudesScopedSection(
     options.scope === "personal"
       ? `<span class="ml-2 inline-flex shrink-0 rounded-full border border-[#1e40af]/20 bg-[#eff6ff] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#1e40af]">Personal</span>`
       : `<span class="ml-2 inline-flex shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Equipo</span>`;
+  const sectionIdAttr =
+    options.scope === "personal" ? ` id="rh-sol-seccion-personal"` : ` id="rh-sol-seccion-equipo"`;
   return `
-    <section class="${sectionShell}">
+    <section${sectionIdAttr} class="${sectionShell}">
       <header class="mb-4 border-b border-slate-200/90 pb-3">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}${chip}</h2>

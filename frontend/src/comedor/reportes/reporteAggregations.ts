@@ -1,5 +1,27 @@
 import type { ComedorResumenDiarioApiItem } from "../../api/comedor.ts";
 import type { ComedorRhProximoRegistroRow } from "../rh/types.ts";
+import type { ReporteComedorTipoComidaFilter } from "./types.ts";
+
+/** Clave estable para el select de área (vacío → sin área). */
+export function areaFilterKeyFromRaw(area: string | undefined | null): string {
+  const t = (area ?? "").trim();
+  return t.length === 0 ? "__sin_area__" : t.toLowerCase();
+}
+
+export function reporteAreaFilterOptions(
+  rows: readonly ComedorRhProximoRegistroRow[],
+): readonly { id: string; label: string }[] {
+  const labels = new Map<string, string>();
+  for (const r of rows) {
+    const id = areaFilterKeyFromRaw(r.area);
+    if (!labels.has(id)) {
+      labels.set(id, (r.area ?? "").trim() || "Sin área");
+    }
+  }
+  return [...labels.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }))
+    .map(([id, label]) => ({ id, label }));
+}
 
 export type EstadoOps = "pendiente" | "confirmado" | "cancelado";
 
@@ -73,6 +95,14 @@ export function filterPorComedorSeleccion(
   if (!comedorNombreExacto || !comedorNombreExacto.trim()) return rows;
   const target = comedorNombreExacto.trim().toLowerCase();
   return rows.filter((r) => (r.comedor_nombre || "").trim().toLowerCase() === target);
+}
+
+export function filterPorAreaSeleccion(
+  rows: readonly ComedorRhProximoRegistroRow[],
+  areaFilter: "todos" | string,
+): readonly ComedorRhProximoRegistroRow[] {
+  if (areaFilter === "todos") return rows;
+  return rows.filter((r) => areaFilterKeyFromRaw(r.area) === areaFilter);
 }
 
 function incEstado(bucket: { confirmados: number; pendientes: number; cancelados: number }, estado: EstadoOps): void {
@@ -275,8 +305,47 @@ export function sumResumenDiario(items: readonly ComedorResumenDiarioApiItem[]):
   return { total: caseras + saludables, caseras, saludables, diasConDatos };
 }
 
-export function serieDiariaTotales(items: readonly ComedorResumenDiarioApiItem[]): readonly number[] {
+export function serieDiariaTotales(
+  items: readonly ComedorResumenDiarioApiItem[],
+  tipoComida: ReporteComedorTipoComidaFilter = "todos",
+): readonly number[] {
   return [...items]
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    .map((row) => Math.max(0, row.caseras) + Math.max(0, row.saludables));
+    .map((row) => {
+      const caseras = Math.max(0, row.caseras);
+      const saludables = Math.max(0, row.saludables);
+      if (tipoComida === "casera") return caseras;
+      if (tipoComida === "saludable") return saludables;
+      return caseras + saludables;
+    });
+}
+
+function msToIsoLocal(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Totales por día según registros operativos (p. ej. con filtro por área aplicado). */
+export function serieDiariaTotalesOperativo(
+  rows: readonly ComedorRhProximoRegistroRow[],
+  desdeIso: string,
+  hastaIso: string,
+): readonly number[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const d = (r.fecha_servicio || "").slice(0, 10);
+    counts.set(d, (counts.get(d) ?? 0) + 1);
+  }
+  const a = isoToMs(desdeIso.slice(0, 10));
+  const b = isoToMs(hastaIso.slice(0, 10));
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return [];
+  const out: number[] = [];
+  for (let t = a; t <= b; t += 86400000) {
+    const iso = msToIsoLocal(t);
+    out.push(counts.get(iso) ?? 0);
+  }
+  return out;
 }

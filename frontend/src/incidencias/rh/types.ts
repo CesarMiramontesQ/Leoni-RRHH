@@ -2,6 +2,14 @@
  * Contratos de la vista administrativa de incidencias (rol RH).
  */
 
+/** Resumen KPI del listado (respuesta `resumen` de GET /incidencias). */
+export type RhIncidenciasListadoResumen = {
+  abiertas: number;
+  en_investigacion: number;
+  resueltas: number;
+  criticas: number;
+};
+
 export type RhIncidenciaEstadoCodigo = "abierto" | "en_investigacion" | "cerrado";
 
 export type RhIncidenciaPrioridadCodigo = "baja" | "media" | "alta" | "critica";
@@ -45,15 +53,27 @@ export type RhIncidenciaTablaFila = {
   fecha: string;
   estado: RhIncidenciaEstadoCodigo;
   prioridad: RhIncidenciaPrioridadCodigo;
-  /**
-   * Campos opcionales para la tarjeta de detalle (incidencias no cerradas).
-   * Si faltan, la UI aplica valores por defecto derivados de los campos base.
-   */
+  /** Texto de tipo tal como en base de datos (columna `tipo`). */
+  tipo_texto?: string;
+  no_empleado?: string | null;
+  semana_id?: number | null;
+  numero_semana?: number | null;
+  categoria?: string | null;
+  detalle?: string | null;
+  descuento_porcentaje?: number | null;
+  estatus_id?: number | null;
+  subarea?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   descripcion?: string;
   lugar?: string;
-  /** ISO datetime local para mostrar fecha y hora en tarjeta. */
+  /** ISO datetime local (p. ej. mock); no usar como fecha principal de la incidencia. */
   fecha_hora_iso?: string;
+  /** Puesto del colaborador (si el backend lo envía). */
+  puesto?: string | null;
   puesto_empleado?: string;
+  /** Nombre del supervisor directo si difiere de `supervisor_nombre`. */
+  supervisor_directo?: string | null;
   /** Código visible tipo “LNE-88293”. */
   id_empleado_display?: string;
   evidencias?: RhIncidenciaEvidenciaItem[];
@@ -70,6 +90,62 @@ export type RhIncidenciaResumenKpi = {
   criticas: number;
 };
 
+/** Respuesta de GET /api/v1/incidencias/estadisticas (analítica filtrada). */
+export type RhIncidenciasEstadisticasData = {
+  total_incidencias: number;
+  incidencias_seguridad: number;
+  incidencias_calidad: number;
+  areas_con_mas_incidencias: { area: string; total: number }[];
+  subareas_con_mas_incidencias: { subarea: string; total: number; area?: string | null }[];
+  empleados_con_mas_incidencias: {
+    empleado_id: number;
+    no_empleado: string | null;
+    nombre: string | null;
+    total: number;
+  }[];
+  incidencias_por_tipo: { tipo: string; total: number; porcentaje: number }[];
+  /** Serie mensual (YYYY-MM) desde el backend; vacía si no hay datos. */
+  incidencias_por_mes: { periodo: string; total: number }[];
+  total_periodo_anterior?: number | null;
+  variacion_total_pct?: number | null;
+};
+
+/** Filtros del listado (consulta servidor); valores en string para inputs HTML. */
+export type RhIncidenciaListFilters = {
+  tipo: string;
+  empleado_id: string;
+  no_empleado: string;
+  nombre: string;
+  fecha: string;
+  semana_id: string;
+  numero_semana: string;
+  categoria: string;
+  estatus_id: string;
+  area: string;
+  subarea: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+};
+
+export function emptyRhIncidenciaListFilters(): RhIncidenciaListFilters {
+  return {
+    tipo: "",
+    empleado_id: "",
+    no_empleado: "",
+    nombre: "",
+    fecha: "",
+    semana_id: "",
+    numero_semana: "",
+    categoria: "",
+    estatus_id: "",
+    area: "",
+    subarea: "",
+    fecha_inicio: "",
+    fecha_fin: "",
+  };
+}
+
+/** @deprecated Vista anterior (mock); conservado por compatibilidad con datasets locales. */
 export type RhIncidenciaFilterState = {
   /** Vista no-RH: filtro por área (select). */
   area_id: string;
@@ -108,10 +184,22 @@ export type RhIncidenciasUiConfig = {
 };
 
 export type RhIncidenciasAdminViewModel = {
-  resumen: RhIncidenciaResumenKpi | null;
-  resumenStatus: "loading" | "ready" | "error";
+  estadisticas: RhIncidenciasEstadisticasData | null;
+  estadisticasStatus: "loading" | "ready" | "error";
+  estadisticasErrorMessage?: string;
+  /** Resumen de estatus del listado (misma petición que la tabla). */
+  resumenListado: RhIncidenciasListadoResumen | null;
   filterOptions: RhIncidenciaFilterOptions;
-  filters: RhIncidenciaFilterState;
+  /** Valores de `tipo` distintos desde API (alcance por rol). */
+  tiposRegistrados: readonly string[];
+  /** Áreas con incidencias visibles (catálogo para filtro select). */
+  areasRegistradas: readonly string[];
+  /** Subáreas con incidencias visibles (catálogo para filtro select). */
+  subareasRegistradas: readonly string[];
+  /** Borrador de filtros (inputs). */
+  filterDraft: RhIncidenciaListFilters;
+  /** Filtros enviados al backend en la última carga. */
+  appliedFilters: RhIncidenciaListFilters;
   ui: RhIncidenciasUiConfig;
   tableStatus: RhIncidenciasTableStatus;
   table: RhIncidenciasTableData | null;

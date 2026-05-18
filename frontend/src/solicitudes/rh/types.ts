@@ -5,7 +5,14 @@
 
 import type { SolicitudesPageUiConfig } from "../solicitudesPageFilterConfig.ts";
 
-export type RhSolicitudTipoCodigo = "vacaciones" | "home_office";
+export type RhSolicitudTipoCodigo =
+  | "vacaciones"
+  | "home_office"
+  | "matrimonio"
+  | "incapacidad_interna"
+  | "defuncion"
+  | "paternidad"
+  | "permiso_sin_goce_sueldo";
 
 export type RhSolicitudEstadoCodigo =
   | "pending"
@@ -22,6 +29,10 @@ export type RhSolicitudTablaFila = {
   empleado_id: string;
   /** Nombre crudo (p. ej. `APELLIDO, NOMBRE`); la UI aplica `formatNombreEmpleadoUi`. */
   empleado_nombre_raw: string;
+  /** Número de empleado (preferido para vistas de detalle de colaborador). */
+  empleado_no_empleado?: string | null;
+  /** Puesto del colaborador (si viene del API). */
+  empleado_puesto?: string | null;
   foto_url: string | null;
   /** Etiqueta tipo `#SOL-1234` o número de folio. */
   numero_folio: string;
@@ -42,6 +53,8 @@ export type RhSolicitudTablaFila = {
   nivel_actual?: number;
   /** Comentarios del empleado al crear la solicitud (API). */
   comentarios?: string | null;
+  /** Motivo del permiso (obligatorio para permiso sin goce de sueldo). */
+  motivo?: string | null;
 };
 
 /** Métricas del encabezado (normalmente globales, no filtradas por la tabla). */

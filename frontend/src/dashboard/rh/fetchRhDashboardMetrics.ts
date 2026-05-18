@@ -5,6 +5,7 @@ import {
   getComedorRhResumenDiario,
   type ComedorRhProximoRegistroApi,
 } from "../../api/comedor.ts";
+import { getActasDashboardMetricas } from "../../api/actas.ts";
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
 
 function isExternalRecord(item: ComedorRhProximoRegistroApi): boolean {
@@ -29,9 +30,10 @@ function parseIsoDateAsUtcDay(isoDate: string): number | null {
 export async function fetchRhDashboardMetrics(): Promise<RhOperationalMetricsPayload | null> {
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayUtcDay = parseIsoDateAsUtcDay(todayIso);
-  const [resumen, primeraPagina] = await Promise.all([
+  const [resumen, primeraPagina, actasMetricas] = await Promise.all([
     getComedorRhResumenDiario(todayIso, todayIso),
     getComedorRhProximosRegistros(1, 50, { filtroEstado: "todos" }),
+    getActasDashboardMetricas().catch(() => null),
   ]);
   const row = resumen.find((item) => item.fecha === todayIso) ?? null;
   const caseras = Math.max(0, row?.caseras ?? 0);
@@ -82,5 +84,11 @@ export async function fetchRhDashboardMetrics(): Promise<RhOperationalMetricsPay
       por_registrar: comidasPersonalExterno,
       mostrar_alerta: false,
     },
+    actas_administrativas: actasMetricas
+      ? {
+          en_proceso: actasMetricas.en_proceso,
+          pendientes_firma: actasMetricas.pendientes_firma,
+        }
+      : { en_proceso: null, pendientes_firma: null },
   };
 }

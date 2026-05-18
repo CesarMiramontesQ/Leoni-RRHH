@@ -1,5 +1,6 @@
 export type ActaTipoCodigo = "amonestacion" | "suspension" | "administrativa";
-export type ActaEstadoCodigo = "abierta" | "en_proceso" | "firmada" | "cerrada";
+/** `firmada` en UI = acta aprobada (backend signed/archived). `anulada` = cancelled. */
+export type ActaEstadoCodigo = "abierta" | "en_proceso" | "firmada" | "anulada";
 
 export type ActaTablaFila = {
   id: number;
@@ -73,10 +74,9 @@ export const ACTAS_TIPOS: ReadonlyArray<{ id: ActaTipoCodigo; label: string }> =
 ];
 
 export const ACTAS_ESTADOS: ReadonlyArray<{ id: ActaEstadoCodigo; label: string }> = [
-  { id: "abierta", label: "Abierta" },
   { id: "en_proceso", label: "En proceso" },
-  { id: "firmada", label: "Firmada" },
-  { id: "cerrada", label: "Cerrada" },
+  { id: "firmada", label: "Aprobada" },
+  { id: "anulada", label: "Anulada" },
 ];
 
 export const ACTAS_PERIODOS: ReadonlyArray<{ id: "30d" | "90d" | "365d" | "all"; label: string }> = [

@@ -69,7 +69,7 @@ function renderPreview(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlan
           )}</p>
         </div>
         <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-3">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">🥗 Saludable</p>
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">🥗 Opción B</p>
           <p class="mt-1 text-sm font-medium text-emerald-800">${escapeComedorHtml(
             selected.menuDieta.trim() || "Aún no has configurado este menú",
           )}</p>

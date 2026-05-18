@@ -22,12 +22,32 @@ function escapeHtmlText(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatRolLabel(rol: string | null): string {
+  if (!rol) return "";
+  const labels: Record<string, string> = {
+    empleado: "Empleado",
+    supervisor: "Supervisor",
+    rh: "RH",
+    director: "Director",
+    gerente: "Gerente",
+  };
+  return labels[rol] ?? rol.charAt(0).toUpperCase() + rol.slice(1).toLowerCase();
+}
+
+/** Contenedor de enlace: altura estable, paddings coherentes entre drawer / rail / ancho completo. */
+const navLinkBase =
+  "group/nav relative flex min-h-11 w-full items-center gap-x-3 rounded px-3 py-2 text-sm leading-snug outline-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:max-lg:justify-center md:max-lg:px-2 lg:justify-start";
+
 const navInactive =
-  "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold text-text-primary hover:bg-surface hover:text-leoni-blue";
-const navIconInactive = "size-6 shrink-0 text-text-muted group-hover:text-leoni-blue";
+  `${navLinkBase} border border-transparent font-semibold text-text-primary hover:bg-shell-hover hover:text-text-primary`;
+
+const navIconInactive =
+  "size-5 shrink-0 text-text-muted transition-colors duration-150 group-hover/nav:text-text-primary md:max-lg:mx-auto";
+
 const navActive =
-  "group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-leoni-blue";
-const navIconActive = "size-6 shrink-0 text-leoni-blue";
+  `${navLinkBase} border border-transparent bg-shell-active-ring font-bold text-text-primary before:pointer-events-none before:absolute before:start-0 before:top-1/2 before:h-[1.875rem] before:w-[3px] before:-translate-y-1/2 before:rounded-e before:bg-accent`;
+
+const navIconActive = "size-5 shrink-0 text-text-primary md:max-lg:mx-auto";
 let shellUiAbortController: AbortController | null = null;
 
 export type ShellNavKey =
@@ -39,7 +59,6 @@ export type ShellNavKey =
   | "actas"
   | "comedor"
   | "reportes"
-  | "notificaciones"
   | "puestos"
   | "competencias"
   | "evaluaciones"
@@ -54,23 +73,49 @@ type NavItemDef = {
   svgPaths: string;
 };
 
+type NavGroupDef = {
+  id: string;
+  label: string;
+  children: readonly NavItemDef[];
+};
+
+/** Encabezado de sección del sidebar (mismo criterio visual que «Talento»). */
+const navSectionHeadingClass =
+  "text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden";
+
 function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: NavItemDef): string {
   if (!isShellNavItemVisibleForRol(rol, def.id)) return "";
   const href = def.hrefFor(rol);
   const isActive = def.key != null && activeNav === def.key;
   const cls = isActive ? navActive : navInactive;
   const ic = isActive ? navIconActive : navIconInactive;
-  const labelInner =
+  const escapedLabel = escapeHtmlText(def.label);
+  const ariaCurrent = isActive ? ` aria-current="page"` : "";
+  const labelWrap =
     def.labelWrapClass != null ?
-      `<span class="${def.labelWrapClass}">${def.label}</span>`
-    : def.label;
+      `<span class="${def.labelWrapClass} md:max-lg:sr-only">${def.label}</span>`
+    : `<span class="md:max-lg:sr-only">${def.label}</span>`;
   return `<li>
-    <a href="${href}" class="${cls}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="${ic}">
+    <a href="${href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">
         ${def.svgPaths}
       </svg>
-      ${labelInner}
+      ${labelWrap}
     </a>
+  </li>`;
+}
+
+function navSectionFromGroup(activeNav: ShellNavKey | undefined, rol: string | null, def: NavGroupDef): string {
+  const visibleChildren = def.children.filter((child) => isShellNavItemVisibleForRol(rol, child.id));
+  if (visibleChildren.length === 0) return "";
+  const childHtml = visibleChildren.map((child) => navItemLi(activeNav, rol, child)).join("");
+  const escapedLabel = escapeHtmlText(def.label);
+  const headingId = `shell-nav-section-${def.id}`;
+  return `<li>
+    <div id="${headingId}" class="${navSectionHeadingClass}">${escapedLabel}</div>
+    <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${headingId}">
+      ${childHtml}
+    </ul>
   </li>`;
 }
 
@@ -89,6 +134,9 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
     label: "Organigrama",
     svgPaths: `<path d="M6 3.75A2.25 2.25 0 0 0 3.75 6v1.5A2.25 2.25 0 0 0 6 9.75h1.5A2.25 2.25 0 0 0 9.75 7.5V6A2.25 2.25 0 0 0 7.5 3.75H6Zm10.5 0A2.25 2.25 0 0 0 14.25 6v1.5a2.25 2.25 0 0 0 2.25 2.25H18a2.25 2.25 0 0 0 2.25-2.25V6A2.25 2.25 0 0 0 18 3.75h-1.5ZM6 14.25A2.25 2.25 0 0 0 3.75 16.5V18A2.25 2.25 0 0 0 6 20.25h1.5A2.25 2.25 0 0 0 9.75 18v-1.5A2.25 2.25 0 0 0 7.5 14.25H6Zm10.5 0a2.25 2.25 0 0 0-2.25 2.25V18a2.25 2.25 0 0 0 2.25 2.25H18A2.25 2.25 0 0 0 20.25 18v-1.5A2.25 2.25 0 0 0 18 14.25h-1.5Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M9.75 6.75h4.5m-2.25 3v4.5m2.25-2.25h-4.5" stroke-linecap="round" stroke-linejoin="round" />`,
   },
+];
+
+const NAV_LABORALES: readonly NavItemDef[] = [
   {
     id: "solicitudes",
     key: "solicitudes",
@@ -110,6 +158,9 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
     label: "Actas",
     svgPaths: `<path d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" stroke-linecap="round" stroke-linejoin="round" />`,
   },
+];
+
+const NAV_COMEDOR: readonly NavItemDef[] = [
   {
     id: "comedor",
     key: "comedor",
@@ -117,7 +168,7 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
       rol === "empleado" || rol === "rh" || rol === "supervisor" || rol === "gerente"
         ? "#/comedor"
         : "#",
-    label: "Comedor",
+    label: "Gestión Comedor",
     svgPaths: `<path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
@@ -127,8 +178,21 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
       rol === "rh" || rol === "gerente" || rol === "director"
         ? "#/comedor/reporte"
         : "#",
-    label: "Reporte comedor",
+    label: "Reporte de comedor",
     svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
+const NAV_GROUPS: readonly NavGroupDef[] = [
+  {
+    id: "laborales",
+    label: "Laborales",
+    children: NAV_LABORALES,
+  },
+  {
+    id: "comedor-group",
+    label: "Comedor",
+    children: NAV_COMEDOR,
   },
 ];
 
@@ -139,25 +203,6 @@ const NAV_EMPLEADOS: NavItemDef = {
   label: "Empleados",
   svgPaths: `<path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
 };
-
-const NAV_MODULES: readonly NavItemDef[] = [
-  {
-    id: "evaluaciones",
-    key: "evaluaciones",
-    hrefFor: () => "#/evaluaciones",
-    label: "Evaluaciones",
-    labelWrapClass: "truncate",
-    svgPaths: `<path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.5" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-  {
-    id: "notificaciones",
-    key: "notificaciones",
-    hrefFor: () => "#/notificaciones",
-    label: "Notificaciones",
-    labelWrapClass: "truncate",
-    svgPaths: `<path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-];
 
 const NAV_TALENTO: readonly NavItemDef[] = [
   {
@@ -174,6 +219,14 @@ const NAV_TALENTO: readonly NavItemDef[] = [
     label: "Matriz de Competencias",
     labelWrapClass: "truncate",
     svgPaths: `<path d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12h2.25m-2.25 0a1.125 1.125 0 0 1-1.125 1.125M13.125 12c-.621 0-1.125.504-1.125 1.125m0 0v1.5c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m-2.25-1.125c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M10.875 15.75h2.25m-2.25 0a1.125 1.125 0 0 1-1.125 1.125M13.125 15.75c-.621 0-1.125.504-1.125 1.125m1.125-1.125c.621 0 1.125.504 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M12 18.375h-1.125m2.25 0h7.5m-9.75 0c-.621 0-1.125-.504-1.125-1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m0-3.75h-7.5m7.5 0c.621 0 1.125.504 1.125 1.125M20.625 15.75c.621 0 1.125.504 1.125 1.125v1.5" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "evaluaciones",
+    key: "evaluaciones",
+    hrefFor: () => "#/evaluaciones",
+    label: "Evaluaciones",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.5" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
     id: "capacitaciones",
@@ -197,8 +250,8 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
   const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
   const ajustesLi = navItemLi(activeNav, rol, NAV_AJUSTES);
   if (empleadosLi.trim() === "" && ajustesLi.trim() === "") return "";
-  return `<li class="mt-auto">
-    <ul role="list" class="-mx-2 space-y-1">
+  return `<li class="mt-auto pt-6">
+    <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
       ${empleadosLi}
       ${ajustesLi}
     </ul>
@@ -209,40 +262,34 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
 function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const rol = getRolFromAccessToken();
   const primaryLis = NAV_PRIMARY.map((d) => navItemLi(activeNav, rol, d)).join("");
-  const moduleLis = NAV_MODULES.map((d) => navItemLi(activeNav, rol, d)).join("");
-  const modulesBlock =
-    moduleLis.trim() === "" ?
-      ""
-    : `<li>
-          <div class="text-xs/6 font-semibold text-text-muted">Módulos</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-1">
-            ${moduleLis}
-          </ul>
-        </li>`;
+  const groupSectionLis = NAV_GROUPS.map((g) => navSectionFromGroup(activeNav, rol, g)).join("");
 
   const talentoLis = NAV_TALENTO.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const talentoHeadingId = "shell-nav-section-talento";
   const talentoBlock =
     talentoLis.trim() === "" ?
       ""
     : `<li>
-          <div class="text-xs/6 font-semibold text-text-muted">Talento</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-1">
+          <div id="${talentoHeadingId}" class="${navSectionHeadingClass}">Talento</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${talentoHeadingId}">
             ${talentoLis}
           </ul>
         </li>`;
 
+  const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
   return `
-    <div class="relative flex h-16 shrink-0 items-center">
-      <img src="/leoni-logo.png" alt="Leoni" class="h-8 w-auto max-w-full object-contain object-left" />
+    <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
+      <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
     </div>
     <nav class="relative flex flex-1 flex-col">
-      <ul role="list" class="flex flex-1 flex-col gap-y-7">
+      <ul role="list" class="flex flex-1 flex-col gap-y-5">
         <li>
-          <ul role="list" class="-mx-2 space-y-1">
+          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
             ${primaryLis}
           </ul>
         </li>
-        ${modulesBlock}
+        ${groupSectionLis}
         ${talentoBlock}
         ${footerGestionHtml(activeNav, rol)}
       </ul>
@@ -272,10 +319,15 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const body = sidebarBody(options.activeNav);
   const userName = escapeHtmlText(getUserDisplayNameFromAccessToken());
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
+  const rawRol = getRolFromAccessToken();
+  const userRolLine =
+    rawRol ?
+      `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
+    : "";
 
   container.innerHTML = `
 <el-dialog>
-  <dialog id="sidebar" class="backdrop:bg-transparent lg:hidden">
+  <dialog id="sidebar" class="backdrop:bg-transparent md:hidden">
     <el-dialog-backdrop class="fixed inset-0 bg-gray-900/80 transition-opacity duration-300 ease-linear data-closed:opacity-0"></el-dialog-backdrop>
 
     <div tabindex="0" class="fixed inset-0 flex focus:outline-none">
@@ -289,7 +341,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
           </button>
         </div>
 
-        <div class="relative flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
+        <div class="relative flex grow flex-col gap-y-4 overflow-y-auto bg-white px-5 pb-5 pt-2">
           ${body}
         </div>
       </el-dialog-panel>
@@ -297,43 +349,49 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </dialog>
 </el-dialog>
 
-<div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-  <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border bg-white px-6 pb-4">
+<div class="relative z-40 hidden md:fixed md:inset-y-0 md:flex md:w-[4.75rem] md:flex-col lg:hidden">
+  <div class="flex grow flex-col gap-y-4 overflow-y-auto border-r border-border bg-white px-2 pb-4 pt-1">
     ${body}
   </div>
 </div>
 
-<div class="min-h-full bg-surface lg:pl-72">
-  <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-border bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8">
-    <button type="button" command="show-modal" commandfor="sidebar" class="-m-2.5 p-2.5 text-text-muted hover:text-text-primary lg:hidden">
+<div class="relative z-40 hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
+  <div class="flex grow flex-col gap-y-4 overflow-y-auto border-r border-border bg-white px-6 pb-4 pt-1">
+    ${body}
+  </div>
+</div>
+
+<div class="min-h-full bg-surface md:pl-[4.75rem] lg:pl-72">
+  <div class="sticky top-0 z-40 flex min-h-[3.75rem] shrink-0 items-center gap-x-3 border-b border-border bg-white px-4 py-2 shadow-[0_2px_8px_-2px_rgb(15_23_42/0.06)] sm:gap-x-5 sm:px-6 lg:px-8">
+    <button type="button" command="show-modal" commandfor="sidebar" class="flex items-center rounded-lg p-2 text-text-muted transition-colors hover:bg-shell-hover hover:text-text-primary md:hidden">
       <span class="sr-only">Abrir menú</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0">
         <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
 
-    <div aria-hidden="true" class="h-6 w-px bg-text-primary/10 lg:hidden"></div>
+    <div aria-hidden="true" class="flex h-6 w-px shrink-0 bg-text-primary/10 md:hidden"></div>
 
-    <div class="flex min-w-0 flex-1 items-center gap-x-4 self-stretch lg:gap-x-6">
+    <div class="flex min-w-0 flex-1 flex-row items-center gap-x-5 sm:gap-x-8">
       <p
         id="app-shell-page-title"
-        class="min-w-0 flex-1 truncate text-lg font-semibold text-text-primary"
+        class="min-w-0 flex-1 truncate text-lg font-semibold leading-tight tracking-tight text-text-primary sm:text-xl"
         title="${tituloNavbar}"
       >
         ${tituloNavbar}
       </p>
-      <div class="flex items-center gap-x-4 lg:gap-x-6">
-        <div id="app-shell-notifications-wrapper" class="relative">
+      <div class="flex shrink-0 items-center gap-x-6 sm:gap-x-10">
+        <div id="app-shell-notifications-wrapper" class="relative flex shrink-0 items-center">
           <button
             type="button"
             id="app-shell-notifications"
-            class="relative -m-2.5 p-2.5 text-text-muted hover:text-text-primary"
+            class="relative flex size-10 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-shell-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2"
             aria-expanded="false"
             aria-haspopup="true"
             aria-controls="app-shell-notifications-panel"
           >
             <span class="sr-only">Ver notificaciones</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0">
               <path d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <span id="app-shell-notifications-badge"></span>
@@ -357,22 +415,28 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
           </div>
         </div>
 
-        <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-text-primary/10"></div>
+        <div aria-hidden="true" class="hidden h-6 w-px shrink-0 bg-text-primary/10 sm:block"></div>
 
-        <el-dropdown class="relative">
-          <button type="button" class="relative flex items-center" title="${userName}" aria-label="Menú de ${userName}">
-            <span class="absolute -inset-1.5"></span>
-            <span class="sr-only">Menú de ${userName}</span>
-            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white outline -outline-offset-1 outline-black/5">${userInitials}</span>
-            <span class="hidden lg:flex lg:items-center">
-              <span aria-hidden="true" class="ml-4 text-sm/6 font-semibold text-text-primary">${userName}</span>
-              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="ml-2 size-5 text-text-muted">
-                <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-              </svg>
+        <el-dropdown class="relative flex items-center">
+          <button
+            type="button"
+            class="relative z-10 flex max-w-[18rem] items-center gap-3 rounded-lg border border-transparent py-1.5 pl-1 pr-2 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-shell-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 sm:gap-4 sm:pl-2"
+            title="${userName}"
+            aria-label="Menú de usuario de ${userName}"
+          >
+            <span class="sr-only">Menú de usuario de ${userName}</span>
+            <span class="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-[0.6875rem] font-semibold text-white shadow-sm ring-[1px] ring-black/10 ring-inset">${userInitials}</span>
+            <span class="hidden min-w-0 flex-col leading-tight lg:flex lg:items-start">
+              <span class="flex items-center gap-1.5">
+                <span class="truncate text-start text-sm font-semibold text-text-primary">${userName}</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-text-muted">
+                  <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                </svg>
+              </span>
+              ${userRolLine}
             </span>
           </button>
           <el-menu anchor="bottom end" popover class="w-40 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
-            <a href="#" class="block px-3 py-1 text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Tu perfil</a>
             <button type="button" id="app-shell-sign-out" class="block w-full px-3 py-1 text-left text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Cerrar sesión</button>
           </el-menu>
         </el-dropdown>
@@ -387,7 +451,6 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </main>
 </div>
 `;
-
   container.querySelector("#app-shell-sign-out")?.addEventListener("click", () => {
     if (options.onSignOut) {
       options.onSignOut();

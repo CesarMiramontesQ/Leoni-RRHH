@@ -34,10 +34,10 @@ function renderRhPlatillosPorSemanaChart(rows: readonly ComedorRhSemanaPlatilloP
       <div class="grid grid-cols-4 gap-2 sm:gap-3">${cols}</div>
       <div class="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-100/90 pt-3 text-[11px] text-slate-600">
         <span class="inline-flex items-center gap-2 rounded-full border border-sky-200/80 bg-sky-50/80 px-2.5 py-1 font-medium text-sky-900">
-          <span class="size-2.5 rounded-full bg-linear-to-br from-sky-400 to-[#1e40af] shadow-sm" aria-hidden="true"></span>Caseras
+          <span class="size-2.5 rounded-full bg-linear-to-br from-sky-400 to-[#1e40af] shadow-sm" aria-hidden="true"></span>Opción A
         </span>
         <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50/80 px-2.5 py-1 font-medium text-emerald-900">
-          <span class="size-2.5 rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 shadow-sm" aria-hidden="true"></span>Saludables
+          <span class="size-2.5 rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 shadow-sm" aria-hidden="true"></span>Opción B
         </span>
       </div>
     </div>`;
@@ -85,7 +85,7 @@ export function renderComedorCharts(
     ? `
       <section>
         <h3 class="text-sm font-semibold tracking-tight text-[#0f172a]">Distribución semanal de platillos</h3>
-        <p class="mt-1 text-xs leading-relaxed text-[#64748b]">Últimas cuatro semanas: comidas caseras vs saludables (barras apiladas por semana).</p>
+        <p class="mt-1 text-xs leading-relaxed text-[#64748b]">Últimas cuatro semanas: Opción A vs Opción B (barras apiladas por semana).</p>
         ${renderRhPlatillosPorSemanaChart(rhPlatillosPorSemana!)}
       </section>`
     : `

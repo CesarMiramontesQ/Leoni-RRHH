@@ -188,11 +188,11 @@ async def mis_fechas_ocupadas_comedor(
 
 @router.get("/accesos/mis-proximas-reservas", response_model=list[ComedorMisReservaItem])
 async def mis_proximas_reservas_comedor(
-    limite: int = Query(5, ge=1, le=20),
+    limite: int = Query(5, ge=1, le=200),
     current_user: Empleado = Depends(role_checker(["empleado"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Top N reservas próximas del empleado desde hoy (por defecto 5)."""
+    """Top N reservas próximas del empleado desde hoy (por defecto 5, máx. 200)."""
     service = ComedorService(db)
     return await service.list_mis_proximas_reservas(
         current_user=current_user,
@@ -278,6 +278,30 @@ async def rh_proximos_registros_comedor(
     service = ComedorService(db)
     return await service.list_proximos_registros_rh_paginated(
         current_user=current_user,
+        page=page,
+        page_size=page_size,
+        buscar=buscar,
+        filtro_estado=filtro_estado,
+    )
+
+
+@router.get("/accesos/rh/registros-reporte", response_model=ComedorRhProximosRegistrosPage)
+async def rh_registros_reporte_comedor(
+    desde: date = Query(..., description="Inicio del rango (inclusive)"),
+    hasta: date = Query(..., description="Fin del rango (inclusive)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    buscar: str | None = Query(None, max_length=200),
+    filtro_estado: Literal["todos", "confirmado", "cancelado"] = Query("todos"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Registros operativos en un rango de fechas (inclusive), para tableros analíticos RH."""
+    service = ComedorService(db)
+    return await service.list_registros_reporte_rh_paginated(
+        current_user=current_user,
+        desde=desde,
+        hasta=hasta,
         page=page,
         page_size=page_size,
         buscar=buscar,

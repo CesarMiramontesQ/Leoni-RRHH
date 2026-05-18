@@ -23,6 +23,7 @@ import type {
   EmpleadoPendingRequestType,
 } from "../../dashboard/empleado/types.ts";
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
+import { RH_LISTADO_PAGE_OUTER_GRADIENT, RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 
 function fmtDays(value: number | null): string {
   if (value === null || Number.isNaN(value)) return "0 días";
@@ -40,7 +41,11 @@ function fmtPendingCount(value: number | null): string {
 }
 
 function pendingTypeLabel(t: EmpleadoPendingRequestType): string {
-  return t === "vacation" ? "VAC" : "HO";
+  if (t === "vacation") return "VAC";
+  if (t === "homeOffice") return "HO";
+  if (t === "permiso_sin_goce") return "Sin goce";
+  if (t === "goce_sueldo") return "Con goce";
+  return "SOL";
 }
 
 function mealCalendarText(meal: EmpleadoCalendarDayEntry["meal"]): string {
@@ -127,28 +132,28 @@ function renderEmpleadoDayCell(
   const hasContent = lines.length > 0;
 
   const cellPieces: string[] = [
-    "group relative flex min-h-[4.5rem] flex-col rounded-sm p-2 outline-none md:min-h-[6.5rem] md:p-3",
-    "border-0 transition-colors transition-shadow duration-150 ease-out",
+    "rh-cal-cell group relative flex min-h-[4.5rem] flex-col rounded-lg p-2 outline-none md:min-h-[6.5rem] md:p-3",
+    "border transition-[background,box-shadow,border-color,transform] duration-150 ease-out",
   ];
 
   if (!inMonth) {
-    cellPieces.push("bg-surface text-text-muted hover:bg-border/20 hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--out");
   } else if (isSelected) {
-    const selBg = isToday ? "bg-leoni-blue/10" : "bg-leoni-blue/[0.09]";
-    cellPieces.push(
-      `z-[1] ${selBg} ring-2 ring-leoni-blue ring-inset hover:bg-leoni-blue/[0.12] hover:shadow-sm`,
-    );
+    cellPieces.push("rh-cal-cell--selected z-[1]");
   } else if (isToday) {
-    cellPieces.push("bg-leoni-blue/5 hover:bg-leoni-blue/[0.09] hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--today");
   } else {
-    cellPieces.push("bg-white hover:bg-surface hover:shadow-sm");
+    cellPieces.push("rh-cal-cell--default");
   }
 
   const cellBase = cellPieces.join(" ");
 
-  const dayNumWrap = isToday && inMonth
-    ? `<span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-leoni-blue text-xs font-bold text-white shadow-sm">${dayNumber}</span>`
-    : `<span class="inline-flex min-h-7 min-w-7 items-center justify-center text-xs font-semibold ${inMonth ? "text-text-primary" : "text-text-muted"}">${dayNumber}</span>`;
+  const dayNumWrap =
+    isSelected && inMonth
+      ? `<span class="rh-cal-cell__daynum rh-cal-cell__daynum--selected">${dayNumber}</span>`
+      : isToday && inMonth
+        ? `<span class="rh-cal-cell__daynum rh-cal-cell__daynum--today">${dayNumber}</span>`
+        : `<span class="rh-cal-cell__daynum ${inMonth ? "rh-cal-cell__daynum--plain" : "rh-cal-cell__daynum--muted"}">${dayNumber}</span>`;
 
   const topRowSep = hasContent ? "border-b border-border/30 pb-2 mb-2" : "";
 
@@ -256,7 +261,7 @@ export function renderEmpleadoStatCards(payload: EmpleadoDashboardPayload | null
   const html = cards
     .map(
       (c) => `
-    <article class="rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <article class="${RH_LISTADO_SURFACE} p-5">
       <div class="flex items-start justify-between gap-3">
         <div class="flex size-11 shrink-0 items-center justify-center rounded-full ${c.iconWrap}">
           ${c.icon}
@@ -297,7 +302,7 @@ export function renderEmpleadoCalendarReplaceable(
     for (let r = 0; r < 6; r += 1) {
       const slice = grid.slice(r * 7, r * 7 + 7);
       rows.push(
-        `<div role="row" class="grid grid-cols-7 gap-1">${slice
+        `<div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${slice
           .map((cell) =>
             renderEmpleadoDayCell(
               cell.isoDate,
@@ -314,7 +319,7 @@ export function renderEmpleadoCalendarReplaceable(
   } else {
     const weekDates = getCalendarWeekDates(anchorDate, weekStartsOn);
     rows.push(
-      `<div role="row" class="grid grid-cols-7 gap-1">${weekDates
+      `<div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${weekDates
         .map((d) => {
           const iso = isoLocalDate(d);
           return renderEmpleadoDayCell(
@@ -357,7 +362,7 @@ export function renderEmpleadoCalendarReplaceable(
   const weekHeader = getCalendarWeekdayLabels(weekStartsOn)
     .map(
       (d) =>
-        `<div role="columnheader" class="rounded-sm bg-white py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
+        `<div role="columnheader" class="rh-cal-colhead py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">${d}</div>`,
     )
     .join("");
 
@@ -373,16 +378,13 @@ export function renderEmpleadoCalendarReplaceable(
         const entries =
           lines.length > 0
             ? lines
-                .map(
-                  (ln) =>
-                    `<span class="truncate rounded-md px-2 py-1 text-xs font-semibold ${ln.cls}">${escapeHtml(ln.text)}</span>`,
-                )
+                .map((ln) => `<span class="truncate ${ln.cls}">${escapeHtml(ln.text)}</span>`)
                 .join("")
             : `<span class="text-xs text-text-muted">Sin registros</span>`;
-        return `<article class="rounded-xl border border-border bg-white p-3 shadow-sm">
+        return `<article class="rh-cal-week-planner-day rounded-xl border border-[rgba(148,163,184,0.22)] bg-linear-to-br from-white to-[#f8fbff] p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
           <div class="mb-3 flex items-center justify-between">
             <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(dayName)}</span>
-            <span class="${isToday ? "inline-flex size-8 items-center justify-center rounded-full bg-leoni-blue text-sm font-semibold text-white" : "inline-flex size-8 items-center justify-center rounded-full bg-surface text-sm font-semibold text-text-primary"}">${d.getDate()}</span>
+            <span class="${isToday ? "rh-cal-week-planner-day__date rh-cal-week-planner-day__date--today" : "rh-cal-week-planner-day__date"}">${d.getDate()}</span>
           </div>
           <div class="flex flex-col gap-1.5">${entries}</div>
         </article>`;
@@ -395,16 +397,16 @@ export function renderEmpleadoCalendarReplaceable(
   })();
 
   return `
-    <header class="px-4 pt-5 sm:px-6">
+    <header class="rh-cal-card-header px-4 pt-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-base font-semibold text-text-primary">Mi calendario</h2>
-        <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+        <div class="rh-cal-toolbar flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+          <div class="rh-cal-seg" role="group" aria-label="Vista del calendario">
             <button
               type="button"
               id="emp-cal-view-month"
               data-emp-cal-view="month"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "month" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+              class="rh-cal-seg__btn ${viewMode === "month" ? "rh-cal-seg__btn--active" : ""}"
             >
               Mes
             </button>
@@ -412,25 +414,25 @@ export function renderEmpleadoCalendarReplaceable(
               type="button"
               id="emp-cal-view-week"
               data-emp-cal-view="week"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "week" ? "bg-leoni-blue text-white" : "text-text-muted hover:bg-surface"}"
+              class="rh-cal-seg__btn ${viewMode === "week" ? "rh-cal-seg__btn--active" : ""}"
             >
               Semana
             </button>
           </div>
-          <div class="inline-flex items-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+          <div class="rh-cal-nav-cluster inline-flex min-w-0 flex-wrap items-center justify-center gap-0.5 rounded-[14px] border border-[rgba(148,163,184,0.22)] bg-white/90 p-0.5 shadow-[0_6px_16px_rgba(15,23,42,0.05)]">
             <button
               type="button"
               id="emp-cal-prev"
-              class="${CAL_NAV_BTN_CLASS}"
+              class="${CAL_NAV_BTN_CLASS} rh-cal-nav-icon-btn"
               aria-label="${viewMode === "week" ? "Semana anterior" : "Mes anterior"}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
             </button>
-            <p id="emp-cal-month-label" class="min-w-44 px-1 text-center text-sm font-semibold text-text-primary">${title}</p>
+            <p id="emp-cal-month-label" class="min-w-0 max-w-[min(100%,14rem)] shrink px-2 py-1 text-center text-sm font-semibold text-text-primary sm:min-w-44 sm:max-w-none">${title}</p>
             <button
               type="button"
               id="emp-cal-next"
-              class="${CAL_NAV_BTN_CLASS}"
+              class="${CAL_NAV_BTN_CLASS} rh-cal-nav-icon-btn"
               aria-label="${viewMode === "week" ? "Semana siguiente" : "Mes siguiente"}"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
@@ -439,26 +441,26 @@ export function renderEmpleadoCalendarReplaceable(
           <button
             type="button"
             id="emp-cal-today"
-            class="rounded-xl border border-border bg-white px-3 py-2 text-xs font-semibold text-text-muted shadow-sm transition-colors hover:border-leoni-blue/25 hover:bg-leoni-blue/5 hover:text-leoni-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leoni-blue"
+            class="rh-cal-today-btn rounded-xl border border-[rgba(148,163,184,0.26)] bg-white px-3 py-2 text-xs font-semibold text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition-[background,border-color,color,box-shadow,transform] duration-150 ease-out hover:border-[rgba(37,99,235,0.28)] hover:bg-[rgba(219,234,254,0.45)] hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
             aria-label="Ir al mes actual"
           >
             Hoy
           </button>
         </div>
       </div>
-      <div class="mt-5 border-t border-border/50 pt-4">
+      <div class="mt-4 border-t border-border/50 pt-2 pb-3">
         ${legend}
       </div>
     </header>
-    <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6">
+    <div class="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-5 pt-4 sm:mx-0 sm:overflow-visible sm:px-6 sm:pb-6 sm:pt-5">
       ${viewMode === "week"
         ? weeklyPlanner
         : `<div
             role="grid"
             aria-label="Calendario personal"
-            class="flex min-w-136 flex-col gap-1 rounded-xl border border-border bg-border/80 p-1 shadow-sm sm:min-w-0"
+            class="rh-cal-grid-shell flex min-w-136 flex-col gap-1 sm:min-w-0"
           >
-            <div role="row" class="grid grid-cols-7 gap-1">${weekHeader}</div>
+            <div role="row" class="rh-cal-row grid grid-cols-7 gap-1">${weekHeader}</div>
             ${rows.join("")}
           </div>`}
     </div>`;
@@ -470,7 +472,7 @@ export function renderEmpleadoCalendarCard(
   payload: EmpleadoDashboardPayload | null,
 ): string {
   return `
-    <section class="mt-8 overflow-hidden rounded-2xl border border-border bg-white shadow-sm" aria-label="Calendario personal">
+    <section class="rh-cal-card overflow-hidden rounded-[20px]" aria-label="Calendario personal">
       <div id="empleado-calendar-replaceable">
         ${renderEmpleadoCalendarReplaceable(year, monthIndex, payload)}
       </div>
@@ -483,7 +485,7 @@ export function renderEmpleadoPersonalDashboard(
   payload: EmpleadoDashboardPayload | null,
 ): string {
   return `
-    <div class="space-y-0">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">
       ${renderEmpleadoStatCards(payload)}
       ${renderEmpleadoCalendarCard(year, monthIndex, payload)}
     </div>`;
@@ -492,7 +494,7 @@ export function renderEmpleadoPersonalDashboard(
 export function renderEmpleadoDashboardSkeleton(): string {
   const cards = `
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      ${`<div class="animate-pulse rounded-2xl border border-border bg-white p-5 shadow-sm">
+      ${`<div class="${RH_LISTADO_SURFACE} animate-pulse p-5">
         <div class="flex justify-between gap-3">
           <div class="size-11 rounded-full bg-surface"></div>
           <div class="h-3 w-20 rounded bg-surface"></div>
@@ -502,20 +504,20 @@ export function renderEmpleadoDashboardSkeleton(): string {
       </div>`.repeat(4)}
     </div>`;
   const cal = `
-    <div class="mt-8 animate-pulse rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-6">
+    <div class="rh-cal-card animate-pulse overflow-hidden rounded-[20px] p-4 sm:p-6">
       <div class="flex justify-between gap-4">
         <div class="h-5 w-32 rounded bg-surface"></div>
         <div class="h-9 w-44 rounded-xl bg-surface"></div>
       </div>
       <div class="mt-6 h-3 w-full max-w-sm rounded bg-surface/80"></div>
       <div class="mt-4 grid grid-cols-7 gap-1">
-        ${"<div class=\"h-9 rounded-sm bg-surface/90\"></div>".repeat(7)}
+        ${"<div class=\"h-9 rounded-lg bg-surface/90\"></div>".repeat(7)}
       </div>
       <div class="mt-1 grid grid-cols-7 gap-1">
-        ${"<div class=\"h-16 rounded-sm bg-surface/50\"></div>".repeat(7)}
+        ${"<div class=\"h-16 rounded-lg bg-surface/50\"></div>".repeat(7)}
       </div>
     </div>`;
-  return cards + cal;
+  return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">${cards}${cal}</div>`;
 }
 
 export function bindEmpleadoCalendarNavigation(

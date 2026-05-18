@@ -8,6 +8,10 @@ type SolicitudDailyCounters = {
   vacPendientes: number;
   hoAprobados: number;
   hoPendientes: number;
+  sinGoceAprobados: number;
+  sinGocePendientes: number;
+  goceAprobados: number;
+  gocePendientes: number;
 };
 
 function parseIsoDateAsUtcDay(isoDate: string): number | null {
@@ -29,8 +33,19 @@ function emptySolicitudCounters(): SolicitudDailyCounters {
     vacPendientes: 0,
     hoAprobados: 0,
     hoPendientes: 0,
+    sinGoceAprobados: 0,
+    sinGocePendientes: 0,
+    goceAprobados: 0,
+    gocePendientes: 0,
   };
 }
+
+const TIPOS_GOCE_RH = new Set([
+  "matrimonio",
+  "incapacidad_interna",
+  "defuncion",
+  "paternidad",
+]);
 
 function aggregateSolicitudesByDay(
   solicitudes: Awaited<ReturnType<typeof getSolicitudesRows>>,
@@ -43,9 +58,12 @@ function aggregateSolicitudesByDay(
   if (rangeStartUtc === null || rangeEndUtc === null) return out;
 
   for (const solicitud of solicitudes) {
-    const isVacaciones = solicitud.tipo === "vacaciones";
-    const isHomeOffice = solicitud.tipo === "home_office";
-    if (!isVacaciones && !isHomeOffice) continue;
+    const t = solicitud.tipo;
+    const isVacaciones = t === "vacaciones";
+    const isHomeOffice = t === "home_office";
+    const isSinGoce = t === "permiso_sin_goce_sueldo";
+    const isGoceRh = TIPOS_GOCE_RH.has(t);
+    if (!isVacaciones && !isHomeOffice && !isSinGoce && !isGoceRh) continue;
 
     const isAprobada = solicitud.estado === "approved";
     const isPendiente = solicitud.estado === "pending";
@@ -66,6 +84,10 @@ function aggregateSolicitudesByDay(
       if (isVacaciones && isPendiente) bucket.vacPendientes += 1;
       if (isHomeOffice && isAprobada) bucket.hoAprobados += 1;
       if (isHomeOffice && isPendiente) bucket.hoPendientes += 1;
+      if (isSinGoce && isAprobada) bucket.sinGoceAprobados += 1;
+      if (isSinGoce && isPendiente) bucket.sinGocePendientes += 1;
+      if (isGoceRh && isAprobada) bucket.goceAprobados += 1;
+      if (isGoceRh && isPendiente) bucket.gocePendientes += 1;
     }
   }
 
@@ -88,7 +110,7 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
   const dayMetrics: RhLowerSectionPayload["calendar"]["dayMetrics"] = {};
 
   let totalAlmuerzos = 0;
-  let totalSaludables = 0;
+  let totalOpcionB = 0;
   let totalHomeOffice = 0;
 
   for (const [iso, counters] of Object.entries(solicitudesByDay)) {
@@ -98,9 +120,17 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
         { kind: "vacaciones", text: `Vac Pendientes: ${counters.vacPendientes}` },
         { kind: "ho", text: `HO Aprobados: ${counters.hoAprobados}` },
         { kind: "ho", text: `HO Pendientes: ${counters.hoPendientes}` },
+        { kind: "sin_goce", text: `Sin goce aprob.: ${counters.sinGoceAprobados}` },
+        { kind: "sin_goce", text: `Sin goce pend.: ${counters.sinGocePendientes}` },
+        { kind: "goce_sueldo", text: `Con goce aprob.: ${counters.goceAprobados}` },
+        { kind: "goce_sueldo", text: `Con goce pend.: ${counters.gocePendientes}` },
       ],
       showWarning: false,
-      showAttention: counters.vacPendientes > 0 || counters.hoPendientes > 0,
+      showAttention:
+        counters.vacPendientes > 0 ||
+        counters.hoPendientes > 0 ||
+        counters.sinGocePendientes > 0 ||
+        counters.gocePendientes > 0,
     };
     totalHomeOffice += counters.hoAprobados + counters.hoPendientes;
   }
@@ -110,13 +140,10 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
     const saludables = Math.max(0, row.saludables ?? 0);
     const totalDia = caseras + saludables;
     totalAlmuerzos += totalDia;
-    totalSaludables += saludables;
+    totalOpcionB += saludables;
     const current = dayMetrics[row.fecha];
     const lines = current?.lines ?? [];
-    lines.unshift(
-      { kind: "dieta", text: `${saludables} Saludables` },
-      { kind: "normal", text: `${caseras} Caseras` },
-    );
+    lines.unshift({ kind: "normal", text: `${totalDia} comidas` });
     dayMetrics[row.fecha] = {
       lines,
       showWarning: Boolean(current?.showWarning),
@@ -145,7 +172,7 @@ export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayl
     },
     weekly_summary: {
       total_almuerzos: totalAlmuerzos,
-      menus_dieta: totalSaludables,
+      menus_dieta: totalOpcionB,
       home_office_total: totalHomeOffice,
       promedio_diario: Math.round(totalAlmuerzos / weekdaysInMonth),
     },

@@ -1,6 +1,8 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
+  anularActaAdministrativa,
+  approveActaAdministrativa,
   getActaById,
   improveActaWithIa,
   updateActaAdministrativa,
@@ -49,12 +51,15 @@ function fechaHora(iso: string): string {
 
 function badgeEstadoHtml(estado: ActaEstadoCodigo): string {
   if (estado === "abierta" || estado === "en_proceso") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200/90 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>En revisión</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200/90 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>En proceso</span>`;
   }
   if (estado === "firmada") {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/90 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>Firmada</span>`;
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/90 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>Aprobada</span>`;
   }
-  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-slate-400" aria-hidden="true"></span>Cerrada</span>`;
+  if (estado === "anulada") {
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-slate-400" aria-hidden="true"></span>Anulada</span>`;
+  }
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]"><span class="inline-flex size-1.5 rounded-full bg-slate-400" aria-hidden="true"></span>${escapeHtml(estado)}</span>`;
 }
 
 function skeletonHtml(): string {
@@ -96,7 +101,7 @@ function estadoProcesoIndex(estado: ActaEstadoCodigo): number {
   if (estado === "abierta") return 0;
   if (estado === "en_proceso") return 1;
   if (estado === "firmada") return 2;
-  return 3;
+  return 0;
 }
 
 function adjuntosCountText(count: number): string {
@@ -112,14 +117,26 @@ function rolBadgeClass(rol: string): string {
 }
 
 function renderProcesoEstado(estado: ActaEstadoCodigo): string {
-  const steps = ["Creada", "En revisión", "Firma pendiente", "Cerrada"];
+  if (estado === "anulada") {
+    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">Esta acta fue <span class="font-semibold text-slate-800">anulada</span> y no continúa en el flujo de aprobación.</p>`;
+  }
+  const steps = ["Creada", "En revisión", "Aprobada"];
   const current = estadoProcesoIndex(estado);
+  const isAprobada = estado === "firmada";
+  /** En API: draft / pending_sign. Creación lista; en el stepper solo queda pendiente la aprobación RH. */
+  const soloPendienteAprobacion = estado === "en_proceso";
+
   return `
     <ol class="space-y-3">
       ${steps
         .map((step, index) => {
-          const isDone = index < current;
-          const isCurrent = index === current;
+          const isDone = isAprobada
+            ? index <= current
+            : soloPendienteAprobacion
+              ? index < 2
+              : index < current;
+          const isCurrent =
+            !isAprobada && !soloPendienteAprobacion && index === current;
           const dotClass = isDone
             ? "border-[#1e3a8a] bg-[#1e40af] text-white shadow-sm"
             : isCurrent
@@ -150,12 +167,33 @@ function renderProcesoEstado(estado: ActaEstadoCodigo): string {
 }
 
 function mapBackendEstadoToUi(
-  estado: "draft" | "pending_sign" | "signed" | "archived",
+  estado: ActaDetailResponse["estado"],
 ): ActaEstadoCodigo {
-  if (estado === "pending_sign") return "en_proceso";
-  if (estado === "signed") return "firmada";
-  if (estado === "archived") return "cerrada";
-  return "abierta";
+  if (estado === "cancelled") return "anulada";
+  // Draft / pending_sign: badge «En proceso»; el stepper marca creado + revisión listos y solo muestra pendiente «Aprobada».
+  if (estado === "pending_sign" || estado === "draft") return "en_proceso";
+  if (estado === "signed" || estado === "archived") return "firmada";
+  return "en_proceso";
+}
+
+function canApproveActa(estado: ActaDetailResponse["estado"]): boolean {
+  return estado !== "signed" && estado !== "archived" && estado !== "cancelled";
+}
+
+function canAnularActaAdministrativa(estado: ActaDetailResponse["estado"]): boolean {
+  return estado === "draft" || estado === "pending_sign";
+}
+
+function canDownloadPdfActa(estado: ActaDetailResponse["estado"]): boolean {
+  return estado === "signed" || estado === "archived";
+}
+
+function canEditIaActa(estado: ActaDetailResponse["estado"]): boolean {
+  return estado !== "signed" && estado !== "archived" && estado !== "cancelled";
+}
+
+function canEditActaAdministrativa(estado: ActaDetailResponse["estado"]): boolean {
+  return estado !== "signed" && estado !== "archived" && estado !== "cancelled";
 }
 
 function parsePeopleList(raw: string | null | undefined): string[] {
@@ -191,7 +229,7 @@ function buildActaDetalleFromApi(data: {
   testigos: string | null;
   responsable_rh: string | null;
   evidencia: string | null;
-  estado: "draft" | "pending_sign" | "signed" | "archived";
+  estado: ActaDetailResponse["estado"];
   created_at: string;
 }): ActaDetalle {
   const numero =
@@ -367,24 +405,39 @@ function historialEventVisual(evento: { titulo: string; descripcion: string }): 
   };
 }
 
-function renderIaActionButton(hasRecommendation: boolean): string {
-  const improveButtonLabel = hasRecommendation ? "Regenerar" : "Recomendación IA";
+function renderIaActionButton(hasRecommendation: boolean, canEditIa: boolean): string {
+  const improveButtonLabel = hasRecommendation ? "Modificar escrito" : "Generar escrito";
+  if (!canEditIa) {
+    return `
+      <div class="grid grid-cols-1 gap-2">
+        <button
+          type="button"
+          data-rh-acta-ia-view
+          title="Consultar escrito generado"
+          class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#1e40af]/25 bg-white/90 px-3 py-2.5 text-sm font-semibold text-[#1e40af] transition hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
+        >
+          <span aria-hidden="true">📄</span>
+          Ver escrito
+        </button>
+      </div>
+    `;
+  }
   return `
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <button
         type="button"
         data-rh-acta-ia-view
-        title="Ver recomendación de IA guardada para esta acta"
+        title="Ver escrito guardado para esta acta"
         ${hasRecommendation ? "" : "disabled"}
         class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#1e40af]/25 bg-white/90 px-3 py-2.5 text-sm font-semibold text-[#1e40af] transition hover:bg-[#eff6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span aria-hidden="true">📄</span>
-        Ver recomendación
+        Ver escrito
       </button>
       <button
         type="button"
         data-rh-acta-ia-improve
-        title="${hasRecommendation ? "Generar o regenerar recomendación de redacción" : "Generar recomendación de redacción con IA"}"
+        title="${hasRecommendation ? "Modificar el escrito generado" : "Generar escrito de apoyo"}"
         class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#1e40af] to-[#4338ca] px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
       >
         <span aria-hidden="true">✨</span>
@@ -446,6 +499,15 @@ function renderDetalleHtml(
     isSavingEdit: boolean;
     editDraft: ActaEditDraft | null;
     editStatus: EditStatus | null;
+    canApprove: boolean;
+    isApproving: boolean;
+    approveStatus: EditStatus | null;
+    canDownloadPdf: boolean;
+    canEditIa: boolean;
+    canEditActa: boolean;
+    canAnular: boolean;
+    isAnnulling: boolean;
+    annulStatus: EditStatus | null;
   },
 ): string {
   const nombreEmpleado = formatNombreEmpleadoUi(acta.empleado.nombre) || acta.empleado.nombre;
@@ -454,6 +516,17 @@ function renderDetalleHtml(
   const isSavingEdit = options.isSavingEdit;
   const editDraft = options.editDraft;
   const editStatus = options.editStatus;
+  const canApprove = options.canApprove;
+  const isApproving = options.isApproving;
+  const approveStatus = options.approveStatus;
+  const canDownloadPdf = options.canDownloadPdf;
+  const canEditIa = options.canEditIa;
+  const canEditActa = options.canEditActa;
+  const canAnular = options.canAnular;
+  const isAnnulling = options.isAnnulling;
+  const annulStatus = options.annulStatus;
+  /** Solo PDF en cabecera (sin editar): acciones en fila única alineadas a la derecha. */
+  const headerSoloPdf = !canEditActa;
   const avatar = acta.empleado.foto_url?.trim()
     ? `<img src="${escapeHtml(acta.empleado.foto_url)}" alt="" class="size-14 shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />`
     : `<span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e40af] to-[#1d4ed8] text-sm font-semibold text-white shadow-sm">${escapeHtml(iniciales)}</span>`;
@@ -511,6 +584,20 @@ function renderDetalleHtml(
           : "border-emerald-200 bg-emerald-50 text-emerald-800"
       }">${escapeHtml(editStatus.message)}</p>`
     : "";
+  const approveStatusHtml = approveStatus
+    ? `<p class="mt-3 rounded-lg border px-3 py-2 text-sm ${
+        approveStatus.tone === "error"
+          ? "border-red-200 bg-red-50 text-red-800"
+          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+      }">${escapeHtml(approveStatus.message)}</p>`
+    : "";
+  const annulStatusHtml = annulStatus
+    ? `<p class="mt-3 rounded-lg border px-3 py-2 text-sm ${
+        annulStatus.tone === "error"
+          ? "border-red-200 bg-red-50 text-red-800"
+          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+      }">${escapeHtml(annulStatus.message)}</p>`
+    : "";
 
   const tipoIncidenciaValue = editDraft?.tipo_falta ?? acta.evento.tipo_incidencia;
   const fechaEventoValue = editDraft?.fecha_evento ?? toDateInputValue(acta.evento.fecha_hora);
@@ -532,7 +619,11 @@ function renderDetalleHtml(
       </div>
 
       <section class="overflow-hidden rounded-3xl border border-[#dbe4f0] bg-gradient-to-br from-white via-[#f8fbff] to-[#f3f7ff] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.08)] sm:p-7">
-        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div class="${
+          headerSoloPdf
+            ? "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+            : "flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+        }">
           <div class="min-w-0">
             <h1 class="truncate text-[26px] font-semibold tracking-tight text-[#0f172a]">${escapeHtml(acta.titulo_documento)} <span class="bg-gradient-to-r from-[#1e40af] to-[#1d4ed8] bg-clip-text font-bold text-transparent">#${escapeHtml(acta.folio)}</span></h1>
             <div class="mt-2 flex flex-wrap items-center gap-3 text-[13px] text-slate-600">
@@ -540,14 +631,25 @@ function renderDetalleHtml(
               <span>Creada el ${escapeHtml(fechaCorta(acta.fecha_creacion))}</span>
             </div>
           </div>
-          <div class="grid w-full shrink-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
-            <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-[#d0dbea] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1e40af]/40 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
+          <div class="${
+            headerSoloPdf
+              ? "flex shrink-0 flex-col gap-2 self-end sm:flex-row sm:flex-wrap sm:self-auto"
+              : "grid w-full shrink-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2"
+          }">
+            <button
+              type="button"
+              ${canDownloadPdf ? "" : "disabled"}
+              title="${canDownloadPdf ? "Descargar PDF del acta" : "Disponible cuando el acta esté aprobada"}"
+              class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-[#d0dbea] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#1e40af]/40 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[#d0dbea] disabled:hover:text-slate-700 ${headerSoloPdf ? "" : "w-full"}"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V3m0 13.5 4.5-4.5M12 16.5l-4.5-4.5M4.5 21h15" /></svg>
               Descargar PDF
             </button>
             ${
-              isEditMode
-                ? `<button
+              !canEditActa
+                ? ""
+                : isEditMode
+                  ? `<button
                     type="button"
                     data-rh-acta-cancel-edit
                     ${isSavingEdit ? "disabled" : ""}
@@ -571,7 +673,7 @@ function renderDetalleHtml(
                         : "Guardar"
                     }
                   </button>`
-                : `<button
+                  : `<button
                     type="button"
                     data-rh-acta-start-edit
                     class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#1e40af] to-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40"
@@ -606,7 +708,7 @@ function renderDetalleHtml(
           <section class="${sharedCardClass}">
             <h2 class="${sharedSectionTitleClass}">Detalle del evento</h2>
             ${
-              isEditMode
+              isEditMode && canEditActa
                 ? `<div class="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                      <label class="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
                        <span class="text-[12px] font-medium text-[#667085]">Tipo de incidencia</span>
@@ -680,9 +782,41 @@ function renderDetalleHtml(
           <section class="${sharedCardClass}">
             <h2 class="${sharedSectionTitleClass}">Acciones del acta</h2>
             <div class="mt-4 grid grid-cols-1 gap-2">
-              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#1e3a8a] to-[#1d4ed8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40">Solicitar Firma Digital</button>
-              <button type="button" data-rh-acta-open-cancel-modal title="Esta acción no se puede deshacer" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-[#dc2626] transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40">Anular Acta</button>
+              <button
+                type="button"
+                data-rh-acta-approve
+                ${canApprove && !isApproving ? "" : "disabled"}
+                title="${
+                  canApprove
+                    ? "Marcar acta como aprobada"
+                    : acta.estado === "anulada"
+                      ? "Esta acta fue anulada"
+                      : "Esta acta ya fue aprobada"
+                }"
+                class="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                ${
+                  isApproving
+                    ? `<svg class="size-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                       </svg>
+                       Aprobando...`
+                    : canApprove
+                      ? "Aprobar"
+                      : acta.estado === "anulada"
+                        ? "Anulada"
+                        : "Ya aprobada"
+                }
+              </button>
+              ${
+                canAnular
+                  ? `<button type="button" data-rh-acta-open-cancel-modal title="Esta acción no se puede deshacer" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-[#dc2626] transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40">Anular acta</button>`
+                  : ""
+              }
             </div>
+            ${approveStatusHtml}
+            ${annulStatusHtml}
           </section>
 
           <section class="${sharedCardClass}">
@@ -696,23 +830,23 @@ function renderDetalleHtml(
           </section>
 
           <section class="rounded-2xl border border-[#c7d2fe] bg-gradient-to-br from-[#eef2ff] via-[#f8faff] to-[#ecfeff] p-5 shadow-[0_14px_32px_rgba(30,64,175,0.14)] sm:p-6">
-            <h2 class="${sharedSectionTitleClass}">Asistente de redacción IA</h2>
+            <h2 class="${sharedSectionTitleClass}">Asistente de redacción legal</h2>
             <div class="mt-4 space-y-3">
               ${
                 hasIaRecommendation
                   ? `<p class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[#ecfdf3] px-2.5 py-1 text-xs font-semibold text-[#027a48]">
                        <span aria-hidden="true">✨</span>
-                       Recomendación lista
+                       Escrito listo
                      </p>`
                   : ""
               }
-              <p class="text-[13px] text-slate-600">La IA generó una sugerencia de redacción para esta acta.</p>
-              <div data-rh-acta-ia-action-wrap>${renderIaActionButton(hasIaRecommendation)}</div>
+              <p class="text-[13px] text-slate-600">Consulta o genera el escrito de apoyo para esta acta.</p>
+              <div data-rh-acta-ia-action-wrap>${renderIaActionButton(hasIaRecommendation, canEditIa)}</div>
               <p class="text-xs ${hasIaRecommendation ? "text-[#027a48]" : "text-slate-500"}">
                 ${
                   hasIaRecommendation
-                    ? "Se generó y guardó una recomendación de redacción."
-                    : "Aún no hay una recomendación generada."
+                    ? "Ya existe un escrito generado."
+                    : "Aún no hay un escrito generado."
                 }
               </p>
               <p data-rh-acta-ia-status class="hidden rounded-lg border px-3 py-2 text-sm"></p>
@@ -732,7 +866,9 @@ function renderDetalleHtml(
           </label>
           <div class="mt-4 flex justify-end gap-2">
             <button type="button" data-rh-acta-cancel-close class="inline-flex items-center rounded-[10px] border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300">Cancelar</button>
-            <button type="button" data-rh-acta-cancel-confirm class="inline-flex items-center rounded-[10px] bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300">Sí, anular acta</button>
+            <button type="button" data-rh-acta-cancel-confirm ${
+              isAnnulling ? "disabled" : ""
+            } class="inline-flex items-center rounded-[10px] bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-70">${isAnnulling ? "Anulando..." : "Sí, anular acta"}</button>
           </div>
         </div>
       </div>
@@ -741,7 +877,7 @@ function renderDetalleHtml(
         <div data-rh-acta-ia-modal-overlay class="absolute inset-0 bg-slate-900/40"></div>
         <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
           <div class="flex items-center justify-between gap-3">
-            <h3 class="text-base font-semibold text-slate-900">Recomendación de IA</h3>
+            <h3 class="text-base font-semibold text-slate-900">Escrito de apoyo</h3>
             <button
               type="button"
               data-rh-acta-ia-modal-close
@@ -750,17 +886,47 @@ function renderDetalleHtml(
               Cerrar
             </button>
           </div>
-          <div class="mt-3 max-h-[58vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">Presiona "Regenerar" para generar una recomendación.</p>
+          <div class="relative mt-3 min-h-[200px] max-h-[58vh] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div
+              data-rh-acta-ia-loading-panel
+              class="hidden min-h-[180px] flex-col items-center justify-center gap-3 px-4 py-10 text-center"
+              role="status"
+              aria-live="polite"
+            >
+              <svg
+                class="size-10 shrink-0 animate-spin text-[#1e40af]"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"
+                ></path>
+              </svg>
+              <p data-rh-acta-ia-loading-message class="text-sm font-semibold text-slate-800"></p>
+              <p class="max-w-sm text-xs leading-relaxed text-slate-500">
+                Estamos elaborando el escrito; evita cerrar esta ventana hasta finalizar.
+              </p>
+            </div>
+            <p data-rh-acta-ia-text class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+              Presiona "Generar escrito" para obtener un escrito de apoyo.
+            </p>
           </div>
           <div class="mt-4 flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              data-rh-acta-ia-regenerate
-              class="inline-flex items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              🔄 Regenerar
-            </button>
+            ${
+              canEditIa
+                ? `<button
+                    type="button"
+                    data-rh-acta-ia-regenerate
+                    class="inline-flex items-center gap-1.5 rounded-[10px] bg-[#1e40af] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d4ed8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Modificar escrito
+                  </button>`
+                : ""
+            }
             <button
               type="button"
               data-rh-acta-ia-copy
@@ -804,6 +970,12 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   const page: HTMLElement = pageNode;
   let isImprovingWithIa = false;
   let isRegeneratingIa = false;
+  let iaLoadingMessageInterval: ReturnType<typeof setInterval> | null = null;
+  const IA_MODAL_LOADING_MESSAGES = [
+    "Generando escrito...",
+    "Consultando fundamentos legales...",
+    "La IA está preparando el documento...",
+  ];
   let iaTextoMejorado = "";
   let hasIaRecommendation = false;
   let actaData: ActaDetailResponse | null = null;
@@ -811,9 +983,17 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   let isSavingEdit = false;
   let editDraft: ActaEditDraft | null = null;
   let editStatus: EditStatus | null = null;
+  let isApproving = false;
+  let approveStatus: EditStatus | null = null;
+  let isAnnulling = false;
+  let annulStatus: EditStatus | null = null;
 
   function renderPageContent(): void {
     if (!actaData) return;
+    if (!canEditActaAdministrativa(actaData.estado)) {
+      isEditMode = false;
+      editDraft = null;
+    }
     page.innerHTML = renderDetalleHtml(
       buildActaDetalleFromApi(actaData),
       hasIaRecommendation,
@@ -822,6 +1002,15 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         isSavingEdit,
         editDraft,
         editStatus,
+        canApprove: canApproveActa(actaData.estado),
+        isApproving,
+        approveStatus,
+        canDownloadPdf: canDownloadPdfActa(actaData.estado),
+        canEditIa: canEditIaActa(actaData.estado),
+        canEditActa: canEditActaAdministrativa(actaData.estado),
+        canAnular: canAnularActaAdministrativa(actaData.estado),
+        isAnnulling,
+        annulStatus,
       },
     );
   }
@@ -860,7 +1049,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   }
 
   function getImproveBtnIdleHtml(): string {
-    const label = hasIaRecommendation ? "Regenerar" : "Recomendación IA";
+    const label = hasIaRecommendation ? "Modificar escrito" : "Generar escrito";
     return `
       <span aria-hidden="true">✨</span>
       ${label}
@@ -873,7 +1062,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     </svg>
     Procesando...
   `;
-  const regenerateBtnIdleHtml = "🔄 Regenerar";
+  const regenerateBtnIdleHtml = "Modificar escrito";
   const regenerateBtnLoadingHtml = `
     <svg class="size-4 animate-spin text-slate-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -885,7 +1074,8 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   function setIaActionButton(): void {
     const wrap = page.querySelector<HTMLElement>("[data-rh-acta-ia-action-wrap]");
     if (!wrap) return;
-    wrap.innerHTML = renderIaActionButton(hasIaRecommendation);
+    if (!actaData) return;
+    wrap.innerHTML = renderIaActionButton(hasIaRecommendation, canEditIaActa(actaData.estado));
   }
 
   function setIaImproveLoading(loading: boolean): void {
@@ -917,6 +1107,76 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     if (!modal) return;
     modal.classList.toggle("hidden", !open);
     modal.classList.toggle("flex", open);
+  }
+
+  function clearIaModalLoadingMessageInterval(): void {
+    if (iaLoadingMessageInterval !== null) {
+      clearInterval(iaLoadingMessageInterval);
+      iaLoadingMessageInterval = null;
+    }
+  }
+
+  function setIaModalGenerationUi(active: boolean): void {
+    const modal = page.querySelector<HTMLElement>("[data-rh-acta-ia-modal]");
+    const panel = page.querySelector<HTMLElement>("[data-rh-acta-ia-loading-panel]");
+    const textEl = page.querySelector<HTMLElement>("[data-rh-acta-ia-text]");
+    if (active) {
+      clearIaModalLoadingMessageInterval();
+      const msgEl = page.querySelector<HTMLElement>("[data-rh-acta-ia-loading-message]");
+      let idx = 0;
+      const bump = (): void => {
+        if (!msgEl) return;
+        msgEl.textContent = IA_MODAL_LOADING_MESSAGES[idx % IA_MODAL_LOADING_MESSAGES.length];
+        idx += 1;
+      };
+      bump();
+      iaLoadingMessageInterval = window.setInterval(bump, 2500);
+      modal?.setAttribute("aria-busy", "true");
+      panel?.classList.remove("hidden");
+      panel?.classList.add("flex");
+      textEl?.classList.add("hidden");
+    } else {
+      clearIaModalLoadingMessageInterval();
+      modal?.removeAttribute("aria-busy");
+      panel?.classList.add("hidden");
+      panel?.classList.remove("flex");
+      textEl?.classList.remove("hidden");
+    }
+  }
+
+  function setIaModalChromeLocked(locked: boolean): void {
+    page
+      .querySelectorAll<HTMLButtonElement>("[data-rh-acta-ia-modal-close], [data-rh-acta-ia-close-primary]")
+      .forEach((btn) => {
+        btn.disabled = locked;
+        btn.classList.toggle("pointer-events-none", locked);
+        btn.classList.toggle("opacity-50", locked);
+        btn.classList.toggle("cursor-not-allowed", locked);
+      });
+    const overlay = page.querySelector<HTMLElement>("[data-rh-acta-ia-modal-overlay]");
+    if (overlay) {
+      overlay.classList.toggle("cursor-not-allowed", locked);
+      if (locked) overlay.dataset.iaBlocked = "1";
+      else delete overlay.dataset.iaBlocked;
+    }
+  }
+
+  function syncIaEscritoAsideButtons(): void {
+    const viewBtns = page.querySelectorAll<HTMLButtonElement>("[data-rh-acta-ia-view]");
+    const locked = isImprovingWithIa || isRegeneratingIa;
+    viewBtns.forEach((btn) => {
+      btn.disabled = locked;
+      btn.classList.toggle("cursor-not-allowed", locked);
+      btn.classList.toggle("opacity-60", locked);
+    });
+    const improveBtn = page.querySelector<HTMLButtonElement>("[data-rh-acta-ia-improve]");
+    if (!improveBtn) return;
+    if (!isImprovingWithIa) {
+      improveBtn.disabled = isRegeneratingIa;
+      improveBtn.classList.toggle("cursor-not-allowed", isRegeneratingIa);
+      improveBtn.classList.toggle("opacity-70", isRegeneratingIa);
+      if (!isRegeneratingIa) improveBtn.innerHTML = getImproveBtnIdleHtml();
+    }
   }
 
   function setIaModalText(
@@ -952,23 +1212,27 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   }
 
   async function generateIaRecommendation(): Promise<void> {
+    setIaModalGenerationUi(true);
+    setIaModalChromeLocked(true);
     setIaCopyEnabled(false);
-    setIaModalText("Generando recomendación con IA...", "loading");
     try {
       const response = await improveActaWithIa(actaId, signal);
       iaTextoMejorado = response.texto_mejorado.trim();
       hasIaRecommendation = Boolean(iaTextoMejorado);
-      setIaActionButton();
       setIaModalText(iaTextoMejorado || "No se recibió contenido para mostrar.");
       setIaCopyEnabled(Boolean(iaTextoMejorado));
-      showIaStatus("Se generó y guardó una recomendación de redacción.", "success");
+      showIaStatus("Se generó y guardó el escrito.", "success");
     } catch (error: unknown) {
       if (signal.aborted) return;
       const err = error as { detail?: string } | null;
-      const message = err?.detail || "No se pudo generar la recomendación. Intenta de nuevo.";
+      const message = err?.detail || "No se pudo generar el escrito. Intenta de nuevo.";
       setIaModalText(message, "error");
       setIaCopyEnabled(Boolean(iaTextoMejorado));
       showIaStatus(message, "error");
+    } finally {
+      clearIaModalLoadingMessageInterval();
+      setIaModalGenerationUi(false);
+      setIaModalChromeLocked(false);
     }
   }
 
@@ -1015,7 +1279,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     (event) => {
       const startEditBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-start-edit]");
       if (startEditBtn) {
-        if (!actaData || isSavingEdit) return;
+        if (!actaData || isSavingEdit || !canEditActaAdministrativa(actaData.estado)) return;
         editDraft = buildEditDraftFromApi(actaData);
         editStatus = null;
         isEditMode = true;
@@ -1025,7 +1289,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const cancelEditBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-cancel-edit]");
       if (cancelEditBtn) {
-        if (isSavingEdit) return;
+        if (isSavingEdit || !actaData || !canEditActaAdministrativa(actaData.estado)) return;
         isEditMode = false;
         editDraft = actaData ? buildEditDraftFromApi(actaData) : null;
         editStatus = null;
@@ -1035,7 +1299,14 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const saveEditBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-save-edit]");
       if (saveEditBtn) {
-        if (!actaData || !isEditMode || isSavingEdit) return;
+        if (
+          !actaData ||
+          !isEditMode ||
+          isSavingEdit ||
+          !canEditActaAdministrativa(actaData.estado)
+        ) {
+          return;
+        }
         const payload = buildEditPayloadFromForm();
         const validationError = validateEditPayload(payload);
         if (validationError) {
@@ -1072,6 +1343,40 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         return;
       }
 
+      const approveBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-approve]");
+      if (approveBtn) {
+        if (!actaData || isApproving || !canApproveActa(actaData.estado)) return;
+        const ok = window.confirm("¿Estás seguro de que deseas aprobar esta acta?");
+        if (!ok) return;
+        isApproving = true;
+        approveStatus = null;
+        renderPageContent();
+        void (async () => {
+          try {
+            const updatedActa = await approveActaAdministrativa(actaId, signal);
+            actaData = updatedActa;
+            isEditMode = false;
+            approveStatus = {
+              tone: "success",
+              message: "Acta aprobada correctamente.",
+            };
+            renderPageContent();
+          } catch (error: unknown) {
+            if (signal.aborted) return;
+            const err = error as { detail?: string } | null;
+            approveStatus = {
+              tone: "error",
+              message: err?.detail || "No se pudo aprobar el acta. Intenta nuevamente.",
+            };
+            renderPageContent();
+          } finally {
+            isApproving = false;
+            renderPageContent();
+          }
+        })();
+        return;
+      }
+
       const dropzoneTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-dropzone-trigger]");
       if (dropzoneTrigger) {
         const input = page.querySelector<HTMLInputElement>("[data-rh-acta-adjuntos-input]");
@@ -1097,25 +1402,54 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const confirmCancelModalBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-cancel-confirm]");
       if (confirmCancelModalBtn) {
-        const modal = page.querySelector<HTMLElement>("[data-rh-acta-cancel-modal]");
-        modal?.classList.remove("flex");
-        modal?.classList.add("hidden");
+        if (!actaData || isAnnulling || !canAnularActaAdministrativa(actaData.estado)) return;
+        const motivoRaw = (
+          page.querySelector<HTMLTextAreaElement>("[data-rh-acta-cancel-reason]")?.value ?? ""
+        ).trim();
+        isAnnulling = true;
+        annulStatus = null;
+        renderPageContent();
+        void (async () => {
+          try {
+            const updated = await anularActaAdministrativa(
+              actaId,
+              { motivo: motivoRaw || null },
+              signal,
+            );
+            actaData = updated;
+            annulStatus = { tone: "success", message: "Acta anulada correctamente." };
+          } catch (error: unknown) {
+            if (signal.aborted) return;
+            const err = error as { detail?: string } | null;
+            annulStatus = {
+              tone: "error",
+              message: err?.detail || "No se pudo anular el acta. Intenta nuevamente.",
+            };
+          } finally {
+            isAnnulling = false;
+            renderPageContent();
+          }
+        })();
         return;
       }
 
-      const closeIaModalTrigger = (event.target as HTMLElement).closest<HTMLElement>("[data-rh-acta-ia-modal-close], [data-rh-acta-ia-modal-overlay], [data-rh-acta-ia-close-primary]");
+      const closeIaModalTrigger = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-rh-acta-ia-modal-close], [data-rh-acta-ia-modal-overlay], [data-rh-acta-ia-close-primary]",
+      );
       if (closeIaModalTrigger) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
         setIaModalOpen(false);
         return;
       }
 
       const viewBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-view]");
       if (viewBtn) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
         setIaModalOpen(true);
         if (iaTextoMejorado.trim()) {
           setIaModalText(iaTextoMejorado);
         } else {
-          setIaModalText("Aún no hay una recomendación guardada para esta acta.");
+          setIaModalText("Aún no hay un escrito de apoyo guardado para esta acta.");
         }
         setIaCopyEnabled(Boolean(iaTextoMejorado.trim()));
         return;
@@ -1123,16 +1457,25 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const improveBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-improve]");
       if (improveBtn) {
+        if (!actaData || !canEditIaActa(actaData.estado)) {
+          showIaStatus("El escrito no se puede modificar porque el acta ya está cerrada.", "error");
+          return;
+        }
         if (isImprovingWithIa || isRegeneratingIa) return;
         setIaModalOpen(true);
         isImprovingWithIa = true;
         setIaImproveLoading(true);
+        setIaRegenerateLoading(true);
+        syncIaEscritoAsideButtons();
         void (async () => {
           try {
             await generateIaRecommendation();
           } finally {
             isImprovingWithIa = false;
             setIaImproveLoading(false);
+            setIaRegenerateLoading(false);
+            if (actaData) setIaActionButton();
+            syncIaEscritoAsideButtons();
           }
         })();
         return;
@@ -1140,15 +1483,22 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const regenerateBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-regenerate]");
       if (regenerateBtn) {
+        if (!actaData || !canEditIaActa(actaData.estado)) {
+          showIaStatus("El escrito no se puede modificar porque el acta ya está cerrada.", "error");
+          return;
+        }
         if (isImprovingWithIa || isRegeneratingIa) return;
         isRegeneratingIa = true;
         setIaRegenerateLoading(true);
+        syncIaEscritoAsideButtons();
         void (async () => {
           try {
             await generateIaRecommendation();
           } finally {
             isRegeneratingIa = false;
             setIaRegenerateLoading(false);
+            if (actaData) setIaActionButton();
+            syncIaEscritoAsideButtons();
           }
         })();
         return;
@@ -1156,6 +1506,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
 
       const copyBtn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-rh-acta-ia-copy]");
       if (copyBtn) {
+        if (isImprovingWithIa || isRegeneratingIa) return;
         if (!iaTextoMejorado.trim()) return;
         void navigator.clipboard
           .writeText(iaTextoMejorado)
