@@ -31,6 +31,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.catalogos import Area
     from app.models.empleados import Empleado
+    from app.models.level_up import Curso
 
 
 class PuestoPerfil(Base):
@@ -234,6 +235,9 @@ class Capacitacion(Base):
     competencias_asociadas: Mapped[Optional[list]] = mapped_column(
         JSONB, nullable=True, default=list
     )
+    curso_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cursos.id"), nullable=True
+    )
     estado: Mapped[str] = mapped_column(
         String(20), nullable=False, default="activa"
     )  # 'activa' | 'cancelada' | 'finalizada'
@@ -250,6 +254,7 @@ class Capacitacion(Base):
 
     # Relationships
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
+    curso: Mapped[Optional["Curso"]] = relationship("Curso", back_populates="capacitaciones")
     inscripciones: Mapped[List["Inscripcion"]] = relationship(
         "Inscripcion", back_populates="capacitacion", cascade="all, delete-orphan"
     )

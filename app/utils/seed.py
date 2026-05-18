@@ -30,6 +30,14 @@ from app.models.catalogos import (
     Subarea,
 )
 from app.models.empleados import Empleado
+from app.models.level_up import (
+    Capacidad,
+    CategoriaCapacidad,
+    CategoriaCurso,
+    Curso,
+    Habilidad,
+    TipoHabilidad,
+)
 from app.models.roles import Rol
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -405,6 +413,77 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
     logger.info("  %s creado (id=%d, email=%s)", label, emp.id, emp.email)
 
 
+async def seed_level_up(db) -> None:
+    """Crea datos seed para el módulo Level Up. Idempotente por nombre."""
+    capacidades = [
+        {"nombre": "Programación CNC", "categoria": CategoriaCapacidad.tecnica},
+        {"nombre": "Operación de Inyectora", "categoria": CategoriaCapacidad.operativa},
+        {"nombre": "Manejo LOTO", "categoria": CategoriaCapacidad.seguridad},
+        {"nombre": "Control SPC", "categoria": CategoriaCapacidad.calidad},
+        {"nombre": "Soldadura por puntos", "categoria": CategoriaCapacidad.tecnica},
+    ]
+    for data in capacidades:
+        result = await db.execute(
+            select(Capacidad).where(Capacidad.nombre == data["nombre"])
+        )
+        if not result.scalar_one_or_none():
+            db.add(Capacidad(**data))
+            logger.info("  Capacidad '%s' creada", data["nombre"])
+    await db.flush()
+
+    habilidades = [
+        {"nombre": "Comunicación Efectiva", "tipo": TipoHabilidad.blanda},
+        {"nombre": "Lectura de Planos", "tipo": TipoHabilidad.tecnica},
+        {"nombre": "5S", "tipo": TipoHabilidad.operativa},
+        {"nombre": "Respuesta a Emergencias", "tipo": TipoHabilidad.critica},
+    ]
+    for data in habilidades:
+        result = await db.execute(
+            select(Habilidad).where(Habilidad.nombre == data["nombre"])
+        )
+        if not result.scalar_one_or_none():
+            db.add(Habilidad(**data))
+            logger.info("  Habilidad '%s' creada", data["nombre"])
+    await db.flush()
+
+    cursos = [
+        {
+            "nombre": "CNC Básico",
+            "proveedor": "FANUC México",
+            "duracion_horas": 40,
+            "categoria": CategoriaCurso.tecnico,
+            "modalidad": "presencial",
+            "sesiones_anio": 4,
+        },
+        {
+            "nombre": "ISO 9001:2015 Auditor Interno",
+            "proveedor": "TÜV Rheinland",
+            "duracion_horas": 24,
+            "categoria": CategoriaCurso.calidad,
+            "modalidad": "mixta",
+            "sesiones_anio": 2,
+        },
+        {
+            "nombre": "LOTO y Seguridad Eléctrica",
+            "proveedor": "Leoni Internal",
+            "duracion_horas": 8,
+            "categoria": CategoriaCurso.seguridad,
+            "modalidad": "presencial",
+            "sesiones_anio": 12,
+        },
+    ]
+    for data in cursos:
+        result = await db.execute(
+            select(Curso).where(Curso.nombre == data["nombre"])
+        )
+        if not result.scalar_one_or_none():
+            db.add(Curso(**data))
+            logger.info("  Curso '%s' creado", data["nombre"])
+    await db.flush()
+
+    logger.info("Level Up seed completado")
+
+
 async def seed() -> None:
     """Punto de entrada principal del seed. Idempotente."""
     logger.info("=== Iniciando seed — Plataforma RH Leoni Cable ===")
@@ -423,6 +502,9 @@ async def seed() -> None:
                 raise RuntimeError("El rol 'rh' no fue creado correctamente")
             await seed_user(db, ADMIN_RH, rol_rh_id, "Admin RH")
             await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
+
+            logger.info("Seeding Level Up...")
+            await seed_level_up(db)
 
             await db.commit()
             logger.info("=== Seed completado exitosamente ===")
