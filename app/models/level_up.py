@@ -299,6 +299,9 @@ class OPL(Base):
 
 class OPLVersion(Base):
     __tablename__ = "opl_versiones"
+    __table_args__ = (
+        UniqueConstraint("opl_id", "version_num", name="uq_opl_version"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     opl_id: Mapped[int] = mapped_column(
