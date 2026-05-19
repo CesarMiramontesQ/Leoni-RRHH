@@ -78,6 +78,30 @@ async def test_rag_retrieval_for_typical_query_returns_lft_and_reglamento():
 
 
 @pytest.mark.asyncio
+async def test_rag_retrieval_for_acta2_like_case_returns_multiple_related_articles():
+    _manifest_or_skip()
+    query = (
+        "No se presentó a trabajar todo el día, acumula más de 3 faltas en 30 días, "
+        "se fue de la planta sin permiso y abandonó su estación de trabajo; la ausencia "
+        "generó afectación grave, por ahora solo se documentará el hecho sin sanción inmediata."
+    )
+    try:
+        chunks = await legal_rag_service.retrieve_relevant_context(
+            query,
+            top_k=24,
+        )
+    except Exception as exc:
+        pytest.skip(f"Retrieval no disponible en este entorno: {exc}")
+
+    joined = "\n".join(chunks).lower()
+    assert "ley federal del trabajo" in joined
+    assert "reglamento interior de trabajo" in joined
+    assert "artículo 47" in joined or "articulo 47" in joined
+    assert "artículo 134" in joined or "articulo 134" in joined
+    assert len(chunks) >= 4
+
+
+@pytest.mark.asyncio
 async def test_rag_empty_chroma_path_returns_no_context(tmp_path, monkeypatch):
     empty_index = tmp_path / "empty-chroma"
     monkeypatch.setattr(

@@ -106,6 +106,65 @@ _ABSENCE_OR_ABANDONMENT_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+_ABSENCE_FULL_DAY_RE = re.compile(
+    r"\b("
+    r"no se present[oó] a trabajar|"
+    r"no se present[oó] al trabajo|"
+    r"falt[oó] todo el d[ií]a|"
+    r"inasistencia(?:\s+total)?"
+    r")\b",
+    re.IGNORECASE,
+)
+_THREE_ABSENCES_RE = re.compile(
+    r"\b("
+    r"m[aá]s de 3 faltas|"
+    r"mas de 3 faltas|"
+    r"tres faltas|"
+    r"3 faltas"
+    r")\b",
+    re.IGNORECASE,
+)
+_LEFT_WORKPLACE_RE = re.compile(
+    r"\b("
+    r"se fue de la planta|"
+    r"se retiro de la planta|"
+    r"se retir[oó] de la planta|"
+    r"salio de la empresa|"
+    r"sali[oó] de la empresa|"
+    r"sin permiso"
+    r")\b",
+    re.IGNORECASE,
+)
+_ABANDONED_STATION_RE = re.compile(
+    r"\b("
+    r"abandon[oó] su estaci[oó]n|"
+    r"abandon[oó] su area|"
+    r"abandono de estaci[oó]n|"
+    r"abandono de area"
+    r")\b",
+    re.IGNORECASE,
+)
+_GRAVE_AFFECTATION_RE = re.compile(
+    r"\b("
+    r"afectaci[oó]n grave|"
+    r"perjuicio grave|"
+    r"da[nñ]o grave|"
+    r"riesgo grave"
+    r")\b",
+    re.IGNORECASE,
+)
+_NO_IMMEDIATE_SANCTION_RE = re.compile(
+    r"\b("
+    r"sin sanci[oó]n inmediata|"
+    r"solo se documentar[aá] el hecho|"
+    r"s[oó]lo se documentar[aá] el hecho|"
+    r"solo documentar el hecho|"
+    r"s[oó]lo documentar el hecho"
+    r")\b",
+    re.IGNORECASE,
+)
+
 # Metadatos por archivo (no alteran el texto indexado).
 _DOCUMENT_CATALOG: dict[str, dict[str, str]] = {
     "HR_Reglamento Interior de Trabajo.pdf": {
@@ -158,16 +217,43 @@ def _extract_article_numbers(value: str) -> set[str]:
 
 def _augment_legal_query(query: str) -> str:
     """Agrega anclas legales determinísticas para supuestos laborales frecuentes."""
-    if not _ABSENCE_OR_ABANDONMENT_RE.search(query or ""):
+    if not query:
         return query
-    anchors = (
-        "Ley Federal del Trabajo artículo 47 rescisión relación de trabajo "
-        "sin responsabilidad para el patrón faltas de asistencia sin permiso "
-        "causa justificada; artículo 134 obligaciones de los trabajadores "
-        "cumplir disposiciones normas de trabajo; Reglamento Interior ausencias "
-        "injustificadas permisos sanciones disciplinarias."
-    )
-    return f"{query}\n{anchors}"
+
+    anchors: list[str] = []
+    if _ABSENCE_OR_ABANDONMENT_RE.search(query):
+        anchors.append(
+            "Ley Federal del Trabajo artículo 47 rescisión relación de trabajo "
+            "sin responsabilidad para el patrón faltas de asistencia sin permiso "
+            "causa justificada; artículo 134 obligaciones de los trabajadores "
+            "cumplir disposiciones normas de trabajo; Reglamento Interior ausencias "
+            "injustificadas permisos sanciones disciplinarias."
+        )
+    if _ABSENCE_FULL_DAY_RE.search(query) or _THREE_ABSENCES_RE.search(query):
+        anchors.append(
+            "Artículo 47 fracción X de la Ley Federal del Trabajo: más de tres faltas "
+            "de asistencia en un período de treinta días sin permiso o causa justificada."
+        )
+    if _LEFT_WORKPLACE_RE.search(query) or _ABANDONED_STATION_RE.search(query):
+        anchors.append(
+            "Artículo 47 fracción XI de la Ley Federal del Trabajo: desobediencia al patrón "
+            "o abandono de labores; Artículo 134 fracciones III y IV: desempeñar servicio "
+            "bajo dirección del patrón y ejecutar trabajo con intensidad, cuidado y esmero."
+        )
+    if _GRAVE_AFFECTATION_RE.search(query):
+        anchors.append(
+            "Artículo 47 fracción XV de la Ley Federal del Trabajo como apoyo cuando exista "
+            "causa análoga de consecuencias semejantes y gravedad equivalente."
+        )
+    if _NO_IMMEDIATE_SANCTION_RE.search(query):
+        anchors.append(
+            "Documentación preventiva del hecho sin sanción inmediata: Artículo 134 Ley Federal "
+            "del Trabajo y Reglamento Interior de Trabajo sobre disciplina y cumplimiento."
+        )
+
+    if not anchors:
+        return query
+    return f"{query}\n" + "\n".join(anchors)
 
 
 def _document_meta(file_path: Path, *, ingested_at: str) -> dict[str, str]:
@@ -796,6 +882,8 @@ class LegalRagService:
         pairs: list[tuple[Document, float]],
         *,
         limit: int,
+        trace: dict | None = None,
+        stage: str | None = None,
     ) -> list[Document]:
         threshold = max(0.0, min(settings.LEGAL_RAG_SCORE_THRESHOLD, 1.0))
         ranked: list[tuple[float, float, Document]] = []
@@ -803,30 +891,110 @@ class LegalRagService:
         for doc, raw_score in pairs:
             chunk_id = str(doc.metadata.get("chunk_id") or "")
             if chunk_id and chunk_id in seen:
+                if trace is not None:
+                    trace.setdefault("discarded_docs", []).append(
+                        {
+                            "stage": stage or "unknown",
+                            "chunk_id": chunk_id,
+                            "reason": "duplicate_in_stage",
+                        }
+                    )
                 continue
             if chunk_id:
                 seen.add(chunk_id)
             score = float(raw_score)
             if score < threshold:
+                if trace is not None:
+                    trace.setdefault("discarded_docs", []).append(
+                        {
+                            "stage": stage or "unknown",
+                            "chunk_id": chunk_id,
+                            "document_name": str(doc.metadata.get("document_name") or ""),
+                            "source": str(doc.metadata.get("source") or ""),
+                            "raw_score": round(score, 6),
+                            "reason": "score_below_threshold",
+                        }
+                    )
                 continue
-            final_score = score + self._lexical_bonus(query, doc)
+            lexical_bonus = self._lexical_bonus(query, doc)
+            final_score = score + lexical_bonus
             ranked.append((final_score, score, doc))
+            if trace is not None:
+                trace.setdefault("candidate_docs", []).append(
+                    {
+                        "stage": stage or "unknown",
+                        "chunk_id": chunk_id,
+                        "document_name": str(doc.metadata.get("document_name") or ""),
+                        "source": str(doc.metadata.get("source") or ""),
+                        "section": str(doc.metadata.get("section") or ""),
+                        "page": str(doc.metadata.get("page") or ""),
+                        "raw_score": round(score, 6),
+                        "lexical_bonus": round(lexical_bonus, 6),
+                        "final_score": round(final_score, 6),
+                    }
+                )
 
         ranked.sort(key=lambda item: (-item[0], -item[1]))
-        return [doc for _, _, doc in ranked[:limit]]
+        selected_docs = [doc for _, _, doc in ranked[:limit]]
+        if trace is not None:
+            selected_chunk_ids = {
+                str(doc.metadata.get("chunk_id") or "")
+                for doc in selected_docs
+            }
+            for item in trace.get("candidate_docs", []):
+                if (
+                    item.get("stage") == (stage or "unknown")
+                    and item.get("chunk_id") not in selected_chunk_ids
+                ):
+                    trace.setdefault("discarded_docs", []).append(
+                        {
+                            "stage": stage or "unknown",
+                            "chunk_id": item.get("chunk_id"),
+                            "document_name": item.get("document_name"),
+                            "source": item.get("source"),
+                            "raw_score": item.get("raw_score"),
+                            "reason": "trimmed_by_stage_limit",
+                        }
+                    )
+        return selected_docs
 
     @staticmethod
-    def _dedupe_docs(docs: list[Document], *, limit: int) -> list[Document]:
+    def _dedupe_docs(
+        docs: list[Document],
+        *,
+        limit: int,
+        trace: dict | None = None,
+    ) -> list[Document]:
         out: list[Document] = []
         seen: set[str] = set()
         for doc in docs:
             chunk_id = str(doc.metadata.get("chunk_id") or "")
             marker = chunk_id or f"{doc.metadata.get('source')}:{doc.page_content[:80]}"
             if marker in seen:
+                if trace is not None:
+                    trace.setdefault("discarded_docs", []).append(
+                        {
+                            "stage": "final_dedupe",
+                            "chunk_id": chunk_id,
+                            "document_name": str(doc.metadata.get("document_name") or ""),
+                            "source": str(doc.metadata.get("source") or ""),
+                            "reason": "duplicate_global",
+                        }
+                    )
                 continue
             seen.add(marker)
             out.append(doc)
             if len(out) >= limit:
+                if trace is not None:
+                    trace.setdefault("discarded_docs", []).append(
+                        {
+                            "stage": "final_dedupe",
+                            "chunk_id": chunk_id,
+                            "document_name": str(doc.metadata.get("document_name") or ""),
+                            "source": str(doc.metadata.get("source") or ""),
+                            "reason": "trimmed_by_global_limit",
+                        }
+                    )
                 break
         return out
 
@@ -860,10 +1028,21 @@ class LegalRagService:
                         docs.append(Document(page_content=text, metadata=meta or {}))
         return self._dedupe_docs(docs, limit=max(2, len(article_numbers) * 4))
 
-    def _sync_similarity_search(self, query: str, k: int) -> list[str]:
+    def _sync_similarity_search_with_trace(self, query: str, k: int) -> tuple[list[str], dict]:
         path = self._chroma_dir()
+        normalized_query = _augment_legal_query(_normalize_ws(query))
+        trace: dict = {
+            "query": query,
+            "normalized_query": normalized_query,
+            "top_k_requested": k,
+            "score_threshold": round(max(0.0, min(settings.LEGAL_RAG_SCORE_THRESHOLD, 1.0)), 6),
+            "candidate_docs": [],
+            "discarded_docs": [],
+            "selected_docs": [],
+        }
         if not path.exists() or self._sync_document_count() == 0:
-            return []
+            trace["status"] = "empty_index"
+            return [], trace
         self._sync_validate_index_freshness()
         try:
             emb = self._make_embeddings()
@@ -873,9 +1052,11 @@ class LegalRagService:
                 collection_name=_CHROMA_COLLECTION,
                 client_settings=_chroma_client_settings(path),
             )
-            normalized_query = _augment_legal_query(_normalize_ws(query))
             exact_docs = self._exact_article_docs(store, normalized_query)
-            per_source_k = max(2, k // len(_BALANCED_RETRIEVAL_DOCUMENTS))
+            candidate_pool_k = max(k * 3, 24)
+            per_source_k = max(4, candidate_pool_k // len(_BALANCED_RETRIEVAL_DOCUMENTS))
+            trace["candidate_pool_k"] = candidate_pool_k
+            trace["per_source_k"] = per_source_k
             source_docs: list[Document] = []
             for document_name in self._document_priority(normalized_query):
                 source_pairs = (
@@ -890,15 +1071,27 @@ class LegalRagService:
                         normalized_query,
                         source_pairs,
                         limit=per_source_k,
+                        trace=trace,
+                        stage=f"source:{document_name}",
                     )
                 )
 
             general_pairs = store.similarity_search_with_relevance_scores(
                 normalized_query,
-                k=k,
+                k=candidate_pool_k,
             )
-            general_docs = self._rerank_pairs(normalized_query, general_pairs, limit=k)
-            docs = self._dedupe_docs(exact_docs + source_docs + general_docs, limit=k)
+            general_docs = self._rerank_pairs(
+                normalized_query,
+                general_pairs,
+                limit=candidate_pool_k,
+                trace=trace,
+                stage="general",
+            )
+            docs = self._dedupe_docs(
+                exact_docs + source_docs + general_docs,
+                limit=k,
+                trace=trace,
+            )
         except Exception as exc:
             logger.warning("Fallo similarity_search RAG legal: %s", exc)
             raise RuntimeError("No fue posible recuperar contexto del RAG legal.") from exc
@@ -909,9 +1102,27 @@ class LegalRagService:
                 settings.LEGAL_RAG_SCORE_THRESHOLD,
                 normalized_query[:300],
             )
-            return []
+            trace["status"] = "no_docs_after_rerank"
+            return [], trace
 
-        return self._format_retrieved_docs(docs)
+        formatted_docs = self._format_retrieved_docs(docs)
+        trace["status"] = "ok"
+        trace["selected_docs"] = [
+            {
+                "chunk_id": str(doc.metadata.get("chunk_id") or ""),
+                "document_name": str(doc.metadata.get("document_name") or ""),
+                "source": str(doc.metadata.get("source") or ""),
+                "section": str(doc.metadata.get("section") or ""),
+                "page": str(doc.metadata.get("page") or ""),
+            }
+            for doc in docs
+        ]
+        trace["final_docs_count"] = len(docs)
+        return formatted_docs, trace
+
+    def _sync_similarity_search(self, query: str, k: int) -> list[str]:
+        docs, _ = self._sync_similarity_search_with_trace(query, k)
+        return docs
 
     async def retrieve_relevant_context(
         self,
@@ -923,6 +1134,17 @@ class LegalRagService:
         k = top_k or settings.LEGAL_RAG_TOP_K
         k = max(1, k)
         return await asyncio.to_thread(self._sync_similarity_search, query, k)
+
+    async def retrieve_relevant_context_with_trace(
+        self,
+        query: str,
+        top_k: int | None = None,
+    ) -> tuple[list[str], dict]:
+        if not _HAS_LANGCHAIN:
+            return [], {"status": "langchain_unavailable", "query": query}
+        k = top_k or settings.LEGAL_RAG_TOP_K
+        k = max(1, k)
+        return await asyncio.to_thread(self._sync_similarity_search_with_trace, query, k)
 
 
 legal_rag_service = LegalRagService()

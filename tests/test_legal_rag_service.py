@@ -17,6 +17,7 @@ from app.services.legal_rag_service import (
 )
 import app.services.legal_rag_service as legal_rag_module
 from app.services.acta_service import (
+    _build_full_acta_rag_query,
     _fallback_acta_administrativa_leoni,
     _fallback_recomendacion_legal_ia,
     _group_legal_context_by_source,
@@ -91,6 +92,54 @@ def test_augment_legal_query_for_absence_cases():
     assert "artículo 47" in q
     assert "artículo 134" in q
     assert "Reglamento Interior" in q
+
+
+def test_augment_legal_query_adds_fraction_hints_for_acta2_scenarios():
+    q = _augment_legal_query(
+        (
+            "No se presentó a trabajar todo el día, tiene más de 3 faltas en 30 días, "
+            "se fue de la planta sin permiso, abandonó su estación de trabajo, "
+            "la ausencia generó afectación grave y solo se documentará el hecho sin sanción inmediata."
+        )
+    )
+    normalized = q.lower()
+    assert "fracción x" in normalized
+    assert "fracción xi" in normalized
+    assert "fracción xv" in normalized
+    assert "fracciones iii y iv" in normalized
+    assert "reglamento interior de trabajo" in normalized
+
+
+def test_build_full_acta_rag_query_uses_all_relevant_fields():
+    class _ActaDummy:
+        id = 2
+        tipo_falta = "abandono de trabajo"
+        fundamento_legal = "Art. 47 y 134"
+        articulo_inciso = "47 X, 47 XI, 134 III y IV"
+        fecha_evento = "2026-05-19"
+        lugar_incidente = "Planta A"
+        area_departamento = "Producción"
+        puesto = "Operador"
+        empleado_nombre = "Juan Perez"
+        numero_empleado = "1022"
+        supervisor_directo = "Supervisor Uno"
+        personas_involucradas = "Supervisor Uno; Seguridad"
+        testigos = "Testigo 1, Testigo 2"
+        contenido_ia = "Borrador IA previo"
+        contenido_final = "Borrador final previo"
+
+    query = _build_full_acta_rag_query(
+        _ActaDummy(),
+        evidencia="Bitácora de reloj checador y reporte de línea",
+        texto_original="No se presentó a trabajar y después abandonó su estación sin permiso.",
+    )
+    assert "Analiza TODO el expediente del acta administrativa" in query
+    assert "hechos_completos:" in query
+    assert "No se presentó a trabajar" in query
+    assert "evidencia:" in query
+    assert "Borrador IA previo" in query
+    assert "situaciones_objetivo:" in query
+    assert "articulo 47 fraccion X" in query
 
 
 def test_missing_article_citations_detects_unbacked_numbers():

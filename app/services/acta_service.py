@@ -719,6 +719,59 @@ def _group_legal_context_by_source(chunks: list[str]) -> str:
     return "\n\n".join(blocks)
 
 
+def _build_full_acta_rag_query(acta: ActaResponse, *, evidencia: str, texto_original: str) -> str:
+    evidencia_text = (evidencia or "").strip()
+    contenido_ia = (acta.contenido_ia or "").strip()
+    contenido_final = (acta.contenido_final or "").strip()
+    fecha_evento = str(acta.fecha_evento) if acta.fecha_evento else ""
+
+    parts = [
+        "Analiza TODO el expediente del acta administrativa; no reduzcas a una sola frase.",
+        "Recupera de forma amplia artículos y fracciones aplicables de la Ley Federal del Trabajo",
+        "y del Reglamento Interior de Trabajo para inasistencia, abandono de labores,",
+        "salida sin permiso, obligaciones del trabajador y afectación a la operación.",
+        "",
+        f"acta_id: {acta.id}",
+        f"tipo_falta: {acta.tipo_falta or ''}",
+        f"fundamento_legal_capturado: {acta.fundamento_legal or ''}",
+        f"articulo_inciso_capturado: {acta.articulo_inciso or ''}",
+        f"fecha_evento: {fecha_evento}",
+        f"lugar_incidente: {acta.lugar_incidente or ''}",
+        f"area_departamento: {acta.area_departamento or ''}",
+        f"puesto: {acta.puesto or ''}",
+        f"empleado: {acta.empleado_nombre or ''}",
+        f"numero_empleado: {acta.numero_empleado or ''}",
+        f"supervisor_directo: {acta.supervisor_directo or ''}",
+        f"personas_involucradas: {acta.personas_involucradas or ''}",
+        f"testigos: {acta.testigos or ''}",
+        "hechos_completos:",
+        texto_original,
+        "evidencia:",
+        evidencia_text,
+    ]
+    if contenido_ia:
+        parts.extend(["borrador_contenido_ia:", contenido_ia])
+    if contenido_final:
+        parts.extend(["borrador_contenido_final:", contenido_final])
+
+    parts.extend(
+        [
+            "situaciones_objetivo:",
+            "- no presentarse a trabajar todo el dia",
+            "- mas de 3 faltas en 30 dias",
+            "- irse de la planta/empresa sin permiso",
+            "- abandonar estacion o area de trabajo",
+            "- afectacion grave a la operacion",
+            "- documentar el hecho sin sancion inmediata",
+            "terminos_legales_prioritarios: "
+            "articulo 47 fraccion X; articulo 47 fraccion XI; articulo 47 fraccion XV; "
+            "articulo 134; articulo 134 fraccion III; articulo 134 fraccion IV; "
+            "Reglamento Interior de Trabajo.",
+        ]
+    )
+    return "\n".join(parts).strip()
+
+
 async def _mejorar_redaccion_acta(contexto: dict) -> str:
     ctx_str = json.dumps(contexto, ensure_ascii=False, indent=2)
     base_prompt = USER_RECOMENDACION_LEGAL_IA_TEMPLATE.format(detalle_acta=ctx_str)
@@ -1077,23 +1130,26 @@ class ActaService:
         # Si el índice no está listo o quedó desactualizado, se detiene la generación
         # para evitar recomendaciones legales con fuentes no trazables.
         try:
-            rag_query = (
-                f"tipo_falta: {acta.tipo_falta or ''}\n"
-                f"fundamento_legal: {acta.fundamento_legal or ''}\n"
-                f"articulo_inciso: {acta.articulo_inciso or ''}\n"
-                f"hechos: {texto_original}\n"
-                f"lugar_incidente: {acta.lugar_incidente or ''}\n"
-                f"personas_involucradas: {acta.personas_involucradas or ''}\n"
-                f"testigos: {acta.testigos or ''}\n"
-                f"evidencia: {evidencia_rag}\n"
-                f"area: {acta.area_departamento or ''}\n"
-                f"puesto: {acta.puesto or ''}\n"
-                "plantilla_formato: Plantilla_Acta_Administrativa.docx acta administrativa "
-                "manifestacion trabajador testigos negativa firma\n"
-                "fundamento_jornada: Ley Federal del Trabajo articulo 59 horarios rotativos "
-                "jornada descanso semanal\n"
+            rag_query = _build_full_acta_rag_query(
+                acta,
+                evidencia=evidencia_rag,
+                texto_original=texto_original,
             )
-            documentos_texto = await legal_rag_service.retrieve_relevant_context(rag_query)
+            rag_top_k = max(settings.LEGAL_RAG_TOP_K, 24)
+            documentos_texto, rag_trace = await legal_rag_service.retrieve_relevant_context_with_trace(
+                rag_query,
+                top_k=rag_top_k,
+            )
+            logger.info(
+                "RAG legal acta_id=%s query=%s",
+                acta.id,
+                rag_query,
+            )
+            logger.info(
+                "RAG legal acta_id=%s trace=%s",
+                acta.id,
+                json.dumps(rag_trace, ensure_ascii=False),
+            )
         except Exception as exc:
             logger.warning("RAG legal no disponible o desactualizado: %s", exc)
             raise ServiceUnavailableError(
@@ -1120,6 +1176,16 @@ class ActaService:
                     "...[fragmentos legales truncados por limite seguro]"
                 )
             contexto["documentos_legales_referencia"] = merged_refs
+            logger.info(
+                "RAG legal acta_id=%s articulos_finales=%s",
+                acta.id,
+                sorted(_extract_article_citations(merged_refs), key=lambda x: (len(x), x)),
+            )
+            logger.info(
+                "RAG legal acta_id=%s docs_finales=%s",
+                acta.id,
+                json.dumps(documentos_texto, ensure_ascii=False),
+            )
 
         texto_mejorado = await _mejorar_redaccion_acta(contexto)
         texto_mejorado = texto_mejorado.strip()
