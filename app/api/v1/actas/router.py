@@ -11,8 +11,10 @@ from app.schemas.actas import (
     ActaEditarRequest,
     ActasDashboardMetricasResponse,
     ActaMejoraIaResponse,
+    ActaRagStatusResponse,
     ActaResponse,
 )
+from app.services.legal_rag_service import legal_rag_service
 from app.services.acta_service import ActaService
 
 router = APIRouter(prefix="/api/v1/actas", tags=["Actas Administrativas"])
@@ -72,6 +74,21 @@ async def generar_acta(
 ):
     # TODO: Llamar a Ollama LLM para generar borrador
     return {"message": "Generación desde incidencia en desarrollo", "incidencia_id": incidencia_id}
+
+
+@router.get("/rag/status", response_model=ActaRagStatusResponse)
+async def rag_status(
+    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+):
+    return await legal_rag_service.status()
+
+
+@router.post("/rag/reindex", response_model=ActaRagStatusResponse)
+async def rag_reindex(
+    current_user: Empleado = Depends(role_checker(["rh"])),
+):
+    await legal_rag_service.rebuild_index()
+    return await legal_rag_service.status()
 
 
 @router.get("/{id}", response_model=ActaResponse)

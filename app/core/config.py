@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Ollama LLM
     OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3"
+    OLLAMA_MODEL: str = "gemma4:e4b"
     OLLAMA_TEMPERATURE: float = 0.3
     # Temperatura dedicada a redacción formal de actas (consistencia, tono legal).
     OLLAMA_ACTA_TEMPERATURE: float = 0.2
@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     OLLAMA_HTTP_TIMEOUT: float = 180.0
     # Limita tokens de salida para acabar antes y reducir 500 por tiempo de espera interno.
     OLLAMA_NUM_PREDICT: int = 1536
+    # Escrito de apoyo (mejorar-ia): varias secciones + acta completa; 1536 suele truncar.
+    OLLAMA_ACTA_NUM_PREDICT: int = 4096
     # Ventana de contexto (tokens) para /api/chat y /api/generate. Si Ollama loguea
     # "truncating input prompt" limit=4096, sube este valor (p. ej. 16384) para actas+RAG.
     OLLAMA_NUM_CTX: int = 16384
@@ -53,7 +55,10 @@ class Settings(BaseSettings):
     LEGAL_RAG_CHUNK_SIZE: int = 1000
     LEGAL_RAG_CHUNK_OVERLAP: int = 200
     # Fragmentos recuperados por consulta (subir si el prompt legal queda “vacío”).
-    LEGAL_RAG_TOP_K: int = 12
+    LEGAL_RAG_TOP_K: int = 24
+    # Score mínimo de relevancia Chroma/LangChain (0-1 aprox.). Si ningún chunk
+    # supera este umbral, se considera que no hay cobertura legal suficiente.
+    LEGAL_RAG_SCORE_THRESHOLD: float = 0.45
     # Caracteres por fragmento enviado al LLM tras similarity_search (antes 750 fijo;
     # debe ser >= LEGAL_RAG_CHUNK_SIZE para no truncar el chunk íntegro).
     LEGAL_RAG_SNIPPET_MAX_CHARS: int = 1600
