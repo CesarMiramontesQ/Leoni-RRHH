@@ -1,5 +1,6 @@
 import { canAccessRhIncidenciasPage, getRolFromAccessToken } from "../auth/jwt.ts";
 import {
+  fetchAllIncidenciasForExport,
   fetchIncidenciasAreasRegistradas,
   fetchIncidenciasEstadisticas,
   fetchIncidenciasListPage,
@@ -8,6 +9,7 @@ import {
   incidenciaApiItemToTablaFila,
   type IncidenciasFetchError,
 } from "../api/incidencias.ts";
+import { downloadIncidenciasExcel } from "../incidencias/exportIncidenciasExcel.ts";
 import { patchRhIncidenciaSubareaSelect } from "../components/incidencias/rhIncidenciasFilters.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
@@ -235,6 +237,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   let lastEstadisticasStatus: "ready" | "error" = "ready";
   let lastEstadisticasError: string | undefined;
   let loadSeq = 0;
+  let exportandoListado = false;
 
   function destroyIncidenciasChartRegistry(): void {
     destroyChart(RH_INC_TENDENCIA_CHART_ID);
@@ -401,13 +404,39 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       })
     : null;
 
+  async function exportarIncidenciasListado(): Promise<void> {
+    if (exportandoListado) return;
+    exportandoListado = true;
+    try {
+      const rows = await fetchAllIncidenciasForExport(appliedFilters);
+      downloadIncidenciasExcel({ rows });
+    } catch (error) {
+      const fetchError = error as IncidenciasFetchError;
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
+      showEmpleadosToast(
+        container,
+        fetchError?.detail || "No se pudo exportar el listado de incidencias.",
+        "error",
+      );
+    } finally {
+      exportandoListado = false;
+    }
+  }
+
   const pageRoot = container.querySelector("#rh-incidencias-page");
   pageRoot?.addEventListener(
     "click",
     (e) => {
       const t = e.target as HTMLElement;
       if (t.closest("#rh-inc-export")) {
-        showEmpleadosToast(container, "Exportacion no disponible hasta integrar backend.", "error");
+        void exportarIncidenciasListado();
         return;
       }
       if (t.closest("#rh-inc-nueva") || t.closest("#rh-inc-nueva-empty")) {

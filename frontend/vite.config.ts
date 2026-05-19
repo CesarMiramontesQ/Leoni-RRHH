@@ -3,6 +3,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [tailwindcss()],
+  optimizeDeps: {
+    include: ["xlsx"],
+  },
   server: {
     port: 5173,
     host: true,

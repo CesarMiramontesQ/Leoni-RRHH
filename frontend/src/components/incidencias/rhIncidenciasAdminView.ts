@@ -2,9 +2,29 @@ import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import { escapeHtml as escapeIncHtml } from "../../ui/uiUtils.ts";
 import { renderRhIncidenciasFiltersSection } from "./rhIncidenciasFilters.ts";
-import { RH_LISTADO_PAGE_OUTER_GRADIENT } from "./rhIncidenciasPageStyles.ts";
+import {
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_SOLICITUDES_BTN_SECONDARY,
+} from "./rhIncidenciasPageStyles.ts";
 import { renderRhIncidenciasAnalyticsSection } from "./rhIncidenciasAnalyticsSection.ts";
 import { renderRhIncidenciasTable } from "./rhIncidenciasTable.ts";
+
+function renderIncidenciasExportToolbar(vm: RhIncidenciasAdminViewModel): string {
+  if (vm.tableStatus === "error") return "";
+  return `
+    <div class="flex shrink-0 justify-end">
+      <button
+        type="button"
+        id="rh-inc-export"
+        class="${RH_SOLICITUDES_BTN_SECONDARY} rh-sol-header__btn-secondary w-full shrink-0 sm:w-auto"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 shrink-0 text-slate-600" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        ${escapeIncHtml(INC_COPY.exportar)}
+      </button>
+    </div>`;
+}
 
 function renderListadoHeading(vm: RhIncidenciasAdminViewModel): string {
   if (vm.estadisticasStatus === "loading" || vm.tableStatus === "loading" || vm.tableStatus === "error") {
@@ -35,6 +55,7 @@ export function renderRhIncidenciasAdminView(vm: RhIncidenciasAdminViewModel): s
 
   return `
     <div id="rh-incidencias-root" class="rh-incidencias-module ${RH_LISTADO_PAGE_OUTER_GRADIENT} gap-4 sm:gap-5">
+      ${renderIncidenciasExportToolbar(vm)}
       <div id="rh-inc-filters" class="shrink-0">${renderRhIncidenciasFiltersSection(vm)}</div>
       <div class="shrink-0">${renderRhIncidenciasAnalyticsSection(vm)}</div>
       <details class="mt-4 flex min-h-0 flex-1 flex-col lg:mt-6 lg:flex lg:flex-1 lg:flex-col" open>

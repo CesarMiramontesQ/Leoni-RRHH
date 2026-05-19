@@ -1,3 +1,4 @@
+import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import type { ComedorRhProximoRegistroRow } from "../../comedor/rh/types.ts";
 import type { ReporteComedorViewState } from "../../comedor/reportes/types.ts";
 import {
@@ -72,6 +73,17 @@ export function reporteOperativoRowsScoped(state: ReporteComedorViewState): read
   );
   const byComedor = filterPorComedorSeleccion(base, comedorLabelFromState(state));
   return filterPorAreaSeleccion(byComedor, state.selectedAreaFilter);
+}
+
+/** Mismas filas que la tabla de detalle, ordenadas por fecha e id (sin paginación). */
+export function reporteDetalleRowsSorted(state: ReporteComedorViewState): readonly ComedorRhProximoRegistroRow[] {
+  const scoped = reporteOperativoRowsScoped(state);
+  return [...scoped].sort((a, b) => {
+    const fa = (a.fecha_servicio ?? "").toString().slice(0, 10);
+    const fb = (b.fecha_servicio ?? "").toString().slice(0, 10);
+    const c = fa.localeCompare(fb);
+    return c !== 0 ? c : a.id - b.id;
+  });
 }
 
 function comedorLabelFromState(state: ReporteComedorViewState): string | null {
@@ -431,13 +443,7 @@ export function renderReporteTabDetalle(state: ReporteComedorViewState): string 
     return `<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">${escapeComedorHtml(state.rhAnalyticsError ?? "Error al cargar registros.")}</div>`;
   }
 
-  const scoped = reporteOperativoRowsScoped(state);
-  const sorted = [...scoped].sort((a, b) => {
-    const fa = (a.fecha_servicio ?? "").toString().slice(0, 10);
-    const fb = (b.fecha_servicio ?? "").toString().slice(0, 10);
-    const c = fa.localeCompare(fb);
-    return c !== 0 ? c : a.id - b.id;
-  });
+  const sorted = reporteDetalleRowsSorted(state);
 
   const rangeLabel = `${formatIsoShort(state.selectedFechaInicioIso)} — ${formatIsoShort(state.selectedFechaFinIso)}`;
 
@@ -528,14 +534,9 @@ export function renderReporteTabDetalle(state: ReporteComedorViewState): string 
     </div>`;
 }
 
-function reporteDatesPendingApply(state: ReporteComedorViewState): boolean {
-  return (
-    state.draftFechaInicioIso !== state.selectedFechaInicioIso ||
-    state.draftFechaFinIso !== state.selectedFechaFinIso
-  );
-}
-
 const REPORTE_CLOCK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-3.5 shrink-0 text-slate-500" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3 2"/><circle cx="12" cy="12" r="9"/></svg>`;
+
+const REPORTE_EXPORT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 shrink-0 text-white" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`;
 
 /** Tarjeta superior: título, cambio de fechas y presets (mismos data-* que antes). */
 export function renderReporteMainHeaderCard(state: ReporteComedorViewState): string {
@@ -543,8 +544,6 @@ export function renderReporteMainHeaderCard(state: ReporteComedorViewState): str
   const iniApplied = formatIsoShort(state.selectedFechaInicioIso);
   const finApplied = formatIsoShort(state.selectedFechaFinIso);
   const periodRangeBadge = `<span class="inline-flex max-w-[min(100vw-2rem,26rem)] items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold leading-snug text-slate-600 shadow-sm" title="${escapeComedorHtml(`${iniApplied} — ${finApplied} · ${diasApplied} día${diasApplied === 1 ? "" : "s"}`)}">${REPORTE_CLOCK_ICON}<span class="min-w-0 whitespace-normal text-left sm:whitespace-nowrap">${escapeComedorHtml(iniApplied)} — ${escapeComedorHtml(finApplied)} · ${diasApplied} día${diasApplied === 1 ? "" : "s"}</span></span>`;
-
-  const pendingDates = reporteDatesPendingApply(state);
 
   const presetBtn = (id: ReporteComedorViewState["draftDatePreset"], label: string) => {
     const active = state.draftDatePreset === id;
@@ -555,13 +554,11 @@ export function renderReporteMainHeaderCard(state: ReporteComedorViewState): str
     }">${escapeComedorHtml(label)}</button>`;
   };
 
-  const pendingBadge = pendingDates ?
-    `<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950" role="status">Cambios pendientes</span>`
-  : "";
-
-  const applyBtnClass = `${BTN_PRIMARY} h-9 min-h-9 w-full justify-center px-4 text-sm shadow-sm motion-safe:transition motion-safe:duration-150 motion-safe:hover:-translate-y-px motion-safe:hover:shadow-md sm:w-auto ${
-    pendingDates ? "ring-2 ring-amber-400/85 ring-offset-1 ring-offset-white" : ""
-  }`;
+  const esRh = getRolFromAccessToken() === "rh";
+  const exportDisabled = state.rhAnalyticsState === "loading";
+  const exportBtn = esRh
+    ? `<button type="button" data-comedor-reporte-export ${exportDisabled ? "disabled" : ""} class="${BTN_PRIMARY} h-9 min-h-9 w-full justify-center px-4 text-sm shadow-sm motion-safe:transition motion-safe:duration-150 motion-safe:hover:-translate-y-px motion-safe:hover:shadow-md sm:w-auto disabled:cursor-not-allowed disabled:opacity-50">${REPORTE_EXPORT_ICON}Exportar Reporte</button>`
+    : "";
 
   return `
     <header class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white bg-[radial-gradient(900px_circle_at_90%_-20%,rgba(37,99,235,0.07),transparent_50%)] p-5 shadow-[0_10px_36px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-6">
@@ -580,10 +577,9 @@ export function renderReporteMainHeaderCard(state: ReporteComedorViewState): str
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex flex-wrap items-center gap-2">
                 <h2 class="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Cambiar periodo</h2>
-                ${pendingBadge}
               </div>
             </div>
-            <p class="text-xs text-slate-600">Modifica el rango y actualiza el reporte.</p>
+            <p class="text-xs text-slate-600">Modifica el rango de fechas o usa los accesos rápidos.</p>
 
             <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
               <div class="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 sm:max-w-lg">
@@ -608,8 +604,8 @@ export function renderReporteMainHeaderCard(state: ReporteComedorViewState): str
                   />
                 </div>
               </div>
-              <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:justify-end lg:w-auto">
-                <button type="button" data-comedor-reporte-apply-dates class="${applyBtnClass}">Actualizar reporte</button>
+              <div class="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto">
+                ${exportBtn}
                 <button type="button" data-comedor-reporte-reset-filters class="${RH_LISTADO_BTN_SECONDARY} h-9 min-h-9 w-full justify-center sm:w-auto">Restablecer</button>
               </div>
             </div>

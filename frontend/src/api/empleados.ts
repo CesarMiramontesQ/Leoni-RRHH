@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "./http.ts";
 import type {
   CatalogoFiltros,
+  UsuarioListItem,
   UsuarioPage,
   UsuarioResumen,
   UsuariosFetchError,
@@ -73,6 +74,24 @@ export async function getEmpleadosCatalogoFiltros(): Promise<CatalogoFiltros> {
   const res = await fetchWithAuth("/api/v1/empleados/catalogo-filtros");
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as CatalogoFiltros;
+}
+
+export type EmpleadosExportListParams = Omit<EmpleadosListParams, "page" | "page_size">;
+
+/** Todas las filas del listado con los filtros indicados (pagina en bloques de 100). */
+export async function fetchAllEmpleadosForExport(
+  filters: EmpleadosExportListParams,
+): Promise<UsuarioListItem[]> {
+  const out: UsuarioListItem[] = [];
+  let page = 1;
+  const pageSize = 100;
+  while (true) {
+    const pg = await getEmpleadosPage({ ...filters, page, page_size: pageSize });
+    out.push(...pg.items);
+    if (pg.items.length === 0 || page * pageSize >= pg.total) break;
+    page += 1;
+  }
+  return out;
 }
 
 export type { UsuarioVista360 } from "./vista360.ts";

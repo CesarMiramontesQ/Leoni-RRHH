@@ -77,7 +77,9 @@ import {
   type ComedorWeeklyPlannerViewState,
 } from "../components/comedor/comedorWeeklyPlanner.ts";
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
+import { reporteDetalleRowsSorted } from "../components/comedor/comedorReporteAnalytics.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
+import { downloadReporteComedorExcel } from "../comedor/reportes/exportReporteComedorExcel.ts";
 import { COMEDOR_TABLE_TH, escapeComedorHtml } from "../components/comedor/comedorUiUtils.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
@@ -3304,6 +3306,30 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     paint();
   }
 
+  function exportarReporteComedor(): void {
+    if (state.rhAnalyticsState !== "ready") return;
+    const rows = reporteDetalleRowsSorted(toReporteViewState(state));
+    downloadReporteComedorExcel({ rows });
+  }
+
+  function aplicarRangoFechasReporte(): boolean {
+    if (isoToDate(state.draftFechaInicioIso).getTime() > isoToDate(state.draftFechaFinIso).getTime()) {
+      state.dateRangeError = "La fecha inicial no puede ser posterior a la fecha final.";
+      paint();
+      return false;
+    }
+    state.dateRangeError = null;
+    state.selectedFechaInicioIso = state.draftFechaInicioIso;
+    state.selectedFechaFinIso = state.draftFechaFinIso;
+    state.draftDatePreset = "custom";
+    state.filtersDataset = {
+      ...state.filtersDataset,
+      fechaInicioIso: state.selectedFechaInicioIso,
+      fechaFinIso: state.selectedFechaFinIso,
+    };
+    return true;
+  }
+
   function reporteComedorInnerWrap(html: string): string {
     return `<div class="mx-auto flex w-full max-w-[1320px] flex-col gap-5 sm:gap-6">${html}</div>`;
   }
@@ -3351,22 +3377,8 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         }
         return;
       }
-      if (target.closest("[data-comedor-reporte-apply-dates]")) {
-        if (isoToDate(state.draftFechaInicioIso).getTime() > isoToDate(state.draftFechaFinIso).getTime()) {
-          state.dateRangeError = "La fecha inicial no puede ser posterior a la fecha final.";
-          paint();
-          return;
-        }
-        state.dateRangeError = null;
-        state.selectedFechaInicioIso = state.draftFechaInicioIso;
-        state.selectedFechaFinIso = state.draftFechaFinIso;
-        state.draftDatePreset = "custom";
-        state.filtersDataset = {
-          ...state.filtersDataset,
-          fechaInicioIso: state.selectedFechaInicioIso,
-          fechaFinIso: state.selectedFechaFinIso,
-        };
-        void reloadAll();
+      if (target.closest("[data-comedor-reporte-export]")) {
+        exportarReporteComedor();
         return;
       }
       if (target.closest("[data-comedor-reporte-reset-filters]")) {
@@ -3444,6 +3456,20 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         state.reporteDetallePage = 1;
         void loadKpis();
         paint();
+        return;
+      }
+      const draftStart = target.closest<HTMLInputElement>("[data-comedor-reporte-draft-start]");
+      if (draftStart) {
+        state.draftFechaInicioIso = draftStart.value;
+        state.draftDatePreset = "custom";
+        if (aplicarRangoFechasReporte()) void reloadAll();
+        return;
+      }
+      const draftEnd = target.closest<HTMLInputElement>("[data-comedor-reporte-draft-end]");
+      if (draftEnd) {
+        state.draftFechaFinIso = draftEnd.value;
+        state.draftDatePreset = "custom";
+        if (aplicarRangoFechasReporte()) void reloadAll();
         return;
       }
     },
