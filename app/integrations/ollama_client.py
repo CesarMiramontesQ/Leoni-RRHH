@@ -68,33 +68,68 @@ Nombre: [COMPLETAR]
 Fecha:
 """
 
+_FORMATO_ACTA_LEONI = """ACTA ADMINISTRATIVA
+
+En la ciudad de Cuauhtémoc, Chihuahua, siendo las [HORA_INICIO] horas del día [FECHA_ACTA], reunidos en el local que ocupan las oficinas de LEONI CABLE, S.A. DE C.V., ubicado en Ave. Río Conchos No. 9700 del Parque Industrial Cuauhtémoc. Se reunieron el C. [REPRESENTANTE_LEGAL], representante legal de la empresa y quien ocupa el puesto de [PUESTO_REPRESENTANTE], y quien actúa con los C. [TESTIGO_1] y [TESTIGO_2], como testigos, quienes ocupan los puestos de [PUESTOS_TESTIGOS], se procedió a instrumentar la presente acta en contra del C. [NOMBRE_TRABAJADOR], quien tiene el puesto de [PUESTO_TRABAJADOR], con número de empleado [NUMERO_EMPLEADO].
+
+HECHOS
+
+Asimismo, se hace constar que el motivo de la presente acta es porque el C. [NOMBRE_TRABAJADOR], [DESCRIPCION_HECHOS]. Se aceptan los hechos como una violación al Reglamento Interior de Trabajo, Capítulo [CAPITULO_REGLAMENTO], Artículo(s) [ARTICULOS_REGLAMENTO].
+
+En uso de la palabra y con relación a los hechos citados, el trabajador manifiesta de su puño y letra lo siguiente:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+En mérito de lo anterior, se procede a levantar la presente acta administrativa al C. [NOMBRE_TRABAJADOR], empleado de la moral LEONI CABLE, S.A. DE C.V., quien ocupa el puesto de [PUESTO_TRABAJADOR], quien se desempeña en horarios rotativos los cuales no exceden los máximos establecidos por la Ley Federal del Trabajo, con fundamento en el artículo 59 de esta Ley, con fecha de ingreso [FECHA_INGRESO].
+
+Siendo las [HORA_CIERRE] hrs. del día [FECHA_CIERRE], el representante patronal da por concluida la presente ACTA ADMINISTRATIVA, remitiendo la misma al área de Recursos Humanos para los efectos legales conducentes.
+
+Todos debidamente apercibidos de las consecuencias legales que contrae para los que declaran con falsedad, mismos quienes han oído y presenciado lo declarado por los comparecientes, lo cual se asentó en esta acta, la que se da por concluida, y firmando al margen y calce para constancia legal, los que en ella intervinieron y así quisieron hacerlo.
+
+En caso de que el trabajador se niegue a firmar la presente acta y/o exponer por escrito lo que a su derecho convenga en el espacio proporcionado para tal efecto, se hace constar por los testigos lo siguiente:
+
+Testigo 1 C. [TESTIGO_1] manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+Testigo 2 C. [TESTIGO_2] manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________"""
+
 # ── Prompt system ─────────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = (
     "Eres un asistente de Recursos Humanos especializado en documentos administrativos formales. "
     "Redactas actas administrativas con lenguaje claro, formal y jurídicamente apropiado para "
-    "el contexto laboral mexicano."
+    "el contexto laboral mexicano. Respeta estrictamente Plantilla_Acta_Administrativa.docx: "
+    "titulo ACTA ADMINISTRATIVA, parrafo inicial de comparecencia, HECHOS, manifestacion "
+    "del trabajador con lineas, cierre, constancia por negativa y manifestaciones de testigos. "
+    "No inventes datos faltantes; usa marcadores entre corchetes."
 )
 
-_USER_PROMPT_TEMPLATE = """Genera un acta administrativa con la siguiente estructura:
+_USER_PROMPT_TEMPLATE = """Genera un acta administrativa siguiendo exactamente este orden de secciones:
 
-ACTA ADMINISTRATIVA No. [NUMERO]
-Fecha: [FECHA]
-
-ANTECEDENTES:
-[Datos del empleado y contexto]
-
-HECHOS:
-[Descripción detallada de la incidencia]
-
-MEDIDA DISCIPLINARIA:
-[Consecuencias según reglamento interno]
-
-FIRMAS:
-[Espacios para firma del empleado, supervisor, gerente, director y RH]
+{formato_acta}
 
 Datos: {contexto_json}
-Responde SOLO con el texto del acta, sin explicaciones adicionales."""
+Reglas:
+- Responde SOLO con el texto del acta, sin explicaciones adicionales.
+- Mantén saltos de línea y lineas de guiones bajos de la plantilla.
+- Usa marcadores entre corchetes para datos faltantes.
+- No agregues DECLARACIONES, DETERMINACIÓN, FIRMAS ni secciones ajenas a la plantilla.
+- No cites capítulos o artículos del Reglamento si no están presentes en los datos o referencias proporcionadas."""
 
 
 # ── OllamaClient ─────────────────────────────────────────────────────────────
@@ -213,6 +248,7 @@ class OllamaClient:
         Timeout: 60 segundos (generación LLM puede ser lenta).
         """
         prompt = _USER_PROMPT_TEMPLATE.format(
+            formato_acta=_FORMATO_ACTA_LEONI,
             contexto_json=json.dumps(contexto, ensure_ascii=False, indent=2)
         )
 
@@ -263,62 +299,51 @@ class OllamaClient:
         Genera una plantilla pre-llenada con los datos disponibles
         para que RH pueda completarla manualmente.
         """
-        hoy = datetime.now().strftime("%d/%m/%Y")
-        nombre = contexto.get("empleado_nombre", "[COMPLETAR]")
-        num = contexto.get("num_empleado", "[COMPLETAR]")
-        depto = contexto.get("departamento", "[COMPLETAR]")
-        tipo = contexto.get("tipo_incidencia", "[COMPLETAR]")
-        fecha_inc = contexto.get("fecha_incidencia", "[COMPLETAR]")
-        descripcion = contexto.get("descripcion", "[COMPLETAR]")
-        evidencias = contexto.get("evidencias", [])
-        evidencias_str = (
-            "\n".join(f"  - {e}" for e in evidencias)
-            if evidencias
-            else "  [COMPLETAR - Listar evidencias]"
-        )
+        nombre = contexto.get("empleado_nombre") or "[NOMBRE_TRABAJADOR]"
+        num = contexto.get("num_empleado") or "[NUMERO_EMPLEADO]"
+        puesto = contexto.get("puesto") or "[PUESTO_TRABAJADOR]"
+        fecha_inc = contexto.get("fecha_incidencia") or contexto.get("fecha") or "[FECHA]"
+        descripcion = contexto.get("descripcion") or "[DESCRIPCION_HECHOS]"
 
-        return f"""ACTA ADMINISTRATIVA No. [COMPLETAR]
-Fecha: {hoy}
+        return f"""ACTA ADMINISTRATIVA
 
-ANTECEDENTES:
-Empleado: {nombre}
-No. Empleado: {num}
-Departamento: {depto}
-Puesto: {contexto.get('puesto', '[COMPLETAR]')}
+En la ciudad de Cuauhtémoc, Chihuahua, siendo las [HORA_INICIO] horas del día {fecha_inc}, reunidos en el local que ocupan las oficinas de LEONI CABLE, S.A. DE C.V., ubicado en Ave. Río Conchos No. 9700 del Parque Industrial Cuauhtémoc. Se reunieron el C. [REPRESENTANTE_LEGAL], representante legal de la empresa y quien ocupa el puesto de [PUESTO_REPRESENTANTE], y quien actúa con los C. [TESTIGO_1] y [TESTIGO_2], como testigos, quienes ocupan los puestos de [PUESTOS_TESTIGOS], se procedió a instrumentar la presente acta en contra del C. {nombre}, quien tiene el puesto de {puesto}, con número de empleado {num}.
 
-HECHOS:
-Tipo de Incidencia: {tipo}
-Fecha de la Incidencia: {fecha_inc}
+HECHOS
 
-Descripción de los hechos:
-{descripcion}
+Asimismo, se hace constar que el motivo de la presente acta es porque el C. {nombre}, {descripcion}. Se aceptan los hechos como una violación al Reglamento Interior de Trabajo, Capítulo [CAPITULO_REGLAMENTO], Artículo(s) [ARTICULOS_REGLAMENTO].
 
-Evidencias:
-{evidencias_str}
+En uso de la palabra y con relación a los hechos citados, el trabajador manifiesta de su puño y letra lo siguiente:
 
-MEDIDA DISCIPLINARIA:
-[COMPLETAR - Especificar la medida disciplinaria aplicada según reglamento interno]
+______________________________________________________________________________________________________________
 
-FIRMAS:
+______________________________________________________________________________________________________________
 
-_______________________          _______________________
-Empleado                         Supervisor Inmediato
-Nombre: {nombre}                 Nombre: [COMPLETAR]
-Fecha:                           Fecha:
+______________________________________________________________________________________________________________
 
-_______________________          _______________________
-Gerente de Área                  Director
-Nombre: [COMPLETAR]              Nombre: [COMPLETAR]
-Fecha:                           Fecha:
+______________________________________________________________________________________________________________
 
-_______________________
-Recursos Humanos
-Nombre: [COMPLETAR]
-Fecha:
+______________________________________________________________________________________________________________
 
----
-NOTA: Este borrador fue generado automáticamente con datos del sistema.
-El contenido marcado con [COMPLETAR] debe ser revisado y completado por RH.
+En mérito de lo anterior, se procede a levantar la presente acta administrativa al C. {nombre}, empleado de la moral LEONI CABLE, S.A. DE C.V., quien ocupa el puesto de {puesto}, quien se desempeña en horarios rotativos los cuales no exceden los máximos establecidos por la Ley Federal del Trabajo, con fundamento en el artículo 59 de esta Ley, con fecha de ingreso [FECHA_INGRESO].
+
+Siendo las [HORA_CIERRE] hrs. del día {fecha_inc}, el representante patronal da por concluida la presente ACTA ADMINISTRATIVA, remitiendo la misma al área de Recursos Humanos para los efectos legales conducentes.
+
+Todos debidamente apercibidos de las consecuencias legales que contrae para los que declaran con falsedad, mismos quienes han oído y presenciado lo declarado por los comparecientes, lo cual se asentó en esta acta, la que se da por concluida, y firmando al margen y calce para constancia legal, los que en ella intervinieron y así quisieron hacerlo.
+
+En caso de que el trabajador se niegue a firmar la presente acta y/o exponer por escrito lo que a su derecho convenga en el espacio proporcionado para tal efecto, se hace constar por los testigos lo siguiente:
+
+Testigo 1 C. [TESTIGO_1] manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+Testigo 2 C. [TESTIGO_2] manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
 """
 
 

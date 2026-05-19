@@ -17,9 +17,14 @@ from app.services.legal_rag_service import (
 )
 import app.services.legal_rag_service as legal_rag_module
 from app.services.acta_service import (
+    _fallback_acta_administrativa_leoni,
+    _fallback_recomendacion_legal_ia,
     _group_legal_context_by_source,
     _missing_article_citations,
     _missing_required_sources,
+    _normalizar_respuesta_recomendacion_ia,
+    _recomendacion_legal_ia_es_basura_meta,
+    _validar_formato_acta_leoni,
 )
 
 _REGLEMENTO_PDF = (
@@ -113,6 +118,63 @@ def test_group_legal_context_by_source_separates_lft_and_reglamento():
     assert "=== LEY FEDERAL DEL TRABAJO (LFT) ===" in grouped
     assert "=== REGLAMENTO INTERIOR DE TRABAJO ===" in grouped
     assert grouped.index("LEY FEDERAL") < grouped.index("REGLAMENTO")
+
+
+def test_recomendacion_meta_rejects_json_paraphrase():
+    basura = (
+        "Basado en la información proporcionada, empleado_objetivo indica que "
+        "descripcion_hechos describe una ausencia."
+    )
+    assert _recomendacion_legal_ia_es_basura_meta(basura) is True
+
+
+def test_recomendacion_meta_accepts_structured_sections():
+    texto = (
+        "RESUMEN DE HECHOS:\nEl trabajador faltó.\n\n"
+        "FUNDAMENTACIÓN LEGAL:\nLey Federal del Trabajo.\n\n"
+        "ARTÍCULOS APLICABLES:\nArtículo 47.\n\n"
+        "POSIBLES INCUMPLIMIENTOS:\nInasistencia.\n\n"
+        "REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA:\nACTA ADMINISTRATIVA\n\n"
+        "LIMITACIONES:\nNinguna."
+    )
+    assert _recomendacion_legal_ia_es_basura_meta(texto) is False
+
+
+def test_normalizar_respuesta_wraps_acta_only_output():
+    acta = _fallback_acta_administrativa_leoni({"descripcion_hechos": "falta injustificada"})
+    wrapped = _normalizar_respuesta_recomendacion_ia(acta, {"descripcion_hechos": "falta injustificada"})
+    assert wrapped.startswith("RESUMEN DE HECHOS:")
+    assert "REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA:" in wrapped
+    assert "ACTA ADMINISTRATIVA" in wrapped
+
+
+def test_fallback_recomendacion_includes_required_sections():
+    out = _fallback_recomendacion_legal_ia({"descripcion_hechos": "Hechos de prueba."})
+    assert "RESUMEN DE HECHOS:" in out
+    assert "REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA:" in out
+    assert _validar_formato_acta_leoni(out) == []
+
+
+def test_fallback_acta_uses_docx_template_format_and_placeholders():
+    acta = _fallback_acta_administrativa_leoni(
+        {
+            "empleado_nombre": "Persona Prueba",
+            "num_empleado": "123",
+            "descripcion": "se ausentó de su área sin autorización",
+            "testigos": "Testigo Uno, Testigo Dos",
+        }
+    )
+
+    assert _validar_formato_acta_leoni(acta) == []
+    assert acta.startswith("ACTA ADMINISTRATIVA")
+    assert "En la ciudad de Cuauhtémoc, Chihuahua" in acta
+    assert "HECHOS" in acta
+    assert "En uso de la palabra y con relación a los hechos citados" in acta
+    assert "En mérito de lo anterior" in acta
+    assert "Testigo 1 C. Testigo Uno manifiesta:" in acta
+    assert "Testigo 2 C. Testigo Dos manifiesta:" in acta
+    assert "[CAPITULO_REGLAMENTO]" in acta
+    assert "[ARTICULOS_REGLAMENTO]" in acta
 
 
 def test_manifest_detects_changed_source(tmp_path, monkeypatch):

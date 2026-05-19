@@ -39,7 +39,10 @@ from app.models.empleados import Empleado
 from app.repositories.acta_repository import ActaAprobacionRepository, ActaRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.services.acta_rag_prompts import (
+    FORMATO_ACTA_ADMINISTRATIVA_LEONI,
+    SYSTEM_GENERAR_ACTA_FORMAL,
     SYSTEM_RECOMENDACION_LEGAL_IA,
+    USER_GENERAR_ACTA_TEMPLATE,
     USER_RECOMENDACION_LEGAL_IA_TEMPLATE,
 )
 from app.services.legal_rag_service import legal_rag_service
@@ -88,6 +91,147 @@ _ARTICLE_CITATION_RE = re.compile(
 
 _ACTA_START_MARKER = "<<<ACTA>>>"
 _ACTA_END_MARKER = "<<<FIN>>>"
+
+_ACTA_FORMAT_REQUIRED_ANCHORS = (
+    "ACTA ADMINISTRATIVA",
+    "En la ciudad de Cuauhtémoc, Chihuahua",
+    "LEONI CABLE, S.A. DE C.V.",
+    "HECHOS",
+    "En uso de la palabra y con relación a los hechos citados",
+    "En mérito de lo anterior",
+    "Siendo las",
+    "Todos debidamente apercibidos",
+    "En caso de que el trabajador se niegue a firmar",
+    "Testigo 1 C.",
+    "Testigo 2 C.",
+)
+
+
+def _dato_o_marcador(value: object, marker: str) -> str:
+    text = str(value or "").strip()
+    return text if text else marker
+
+
+def _fecha_larga_o_marcador(value: object, marker: str = "[FECHA]") -> str:
+    if not value:
+        return marker
+    if hasattr(value, "strftime"):
+        return value.strftime("%d/%m/%Y")
+    raw = str(value).strip()
+    if not raw:
+        return marker
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+    except ValueError:
+        return raw
+
+
+def _validar_formato_acta_leoni(text: str) -> list[str]:
+    normalized = (text or "").upper()
+    return [anchor for anchor in _ACTA_FORMAT_REQUIRED_ANCHORS if anchor.upper() not in normalized]
+
+
+def _split_testigos(value: object) -> tuple[str, str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return "[TESTIGO_1]", "[TESTIGO_2]"
+    parts = [p.strip() for p in re.split(r"\s+y\s+|,|;", raw) if p.strip()]
+    first = parts[0] if len(parts) >= 1 else "[TESTIGO_1]"
+    second = parts[1] if len(parts) >= 2 else "[TESTIGO_2]"
+    return first, second
+
+
+def _fallback_acta_administrativa_leoni(contexto: dict) -> str:
+    empleado_objetivo = contexto.get("empleado_objetivo")
+    if not isinstance(empleado_objetivo, dict):
+        empleado_objetivo = {}
+    empleado_nombre = _dato_o_marcador(
+        contexto.get("empleado_nombre") or empleado_objetivo.get("nombre"),
+        "[NOMBRE_TRABAJADOR]",
+    )
+    numero_empleado = _dato_o_marcador(
+        contexto.get("num_empleado")
+        or contexto.get("numero_empleado")
+        or empleado_objetivo.get("numero_empleado"),
+        "[NUMERO_EMPLEADO]",
+    )
+    puesto = _dato_o_marcador(
+        contexto.get("puesto") or empleado_objetivo.get("puesto"),
+        "[PUESTO_TRABAJADOR]",
+    )
+    fecha_evento = _fecha_larga_o_marcador(
+        contexto.get("fecha_evento")
+        or contexto.get("fecha_incidencia")
+        or contexto.get("fecha")
+    )
+    hechos = _dato_o_marcador(
+        contexto.get("descripcion_hechos") or contexto.get("descripcion"),
+        "[DESCRIPCION_HECHOS]",
+    )
+    responsable_rh = _dato_o_marcador(
+        contexto.get("persona_responsable_legal") or contexto.get("responsable_rh"),
+        "[REPRESENTANTE_LEGAL]",
+    )
+    puesto_representante = _dato_o_marcador(
+        contexto.get("puesto_representante"),
+        "[PUESTO_REPRESENTANTE]",
+    )
+    testigo_1, testigo_2 = _split_testigos(
+        contexto.get("personas_relacionadas_testigos") or contexto.get("testigos")
+    )
+    capitulo_reglamento = _dato_o_marcador(
+        contexto.get("capitulo_reglamento"),
+        "[CAPITULO_REGLAMENTO]",
+    )
+    articulos_reglamento = _dato_o_marcador(
+        contexto.get("articulo_inciso"),
+        "[ARTICULOS_REGLAMENTO]",
+    )
+    fecha_ingreso = _fecha_larga_o_marcador(
+        contexto.get("fecha_ingreso"),
+        "[FECHA_INGRESO]",
+    )
+
+    return f"""ACTA ADMINISTRATIVA
+
+En la ciudad de Cuauhtémoc, Chihuahua, siendo las [HORA_INICIO] horas del día {fecha_evento}, reunidos en el local que ocupan las oficinas de LEONI CABLE, S.A. DE C.V., ubicado en Ave. Río Conchos No. 9700 del Parque Industrial Cuauhtémoc. Se reunieron el C. {responsable_rh}, representante legal de la empresa y quien ocupa el puesto de {puesto_representante}, y quien actúa con los C. {testigo_1} y {testigo_2}, como testigos, quienes ocupan los puestos de [PUESTOS_TESTIGOS], se procedió a instrumentar la presente acta en contra del C. {empleado_nombre}, quien tiene el puesto de {puesto}, con número de empleado {numero_empleado}.
+
+HECHOS
+
+Asimismo, se hace constar que el motivo de la presente acta es porque el C. {empleado_nombre}, {hechos}. Se aceptan los hechos como una violación al Reglamento Interior de Trabajo, Capítulo {capitulo_reglamento}, Artículo(s) {articulos_reglamento}.
+
+En uso de la palabra y con relación a los hechos citados, el trabajador manifiesta de su puño y letra lo siguiente:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+En mérito de lo anterior, se procede a levantar la presente acta administrativa al C. {empleado_nombre}, empleado de la moral LEONI CABLE, S.A. DE C.V., quien ocupa el puesto de {puesto}, quien se desempeña en horarios rotativos los cuales no exceden los máximos establecidos por la Ley Federal del Trabajo, con fundamento en el artículo 59 de esta Ley, con fecha de ingreso {fecha_ingreso}.
+
+Siendo las [HORA_CIERRE] hrs. del día {fecha_evento}, el representante patronal da por concluida la presente ACTA ADMINISTRATIVA, remitiendo la misma al área de Recursos Humanos para los efectos legales conducentes.
+
+Todos debidamente apercibidos de las consecuencias legales que contrae para los que declaran con falsedad, mismos quienes han oído y presenciado lo declarado por los comparecientes, lo cual se asentó en esta acta, la que se da por concluida, y firmando al margen y calce para constancia legal, los que en ella intervinieron y así quisieron hacerlo.
+
+En caso de que el trabajador se niegue a firmar la presente acta y/o exponer por escrito lo que a su derecho convenga en el espacio proporcionado para tal efecto, se hace constar por los testigos lo siguiente:
+
+Testigo 1 C. {testigo_1} manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+Testigo 2 C. {testigo_2} manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+"""
 
 
 def _strip_model_think_artifacts(text: str) -> str:
@@ -201,6 +345,7 @@ async def _ollama_completar_redaccion_acta(
     user_prompt: str,
     system_prompt: str,
     temperature: float | None = None,
+    num_predict: int | None = None,
 ) -> str:
     """
     Qwen3 puede devolver `response` vacío en /api/generate si todo el presupuesto va a "thinking".
@@ -209,9 +354,10 @@ async def _ollama_completar_redaccion_acta(
     model = settings.OLLAMA_MODEL
     base_temp = settings.OLLAMA_TEMPERATURE if temperature is None else temperature
     temp = max(0.0, min(base_temp, 1.0))
+    predict = num_predict if num_predict is not None else settings.OLLAMA_NUM_PREDICT
     opts: dict = {
         "temperature": temp,
-        "num_predict": settings.OLLAMA_NUM_PREDICT,
+        "num_predict": predict,
     }
     if settings.OLLAMA_NUM_CTX >= 2048:
         opts["num_ctx"] = settings.OLLAMA_NUM_CTX
@@ -243,7 +389,7 @@ async def _ollama_completar_redaccion_acta(
             (resp.text or "")[:500],
         )
 
-    gen_opts: dict = {"num_predict": settings.OLLAMA_NUM_PREDICT}
+    gen_opts: dict = {"num_predict": predict}
     if settings.OLLAMA_NUM_CTX >= 2048:
         gen_opts["num_ctx"] = settings.OLLAMA_NUM_CTX
     gen_body: dict = {
@@ -357,29 +503,34 @@ def _load_legal_reference_documents() -> list[str]:
 
 
 async def _llamar_ollama(contexto: dict) -> str:
-    """Stub de llamada a Ollama. Implementacion completa en fase integraciones."""
+    """Genera borrador de acta con formato interno LEONI y fallback deterministico."""
+    prompt = USER_GENERAR_ACTA_TEMPLATE.format(contexto=json.dumps(contexto, ensure_ascii=False, indent=2))
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 f"{settings.OLLAMA_URL}/api/generate",
                 json={
                     "model": settings.OLLAMA_MODEL,
-                    "prompt": f"Genera un acta administrativa formal para: {contexto}",
+                    "prompt": prompt,
+                    "system": SYSTEM_GENERAR_ACTA_FORMAL,
                     "temperature": settings.OLLAMA_TEMPERATURE,
                     "stream": False,
                 },
             )
             if resp.status_code == 200:
-                return resp.json().get("response", "")
+                raw = _strip_model_think_artifacts(str(resp.json().get("response") or ""))
+                acta = _extract_acta_between_markers(raw) or _trim_preface_before_acta(raw)
+                if acta and not _looks_like_visible_reasoning_dump(acta):
+                    missing = _validar_formato_acta_leoni(acta)
+                    if not missing:
+                        return acta.strip()
+                    logger.warning(
+                        "Ollama genero acta sin formato LEONI requerido; faltan anclas: %s",
+                        ", ".join(missing),
+                    )
     except Exception:
         pass
-    # Fallback: borrador vacio para edicion manual
-    return (
-        "[Borrador generado automaticamente - Completar manualmente]\n\n"
-        f"Empleado: {contexto.get('empleado_nombre', '')}\n"
-        f"Fecha: {contexto.get('fecha', '')}\n"
-        f"Tipo: {contexto.get('tipo_incidencia', '')}\n"
-    )
+    return _fallback_acta_administrativa_leoni(contexto)
 
 
 def _trim_preface_hasta_resumen_hechos(text: str) -> str:
@@ -405,6 +556,10 @@ def _recomendacion_legal_ia_es_basura_meta(text: str) -> bool:
     raw = (text or "").strip()
     if len(raw) < 120:
         return True
+    if _validar_formato_acta_leoni(raw) == [] and len(raw) >= 700:
+        return False
+    if _response_has_spanish_recomendacion_signals(raw) and len(raw) >= 700:
+        return False
     t = raw.lower()
     head = t[:3200]
     if "basado en la información proporcionada" in head:
@@ -416,6 +571,10 @@ def _recomendacion_legal_ia_es_basura_meta(text: str) -> bool:
     if "siguientes conclusiones" in head and "empleado_objetivo" in head[:2800]:
         return True
     if "reglas de identidad y roles" in t:
+        return True
+    if "detalle del acta (json)" in head or "`documentos_legales_referencia`" in head[:1500]:
+        return True
+    if head.count("empleado_objetivo") >= 2 and "resumen de hechos" not in head:
         return True
     # Debe parecer el entregable estructurado (secciones del prompt o acta sustancial).
     anclas = (
@@ -434,9 +593,65 @@ def _recomendacion_legal_ia_es_basura_meta(text: str) -> bool:
         return False
     if n_anclas >= 1 and len(t) >= 900:
         return False
-    if "acta administrativa" in t and len(t) >= 1400:
+    if "acta administrativa" in t and len(t) >= 1000:
         return False
     return True
+
+
+def _normalizar_respuesta_recomendacion_ia(text: str, contexto: dict) -> str:
+    """Si el modelo devolvió solo el acta, envuelve el texto en el formato obligatorio."""
+    raw = (text or "").strip()
+    if not raw:
+        return raw
+    low = raw.lower()
+    if "resumen de hechos:" in low:
+        return raw
+    if _validar_formato_acta_leoni(raw):
+        return raw
+    hechos = _dato_o_marcador(
+        contexto.get("descripcion_hechos") or contexto.get("descripcion"),
+        "[DESCRIPCION_HECHOS]",
+    )
+    fundamento = _dato_o_marcador(contexto.get("fundamento_legal"), "[FUNDAMENTO_LEGAL]")
+    articulos = _dato_o_marcador(contexto.get("articulo_inciso"), "[ARTICULOS]")
+    return (
+        f"RESUMEN DE HECHOS:\n{hechos}\n\n"
+        f"FUNDAMENTACIÓN LEGAL:\n{fundamento}\n\n"
+        f"ARTÍCULOS APLICABLES:\n{articulos}\n\n"
+        f"POSIBLES INCUMPLIMIENTOS:\n"
+        f"[Relacionar hechos del acta con obligaciones e incumplimientos respaldados en "
+        f"documentos_legales_referencia.]\n\n"
+        f"REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA:\n{raw}\n\n"
+        f"LIMITACIONES:\n"
+        f"Secciones analíticas completadas automáticamente; revisar fundamentación y citas."
+    )
+
+
+def _fallback_recomendacion_legal_ia(contexto: dict) -> str:
+    """Escrito determinístico cuando Ollama no entrega formato utilizable."""
+    hechos = _dato_o_marcador(
+        contexto.get("descripcion_hechos") or contexto.get("descripcion"),
+        "[DESCRIPCION_HECHOS]",
+    )
+    acta = _fallback_acta_administrativa_leoni(contexto)
+    refs = str(contexto.get("documentos_legales_referencia") or "").strip()
+    fundamento = (
+        "Revisar manualmente los fragmentos RAG adjuntos al expediente."
+        if refs
+        else "Sin fragmentos RAG disponibles en esta ejecución."
+    )
+    return (
+        f"RESUMEN DE HECHOS:\n{hechos}\n\n"
+        f"FUNDAMENTACIÓN LEGAL:\n{fundamento}\n\n"
+        f"ARTÍCULOS APLICABLES:\n"
+        f"No identificados automáticamente; validar contra el material legal recuperado.\n\n"
+        f"POSIBLES INCUMPLIMIENTOS:\n"
+        f"[Completar según hechos y normativa aplicable.]\n\n"
+        f"REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA:\n{acta}\n\n"
+        f"LIMITACIONES:\n"
+        f"Borrador generado sin respuesta utilizable del modelo de lenguaje. "
+        f"Revisar fundamentación, citas y datos antes de usar."
+    )
 
 
 def _extract_article_citations(text: str) -> set[str]:
@@ -515,13 +730,27 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
         async with httpx.AsyncClient(timeout=timeout) as client:
             last_missing: set[str] = set()
             last_missing_sources: set[str] = set()
+            last_missing_format: list[str] = []
+            last_meta_basura = False
             for attempt in range(2):
                 prompt = base_prompt
-                if attempt > 0 and (last_missing or last_missing_sources):
+                if attempt > 0 and (
+                    last_missing
+                    or last_missing_sources
+                    or last_missing_format
+                    or last_meta_basura
+                ):
                     prompt += (
                         "\n\nCORRECCIÓN OBLIGATORIA:\n"
                         "Regenera la salida cumpliendo estas reglas de validación: "
                     )
+                    if last_meta_basura:
+                        prompt += (
+                            "NO expliques el JSON, NO listes campos como empleado_objetivo, "
+                            "NO uses frases tipo 'basado en la información proporcionada'. "
+                            "Empieza directamente con la línea exacta RESUMEN DE HECHOS: y luego "
+                            "todas las secciones obligatorias en orden. "
+                        )
                     if last_missing:
                         prompt += (
                             "elimina o sustituye los artículos que no aparecen literalmente "
@@ -534,16 +763,25 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
                             "sí aparecen en el contexto RAG: "
                             f"{', '.join(sorted(last_missing_sources))}. "
                         )
-                    prompt += "No inventes numeración ni omitas fuentes recuperadas."
+                    if last_missing_format:
+                        prompt += (
+                            "la REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA debe respetar "
+                            "el formato interno de LEONI y contiene estas anclas faltantes: "
+                            f"{', '.join(last_missing_format)}. "
+                        )
+                    prompt += "No inventes numeración, no omitas fuentes recuperadas y no cambies el orden de secciones."
 
                 texto_raw = await _ollama_completar_redaccion_acta(
                     client,
                     user_prompt=prompt,
                     system_prompt=SYSTEM_RECOMENDACION_LEGAL_IA,
                     temperature=settings.OLLAMA_ACTA_TEMPERATURE,
+                    num_predict=settings.OLLAMA_ACTA_NUM_PREDICT,
                 )
                 texto_raw = _strip_model_think_artifacts(texto_raw)
                 texto_raw = _trim_preface_hasta_resumen_hechos(texto_raw)
+                texto_raw = _normalizar_respuesta_recomendacion_ia(texto_raw, contexto)
+                last_meta_basura = False
                 if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_recomendacion_signals(
                     texto_raw
                 ):
@@ -551,6 +789,9 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
                         "El modelo devolvio razonamiento visible en lugar de la recomendacion legal"
                     )
                 if _recomendacion_legal_ia_es_basura_meta(texto_raw):
+                    last_meta_basura = True
+                    if attempt == 0:
+                        continue
                     raise ValueError(
                         "El modelo devolvio meta-instrucciones en lugar del escrito legal estructurado"
                     )
@@ -584,16 +825,24 @@ async def _mejorar_redaccion_acta(contexto: dict) -> str:
                     )
 
                 _validate_recomendacion_against_rag(texto_raw, contexto)
+                last_missing_format = _validar_formato_acta_leoni(texto_raw)
+                if last_missing_format:
+                    if attempt == 0:
+                        continue
+                    raise ValueError(
+                        "El modelo no respetó el formato interno de acta LEONI; faltan: "
+                        f"{', '.join(last_missing_format)}"
+                    )
                 return texto_raw.strip()
             raise ValueError("No fue posible validar las citas legales contra el RAG")
+    except ServiceUnavailableError:
+        raise
     except Exception as exc:
         logger.warning(
-            "No se pudo mejorar la redacción del acta (asistente legal): %s",
+            "No se pudo mejorar la redacción del acta (asistente legal): %s — usando fallback",
             exc,
         )
-        raise ServiceUnavailableError(
-            detail="No fue posible generar el escrito de apoyo en este momento. Intenta nuevamente."
-        ) from exc
+        return _fallback_recomendacion_legal_ia(contexto).strip()
 
 
 class ActaService:
@@ -839,6 +1088,10 @@ class ActaService:
                 f"evidencia: {evidencia_rag}\n"
                 f"area: {acta.area_departamento or ''}\n"
                 f"puesto: {acta.puesto or ''}\n"
+                "plantilla_formato: Plantilla_Acta_Administrativa.docx acta administrativa "
+                "manifestacion trabajador testigos negativa firma\n"
+                "fundamento_jornada: Ley Federal del Trabajo articulo 59 horarios rotativos "
+                "jornada descanso semanal\n"
             )
             documentos_texto = await legal_rag_service.retrieve_relevant_context(rag_query)
         except Exception as exc:

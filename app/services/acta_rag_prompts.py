@@ -1,10 +1,56 @@
 # app/services/acta_rag_prompts.py
 """Prompts compartidos: acta administrativa laboral México (RAG + Ollama)."""
 
+FORMATO_ACTA_ADMINISTRATIVA_LEONI = """
+ACTA ADMINISTRATIVA
+
+En la ciudad de Cuauhtémoc, Chihuahua, siendo las [HORA_INICIO] horas del día [FECHA_ACTA], reunidos en el local que ocupan las oficinas de LEONI CABLE, S.A. DE C.V., ubicado en Ave. Río Conchos No. 9700 del Parque Industrial Cuauhtémoc. Se reunieron el C. [REPRESENTANTE_LEGAL], representante legal de la empresa y quien ocupa el puesto de [PUESTO_REPRESENTANTE], y quien actúa con los C. [TESTIGO_1] y [TESTIGO_2], como testigos, quienes ocupan los puestos de [PUESTOS_TESTIGOS], se procedió a instrumentar la presente acta en contra del C. [NOMBRE_TRABAJADOR], quien tiene el puesto de [PUESTO_TRABAJADOR], con número de empleado [NUMERO_EMPLEADO].
+
+HECHOS
+
+Asimismo, se hace constar que el motivo de la presente acta es porque el C. [NOMBRE_TRABAJADOR], [DESCRIPCION_HECHOS]. Se aceptan los hechos como una violación al Reglamento Interior de Trabajo, Capítulo [CAPITULO_REGLAMENTO], Artículo(s) [ARTICULOS_REGLAMENTO].
+
+En uso de la palabra y con relación a los hechos citados, el trabajador manifiesta de su puño y letra lo siguiente:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+En mérito de lo anterior, se procede a levantar la presente acta administrativa al C. [NOMBRE_TRABAJADOR], empleado de la moral LEONI CABLE, S.A. DE C.V., quien ocupa el puesto de [PUESTO_TRABAJADOR], quien se desempeña en horarios rotativos los cuales no exceden los máximos establecidos por la Ley Federal del Trabajo, con fundamento en el artículo 59 de esta Ley, con fecha de ingreso [FECHA_INGRESO].
+
+Siendo las [HORA_CIERRE] hrs. del día [FECHA_CIERRE], el representante patronal da por concluida la presente ACTA ADMINISTRATIVA, remitiendo la misma al área de Recursos Humanos para los efectos legales conducentes.
+
+Todos debidamente apercibidos de las consecuencias legales que contrae para los que declaran con falsedad, mismos quienes han oído y presenciado lo declarado por los comparecientes, lo cual se asentó en esta acta, la que se da por concluida, y firmando al margen y calce para constancia legal, los que en ella intervinieron y así quisieron hacerlo.
+
+En caso de que el trabajador se niegue a firmar la presente acta y/o exponer por escrito lo que a su derecho convenga en el espacio proporcionado para tal efecto, se hace constar por los testigos lo siguiente:
+
+Testigo 1 C. [TESTIGO_1] manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+
+Testigo 2 C. [TESTIGO_2] manifiesta:
+
+______________________________________________________________________________________________________________
+
+______________________________________________________________________________________________________________
+""".strip()
+
 # Mensaje de sistema: solo contexto recuperado, estructura formal.
 SYSTEM_GENERAR_ACTA_FORMAL = (
     "Eres un redactor de actas administrativas laborales en México. "
     "Redactas en español formal y tono jurídico-laboral. "
+    "Debes respetar de forma estricta la plantilla `Plantilla_Acta_Administrativa.docx`: "
+    "titulo ACTA ADMINISTRATIVA, párrafo inicial de comparecencia en Cuauhtémoc, "
+    "sección HECHOS, espacio de manifestación del trabajador, cierre patronal, "
+    "constancia por negativa y manifestación de Testigo 1 y Testigo 2. "
     "En la sección de fundamento legal solo puedes citar artículos, fracciones "
     "o apartados que aparezcan literalmente en los documentos legales de referencia "
     "proporcionados en el contexto. "
@@ -12,6 +58,7 @@ SYSTEM_GENERAR_ACTA_FORMAL = (
     "Si el contexto no alcanza para citar con precisión, redacta el fundamento en "
     "términos generales sin citas numéricas específicas. "
     "No uses markdown. No expliques tu razonamiento en inglés ni meta-comentarios. "
+    "No inventes datos faltantes: usa marcadores entre corchetes. "
     "Si el usuario pide delimitadores de salida, cumple al pie de la letra."
 )
 
@@ -19,6 +66,8 @@ SYSTEM_RECOMENDACION_LEGAL_IA = (
     "Eres un asistente legal laboral para México, centrado en la Ley Federal del Trabajo "
     "y el Reglamento Interior de Trabajo de la empresa. "
     "Redactas en español formal jurídico-laboral, preciso y sobrio. "
+    "Plantilla obligatoria del acta (REDACCIÓN FORMAL):\n"
+    f"{FORMATO_ACTA_ADMINISTRATIVA_LEONI}\n\n"
     "Los fragmentos del índice RAG van en el mensaje del usuario, campo JSON "
     "`documentos_legales_referencia` (texto concatenado de chunks). "
     "Esa referencia es la única fuente verificable para citas numéricas de artículos, fracciones "
@@ -36,6 +85,13 @@ SYSTEM_RECOMENDACION_LEGAL_IA = (
     "conducta, obligaciones, incumplimientos o consecuencias disciplinarias del caso. "
     "No uses markdown. No meta-comentarios en inglés ni razonamiento visible; entrega solo el "
     "entregable estructurado solicitado. "
+    "Para la REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA debes seguir de forma estricta "
+    "la plantilla Plantilla_Acta_Administrativa.docx: título ACTA ADMINISTRATIVA, "
+    "párrafo inicial de comparecencia, HECHOS, manifestación del trabajador con líneas "
+    "en blanco, párrafo `En mérito de lo anterior`, cierre con hora, constancia legal, "
+    "y apartados de Testigo 1 y Testigo 2. No uses el formato alternativo con "
+    "DECLARACIONES, DETERMINACIÓN o FIRMAS. "
+    "Si falta cualquier dato, usa marcador claro entre corchetes y no lo inventes. "
     "Restricciones de expediente (cumple en silencio; no las enumeres, no las parafrasees y no "
     "menciones nombres de campos JSON como empleado_objetivo en la salida): el trabajador sujeto "
     "del acta es solo quien corresponda a empleado_objetivo en los datos; quienes figuren en "
@@ -109,9 +165,19 @@ USER_RECOMENDACION_LEGAL_IA_TEMPLATE = (
     "Relación breve entre hechos del acta e incumplimientos u obligaciones que el RAG permita "
     "sostener; sin afirmaciones normativas sin soporte en el RAG.\n\n"
     "REDACCIÓN FORMAL DEL ACTA ADMINISTRATIVA:\n"
-    "Texto completo del acta en tono administrativo (antecedentes, hechos, fundamento legal "
-    "según RAG, resolución o determinación, cierre y espacio para firmas), alineado a los datos "
-    "del JSON y sin inventar firmantes ni datos faltantes.\n\n"
+    "Texto completo del acta alineado estrictamente a la plantilla "
+    "`Plantilla_Acta_Administrativa.docx` (estructura en tus instrucciones de sistema: "
+    "Cuauhtémoc, HECHOS, manifestación con líneas, En mérito de lo anterior, cierre, "
+    "testigos). No cambies nombres ni orden de bloques ni uses formato alternativo.\n\n"
+    "En la redacción del acta, usa los datos disponibles del JSON. Si falta un dato requerido, "
+    "usa un marcador entre corchetes como [NOMBRE_TRABAJADOR], [FECHA_ACTA], "
+    "[PUESTO_TRABAJADOR], [DESCRIPCION_HECHOS], [CAPITULO_REGLAMENTO] o "
+    "[ARTICULOS_REGLAMENTO]. No inventes datos. "
+    "Para Capítulo y Artículo(s) del Reglamento Interior usa únicamente lo respaldado "
+    "por `documentos_legales_referencia`; si no hay respaldo, deja los marcadores. "
+    "Conserva la referencia al artículo 59 de la Ley Federal del Trabajo del bloque "
+    "`En mérito de lo anterior` solo si aparece en el contexto RAG; si no aparece, "
+    "sustituye `artículo 59` por [ARTICULO_LFT_JORNADA].\n\n"
     "LIMITACIONES:\n"
     "Nota breve sobre vacíos del acta o del RAG si aplica.\n\n"
     "FORMATO DE INICIO: incluye las secciones en orden; lo ideal es que lo primero sea "
@@ -122,18 +188,16 @@ USER_RECOMENDACION_LEGAL_IA_TEMPLATE = (
 )
 
 USER_GENERAR_ACTA_TEMPLATE = (
-    "Redacta un ACTA ADMINISTRATIVA completa con la siguiente estructura obligatoria:\n"
-    "1) Encabezado (identificación de la empresa y del documento)\n"
-    "2) Antecedentes\n"
-    "3) Hechos (relación cronológica y objetiva)\n"
-    "4) Fundamento legal (Ley Federal del Trabajo y/o Reglamento Interior solo "
-    "según el marco recuperado en referencia; cita explícita cuando el texto lo permita)\n"
-    "5) Resolución o determinación\n"
-    "6) Sección de firmas (deja líneas o espacio indicado para firmantes)\n\n"
+    "Redacta un ACTA ADMINISTRATIVA completa siguiendo estrictamente esta plantilla:\n"
+    f"{FORMATO_ACTA_ADMINISTRATIVA_LEONI}\n\n"
     "Reglas:\n"
     "- Conserva nombres, fechas y datos del contexto sin inventar personas ni cargos.\n"
     "- `personas_relacionadas_testigos` solo como testigos si aplica.\n"
-    "- No uses listas con guiones tipo markdown; usa párrafos numerados si hace falta.\n"
+    "- No agregues DECLARACIONES, DETERMINACIÓN, FIRMAS ni otras secciones ajenas a la plantilla.\n"
+    "- Usa marcadores entre corchetes para todo dato faltante.\n"
+    "- Para Capítulo y Artículo(s) del Reglamento Interior usa solo datos o referencias legales "
+    "presentes en el contexto; si faltan, deja [CAPITULO_REGLAMENTO] y [ARTICULOS_REGLAMENTO].\n"
+    "- Conserva las líneas de manifestación del trabajador y testigos con guiones bajos.\n"
     "Formato obligatorio de salida: una línea exacta con el texto <<<ACTA>>>, "
     "luego el texto completo del acta, luego una línea exacta con el texto <<<FIN>>>. "
     "No escribas NADA antes de <<<ACTA>>> ni después de <<<FIN>>>.\n\n"

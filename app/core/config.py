@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     OLLAMA_HTTP_TIMEOUT: float = 180.0
     # Limita tokens de salida para acabar antes y reducir 500 por tiempo de espera interno.
     OLLAMA_NUM_PREDICT: int = 1536
+    # Escrito de apoyo (mejorar-ia): varias secciones + acta completa; 1536 suele truncar.
+    OLLAMA_ACTA_NUM_PREDICT: int = 4096
     # Ventana de contexto (tokens) para /api/chat y /api/generate. Si Ollama loguea
     # "truncating input prompt" limit=4096, sube este valor (p. ej. 16384) para actas+RAG.
     OLLAMA_NUM_CTX: int = 16384

@@ -123,6 +123,11 @@ _DOCUMENT_CATALOG: dict[str, dict[str, str]] = {
         "document_type": "ley federal",
         "source": "documento original proporcionado",
     },
+    "Plantilla_Acta_Administrativa.docx": {
+        "document_name": "Plantilla de Acta Administrativa",
+        "document_type": "plantilla de formato",
+        "source": "plantilla oficial proporcionada",
+    },
 }
 
 # Encabezados de artículo al inicio de línea (reglamento y ley federal).

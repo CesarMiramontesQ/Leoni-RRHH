@@ -46,6 +46,7 @@ services:
       OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.3}
       OLLAMA_HTTP_TIMEOUT: ${OLLAMA_HTTP_TIMEOUT:-180}
       OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-1536}
+      OLLAMA_ACTA_NUM_PREDICT: ${OLLAMA_ACTA_NUM_PREDICT:-4096}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-16384}
       # Chroma: evita intentos de telemetría fallidos en consola durante ingest/RAG
       ANONYMIZED_TELEMETRY: "false"
