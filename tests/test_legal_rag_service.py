@@ -9,8 +9,17 @@ import pytest
 
 from app.services.legal_rag_service import (
     LegalRagService,
+    _augment_legal_query,
+    _document_meta,
+    _extract_article_numbers,
     _split_by_legal_articles,
     _subsplit_section,
+)
+import app.services.legal_rag_service as legal_rag_module
+from app.services.acta_service import (
+    _group_legal_context_by_source,
+    _missing_article_citations,
+    _missing_required_sources,
 )
 
 _REGLEMENTO_PDF = (
@@ -56,6 +65,99 @@ def test_split_documents_metadata():
     assert meta["source"] == "HR_Reglamento Interior de Trabajo.pdf"
     assert meta["ingested_at"] == "2026-05-18T00:00:00+00:00"
     assert docs[0].page_content == raw
+
+
+def test_lft_pdf_metadata_uses_canonical_document_name():
+    meta = _document_meta(Path("LFT.pdf"), ingested_at="2026-05-19T00:00:00+00:00")
+    assert meta["document_name"] == "Ley Federal del Trabajo"
+    assert meta["document_type"] == "ley federal"
+    assert meta["source_type"] == "documento oficial vigente"
+
+
+def test_extract_article_numbers_for_reranking():
+    assert _extract_article_numbers("Aplican Artículo 47 y art. 134 bis.") == {
+        "47",
+        "134",
+    }
+
+
+def test_augment_legal_query_for_absence_cases():
+    q = _augment_legal_query("se ausento de su area laboral sin autorizacion")
+    assert "artículo 47" in q
+    assert "artículo 134" in q
+    assert "Reglamento Interior" in q
+
+
+def test_missing_article_citations_detects_unbacked_numbers():
+    respuesta = "FUNDAMENTACIÓN LEGAL: Aplican Artículo 47 y Artículo 999."
+    contexto = "[Ley Federal del Trabajo] Artículo 47.- Texto legal recuperado."
+    assert _missing_article_citations(respuesta, contexto) == {"999"}
+
+
+def test_missing_required_sources_requires_lft_and_reglamento_when_context_has_both():
+    contexto = (
+        "[Ley Federal del Trabajo (pág. 15)] Artículo 47.- Texto recuperado.\n"
+        "[Reglamento Interior de Trabajo (pág. 5)] ARTICULO 15.- Texto recuperado."
+    )
+    respuesta = "ARTÍCULOS APLICABLES: Ley Federal del Trabajo, Artículo 47."
+    assert _missing_required_sources(respuesta, contexto) == {"Reglamento Interior de Trabajo"}
+
+
+def test_group_legal_context_by_source_separates_lft_and_reglamento():
+    grouped = _group_legal_context_by_source(
+        [
+            "[Reglamento Interior de Trabajo (pág. 5)] ARTICULO 15.- Texto.",
+            "[Ley Federal del Trabajo (pág. 15)] Artículo 47.- Texto.",
+        ]
+    )
+    assert "=== LEY FEDERAL DEL TRABAJO (LFT) ===" in grouped
+    assert "=== REGLAMENTO INTERIOR DE TRABAJO ===" in grouped
+    assert grouped.index("LEY FEDERAL") < grouped.index("REGLAMENTO")
+
+
+def test_manifest_detects_changed_source(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "legal-documents"
+    docs_dir.mkdir()
+    source = docs_dir / "LFT.pdf"
+    reglamento = docs_dir / "HR_Reglamento Interior de Trabajo.pdf"
+    source.write_text("ARTICULO 1.- Texto legal vigente.", encoding="utf-8")
+    reglamento.write_text("ARTICULO 1.- Reglamento vigente.", encoding="utf-8")
+
+    index_dir = tmp_path / "index"
+    index_dir.mkdir()
+    monkeypatch.setattr(legal_rag_module, "_LEGAL_DOCS_BASE", docs_dir)
+    monkeypatch.setattr(legal_rag_module.settings, "LEGAL_RAG_CHROMA_PATH", str(index_dir))
+
+    svc = LegalRagService()
+    manifest = svc._build_manifest(
+        ingested_at="2026-05-19T00:00:00+00:00",
+        files=[source, reglamento],
+        chunk_counts={
+            "LFT.pdf": 1,
+            "HR_Reglamento Interior de Trabajo.pdf": 1,
+        },
+        coverage_by_source={
+            "LFT.pdf": {
+                "source_chars": 32,
+                "indexed_chars": 32,
+                "coverage_ratio": 1.0,
+                "complete": True,
+            },
+            "HR_Reglamento Interior de Trabajo.pdf": {
+                "source_chars": 31,
+                "indexed_chars": 31,
+                "coverage_ratio": 1.0,
+                "complete": True,
+            }
+        },
+        total_chunks=2,
+    )
+    svc._write_manifest(manifest)
+    svc._sync_validate_index_freshness()
+
+    source.write_text("ARTICULO 1.- Texto legal modificado.", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="cambió"):
+        svc._sync_validate_index_freshness()
 
 
 @pytest.mark.skipif(not _REGLEMENTO_PDF.exists(), reason="PDF no presente en el entorno")

@@ -6,7 +6,10 @@ import { getEmpleadosPage } from "../api/empleados.ts";
 import { isUsuariosFetchError, type UsuarioListItem } from "../api/usuarios.ts";
 import {
   createActaAdministrativa,
+  getActaRagStatus,
   getActasPage,
+  reindexActaRag,
+  type ActaRagStatusResponse,
   type ActaListItem,
 } from "../api/actas.ts";
 import {
@@ -521,6 +524,74 @@ function renderActasFilters(filters: ActasFilterState, loading: boolean, filtere
     </section>`;
 }
 
+function formatRagDate(value: string | undefined): string {
+  if (!value) return "Sin ingesta";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function shortHash(value: string): string {
+  return value ? value.slice(0, 10) : "sin hash";
+}
+
+function renderRagAdminPanel(
+  status: ActaRagStatusResponse | null,
+  loading: boolean,
+  reindexing: boolean,
+): string {
+  const ok = status?.status === "ok" && status.fresh;
+  const tone = ok
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : status
+      ? "border-amber-200 bg-amber-50 text-amber-800"
+      : "border-slate-200 bg-slate-50 text-slate-700";
+  const label = loading ? "Revisando" : ok ? "RAG listo" : status ? "Revisar RAG" : "Sin estado";
+  const sources = status?.manifest?.sources ?? [];
+  const sourceRows = sources.length
+    ? sources
+        .map(
+          (src) => `
+            <li class="flex min-w-0 flex-col gap-1 rounded-[10px] border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <span class="min-w-0 truncate text-sm font-semibold text-slate-800">${escapeHtml(src.document_name)}</span>
+              <span class="shrink-0 text-xs text-slate-500">${escapeHtml(src.source)} · ${escapeHtml(String(src.chunks))} chunks · ${escapeHtml(shortHash(src.sha256))}</span>
+            </li>`,
+        )
+        .join("")
+    : `<li class="rounded-[10px] border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500">Sin fuentes reportadas.</li>`;
+  const errors = status?.errors?.length
+    ? `<p class="mt-3 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">${escapeHtml(status.errors.join(" "))}</p>`
+    : "";
+
+  return `
+    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-busy="${loading || reindexing ? "true" : "false"}">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Estado RAG legal</h2>
+            <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}">${escapeHtml(label)}</span>
+          </div>
+          <div class="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+            <p><span class="font-semibold text-slate-800">${escapeHtml(String(status?.chunks_indexed ?? 0))}</span> chunks</p>
+            <p>Ingesta: <span class="font-semibold text-slate-800">${escapeHtml(formatRagDate(status?.manifest?.ingested_at))}</span></p>
+            <p>Embeddings: <span class="font-semibold text-slate-800">${escapeHtml(status?.ollama?.embedding_model ?? "n/a")}</span></p>
+          </div>
+          <ul class="mt-3 grid gap-2">${sourceRows}</ul>
+          ${errors}
+        </div>
+        <div class="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+          <button type="button" data-rh-actas-rag-refresh class="${RH_SOLICITUDES_BTN_SECONDARY}" ${loading || reindexing ? "disabled" : ""}>Actualizar estado</button>
+          <button type="button" data-rh-actas-rag-reindex class="${RH_SOLICITUDES_BTN_PRIMARY}" ${loading || reindexing ? "disabled" : ""}>
+            ${reindexing ? "Reindexando..." : "Reindexar fuentes"}
+          </button>
+        </div>
+      </div>
+    </section>`;
+}
+
 function renderActasEmptyState(filters: ActasFilterState): string {
   const showClear = hasActiveFilters(filters);
   return `
@@ -701,6 +772,9 @@ function renderActasMain(
   table: ActasTableData,
   allRows: readonly ActaTablaFila[],
   loading: boolean,
+  ragStatus: ActaRagStatusResponse | null,
+  ragLoading: boolean,
+  ragReindexing: boolean,
 ): string {
   const listadoHeading = loading
     ? ""
@@ -741,6 +815,7 @@ function renderActasMain(
           </div>
         </div>
       </section>
+      <div class="shrink-0">${renderRagAdminPanel(ragStatus, ragLoading, ragReindexing)}</div>
       <div class="shrink-0">${renderStatsCards(allRows, filters, loading)}</div>
       <div class="shrink-0">${renderActasFilters(filters, loading, filteredTotal)}</div>
       <div class="flex min-h-0 flex-1 flex-col">
@@ -768,6 +843,9 @@ export function mountActas(container: HTMLElement): void {
   const state: ActasFilterState = { ...DEFAULT_FILTERS };
   const allRows: ActaTablaFila[] = [];
   let isLoading = true;
+  let ragStatus: ActaRagStatusResponse | null = null;
+  let ragLoading = true;
+  let ragReindexing = false;
   const modalEmpleadoOptions: NuevaActaEmpleadoOption[] = [];
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let empleadosModalLoadingPromise: Promise<void> | null = null;
@@ -819,7 +897,7 @@ export function mountActas(container: HTMLElement): void {
     activeNav: "actas",
     mainClass: actasMainClass,
     mainHtml: `<div id="rh-actas-page" class="${actasPageShellClass}">
-      <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable, allRows, isLoading)}</div>
+      <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable, allRows, isLoading, ragStatus, ragLoading, ragReindexing)}</div>
       <div id="rh-actas-nueva-modal-host" class="shrink-0"></div>
     </div>`,
   });
@@ -924,7 +1002,17 @@ export function mountActas(container: HTMLElement): void {
       };
     }
     const table = tableFromState();
-    if (inner) inner.innerHTML = renderActasMain(state, table, allRows, isLoading);
+    if (inner) {
+      inner.innerHTML = renderActasMain(
+        state,
+        table,
+        allRows,
+        isLoading,
+        ragStatus,
+        ragLoading,
+        ragReindexing,
+      );
+    }
     if (restoreSearch) {
       const el = container.querySelector<HTMLInputElement>("[data-rh-actas-empleado-busqueda]");
       if (el) {
@@ -935,6 +1023,38 @@ export function mountActas(container: HTMLElement): void {
           /* noop */
         }
       }
+    }
+  }
+
+  async function loadRagStatus(): Promise<void> {
+    ragLoading = true;
+    paint();
+    try {
+      ragStatus = await getActaRagStatus();
+    } catch (error: unknown) {
+      ragStatus = null;
+      showEmpleadosToast(container, "No se pudo consultar el estado del RAG legal.", "error");
+    } finally {
+      ragLoading = false;
+      paint();
+    }
+  }
+
+  async function confirmAndReindexRag(): Promise<void> {
+    const confirmed = window.confirm(
+      "Esto reconstruirá el índice RAG legal desde LFT.pdf y el Reglamento Interior. Puede tardar varios minutos. ¿Continuar?",
+    );
+    if (!confirmed) return;
+    ragReindexing = true;
+    paint();
+    try {
+      ragStatus = await reindexActaRag();
+      showEmpleadosToast(container, "Índice RAG legal actualizado.", "success");
+    } catch (error: unknown) {
+      showEmpleadosToast(container, "No se pudo reindexar el RAG legal.", "error");
+    } finally {
+      ragReindexing = false;
+      paint();
     }
   }
 
@@ -1039,6 +1159,16 @@ export function mountActas(container: HTMLElement): void {
       return;
     }
 
+    if (target.closest("[data-rh-actas-rag-refresh]")) {
+      void loadRagStatus();
+      return;
+    }
+
+    if (target.closest("[data-rh-actas-rag-reindex]")) {
+      void confirmAndReindexRag();
+      return;
+    }
+
     const pageBtn = target.closest<HTMLButtonElement>("[data-rh-actas-page]");
     if (pageBtn) {
       const raw = pageBtn.getAttribute("data-rh-actas-page");
@@ -1072,4 +1202,6 @@ export function mountActas(container: HTMLElement): void {
         : "No se pudieron cargar las actas guardadas.";
     showEmpleadosToast(container, msg, "error");
   });
+
+  void loadRagStatus();
 }

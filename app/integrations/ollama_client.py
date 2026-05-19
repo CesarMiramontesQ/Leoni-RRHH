@@ -3,7 +3,7 @@
 Integración Ollama LLM — Plataforma RH Leoni Cable.
 
 Propósito: generación automática de borradores de actas administrativas
-usando el modelo LLM local (llama3 por defecto).
+usando el modelo LLM local configurado en OLLAMA_MODEL.
 
 Principios de diseño:
   - NON-BLOCKING: Ollama NUNCA bloquea decisiones de negocio

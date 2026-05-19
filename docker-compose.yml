@@ -41,7 +41,7 @@ services:
       BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
       APP_ENV: development
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.3}
       OLLAMA_HTTP_TIMEOUT: ${OLLAMA_HTTP_TIMEOUT:-180}

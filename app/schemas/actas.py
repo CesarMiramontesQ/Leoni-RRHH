@@ -4,9 +4,9 @@ Schemas Pydantic v2 para el dominio actas administrativas.
 """
 
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ActaGenerarRequest(BaseModel):
@@ -119,3 +119,16 @@ class ActasDashboardMetricasResponse(BaseModel):
 
 class ActaMejoraIaResponse(BaseModel):
     texto_mejorado: str
+
+
+class ActaRagStatusResponse(BaseModel):
+    status: str
+    fresh: bool
+    chroma_path: str
+    collection: str
+    chunks_indexed: int
+    ollama: dict[str, Any]
+    retrieval: dict[str, Any]
+    expected_sources: list[str]
+    manifest: dict[str, Any] | None = None
+    errors: list[str] = Field(default_factory=list)

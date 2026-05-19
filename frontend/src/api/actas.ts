@@ -90,6 +90,38 @@ export type ActaImproveWithIaResponse = {
   texto_mejorado: string;
 };
 
+export type ActaRagStatusResponse = {
+  status: "ok" | "attention" | string;
+  fresh: boolean;
+  chroma_path: string;
+  collection: string;
+  chunks_indexed: number;
+  ollama: {
+    url: string;
+    available: boolean;
+    embedding_model: string;
+    embedding_available: boolean;
+  };
+  retrieval: {
+    top_k: number;
+    score_threshold: number;
+    balanced_documents: string[];
+  };
+  expected_sources: string[];
+  manifest: {
+    ingested_at?: string;
+    total_chunks?: number;
+    sources?: Array<{
+      source: string;
+      document_name: string;
+      document_type: string;
+      chunks: number;
+      sha256: string;
+    }>;
+  } | null;
+  errors: string[];
+};
+
 export type ActasFetchError = {
   status: number;
   detail: string;
@@ -161,6 +193,21 @@ export async function improveActaWithIa(
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as ActaImproveWithIaResponse;
+}
+
+export async function getActaRagStatus(signal?: AbortSignal): Promise<ActaRagStatusResponse> {
+  const res = await fetchWithAuth("/api/v1/actas/rag/status", { signal });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaRagStatusResponse;
+}
+
+export async function reindexActaRag(signal?: AbortSignal): Promise<ActaRagStatusResponse> {
+  const res = await fetchWithAuth("/api/v1/actas/rag/reindex", {
+    method: "POST",
+    signal,
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as ActaRagStatusResponse;
 }
 
 export async function updateActaAdministrativa(

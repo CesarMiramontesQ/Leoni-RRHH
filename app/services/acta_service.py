@@ -81,6 +81,11 @@ _REASONING_LEAK_START_RE = re.compile(
     r")",
 )
 
+_ARTICLE_CITATION_RE = re.compile(
+    r"\b(?:art[íi]?culo|art\.?)\s*(\d{1,4})(?:\s*(bis|ter|qu[aá]ter))?\b",
+    re.IGNORECASE,
+)
+
 _ACTA_START_MARKER = "<<<ACTA>>>"
 _ACTA_END_MARKER = "<<<FIN>>>"
 
@@ -434,36 +439,153 @@ def _recomendacion_legal_ia_es_basura_meta(text: str) -> bool:
     return True
 
 
+def _extract_article_citations(text: str) -> set[str]:
+    citations: set[str] = set()
+    for match in _ARTICLE_CITATION_RE.finditer(text or ""):
+        suffix = (match.group(2) or "").lower()
+        suffix = suffix.replace("á", "a")
+        citations.add(f"{match.group(1)} {suffix}".strip())
+    return citations
+
+
+def _missing_article_citations(text: str, legal_context: str) -> set[str]:
+    cited = _extract_article_citations(text)
+    if not cited:
+        return set()
+    available = _extract_article_citations(legal_context)
+    return cited - available
+
+
+def _rag_sources_present(legal_context: str) -> set[str]:
+    sources: set[str] = set()
+    if "Ley Federal del Trabajo" in legal_context:
+        sources.add("Ley Federal del Trabajo")
+    if "Reglamento Interior de Trabajo" in legal_context:
+        sources.add("Reglamento Interior de Trabajo")
+    return sources
+
+
+def _missing_required_sources(text: str, legal_context: str) -> set[str]:
+    required = _rag_sources_present(legal_context)
+    if len(required) < 2:
+        return set()
+    return {source for source in required if source not in (text or "")}
+
+
+def _validate_recomendacion_against_rag(text: str, contexto: dict) -> None:
+    legal_context = str(contexto.get("documentos_legales_referencia") or "")
+    missing = _missing_article_citations(text, legal_context)
+    if missing:
+        ordered = ", ".join(sorted(missing, key=lambda x: (len(x), x)))
+        raise ValueError(
+            "El modelo citó artículos no presentes literalmente en el contexto RAG: "
+            f"{ordered}"
+        )
+    missing_sources = _missing_required_sources(text, legal_context)
+    if missing_sources:
+        ordered = ", ".join(sorted(missing_sources))
+        raise ValueError(
+            "El modelo omitió fuentes legales presentes en el contexto RAG: "
+            f"{ordered}"
+        )
+
+
+def _group_legal_context_by_source(chunks: list[str]) -> str:
+    lft = [c for c in chunks if c.startswith("[Ley Federal del Trabajo")]
+    reglamento = [c for c in chunks if c.startswith("[Reglamento Interior de Trabajo")]
+    otros = [c for c in chunks if c not in lft and c not in reglamento]
+    blocks: list[str] = []
+    if lft:
+        blocks.append("=== LEY FEDERAL DEL TRABAJO (LFT) ===\n" + "\n\n".join(lft))
+    if reglamento:
+        blocks.append("=== REGLAMENTO INTERIOR DE TRABAJO ===\n" + "\n\n".join(reglamento))
+    if otros:
+        blocks.append("=== OTROS DOCUMENTOS LEGALES ===\n" + "\n\n".join(otros))
+    return "\n\n".join(blocks)
+
+
 async def _mejorar_redaccion_acta(contexto: dict) -> str:
     ctx_str = json.dumps(contexto, ensure_ascii=False, indent=2)
-    prompt = USER_RECOMENDACION_LEGAL_IA_TEMPLATE.format(detalle_acta=ctx_str)
+    base_prompt = USER_RECOMENDACION_LEGAL_IA_TEMPLATE.format(detalle_acta=ctx_str)
     timeout = httpx.Timeout(
         timeout=settings.OLLAMA_HTTP_TIMEOUT,
         connect=15.0,
     )
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            texto_raw = await _ollama_completar_redaccion_acta(
-                client,
-                user_prompt=prompt,
-                system_prompt=SYSTEM_RECOMENDACION_LEGAL_IA,
-                temperature=settings.OLLAMA_ACTA_TEMPERATURE,
-            )
-            texto_raw = _strip_model_think_artifacts(texto_raw)
-            texto_raw = _trim_preface_hasta_resumen_hechos(texto_raw)
-            if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_recomendacion_signals(
-                texto_raw
-            ):
-                raise ValueError(
-                    "El modelo devolvio razonamiento visible en lugar de la recomendacion legal"
+            last_missing: set[str] = set()
+            last_missing_sources: set[str] = set()
+            for attempt in range(2):
+                prompt = base_prompt
+                if attempt > 0 and (last_missing or last_missing_sources):
+                    prompt += (
+                        "\n\nCORRECCIÓN OBLIGATORIA:\n"
+                        "Regenera la salida cumpliendo estas reglas de validación: "
+                    )
+                    if last_missing:
+                        prompt += (
+                            "elimina o sustituye los artículos que no aparecen literalmente "
+                            "en `documentos_legales_referencia`: "
+                            f"{', '.join(sorted(last_missing))}. "
+                        )
+                    if last_missing_sources:
+                        prompt += (
+                            "incluye fundamentos y artículos aplicables de estas fuentes que "
+                            "sí aparecen en el contexto RAG: "
+                            f"{', '.join(sorted(last_missing_sources))}. "
+                        )
+                    prompt += "No inventes numeración ni omitas fuentes recuperadas."
+
+                texto_raw = await _ollama_completar_redaccion_acta(
+                    client,
+                    user_prompt=prompt,
+                    system_prompt=SYSTEM_RECOMENDACION_LEGAL_IA,
+                    temperature=settings.OLLAMA_ACTA_TEMPERATURE,
                 )
-            if _recomendacion_legal_ia_es_basura_meta(texto_raw):
-                raise ValueError(
-                    "El modelo devolvio meta-instrucciones en lugar del escrito legal estructurado"
+                texto_raw = _strip_model_think_artifacts(texto_raw)
+                texto_raw = _trim_preface_hasta_resumen_hechos(texto_raw)
+                if _looks_like_visible_reasoning_dump(texto_raw) and not _response_has_spanish_recomendacion_signals(
+                    texto_raw
+                ):
+                    raise ValueError(
+                        "El modelo devolvio razonamiento visible en lugar de la recomendacion legal"
+                    )
+                if _recomendacion_legal_ia_es_basura_meta(texto_raw):
+                    raise ValueError(
+                        "El modelo devolvio meta-instrucciones en lugar del escrito legal estructurado"
+                    )
+                if not texto_raw.strip():
+                    raise ValueError("Respuesta vacia de Ollama")
+
+                last_missing = _missing_article_citations(
+                    texto_raw,
+                    str(contexto.get("documentos_legales_referencia") or ""),
                 )
-            if not texto_raw.strip():
-                raise ValueError("Respuesta vacia de Ollama")
-            return texto_raw.strip()
+                if last_missing:
+                    if attempt == 0:
+                        continue
+                    ordered = ", ".join(sorted(last_missing, key=lambda x: (len(x), x)))
+                    raise ValueError(
+                        "El modelo citó artículos no presentes literalmente en el contexto RAG: "
+                        f"{ordered}"
+                    )
+
+                last_missing_sources = _missing_required_sources(
+                    texto_raw,
+                    str(contexto.get("documentos_legales_referencia") or ""),
+                )
+                if last_missing_sources:
+                    if attempt == 0:
+                        continue
+                    ordered = ", ".join(sorted(last_missing_sources))
+                    raise ValueError(
+                        "El modelo omitió fuentes legales presentes en el contexto RAG: "
+                        f"{ordered}"
+                    )
+
+                _validate_recomendacion_against_rag(texto_raw, contexto)
+                return texto_raw.strip()
+            raise ValueError("No fue posible validar las citas legales contra el RAG")
     except Exception as exc:
         logger.warning(
             "No se pudo mejorar la redacción del acta (asistente legal): %s",
@@ -702,7 +824,9 @@ class ActaService:
             "borrador_contenido_ia": borrador_ia or None,
             "borrador_contenido_final": borrador_final or None,
         }
-        # RAG legal: recupera solo fragmentos relevantes; si falla, conserva fallback completo.
+        # RAG legal: recupera fragmentos relevantes de LFT y Reglamento.
+        # Si el índice no está listo o quedó desactualizado, se detiene la generación
+        # para evitar recomendaciones legales con fuentes no trazables.
         try:
             rag_query = (
                 f"tipo_falta: {acta.tipo_falta or ''}\n"
@@ -718,14 +842,24 @@ class ActaService:
             )
             documentos_texto = await legal_rag_service.retrieve_relevant_context(rag_query)
         except Exception as exc:
-            logger.warning("RAG legal no disponible, usando fallback de documentos completos: %s", exc)
-            documentos_texto = _load_legal_reference_documents()
+            logger.warning("RAG legal no disponible o desactualizado: %s", exc)
+            raise ServiceUnavailableError(
+                detail=(
+                    "El índice legal RAG no está disponible o no coincide con las "
+                    "fuentes actuales. Reindexa los documentos legales antes de generar IA."
+                )
+            ) from exc
 
         if not documentos_texto:
-            documentos_texto = _load_legal_reference_documents()
+            raise ServiceUnavailableError(
+                detail=(
+                    "El RAG legal no encontró fragmentos suficientes en la LFT ni en el "
+                    "Reglamento Interior para generar una recomendación trazable."
+                )
+            )
 
         if documentos_texto:
-            merged_refs = "\n\n".join(documentos_texto)
+            merged_refs = _group_legal_context_by_source(documentos_texto)
             lim_refs = settings.LEGAL_REFERENCE_PROMPT_MAX_CHARS
             if len(merged_refs) > lim_refs:
                 merged_refs = (

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Ollama LLM
     OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3"
+    OLLAMA_MODEL: str = "gemma4:e4b"
     OLLAMA_TEMPERATURE: float = 0.3
     # Temperatura dedicada a redacción formal de actas (consistencia, tono legal).
     OLLAMA_ACTA_TEMPERATURE: float = 0.2
@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     LEGAL_RAG_CHUNK_OVERLAP: int = 200
     # Fragmentos recuperados por consulta (subir si el prompt legal queda “vacío”).
     LEGAL_RAG_TOP_K: int = 12
+    # Score mínimo de relevancia Chroma/LangChain (0-1 aprox.). Si ningún chunk
+    # supera este umbral, se considera que no hay cobertura legal suficiente.
+    LEGAL_RAG_SCORE_THRESHOLD: float = 0.45
     # Caracteres por fragmento enviado al LLM tras similarity_search (antes 750 fijo;
     # debe ser >= LEGAL_RAG_CHUNK_SIZE para no truncar el chunk íntegro).
     LEGAL_RAG_SNIPPET_MAX_CHARS: int = 1600

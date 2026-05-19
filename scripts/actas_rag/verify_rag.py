@@ -39,6 +39,7 @@ async def _run(*, queries: tuple[str, ...]) -> int:
     print(f"Chunks indexados: {n}")
     print(
         f"Config: TOP_K={settings.LEGAL_RAG_TOP_K}, "
+        f"SCORE_THRESHOLD={settings.LEGAL_RAG_SCORE_THRESHOLD}, "
         f"CHUNK_SIZE={settings.LEGAL_RAG_CHUNK_SIZE}, "
         f"SNIPPET_MAX={settings.LEGAL_RAG_SNIPPET_MAX_CHARS}, "
         f"PROMPT_LEGAL_MAX={settings.LEGAL_REFERENCE_PROMPT_MAX_CHARS}\n"

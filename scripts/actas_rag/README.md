@@ -10,10 +10,10 @@ Indexación y borrador de actas administrativas laborales usando documentos en `
 
 ```bash
 ollama pull nomic-embed-text
-ollama pull llama3.1:8b
+ollama pull gemma4:e4b
 ```
 
-En máquina con GPU y más RAM puedes usar un modelo mayor, p. ej. `llama3.3:70b`, y configurar `OLLAMA_MODEL` en el entorno del contenedor backend.
+En máquina con GPU y más RAM puedes usar otro modelo compatible y configurar `OLLAMA_MODEL` en el entorno del contenedor backend.
 
 3. Coloca los PDF (y opcionalmente `.txt`, `.md`, `.docx`) en `reference/legal-documents/` (por ejemplo Ley Federal del Trabajo y Reglamento Interior).
 
@@ -24,7 +24,7 @@ El `docker-compose.yml` ya pasa `OLLAMA_URL` apuntando a `host.docker.internal:1
 Puedes sobreescribir modelo y temperatura:
 
 ```bash
-export OLLAMA_MODEL=llama3.1:8b
+export OLLAMA_MODEL=gemma4:e4b
 export OLLAMA_EMBED_MODEL=nomic-embed-text
 ```
 
