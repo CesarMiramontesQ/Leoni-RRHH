@@ -22,6 +22,9 @@ _QUERIES_DEFAULT = (
     "ausencia injustificada falta trabajo",
     "suspensión relaciones de trabajo artículo",
     "medidas disciplinarias despido",
+    "reglamento interior jornada alimentos ARTICULO",
+    "reglamento interior faltas asistencia injustificada",
+    "reglamento interior transitorios vigor",
 )
 
 
