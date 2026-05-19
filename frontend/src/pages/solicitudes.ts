@@ -28,6 +28,7 @@ import {
   buildDefaultSolicitudesPageUiConfig,
   getSolicitudesPageRoleFromSession,
 } from "../solicitudes/solicitudesPageFilterConfig.ts";
+import { downloadSolicitudesExcel } from "../solicitudes/exportSolicitudesExcel.ts";
 import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
 import type {
   RhSolicitudEstadoCodigo,
@@ -385,6 +386,32 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     if (selectedState.page < 1) selectedState.page = 1;
   }
 
+  function exportarSolicitudesListado(): void {
+    if (pageUi.variant === "empleado") {
+      const filtered = filterRhSolicitudRows(allRows, state);
+      downloadSolicitudesExcel({ layout: "empleado", rows: filtered });
+      return;
+    }
+    if (isSplitGestorRole) {
+      const personalFiltered = filterRhSolicitudRows(personalRows, personalState);
+      const equipoFiltered = filterRhSolicitudRows(teamRows, teamState);
+      const rows = [...personalFiltered, ...equipoFiltered];
+      const seccionPorFila = [
+        ...personalFiltered.map(() => "Mis solicitudes"),
+        ...equipoFiltered.map(() => "Solicitudes del equipo"),
+      ];
+      downloadSolicitudesExcel({
+        layout: "gestor",
+        rows,
+        includeSeccionColumn: true,
+        seccionPorFila,
+      });
+      return;
+    }
+    const filtered = filterRhSolicitudRows(allRows, state);
+    downloadSolicitudesExcel({ layout: "gestor", rows: filtered });
+  }
+
   function paint(): void {
     clampPage("main");
     if (isSplitGestorRole) {
@@ -628,6 +655,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         return;
       }
       if (t.closest("#rh-sol-export")) {
+        exportarSolicitudesListado();
         return;
       }
       if (t.closest("[data-rh-sol-clear-filters]")) {
