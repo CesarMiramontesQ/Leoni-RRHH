@@ -1,4 +1,5 @@
 import {
+  fetchAllEmpleadosForExport,
   getEmpleadosCatalogoFiltros,
   getEmpleadosPage,
   getEmpleadosResumen,
@@ -21,6 +22,8 @@ import {
   getRolFromAccessToken,
 } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
+import { downloadEmpleadosExcel } from "../empleados/exportEmpleadosExcel.ts";
+import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { antiguedadAniosMeses, formatFechaIngreso } from "../utils/vista360Domain.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
@@ -36,6 +39,7 @@ import {
   RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_SOLICITUDES_BTN_SECONDARY,
   htmlAccessDenied,
 } from "../ui/uiTokens.ts";
 
@@ -66,7 +70,21 @@ function iconSearchInput(): string {
   </span>`;
 }
 
-function renderEmpleadosHeroRh(): string {
+function renderEmpleadosHeroRh(showExportButton: boolean): string {
+  const exportBtn = showExportButton
+    ? `<div class="rh-sol-header__toolbar flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-nowrap md:items-center md:justify-end">
+        <button
+          type="button"
+          id="rh-empleados-export"
+          class="${RH_SOLICITUDES_BTN_SECONDARY} rh-sol-header__btn-secondary w-full sm:w-auto sm:shrink-0"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4 shrink-0 text-slate-600" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Exportar Listado
+        </button>
+      </div>`
+    : "";
   return `
     <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6" aria-labelledby="rh-empleados-hero-title">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-8">
@@ -74,6 +92,7 @@ function renderEmpleadosHeroRh(): string {
           <h1 id="rh-empleados-hero-title" class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Empleados</h1>
           <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y consulta de información del personal.</p>
         </div>
+        ${exportBtn}
       </div>
     </section>`;
 }
@@ -1254,6 +1273,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   let catalogo: CatalogoFiltros = { areas: [], puestos: [] };
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let latestLoadRequestId = 0;
+  let exportandoListado = false;
 
   mountAppShell(container, {
     pageTitle: "Empleados",
@@ -1262,7 +1282,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     mainHtml: isRh
       ? `<div id="rh-empleados-page" class="${empleadosPageShellClass}">
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderEmpleadosHeroRh()}
+        ${renderEmpleadosHeroRh(isRh)}
         <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
         <div id="empleados-panel">${renderTableLoadingRh()}</div>
       </div>
@@ -1270,7 +1290,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       : supervisorRhShell
         ? `<div class="${empleadosPageShellClass}">
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderEmpleadosHeroRh()}
+        ${renderEmpleadosHeroRh(isRh)}
         <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
         <div id="empleados-panel">${renderTableLoadingRh()}</div>
       </div>
@@ -1346,6 +1366,37 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
 
   const kpisEl = (): HTMLElement | null => container.querySelector("#empleados-kpis");
   const panelEl = (): HTMLElement | null => container.querySelector("#empleados-panel");
+
+  function empleadosExportListParams(): Omit<EmpleadosListParams, "page" | "page_size"> {
+    const { page: _p, page_size: _ps, ...rest } = buildEmpleadosListParams(state, isRh, kpiGestionEquipo);
+    return rest;
+  }
+
+  async function exportarEmpleadosListado(): Promise<void> {
+    if (!isRh || getRolFromAccessToken() !== "rh") return;
+    if (exportandoListado) return;
+    exportandoListado = true;
+    const exportBtn = container.querySelector<HTMLButtonElement>("#rh-empleados-export");
+    if (exportBtn) exportBtn.disabled = true;
+    try {
+      const rows = await fetchAllEmpleadosForExport(empleadosExportListParams());
+      downloadEmpleadosExcel({ rows });
+    } catch (e: unknown) {
+      if (isUsuariosFetchError(e) && e.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
+      const msg = isUsuariosFetchError(e) ? e.detail : "No se pudo exportar el listado de empleados.";
+      showEmpleadosToast(container, msg, "error");
+    } finally {
+      exportandoListado = false;
+      if (exportBtn) exportBtn.disabled = false;
+    }
+  }
 
   function setSearchLoading(loading: boolean): void {
     const spinner = container.querySelector<HTMLElement>("[data-emp-search-loading]");
@@ -1465,6 +1516,10 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     "click",
     (e) => {
       const t = e.target as HTMLElement;
+      if (t.closest("#rh-empleados-export")) {
+        void exportarEmpleadosListado();
+        return;
+      }
       const kpiBtn = t.closest<HTMLButtonElement>("[data-emp-kpi]");
       if (kpiBtn && kpiGestionEquipo) {
         const kind = kpiBtn.getAttribute("data-emp-kpi");
