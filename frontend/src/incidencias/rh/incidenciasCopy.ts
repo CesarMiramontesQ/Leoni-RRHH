@@ -8,7 +8,7 @@ export const INC_COPY = {
   listadoSubtitulo: (total: number) =>
     total === 1 ? "1 incidencia encontrada" : `${total} incidencias encontradas`,
   listadoDetalleToggle: "Mostrar u ocultar listado completo",
-  exportar: "Exportar incidencias",
+  exportar: "Exportar listado de incidencias",
   nueva: "Nueva incidencia",
   filtrosAvanzadosAria: "Filtros avanzados",
   filtrosToggleMobile: "Filtros de búsqueda",

@@ -278,6 +278,24 @@ export async function fetchIncidenciasListPage(
   return (await res.json()) as IncidenciasListPageApi;
 }
 
+/** Todas las filas del listado con los filtros indicados (pagina en bloques de 10). */
+export async function fetchAllIncidenciasForExport(
+  filters: RhIncidenciaListFilters,
+): Promise<RhIncidenciaTablaFila[]> {
+  const out: RhIncidenciaTablaFila[] = [];
+  let page = 1;
+  const pageSize = 10;
+  while (true) {
+    const data = await fetchIncidenciasListPage(filters, page, pageSize);
+    for (const it of data.items) {
+      out.push(incidenciaApiItemToTablaFila(it));
+    }
+    if (data.items.length === 0 || page * pageSize >= data.total) break;
+    page += 1;
+  }
+  return out;
+}
+
 /**
  * Acumula filas de incidencias para consumidores legacy (p. ej. dashboard líder).
  * Pagina internamente en bloques de 10 hasta cubrir `limit` o agotar resultados.
