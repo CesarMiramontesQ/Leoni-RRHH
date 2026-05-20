@@ -1,3 +1,4 @@
+import { areaLabelFromFilterId } from "../../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
 import type { RhSolicitudFilterState } from "../../solicitudes/rh/types.ts";
 import { emptyRhIncidenciaListFilters, type RhIncidenciaListFilters } from "./types.ts";
 
@@ -46,16 +47,17 @@ export function readRhIncidenciaFiltersFromDom(
   return next;
 }
 
-/** Criterios de `#/metricas` (filtros globales de solicitudes → estadísticas de incidencias). */
+/** Criterios de `#/metricas` (filtros globales → estadísticas de incidencias). */
 export function incidenciasFiltersFromSolicitudesMetricas(
   sol: RhSolicitudFilterState,
 ): RhIncidenciaListFilters {
+  const areaLabel = areaLabelFromFilterId(sol.area_id.trim()) || sol.area_id.trim();
   return {
     ...emptyRhIncidenciaListFilters(),
-    tipo: sol.tipo,
-    area: sol.area_id.trim(),
-    empleado_id: sol.empleado_id.trim(),
-    nombre: sol.empleado_busqueda.trim(),
+    no_empleado: sol.no_empleado.trim(),
+    area: areaLabel,
+    fecha_inicio: sol.fecha_inicio.trim(),
+    fecha_fin: sol.fecha_fin.trim(),
   };
 }
 

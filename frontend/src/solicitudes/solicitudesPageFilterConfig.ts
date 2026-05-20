@@ -49,6 +49,8 @@ export type SolicitudesPageUiConfig = {
   showNewRequestButton: boolean;
   /** Exportar + nueva solicitud en nombre de terceros (compat: ambos gestor). */
   showGestorToolbar: boolean;
+  /** Barra de filtros propia de `#/metricas` (empleado #, área, fechas, aplicar). */
+  metricasFilterBar?: boolean;
 };
 
 /** Alcance de datos para mock / futura API. */
@@ -89,7 +91,7 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
   };
 }
 
-/** UI de `#/metricas`: filtros RH + gráficas analíticas (sin tabla ni toolbar de solicitudes). */
+/** UI de `#/metricas`: filtros globales + gráficas analíticas (sin tabla ni toolbar de solicitudes). */
 export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
   return {
     ...buildDefaultSolicitudesPageUiConfig("rh"),
@@ -98,6 +100,8 @@ export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
     showExportButton: false,
     showNewRequestButton: false,
     showGestorToolbar: false,
+    metricasFilterBar: true,
+    visibleFilterKeys: [],
   };
 }
 

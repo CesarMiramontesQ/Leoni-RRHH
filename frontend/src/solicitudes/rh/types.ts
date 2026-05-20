@@ -88,6 +88,11 @@ export type RhSolicitudFilterState = {
   empleado_id: string;
   /** Búsqueda libre de empleado (nombre, id, folio). UI: roles `rh`, `supervisor`, `gerente`; el resto no la escriben. */
   empleado_busqueda: string;
+  /** Número de empleado (página Métricas). */
+  no_empleado: string;
+  /** Rango ISO `YYYY-MM-DD` (página Métricas; filtra por `fecha_solicitud`). */
+  fecha_inicio: string;
+  fecha_fin: string;
   estado: "" | RhSolicitudEstadoCodigo;
   page: number;
   page_size: number;
