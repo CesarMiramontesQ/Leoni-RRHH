@@ -39,6 +39,8 @@ export type SolicitudesPageUiConfig = {
   visibleFilterKeys: readonly RequestFilterKey[];
   /** KPIs agregados del alcance (gestores). */
   showStatsCards: boolean;
+  /** Bloque analítico de vista previa (solo RH vista global). */
+  showPersonasDiaChart: boolean;
   /** KPIs personales del colaborador. */
   showEmployeePersonalStats: boolean;
   /** Botón exportar listado (solo RH en toolbar gestor). */
@@ -79,6 +81,7 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
     role,
     visibleFilterKeys: resolveVisibleFilterKeys(role),
     showStatsCards: isGestor,
+    showPersonasDiaChart: role === "rh",
     showEmployeePersonalStats: variant === "empleado",
     showExportButton: isGestor,
     showNewRequestButton: true,

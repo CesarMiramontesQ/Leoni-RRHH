@@ -40,7 +40,13 @@ import {
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import type { RhSolicitudTablaFila } from "../solicitudes/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+
+/** Mismo ancho y padding X que Solicitudes, Actas e Incidencias sobre `.rh-dashboard-page`. */
+function wrapDashboardPageContent(innerHtml: string): string {
+  return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">${innerHtml}</div>`;
+}
 
 function renderError(message: string): string {
   return `
@@ -157,8 +163,9 @@ async function loadRhOperationalDashboard(container: HTMLElement): Promise<void>
   const now = new Date();
   const calYear = lower?.calendar.initialYear ?? now.getFullYear();
   const calMonth = lower?.calendar.initialMonthIndex ?? now.getMonth();
-  root.innerHTML =
-    banner + renderRhOperationalDashboardGrid(views) + renderRhLowerSection(calYear, calMonth, lower);
+  root.innerHTML = wrapDashboardPageContent(
+    banner + renderRhOperationalDashboardGrid(views) + renderRhLowerSection(calYear, calMonth, lower),
+  );
   bindRhCalendarNavigation(container, lower, calYear, calMonth);
 }
 
@@ -168,7 +175,7 @@ function mountRhOperationalDashboard(container: HTMLElement): void {
     activeNav: "dashboard",
     /** Sin padding-top en `<main>` para que no se vea `bg-surface` gris entre navbar y el degradado del dashboard. */
     mainClass: "pt-0 pb-10",
-    mainHtml: `<div id="rh-dashboard-root" class="rh-dashboard-page -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
+    mainHtml: `<div id="rh-dashboard-root" class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10">${wrapDashboardPageContent(`${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}`)}</div>`,
   });
 
   void loadRhOperationalDashboard(container);
@@ -206,7 +213,7 @@ function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
     mainClass: "py-0",
-    mainHtml: `<div class="rh-dashboard-page flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div></div>`,
+    mainHtml: `<div class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10"><div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div></div>`,
   });
 
   void loadEmpleadoPersonalDashboard(container);
@@ -306,7 +313,7 @@ function mountLiderTeamDashboardShell(container: HTMLElement): void {
     activeNav: "dashboard",
     /** Misma envolvente visual que dashboard RH y empleado (degradado + ancho). */
     mainClass: "py-0",
-    mainHtml: `<div class="rh-dashboard-page flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div><div id="lider-solicitud-detalle-modal-host" class="shrink-0"></div></div>`,
+    mainHtml: `<div class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10"><div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div><div id="lider-solicitud-detalle-modal-host" class="shrink-0"></div></div>`,
   });
 
   setupLiderSolicitudDetalleModal(container);
@@ -317,7 +324,7 @@ function mountStandardDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
-    mainHtml: `
+    mainHtml: wrapDashboardPageContent(`
       <div id="dashboard-kpis-root">
         <div class="flex items-center gap-3 py-8 text-sm text-text-muted">
           <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -327,7 +334,7 @@ function mountStandardDashboard(container: HTMLElement): void {
           Cargando indicadores…
         </div>
       </div>
-    `,
+    `),
   });
 
   void loadDashboardKpis(container);

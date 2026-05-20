@@ -124,4 +124,6 @@ export type RhSolicitudesAdminViewModel = {
   profileResumen: EmpleadoSolicitudesProfileResumen | null;
   /** Configuración de UI por rol (filtros visibles, etc.). */
   ui: SolicitudesPageUiConfig;
+  /** Filas para gráfica personas-día (filtros aplicados, sin paginar). */
+  personasDiaChartRows: readonly RhSolicitudTablaFila[];
 };

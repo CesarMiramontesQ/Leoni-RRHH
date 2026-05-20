@@ -17,6 +17,7 @@ import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
+import { renderRhSolicitudesAnalyticsSection } from "./rhSolicitudesAnalyticsSection.ts";
 import { escapeHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
 import {
   FIELD_FOCUS,
@@ -1051,6 +1052,15 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       </section>
 
       <div id="rh-sol-stats" class="shrink-0">${renderStatCards(vm)}</div>
+      ${renderRhSolicitudesAnalyticsSection({
+        state:
+          vm.ui.showPersonasDiaChart ?
+            vm.tableStatus === "loading" ?
+              "loading"
+            : "ready"
+          : "hidden",
+        rows: vm.personasDiaChartRows,
+      })}
       <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
       <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderTable(vm, "main")}</div>
     </div>`;

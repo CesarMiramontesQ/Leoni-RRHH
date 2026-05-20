@@ -127,5 +127,6 @@ export function buildRhSolicitudesAdminViewModel(
     tableErrorMessage: undefined,
     profileResumen,
     ui,
+    personasDiaChartRows: ui.showPersonasDiaChart ? filtered : [],
   };
 }
