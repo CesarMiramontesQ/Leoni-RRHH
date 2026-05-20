@@ -1071,13 +1071,13 @@ export function renderRhMetricasView(vm: RhSolicitudesAdminViewModel): string {
       <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6">
         <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
           <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
-            <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Métricas</h1>
-            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Analítica y tendencias de solicitudes del personal</p>
+            <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Metricas area laborales</h1>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Analítica y tendencias del personal</p>
           </div>
         </div>
       </section>
-      ${renderRhSolicitudesAnalyticsSection({ state: analyticsState, rows: vm.personasDiaChartRows })}
       <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
+      ${renderRhSolicitudesAnalyticsSection({ state: analyticsState, rows: vm.personasDiaChartRows })}
     </div>`;
 }
 
