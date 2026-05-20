@@ -1,6 +1,7 @@
 import { hoDiasPorDiaLaboralTieneDatos } from "../../solicitudes/rh/aggregateHoDiasPorDiaLaboral.ts";
 import type { HoDiasPorDiaLaboralSerie } from "../../solicitudes/rh/aggregateHoDiasPorDiaLaboral.ts";
 import { computeSolicitudesAnalytics } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
+import type { SolicitudPorDepartamentoChart } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
@@ -11,10 +12,10 @@ import {
   renderLinePlaceholder,
   renderDiasSolicitadosPorMesChart,
   renderHoDiasPorDiaLaboralChart,
-  renderAreasVacHoRankingPlaceholder,
+  renderDeptVacHoLegendHtml,
+  renderSolicitudesPorDepartamentoChart,
   renderVacHoPlaceholder,
   RH_SOL_ANALYTICS_CHART_IDS,
-  RH_SOL_AREAS_BAR_ID,
   RH_SOL_ESTADO_DONUT_ID,
   RH_SOL_TENDENCIA_MES_ID,
   RH_SOL_TIPO_BAR_ID,
@@ -24,6 +25,10 @@ const CARD = `${RH_LISTADO_SURFACE} rh-sol-analytics-card flex min-h-0 flex-col 
 
 const KPI_MINI =
   "rounded-lg border border-[rgba(148,163,184,0.22)] bg-[color:var(--color-surface-container-low)] px-3 py-2";
+
+/** KPIs compactos para la card de departamentos (alineada con gráfica HO). */
+const KPI_DEPT_COMPACT =
+  "rounded-md border border-[rgba(148,163,184,0.22)] bg-[color:var(--color-surface-container-low)] px-2.5 py-1.5";
 
 function renderHoDiaLaboralKpis(serie: HoDiasPorDiaLaboralSerie): string {
   const dia = serie.dia_mas_solicitado ?? "—";
@@ -51,6 +56,40 @@ function renderHoDiaLaboralKpis(serie: HoDiasPorDiaLaboralSerie): string {
       <p class="mt-0.5 text-sm font-bold tabular-nums text-[color:var(--color-text-primary)]">${escapeHtml(pct)}</p>
     </div>
   </div>`;
+}
+
+function renderDeptVacHoKpis(chart: SolicitudPorDepartamentoChart): string {
+  const lider = chart.departamento_lider ?? "—";
+  const vac = chart.total_vacaciones.toLocaleString("es-MX");
+  const ho = chart.total_home_office.toLocaleString("es-MX");
+  return `<div class="mb-2 grid grid-cols-3 gap-1.5" role="group" aria-label="Indicadores por departamento">
+    <div class="${KPI_DEPT_COMPACT} min-w-0">
+      <p class="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">Departamento líder</p>
+      <p class="mt-0.5 truncate text-xs font-bold text-[color:var(--color-text-primary)]" title="${escapeHtml(lider)}">${escapeHtml(lider)}</p>
+    </div>
+    <div class="${KPI_DEPT_COMPACT}">
+      <p class="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">Total vacaciones</p>
+      <p class="mt-0.5 text-xs font-bold tabular-nums text-[color:var(--color-text-primary)]">${escapeHtml(vac)}</p>
+    </div>
+    <div class="${KPI_DEPT_COMPACT}">
+      <p class="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">Total Home Office</p>
+      <p class="mt-0.5 text-xs font-bold tabular-nums text-[color:var(--color-text-primary)]">${escapeHtml(ho)}</p>
+    </div>
+  </div>`;
+}
+
+function cardDeptVacHo(title: string, subtitle: string, chart: SolicitudPorDepartamentoChart): string {
+  const body = `${renderDeptVacHoKpis(chart)}${renderSolicitudesPorDepartamentoChart(chart)}`;
+  return `<article class="${CARD} flex h-full w-full min-w-0 flex-col">
+    <header class="mb-2 flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+      <div class="min-w-0">
+        <h3 class="text-sm font-bold tracking-tight text-[color:var(--color-text-primary)]">${escapeHtml(title)}</h3>
+        <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">${escapeHtml(subtitle)}</p>
+      </div>
+      ${renderDeptVacHoLegendHtml()}
+    </header>
+    <div class="min-h-0 shrink-0">${body}</div>
+  </article>`;
 }
 
 function card(title: string, subtitle: string | undefined, body: string, colClass = ""): string {
@@ -107,9 +146,9 @@ export function renderRhSolicitudesAnalyticsSection(opts: {
 
   const hoDiaLaboralBody = `${renderHoDiaLaboralKpis(d.ho_dias_por_dia_laboral)}${renderHoDiasPorDiaLaboralChart(d.ho_dias_por_dia_laboral)}`;
 
-  const filaRankings = `<section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-    ${card("Departamentos con más solicitudes", "Vacaciones y home office por área", renderAreasVacHoRankingPlaceholder(d.areas_top_vac_ho, RH_SOL_AREAS_BAR_ID, "Departamentos con más solicitudes de vacaciones y home office"))}
-    ${card("Días con mayor uso de Home Office", "Distribución de Home Office aprobado por día laboral", hoDiaLaboralBody)}
+  const filaRankings = `<section class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+    ${cardDeptVacHo("Solicitudes por departamento", "Comparativo de vacaciones y Home Office por departamento", d.solicitudes_por_departamento)}
+    ${card("Días con mayor uso de Home Office", "Distribución de Home Office aprobado por día laboral", hoDiaLaboralBody, "flex flex-col")}
   </section>`;
 
   const filaAusencias = card(

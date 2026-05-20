@@ -37,13 +37,22 @@ export type SolicitudTendenciaMesPorTipo = {
 
 export type SolicitudRankingRow = { label: string; total: number };
 
-/** Top áreas con conteo de solicitudes de vacaciones y home office. */
-export type SolicitudAreasVacHoRow = {
+export type SolicitudDepartamentoVacHoRow = {
   label: string;
   vacaciones: number;
   home_office: number;
   total: number;
 };
+
+/** Datos para gráfica apilada vacaciones / home office por departamento. */
+export type SolicitudPorDepartamentoChart = {
+  rows: readonly SolicitudDepartamentoVacHoRow[];
+  departamento_lider: string | null;
+  total_vacaciones: number;
+  total_home_office: number;
+};
+
+const ESTADOS_DEPT_CHART = new Set<RhSolicitudEstadoCodigo>(["approved", "overridden"]);
 
 export type RhSolicitudesAnalyticsKpis = {
   total: number;
@@ -59,7 +68,7 @@ export type RhSolicitudesAnalyticsData = {
   por_estado: SolicitudAnalyticsSlice[];
   tendencia_mes_por_tipo: SolicitudTendenciaMesPorTipo;
   por_mes_vac_ho: SolicitudMesVacHo[];
-  areas_top_vac_ho: SolicitudAreasVacHoRow[];
+  solicitudes_por_departamento: SolicitudPorDepartamentoChart;
   dias_solicitados_por_mes: SolicitudDiasPorMesSerie;
   ho_dias_por_dia_laboral: HoDiasPorDiaLaboralSerie;
 };
@@ -111,21 +120,39 @@ function rankingTop(counts: Map<string, number>, top = 5): SolicitudRankingRow[]
     .slice(0, top);
 }
 
-function rankingAreasVacHo(
+function filaCuentaGraficaDepartamento(r: RhSolicitudTablaFila, estadoFiltroActivo: string): boolean {
+  if (r.tipo !== "vacaciones" && r.tipo !== "home_office") return false;
+  if (estadoFiltroActivo.trim() !== "") return true;
+  return ESTADOS_DEPT_CHART.has(r.estado);
+}
+
+function buildSolicitudesPorDepartamento(
   vacaciones: Map<string, number>,
   homeOffice: Map<string, number>,
-  top = 5,
-): SolicitudAreasVacHoRow[] {
+): SolicitudPorDepartamentoChart {
   const labels = new Set([...vacaciones.keys(), ...homeOffice.keys()]);
-  return [...labels]
+  const rows = [...labels]
     .map((label) => {
       const v = vacaciones.get(label) ?? 0;
       const h = homeOffice.get(label) ?? 0;
       return { label, vacaciones: v, home_office: h, total: v + h };
     })
     .filter((r) => r.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, top);
+    .sort((a, b) => b.total - a.total);
+
+  let total_vacaciones = 0;
+  let total_home_office = 0;
+  for (const r of rows) {
+    total_vacaciones += r.vacaciones;
+    total_home_office += r.home_office;
+  }
+
+  return {
+    rows,
+    departamento_lider: rows[0]?.label ?? null,
+    total_vacaciones,
+    total_home_office,
+  };
 }
 
 function ultimosMeses(count: number, now = new Date()): string[] {
@@ -200,10 +227,12 @@ export function computeSolicitudesAnalytics(
 
     const area = (r.area || "Sin área").trim();
     porArea.set(area, (porArea.get(area) ?? 0) + 1);
-    if (r.tipo === "vacaciones") {
-      porAreaVac.set(area, (porAreaVac.get(area) ?? 0) + 1);
-    } else if (r.tipo === "home_office") {
-      porAreaHo.set(area, (porAreaHo.get(area) ?? 0) + 1);
+    if (filaCuentaGraficaDepartamento(r, opts.estadoFiltroActivo ?? "")) {
+      if (r.tipo === "vacaciones") {
+        porAreaVac.set(area, (porAreaVac.get(area) ?? 0) + 1);
+      } else if (r.tipo === "home_office") {
+        porAreaHo.set(area, (porAreaHo.get(area) ?? 0) + 1);
+      }
     }
   }
 
@@ -242,7 +271,7 @@ export function computeSolicitudesAnalytics(
     ),
     tendencia_mes_por_tipo,
     por_mes_vac_ho,
-    areas_top_vac_ho: rankingAreasVacHo(porAreaVac, porAreaHo, 5),
+    solicitudes_por_departamento: buildSolicitudesPorDepartamento(porAreaVac, porAreaHo),
     dias_solicitados_por_mes,
     ho_dias_por_dia_laboral,
   };
