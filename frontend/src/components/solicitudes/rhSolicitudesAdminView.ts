@@ -17,6 +17,8 @@ import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
+import { renderRhIncidenciasChartsSection } from "../incidencias/rhIncidenciasAnalyticsSection.ts";
+import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import { renderRhSolicitudesAnalyticsSection } from "./rhSolicitudesAnalyticsSection.ts";
 import { escapeHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
 import {
@@ -1057,14 +1059,31 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
     </div>`;
 }
 
-/** Vista `#/metricas`: hero, gráficas analíticas y filtros (sin tabla ni KPIs de listado). */
-export function renderRhMetricasView(vm: RhSolicitudesAdminViewModel): string {
+/** Sección por dominio en `#/metricas` (p. ej. Solicitudes; futuro: Incidencias, Actas). */
+function renderMetricasDomainSection(sectionId: string, title: string, bodyHtml: string): string {
+  const headingId = `${sectionId}-heading`;
+  return `
+    <section id="${escapeHtml(sectionId)}" class="flex shrink-0 flex-col gap-4 sm:gap-5" aria-labelledby="${escapeHtml(headingId)}">
+      <header class="border-b border-slate-200/90 pb-3">
+        <h2 id="${escapeHtml(headingId)}" class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(title)}</h2>
+      </header>
+      ${bodyHtml}
+    </section>`;
+}
+
+/** Vista `#/metricas`: hero, filtros globales de solicitudes y secciones por dominio. */
+export function renderRhMetricasView(
+  solicitudesVm: RhSolicitudesAdminViewModel,
+  incidenciasVm: RhIncidenciasAdminViewModel,
+): string {
   const analyticsState =
-    vm.ui.showPersonasDiaChart ?
-      vm.tableStatus === "loading" ?
+    solicitudesVm.ui.showPersonasDiaChart ?
+      solicitudesVm.tableStatus === "loading" ?
         "loading"
       : "ready"
     : "hidden";
+
+  const metricasFilters = `<div id="rh-metricas-filters" class="shrink-0">${renderFiltersSection(solicitudesVm, "main")}</div>`;
 
   return `
     <div id="rh-metricas-root" class="rh-solicitudes-module ${RH_LISTADO_PAGE_OUTER_GRADIENT}">
@@ -1076,8 +1095,17 @@ export function renderRhMetricasView(vm: RhSolicitudesAdminViewModel): string {
           </div>
         </div>
       </section>
-      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
-      ${renderRhSolicitudesAnalyticsSection({ state: analyticsState, rows: vm.personasDiaChartRows })}
+      ${metricasFilters}
+      ${renderMetricasDomainSection(
+        "rh-metricas-seccion-solicitudes",
+        "Solicitudes",
+        renderRhSolicitudesAnalyticsSection({ state: analyticsState, rows: solicitudesVm.personasDiaChartRows }),
+      )}
+      ${renderMetricasDomainSection(
+        "rh-metricas-seccion-incidencias",
+        "Incidencias",
+        renderRhIncidenciasChartsSection(incidenciasVm),
+      )}
     </div>`;
 }
 

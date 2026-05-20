@@ -1,6 +1,14 @@
 import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import {
+  mountIncidenciasAreasBarChart,
+  mountIncidenciasDonutPorTipoChart,
+  mountIncidenciasSubareasBarChart,
+  mountIncidenciasTendenciaPorMesChart,
+  RH_INC_AREAS_BAR_CHART_ID,
+  RH_INC_SUBAREAS_BAR_CHART_ID,
+  RH_INC_TENDENCIA_CHART_ID,
+  RH_INC_TIPO_DOUGHNUT_CHART_ID,
   renderIncidenciasAreasBarChart,
   renderIncidenciasDonutPorTipo,
   renderIncidenciasSubareasBarChart,
@@ -104,54 +112,17 @@ function cardShell(
     </article>`;
 }
 
-export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewModel): string {
-  if (vm.estadisticasStatus === "loading") {
-    return `
-      <div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4" aria-busy="true">
-        ${kpiSkeleton()}
-        ${chartPairSkeleton()}
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          ${`<div class="${CARD} min-h-[140px] animate-pulse" aria-hidden="true"><div class="mb-2 h-4 w-32 rounded bg-slate-200"></div><div class="h-20 rounded bg-slate-100"></div></div>`.repeat(3)}
-        </div>
-      </div>`;
-  }
-
-  if (vm.estadisticasStatus === "error") {
-    const msg = vm.estadisticasErrorMessage?.trim() || INC_COPY.errorEstadisticas;
-    return `
-      <div id="rh-inc-analytics" class="shrink-0">
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          <p>${escapeIncHtml(msg)}</p>
-          <p class="mt-2 text-xs text-red-700">${escapeIncHtml(INC_COPY.errorEstadisticasAccion)}</p>
-          <button type="button" data-rh-inc-apply-filters class="mt-3 inline-flex items-center justify-center rounded border border-[color:var(--color-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--color-text-primary)] shadow-sm hover:bg-slate-50">
-            ${escapeIncHtml(INC_COPY.reintentarCarga)}
-          </button>
-        </div>
-      </div>`;
-  }
-
-  const d = vm.estadisticas;
-  if (!d) {
-    return `<div id="rh-inc-analytics" class="shrink-0">
-      <div class="rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-text-muted)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</div>
-    </div>`;
-  }
-
+function renderKpisContent(d: NonNullable<RhIncidenciasAdminViewModel["estadisticas"]>): string {
   const total = d.total_incidencias ?? 0;
-
   if (total === 0) {
     return `
-      <div id="rh-inc-analytics" class="shrink-0">
-        <div class="${CARD} items-center py-10 text-center">
-          <h3 class="text-base font-semibold text-[color:var(--color-text-primary)]">${escapeIncHtml(INC_COPY.analiticaVaciaTitulo)}</h3>
-          <p class="mt-2 max-w-md text-sm text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
-        </div>
+      <div class="${CARD} items-center py-10 text-center">
+        <h3 class="text-base font-semibold text-[color:var(--color-text-primary)]">${escapeIncHtml(INC_COPY.analiticaVaciaTitulo)}</h3>
+        <p class="mt-2 max-w-md text-sm text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
       </div>`;
   }
-
   const topArea = d.areas_con_mas_incidencias[0];
-
-  const kpis = `
+  return `
     <section class="rh-inc-analytics-kpis grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" aria-label="${escapeIncHtml(INC_COPY.analiticaSeccionAria)}">
       ${kpiCard({
         iconHtml: ICO_TOTAL,
@@ -183,11 +154,20 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
         valueClass: topArea ? "text-lg font-bold sm:text-xl" : "",
       })}
     </section>`;
+}
 
+function renderChartsContent(d: NonNullable<RhIncidenciasAdminViewModel["estadisticas"]>): string {
+  const total = d.total_incidencias ?? 0;
+  if (total === 0) {
+    return `
+      <div class="${CARD} items-center py-10 text-center">
+        <h3 class="text-base font-semibold text-[color:var(--color-text-primary)]">${escapeIncHtml(INC_COPY.analiticaVaciaTitulo)}</h3>
+        <p class="mt-2 max-w-md text-sm text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
+      </div>`;
+  }
   const serie = d.incidencias_por_mes ?? [];
   const tendencia = renderIncidenciasTendenciaPorMes(serie);
   const donut = renderIncidenciasDonutPorTipo(d.incidencias_por_tipo);
-
   const bloquePrincipal = `
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch" aria-label="${escapeIncHtml(INC_COPY.analiticaBloquePrincipalAria)}">
       <div class="h-full w-full min-w-0 lg:col-span-7">
@@ -197,19 +177,92 @@ export function renderRhIncidenciasAnalyticsSection(vm: RhIncidenciasAdminViewMo
         ${cardShell("tipo", INC_COPY.analiticaTipoTitulo, INC_COPY.analiticaTipoSub, donut, true)}
       </div>
     </section>`;
-
   const areasBody = renderIncidenciasAreasBarChart(d.areas_con_mas_incidencias);
   const subareasBody = renderIncidenciasSubareasBarChart(d.subareas_con_mas_incidencias);
-
   const rankings = `
     <section class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="${escapeIncHtml(INC_COPY.analiticaRankingsAria)}">
       ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody, true)}
       ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subareasBody, true)}
     </section>`;
+  return `${bloquePrincipal}${rankings}`;
+}
 
-  return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">
-    ${kpis}
-    ${bloquePrincipal}
-    ${rankings}
-  </div>`;
+/** Tarjetas KPI de incidencias (página Incidencias). */
+export function renderRhIncidenciasKpiSection(vm: RhIncidenciasAdminViewModel): string {
+  if (vm.estadisticasStatus === "loading") {
+    return `<div id="rh-inc-kpis" class="shrink-0" aria-busy="true">${kpiSkeleton()}</div>`;
+  }
+  if (vm.estadisticasStatus === "error") {
+    const msg = vm.estadisticasErrorMessage?.trim() || INC_COPY.errorEstadisticas;
+    return `<div id="rh-inc-kpis" class="shrink-0">
+      <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p>${escapeIncHtml(msg)}</p>
+      </div>
+    </div>`;
+  }
+  const d = vm.estadisticas;
+  if (!d) {
+    return `<div id="rh-inc-kpis" class="shrink-0">
+      <div class="rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-text-muted)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</div>
+    </div>`;
+  }
+  return `<div id="rh-inc-kpis" class="shrink-0">${renderKpisContent(d)}</div>`;
+}
+
+/** Gráficas de incidencias (sección Métricas). */
+export function renderRhIncidenciasChartsSection(vm: RhIncidenciasAdminViewModel): string {
+  if (vm.estadisticasStatus === "loading") {
+    return `
+      <div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5" aria-busy="true">
+        ${chartPairSkeleton()}
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-hidden="true">
+          ${`<div class="${CARD} min-h-[260px] animate-pulse" aria-hidden="true"><div class="mb-2 h-4 w-32 rounded bg-slate-200"></div><div class="h-48 rounded bg-slate-100"></div></div>`.repeat(2)}
+        </div>
+      </div>`;
+  }
+  if (vm.estadisticasStatus === "error") {
+    const msg = vm.estadisticasErrorMessage?.trim() || INC_COPY.errorEstadisticas;
+    return `
+      <div id="rh-inc-analytics" class="shrink-0">
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p>${escapeIncHtml(msg)}</p>
+          <p class="mt-2 text-xs text-red-700">${escapeIncHtml(INC_COPY.errorEstadisticasAccion)}</p>
+          <button type="button" data-rh-inc-apply-filters class="mt-3 inline-flex items-center justify-center rounded border border-[color:var(--color-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--color-text-primary)] shadow-sm hover:bg-slate-50">
+            ${escapeIncHtml(INC_COPY.reintentarCarga)}
+          </button>
+        </div>
+      </div>`;
+  }
+  const d = vm.estadisticas;
+  if (!d) {
+    return `<div id="rh-inc-analytics" class="shrink-0">
+      <div class="rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-text-muted)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</div>
+    </div>`;
+  }
+  return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">${renderChartsContent(d)}</div>`;
+}
+
+const RH_INC_ANALYTICS_CHART_IDS = [
+  RH_INC_TENDENCIA_CHART_ID,
+  RH_INC_TIPO_DOUGHNUT_CHART_ID,
+  RH_INC_AREAS_BAR_CHART_ID,
+  RH_INC_SUBAREAS_BAR_CHART_ID,
+] as const;
+
+/** Monta Chart.js tras pintar la analítica de incidencias (página Incidencias o sección Métricas). */
+export function mountRhIncidenciasAnalyticsCharts(
+  root: ParentNode,
+  vm: RhIncidenciasAdminViewModel,
+  destroyChartById: (chartId: string) => void,
+  destroyChartsInContainer: (container: ParentNode) => void,
+): void {
+  for (const id of RH_INC_ANALYTICS_CHART_IDS) destroyChartById(id);
+  const analyticsHost = root.querySelector("#rh-inc-analytics");
+  if (analyticsHost) destroyChartsInContainer(analyticsHost);
+  if (vm.estadisticasStatus !== "ready" || !vm.estadisticas) return;
+  const d = vm.estadisticas;
+  mountIncidenciasTendenciaPorMesChart(root, d.incidencias_por_mes ?? []);
+  mountIncidenciasDonutPorTipoChart(root, d.incidencias_por_tipo ?? []);
+  mountIncidenciasAreasBarChart(root, d.areas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
+  mountIncidenciasSubareasBarChart(root, d.subareas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
 }

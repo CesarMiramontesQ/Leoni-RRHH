@@ -1,13 +1,29 @@
 import { canAccessMetricasPage } from "../auth/jwt.ts";
+import { fetchIncidenciasEstadisticas, type IncidenciasFetchError } from "../api/incidencias.ts";
 import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
-import { clearAuth } from "../auth/session.ts";
+import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
 import { renderRhMetricasView } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountRhSolicitudesAnalyticsFromRows } from "../components/solicitudes/rhSolicitudesAnalyticsSection.ts";
+import { clearAuth } from "../auth/session.ts";
 import { destroyChart, destroyChartsIn } from "../charts/index.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import {
+  cloneRhIncidenciaListFilters,
+  incidenciasFiltersFromSolicitudesMetricas,
+} from "../incidencias/rh/incidenciaListFilterHelpers.ts";
+import { incidenciasUiConfig } from "../incidencias/rh/incidenciasUiConfig.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
+import {
+  buildMetricasIncidenciasViewModel,
+  type RhIncidenciasFilterCatalog,
+} from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
 import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
+import {
+  emptyRhIncidenciaListFilters,
+  type RhIncidenciasAdminViewModel,
+  type RhIncidenciasEstadisticasData,
+} from "../incidencias/rh/types.ts";
 import type {
   RhSolicitudEstadoCodigo,
   RhSolicitudFilterState,
@@ -21,6 +37,12 @@ import { htmlAccessDenied } from "../ui/uiTokens.ts";
 const PAGE_SHELL_CLASS =
   "rh-dashboard-page relative flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
+const EMPTY_INC_CATALOG: RhIncidenciasFilterCatalog = {
+  tiposRegistrados: [],
+  areasRegistradas: [],
+  subareasRegistradas: [],
+};
+
 function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
@@ -30,7 +52,7 @@ function forbiddenHtml(): string {
   });
 }
 
-function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesAdminViewModel {
+function loadingSolicitudesViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesAdminViewModel {
   return {
     stats: null,
     statsStatus: "ready",
@@ -56,7 +78,10 @@ function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesA
   };
 }
 
-function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesAdminViewModel {
+function errorSolicitudesViewModel(
+  message: string,
+  ui: RhSolicitudesAdminViewModel["ui"],
+): RhSolicitudesAdminViewModel {
   return {
     stats: null,
     statsStatus: "ready",
@@ -80,6 +105,19 @@ function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]):
     ui,
     personasDiaChartRows: [],
   };
+}
+
+function loadingIncidenciasViewModel(): RhIncidenciasAdminViewModel {
+  const empty = emptyRhIncidenciaListFilters();
+  return buildMetricasIncidenciasViewModel(
+    null,
+    "loading",
+    undefined,
+    empty,
+    empty,
+    incidenciasUiConfig(),
+    EMPTY_INC_CATALOG,
+  );
 }
 
 function isTipo(v: string): v is RhSolicitudTipoCodigo {
@@ -119,6 +157,8 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   }
 
   const pageUi = buildMetricasPageUiConfig();
+  const incUi = incidenciasUiConfig();
+
   let allRows: RhSolicitudTablaFila[] = [];
   let filterOpts = buildRhSolicitudFilterOptions([]);
   let state: RhSolicitudFilterState = {
@@ -133,6 +173,15 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   };
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let incEstadisticas: RhIncidenciasEstadisticasData | null = null;
+  let incEstadisticasStatus: "loading" | "ready" | "error" = "loading";
+  let incEstadisticasError: string | undefined;
+  let incLoadSeq = 0;
+
+  function appliedIncidenciasFilters() {
+    return incidenciasFiltersFromSolicitudesMetricas(state);
+  }
+
   function clampPage(): void {
     const filtered = filterRhSolicitudRows(allRows, state);
     const totalPages = Math.max(1, Math.ceil(filtered.length / state.page_size) || 1);
@@ -140,9 +189,23 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     if (state.page < 1) state.page = 1;
   }
 
+  function buildIncidenciasVm(): RhIncidenciasAdminViewModel {
+    const applied = appliedIncidenciasFilters();
+    return buildMetricasIncidenciasViewModel(
+      incEstadisticas,
+      incEstadisticasStatus,
+      incEstadisticasError,
+      cloneRhIncidenciaListFilters(applied),
+      cloneRhIncidenciaListFilters(applied),
+      incUi,
+      EMPTY_INC_CATALOG,
+    );
+  }
+
   function paint(): void {
     clampPage();
-    const vm = buildRhSolicitudesAdminViewModel(allRows, filterOpts, state, pageUi, null, null);
+    const solVm = buildRhSolicitudesAdminViewModel(allRows, filterOpts, state, pageUi, null, null);
+    const incVm = buildIncidenciasVm();
     const inner = container.querySelector("#rh-metricas-inner");
     const active = document.activeElement;
     let restoreEmpSearch: { start: number; end: number; dir: "forward" | "backward" | "none" } | null = null;
@@ -157,8 +220,10 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       };
     }
     if (inner) {
-      inner.innerHTML = renderRhMetricasView(vm);
-      mountRhSolicitudesAnalyticsFromRows(inner, vm.personasDiaChartRows, vm.tableStatus, destroyChart, destroyChartsIn);
+      inner.innerHTML = renderRhMetricasView(solVm, incVm);
+      mountRhSolicitudesAnalyticsFromRows(inner, solVm.personasDiaChartRows, solVm.tableStatus, destroyChart, destroyChartsIn);
+      const incSection = inner.querySelector("#rh-metricas-seccion-incidencias");
+      mountRhIncidenciasAnalyticsCharts(incSection ?? inner, incVm, destroyChart, destroyChartsIn);
     }
     if (restoreEmpSearch) {
       const el = container.querySelector<HTMLInputElement>('[data-rh-sol-empleado-busqueda][data-rh-sol-scope="main"]');
@@ -173,12 +238,51 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     }
   }
 
+  async function loadIncidenciasEstadisticas(): Promise<void> {
+    const seq = ++incLoadSeq;
+    const isStale = (): boolean => seq !== incLoadSeq;
+
+    incEstadisticasStatus = "loading";
+    incEstadisticas = null;
+    incEstadisticasError = undefined;
+    paint();
+
+    try {
+      incEstadisticas = await fetchIncidenciasEstadisticas(appliedIncidenciasFilters());
+      if (isStale()) return;
+      incEstadisticasStatus = "ready";
+      incEstadisticasError = undefined;
+    } catch (err) {
+      if (isStale()) return;
+      const fetchError = err as IncidenciasFetchError;
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
+      incEstadisticas = null;
+      incEstadisticasStatus = "error";
+      incEstadisticasError =
+        fetchError?.detail || "No se pudieron cargar las estadísticas de incidencias.";
+    }
+    if (isStale()) return;
+    paint();
+  }
+
+  function refreshMetricas(): void {
+    paint();
+    void loadIncidenciasEstadisticas();
+  }
+
   mountAppShell(container, {
     pageTitle: "Métricas",
     activeNav: "metricas",
     mainClass,
     mainHtml: `<div id="rh-metricas-page" class="${PAGE_SHELL_CLASS}">
-      <div id="rh-metricas-inner" class="flex min-h-0 flex-1 flex-col">${renderRhMetricasView(loadingViewModel(pageUi))}</div>
+      <div id="rh-metricas-inner" class="flex min-h-0 flex-1 flex-col">${renderRhMetricasView(loadingSolicitudesViewModel(pageUi), loadingIncidenciasViewModel())}</div>
     </div>`,
   });
 
@@ -202,7 +306,11 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
         state.empleado_busqueda = "";
         state.estado = "";
         state.page = 1;
-        paint();
+        refreshMetricas();
+        return;
+      }
+      if (t.closest("[data-rh-inc-apply-filters]")) {
+        void loadIncidenciasEstadisticas();
       }
     },
     { signal },
@@ -218,7 +326,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       if (empleadoBusquedaDebounceTimer != null) window.clearTimeout(empleadoBusquedaDebounceTimer);
       empleadoBusquedaDebounceTimer = window.setTimeout(() => {
         empleadoBusquedaDebounceTimer = null;
-        paint();
+        refreshMetricas();
       }, 200);
     },
     { signal },
@@ -237,7 +345,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
         else if (name === "supervisor") state.supervisor_id = value;
         else if (name === "empleado") state.empleado_id = value;
         else if (name === "estado") state.estado = value === "" ? "" : isEstado(value) ? value : "";
-        paint();
+        refreshMetricas();
         return;
       }
       const ps = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-page-size]");
@@ -255,7 +363,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     try {
       allRows = await getSolicitudesRows();
       filterOpts = buildRhSolicitudFilterOptions(allRows);
-      paint();
+      refreshMetricas();
     } catch (error) {
       const fetchError = error as SolicitudesFetchError;
       if (fetchError?.status === 401) {
@@ -271,7 +379,8 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       const inner = container.querySelector("#rh-metricas-inner");
       if (inner) {
         inner.innerHTML = renderRhMetricasView(
-          errorViewModel(fetchError?.detail || "Error inesperado al cargar métricas.", pageUi),
+          errorSolicitudesViewModel(fetchError?.detail || "Error inesperado al cargar métricas.", pageUi),
+          buildIncidenciasVm(),
         );
       }
     }

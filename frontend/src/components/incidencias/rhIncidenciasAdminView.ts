@@ -6,7 +6,7 @@ import {
   RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_SOLICITUDES_BTN_SECONDARY,
 } from "./rhIncidenciasPageStyles.ts";
-import { renderRhIncidenciasAnalyticsSection } from "./rhIncidenciasAnalyticsSection.ts";
+import { renderRhIncidenciasKpiSection } from "./rhIncidenciasAnalyticsSection.ts";
 import { renderRhIncidenciasTable } from "./rhIncidenciasTable.ts";
 
 function renderIncidenciasExportToolbar(vm: RhIncidenciasAdminViewModel): string {
@@ -57,7 +57,7 @@ export function renderRhIncidenciasAdminView(vm: RhIncidenciasAdminViewModel): s
     <div id="rh-incidencias-root" class="rh-incidencias-module ${RH_LISTADO_PAGE_OUTER_GRADIENT} gap-4 sm:gap-5">
       ${renderIncidenciasExportToolbar(vm)}
       <div id="rh-inc-filters" class="shrink-0">${renderRhIncidenciasFiltersSection(vm)}</div>
-      <div class="shrink-0">${renderRhIncidenciasAnalyticsSection(vm)}</div>
+      <div class="shrink-0">${renderRhIncidenciasKpiSection(vm)}</div>
       <details class="mt-4 flex min-h-0 flex-1 flex-col lg:mt-6 lg:flex lg:flex-1 lg:flex-col" open>
         <summary class="mb-3 flex cursor-pointer list-none items-center justify-between rounded-xl border border-[rgba(148,163,184,0.28)] bg-white px-4 py-3 text-sm font-semibold text-[color:var(--color-text-primary)] shadow-sm lg:hidden [&::-webkit-details-marker]:hidden">
           <span>${escapeIncHtml(INC_COPY.listadoTitulo)}</span>

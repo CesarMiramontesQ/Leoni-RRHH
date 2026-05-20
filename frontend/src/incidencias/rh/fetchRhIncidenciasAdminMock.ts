@@ -81,6 +81,41 @@ export function buildRhIncidenciasAdminViewModelFromApi(
   };
 }
 
+const METRICAS_INCIDENCIAS_EMPTY_TABLE = {
+  items: [] as RhIncidenciaTablaFila[],
+  total: 0,
+  page: 1,
+  page_size: 10,
+};
+
+/** View-model de analítica de incidencias en `#/metricas` (sin tabla de listado). */
+export function buildMetricasIncidenciasViewModel(
+  estadisticas: RhIncidenciasEstadisticasData | null,
+  estadisticasStatus: "loading" | "ready" | "error",
+  estadisticasErrorMessage: string | undefined,
+  filterDraft: RhIncidenciaListFilters,
+  appliedFilters: RhIncidenciaListFilters,
+  ui: RhIncidenciasUiConfig,
+  catalog: RhIncidenciasFilterCatalog,
+): RhIncidenciasAdminViewModel {
+  return {
+    estadisticas,
+    estadisticasStatus,
+    estadisticasErrorMessage,
+    resumenListado: null,
+    filterOptions: buildRhIncidenciaFilterOptions([]),
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
+    filterDraft,
+    appliedFilters,
+    ui,
+    tableStatus: "ready",
+    table: METRICAS_INCIDENCIAS_EMPTY_TABLE,
+    tableErrorMessage: undefined,
+  };
+}
+
 export function buildRhIncidenciasAdminViewModel(
   rows: readonly RhIncidenciaTablaFila[],
   filterOptions: RhIncidenciasAdminViewModel["filterOptions"],

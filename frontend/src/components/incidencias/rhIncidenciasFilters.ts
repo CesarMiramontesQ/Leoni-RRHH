@@ -246,17 +246,28 @@ function renderFiltersSkeleton(): string {
     </div>`;
 }
 
+export type RhIncidenciasFiltersContext = "listado" | "metricas";
+
 /** Barra de filtros o skeleton según estado de carga (patrón Solicitudes). */
-export function renderRhIncidenciasFiltersSection(vm: RhIncidenciasAdminViewModel): string {
-  if (vm.tableStatus === "error") {
+export function renderRhIncidenciasFiltersSection(
+  vm: RhIncidenciasAdminViewModel,
+  opts?: { context?: RhIncidenciasFiltersContext },
+): string {
+  const context = opts?.context ?? "listado";
+  if (context === "listado" && vm.tableStatus === "error") {
     return "";
   }
-  const filtersLoading = vm.estadisticasStatus === "loading" && vm.tableStatus === "loading";
+  const filtersLoading =
+    context === "metricas"
+      ? vm.estadisticasStatus === "loading"
+      : vm.estadisticasStatus === "loading" && vm.tableStatus === "loading";
   if (filtersLoading) {
     return renderFiltersSkeleton();
   }
   const resultCount =
-    vm.table && vm.tableStatus !== "loading" ? vm.table.total : null;
+    context === "metricas" ? null
+    : vm.table && vm.tableStatus !== "loading" ? vm.table.total
+    : null;
   return renderFilters(vm, { resultCount });
 }
 
