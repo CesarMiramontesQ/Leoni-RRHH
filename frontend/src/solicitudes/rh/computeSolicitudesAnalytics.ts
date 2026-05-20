@@ -1,12 +1,21 @@
 import {
-  aggregateSolicitudesPersonasDia,
-  formatPersonasDiaChartPeriodTitle,
-  getCurrentCalendarMonthRange,
-  type SolicitudPersonasDiaSerie,
-} from "./aggregateSolicitudesPersonasDia.ts";
+  aggregateHoDiasPorDiaLaboral,
+  type HoDiasPorDiaLaboralSerie,
+} from "./aggregateHoDiasPorDiaLaboral.ts";
+import {
+  aggregateSolicitudesDiasPorMes,
+  type SolicitudDiasPorMesSerie,
+} from "./aggregateSolicitudesDiasPorMes.ts";
+import { emptyConteoPorTipo, labelSolicitudTipo, RH_SOLICITUD_TIPOS_ORDEN } from "./solicitudTipoDisplay.ts";
 import type { RhSolicitudEstadoCodigo, RhSolicitudTablaFila, RhSolicitudTipoCodigo } from "./types.ts";
 
-export type SolicitudAnalyticsSlice = { label: string; total: number; porcentaje: number };
+export type SolicitudAnalyticsSlice = {
+  /** Presente en `por_tipo`; ausente en `por_estado`. */
+  codigo?: RhSolicitudTipoCodigo;
+  label: string;
+  total: number;
+  porcentaje: number;
+};
 
 export type SolicitudMesVacHo = {
   periodo: string;
@@ -14,7 +23,27 @@ export type SolicitudMesVacHo = {
   home_office: number;
 };
 
+export type SolicitudTendenciaMesSerie = {
+  codigo: RhSolicitudTipoCodigo;
+  label: string;
+  valores: readonly number[];
+};
+
+/** Solicitudes creadas por mes, desglosadas por tipo (últimos 6 meses). */
+export type SolicitudTendenciaMesPorTipo = {
+  periodos: readonly string[];
+  series: readonly SolicitudTendenciaMesSerie[];
+};
+
 export type SolicitudRankingRow = { label: string; total: number };
+
+/** Top áreas con conteo de solicitudes de vacaciones y home office. */
+export type SolicitudAreasVacHoRow = {
+  label: string;
+  vacaciones: number;
+  home_office: number;
+  total: number;
+};
 
 export type RhSolicitudesAnalyticsKpis = {
   total: number;
@@ -28,19 +57,11 @@ export type RhSolicitudesAnalyticsData = {
   kpis: RhSolicitudesAnalyticsKpis;
   por_tipo: SolicitudAnalyticsSlice[];
   por_estado: SolicitudAnalyticsSlice[];
-  por_mes_creadas: { periodo: string; total: number }[];
+  tendencia_mes_por_tipo: SolicitudTendenciaMesPorTipo;
   por_mes_vac_ho: SolicitudMesVacHo[];
-  areas_top: SolicitudRankingRow[];
-  supervisores_pendientes: SolicitudRankingRow[];
-  personas_dia: SolicitudPersonasDiaSerie;
-  periodo_ausencias_titulo: string;
-};
-
-const CATEGORIA_TIPO_LABEL: Record<string, string> = {
-  vacaciones: "Vacaciones",
-  home_office: "Home office",
-  con_goce: "Permisos con goce",
-  sin_goce: "Sin goce de sueldo",
+  areas_top_vac_ho: SolicitudAreasVacHoRow[];
+  dias_solicitados_por_mes: SolicitudDiasPorMesSerie;
+  ho_dias_por_dia_laboral: HoDiasPorDiaLaboralSerie;
 };
 
 const ESTADO_LABEL: Record<RhSolicitudEstadoCodigo, string> = {
@@ -52,16 +73,23 @@ const ESTADO_LABEL: Record<RhSolicitudEstadoCodigo, string> = {
   overridden: "Override",
 };
 
-function categoriaTipo(tipo: RhSolicitudTipoCodigo): keyof typeof CATEGORIA_TIPO_LABEL {
-  if (tipo === "vacaciones") return "vacaciones";
-  if (tipo === "home_office") return "home_office";
-  if (tipo === "permiso_sin_goce_sueldo") return "sin_goce";
-  return "con_goce";
-}
-
 function mesFromIsoDate(iso: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   return iso.slice(0, 7);
+}
+
+function slicesFromTipoCounts(counts: Map<RhSolicitudTipoCodigo, number>): SolicitudAnalyticsSlice[] {
+  const total = [...counts.values()].reduce((s, n) => s + n, 0);
+  if (total <= 0) return [];
+  return [...counts.entries()]
+    .filter(([, n]) => n > 0)
+    .map(([codigo, n]) => ({
+      codigo,
+      label: labelSolicitudTipo(codigo),
+      total: n,
+      porcentaje: Math.round((1000 * n) / total) / 10,
+    }))
+    .sort((a, b) => b.total - a.total);
 }
 
 function slicesFromCounts(counts: Map<string, number>, labelOf: (key: string) => string): SolicitudAnalyticsSlice[] {
@@ -79,6 +107,23 @@ function slicesFromCounts(counts: Map<string, number>, labelOf: (key: string) =>
 function rankingTop(counts: Map<string, number>, top = 5): SolicitudRankingRow[] {
   return [...counts.entries()]
     .map(([label, total]) => ({ label: label.trim() || "Sin dato", total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, top);
+}
+
+function rankingAreasVacHo(
+  vacaciones: Map<string, number>,
+  homeOffice: Map<string, number>,
+  top = 5,
+): SolicitudAreasVacHoRow[] {
+  const labels = new Set([...vacaciones.keys(), ...homeOffice.keys()]);
+  return [...labels]
+    .map((label) => {
+      const v = vacaciones.get(label) ?? 0;
+      const h = homeOffice.get(label) ?? 0;
+      return { label, vacaciones: v, home_office: h, total: v + h };
+    })
+    .filter((r) => r.total > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, top);
 }
@@ -105,59 +150,82 @@ function etiquetaMesCorto(periodo: string): string {
 
 export { etiquetaMesCorto };
 
+export function tendenciaMesTieneDatos(tendencia: SolicitudTendenciaMesPorTipo): boolean {
+  return tendencia.series.some((s) => s.valores.some((v) => v > 0));
+}
+
+export type ComputeSolicitudesAnalyticsOpts = {
+  /** Si está vacío, la gráfica HO por día laboral usa solo aprobadas/overridden. */
+  estadoFiltroActivo?: string;
+};
+
 export function computeSolicitudesAnalytics(
   rows: readonly RhSolicitudTablaFila[],
   now = new Date(),
+  opts: ComputeSolicitudesAnalyticsOpts = {},
 ): RhSolicitudesAnalyticsData {
-  const porTipo = new Map<string, number>();
+  const porTipo = new Map<RhSolicitudTipoCodigo, number>();
   const porEstado = new Map<RhSolicitudEstadoCodigo, number>();
-  const porMesCreadas = new Map<string, number>();
+  const porMesPorTipo = new Map<string, Record<RhSolicitudTipoCodigo, number>>();
   const porMesVac = new Map<string, number>();
   const porMesHo = new Map<string, number>();
   const porArea = new Map<string, number>();
-  const pendientesPorSupervisor = new Map<string, number>();
+  const porAreaVac = new Map<string, number>();
+  const porAreaHo = new Map<string, number>();
 
   let pendientes = 0;
   let cambios = 0;
   let aprobadas = 0;
 
   for (const r of rows) {
-    const cat = categoriaTipo(r.tipo);
-    porTipo.set(cat, (porTipo.get(cat) ?? 0) + 1);
+    porTipo.set(r.tipo, (porTipo.get(r.tipo) ?? 0) + 1);
 
     porEstado.set(r.estado, (porEstado.get(r.estado) ?? 0) + 1);
 
-    if (r.estado === "pending") {
-      pendientes += 1;
-      const sup = (r.supervisor_nombre || "Sin supervisor").trim();
-      pendientesPorSupervisor.set(sup, (pendientesPorSupervisor.get(sup) ?? 0) + 1);
-    }
+    if (r.estado === "pending") pendientes += 1;
     if (r.estado === "changes_requested") cambios += 1;
     if (r.estado === "approved" || r.estado === "overridden") aprobadas += 1;
 
     const mes = mesFromIsoDate(r.fecha_solicitud);
     if (mes) {
-      porMesCreadas.set(mes, (porMesCreadas.get(mes) ?? 0) + 1);
+      let bucket = porMesPorTipo.get(mes);
+      if (!bucket) {
+        bucket = emptyConteoPorTipo();
+        porMesPorTipo.set(mes, bucket);
+      }
+      bucket[r.tipo] += 1;
       if (r.tipo === "vacaciones") porMesVac.set(mes, (porMesVac.get(mes) ?? 0) + 1);
       if (r.tipo === "home_office") porMesHo.set(mes, (porMesHo.get(mes) ?? 0) + 1);
     }
 
     const area = (r.area || "Sin área").trim();
     porArea.set(area, (porArea.get(area) ?? 0) + 1);
+    if (r.tipo === "vacaciones") {
+      porAreaVac.set(area, (porAreaVac.get(area) ?? 0) + 1);
+    } else if (r.tipo === "home_office") {
+      porAreaHo.set(area, (porAreaHo.get(area) ?? 0) + 1);
+    }
   }
 
   const mesesVentana = ultimosMeses(6, now);
-  const por_mes_creadas = mesesVentana.map((periodo) => ({
-    periodo,
-    total: porMesCreadas.get(periodo) ?? 0,
-  }));
+  const tendencia_mes_por_tipo: SolicitudTendenciaMesPorTipo = {
+    periodos: mesesVentana,
+    series: RH_SOLICITUD_TIPOS_ORDEN.map((codigo) => ({
+      codigo,
+      label: labelSolicitudTipo(codigo),
+      valores: mesesVentana.map((periodo) => porMesPorTipo.get(periodo)?.[codigo] ?? 0),
+    })),
+  };
   const por_mes_vac_ho: SolicitudMesVacHo[] = mesesVentana.map((periodo) => ({
     periodo,
     vacaciones: porMesVac.get(periodo) ?? 0,
     home_office: porMesHo.get(periodo) ?? 0,
   }));
 
-  const range = getCurrentCalendarMonthRange(now);
+  const dias_solicitados_por_mes = aggregateSolicitudesDiasPorMes(rows, mesesVentana);
+  const ho_dias_por_dia_laboral = aggregateHoDiasPorDiaLaboral(rows, {
+    estadoFiltroActivo: opts.estadoFiltroActivo ?? "",
+  });
 
   return {
     kpis: {
@@ -167,16 +235,15 @@ export function computeSolicitudesAnalytics(
       aprobadas,
       area_top: rankingTop(porArea, 1)[0] ?? null,
     },
-    por_tipo: slicesFromCounts(porTipo, (k) => CATEGORIA_TIPO_LABEL[k] ?? k),
+    por_tipo: slicesFromTipoCounts(porTipo),
     por_estado: slicesFromCounts(
       porEstado as Map<string, number>,
       (k) => ESTADO_LABEL[k as RhSolicitudEstadoCodigo] ?? k,
     ),
-    por_mes_creadas,
+    tendencia_mes_por_tipo,
     por_mes_vac_ho,
-    areas_top: rankingTop(porArea, 5),
-    supervisores_pendientes: rankingTop(pendientesPorSupervisor, 5),
-    personas_dia: aggregateSolicitudesPersonasDia(rows, range.startIso, range.endIso),
-    periodo_ausencias_titulo: formatPersonasDiaChartPeriodTitle(now.getFullYear(), now.getMonth()),
+    areas_top_vac_ho: rankingAreasVacHo(porAreaVac, porAreaHo, 5),
+    dias_solicitados_por_mes,
+    ho_dias_por_dia_laboral,
   };
 }

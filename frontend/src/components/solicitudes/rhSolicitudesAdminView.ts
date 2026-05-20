@@ -1099,7 +1099,11 @@ export function renderRhMetricasView(
       ${renderMetricasDomainSection(
         "rh-metricas-seccion-solicitudes",
         "Solicitudes",
-        renderRhSolicitudesAnalyticsSection({ state: analyticsState, rows: solicitudesVm.personasDiaChartRows }),
+        renderRhSolicitudesAnalyticsSection({
+          state: analyticsState,
+          rows: solicitudesVm.personasDiaChartRows,
+          estadoFiltroActivo: solicitudesVm.filters.estado,
+        }),
       )}
       ${renderMetricasDomainSection(
         "rh-metricas-seccion-incidencias",

@@ -31,11 +31,12 @@ describe("aggregateSolicitudesPersonasDia", () => {
     ];
     const serie = aggregateSolicitudesPersonasDia(rows, "2026-05-01", "2026-05-31");
     expect(serie.labels).toHaveLength(31);
-    expect(serie.vacaciones[9]).toBe(1);
-    expect(serie.vacaciones[10]).toBe(1);
-    expect(serie.vacaciones[11]).toBe(1);
+    const vac = serie.series.find((s) => s.codigo === "vacaciones");
+    expect(vac?.values[9]).toBe(1);
+    expect(vac?.values[10]).toBe(1);
+    expect(vac?.values[11]).toBe(1);
     expect(serie.totales[9] + serie.totales[10] + serie.totales[11]).toBe(3);
-    expect(serie.vacaciones[0]).toBe(0);
+    expect(vac?.values[0]).toBe(0);
   });
 
   it("ignora pendientes y rechazadas; recorta al rango del mes", () => {
@@ -63,12 +64,13 @@ describe("aggregateSolicitudesPersonasDia", () => {
       }),
     ];
     const serie = aggregateSolicitudesPersonasDia(rows, "2026-05-01", "2026-05-31");
-    expect(serie.home_office[0]).toBe(1);
-    expect(serie.home_office[1]).toBe(1);
-    expect(serie.home_office[2]).toBe(0);
+    const ho = serie.series.find((s) => s.codigo === "home_office");
+    expect(ho?.values[0]).toBe(1);
+    expect(ho?.values[1]).toBe(1);
+    expect(ho?.values[2]).toBe(0);
   });
 
-  it("clasifica permisos con y sin goce", () => {
+  it("clasifica cada tipo de solicitud por separado", () => {
     const rows = [
       fila({
         id: 4,
@@ -84,10 +86,18 @@ describe("aggregateSolicitudesPersonasDia", () => {
         fecha_inicio: "2026-05-20",
         fecha_fin: "2026-05-20",
       }),
+      fila({
+        id: 8,
+        tipo: "matrimonio",
+        estado: "approved",
+        fecha_inicio: "2026-05-10",
+        fecha_fin: "2026-05-10",
+      }),
     ];
     const serie = aggregateSolicitudesPersonasDia(rows, "2026-05-01", "2026-05-31");
-    expect(serie.con_goce[14]).toBe(1);
-    expect(serie.sin_goce[19]).toBe(1);
+    expect(serie.series.find((s) => s.codigo === "paternidad")?.values[14]).toBe(1);
+    expect(serie.series.find((s) => s.codigo === "permiso_sin_goce_sueldo")?.values[19]).toBe(1);
+    expect(serie.series.find((s) => s.codigo === "matrimonio")?.values[9]).toBe(1);
   });
 
   it("no cuenta solicitudes pendientes", () => {

@@ -2,15 +2,15 @@ import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import {
   mountIncidenciasAreasBarChart,
-  mountIncidenciasDonutPorTipoChart,
+  mountIncidenciasTipoBarChart,
   mountIncidenciasSubareasBarChart,
   mountIncidenciasTendenciaPorMesChart,
   RH_INC_AREAS_BAR_CHART_ID,
   RH_INC_SUBAREAS_BAR_CHART_ID,
   RH_INC_TENDENCIA_CHART_ID,
-  RH_INC_TIPO_DOUGHNUT_CHART_ID,
+  RH_INC_TIPO_BAR_CHART_ID,
   renderIncidenciasAreasBarChart,
-  renderIncidenciasDonutPorTipo,
+  renderIncidenciasTipoBarChart,
   renderIncidenciasSubareasBarChart,
   renderIncidenciasTendenciaPorMes,
 } from "./rhIncidenciasCharts.ts";
@@ -167,14 +167,14 @@ function renderChartsContent(d: NonNullable<RhIncidenciasAdminViewModel["estadis
   }
   const serie = d.incidencias_por_mes ?? [];
   const tendencia = renderIncidenciasTendenciaPorMes(serie);
-  const donut = renderIncidenciasDonutPorTipo(d.incidencias_por_tipo);
+  const tipoBar = renderIncidenciasTipoBarChart(d.incidencias_por_tipo);
   const bloquePrincipal = `
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch" aria-label="${escapeIncHtml(INC_COPY.analiticaBloquePrincipalAria)}">
       <div class="h-full w-full min-w-0 lg:col-span-7">
         ${cardShell("tendencia", INC_COPY.analiticaTendenciaTitulo, INC_COPY.analiticaTendenciaSub, tendencia, true)}
       </div>
       <div class="h-full w-full min-w-0 lg:col-span-5">
-        ${cardShell("tipo", INC_COPY.analiticaTipoTitulo, INC_COPY.analiticaTipoSub, donut, true)}
+        ${cardShell("tipo", INC_COPY.analiticaTipoTitulo, INC_COPY.analiticaTipoSub, tipoBar, true)}
       </div>
     </section>`;
   const areasBody = renderIncidenciasAreasBarChart(d.areas_con_mas_incidencias);
@@ -244,7 +244,7 @@ export function renderRhIncidenciasChartsSection(vm: RhIncidenciasAdminViewModel
 
 const RH_INC_ANALYTICS_CHART_IDS = [
   RH_INC_TENDENCIA_CHART_ID,
-  RH_INC_TIPO_DOUGHNUT_CHART_ID,
+  RH_INC_TIPO_BAR_CHART_ID,
   RH_INC_AREAS_BAR_CHART_ID,
   RH_INC_SUBAREAS_BAR_CHART_ID,
 ] as const;
@@ -262,7 +262,7 @@ export function mountRhIncidenciasAnalyticsCharts(
   if (vm.estadisticasStatus !== "ready" || !vm.estadisticas) return;
   const d = vm.estadisticas;
   mountIncidenciasTendenciaPorMesChart(root, d.incidencias_por_mes ?? []);
-  mountIncidenciasDonutPorTipoChart(root, d.incidencias_por_tipo ?? []);
+  mountIncidenciasTipoBarChart(root, d.incidencias_por_tipo ?? []);
   mountIncidenciasAreasBarChart(root, d.areas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
   mountIncidenciasSubareasBarChart(root, d.subareas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
 }

@@ -22,26 +22,51 @@ function fila(
 }
 
 describe("computeSolicitudesAnalytics", () => {
-  it("agrupa KPIs y donuts", () => {
+  it("agrupa KPIs y por tipo sin fusionar permisos", () => {
     const rows = [
       fila({ id: 1, tipo: "vacaciones", estado: "pending", fecha_solicitud: "2026-05-01" }),
       fila({ id: 2, tipo: "home_office", estado: "approved", fecha_solicitud: "2026-05-02" }),
+      fila({ id: 3, tipo: "paternidad", estado: "approved", fecha_solicitud: "2026-05-03" }),
+      fila({ id: 4, tipo: "matrimonio", estado: "approved", fecha_solicitud: "2026-05-04" }),
+      fila({ id: 5, tipo: "permiso_sin_goce_sueldo", estado: "approved", fecha_solicitud: "2026-05-05" }),
     ];
     const d = computeSolicitudesAnalytics(rows, new Date(2026, 4, 15));
-    expect(d.kpis.total).toBe(2);
+    expect(d.kpis.total).toBe(5);
     expect(d.kpis.pendientes).toBe(1);
-    expect(d.por_tipo.length).toBeGreaterThan(0);
+    expect(d.por_tipo.map((s) => s.codigo).sort()).toEqual(
+      ["home_office", "matrimonio", "paternidad", "permiso_sin_goce_sueldo", "vacaciones"].sort(),
+    );
+    expect(d.por_tipo.some((s) => s.label === "Permisos con goce")).toBe(false);
     expect(d.por_estado.length).toBe(2);
   });
 
-  it("ranking de supervisores solo con pendientes", () => {
+  it("tendencia mensual desglosa por tipo en los últimos 6 meses", () => {
     const rows = [
-      fila({ id: 1, tipo: "vacaciones", estado: "pending", fecha_solicitud: "2026-05-01", supervisor_nombre: "Sup X" }),
-      fila({ id: 2, tipo: "vacaciones", estado: "pending", fecha_solicitud: "2026-05-01", supervisor_nombre: "Sup X" }),
-      fila({ id: 3, tipo: "vacaciones", estado: "approved", fecha_solicitud: "2026-05-01", supervisor_nombre: "Sup Y" }),
+      fila({ id: 10, tipo: "vacaciones", estado: "approved", fecha_solicitud: "2026-05-01" }),
+      fila({ id: 11, tipo: "matrimonio", estado: "approved", fecha_solicitud: "2026-05-15" }),
+      fila({ id: 12, tipo: "paternidad", estado: "approved", fecha_solicitud: "2026-04-10" }),
     ];
     const d = computeSolicitudesAnalytics(rows, new Date(2026, 4, 15));
-    expect(d.supervisores_pendientes[0]?.label).toBe("Sup X");
-    expect(d.supervisores_pendientes[0]?.total).toBe(2);
+    expect(d.tendencia_mes_por_tipo.periodos).toHaveLength(6);
+    const vac = d.tendencia_mes_por_tipo.series.find((s) => s.codigo === "vacaciones");
+    const mat = d.tendencia_mes_por_tipo.series.find((s) => s.codigo === "matrimonio");
+    const pat = d.tendencia_mes_por_tipo.series.find((s) => s.codigo === "paternidad");
+    expect(vac?.valores.at(-1)).toBe(1);
+    expect(mat?.valores.at(-1)).toBe(1);
+    expect(pat?.valores.at(-2)).toBe(1);
   });
+
+  it("top áreas solo cuenta vacaciones y home office", () => {
+    const rows = [
+      fila({ id: 20, tipo: "vacaciones", estado: "approved", fecha_solicitud: "2026-05-01", area: "Prod A" }),
+      fila({ id: 21, tipo: "vacaciones", estado: "approved", fecha_solicitud: "2026-05-02", area: "Prod A" }),
+      fila({ id: 22, tipo: "home_office", estado: "approved", fecha_solicitud: "2026-05-01", area: "Prod B" }),
+      fila({ id: 23, tipo: "paternidad", estado: "approved", fecha_solicitud: "2026-05-01", area: "Prod C" }),
+    ];
+    const d = computeSolicitudesAnalytics(rows, new Date(2026, 4, 15));
+    expect(d.areas_top_vac_ho[0]?.label).toBe("Prod A");
+    expect(d.areas_top_vac_ho[0]?.vacaciones).toBe(2);
+    expect(d.areas_top_vac_ho.find((a) => a.label === "Prod C")).toBeUndefined();
+  });
+
 });

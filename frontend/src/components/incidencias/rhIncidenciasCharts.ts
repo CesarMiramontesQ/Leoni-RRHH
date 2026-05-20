@@ -2,13 +2,12 @@
  * Gráficas de incidencias RH con Chart.js (tendencia line, doughnut, rankings bar).
  */
 
-import type { Plugin } from "chart.js";
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
-import { cssVar, type ChartSemanticColors } from "../../charts/chartTokens.ts";
+import { cssVar } from "../../charts/chartTokens.ts";
 import { labelTipoIncidenciaUi } from "../../incidencias/rh/tipoIncidenciaDisplay.ts";
 
 export const RH_INC_TENDENCIA_CHART_ID = "rh-inc-tendencia-mes";
-export const RH_INC_TIPO_DOUGHNUT_CHART_ID = "rh-inc-tipo-doughnut";
+export const RH_INC_TIPO_BAR_CHART_ID = "rh-inc-tipo-bar";
 export const RH_INC_AREAS_BAR_CHART_ID = "rh-inc-areas-bar";
 export const RH_INC_SUBAREAS_BAR_CHART_ID = "rh-inc-subareas-bar";
 
@@ -20,6 +19,9 @@ export const RH_INC_RANKING_BAR_CHART_HEIGHT_CLASS = "h-[260px]";
 
 const RANKING_BAR_TOP = 5;
 const RANKING_BAR_FILL_ALPHA = 0.5;
+/** Barras verticales con esquinas redondeadas — @see https://www.chartjs.org/docs/latest/samples/bar/border-radius.html */
+const TIPO_BAR_BORDER_RADIUS = Number.MAX_VALUE;
+const TIPO_BAR_BORDER_WIDTH = 2;
 
 const TENDENCIA_RED_ALPHA = 0.2;
 const TENDENCIA_LINE_TENSION_SMOOTH = 0.4;
@@ -46,28 +48,6 @@ function fillColorForTipo(tipoRaw: string): string {
   return cssVar("--color-border", "#D1DCE8");
 }
 
-function doughnutCenterPlugin(total: number, colors: ChartSemanticColors): Plugin<"doughnut"> {
-  return {
-    id: "rh-inc-doughnut-center",
-    afterDraw(chart) {
-      const arcs = chart.getDatasetMeta(0).data;
-      if (arcs.length === 0) return;
-      const arc = arcs[0] as { x: number; y: number };
-      const { ctx } = chart;
-      ctx.save();
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = colors.textPrimary;
-      ctx.font = "bold 15px Inter, ui-sans-serif, system-ui, sans-serif";
-      ctx.fillText(String(total), arc.x, arc.y - 6);
-      ctx.fillStyle = colors.textSecondary;
-      ctx.font = "600 10px Inter, ui-sans-serif, system-ui, sans-serif";
-      ctx.fillText("TOTAL", arc.x, arc.y + 10);
-      ctx.restore();
-    },
-  };
-}
-
 function etiquetaMesCorto(periodo: string): string {
   const [y, m] = periodo.split("-");
   if (!y || !m) return periodo;
@@ -86,8 +66,8 @@ function colorConAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** Contenedor canvas para distribución por tipo (Chart.js doughnut). */
-export function renderIncidenciasDonutPorTipo(rows: readonly DonutTipoRow[]): string {
+/** Contenedor canvas para distribución por tipo (Chart.js bar con border radius). */
+export function renderIncidenciasTipoBarChart(rows: readonly DonutTipoRow[]): string {
   const total = rows.reduce((s, r) => s + r.total, 0);
   if (total <= 0 || rows.length === 0) {
     return `<div class="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">Sin datos por tipo</div>`;
@@ -95,7 +75,7 @@ export function renderIncidenciasDonutPorTipo(rows: readonly DonutTipoRow[]): st
   return `
     <div class="rh-inc-chart-panel flex min-h-[280px] w-full min-w-0 flex-1 flex-col justify-center">
       ${renderChartCanvas({
-        chartId: RH_INC_TIPO_DOUGHNUT_CHART_ID,
+        chartId: RH_INC_TIPO_BAR_CHART_ID,
         ariaLabel: "Distribución por tipo de incidencia",
         heightClass: RH_INC_ANALYTICS_CHART_HEIGHT_CLASS,
         className: "relative w-full min-w-0",
@@ -103,43 +83,37 @@ export function renderIncidenciasDonutPorTipo(rows: readonly DonutTipoRow[]): st
     </div>`;
 }
 
-/** Monta doughnut con datos reales de `incidencias_por_tipo`. @see https://www.chartjs.org/docs/latest/samples/other-charts/doughnut.html */
-export function mountIncidenciasDonutPorTipoChart(root: ParentNode, rows: readonly DonutTipoRow[]): void {
+/** Monta barras verticales por tipo. @see https://www.chartjs.org/docs/latest/samples/bar/border-radius.html */
+export function mountIncidenciasTipoBarChart(root: ParentNode, rows: readonly DonutTipoRow[]): void {
   const total = rows.reduce((s, r) => s + r.total, 0);
   if (total <= 0 || rows.length === 0) return;
 
   const labels = rows.map((r) => labelTipoIncidenciaUi(r.tipo));
   const values = rows.map((r) => r.total);
-  const sliceColors = rows.map((r) => fillColorForTipo(r.tipo));
+  const borderColors = rows.map((r) => fillColorForTipo(r.tipo));
+  const backgroundColors = borderColors.map((c) => colorConAlpha(c, RANKING_BAR_FILL_ALPHA));
 
-  mountChart(root, RH_INC_TIPO_DOUGHNUT_CHART_ID, ({ colors }) => ({
-    type: "doughnut",
-    plugins: [doughnutCenterPlugin(total, colors)],
+  mountChart(root, RH_INC_TIPO_BAR_CHART_ID, ({ colors }) => ({
+    type: "bar",
     data: {
       labels,
       datasets: [
         {
+          label: "Incidencias",
           data: values,
-          backgroundColor: sliceColors,
-          borderWidth: 0,
+          backgroundColor: backgroundColors,
+          borderColor: borderColors,
+          borderWidth: TIPO_BAR_BORDER_WIDTH,
+          borderRadius: TIPO_BAR_BORDER_RADIUS,
+          borderSkipped: false,
         },
       ],
     },
     options: {
       responsive: true,
-      cutout: "58%",
+      maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: true,
-          position: "bottom",
-          labels: {
-            color: colors.textSecondary,
-            font: { size: 11, weight: 500 },
-            boxWidth: 10,
-            boxHeight: 10,
-            padding: 12,
-          },
-        },
+        legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -150,6 +124,7 @@ export function mountIncidenciasDonutPorTipoChart(root: ParentNode, rows: readon
           },
         },
       },
+      ...chartCartesianScales(colors),
     },
   }));
 }

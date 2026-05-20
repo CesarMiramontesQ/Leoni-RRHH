@@ -221,7 +221,14 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     }
     if (inner) {
       inner.innerHTML = renderRhMetricasView(solVm, incVm);
-      mountRhSolicitudesAnalyticsFromRows(inner, solVm.personasDiaChartRows, solVm.tableStatus, destroyChart, destroyChartsIn);
+      mountRhSolicitudesAnalyticsFromRows(
+        inner,
+        solVm.personasDiaChartRows,
+        solVm.tableStatus,
+        destroyChart,
+        destroyChartsIn,
+        state.estado,
+      );
       const incSection = inner.querySelector("#rh-metricas-seccion-incidencias");
       mountRhIncidenciasAnalyticsCharts(incSection ?? inner, incVm, destroyChart, destroyChartsIn);
     }

@@ -1,30 +1,27 @@
+import {
+  emptyConteoPorTipo,
+  labelSolicitudTipo,
+  RH_SOLICITUD_TIPOS_ORDEN,
+} from "./solicitudTipoDisplay.ts";
 import type { RhSolicitudEstadoCodigo, RhSolicitudTablaFila, RhSolicitudTipoCodigo } from "./types.ts";
 
-/** Contadores de personas-día por categoría (una solicitud suma 1 por día en su periodo). */
-export type SolicitudPersonasDiaBucket = {
-  vacaciones: number;
-  home_office: number;
-  con_goce: number;
-  sin_goce: number;
+export type SolicitudPersonasDiaSerieTipo = {
+  codigo: RhSolicitudTipoCodigo;
+  label: string;
+  values: readonly number[];
 };
+
+/** Contadores de personas-día por tipo (una solicitud suma 1 por día en su periodo). */
+export type SolicitudPersonasDiaBucket = Record<RhSolicitudTipoCodigo, number>;
 
 export type SolicitudPersonasDiaSerie = {
   /** Etiquetas ISO `YYYY-MM-DD` ordenadas. */
   labels: readonly string[];
-  vacaciones: readonly number[];
-  home_office: readonly number[];
-  con_goce: readonly number[];
-  sin_goce: readonly number[];
-  /** Suma de las cuatro series por día. */
+  /** Una serie por tipo de solicitud. */
+  series: readonly SolicitudPersonasDiaSerieTipo[];
+  /** Suma de todas las series por día. */
   totales: readonly number[];
 };
-
-const TIPOS_GOCE = new Set<RhSolicitudTipoCodigo>([
-  "matrimonio",
-  "incapacidad_interna",
-  "defuncion",
-  "paternidad",
-]);
 
 /** Solo solicitudes ya aprobadas (incluye override como aprobación). */
 const ESTADOS_APROBADOS = new Set<RhSolicitudEstadoCodigo>(["approved", "overridden"]);
@@ -66,25 +63,11 @@ export function getCurrentCalendarMonthRange(now = new Date()): { startIso: stri
 }
 
 function emptyBucket(): SolicitudPersonasDiaBucket {
-  return { vacaciones: 0, home_office: 0, con_goce: 0, sin_goce: 0 };
+  return emptyConteoPorTipo();
 }
 
 function bumpBucket(bucket: SolicitudPersonasDiaBucket, tipo: RhSolicitudTipoCodigo): void {
-  if (tipo === "vacaciones") {
-    bucket.vacaciones += 1;
-    return;
-  }
-  if (tipo === "home_office") {
-    bucket.home_office += 1;
-    return;
-  }
-  if (tipo === "permiso_sin_goce_sueldo") {
-    bucket.sin_goce += 1;
-    return;
-  }
-  if (TIPOS_GOCE.has(tipo)) {
-    bucket.con_goce += 1;
-  }
+  bucket[tipo] += 1;
 }
 
 function listIsoDaysInclusive(startIso: string, endIso: string): string[] {
@@ -96,6 +79,19 @@ function listIsoDaysInclusive(startIso: string, endIso: string): string[] {
     out.push(isoFromLocalDate(cur));
   }
   return out;
+}
+
+function emptySerie(dayLabels: string[]): SolicitudPersonasDiaSerie {
+  const zeros = dayLabels.map(() => 0);
+  return {
+    labels: dayLabels,
+    series: RH_SOLICITUD_TIPOS_ORDEN.map((codigo) => ({
+      codigo,
+      label: labelSolicitudTipo(codigo),
+      values: zeros,
+    })),
+    totales: zeros,
+  };
 }
 
 /**
@@ -116,14 +112,7 @@ export function aggregateSolicitudesPersonasDia(
   const rangeStart = parseLocalDate(rangeStartIso);
   const rangeEnd = parseLocalDate(rangeEndIso);
   if (!rangeStart || !rangeEnd) {
-    return {
-      labels: dayLabels,
-      vacaciones: dayLabels.map(() => 0),
-      home_office: dayLabels.map(() => 0),
-      con_goce: dayLabels.map(() => 0),
-      sin_goce: dayLabels.map(() => 0),
-      totales: dayLabels.map(() => 0),
-    };
+    return emptySerie(dayLabels);
   }
 
   for (const row of rows) {
@@ -145,22 +134,32 @@ export function aggregateSolicitudesPersonasDia(
     }
   }
 
-  const vacaciones: number[] = [];
-  const home_office: number[] = [];
-  const con_goce: number[] = [];
-  const sin_goce: number[] = [];
+  const seriesValues: Record<RhSolicitudTipoCodigo, number[]> = emptyConteoPorTipo();
+  for (const t of RH_SOLICITUD_TIPOS_ORDEN) {
+    seriesValues[t] = [];
+  }
   const totales: number[] = [];
 
   for (const iso of dayLabels) {
     const b = byDay.get(iso) ?? emptyBucket();
-    vacaciones.push(b.vacaciones);
-    home_office.push(b.home_office);
-    con_goce.push(b.con_goce);
-    sin_goce.push(b.sin_goce);
-    totales.push(b.vacaciones + b.home_office + b.con_goce + b.sin_goce);
+    let dayTotal = 0;
+    for (const t of RH_SOLICITUD_TIPOS_ORDEN) {
+      const n = b[t];
+      seriesValues[t].push(n);
+      dayTotal += n;
+    }
+    totales.push(dayTotal);
   }
 
-  return { labels: dayLabels, vacaciones, home_office, con_goce, sin_goce, totales };
+  return {
+    labels: dayLabels,
+    series: RH_SOLICITUD_TIPOS_ORDEN.map((codigo) => ({
+      codigo,
+      label: labelSolicitudTipo(codigo),
+      values: seriesValues[codigo],
+    })),
+    totales,
+  };
 }
 
 /** Etiqueta corta para eje X (`5 may`). */
