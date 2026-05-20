@@ -39,7 +39,7 @@ export type SolicitudesPageUiConfig = {
   visibleFilterKeys: readonly RequestFilterKey[];
   /** KPIs agregados del alcance (gestores). */
   showStatsCards: boolean;
-  /** Bloque analítico de vista previa (solo RH vista global). */
+  /** Datos para gráficas analíticas (página Métricas). */
   showPersonasDiaChart: boolean;
   /** KPIs personales del colaborador. */
   showEmployeePersonalStats: boolean;
@@ -81,11 +81,23 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
     role,
     visibleFilterKeys: resolveVisibleFilterKeys(role),
     showStatsCards: isGestor,
-    showPersonasDiaChart: role === "rh",
+    showPersonasDiaChart: false,
     showEmployeePersonalStats: variant === "empleado",
     showExportButton: isGestor,
     showNewRequestButton: true,
     showGestorToolbar: isGestor,
+  };
+}
+
+/** UI de `#/metricas`: filtros RH + gráficas analíticas (sin tabla ni toolbar de solicitudes). */
+export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
+  return {
+    ...buildDefaultSolicitudesPageUiConfig("rh"),
+    showStatsCards: false,
+    showPersonasDiaChart: true,
+    showExportButton: false,
+    showNewRequestButton: false,
+    showGestorToolbar: false,
   };
 }
 

@@ -1052,17 +1052,32 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       </section>
 
       <div id="rh-sol-stats" class="shrink-0">${renderStatCards(vm)}</div>
-      ${renderRhSolicitudesAnalyticsSection({
-        state:
-          vm.ui.showPersonasDiaChart ?
-            vm.tableStatus === "loading" ?
-              "loading"
-            : "ready"
-          : "hidden",
-        rows: vm.personasDiaChartRows,
-      })}
       <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
       <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderTable(vm, "main")}</div>
+    </div>`;
+}
+
+/** Vista `#/metricas`: hero, gráficas analíticas y filtros (sin tabla ni KPIs de listado). */
+export function renderRhMetricasView(vm: RhSolicitudesAdminViewModel): string {
+  const analyticsState =
+    vm.ui.showPersonasDiaChart ?
+      vm.tableStatus === "loading" ?
+        "loading"
+      : "ready"
+    : "hidden";
+
+  return `
+    <div id="rh-metricas-root" class="rh-solicitudes-module ${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+      <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6">
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
+          <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
+            <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Métricas</h1>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Analítica y tendencias de solicitudes del personal</p>
+          </div>
+        </div>
+      </section>
+      ${renderRhSolicitudesAnalyticsSection({ state: analyticsState, rows: vm.personasDiaChartRows })}
+      <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
     </div>`;
 }
 

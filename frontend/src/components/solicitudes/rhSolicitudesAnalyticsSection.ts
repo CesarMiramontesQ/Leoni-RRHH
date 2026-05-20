@@ -3,11 +3,13 @@ import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
+  mountRhSolicitudesAnalyticsCharts,
   renderDonutPlaceholder,
   renderLinePlaceholder,
   renderPersonasDiaChart,
   renderRankingPlaceholder,
   renderVacHoPlaceholder,
+  RH_SOL_ANALYTICS_CHART_IDS,
   RH_SOL_AREAS_BAR_ID,
   RH_SOL_ESTADO_DONUT_ID,
   RH_SOL_SUP_PEND_BAR_ID,
@@ -82,4 +84,21 @@ export function renderRhSolicitudesAnalyticsSection(opts: {
     ${filaRankings}
     ${filaAusencias}
   </div>`;
+}
+
+/** Monta Chart.js tras pintar el HTML de analítica (misma lógica que en la antigua vista de Solicitudes). */
+export function mountRhSolicitudesAnalyticsFromRows(
+  root: ParentNode,
+  rows: readonly RhSolicitudTablaFila[],
+  tableStatus: "loading" | "ready" | "empty" | "error",
+  destroyChartById: (chartId: string) => void,
+  destroyChartsInContainer: (container: ParentNode) => void,
+): void {
+  for (const id of RH_SOL_ANALYTICS_CHART_IDS) destroyChartById(id);
+  const analyticsHost = root.querySelector("#rh-sol-analytics");
+  if (analyticsHost) destroyChartsInContainer(analyticsHost);
+  if (tableStatus === "loading") return;
+  const analytics = computeSolicitudesAnalytics(rows);
+  if (analytics.kpis.total <= 0) return;
+  mountRhSolicitudesAnalyticsCharts(root, analytics);
 }

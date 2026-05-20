@@ -21,12 +21,6 @@ import {
   renderRhSolicitudesScopedSection,
   renderSolicitudesSplitHeroMeta,
 } from "../components/solicitudes/rhSolicitudesAdminView.ts";
-import {
-  mountRhSolicitudesAnalyticsCharts,
-  RH_SOL_ANALYTICS_CHART_IDS,
-} from "../components/solicitudes/rhSolicitudesAnalyticsCharts.ts";
-import { computeSolicitudesAnalytics } from "../solicitudes/rh/computeSolicitudesAnalytics.ts";
-import { destroyChart, destroyChartsIn } from "../charts/index.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
@@ -454,8 +448,6 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       };
     }
     if (inner) {
-      for (const id of RH_SOL_ANALYTICS_CHART_IDS) destroyChart(id);
-      destroyChartsIn(inner);
       inner.innerHTML =
         isSplitGestorRole ?
           renderSplitSolicitudesView(personalVm, equipoVm, {
@@ -463,12 +455,6 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
             showNewRequestButton: pageUi.showNewRequestButton,
           })
         : renderRhSolicitudesAdminView(vm);
-      if (pageUi.showPersonasDiaChart && !isSplitGestorRole && vm.tableStatus !== "loading") {
-        const analytics = computeSolicitudesAnalytics(vm.personasDiaChartRows);
-        if (analytics.kpis.total > 0) {
-          mountRhSolicitudesAnalyticsCharts(inner, analytics);
-        }
-      }
       const scrollDeep = solicitudesDeepLinkScrollTarget;
       if (isSplitGestorRole && scrollDeep === "equipo" && equipoVm.tableStatus !== "loading") {
         solicitudesDeepLinkScrollTarget = null;
