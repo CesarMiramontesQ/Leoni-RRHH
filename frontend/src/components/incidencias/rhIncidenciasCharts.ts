@@ -19,9 +19,8 @@ export const RH_INC_RANKING_BAR_CHART_HEIGHT_CLASS = "h-[260px]";
 
 const RANKING_BAR_TOP = 5;
 const RANKING_BAR_FILL_ALPHA = 0.5;
-/** Barras verticales con esquinas redondeadas — @see https://www.chartjs.org/docs/latest/samples/bar/border-radius.html */
-const TIPO_BAR_BORDER_RADIUS = Number.MAX_VALUE;
-const TIPO_BAR_BORDER_WIDTH = 2;
+/** Radio moderado para barras verticales (alineado con analítica de solicitudes). */
+const VERTICAL_BAR_BORDER_RADIUS = 8;
 
 const TENDENCIA_RED_ALPHA = 0.2;
 const TENDENCIA_LINE_TENSION_SMOOTH = 0.4;
@@ -103,8 +102,8 @@ export function mountIncidenciasTipoBarChart(root: ParentNode, rows: readonly Do
           data: values,
           backgroundColor: backgroundColors,
           borderColor: borderColors,
-          borderWidth: TIPO_BAR_BORDER_WIDTH,
-          borderRadius: TIPO_BAR_BORDER_RADIUS,
+          borderWidth: 1,
+          borderRadius: VERTICAL_BAR_BORDER_RADIUS,
           borderSkipped: false,
         },
       ],

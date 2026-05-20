@@ -45,15 +45,12 @@ export const CHART_H_DAY = "h-[300px]";
 
 const BAR_FILL_ALPHA = 0.85;
 const BAR_RADIUS = 4;
-/** Barras verticales con esquinas redondeadas — @see https://www.chartjs.org/docs/latest/samples/bar/border-radius.html */
-const TIPO_BAR_BORDER_RADIUS = Number.MAX_VALUE;
 const TIPO_BAR_FILL_ALPHA = 0.5;
-const TIPO_BAR_BORDER_WIDTH = 2;
 const DONUT_CUTOUT = "58%";
 const TENDENCIA_LINE_FILL_ALPHA = 0.5;
 const TENDENCIA_LINE_TENSION = 0.35;
-/** Radio moderado para barras HO por día laboral (evita aspecto píldora). */
-const HO_DIA_LABORAL_BAR_RADIUS = 8;
+/** Radio moderado para barras verticales (Distribución por tipo, HO por día laboral). */
+const VERTICAL_BAR_BORDER_RADIUS = 8;
 const DEPT_STACK_BAR_RADIUS = 7;
 const DEPT_STACK_BAR_MAX_THICKNESS = 16;
 const DEPT_SEGMENT_LABEL_MIN_PX = 28;
@@ -163,8 +160,8 @@ export function mountTipoDistribucionBarChart(
           data: values,
           backgroundColor: backgroundColors,
           borderColor: borderColors,
-          borderWidth: TIPO_BAR_BORDER_WIDTH,
-          borderRadius: TIPO_BAR_BORDER_RADIUS,
+          borderWidth: 1,
+          borderRadius: VERTICAL_BAR_BORDER_RADIUS,
           borderSkipped: false,
         },
       ],
@@ -752,7 +749,7 @@ export function mountHoDiasPorDiaLaboralChart(root: ParentNode, serie: HoDiasPor
             backgroundColor: colorConAlpha(border, TIPO_BAR_FILL_ALPHA),
             borderColor: border,
             borderWidth: 1,
-            borderRadius: HO_DIA_LABORAL_BAR_RADIUS,
+            borderRadius: VERTICAL_BAR_BORDER_RADIUS,
             borderSkipped: false,
           },
         ],
