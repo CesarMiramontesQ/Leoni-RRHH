@@ -388,7 +388,7 @@ export function renderSolicitudesPorDepartamentoFootnote(): string {
 
 export function renderSolicitudesPorDepartamentoChart(chart: SolicitudPorDepartamentoChart): string {
   if (chart.rows.length === 0) {
-    return `${emptyPanel("Sin vacaciones ni home office por departamento", "min-h-[200px]")}${renderSolicitudesPorDepartamentoFootnote()}`;
+    return emptyPanel("Sin vacaciones ni home office por departamento", "min-h-[200px]");
   }
   const visualRows = visualDeptChartRows(chart.rows);
   const h = deptChartHeightPx(visualRows.length);
@@ -399,7 +399,7 @@ export function renderSolicitudesPorDepartamentoChart(chart: SolicitudPorDeparta
       heightClass: "h-full min-h-0",
       className: "relative h-full w-full min-w-0",
     })}
-  </div>${renderSolicitudesPorDepartamentoFootnote()}`;
+  </div>`;
 }
 
 /** Barras horizontales apiladas: vacaciones + home office por departamento. */

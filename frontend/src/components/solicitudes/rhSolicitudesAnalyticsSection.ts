@@ -14,6 +14,7 @@ import {
   renderHoDiasPorDiaLaboralChart,
   renderDeptVacHoLegendHtml,
   renderSolicitudesPorDepartamentoChart,
+  renderSolicitudesPorDepartamentoFootnote,
   renderVacHoPlaceholder,
   RH_SOL_ANALYTICS_CHART_IDS,
   RH_SOL_ESTADO_DONUT_ID,
@@ -79,7 +80,6 @@ function renderDeptVacHoKpis(chart: SolicitudPorDepartamentoChart): string {
 }
 
 function cardDeptVacHo(title: string, subtitle: string, chart: SolicitudPorDepartamentoChart): string {
-  const body = `${renderDeptVacHoKpis(chart)}${renderSolicitudesPorDepartamentoChart(chart)}`;
   return `<article class="${CARD} flex h-full w-full min-w-0 flex-col">
     <header class="mb-2 flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
       <div class="min-w-0">
@@ -88,7 +88,11 @@ function cardDeptVacHo(title: string, subtitle: string, chart: SolicitudPorDepar
       </div>
       ${renderDeptVacHoLegendHtml()}
     </header>
-    <div class="min-h-0 shrink-0">${body}</div>
+    <div class="flex min-h-0 flex-1 flex-col">
+      <div class="shrink-0">${renderDeptVacHoKpis(chart)}</div>
+      <div class="flex min-h-0 flex-1 flex-col justify-center">${renderSolicitudesPorDepartamentoChart(chart)}</div>
+      <div class="shrink-0">${renderSolicitudesPorDepartamentoFootnote()}</div>
+    </div>
   </article>`;
 }
 
