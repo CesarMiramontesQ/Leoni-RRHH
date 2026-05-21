@@ -138,6 +138,22 @@ class IncidenciaSerieMensualItem(BaseModel):
     total: int
 
 
+class IncidenciaMesTipoItem(BaseModel):
+    """Conteo mensual por tipo (misma fecha de negocio que `incidencias_por_mes`)."""
+
+    periodo: str  # YYYY-MM
+    tipo: str
+    total: int
+
+
+class IncidenciaPeriodoTipoItem(BaseModel):
+    """Conteo por periodo y tipo; formato de `periodo` según `tendencia_agrupacion`."""
+
+    periodo: str
+    tipo: str
+    total: int
+
+
 class IncidenciasEstadisticasResponse(BaseModel):
     """Agregados para analítica del listado (mismos filtros y alcance que GET /incidencias)."""
 
@@ -149,6 +165,11 @@ class IncidenciasEstadisticasResponse(BaseModel):
     empleados_con_mas_incidencias: list[IncidenciaEmpleadoTotalItem]
     incidencias_por_tipo: list[IncidenciaTipoDistribucionItem]
     incidencias_por_mes: list[IncidenciaSerieMensualItem] = Field(default_factory=list)
+    incidencias_por_mes_y_tipo: list[IncidenciaMesTipoItem] = Field(default_factory=list)
+    tendencia_agrupacion: str | None = None
+    incidencias_por_periodo_y_tipo: list[IncidenciaPeriodoTipoItem] = Field(
+        default_factory=list
+    )
     total_periodo_anterior: int | None = None
     variacion_total_pct: float | None = None
 

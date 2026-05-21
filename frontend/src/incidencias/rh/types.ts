@@ -106,6 +106,10 @@ export type RhIncidenciasEstadisticasData = {
   incidencias_por_tipo: { tipo: string; total: number; porcentaje: number }[];
   /** Serie mensual (YYYY-MM) desde el backend; vacía si no hay datos. */
   incidencias_por_mes: { periodo: string; total: number }[];
+  /** Buckets mes × tipo (analítica de incidencias). */
+  incidencias_por_mes_y_tipo: { periodo: string; tipo: string; total: number }[];
+  tendencia_agrupacion?: "dia" | "semana" | "mes" | null;
+  incidencias_por_periodo_y_tipo: { periodo: string; tipo: string; total: number }[];
   total_periodo_anterior?: number | null;
   variacion_total_pct?: number | null;
 };

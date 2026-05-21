@@ -120,6 +120,35 @@ function rankingTop(counts: Map<string, number>, top = 5): SolicitudRankingRow[]
     .slice(0, top);
 }
 
+/** Top N supervisores/gerentes directos (`empleado.lider_id`) con más solicitudes en `pending`. */
+export const SUPERVISORES_PENDIENTES_TOP = 5;
+
+/**
+ * Agrupa solicitudes pendientes de aprobación por líder directo del solicitante.
+ * Usa `supervisor_id` / `supervisor_nombre` (mapeados desde `lider_id` del API), sin subárbol jerárquico.
+ */
+export function aggregateSupervisoresPendientes(
+  rows: readonly RhSolicitudTablaFila[],
+  top = SUPERVISORES_PENDIENTES_TOP,
+): SolicitudRankingRow[] {
+  const byLider = new Map<string, SolicitudRankingRow>();
+
+  for (const r of rows) {
+    if (r.estado !== "pending") continue;
+    const liderId = r.supervisor_id.trim();
+    if (!liderId) continue;
+    const label = r.supervisor_nombre.trim() || "Sin nombre";
+    const prev = byLider.get(liderId);
+    if (prev) {
+      prev.total += 1;
+    } else {
+      byLider.set(liderId, { label, total: 1 });
+    }
+  }
+
+  return [...byLider.values()].sort((a, b) => b.total - a.total).slice(0, top);
+}
+
 function filaCuentaGraficaDepartamento(r: RhSolicitudTablaFila, estadoFiltroActivo: string): boolean {
   if (r.tipo !== "vacaciones" && r.tipo !== "home_office") return false;
   if (estadoFiltroActivo.trim() !== "") return true;

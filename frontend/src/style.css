@@ -709,6 +709,35 @@ body {
   border-radius: 0;
 }
 
+/* Panel analítico inferior (RH): Laborales, Comedor, Empleados */
+.rh-dashboard-analytics .rh-dash-analytics-block + .rh-dash-analytics-block {
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.rh-dash-analytics-chart {
+  min-height: 220px;
+}
+
+.rh-dash-analytics-chart .rh-sol-chart-panel,
+.rh-dash-analytics-chart .rh-inc-chart-panel {
+  min-height: 200px;
+}
+
+.rh-dash-analytics-empty {
+  display: flex;
+  min-height: 200px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.rh-dash-period-btn {
+  cursor: pointer;
+}
+
 .rh-dash-kpi-card {
   border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.26);
@@ -1214,13 +1243,13 @@ body {
 }
 
 /* ── Solicitudes, Incidencias y Actas: cards, tabla, filtros (mismo lenguaje visual) ─ */
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-hero-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-hero-card {
   box-shadow:
     0 10px 28px rgba(15, 23, 42, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-hero__copy {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-hero__copy {
   word-break: normal;
   overflow-wrap: normal;
 }
@@ -1317,7 +1346,7 @@ body {
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.35) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card {
   border-width: 1px;
   transition:
     transform 180ms ease,
@@ -1325,149 +1354,164 @@ body {
     border-color 180ms ease;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--pendiente {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente {
   border-color: rgba(245, 158, 11, 0.35);
   background: linear-gradient(145deg, #fffbeb 0%, #fff7ed 55%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fef3c7 0%, #fffbeb 100%);
   color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__value {
   color: #78350f;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--vacaciones {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones {
   border-color: rgba(249, 115, 22, 0.32);
   background: linear-gradient(145deg, #fff7ed 0%, #ffedd5 45%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #ffedd5 0%, #fff7ed 100%);
   color: #c2410c;
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__value {
   color: #9a3412;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--ho {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente {
+  border-color: rgba(239, 68, 68, 0.38);
+  background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 48%, #fff 100%);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente .rh-sol-kpi-card__icon {
+  background: linear-gradient(145deg, #fecaca 0%, #fef2f2 100%);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente .rh-sol-kpi-card__value {
+  color: #991b1b;
+}
+
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho {
   border-color: rgba(124, 58, 237, 0.28);
   background: linear-gradient(145deg, #faf5ff 0%, #ede9fe 40%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #ede9fe 0%, #f5f3ff 100%);
   color: #5b21b6;
   border: 1px solid rgba(124, 58, 237, 0.22);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
   color: #4c1d95;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--aprobadas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas {
   border-color: rgba(16, 185, 129, 0.3);
   background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 35%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__value {
   color: #065f46;
 }
 
 /* KPIs vista Incidencias (variantes dedicadas) */
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-abiertas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas {
   border-color: rgba(37, 99, 235, 0.32);
   background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 42%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #dbeafe 0%, #eff6ff 100%);
   color: #1d4ed8;
   border: 1px solid rgba(37, 99, 235, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__value {
   color: #1e3a8a;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-investigacion {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion {
   border-color: rgba(245, 158, 11, 0.36);
   background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 48%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fef3c7 0%, #fffbeb 100%);
   color: #c2410c;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__value {
   color: #9a3412;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-resueltas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas {
   border-color: rgba(16, 185, 129, 0.32);
   background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 38%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__value {
   color: #065f46;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-criticas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas {
   border-color: rgba(239, 68, 68, 0.34);
   background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 42%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fee2e2 0%, #fef2f2 100%);
   color: #b91c1c;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__value {
   color: #991b1b;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--empleado:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--empleado:hover {
   border-color: rgba(148, 163, 184, 0.45);
 }
 
 /* Actas: KPI “cerradas” (gris / slate) y badges de tipo */
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--acta-cerrada {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada {
   border-color: rgba(100, 116, 139, 0.38);
   background: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 38%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #e2e8f0 0%, #f1f5f9 100%);
   color: #475569;
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__value {
   color: #334155;
 }
 
@@ -1534,12 +1578,12 @@ body {
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.4) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__toolbar--dual {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-header__toolbar--dual {
   align-self: stretch;
 }
 
 @media (min-width: 768px) {
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__toolbar--dual {
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-header__toolbar--dual {
     align-self: center;
     width: auto;
   }
@@ -1781,7 +1825,7 @@ body {
   :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:hover:not(:disabled),
   :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:active:not(:disabled),
   :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary:hover:not(:disabled),
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-kpi-card:hover {
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card:hover {
     transform: none;
   }
 

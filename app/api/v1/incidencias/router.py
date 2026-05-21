@@ -126,8 +126,15 @@ async def estadisticas_incidencias(
     subarea: str | None = Query(None),
     fecha_inicio: date | None = Query(None),
     fecha_fin: date | None = Query(None),
+    tendencia_agrupacion: str | None = Query(
+        None,
+        description="Granularidad de tendencia: dia, semana o mes (dashboard RH)",
+    ),
 ):
     """Agregados para analítica (totales, top 10, distribución por tipo) con los mismos filtros que el listado."""
+    agr = (tendencia_agrupacion or "").strip().lower() or None
+    if agr not in (None, "dia", "semana", "mes"):
+        agr = None
     return await svc.estadisticas_incidencias(
         current_user,
         tipo=tipo.strip() if tipo and tipo.strip() else None,
@@ -143,6 +150,7 @@ async def estadisticas_incidencias(
         subarea=subarea.strip() if subarea and subarea.strip() else None,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
+        tendencia_agrupacion=agr,
     )
 
 

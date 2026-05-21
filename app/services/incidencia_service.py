@@ -34,6 +34,8 @@ from app.schemas.incidencias import (
     IncidenciasKpiResumen,
     IncidenciasListPageResponse,
     IncidenciaAreaTotalItem,
+    IncidenciaMesTipoItem,
+    IncidenciaPeriodoTipoItem,
     IncidenciaSerieMensualItem,
     IncidenciaSubareaTotalItem,
 )
@@ -218,6 +220,7 @@ class IncidenciaService:
         subarea: str | None = None,
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
+        tendencia_agrupacion: str | None = None,
     ) -> IncidenciasEstadisticasResponse:
         """Top áreas/subáreas/empleados y distribución por tipo con los mismos filtros que el listado."""
         scope = await self._scope_filters_for_list(current_user)
@@ -247,6 +250,7 @@ class IncidenciaService:
         empleados_raw = await self.repo.aggregate_empleados_top(filters_arg, limit=10)
         tipos_raw = await self.repo.aggregate_tipos_con_totales(filters_arg)
         mes_rows = await self.repo.aggregate_totales_por_mes(filters_arg)
+        mes_tipo_rows = await self.repo.aggregate_totales_por_mes_y_tipo(filters_arg)
 
         total_tipos = sum(c for _, c in tipos_raw)
         incidencias_por_tipo: list[IncidenciaTipoDistribucionItem] = []
@@ -259,6 +263,21 @@ class IncidenciaService:
         incidencias_por_mes = [
             IncidenciaSerieMensualItem(periodo=p, total=c) for p, c in mes_rows
         ]
+        incidencias_por_mes_y_tipo = [
+            IncidenciaMesTipoItem(periodo=p, tipo=t, total=c) for p, t, c in mes_tipo_rows
+        ]
+
+        agrupacion_tendencia: str | None = None
+        incidencias_por_periodo_y_tipo: list[IncidenciaPeriodoTipoItem] = []
+        if tendencia_agrupacion in ("dia", "semana", "mes"):
+            agrupacion_tendencia = tendencia_agrupacion
+            periodo_rows = await self.repo.aggregate_totales_por_periodo_y_tipo(
+                filters_arg, agrupacion=tendencia_agrupacion
+            )
+            incidencias_por_periodo_y_tipo = [
+                IncidenciaPeriodoTipoItem(periodo=p, tipo=t, total=c)
+                for p, t, c in periodo_rows
+            ]
 
         total_periodo_anterior: int | None = None
         variacion_total_pct: float | None = None
@@ -314,6 +333,9 @@ class IncidenciaService:
             ],
             incidencias_por_tipo=incidencias_por_tipo,
             incidencias_por_mes=incidencias_por_mes,
+            incidencias_por_mes_y_tipo=incidencias_por_mes_y_tipo,
+            tendencia_agrupacion=agrupacion_tendencia,
+            incidencias_por_periodo_y_tipo=incidencias_por_periodo_y_tipo,
             total_periodo_anterior=total_periodo_anterior,
             variacion_total_pct=variacion_total_pct,
         )

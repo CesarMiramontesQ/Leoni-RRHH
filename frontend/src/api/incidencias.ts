@@ -156,9 +156,15 @@ export function buildIncidenciasListQuery(
   return p.toString();
 }
 
-export function buildIncidenciasEstadisticasQuery(filters: RhIncidenciaListFilters): string {
+export function buildIncidenciasEstadisticasQuery(
+  filters: RhIncidenciaListFilters,
+  opts?: { tendencia_agrupacion?: "dia" | "semana" | "mes" },
+): string {
   const p = new URLSearchParams();
   appendIncidenciasFilterParams(p, filters);
+  if (opts?.tendencia_agrupacion) {
+    p.set("tendencia_agrupacion", opts.tendencia_agrupacion);
+  }
   return p.toString();
 }
 
@@ -232,8 +238,9 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
 
 export async function fetchIncidenciasEstadisticas(
   filters: RhIncidenciaListFilters,
+  opts?: { tendencia_agrupacion?: "dia" | "semana" | "mes" },
 ): Promise<RhIncidenciasEstadisticasData> {
-  const qs = buildIncidenciasEstadisticasQuery(filters);
+  const qs = buildIncidenciasEstadisticasQuery(filters, opts);
   const suffix = qs.length > 0 ? `?${qs}` : "";
   const res = await fetchWithAuth(`/api/v1/incidencias/estadisticas${suffix}`);
   if (!res.ok) {
@@ -255,6 +262,14 @@ export async function fetchIncidenciasEstadisticas(
     empleados_con_mas_incidencias: raw.empleados_con_mas_incidencias ?? [],
     incidencias_por_tipo: raw.incidencias_por_tipo ?? [],
     incidencias_por_mes: raw.incidencias_por_mes ?? [],
+    incidencias_por_mes_y_tipo: raw.incidencias_por_mes_y_tipo ?? [],
+    tendencia_agrupacion:
+      raw.tendencia_agrupacion === "dia" ||
+      raw.tendencia_agrupacion === "semana" ||
+      raw.tendencia_agrupacion === "mes"
+        ? raw.tendencia_agrupacion
+        : null,
+    incidencias_por_periodo_y_tipo: raw.incidencias_por_periodo_y_tipo ?? [],
     total_periodo_anterior:
       typeof raw.total_periodo_anterior === "number" ? raw.total_periodo_anterior : null,
     variacion_total_pct:

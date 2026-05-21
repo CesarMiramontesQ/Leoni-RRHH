@@ -1,3 +1,4 @@
+/** Sección inferior del dashboard RH (calendario). Ya no se monta en `#/`; conservada para reutilización futura. */
 import { escapeHtml } from "../vista360/html.ts";
 import {
   addCalendarMonths,

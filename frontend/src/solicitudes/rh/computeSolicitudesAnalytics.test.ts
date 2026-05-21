@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { computeSolicitudesAnalytics } from "./computeSolicitudesAnalytics.ts";
+import {
+  aggregateSupervisoresPendientes,
+  computeSolicitudesAnalytics,
+} from "./computeSolicitudesAnalytics.ts";
 import type { RhSolicitudTablaFila } from "./types.ts";
 
 function fila(
@@ -54,6 +57,56 @@ describe("computeSolicitudesAnalytics", () => {
     expect(vac?.valores.at(-1)).toBe(1);
     expect(mat?.valores.at(-1)).toBe(1);
     expect(pat?.valores.at(-2)).toBe(1);
+  });
+
+  it("supervisores pendientes: solo pending y agrupa por lider directo", () => {
+    const rows = [
+      fila({
+        id: 30,
+        tipo: "vacaciones",
+        estado: "pending",
+        fecha_solicitud: "2026-05-01",
+        supervisor_id: "10",
+        supervisor_nombre: "Supervisor A",
+      }),
+      fila({
+        id: 31,
+        tipo: "home_office",
+        estado: "pending",
+        fecha_solicitud: "2026-05-02",
+        supervisor_id: "10",
+        supervisor_nombre: "Supervisor A",
+      }),
+      fila({
+        id: 32,
+        tipo: "vacaciones",
+        estado: "pending",
+        fecha_solicitud: "2026-05-03",
+        supervisor_id: "20",
+        supervisor_nombre: "Gerente B",
+      }),
+      fila({
+        id: 33,
+        tipo: "vacaciones",
+        estado: "approved",
+        fecha_solicitud: "2026-05-04",
+        supervisor_id: "20",
+        supervisor_nombre: "Gerente B",
+      }),
+      fila({
+        id: 34,
+        tipo: "vacaciones",
+        estado: "pending",
+        fecha_solicitud: "2026-05-05",
+        supervisor_id: "",
+        supervisor_nombre: "Sin supervisor",
+      }),
+    ];
+    const ranking = aggregateSupervisoresPendientes(rows);
+    expect(ranking).toEqual([
+      { label: "Supervisor A", total: 2 },
+      { label: "Gerente B", total: 1 },
+    ]);
   });
 
   it("departamentos: solo vac/ho aprobadas por defecto y orden por total", () => {

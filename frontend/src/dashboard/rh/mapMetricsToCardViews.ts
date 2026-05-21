@@ -1,3 +1,4 @@
+import type { RhDashboardAnalyticsPayload } from "./analyticsTypes.ts";
 import type { RhOperationalCardId, RhOperationalMetricsPayload } from "./metricsTypes.ts";
 
 export type RhCardAccent = "blue" | "orange" | "violet" | "sky" | "red" | "amber";
@@ -59,8 +60,39 @@ function emptyPayload(): RhOperationalMetricsPayload {
  */
 export function mapMetricsToCardViews(
   data: RhOperationalMetricsPayload | null,
+  analytics?: RhDashboardAnalyticsPayload | null,
 ): RhOperationalCardView[] {
-  const m = data ?? emptyPayload();
+  const m = { ...(data ?? emptyPayload()) };
+
+  const laboralesKpis = analytics?.laborales.kpis;
+  if (laboralesKpis && laboralesKpis.incidencias_total > 0) {
+    m.incidencias = {
+      ...m.incidencias,
+      abiertas: laboralesKpis.incidencias_total,
+      urgente: laboralesKpis.incidencias_seguridad > 0,
+    };
+  }
+  if (analytics?.laborales.actas) {
+    m.actas_administrativas = {
+      en_proceso: analytics.laborales.actas.en_proceso,
+      pendientes_firma: analytics.laborales.actas.pendientes_firma,
+    };
+  }
+  if (analytics?.comedor.kpis) {
+    const c = analytics.comedor.kpis;
+    m.almuerzos_hoy = {
+      total: c.almuerzos_hoy,
+      capacidad_max: m.almuerzos_hoy.capacidad_max,
+      normal: c.caseras_hoy,
+      dieta: c.saludables_hoy,
+    };
+  }
+  if (laboralesKpis && laboralesKpis.solicitudes_pendientes > 0) {
+    m.home_office = {
+      ...m.home_office,
+      pendientes_aprobacion: laboralesKpis.solicitudes_pendientes,
+    };
+  }
   const a = m.almuerzos_hoy;
   const v = m.vacaciones_pendientes;
   const h = m.home_office;

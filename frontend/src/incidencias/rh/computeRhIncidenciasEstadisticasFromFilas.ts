@@ -109,6 +109,7 @@ export function computeRhIncidenciasEstadisticasFromFilas(
   }));
 
   const byMonth = new Map<string, number>();
+  const byMonthTipo = new Map<string, Map<string, number>>();
   for (const r of rows) {
     const fromFecha = r.fecha?.trim();
     const key =
@@ -117,12 +118,26 @@ export function computeRhIncidenciasEstadisticasFromFilas(
       : null;
     if (key && /^\d{4}-\d{2}$/.test(key)) {
       byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
+      const t = tipoLabel(r);
+      let inner = byMonthTipo.get(key);
+      if (!inner) {
+        inner = new Map();
+        byMonthTipo.set(key, inner);
+      }
+      inner.set(t, (inner.get(t) ?? 0) + 1);
     }
   }
   const incidencias_por_mes = [...byMonth.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-18)
     .map(([periodo, total]) => ({ periodo, total }));
+
+  const incidencias_por_mes_y_tipo: { periodo: string; tipo: string; total: number }[] = [];
+  for (const [periodo, tmap] of [...byMonthTipo.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [tipo, total] of tmap.entries()) {
+      incidencias_por_mes_y_tipo.push({ periodo, tipo, total });
+    }
+  }
 
   return {
     total_incidencias: rows.length,
@@ -133,6 +148,9 @@ export function computeRhIncidenciasEstadisticasFromFilas(
     empleados_con_mas_incidencias: empleados,
     incidencias_por_tipo,
     incidencias_por_mes,
+    incidencias_por_mes_y_tipo,
+    tendencia_agrupacion: null,
+    incidencias_por_periodo_y_tipo: [],
     total_periodo_anterior: null,
     variacion_total_pct: null,
   };

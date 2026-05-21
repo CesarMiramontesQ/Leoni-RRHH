@@ -811,6 +811,30 @@ components:
         total:
           type: integer
 
+    IncidenciaMesTipoItem:
+      type: object
+      required: [periodo, tipo, total]
+      properties:
+        periodo:
+          type: string
+          description: Mes calendario en formato YYYY-MM
+        tipo:
+          type: string
+        total:
+          type: integer
+
+    IncidenciaPeriodoTipoItem:
+      type: object
+      required: [periodo, tipo, total]
+      properties:
+        periodo:
+          type: string
+          description: "Clave de periodo según tendencia_agrupacion (YYYY-MM-DD, lunes de semana o YYYY-MM)"
+        tipo:
+          type: string
+        total:
+          type: integer
+
     IncidenciasEstadisticasResponse:
       type: object
       required:
@@ -852,6 +876,20 @@ components:
           description: Serie mensual para tendencia (fecha de negocio o fecha de alta).
           items:
             $ref: "#/components/schemas/IncidenciaSerieMensualItem"
+        incidencias_por_mes_y_tipo:
+          type: array
+          description: Conteo por mes y tipo (misma fecha que incidencias_por_mes).
+          items:
+            $ref: "#/components/schemas/IncidenciaMesTipoItem"
+        tendencia_agrupacion:
+          type: [string, "null"]
+          enum: [dia, semana, mes, null]
+          description: Granularidad solicitada vía query tendencia_agrupacion.
+        incidencias_por_periodo_y_tipo:
+          type: array
+          description: Serie por tipo según tendencia_agrupacion (dia, semana o mes).
+          items:
+            $ref: "#/components/schemas/IncidenciaPeriodoTipoItem"
         total_periodo_anterior:
           type: [integer, "null"]
           description: Total en el periodo inmediatamente anterior al rango fecha_inicio/fecha_fin (mismos filtros).
@@ -3408,6 +3446,13 @@ paths:
           schema:
             type: string
             format: date
+        - name: tendencia_agrupacion
+          in: query
+          required: false
+          description: Granularidad de tendencia por tipo (dashboard RH).
+          schema:
+            type: string
+            enum: [dia, semana, mes]
       responses:
         "200":
           description: Agregados filtrados

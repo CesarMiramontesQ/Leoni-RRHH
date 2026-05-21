@@ -372,6 +372,68 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
             rows = rows[-max_points:]
         return rows
 
+    def _incidencia_date_col(self):
+        return func.coalesce(Incidencia.fecha, cast(Incidencia.created_at, Date))
+
+    def _period_key_expr(self, date_col, *, agrupacion: str):
+        bind = self.db.get_bind()
+        dialect_name = bind.dialect.name if bind is not None else "sqlite"
+        if agrupacion == "dia":
+            if dialect_name == "postgresql":
+                return func.to_char(date_col, "YYYY-MM-DD")
+            return func.strftime("%Y-%m-%d", date_col)
+        if agrupacion == "semana":
+            if dialect_name == "postgresql":
+                monday = cast(func.date_trunc("week", date_col), Date)
+                return func.to_char(monday, "YYYY-MM-DD")
+            return func.strftime("%Y-%m-%d", func.date(date_col, "weekday 1", "-6 days"))
+        if dialect_name == "postgresql":
+            return func.to_char(date_col, "YYYY-MM")
+        return func.strftime("%Y-%m", date_col)
+
+    async def aggregate_totales_por_periodo_y_tipo(
+        self,
+        filters: list | None,
+        *,
+        agrupacion: str,
+    ) -> list[tuple[str, str, int]]:
+        """
+        Conteo por periodo y tipo. `agrupacion`: dia (YYYY-MM-DD), semana (lunes YYYY-MM-DD), mes (YYYY-MM).
+        """
+        date_col = self._incidencia_date_col()
+        period_key = self._period_key_expr(date_col, agrupacion=agrupacion)
+        stmt = (
+            select(
+                period_key.label("periodo"),
+                Incidencia.tipo.label("tipo"),
+                func.count().label("cnt"),
+            )
+            .select_from(Incidencia)
+        )
+        stmt = self._apply_filters(stmt, filters)
+        stmt = stmt.group_by(period_key, Incidencia.tipo).order_by(
+            period_key.asc(), Incidencia.tipo.asc()
+        )
+        result = await self.db.execute(stmt)
+        out: list[tuple[str, str, int]] = []
+        for r in result.all():
+            p = r.periodo
+            t = r.tipo
+            if p is None or t is None:
+                continue
+            ps = str(p).strip()
+            ts = str(t).strip()
+            if not ps or not ts:
+                continue
+            out.append((ps, ts, int(r.cnt)))
+        return out
+
+    async def aggregate_totales_por_mes_y_tipo(
+        self,
+        filters: list | None,
+    ) -> list[tuple[str, str, int]]:
+        return await self.aggregate_totales_por_periodo_y_tipo(filters, agrupacion="mes")
+
     async def count_evidencias(self, incidencia_id: int) -> int:
         result = await self.db.execute(
             select(func.count())

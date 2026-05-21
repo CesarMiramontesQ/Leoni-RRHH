@@ -21,6 +21,9 @@ async def test_estadisticas_incidencias_ok(client: AsyncClient, db, empleado_rh)
     assert "areas_con_mas_incidencias" in data
     assert "incidencias_por_mes" in data
     assert isinstance(data["incidencias_por_mes"], list)
+    assert "incidencias_por_mes_y_tipo" in data
+    assert isinstance(data["incidencias_por_mes_y_tipo"], list)
+    assert "incidencias_por_periodo_y_tipo" in data
 
 
 @pytest.mark.asyncio
@@ -81,6 +84,20 @@ async def test_estadisticas_filtra_areas_y_subareas_por_rango_fecha(
     assert marzo["total_incidencias"] == 1
     assert marzo["areas_con_mas_incidencias"][0]["area"] == "Calidad"
     assert marzo["subareas_con_mas_incidencias"][0]["subarea"] == "Inspeccion"
+
+    r_dia = await client.get(
+        "/api/v1/incidencias/estadisticas",
+        params={
+            "fecha_inicio": "2026-01-10",
+            "fecha_fin": "2026-01-15",
+            "tendencia_agrupacion": "dia",
+        },
+        headers=headers,
+    )
+    assert r_dia.status_code == 200, r_dia.text
+    dia = r_dia.json()
+    assert dia["tendencia_agrupacion"] == "dia"
+    assert len(dia["incidencias_por_periodo_y_tipo"]) >= 1
 
 
 @pytest.mark.asyncio

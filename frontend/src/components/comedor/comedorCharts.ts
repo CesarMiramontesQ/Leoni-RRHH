@@ -9,7 +9,7 @@ import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 
 /** Barras apiladas por semana: parte inferior caseras, superior saludables (misma escala entre columnas). */
-function renderRhPlatillosPorSemanaChart(rows: readonly ComedorRhSemanaPlatilloPorSemana[]): string {
+export function renderRhPlatillosPorSemanaChart(rows: readonly ComedorRhSemanaPlatilloPorSemana[]): string {
   const maxTotal = Math.max(1, ...rows.map((r) => r.total));
   const cols = rows
     .map((p) => {
@@ -43,7 +43,7 @@ function renderRhPlatillosPorSemanaChart(rows: readonly ComedorRhSemanaPlatilloP
     </div>`;
 }
 
-function renderOccupancyBars(points: readonly ComedorWeekOccupancyPoint[]): string {
+export function renderOccupancyBars(points: readonly ComedorWeekOccupancyPoint[]): string {
   return `
     <div class="mt-4 grid grid-cols-4 items-end gap-2 sm:gap-3">
       ${points
