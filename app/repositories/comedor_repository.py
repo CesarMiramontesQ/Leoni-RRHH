@@ -622,6 +622,27 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         await self.db.flush()
         return result.rowcount
 
+    async def marcar_repetido_si_accedido(
+        self,
+        acceso_id: int,
+        fecha_servicio: date,
+    ) -> int:
+        stmt = (
+            update(ComedorAcceso)
+            .where(
+                ComedorAcceso.id == acceso_id,
+                ComedorAcceso.fecha_servicio == fecha_servicio,
+                ComedorAcceso.estado_acceso == ComedorAccesoEstado.ACCEDIDO,
+            )
+            .values(
+                estado_acceso=ComedorAccesoEstado.REPETIDO,
+                hora_entrada=func.now(),
+            )
+        )
+        result = await self.db.execute(stmt)
+        await self.db.flush()
+        return result.rowcount
+
     async def expirar_pendientes_en_rango_por_empleado(
         self,
         empleado_id: int,

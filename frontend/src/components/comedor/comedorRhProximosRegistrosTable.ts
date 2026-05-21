@@ -61,6 +61,9 @@ export function estadoAccesoBadgeRhRegistro(estado: string): string {
   if (k === "EXPIRADO") {
     return `<span class="${base} border-red-200/90 bg-linear-to-r from-red-50 to-rose-50 text-red-900">${dot("bg-red-400")}${escapeComedorHtml("Cancelado")}</span>`;
   }
+  if (k === "REPETIDO") {
+    return `<span class="${base} border-violet-200/90 bg-linear-to-r from-violet-50 to-purple-50 text-violet-900">${dot("bg-violet-500")}${escapeComedorHtml("Repetido")}</span>`;
+  }
   return `<span class="${base} border-slate-200 bg-slate-50 text-slate-800">${escapeComedorHtml(estado)}</span>`;
 }
 

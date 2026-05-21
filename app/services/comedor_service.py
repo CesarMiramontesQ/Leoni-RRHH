@@ -616,6 +616,21 @@ class ComedorService:
             return (ComedorAccesoEstado.EXPIRADO,)
         return (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
 
+    def _estados_registros_reporte_rh_filtro(
+        self, filtro_estado: Literal["todos", "confirmado", "cancelado"]
+    ) -> tuple[ComedorAccesoEstado, ...]:
+        """Reporte RH: «todos» incluye EXPIRADO y REPETIDO; confirmado incluye acceso repetido."""
+        if filtro_estado == "confirmado":
+            return (ComedorAccesoEstado.ACCEDIDO, ComedorAccesoEstado.REPETIDO)
+        if filtro_estado == "cancelado":
+            return (ComedorAccesoEstado.EXPIRADO,)
+        return (
+            ComedorAccesoEstado.PENDIENTE,
+            ComedorAccesoEstado.ACCEDIDO,
+            ComedorAccesoEstado.EXPIRADO,
+            ComedorAccesoEstado.REPETIDO,
+        )
+
     async def list_proximos_registros_rh_paginated(
         self,
         current_user: Empleado,
@@ -694,7 +709,7 @@ class ComedorService:
         if page_size not in (10, 50):
             raise ConflictError(detail="page_size debe ser 10 o 50")
         offset = (page - 1) * page_size
-        estados = self._estados_proximos_rh_filtro(filtro_estado)
+        estados = self._estados_registros_reporte_rh_filtro(filtro_estado)
         buscar_norm = buscar.strip() if buscar else None
         if buscar_norm == "":
             buscar_norm = None
@@ -1223,6 +1238,8 @@ class ComedorService:
     ) -> ComedorTerminalConsumirResponse:
         dia = business_today()
         n = await self.acceso_repo.consumir_si_pendiente(data.acceso_id, dia)
+        if n == 0:
+            n = await self.acceso_repo.marcar_repetido_si_accedido(data.acceso_id, dia)
         if n == 0:
             raise ConflictError(detail="Acceso no disponible o ya utilizado")
         acceso = await self.acceso_repo.get(data.acceso_id)

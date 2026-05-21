@@ -71,6 +71,61 @@ async def test_rh_registros_reporte_incluye_pasado_y_respeta_rango(client: Async
 
 
 @pytest.mark.asyncio
+async def test_rh_registros_reporte_incluye_repetido_en_todos(client: AsyncClient, db, monkeypatch):
+    from app.models.comedor import Comedor, ComedorAcceso, ComedorAccesoEstado, ComedorRegistro, ComedorTipoComida
+    from app.services import comedor_service as cs
+
+    hoy = date(2030, 7, 8)
+    monkeypatch.setattr(cs, "business_today", lambda: hoy)
+
+    comedor = Comedor(nombre="C-RepRepet", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    emp = await make_empleado(db, email="rep_repet_emp@test.leoni", password="SecretP!")
+    rh = await make_empleado(db, rol="rh", email="rep_repet_rh@test.leoni", password="RhRep!!")
+
+    reg = ComedorRegistro(
+        empleado_id=emp.id,
+        comedor_id=comedor.id,
+        semana=hoy - timedelta(days=hoy.weekday()),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add(reg)
+    await db.flush()
+
+    db.add(
+        ComedorAcceso(
+            empleado_id=emp.id,
+            comedor_id=comedor.id,
+            comedor_registro_id=reg.id,
+            fecha_servicio=hoy,
+            tipo_comida=ComedorTipoComida.casera,
+            estado_acceso=ComedorAccesoEstado.REPETIDO,
+        )
+    )
+    await db.commit()
+
+    hdrs = await auth_headers(client, rh, password="RhRep!!")
+    r = await client.get(
+        URL,
+        params={
+            "desde": hoy.isoformat(),
+            "hasta": hoy.isoformat(),
+            "page": 1,
+            "page_size": 50,
+            "filtro_estado": "todos",
+        },
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["estado_acceso"] == "REPETIDO"
+
+
+@pytest.mark.asyncio
 async def test_rh_registros_reporte_rango_invalido(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="rep_inv@test.leoni", password="RhInv!!")
     hdrs = await auth_headers(client, rh, password="RhInv!!")

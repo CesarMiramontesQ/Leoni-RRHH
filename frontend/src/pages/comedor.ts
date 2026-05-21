@@ -508,6 +508,7 @@ function formatEstadoAccesoLabel(estadoAcceso: string): string {
   const key = estadoAcceso.trim().toUpperCase();
   if (key === "ACCEDIDO") return "Accedido";
   if (key === "PENDIENTE") return "Pendiente";
+  if (key === "REPETIDO") return "Repetido";
   return estadoAcceso;
 }
 
