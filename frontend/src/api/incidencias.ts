@@ -23,14 +23,13 @@ export type IncidenciaApiItem = {
   no_empleado?: string | null;
   nombre?: string | null;
   fecha?: string | null;
-  semana_id?: number | null;
-  numero_semana?: number | null;
   categoria?: string | null;
   detalle?: string | null;
-  descuento_porcentaje?: number | null;
-  estatus_id?: number | null;
   area?: string | null;
   subarea?: string | null;
+  origen?: string | null;
+  origen_id?: number | null;
+  synced_at?: string | null;
   puesto?: string | null;
   supervisor_directo?: string | null;
   created_at: string;
@@ -125,14 +124,8 @@ export function appendIncidenciasFilterParams(p: URLSearchParams, filters: RhInc
   if (nom) p.set("nombre", nom);
   const fecha = parseOptionalDate(filters.fecha);
   if (fecha) p.set("fecha", fecha);
-  const sid = parseOptionalInt(filters.semana_id);
-  if (sid !== undefined) p.set("semana_id", String(sid));
-  const nsem = parseOptionalInt(filters.numero_semana);
-  if (nsem !== undefined) p.set("numero_semana", String(nsem));
   const cat = filters.categoria.trim();
   if (cat) p.set("categoria", cat);
-  const est = parseOptionalInt(filters.estatus_id);
-  if (est !== undefined) p.set("estatus_id", String(est));
   const ar = filters.area.trim();
   if (ar) p.set("area", ar);
   const sub = filters.subarea.trim();
@@ -170,25 +163,13 @@ export function buildIncidenciasEstadisticasQuery(
 
 function inferTipoCodigo(tipo: string): RhIncidenciaTipoCodigo {
   const t = tipo.toLowerCase();
+  if (t.includes("seguridad")) return "indisciplina";
+  if (t.includes("calidad")) return "indisciplina";
   if (t.includes("retardo")) return "retardo";
   if (t.includes("daño") || t.includes("dano") || t.includes("equipo")) return "dano_equipo";
   if (t.includes("indisciplina") || t.includes("disciplina")) return "indisciplina";
   if (t.includes("falta") || t.includes("ausencia")) return "falta_injustificada";
   return "indisciplina";
-}
-
-function inferEstadoFromEstatus(estatusId: number | null | undefined): RhIncidenciaEstadoCodigo {
-  if (estatusId == null || estatusId === 1) return "abierto";
-  if (estatusId === 2) return "en_investigacion";
-  return "cerrado";
-}
-
-function inferPrioridad(desc: number | null | undefined): RhIncidenciaPrioridadCodigo {
-  const d = desc ?? 0;
-  if (d >= 50) return "critica";
-  if (d >= 25) return "alta";
-  if (d >= 10) return "media";
-  return "baja";
 }
 
 /** Texto de API/JSON a string recortada; vacío si nulo o sin contenido. */
@@ -217,17 +198,16 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
     tipo: inferTipoCodigo(item.tipo),
     tipo_texto: item.tipo,
     fecha: fechaDisplay,
-    estado: inferEstadoFromEstatus(item.estatus_id ?? null),
-    prioridad: inferPrioridad(item.descuento_porcentaje ?? null),
+    estado: "abierto",
+    prioridad: "baja",
     descripcion: item.detalle?.trim() || undefined,
     no_empleado: item.no_empleado,
-    semana_id: item.semana_id ?? null,
-    numero_semana: item.numero_semana ?? null,
     categoria: item.categoria,
     detalle: item.detalle,
-    descuento_porcentaje: item.descuento_porcentaje ?? null,
-    estatus_id: item.estatus_id ?? null,
     subarea: strCampoIncidencia(item.subarea) || null,
+    origen: item.origen ?? null,
+    origen_id: item.origen_id ?? null,
+    synced_at: item.synced_at ?? null,
     created_at: item.created_at,
     updated_at: item.updated_at,
     supervisor_directo: item.supervisor_directo ?? null,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ServiceUnavailableError
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
 from app.models.empleados import Empleado
-from app.models.incidencias import Incidencia
+from app.models.incidencias import ORIGEN_INCIDENCIA_BONO, Incidencia
 from app.repositories.bono_productividad_incidencias_repository import (
     BonoProductividadIncidenciasRepository,
 )
@@ -85,16 +85,12 @@ class BonoProductividadSyncService:
         inc.no_empleado = str(row.get("no_empleado") or "").strip() or None
         inc.nombre = str(row.get("nombre") or "").strip() or None
         inc.fecha = BonoProductividadSyncService._safe_date(row.get("fecha"))
-        inc.semana_id = BonoProductividadSyncService._safe_int(row.get("semana_id"))
-        inc.numero_semana = BonoProductividadSyncService._safe_int(row.get("numero_semana"))
         inc.categoria = str(row.get("categoria") or "").strip() or None
         inc.detalle = str(row.get("detalle") or "").strip() or None
-        inc.descuento_porcentaje = BonoProductividadSyncService._safe_float(
-            row.get("descuento_porcentaje")
-        )
-        inc.estatus_id = BonoProductividadSyncService._safe_int(row.get("estatus_id"))
         inc.area = str(row.get("area") or "").strip() or None
         inc.subarea = str(row.get("subarea") or "").strip() or None
+        inc.origen = ORIGEN_INCIDENCIA_BONO
+        inc.synced_at = datetime.now(timezone.utc)
 
     async def _find_existing(
         self,
@@ -102,22 +98,23 @@ class BonoProductividadSyncService:
         empleado_id: int,
         tipo: str,
         fecha: date | None,
-        semana_id: int | None,
-        numero_semana: int | None,
         categoria: str | None,
         detalle: str | None,
+        area: str | None,
+        subarea: str | None,
     ) -> Incidencia | None:
         result = await self.db.execute(
             select(Incidencia)
             .where(
                 and_(
+                    Incidencia.origen == ORIGEN_INCIDENCIA_BONO,
                     Incidencia.empleado_id == empleado_id,
                     Incidencia.tipo == tipo,
                     Incidencia.fecha == fecha,
-                    Incidencia.semana_id == semana_id,
-                    Incidencia.numero_semana == numero_semana,
                     Incidencia.categoria == categoria,
                     Incidencia.detalle == detalle,
+                    Incidencia.area == area,
+                    Incidencia.subarea == subarea,
                 )
             )
             .limit(1)
@@ -227,19 +224,19 @@ class BonoProductividadSyncService:
                 continue
 
             fecha = self._safe_date(row.get("fecha"))
-            semana_id = self._safe_int(row.get("semana_id"))
-            numero_semana = self._safe_int(row.get("numero_semana"))
             categoria = str(row.get("categoria") or "").strip() or None
             detalle = str(row.get("detalle") or "").strip() or None
+            area = str(row.get("area") or "").strip() or None
+            subarea = str(row.get("subarea") or "").strip() or None
 
             existente = await self._find_existing(
                 empleado_id=local_empleado_id,
                 tipo=tipo,
                 fecha=fecha,
-                semana_id=semana_id,
-                numero_semana=numero_semana,
                 categoria=categoria,
                 detalle=detalle,
+                area=area,
+                subarea=subarea,
             )
             if existente:
                 self._apply_fields(existente, row)
@@ -251,10 +248,11 @@ class BonoProductividadSyncService:
                 tipo=tipo,
                 empleado_id=local_empleado_id,
                 fecha=fecha,
-                semana_id=semana_id,
-                numero_semana=numero_semana,
                 categoria=categoria,
                 detalle=detalle,
+                area=area,
+                subarea=subarea,
+                origen=ORIGEN_INCIDENCIA_BONO,
             )
             self._apply_fields(incidencia, row)
             nuevos.append(incidencia)

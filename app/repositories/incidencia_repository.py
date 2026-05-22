@@ -30,14 +30,12 @@ def build_incidencia_query_filters(
     no_empleado: str | None = None,
     nombre: str | None = None,
     fecha: date | None = None,
-    semana_id: int | None = None,
-    numero_semana: int | None = None,
     categoria: str | None = None,
-    estatus_id: int | None = None,
     area: str | None = None,
     subarea: str | None = None,
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
+    origen: str | None = None,
 ) -> list:
     """Condiciones AND opcionales para listados y agregados (no incluye alcance por rol)."""
     conds: list = []
@@ -51,14 +49,10 @@ def build_incidencia_query_filters(
         conds.append(Incidencia.nombre.ilike(f"%{nombre.strip()}%"))
     if fecha is not None:
         conds.append(Incidencia.fecha == fecha)
-    if semana_id is not None:
-        conds.append(Incidencia.semana_id == semana_id)
-    if numero_semana is not None:
-        conds.append(Incidencia.numero_semana == numero_semana)
     if categoria and categoria.strip():
         conds.append(Incidencia.categoria.ilike(f"%{categoria.strip()}%"))
-    if estatus_id is not None:
-        conds.append(Incidencia.estatus_id == estatus_id)
+    if origen and origen.strip():
+        conds.append(Incidencia.origen == origen.strip())
     if area and area.strip():
         sin_ar = literal("(sin área)", type_=String)
         area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
@@ -157,42 +151,14 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         return list(result.scalars().all())
 
     async def aggregate_kpis(self, filters: list | None = None) -> tuple[int, int, int, int]:
-        """
-        Totales para tarjetas resumen (misma semántica aproximada que la UI previa).
-        abiertas: sin estatus o estatus 1
-        en_investigacion: estatus 2
-        resueltas: cualquier otro estatus definido
-        criticas: descuento >= 25 %
-        """
-        stmt = (
-            select(
-                func.count()
-                .filter(or_(Incidencia.estatus_id.is_(None), Incidencia.estatus_id == 1))
-                .label("abiertas"),
-                func.count()
-                .filter(Incidencia.estatus_id == 2)
-                .label("en_investigacion"),
-                func.count()
-                .filter(
-                    and_(
-                        Incidencia.estatus_id.isnot(None),
-                        Incidencia.estatus_id != 1,
-                        Incidencia.estatus_id != 2,
-                    )
-                )
-                .label("resueltas"),
-                func.count()
-                .filter(Incidencia.descuento_porcentaje >= 25)
-                .label("criticas"),
-            )
-            .select_from(Incidencia)
-        )
+        """Totales para tarjetas resumen (sin estatus en modelo: todo el filtro cuenta como abierto)."""
+        stmt = select(func.count()).select_from(Incidencia)
         if filters:
             for condition in filters:
                 stmt = stmt.where(condition)
         result = await self.db.execute(stmt)
-        row = result.one()
-        return int(row.abiertas), int(row.en_investigacion), int(row.resueltas), int(row.criticas)
+        total = int(result.scalar_one() or 0)
+        return total, 0, 0, 0
 
     def _apply_filters(self, stmt: Any, filters: list | None) -> Any:
         if filters:

@@ -633,22 +633,18 @@ components:
         fecha:
           type: [string, "null"]
           format: date
-        semana_id:
-          type: [integer, "null"]
-        numero_semana:
-          type: [integer, "null"]
         categoria:
           type: [string, "null"]
         detalle:
           type: [string, "null"]
-        descuento_porcentaje:
-          type: [number, "null"]
-        estatus_id:
-          type: [integer, "null"]
         area:
           type: [string, "null"]
         subarea:
           type: [string, "null"]
+        origen:
+          type: string
+          enum: [manual, bono]
+          default: manual
 
     IncidenciaResponse:
       type: object
@@ -667,22 +663,25 @@ components:
         fecha:
           type: [string, "null"]
           format: date
-        semana_id:
-          type: [integer, "null"]
-        numero_semana:
-          type: [integer, "null"]
         categoria:
           type: [string, "null"]
         detalle:
           type: [string, "null"]
-        descuento_porcentaje:
-          type: [number, "null"]
-        estatus_id:
-          type: [integer, "null"]
         area:
           type: [string, "null"]
         subarea:
           type: [string, "null"]
+        origen:
+          type: string
+          description: >
+            Procedencia del registro (p. ej. manual, calidad_historico, seguridad_historico).
+        origen_id:
+          type: [integer, "null"]
+          description: >
+            Identificador en la tabla de origen (p. ej. calidad_historico.id). Null en incidencias manuales.
+        synced_at:
+          type: [string, "null"]
+          format: date-time
         created_at:
           type: string
           format: date-time
@@ -3184,10 +3183,10 @@ paths:
       tags: [Incidencias]
       summary: Listar incidencias paginadas
       description: >
-        Listado paginado (máximo 10 registros por página) con filtros opcionales.
-        Los roles RH y director ven el universo completo; gerente y supervisor solo su equipo;
-        el resumen KPI aplica los mismos filtros y alcance.
-        No incluye filas cuyo `tipo` sea `progresivo` ni `progresivo_historico` (uso interno).
+        Listado paginado (máximo 10 registros por página) con filtros opcionales desde la
+        tabla interna `incidencias`. Los roles RH y director ven el universo completo;
+        gerente y supervisor solo su equipo. Excluye tipos internos `progresivo` y
+        `progresivo_historico`.
       operationId: incidencias_list
       security:
         - BearerAuth: []
@@ -3232,26 +3231,11 @@ paths:
           schema:
             type: string
             format: date
-        - name: semana_id
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: numero_semana
-          in: query
-          required: false
-          schema:
-            type: integer
         - name: categoria
           in: query
           required: false
           schema:
             type: string
-        - name: estatus_id
-          in: query
-          required: false
-          schema:
-            type: integer
         - name: area
           in: query
           required: false
@@ -3404,26 +3388,11 @@ paths:
           schema:
             type: string
             format: date
-        - name: semana_id
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: numero_semana
-          in: query
-          required: false
-          schema:
-            type: integer
         - name: categoria
           in: query
           required: false
           schema:
             type: string
-        - name: estatus_id
-          in: query
-          required: false
-          schema:
-            type: integer
         - name: area
           in: query
           required: false

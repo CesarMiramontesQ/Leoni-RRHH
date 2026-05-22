@@ -29,8 +29,7 @@ function filtrosActivosTabla(vm: RhIncidenciasAdminViewModel): boolean {
     a.fecha_inicio.trim().length > 0 ||
     a.fecha_fin.trim().length > 0 ||
     a.area.trim().length > 0 ||
-    a.subarea.trim().length > 0 ||
-    a.estatus_id.trim().length > 0
+    a.subarea.trim().length > 0
   );
 }
 

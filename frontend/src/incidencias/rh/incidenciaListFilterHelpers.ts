@@ -10,7 +10,6 @@ export const RH_INCIDENCIA_FILTER_FIELDS: (keyof RhIncidenciaListFilters)[] = [
   "fecha_fin",
   "area",
   "subarea",
-  "estatus_id",
 ];
 
 export function cloneRhIncidenciaListFilters(f: RhIncidenciaListFilters): RhIncidenciaListFilters {
@@ -28,7 +27,6 @@ export function filtrosVisiblesAplicados(d: RhIncidenciaListFilters): RhIncidenc
     fecha_fin: d.fecha_fin,
     area: d.area,
     subarea: d.subarea,
-    estatus_id: d.estatus_id,
   };
 }
 

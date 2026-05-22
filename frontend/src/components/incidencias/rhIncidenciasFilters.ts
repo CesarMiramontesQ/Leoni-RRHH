@@ -26,8 +26,7 @@ function filtrosDraftActivos(f: RhIncidenciaListFilters): boolean {
     f.fecha_inicio.trim().length > 0 ||
     f.fecha_fin.trim().length > 0 ||
     f.area.trim().length > 0 ||
-    f.subarea.trim().length > 0 ||
-    f.estatus_id.trim().length > 0
+    f.subarea.trim().length > 0
   );
 }
 
@@ -39,8 +38,7 @@ function filtrosAppliedActivos(a: RhIncidenciaListFilters): boolean {
     a.fecha_inicio.trim().length > 0 ||
     a.fecha_fin.trim().length > 0 ||
     a.area.trim().length > 0 ||
-    a.subarea.trim().length > 0 ||
-    a.estatus_id.trim().length > 0
+    a.subarea.trim().length > 0
   );
 }
 

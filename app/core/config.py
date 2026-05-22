@@ -93,6 +93,11 @@ class Settings(BaseSettings):
     IT_MIRROR_DB_URL: str = ""
     IT_SYNC_INTERVAL_MINUTES: int = 30
 
+    # Importación nocturna bono_productividad.calidad_historico → incidencias
+    BONO_CALIDAD_HISTORICO_IMPORT_ENABLED: bool = True
+    BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: int = 2
+    BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: int = 0
+
     # Estados que se consideran "empleado activo" — ajustar en producción
     ESTADOS_ACTIVOS_IDS: List[int] = [1]
     # Estados mostrados como "Permiso" en filtros de líderes (p. ej. Suspendido)

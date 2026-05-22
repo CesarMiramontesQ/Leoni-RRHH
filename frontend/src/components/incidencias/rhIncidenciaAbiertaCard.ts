@@ -50,9 +50,7 @@ function miniCampoDetalle(label: string, valor: string): string {
   </div>`;
 }
 
-function fmtSemanaUi(row: RhIncidenciaTablaFila): string {
-  if (row.numero_semana != null && Number.isFinite(row.numero_semana)) return String(row.numero_semana);
-  if (row.semana_id != null && Number.isFinite(row.semana_id)) return String(row.semana_id);
+function fmtSemanaUi(_row: RhIncidenciaTablaFila): string {
   return "—";
 }
 

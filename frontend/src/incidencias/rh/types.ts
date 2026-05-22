@@ -56,13 +56,12 @@ export type RhIncidenciaTablaFila = {
   /** Texto de tipo tal como en base de datos (columna `tipo`). */
   tipo_texto?: string;
   no_empleado?: string | null;
-  semana_id?: number | null;
-  numero_semana?: number | null;
   categoria?: string | null;
   detalle?: string | null;
-  descuento_porcentaje?: number | null;
-  estatus_id?: number | null;
   subarea?: string | null;
+  origen?: string | null;
+  origen_id?: number | null;
+  synced_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   descripcion?: string;
@@ -121,10 +120,7 @@ export type RhIncidenciaListFilters = {
   no_empleado: string;
   nombre: string;
   fecha: string;
-  semana_id: string;
-  numero_semana: string;
   categoria: string;
-  estatus_id: string;
   area: string;
   subarea: string;
   fecha_inicio: string;
@@ -138,10 +134,7 @@ export function emptyRhIncidenciaListFilters(): RhIncidenciaListFilters {
     no_empleado: "",
     nombre: "",
     fecha: "",
-    semana_id: "",
-    numero_semana: "",
     categoria: "",
-    estatus_id: "",
     area: "",
     subarea: "",
     fecha_inicio: "",

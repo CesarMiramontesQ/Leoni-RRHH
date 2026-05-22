@@ -1,13 +1,15 @@
 /**
- * Etiquetas de tipo para listado y filtros RH (códigos de negocio / histórico TRESS).
+ * Etiquetas de tipo para listado y filtros RH (códigos de negocio).
  */
 
 export function labelTipoIncidenciaUi(codigo: string): string {
   const t = codigo.trim();
   switch (t) {
-    case "seguridad_historico":
+    case "Seguridad":
+    case "seguridad":
       return "Seguridad";
-    case "calidad_historico":
+    case "Calidad":
+    case "calidad":
       return "Calidad";
     case "falta_injustificada":
       return "Falta injustificada";

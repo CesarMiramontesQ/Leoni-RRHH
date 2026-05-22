@@ -10,6 +10,25 @@ from tests.conftest import auth_headers, make_incidencia
 
 
 @pytest.mark.asyncio
+async def test_list_incidencias_desde_tabla_interna(client: AsyncClient, db, empleado_rh):
+    """GET /incidencias debe leer solo filas de la tabla local `incidencias`."""
+    inc = Incidencia(
+        tipo="tardanza_interna",
+        empleado_id=empleado_rh.id,
+        area="RH Test",
+    )
+    db.add(inc)
+    await db.flush()
+    headers = await auth_headers(client, empleado_rh)
+    r = await client.get("/api/v1/incidencias", headers=headers)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    ids = {item["id"] for item in data["items"]}
+    assert inc.id in ids
+    assert all(item["tipo"] == "tardanza_interna" for item in data["items"] if item["id"] == inc.id)
+
+
+@pytest.mark.asyncio
 async def test_estadisticas_incidencias_ok(client: AsyncClient, db, empleado_rh):
     await make_incidencia(db, empleado_id=empleado_rh.id, tipo="tardanza")
     headers = await auth_headers(client, empleado_rh)

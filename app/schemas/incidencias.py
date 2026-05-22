@@ -4,9 +4,11 @@ Schemas Pydantic v2 para el dominio incidencias y evidencias.
 """
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+OrigenIncidencia = Literal["manual", "bono"]
 
 
 class IncidenciaCreate(BaseModel):
@@ -17,14 +19,11 @@ class IncidenciaCreate(BaseModel):
     no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     fecha: Optional[date] = None
-    semana_id: Optional[int] = None
-    numero_semana: Optional[int] = None
     categoria: Optional[str] = None
     detalle: Optional[str] = None
-    descuento_porcentaje: Optional[float] = None
-    estatus_id: Optional[int] = None
     area: Optional[str] = None
     subarea: Optional[str] = None
+    origen: OrigenIncidencia = "manual"
 
 
 class IncidenciaUpdate(BaseModel):
@@ -34,12 +33,8 @@ class IncidenciaUpdate(BaseModel):
     no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     fecha: Optional[date] = None
-    semana_id: Optional[int] = None
-    numero_semana: Optional[int] = None
     categoria: Optional[str] = None
     detalle: Optional[str] = None
-    descuento_porcentaje: Optional[float] = None
-    estatus_id: Optional[int] = None
     area: Optional[str] = None
     subarea: Optional[str] = None
 
@@ -53,18 +48,16 @@ class IncidenciaResponse(BaseModel):
     no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     fecha: Optional[date] = None
-    semana_id: Optional[int] = None
-    numero_semana: Optional[int] = None
     categoria: Optional[str] = None
     detalle: Optional[str] = None
-    descuento_porcentaje: Optional[float] = None
-    estatus_id: Optional[int] = None
     area: Optional[str] = None
     subarea: Optional[str] = None
+    origen: str = "manual"
+    origen_id: Optional[int] = None
+    synced_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     evidencias_count: int = 0
-    # Catálogo empleados (resueltos por `no_empleado` de la incidencia o por `empleado_id`).
     puesto: Optional[str] = None
     supervisor_directo: Optional[str] = None
 
@@ -114,7 +107,6 @@ class IncidenciaAreaTotalItem(BaseModel):
 class IncidenciaSubareaTotalItem(BaseModel):
     subarea: str
     total: int
-    # Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
     area: str | None = None
 
 
@@ -132,23 +124,17 @@ class IncidenciaTipoDistribucionItem(BaseModel):
 
 
 class IncidenciaSerieMensualItem(BaseModel):
-    """Bucket mensual (fecha de negocio o fecha de alta) para tendencia en dashboard."""
-
-    periodo: str  # YYYY-MM
+    periodo: str
     total: int
 
 
 class IncidenciaMesTipoItem(BaseModel):
-    """Conteo mensual por tipo (misma fecha de negocio que `incidencias_por_mes`)."""
-
-    periodo: str  # YYYY-MM
+    periodo: str
     tipo: str
     total: int
 
 
 class IncidenciaPeriodoTipoItem(BaseModel):
-    """Conteo por periodo y tipo; formato de `periodo` según `tendencia_agrupacion`."""
-
     periodo: str
     tipo: str
     total: int
