@@ -152,6 +152,7 @@ export const INC_COPY = {
   cardLblPuesto: "Puesto",
   cardLblSupervisor: "Supervisor directo",
   cardLblTipo: "Tipo",
+  cardLblSubtipo: "Subtipo",
   cardLblFechaHora: "Fecha y hora",
   cardLblSemana: "Semana",
   cardLblDescuentoPorcentaje: "Descuento porcentaje",

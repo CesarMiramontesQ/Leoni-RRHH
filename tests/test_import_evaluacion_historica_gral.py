@@ -18,7 +18,9 @@ def test_validar_fila_ok_con_comentarios():
     assert ok is True
     assert motivo is None
     assert payload is not None
-    assert payload["tipo"] == "No cumplir Mtto Preventivo"
+    assert payload["tipo"] == "Evaluacion"
+    assert payload["subtipo"] == "No cumplir Mtto Preventivo"
+    assert payload["tipo"] != payload["categoria"]
     assert payload["detalle"] == "no realize preventivo"
     assert payload["categoria"] == "247"
 

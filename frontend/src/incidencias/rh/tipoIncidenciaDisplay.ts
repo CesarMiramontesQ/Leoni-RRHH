@@ -19,6 +19,9 @@ export function labelTipoIncidenciaUi(codigo: string): string {
       return "Indisciplina";
     case "dano_equipo":
       return "Daño a equipo";
+    case "Evaluacion":
+    case "evaluacion":
+      return "Evaluación";
     default:
       return t || codigo;
   }

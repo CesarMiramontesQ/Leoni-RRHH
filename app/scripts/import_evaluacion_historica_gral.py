@@ -6,7 +6,8 @@ Resuelve ``id_ponderacion`` vía ``ponderaciones_general.id`` → ``descripcion`
 Mapeo:
 - ``origen`` / ``origen_id``: ``evaluacion_historica_gral`` + ``id``
 - ``empleado_id`` (bono) → ``empleados.empleado_id`` local
-- ``tipo``: ``ponderaciones_general.descripcion``
+- ``tipo``: ``Evaluacion`` (fijo)
+- ``subtipo``: ``ponderaciones_general.descripcion``
 - ``categoria``: id de ponderación (texto)
 - ``detalle``: ``comentarios``; si viene vacío, usa la descripción de ponderación
 - ``area`` / ``subarea``: catálogos de bono
@@ -34,6 +35,7 @@ from app.models.empleados import Empleado
 from app.models.incidencias import Incidencia
 
 ORIGEN_TABLA_EVALUACION_HISTORICA_GRAL = "evaluacion_historica_gral"
+TIPO_INCIDENCIA_EVALUACION = "Evaluacion"
 _MAX_TIPO_LEN = 255
 
 _SQL_EVALUACION_HISTORICA_GRAL = """
@@ -62,6 +64,7 @@ ORDER BY e.id ASC
 class ImportStats:
     leidos: int = 0
     insertados: int = 0
+    reparados: int = 0
     omitidos: int = 0
     errores: int = 0
     mensajes_error: list[str] = field(default_factory=list)
@@ -117,7 +120,13 @@ def validar_fila_evaluacion_historica_gral(
 
     comentarios = _texto(row.get("comentarios"))
     detalle = comentarios if comentarios else ponderacion_descripcion
-    tipo_ui = _truncar(ponderacion_descripcion, _MAX_TIPO_LEN)
+    # subtipo = significado de id_ponderacion (catálogo bono); tipo siempre fijo "Evaluacion"
+    subtipo_ui = _truncar(ponderacion_descripcion, _MAX_TIPO_LEN)
+    if subtipo_ui == str(id_ponderacion):
+        return False, (
+            f"ponderacion_descripcion coincide con id_ponderacion ({id_ponderacion}); "
+            "revisar JOIN ponderaciones_general"
+        ), None
 
     no_empleado_raw = row.get("bono_no_empleado")
     no_empleado = _texto(str(no_empleado_raw)) if no_empleado_raw is not None else None
@@ -126,7 +135,8 @@ def validar_fila_evaluacion_historica_gral(
         "bono_id": bono_id,
         "bono_empleado_id": bono_empleado_id,
         "id_ponderacion": id_ponderacion,
-        "tipo": tipo_ui,
+        "tipo": TIPO_INCIDENCIA_EVALUACION,
+        "subtipo": subtipo_ui,
         "categoria": str(id_ponderacion),
         "detalle": detalle,
         "comentarios": comentarios,
@@ -200,7 +210,60 @@ async def _existe_duplicado(
     return result.scalar_one_or_none() is not None
 
 
-async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportStats:
+async def _reparar_incidencias_evaluacion_existentes(
+    db: AsyncSession,
+    rows: list[dict[str, Any]],
+    *,
+    execute: bool,
+) -> int:
+    """Corrige tipo/subtipo en filas ya importadas (origen evaluacion_historica_gral)."""
+    reparados = 0
+    for row in rows:
+        bono_id = _safe_int(row.get("bono_id"))
+        ok, _, payload = validar_fila_evaluacion_historica_gral(row)
+        if not ok or payload is None or bono_id is None:
+            continue
+
+        result = await db.execute(
+            select(Incidencia).where(
+                Incidencia.origen == ORIGEN_TABLA_EVALUACION_HISTORICA_GRAL,
+                Incidencia.origen_id == bono_id,
+            )
+        )
+        inc = result.scalar_one_or_none()
+        if inc is None:
+            continue
+
+        nuevo_tipo = TIPO_INCIDENCIA_EVALUACION
+        nuevo_subtipo = payload["subtipo"]
+        tipo_actual = (inc.tipo or "").strip()
+        subtipo_actual = (inc.subtipo or "").strip()
+        cat_actual = (inc.categoria or "").strip()
+
+        necesita_reparo = (
+            tipo_actual != nuevo_tipo
+            or subtipo_actual != nuevo_subtipo
+            or tipo_actual == str(payload["id_ponderacion"])
+            or (cat_actual and tipo_actual == cat_actual)
+        )
+        if not necesita_reparo:
+            continue
+
+        inc.tipo = nuevo_tipo
+        inc.subtipo = nuevo_subtipo
+        reparados += 1
+
+    if execute and reparados:
+        await db.commit()
+    return reparados
+
+
+async def ejecutar_importacion(
+    *,
+    execute: bool,
+    limit: int | None,
+    repair: bool = False,
+) -> ImportStats:
     stats = ImportStats()
     bono_engine = BonoProductividadReadClient.create_read_engine()
     if bono_engine is None:
@@ -237,6 +300,11 @@ async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportSta
             raise ConnectionError(
                 f"Error conectando a la BD principal: {type(exc).__name__}: {exc}"
             ) from exc
+
+        if repair:
+            stats.reparados = await _reparar_incidencias_evaluacion_existentes(
+                db, rows, execute=execute
+            )
 
         nuevos: list[Incidencia] = []
         synced_at_run = datetime.now(timezone.utc) if execute else None
@@ -282,7 +350,8 @@ async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportSta
 
             nuevos.append(
                 Incidencia(
-                    tipo=payload["tipo"],
+                    tipo=TIPO_INCIDENCIA_EVALUACION,
+                    subtipo=payload["subtipo"],
                     empleado_id=local_empleado_id,
                     no_empleado=payload["no_empleado"],
                     nombre=payload["nombre"],
@@ -321,6 +390,7 @@ def _imprimir_resumen(stats: ImportStats, *, execute: bool) -> None:
     print(f"\n=== Importación evaluacion_historica_gral → incidencias [{modo}] ===")
     print(f"Total registros leídos:     {stats.leidos}")
     print(f"Total registros insertados: {stats.insertados}")
+    print(f"Total registros reparados:  {stats.reparados}")
     print(f"Total registros omitidos:   {stats.omitidos}")
     print(f"Total errores encontrados:  {stats.errores}")
     if stats.mensajes_error:
@@ -345,13 +415,25 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="N",
         help="Procesar solo los primeros N registros leídos (orden por id).",
     )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help=(
+            "Actualizar incidencias ya importadas (origen evaluacion_historica_gral): "
+            "tipo=Evaluacion, subtipo=descripción de ponderación."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 async def _async_main(argv: list[str] | None) -> int:
     args = _parse_args(argv)
     try:
-        stats = await ejecutar_importacion(execute=args.execute, limit=args.limit)
+        stats = await ejecutar_importacion(
+            execute=args.execute,
+            limit=args.limit,
+            repair=args.repair,
+        )
     except ConnectionError as exc:
         print(f"ERROR DE CONEXIÓN: {exc}", file=sys.stderr)
         return 1

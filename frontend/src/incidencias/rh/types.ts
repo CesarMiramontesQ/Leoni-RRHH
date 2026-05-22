@@ -55,6 +55,8 @@ export type RhIncidenciaTablaFila = {
   prioridad: RhIncidenciaPrioridadCodigo;
   /** Texto de tipo tal como en base de datos (columna `tipo`). */
   tipo_texto?: string;
+  /** Clasificación secundaria (p. ej. ponderación en evaluaciones). */
+  subtipo?: string | null;
   no_empleado?: string | null;
   categoria?: string | null;
   detalle?: string | null;

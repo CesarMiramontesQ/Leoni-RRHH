@@ -20,6 +20,7 @@ export type IncidenciaApiItem = {
   id: number;
   empleado_id: number;
   tipo: string;
+  subtipo?: string | null;
   no_empleado?: string | null;
   nombre?: string | null;
   fecha?: string | null;
@@ -163,6 +164,7 @@ export function buildIncidenciasEstadisticasQuery(
 
 function inferTipoCodigo(tipo: string): RhIncidenciaTipoCodigo {
   const t = tipo.toLowerCase();
+  if (t.includes("evaluacion") || t.includes("evaluación")) return "indisciplina";
   if (t.includes("seguridad")) return "indisciplina";
   if (t.includes("calidad")) return "indisciplina";
   if (t.includes("retardo")) return "retardo";
@@ -186,6 +188,8 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
   const nombre = item.nombre?.trim();
   const supervisorDirecto = item.supervisor_directo?.trim();
   const puestoApi = item.puesto?.trim();
+  const tipoTexto = strCampoIncidencia(item.tipo) || item.tipo;
+  const subtipoTexto = strCampoIncidencia(item.subtipo) || null;
   return {
     id: item.id,
     empleado_id: String(item.empleado_id),
@@ -195,8 +199,9 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
     area: strCampoIncidencia(item.area),
     supervisor_id: "",
     supervisor_nombre: supervisorDirecto || "—",
-    tipo: inferTipoCodigo(item.tipo),
-    tipo_texto: item.tipo,
+    tipo: inferTipoCodigo(tipoTexto),
+    tipo_texto: tipoTexto,
+    subtipo: subtipoTexto,
     fecha: fechaDisplay,
     estado: "abierto",
     prioridad: "baja",

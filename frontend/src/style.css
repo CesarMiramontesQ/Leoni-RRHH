@@ -1804,6 +1804,12 @@ body {
   background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
 }
 
+#rh-incidencias-page .rh-inc-type-pill--evaluacion {
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.28);
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+}
+
 #rh-incidencias-page .rh-inc-type-pill--tiempo {
   color: #92400e;
   border-color: rgba(245, 158, 11, 0.28);

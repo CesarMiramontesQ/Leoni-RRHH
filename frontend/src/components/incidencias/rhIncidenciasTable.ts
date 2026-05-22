@@ -42,7 +42,9 @@ function celdaTextoTruncado(val: string, maxLen = 48): string {
 
 function tipoBadge(tipoUi: string): string {
   const lower = tipoUi.toLowerCase();
-  const cls = lower.includes("seguridad")
+  const cls = lower.includes("evaluacion") || lower.includes("evaluación")
+    ? "rh-inc-type-pill--evaluacion"
+    : lower.includes("seguridad")
     ? "rh-inc-type-pill--seguridad"
     : lower.includes("calidad")
       ? "rh-inc-type-pill--calidad"

@@ -656,6 +656,8 @@ components:
           type: integer
         tipo:
           type: string
+        subtipo:
+          type: [string, "null"]
         no_empleado:
           type: [string, "null"]
         nombre:

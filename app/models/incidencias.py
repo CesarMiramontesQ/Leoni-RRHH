@@ -28,6 +28,7 @@ class Incidencia(Base):
     no_empleado: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     nombre: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     tipo: Mapped[str] = mapped_column(String(255), nullable=False)
+    subtipo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     fecha: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     categoria: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     detalle: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

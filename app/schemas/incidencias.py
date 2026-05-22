@@ -44,6 +44,7 @@ class IncidenciaResponse(BaseModel):
 
     id: int
     tipo: str
+    subtipo: Optional[str] = None
     empleado_id: int
     no_empleado: Optional[str] = None
     nombre: Optional[str] = None
