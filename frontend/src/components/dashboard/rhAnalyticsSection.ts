@@ -126,12 +126,9 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
 
   return `
     <section class="rh-dash-analytics-block" aria-labelledby="rh-dash-laborales-title">
-      <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h3 id="rh-dash-laborales-title" class="text-base font-semibold text-[color:var(--color-text-primary)]">Laborales</h3>
-          <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">Solicitudes, incidencias y actas</p>
-        </div>
-        <div class="flex flex-wrap gap-3">${sectionLink("#/metricas", "Ver métricas")}${sectionLink("#/solicitudes?estado=pending", "Solicitudes")}</div>
+      <div class="mb-4">
+        <h3 id="rh-dash-laborales-title" class="text-base font-semibold text-[color:var(--color-text-primary)]">Laborales</h3>
+        <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">Solicitudes, incidencias y actas</p>
       </div>
       ${blockErrors(errors)}
       ${kpisRow}
