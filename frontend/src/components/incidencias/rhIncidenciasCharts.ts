@@ -36,6 +36,22 @@ export type DonutTipoRow = { tipo: string; total: number; porcentaje: number };
 
 export type SerieMesRow = { periodo: string; total: number };
 
+function periodoMesActualLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+/** Excluye meses futuros del eje de tendencia mensual. */
+export function filterSerieMesSinFuturo(rows: readonly SerieMesRow[]): SerieMesRow[] {
+  const max = periodoMesActualLocal();
+  return rows.filter((r) => {
+    const p = r.periodo.trim();
+    return /^\d{4}-\d{2}$/.test(p) && p <= max;
+  });
+}
+
 export type AreaRankingRow = { area: string; total: number };
 
 export type SubareaRankingRow = { subarea: string; total: number; area?: string | null };
@@ -183,7 +199,8 @@ export function mountIncidenciasTipoBarChart(root: ParentNode, rows: readonly Do
 
 /** Contenedor canvas para tendencia mensual (Chart.js se monta tras pintar el DOM). */
 export function renderIncidenciasTendenciaPorMes(rows: readonly SerieMesRow[]): string {
-  if (rows.length === 0) {
+  const serie = filterSerieMesSinFuturo(rows);
+  if (serie.length === 0) {
     return `<div class="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">Sin datos de tendencia en el periodo</div>`;
   }
   return `
@@ -468,10 +485,11 @@ export function mountIncidenciasTendenciaPorTipoChart(
 
 /** Monta la gráfica de líneas con datos reales de `incidencias_por_mes`. */
 export function mountIncidenciasTendenciaPorMesChart(root: ParentNode, rows: readonly SerieMesRow[]): void {
-  if (rows.length === 0) return;
+  const serie = filterSerieMesSinFuturo(rows);
+  if (serie.length === 0) return;
 
-  const labels = rows.map((r) => etiquetaMesCorto(r.periodo));
-  const values = rows.map((r) => r.total);
+  const labels = serie.map((r) => etiquetaMesCorto(r.periodo));
+  const values = serie.map((r) => r.total);
 
   mountChart(root, RH_INC_TENDENCIA_CHART_ID, ({ colors }) => {
     const borderColor = colors.danger;

@@ -46,6 +46,66 @@ async def test_estadisticas_incidencias_ok(client: AsyncClient, db, empleado_rh)
 
 
 @pytest.mark.asyncio
+async def test_estadisticas_tendencia_mes_solo_con_fecha_negocio(
+    client: AsyncClient, db, empleado_rh
+):
+    """incidencias_por_mes excluye filas sin fecha; agrupa por mes de fecha de negocio."""
+    db.add_all(
+        [
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 1, 10),
+            ),
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 1, 20),
+            ),
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+            ),
+        ]
+    )
+    await db.flush()
+    headers = await auth_headers(client, empleado_rh)
+    r = await client.get("/api/v1/incidencias/estadisticas", headers=headers)
+    assert r.status_code == 200, r.text
+    por_mes = {x["periodo"]: x["total"] for x in r.json()["incidencias_por_mes"]}
+    assert por_mes.get("2026-01") == 2
+    assert sum(por_mes.values()) == 2
+
+
+@pytest.mark.asyncio
+async def test_estadisticas_tendencia_mes_excluye_fechas_futuras(
+    client: AsyncClient, db, empleado_rh
+):
+    """incidencias_por_mes no incluye meses posteriores a hoy."""
+    db.add_all(
+        [
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 1, 5),
+            ),
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 12, 1),
+            ),
+        ]
+    )
+    await db.flush()
+    headers = await auth_headers(client, empleado_rh)
+    r = await client.get("/api/v1/incidencias/estadisticas", headers=headers)
+    assert r.status_code == 200, r.text
+    por_mes = {x["periodo"]: x["total"] for x in r.json()["incidencias_por_mes"]}
+    assert por_mes.get("2026-01") == 1
+    assert "2026-12" not in por_mes
+
+
+@pytest.mark.asyncio
 async def test_estadisticas_filtra_areas_y_subareas_por_rango_fecha(
     client: AsyncClient, db, empleado_rh
 ):

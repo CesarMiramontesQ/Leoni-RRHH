@@ -308,19 +308,22 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
     ) -> list[tuple[str, int]]:
         """
         Serie temporal por mes natural (YYYY-MM).
-        Usa `fecha` de negocio si existe; si no, la parte fecha de `created_at`.
+        Solo incidencias con `fecha` de negocio definida y no posterior a hoy.
         Compatible con PostgreSQL (producción) y SQLite (tests).
         """
-        date_col = func.coalesce(Incidencia.fecha, cast(Incidencia.created_at, Date))
+        date_col = Incidencia.fecha
         bind = self.db.get_bind()
         dialect_name = bind.dialect.name if bind is not None else "sqlite"
         if dialect_name == "postgresql":
             period_key = func.to_char(date_col, "YYYY-MM")
         else:
             period_key = func.strftime("%Y-%m", date_col)
+        hoy = date.today()
+        periodo_max = f"{hoy.year:04d}-{hoy.month:02d}"
         stmt = (
             select(period_key.label("periodo"), func.count().label("cnt"))
             .select_from(Incidencia)
+            .where(Incidencia.fecha.isnot(None), Incidencia.fecha <= hoy)
         )
         stmt = self._apply_filters(stmt, filters)
         stmt = stmt.group_by(period_key).order_by(period_key.asc())
@@ -331,7 +334,7 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
             if p is None:
                 continue
             ps = str(p).strip()
-            if len(ps) != 7 or ps[4] != "-":
+            if len(ps) != 7 or ps[4] != "-" or ps > periodo_max:
                 continue
             rows.append((ps, int(r.cnt)))
         if len(rows) > max_points:
@@ -339,6 +342,7 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         return rows
 
     def _incidencia_date_col(self):
+        """Fecha para tendencia por periodo/tipo (dashboard); conserva fallback a alta."""
         return func.coalesce(Incidencia.fecha, cast(Incidencia.created_at, Date))
 
     def _period_key_expr(self, date_col, *, agrupacion: str):
@@ -398,7 +402,37 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         self,
         filters: list | None,
     ) -> list[tuple[str, str, int]]:
-        return await self.aggregate_totales_por_periodo_y_tipo(filters, agrupacion="mes")
+        """Conteo por mes y tipo; solo incidencias con `fecha` de negocio hasta hoy."""
+        hoy = date.today()
+        periodo_max = f"{hoy.year:04d}-{hoy.month:02d}"
+        date_col = Incidencia.fecha
+        period_key = self._period_key_expr(date_col, agrupacion="mes")
+        stmt = (
+            select(
+                period_key.label("periodo"),
+                Incidencia.tipo.label("tipo"),
+                func.count().label("cnt"),
+            )
+            .select_from(Incidencia)
+            .where(Incidencia.fecha.isnot(None), Incidencia.fecha <= hoy)
+        )
+        stmt = self._apply_filters(stmt, filters)
+        stmt = stmt.group_by(period_key, Incidencia.tipo).order_by(
+            period_key.asc(), Incidencia.tipo.asc()
+        )
+        result = await self.db.execute(stmt)
+        out: list[tuple[str, str, int]] = []
+        for r in result.all():
+            p = r.periodo
+            t = r.tipo
+            if p is None or t is None:
+                continue
+            ps = str(p).strip()
+            ts = str(t).strip()
+            if not ps or not ts or ps > periodo_max:
+                continue
+            out.append((ps, ts, int(r.cnt)))
+        return out
 
     async def count_evidencias(self, incidencia_id: int) -> int:
         result = await self.db.execute(

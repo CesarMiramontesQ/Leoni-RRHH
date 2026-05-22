@@ -27,6 +27,21 @@ function tipoLabel(row: RhIncidenciaTablaFila): string {
   return raw && raw.length > 0 ? raw : row.tipo;
 }
 
+function isoHoyLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Fecha de negocio definida y no posterior a hoy (zona local del navegador). */
+function fechaIncidenciaHastaHoy(fecha: string | undefined | null): boolean {
+  const f = fecha?.trim();
+  if (!f || f.length < 10 || !/^\d{4}-\d{2}-\d{2}/.test(f)) return false;
+  return f.slice(0, 10) <= isoHoyLocal();
+}
+
 /** Agregados locales (p. ej. dataset mock) alineados con GET /incidencias/estadisticas. */
 export function computeRhIncidenciasEstadisticasFromFilas(
   rows: readonly RhIncidenciaTablaFila[],
@@ -111,11 +126,9 @@ export function computeRhIncidenciasEstadisticasFromFilas(
   const byMonth = new Map<string, number>();
   const byMonthTipo = new Map<string, Map<string, number>>();
   for (const r of rows) {
-    const fromFecha = r.fecha?.trim();
-    const key =
-      fromFecha && fromFecha.length >= 7 ? fromFecha.slice(0, 7)
-      : r.created_at?.trim() && r.created_at.length >= 7 ? r.created_at.slice(0, 7)
-      : null;
+    if (!fechaIncidenciaHastaHoy(r.fecha)) continue;
+    const fromFecha = r.fecha!.trim();
+    const key = fromFecha.length >= 7 ? fromFecha.slice(0, 7) : null;
     if (key && /^\d{4}-\d{2}$/.test(key)) {
       byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
       const t = tipoLabel(r);

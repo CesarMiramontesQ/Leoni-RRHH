@@ -25,7 +25,7 @@ export const INC_COPY = {
   analiticaTipoTitulo: "Distribución por tipo",
   analiticaTipoSub: "Proporción según clasificación registrada",
   analiticaTendenciaTitulo: "Tendencia por mes",
-  analiticaTendenciaSub: "Volumen según fecha de la incidencia o fecha de alta",
+  analiticaTendenciaSub: "Volumen por fecha de la incidencia (hasta el mes en curso)",
   verRankingCompleto: "Ver ranking completo",
   kpiTotal: "Total de incidencias",
   /** Título KPI en dos líneas (tarjetas analítica). */

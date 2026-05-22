@@ -874,12 +874,12 @@ components:
             $ref: "#/components/schemas/IncidenciaTipoDistribucionItem"
         incidencias_por_mes:
           type: array
-          description: Serie mensual para tendencia (fecha de negocio o fecha de alta).
+          description: Serie mensual para tendencia (fecha de negocio definida y no futura).
           items:
             $ref: "#/components/schemas/IncidenciaSerieMensualItem"
         incidencias_por_mes_y_tipo:
           type: array
-          description: Conteo por mes y tipo (misma fecha que incidencias_por_mes).
+          description: Conteo por mes y tipo (solo incidencias con fecha de negocio).
           items:
             $ref: "#/components/schemas/IncidenciaMesTipoItem"
         tendencia_agrupacion:
