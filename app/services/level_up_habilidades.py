@@ -27,8 +27,8 @@ class HabilidadService:
             id=hab.id,
             nombre=hab.nombre,
             descripcion=hab.descripcion,
-            tipo=hab.tipo,
-            niveles_descripcion=hab.niveles_descripcion,
+            tipo=hab.tipo.value if hasattr(hab.tipo, "value") else hab.tipo,
+            nivel_max=hab.nivel_max,
             activo=hab.activo,
             created_at=hab.created_at,
             updated_at=hab.updated_at,
@@ -77,7 +77,7 @@ class HabilidadService:
             "nombre": data.nombre,
             "descripcion": data.descripcion,
             "tipo": data.tipo,
-            "niveles_descripcion": data.niveles_descripcion,
+            "nivel_max": data.nivel_max,
             "activo": True,
         })
         return self._to_response(hab)

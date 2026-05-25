@@ -3,6 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+TipoHabilidad = Literal["tecnica", "blanda", "operativa", "critica"]
+
 
 # ── Capacidad ────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,13 @@ class HabilidadResponse(BaseModel):
     activo: bool
     created_at: datetime
     updated_at: datetime
+
+
+class HabilidadListResponse(BaseModel):
+    items: list[HabilidadResponse]
+    total: int
+    page: int
+    page_size: int
 
 
 # ── EvaluacionCapacidad ──────────────────────────────────────────────────────
