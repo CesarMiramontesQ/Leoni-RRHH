@@ -7,7 +7,7 @@ Tareas, Cualificaciones, Competencias Requeridas y Asignaciones individuales.
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
@@ -129,6 +129,12 @@ class PerfilCompetenciaRequeridaCreate(BaseModel):
     categoria: CategoriaCompetenciaRequerida
     descripcion: Optional[str] = Field(None, min_length=1)
     orden: int = Field(..., ge=1)
+
+    @model_validator(mode="after")
+    def require_competencia_or_descripcion(self) -> "PerfilCompetenciaRequeridaCreate":
+        if self.competencia_id is None and not self.descripcion:
+            raise ValueError("Se requiere competencia_id o descripcion")
+        return self
 
 
 class PerfilCompetenciaRequeridaUpdate(BaseModel):

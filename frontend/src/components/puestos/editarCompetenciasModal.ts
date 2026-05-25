@@ -89,7 +89,6 @@ function renderList(competencias: PerfilCompetencia[]): string {
           <div class="flex items-center gap-2 min-w-0">
             <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${escapeHtml(CATEGORIA_LABELS[c.categoria] ?? c.categoria)}</span>
             <span class="text-sm text-text-primary truncate">${escapeHtml(displayName)}</span>
-            ${c.competencia_id ? `<span class="shrink-0 rounded bg-leoni-blue/10 px-1 py-0.5 text-[9px] font-bold text-leoni-blue">Catálogo</span>` : ""}
           </div>
           <button type="button" data-delete-competencia="${c.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -192,6 +191,7 @@ export function mountEditarCompetenciasModal(
   let showCreateNew = false;
   let selectedCatalogo: { id: number; nombre: string; grupo: string } | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let catalogoCache: Awaited<ReturnType<typeof getCompetencias>> = [];
 
   function close(): void {
     overlay.classList.add("hidden");
@@ -261,33 +261,28 @@ export function mountEditarCompetenciasModal(
     });
   }
 
-  async function doSearch(q: string, resultsEl: HTMLElement): Promise<void> {
+  function doSearch(q: string, resultsEl: HTMLElement): void {
     if (q.length < 2) {
       resultsEl.classList.add("hidden");
       return;
     }
-    try {
-      const items = await getCompetencias();
-      const filtered = items.filter(c =>
-        c.nombre.toLowerCase().includes(q.toLowerCase()) ||
-        c.descripcion.toLowerCase().includes(q.toLowerCase())
-      );
-      if (filtered.length === 0) {
-        resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
-      } else {
-        resultsEl.innerHTML = filtered.slice(0, 10).map(c => `
-          <button type="button" data-select-comp="${c.id}" data-select-nombre="${escapeHtml(c.nombre)}" data-select-grupo="${escapeHtml(c.grupo)}"
-            class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
-            <span class="text-sm font-medium text-text-primary">${escapeHtml(c.nombre)}</span>
-            <span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${c.grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${c.grupo === "tecnica" ? "Técnica" : "Blanda"}</span>
-          </button>
-        `).join("");
-      }
-      resultsEl.classList.remove("hidden");
-    } catch {
-      resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-red-600 text-center">Error buscando</p>`;
-      resultsEl.classList.remove("hidden");
+    const lower = q.toLowerCase();
+    const filtered = catalogoCache.filter(c =>
+      c.nombre.toLowerCase().includes(lower) ||
+      c.descripcion.toLowerCase().includes(lower)
+    );
+    if (filtered.length === 0) {
+      resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
+    } else {
+      resultsEl.innerHTML = filtered.slice(0, 10).map(c => `
+        <button type="button" data-select-comp="${c.id}" data-select-nombre="${escapeHtml(c.nombre)}" data-select-grupo="${escapeHtml(c.grupo)}"
+          class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
+          <span class="text-sm font-medium text-text-primary">${escapeHtml(c.nombre)}</span>
+          <span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${c.grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${c.grupo === "tecnica" ? "Técnica" : "Blanda"}</span>
+        </button>
+      `).join("");
     }
+    resultsEl.classList.remove("hidden");
   }
 
   function selectCompetencia(id: number, nombre: string, grupo: string): void {
@@ -374,6 +369,7 @@ export function mountEditarCompetenciasModal(
 
       try {
         const created = await createCompetencia({ nombre, descripcion, grupo });
+        catalogoCache.push(created);
         showCreateNew = false;
         selectCompetencia(created.id, created.nombre, created.grupo);
         // Re-render list but keep selection
@@ -418,6 +414,9 @@ export function mountEditarCompetenciasModal(
       showCreateNew = false;
       selectedCatalogo = null;
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
+      getCompetencias({ page_size: 100 }).then(items => {
+        catalogoCache = items;
+      }).catch(() => { /* cache stays empty, search won't match */ });
       refreshList();
     },
     close,

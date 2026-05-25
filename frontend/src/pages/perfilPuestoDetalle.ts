@@ -264,7 +264,6 @@ function renderCompetencias(competencias: Competencia[]): string {
         ${items.map(c => `
           <div class="flex items-center gap-2 py-1.5">
             <span class="text-sm text-text-primary">${escapeHtml(c.competencia_nombre ?? c.descripcion)}</span>
-            ${c.competencia_id ? `<span class="shrink-0 rounded bg-leoni-blue/10 px-1 py-0.5 text-[9px] font-bold text-leoni-blue">Catálogo</span>` : ""}
           </div>
         `).join("")}
       </div>
