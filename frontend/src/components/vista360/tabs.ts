@@ -1,12 +1,14 @@
 import { escapeHtml } from "./html.ts";
 
-export type Vista360TabId = "resumen" | "incidencias" | "historial" | "beneficios";
+export type Vista360TabId = "resumen" | "incidencias" | "historial" | "beneficios" | "capacidades" | "plan_desarrollo";
 
 const TABS: { id: Vista360TabId; label: string }[] = [
   { id: "resumen", label: "Resumen" },
   { id: "incidencias", label: "Incidencias" },
   { id: "historial", label: "Historial" },
   { id: "beneficios", label: "Beneficios" },
+  { id: "capacidades", label: "Capacidades" },
+  { id: "plan_desarrollo", label: "Plan de desarrollo" },
 ];
 
 const TAB_BTN_BASE =

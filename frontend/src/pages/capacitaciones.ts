@@ -22,7 +22,9 @@ import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   SELECT_CHEVRON,
+  FIELD_FOCUS,
 } from "../ui/uiTokens.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
 
 function esc(s: string | null | undefined): string {
   if (!s) return "";
@@ -31,14 +33,134 @@ function esc(s: string | null | undefined): string {
   return d.innerHTML;
 }
 
+// ── Level Up: Fake data for Screen 7 (demo-first) ──────────────────────────
+
+type AsignacionEstado = "pendiente" | "en curso" | "completada" | "vencida";
+type AsignacionTone = "info" | "warn" | "ok" | "danger";
+
+interface AsignacionFake {
+  id: string;
+  curso: string;
+  colab: string;
+  area: string;
+  mod: string;
+  fecha: string;
+  estado: AsignacionEstado;
+  evid: string;
+  score: number | null;
+  tone: AsignacionTone;
+}
+
+const FAKE_ASIGNACIONES: AsignacionFake[] = [
+  { id: "CAP-3401", curso: "Crimpado manual · Nivel 2", colab: "Brenda Valdez Aguilar", area: "Cableado · L1", mod: "Presencial", fecha: "13/05/26", estado: "en curso", evid: "1/2", score: null, tone: "warn" },
+  { id: "CAP-3402", curso: "OPL-2041 · Cambio herramental", colab: "Diego Hurtado Vidal", area: "Cableado · L1", mod: "En piso", fecha: "14/05/26", estado: "pendiente", evid: "0/2", score: null, tone: "info" },
+  { id: "CAP-3403", curso: "IPC-A-620 · Inspección visual", colab: "Adrián Carmona Soto", area: "Ensamble · L2", mod: "Presencial", fecha: "12/05/26", estado: "completada", evid: "2/2", score: 4.6, tone: "ok" },
+  { id: "CAP-3404", curso: "Seguridad eléctrica LOTO", colab: "Lucía Mendoza Vargas", area: "Ensamble · L5", mod: "Mixta", fecha: "08/05/26", estado: "completada", evid: "2/2", score: 4.2, tone: "ok" },
+  { id: "CAP-3405", curso: "Hi-Pot · Operación segura", colab: "Patricia Loera Beltrán", area: "Prueba Eléct.", mod: "Aula", fecha: "05/05/26", estado: "vencida", evid: "1/3", score: null, tone: "danger" },
+  { id: "CAP-3406", curso: "Ruteo en tablero · básico", colab: "Ana Karina Reséndiz", area: "Ensamble · L5", mod: "Presencial", fecha: "15/05/26", estado: "pendiente", evid: "0/2", score: null, tone: "info" },
+  { id: "CAP-3407", curso: "Lectura de plano eléctrico", colab: "Tomás Ibarra Maldonado", area: "Prueba Eléct.", mod: "En línea", fecha: "11/05/26", estado: "en curso", evid: "0/1", score: null, tone: "warn" },
+  { id: "CAP-3408", curso: "5S en piso de producción", colab: "María Ortega Reyes", area: "Cableado · L3", mod: "En línea", fecha: "01/05/26", estado: "completada", evid: "1/1", score: 4.8, tone: "ok" },
+  { id: "CAP-3409", curso: "Crimpado automatizado N2", colab: "Jorge Salazar Núñez", area: "Cableado · L1", mod: "Presencial", fecha: "03/05/26", estado: "completada", evid: "2/2", score: 4.7, tone: "ok" },
+  { id: "CAP-3410", curso: "Continuidad eléctrica básico", colab: "Hugo Cárdenas Olvera", area: "Mantenim.", mod: "Presencial", fecha: "07/05/26", estado: "completada", evid: "2/2", score: 4.4, tone: "ok" },
+  { id: "CAP-3411", curso: "Soldadura por ultrasonido", colab: "Fernando Estrada Luna", area: "Ensamble · L2", mod: "Presencial", fecha: "09/05/26", estado: "en curso", evid: "1/3", score: null, tone: "warn" },
+  { id: "CAP-3412", curso: "Manejo de arneses automotriz", colab: "Claudia Rivas Torres", area: "Cableado · L3", mod: "Mixta", fecha: "10/05/26", estado: "pendiente", evid: "0/2", score: null, tone: "info" },
+  { id: "CAP-3413", curso: "Prueba de continuidad avanzada", colab: "Roberto Sánchez Mora", area: "Prueba Eléct.", mod: "Presencial", fecha: "06/05/26", estado: "completada", evid: "3/3", score: 4.9, tone: "ok" },
+  { id: "CAP-3414", curso: "Norma IATF 16949 · Intro", colab: "Gabriela Fuentes Díaz", area: "Calidad", mod: "En línea", fecha: "02/05/26", estado: "completada", evid: "2/2", score: 4.3, tone: "ok" },
+  { id: "CAP-3415", curso: "Ergonomia en línea de producción", colab: "Raúl Jiménez Paredes", area: "Ensamble · L5", mod: "Aula", fecha: "04/05/26", estado: "vencida", evid: "0/2", score: null, tone: "danger" },
+  { id: "CAP-3416", curso: "Control estadístico de proceso", colab: "Sandra Peña Rojas", area: "Calidad", mod: "En línea", fecha: "16/05/26", estado: "pendiente", evid: "0/1", score: null, tone: "info" },
+  { id: "CAP-3417", curso: "Mantenimiento preventivo TPM", colab: "Carlos Duarte Ibarra", area: "Mantenim.", mod: "Presencial", fecha: "12/05/26", estado: "en curso", evid: "2/4", score: null, tone: "warn" },
+  { id: "CAP-3418", curso: "Comunicación efectiva en piso", colab: "Laura Villarreal Nava", area: "Cableado · L1", mod: "Aula", fecha: "11/05/26", estado: "completada", evid: "1/1", score: 4.5, tone: "ok" },
+  { id: "CAP-3419", curso: "Cambio rápido SMED", colab: "Iván Bermúdez Ochoa", area: "Operaciones", mod: "Presencial", fecha: "15/05/26", estado: "pendiente", evid: "0/3", score: null, tone: "info" },
+  { id: "CAP-3420", curso: "Calibración de prensas", colab: "Rafael Cuevas Trejo", area: "Cableado · L3", mod: "Presencial", fecha: "09/05/26", estado: "en curso", evid: "1/2", score: null, tone: "warn" },
+  { id: "CAP-3421", curso: "Auditoría interna ISO 9001", colab: "Patricia Loera Beltrán", area: "Calidad", mod: "Mixta", fecha: "06/05/26", estado: "completada", evid: "2/2", score: 4.1, tone: "ok" },
+  { id: "CAP-3422", curso: "Operación de scanner óptico", colab: "Diego Hurtado Vidal", area: "Prueba Eléct.", mod: "En piso", fecha: "14/05/26", estado: "pendiente", evid: "0/1", score: null, tone: "info" },
+];
+
+type AsignacionTabId = "todas" | "pendientes" | "en_curso" | "completadas" | "vencidas";
+
+function filterAsignaciones(rows: AsignacionFake[], tab: AsignacionTabId): AsignacionFake[] {
+  if (tab === "todas") return rows;
+  const map: Record<AsignacionTabId, AsignacionEstado | null> = {
+    todas: null,
+    pendientes: "pendiente",
+    en_curso: "en curso",
+    completadas: "completada",
+    vencidas: "vencida",
+  };
+  const target = map[tab];
+  return target ? rows.filter((r) => r.estado === target) : rows;
+}
+
+function asignacionEstadoBadge(estado: AsignacionEstado, tone: AsignacionTone): string {
+  const toneClasses: Record<AsignacionTone, string> = {
+    ok: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    warn: "border-amber-200 bg-amber-50 text-amber-800",
+    info: "border-blue-200 bg-blue-50 text-blue-800",
+    danger: "border-red-200 bg-red-50 text-red-800",
+  };
+  const dotClasses: Record<AsignacionTone, string> = {
+    ok: "bg-emerald-500",
+    warn: "bg-amber-400",
+    info: "bg-blue-500",
+    danger: "bg-red-400",
+  };
+  const cls = toneClasses[tone];
+  const dot = dotClasses[tone];
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold capitalize ${cls}"><span class="size-1.5 shrink-0 rounded-full ${dot}" aria-hidden="true"></span>${escapeHtml(estado)}</span>`;
+}
+
+function asignacionScoreCell(score: number | null): string {
+  if (score == null) return `<span class="text-slate-400">—</span>`;
+  return `<span class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-700">★ ${score.toFixed(1)}</span>`;
+}
+
+function asignacionEvidCell(evid: string): string {
+  const parts = evid.split("/");
+  const done = Number(parts[0]);
+  const total = Number(parts[1]);
+  const isComplete = done === total && total > 0;
+  const color = isComplete ? "text-emerald-700 font-semibold" : "text-slate-600";
+  return `<span class="tabular-nums text-xs ${color}">${escapeHtml(evid)}</span>`;
+}
+
+function colabInitials(name: string): string {
+  return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function renderAsignacionesViewToggle(active: "asignaciones" | "catalogo_cards"): string {
+  const tabCls = (isActive: boolean) =>
+    isActive
+      ? "rounded-lg bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+      : "rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition";
+  return `
+  <div class="inline-flex items-center gap-0.5 rounded-lg border border-gray-200 bg-slate-50 p-0.5" role="group" aria-label="Vista">
+    <button type="button" data-action="cap-view-asignaciones" aria-pressed="${active === "asignaciones"}" class="${tabCls(active === "asignaciones")}">Asignaciones</button>
+    <button type="button" data-action="cap-view-catalogo" aria-pressed="${active === "catalogo_cards"}" class="${tabCls(active === "catalogo_cards")}">Catálogo</button>
+  </div>`;
+}
+
+function getAsignacionCounts(): Record<AsignacionTabId, number> {
+  return {
+    todas: FAKE_ASIGNACIONES.length,
+    pendientes: FAKE_ASIGNACIONES.filter((r) => r.estado === "pendiente").length,
+    en_curso: FAKE_ASIGNACIONES.filter((r) => r.estado === "en curso").length,
+    completadas: FAKE_ASIGNACIONES.filter((r) => r.estado === "completada").length,
+    vencidas: FAKE_ASIGNACIONES.filter((r) => r.estado === "vencida").length,
+  };
+}
+
 interface AreaOption {
   id: number;
   label: string;
 }
 
 type TabId = "catalogo" | "inscripciones";
+type ViewMode = "asignaciones" | "catalogo_cards";
 
 interface State {
+  viewMode: ViewMode;
+  asignacionTab: AsignacionTabId;
+  asignacionSearch: string;
   activeTab: TabId;
   capacitaciones: CapacitacionListResponse;
   inscripciones: InscripcionListResponse;
@@ -58,6 +180,9 @@ export function mountCapacitaciones(container: HTMLElement, signal: AbortSignal)
   const isRH = rol === "rh";
 
   const state: State = {
+    viewMode: "asignaciones",
+    asignacionTab: "todas",
+    asignacionSearch: "",
     activeTab: "catalogo",
     capacitaciones: { items: [], total: 0, page: 1, page_size: 10 },
     inscripciones: { items: [], total: 0, page: 1, page_size: 10 },
@@ -156,55 +281,185 @@ export function mountCapacitaciones(container: HTMLElement, signal: AbortSignal)
   }
 
   function render() {
-    const stats = getStats();
     root.innerHTML = `
       <div class="px-6 py-6 max-w-7xl mx-auto">
         <!-- Header -->
         <div class="flex items-center justify-between mb-6">
-          <h1 class="text-xl font-semibold text-gray-900">Capacitaciones</h1>
-          ${isRH ? `<button data-action="open-create" class="${BTN_PRIMARY}">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
-            Nueva capacitacion
-          </button>` : ""}
-        </div>
-
-        <!-- Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div class="rounded-lg border border-gray-200 bg-white p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase">Activas</p>
-            <p class="mt-1 text-2xl font-bold text-gray-900">${stats.activas}</p>
+          <div>
+            <h1 class="text-xl font-semibold text-gray-900">Capacitaciones</h1>
+            <p class="mt-0.5 text-sm text-gray-500">Asignaciones, seguimiento y acreditación de capacitaciones</p>
           </div>
-          <div class="rounded-lg border border-gray-200 bg-white p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase">Total inscritos</p>
-            <p class="mt-1 text-2xl font-bold text-gray-900">${stats.totalInscritos}</p>
-          </div>
-          <div class="rounded-lg border border-gray-200 bg-white p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase">Presencial</p>
-            <p class="mt-1 text-2xl font-bold text-blue-600">${stats.presencial}</p>
-          </div>
-          <div class="rounded-lg border border-gray-200 bg-white p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase">Online / Mixta</p>
-            <p class="mt-1 text-2xl font-bold text-purple-600">${stats.online + stats.mixta}</p>
+          <div class="flex items-center gap-3">
+            ${renderAsignacionesViewToggle(state.viewMode)}
+            ${isRH ? `<button data-action="open-create" class="${BTN_PRIMARY}">
+              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
+              ${state.viewMode === "asignaciones" ? "Asignar capacitación" : "Nueva capacitación"}
+            </button>` : ""}
           </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="border-b border-gray-200 mb-4">
-          <nav class="-mb-px flex gap-x-6" aria-label="Tabs">
-            <button data-action="tab" data-tab="catalogo" class="whitespace-nowrap border-b-2 pb-3 px-1 text-sm font-medium ${state.activeTab === "catalogo" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"}">
-              Catalogo
-            </button>
-            <button data-action="tab" data-tab="inscripciones" class="whitespace-nowrap border-b-2 pb-3 px-1 text-sm font-medium ${state.activeTab === "inscripciones" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"}">
-              Mis Inscripciones
-            </button>
-          </nav>
-        </div>
-
-        ${state.activeTab === "catalogo" ? renderCatalogo() : renderInscripciones()}
+        ${state.viewMode === "asignaciones" ? renderAsignacionesView() : renderCatalogoView()}
 
         ${state.showCreateModal || state.editingCapacitacion ? renderCreateEditModal() : ""}
         ${state.showInscripcionModal ? renderInscripcionModal(state.showInscripcionModal) : ""}
       </div>
+    `;
+  }
+
+  function renderAsignacionesView(): string {
+    const counts = getAsignacionCounts();
+    const tabs: { id: AsignacionTabId; label: string; count: number }[] = [
+      { id: "todas", label: "Todas", count: counts.todas },
+      { id: "pendientes", label: "Pendientes", count: counts.pendientes },
+      { id: "en_curso", label: "En curso", count: counts.en_curso },
+      { id: "completadas", label: "Completadas", count: counts.completadas },
+      { id: "vencidas", label: "Vencidas", count: counts.vencidas },
+    ];
+
+    let filtered = filterAsignaciones(FAKE_ASIGNACIONES, state.asignacionTab);
+    if (state.asignacionSearch.trim()) {
+      const q = state.asignacionSearch.trim().toLowerCase();
+      filtered = filtered.filter(
+        (r) =>
+          r.id.toLowerCase().includes(q) ||
+          r.curso.toLowerCase().includes(q) ||
+          r.colab.toLowerCase().includes(q) ||
+          r.area.toLowerCase().includes(q),
+      );
+    }
+
+    return `
+      <!-- KPI Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Total asignaciones</p>
+          <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900">${counts.todas}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Completadas</p>
+          <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-600">${counts.completadas}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">En curso</p>
+          <p class="mt-1 text-2xl font-bold tabular-nums text-amber-600">${counts.en_curso}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Vencidas</p>
+          <p class="mt-1 text-2xl font-bold tabular-nums text-red-600">${counts.vencidas}</p>
+        </div>
+      </div>
+
+      <!-- Tabs + Search -->
+      <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-2">
+          <div class="flex items-center gap-1" role="tablist" aria-label="Filtro por estado">
+            ${tabs.map((t) => {
+              const isActive = state.asignacionTab === t.id;
+              const cls = isActive
+                ? "rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-gray-900"
+                : "rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-slate-50 hover:text-gray-700 transition";
+              return `<button type="button" role="tab" data-action="asig-tab" data-tab="${t.id}" aria-selected="${isActive}" class="${cls}">${escapeHtml(t.label)} <span class="ml-1 tabular-nums text-gray-400">${t.count}</span></button>`;
+            }).join("")}
+          </div>
+          <div class="flex items-center gap-2">
+            <input
+              data-action="asig-search"
+              type="text"
+              aria-label="Buscar capacitación"
+              placeholder="Buscar capacitación..."
+              value="${escapeHtml(state.asignacionSearch)}"
+              class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm w-52 placeholder:text-gray-400 ${FIELD_FOCUS}"
+            />
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left">
+            <thead class="border-b border-gray-200 bg-gray-50">
+              <tr>
+                <th scope="col" class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">ID</th>
+                <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Capacitación</th>
+                <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Colaborador</th>
+                <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Área</th>
+                <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Modalidad</th>
+                <th scope="col" class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Fecha</th>
+                <th scope="col" class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Evid.</th>
+                <th scope="col" class="whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Score</th>
+                <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Estado</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${filtered.length === 0
+                ? `<tr><td colspan="9" class="px-4 py-8 text-center text-sm text-gray-400">No se encontraron asignaciones con los filtros actuales.</td></tr>`
+                : filtered.map((r) => renderAsignacionRow(r)).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+          <span class="text-xs text-gray-500">${filtered.length} de ${counts.todas} asignaciones</span>
+          <span class="text-xs text-gray-400">Semana 20 · Mayo 2026</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAsignacionRow(r: AsignacionFake): string {
+    return `
+    <tr class="transition-colors hover:bg-slate-50/80">
+      <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-400">${escapeHtml(r.id)}</td>
+      <td class="px-4 py-3 text-sm font-medium text-gray-900">${escapeHtml(r.curso)}</td>
+      <td class="px-4 py-3">
+        <div class="flex items-center gap-2">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${colabInitials(r.colab)}</span>
+          <span class="text-sm text-gray-700">${escapeHtml(r.colab)}</span>
+        </div>
+      </td>
+      <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-500">${escapeHtml(r.area)}</td>
+      <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-600">${escapeHtml(r.mod)}</td>
+      <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-500">${escapeHtml(r.fecha)}</td>
+      <td class="whitespace-nowrap px-4 py-3">${asignacionEvidCell(r.evid)}</td>
+      <td class="whitespace-nowrap px-4 py-3">${asignacionScoreCell(r.score)}</td>
+      <td class="whitespace-nowrap px-4 py-3">${asignacionEstadoBadge(r.estado, r.tone)}</td>
+    </tr>`;
+  }
+
+  function renderCatalogoView(): string {
+    const stats = getStats();
+    return `
+      <!-- Stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Activas</p>
+          <p class="mt-1 text-2xl font-bold text-gray-900">${stats.activas}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Total inscritos</p>
+          <p class="mt-1 text-2xl font-bold text-gray-900">${stats.totalInscritos}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Presencial</p>
+          <p class="mt-1 text-2xl font-bold text-blue-600">${stats.presencial}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <p class="text-xs font-medium text-gray-500 uppercase">Online / Mixta</p>
+          <p class="mt-1 text-2xl font-bold text-purple-600">${stats.online + stats.mixta}</p>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="border-b border-gray-200 mb-4">
+        <nav class="-mb-px flex gap-x-6" aria-label="Tabs">
+          <button data-action="tab" data-tab="catalogo" class="whitespace-nowrap border-b-2 pb-3 px-1 text-sm font-medium ${state.activeTab === "catalogo" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"}">
+            Catalogo
+          </button>
+          <button data-action="tab" data-tab="inscripciones" class="whitespace-nowrap border-b-2 pb-3 px-1 text-sm font-medium ${state.activeTab === "inscripciones" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"}">
+            Mis Inscripciones
+          </button>
+        </nav>
+      </div>
+
+      ${state.activeTab === "catalogo" ? renderCatalogo() : renderInscripciones()}
     `;
   }
 
@@ -470,7 +725,30 @@ export function mountCapacitaciones(container: HTMLElement, signal: AbortSignal)
   async function handleAction(e: Event) {
     const t = e.target as HTMLElement;
 
-    // Tabs
+    // View toggle: Asignaciones vs Catalogo
+    if (t.closest("[data-action='cap-view-asignaciones']")) {
+      state.viewMode = "asignaciones";
+      render();
+      return;
+    }
+    if (t.closest("[data-action='cap-view-catalogo']")) {
+      state.viewMode = "catalogo_cards";
+      render();
+      return;
+    }
+
+    // Asignacion status tabs
+    const asigTabBtn = t.closest<HTMLElement>("[data-action='asig-tab']");
+    if (asigTabBtn) {
+      const tab = asigTabBtn.dataset.tab as AsignacionTabId;
+      if (tab) {
+        state.asignacionTab = tab;
+        render();
+      }
+      return;
+    }
+
+    // Tabs (catalogo / inscripciones)
     const tabBtn = t.closest<HTMLElement>("[data-action='tab']");
     if (tabBtn) {
       const tab = tabBtn.dataset.tab as TabId;
@@ -699,6 +977,18 @@ export function mountCapacitaciones(container: HTMLElement, signal: AbortSignal)
           input.setSelectionRange(input.value.length, input.value.length);
         }
       }, 300);
+    }
+    if (t.matches("[data-action='asig-search']")) {
+      state.asignacionSearch = t.value;
+      if (searchTimeout) clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        render();
+        const input = root.querySelector<HTMLInputElement>("[data-action='asig-search']");
+        if (input) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 200);
     }
   }
 

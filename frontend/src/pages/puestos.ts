@@ -25,6 +25,140 @@ import {
   FILTER_FIELD_WRAP,
 } from "../ui/uiTokens.ts";
 
+// ── Level Up fake data (demo-first) ─────────────────────────────────────
+
+interface PerfilLevelUpMetrics {
+  codigo: string;
+  puesto: string;
+  area: string;
+  personas: number;
+  cursos: number;
+  opls: number;
+  evidencias: number;
+  cumplimiento: number;
+  brechas: number;
+  owner: string;
+}
+
+const FAKE_LEVEL_UP_METRICS: PerfilLevelUpMetrics[] = [
+  { codigo: "PP-101", puesto: "Operador/a de Crimpado", area: "Cableado", personas: 48, cursos: 7, opls: 12, evidencias: 4, cumplimiento: 89, brechas: 6, owner: "María Esquivel" },
+  { codigo: "PP-102", puesto: "Técnico de Crimpado", area: "Cableado", personas: 14, cursos: 9, opls: 18, evidencias: 5, cumplimiento: 92, brechas: 3, owner: "María Esquivel" },
+  { codigo: "PP-201", puesto: "Operador/a de Ensamble", area: "Ensamble", personas: 62, cursos: 6, opls: 14, evidencias: 4, cumplimiento: 81, brechas: 11, owner: "Iván Bermúdez" },
+  { codigo: "PP-202", puesto: "Operador/a de Ruteo", area: "Ensamble", personas: 24, cursos: 7, opls: 11, evidencias: 4, cumplimiento: 76, brechas: 9, owner: "Iván Bermúdez" },
+  { codigo: "PP-301", puesto: "Operador/a de Prueba E.", area: "Prueba Eléct.", personas: 22, cursos: 8, opls: 9, evidencias: 5, cumplimiento: 94, brechas: 2, owner: "Patricia Loera" },
+  { codigo: "PP-401", puesto: "Inspector/a de Calidad", area: "Calidad", personas: 14, cursos: 10, opls: 16, evidencias: 6, cumplimiento: 96, brechas: 1, owner: "Sandra Peña" },
+  { codigo: "PP-501", puesto: "Líder de Línea", area: "Operaciones", personas: 12, cursos: 12, opls: 22, evidencias: 7, cumplimiento: 88, brechas: 4, owner: "Rafael Cuevas" },
+  { codigo: "PP-601", puesto: "Técnico de Mantenimiento", area: "Mantenim.", personas: 18, cursos: 11, opls: 19, evidencias: 6, cumplimiento: 84, brechas: 5, owner: "Hugo Cárdenas" },
+];
+
+function cumplimientoBadge(pct: number): string {
+  if (pct >= 90) {
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold tabular-nums text-emerald-800"><span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>${pct}%</span>`;
+  }
+  if (pct >= 80) {
+    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold tabular-nums text-amber-800"><span class="size-1.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>${pct}%</span>`;
+  }
+  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-bold tabular-nums text-red-800"><span class="size-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true"></span>${pct}%</span>`;
+}
+
+function brechasBar(brechas: number): string {
+  const max = 15;
+  const pct = Math.min(100, Math.round((brechas / max) * 100));
+  const tone = brechas > 8 ? "bg-red-500" : brechas > 4 ? "bg-amber-400" : "bg-emerald-500";
+  return `<div class="h-1.5 w-full rounded-full bg-slate-100"><div class="${tone} h-1.5 rounded-full" style="width:${pct}%"></div></div>`;
+}
+
+function ownerInitials(name: string): string {
+  return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function renderKpiStrip(): string {
+  const totalPersonas = FAKE_LEVEL_UP_METRICS.reduce((s, p) => s + p.personas, 0);
+  const totalEvidencias = FAKE_LEVEL_UP_METRICS.reduce((s, p) => s + p.evidencias, 0);
+
+  const kpis = [
+    { label: "Perfiles activos", value: String(FAKE_LEVEL_UP_METRICS.length), sub: "Actualizado 09/05/26" },
+    { label: "Personas vinculadas", value: String(totalPersonas), sub: "En 7 áreas operativas" },
+    { label: "Cursos asociados (únicos)", value: "42", sub: "23 obligatorios · 19 opcionales" },
+    { label: "Evidencias mínimas", value: String(totalEvidencias), sub: `Por perfil promedio: ${Math.round(totalEvidencias / FAKE_LEVEL_UP_METRICS.length)}` },
+  ];
+
+  return `
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    ${kpis.map(k => `
+      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <p class="text-xs font-medium text-text-muted">${k.label}</p>
+        <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${k.value}</p>
+        <p class="mt-0.5 text-[11px] text-slate-500">${k.sub}</p>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function renderCardGrid(): string {
+  const cards = FAKE_LEVEL_UP_METRICS.map(p => `
+    <div class="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm transition hover:shadow-md">
+      <div class="flex items-center justify-between">
+        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">${p.codigo}</span>
+        ${cumplimientoBadge(p.cumplimiento)}
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-text-primary leading-tight">${escapeHtml(p.puesto)}</p>
+        <p class="mt-0.5 text-xs text-text-muted">${escapeHtml(p.area)}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px]">
+        <div class="flex items-center gap-1.5">
+          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span><b class="font-semibold tabular-nums">${p.personas}</b> <span class="text-slate-500">personas</span></span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span><b class="font-semibold tabular-nums">${p.cursos}</b> <span class="text-slate-500">cursos</span></span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span><b class="font-semibold tabular-nums">${p.opls}</b> <span class="text-slate-500">OPLs</span></span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span><b class="font-semibold tabular-nums">${p.evidencias}</b> <span class="text-slate-500">evidencias</span></span>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] text-slate-500">Brechas activas</span>
+          <span class="font-mono text-xs font-semibold ${p.brechas > 5 ? "text-red-600" : "text-slate-700"}">${p.brechas}</span>
+        </div>
+        ${brechasBar(p.brechas)}
+      </div>
+      <div class="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
+        <div class="flex items-center gap-2">
+          <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${ownerInitials(p.owner)}</span>
+          <span class="text-xs text-slate-600">${escapeHtml(p.owner)}</span>
+        </div>
+        <a href="#/puestos/101" class="text-xs font-semibold text-leoni-blue hover:underline">Abrir →</a>
+      </div>
+    </div>
+  `).join("");
+
+  return `
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    ${cards}
+  </div>`;
+}
+
+function renderViewToggle(active: "tabla" | "tarjetas"): string {
+  const tabCls = (isActive: boolean) =>
+    isActive
+      ? "rounded-lg bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+      : "rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition";
+  return `
+  <div class="inline-flex items-center gap-0.5 rounded-lg border border-border bg-slate-50 p-0.5" role="group" aria-label="Vista">
+    <button type="button" data-action="view-tarjetas" aria-pressed="${active === "tarjetas"}" class="${tabCls(active === "tarjetas")}">Tarjetas</button>
+    <button type="button" data-action="view-tabla" aria-pressed="${active === "tabla"}" class="${tabCls(active === "tabla")}">Tabla</button>
+  </div>`;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function nivelLabel(nivel: string): string {
@@ -340,6 +474,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
   const filters: PuestosFilterState = { q: "", area: "", nivel: "" };
+  let viewMode: "tabla" | "tarjetas" = "tarjetas";
 
   // Modal state
   let modalMode: "create" | "edit" | "delete" | null = null;
@@ -395,11 +530,23 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const niveles = uniqueNiveles(allItems);
     const filtered = filterItems(allItems, filters);
 
-    content.innerHTML = `
-      ${renderFilterBar(filters, areasOptions, niveles)}
-      <div class="mt-4">
-        ${renderTable(filtered)}
+    const viewToggleHtml = `
+      <div class="flex items-center justify-between">
+        ${renderViewToggle(viewMode)}
+        <span class="text-xs text-slate-500">${viewMode === "tarjetas" ? `${FAKE_LEVEL_UP_METRICS.length} perfiles · ordenados por cumplimiento` : `${filtered.length} perfiles`}</span>
       </div>`;
+
+    if (viewMode === "tarjetas") {
+      content.innerHTML = `
+        ${renderKpiStrip()}
+        <div class="mt-4">${viewToggleHtml}</div>
+        <div class="mt-4">${renderCardGrid()}</div>`;
+    } else {
+      content.innerHTML = `
+        ${renderFilterBar(filters, areasOptions, niveles)}
+        <div class="mt-4">${viewToggleHtml}</div>
+        <div class="mt-4">${renderTable(filtered)}</div>`;
+    }
   }
 
   function paintModal(): void {
@@ -510,6 +657,16 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
           case "confirm-delete":
             if (!deletingItem || modalSaving) return;
             void handleDelete();
+            break;
+
+          case "view-tarjetas":
+            viewMode = "tarjetas";
+            paint();
+            break;
+
+          case "view-tabla":
+            viewMode = "tabla";
+            paint();
             break;
 
           case "retry":

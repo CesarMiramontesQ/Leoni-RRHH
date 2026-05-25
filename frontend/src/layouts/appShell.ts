@@ -62,7 +62,15 @@ export type ShellNavKey =
   | "puestos"
   | "competencias"
   | "evaluaciones"
-  | "capacitaciones";
+  | "capacitaciones"
+  | "capacidades"
+  | "habilidades"
+  | "cursos"
+  | "opls"
+  | "evidencias"
+  | "sugerencias"
+  | "encuestas"
+  | "level-up";
 
 type NavItemDef = {
   id: AppShellNavItemId;
@@ -238,6 +246,68 @@ const NAV_TALENTO: readonly NavItemDef[] = [
   },
 ];
 
+const NAV_FORMACION: readonly NavItemDef[] = [
+  {
+    id: "capacidades",
+    key: "capacidades",
+    hrefFor: () => "#/capacidades",
+    label: "Matriz de Capacidades",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "habilidades",
+    key: "habilidades",
+    hrefFor: () => "#/habilidades",
+    label: "Matriz de Habilidades",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75l-5.571-3m11.142 0 4.179 2.25L12 17.25l-9.75-5.25 4.179-2.25m11.142 4.5L21.75 16.5 12 21.75 2.25 16.5l4.179-2.25m11.142 0L12 16.5l-5.571-2.25" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "cursos",
+    key: "cursos",
+    hrefFor: () => "#/cursos",
+    label: "Manejo de Cursos",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "opls",
+    key: "opls",
+    hrefFor: () => "#/opls",
+    label: "Manejo de OPLs",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
+const NAV_CUMPLIMIENTO: readonly NavItemDef[] = [
+  {
+    id: "evidencias",
+    key: "evidencias",
+    hrefFor: () => "#/evidencias",
+    label: "Motor de Evidencias",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "sugerencias",
+    key: "sugerencias",
+    hrefFor: () => "#/sugerencias",
+    label: "Motor de Sugerencias",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "encuestas",
+    key: "encuestas",
+    hrefFor: () => "#/encuestas",
+    label: "Encuestas Post Curso",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
 const NAV_AJUSTES: NavItemDef = {
   id: "ajustes",
   key: null,
@@ -277,6 +347,30 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
         </li>`;
 
   const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
+
+  const formacionLis = NAV_FORMACION.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const formacionHeadingId = "shell-nav-section-formacion";
+  const formacionBlock =
+    formacionLis.trim() === "" ?
+      ""
+    : `<li>
+          <div id="${formacionHeadingId}" class="${navSectionHeadingClass}">Formación</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${formacionHeadingId}">
+            ${formacionLis}
+          </ul>
+        </li>`;
+
+  const cumplimientoLis = NAV_CUMPLIMIENTO.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const cumplimientoHeadingId = "shell-nav-section-cumplimiento";
+  const cumplimientoBlock =
+    cumplimientoLis.trim() === "" ?
+      ""
+    : `<li>
+          <div id="${cumplimientoHeadingId}" class="${navSectionHeadingClass}">Cumplimiento</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${cumplimientoHeadingId}">
+            ${cumplimientoLis}
+          </ul>
+        </li>`;
   return `
     <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
       <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
@@ -291,6 +385,8 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
         </li>
         ${groupSectionLis}
         ${talentoBlock}
+        ${formacionBlock}
+        ${cumplimientoBlock}
         ${footerGestionHtml(activeNav, rol)}
       </ul>
     </nav>`;

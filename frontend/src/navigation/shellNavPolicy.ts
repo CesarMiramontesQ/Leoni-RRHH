@@ -18,6 +18,14 @@ export type AppShellNavItemId =
   | "reportes"
   | "puestos"
   | "competencias"
+  | "capacidades"
+  | "habilidades"
+  | "cursos"
+  | "opls"
+  | "evidencias"
+  | "sugerencias"
+  | "encuestas"
+  | "level-up"
   | "ajustes";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
@@ -29,8 +37,11 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 
-/** Items visibles solo para rh, director, gerente (Talento). */
-const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["puestos", "competencias"]);
+/** Items visibles solo para rh, director, gerente (Talento + Level Up). */
+const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
+  "puestos", "competencias", "capacidades", "habilidades",
+  "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
+]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
 
