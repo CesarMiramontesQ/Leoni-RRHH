@@ -182,6 +182,8 @@ class PerfilFuncionesResponse(BaseModel):
     id: int
     puesto_perfil_id: int
     empleado_id: int
+    nombre_empleado: Optional[str] = None
+    no_empleado: Optional[str] = None
     departamento: Optional[str] = None
     fecha_firma_superior: Optional[date] = None
     fecha_firma_empleado: Optional[date] = None
