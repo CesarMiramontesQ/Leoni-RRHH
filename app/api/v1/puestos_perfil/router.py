@@ -24,6 +24,7 @@ from app.schemas.talento import (
     PuestoPerfilListResponse,
     PuestoPerfilResponse,
     PuestoPerfilUpdate,
+    ResumenTarjetasResponse,
 )
 from app.services.puesto_perfil_service import PuestoPerfilService
 
@@ -49,6 +50,16 @@ async def listar_puestos_perfil(
         nivel=nivel,
         busqueda=busqueda,
     )
+
+
+@router.get("/resumen-tarjetas", response_model=ResumenTarjetasResponse)
+async def resumen_tarjetas(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Devuelve perfiles activos con metricas agregadas para la vista de tarjetas."""
+    service = PuestoPerfilService(db)
+    return await service.resumen_tarjetas()
 
 
 @router.post(

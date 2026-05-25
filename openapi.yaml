@@ -1937,6 +1937,40 @@ components:
         maquinas_herramientas:
           type: [object, "null"]
 
+    PerfilTarjetaItem:
+      type: object
+      required: [id, codigo, nombre, personas, cumplimiento_pct, brechas, cursos, evidencias]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        nombre:
+          type: string
+        area_nombre:
+          type: [string, "null"]
+        nivel:
+          type: [string, "null"]
+        personas:
+          type: integer
+        cumplimiento_pct:
+          type: integer
+        brechas:
+          type: integer
+        cursos:
+          type: integer
+        evidencias:
+          type: integer
+
+    ResumenTarjetasResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerfilTarjetaItem"
+
     PuestoPerfilResponse:
       type: object
       required: [id, codigo, nombre, version, activo, created_at, updated_at]
@@ -4928,6 +4962,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/puestos-perfil/resumen-tarjetas:
+    get:
+      tags: [Talento - Puestos Perfil]
+      summary: Resumen de perfiles para vista de tarjetas
+      description: Devuelve todos los perfiles activos con metricas agregadas (personas, cumplimiento, brechas).
+      operationId: resumenTarjetas
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de perfiles con metricas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumenTarjetasResponse"
+        "401":
+          description: No autenticado
 
   /api/v1/puestos-perfil/{id}:
     get:

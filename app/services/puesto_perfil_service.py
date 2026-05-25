@@ -29,10 +29,12 @@ from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.talento import (
     GenerarPerfilIARequest,
     GenerarPerfilIAResponse,
+    PerfilTarjetaItem,
     PuestoPerfilCreate,
     PuestoPerfilListResponse,
     PuestoPerfilResponse,
     PuestoPerfilUpdate,
+    ResumenTarjetasResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,13 @@ class PuestoPerfilService:
     @staticmethod
     def _get_rol(user: Empleado) -> str:
         return user.rol.nombre if user.rol else "empleado"
+
+    # ── Resumen Tarjetas ────────────────────────────────────────────────────
+
+    async def resumen_tarjetas(self) -> ResumenTarjetasResponse:
+        rows = await self.repo.get_resumen_tarjetas()
+        items = [PerfilTarjetaItem(**row) for row in rows]
+        return ResumenTarjetasResponse(items=items)
 
     # ── Listar ───────────────────────────────────────────────────────────────
 

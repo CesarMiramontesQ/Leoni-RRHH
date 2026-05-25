@@ -9,7 +9,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.talento import PuestoPerfil
+from app.models.talento import (
+    PerfilCualificacion,
+    PerfilCompetenciaRequerida,
+    PerfilFunciones,
+    PerfilFuncionesCualificacion,
+    PerfilFuncionesCompetencia,
+    PuestoPerfil,
+)
 from app.repositories.base import BaseRepository
 
 
@@ -100,3 +107,130 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             query = query.where(PuestoPerfil.id != exclude_id)
         count = await self.db.scalar(query)
         return (count or 0) > 0
+
+    async def get_resumen_tarjetas(self) -> list[dict]:
+        """Obtiene perfiles activos con metricas agregadas para la vista de tarjetas."""
+        # Subquery: personas por perfil
+        personas_sq = (
+            select(
+                PerfilFunciones.puesto_perfil_id,
+                func.count(PerfilFunciones.id).label("personas"),
+            )
+            .where(PerfilFunciones.activo.is_(True))
+            .group_by(PerfilFunciones.puesto_perfil_id)
+            .subquery()
+        )
+
+        # Subquery: total requeridos (cualificaciones + competencias) por perfil
+        cualif_count_sq = (
+            select(
+                PerfilCualificacion.puesto_perfil_id,
+                func.count(PerfilCualificacion.id).label("total_cualif"),
+            )
+            .group_by(PerfilCualificacion.puesto_perfil_id)
+            .subquery()
+        )
+        comp_count_sq = (
+            select(
+                PerfilCompetenciaRequerida.puesto_perfil_id,
+                func.count(PerfilCompetenciaRequerida.id).label("total_comp"),
+            )
+            .group_by(PerfilCompetenciaRequerida.puesto_perfil_id)
+            .subquery()
+        )
+
+        # Subquery: evaluaciones realizadas de cualificacion
+        eval_cualif_sq = (
+            select(
+                PerfilFunciones.puesto_perfil_id,
+                func.count(PerfilFuncionesCualificacion.id).label("eval_cualif"),
+            )
+            .join(PerfilFunciones, PerfilFuncionesCualificacion.perfil_funciones_id == PerfilFunciones.id)
+            .where(PerfilFunciones.activo.is_(True))
+            .group_by(PerfilFunciones.puesto_perfil_id)
+            .subquery()
+        )
+
+        # Subquery: evaluaciones realizadas de competencia
+        eval_comp_sq = (
+            select(
+                PerfilFunciones.puesto_perfil_id,
+                func.count(PerfilFuncionesCompetencia.id).label("eval_comp"),
+            )
+            .join(PerfilFunciones, PerfilFuncionesCompetencia.perfil_funciones_id == PerfilFunciones.id)
+            .where(PerfilFunciones.activo.is_(True))
+            .group_by(PerfilFunciones.puesto_perfil_id)
+            .subquery()
+        )
+
+        # Main query
+        query = (
+            select(
+                PuestoPerfil.id,
+                PuestoPerfil.codigo,
+                PuestoPerfil.nombre,
+                PuestoPerfil.nivel,
+                func.coalesce(personas_sq.c.personas, 0).label("personas"),
+                func.coalesce(cualif_count_sq.c.total_cualif, 0).label("total_cualif"),
+                func.coalesce(comp_count_sq.c.total_comp, 0).label("total_comp"),
+                func.coalesce(eval_cualif_sq.c.eval_cualif, 0).label("eval_cualif"),
+                func.coalesce(eval_comp_sq.c.eval_comp, 0).label("eval_comp"),
+            )
+            .outerjoin(personas_sq, personas_sq.c.puesto_perfil_id == PuestoPerfil.id)
+            .outerjoin(cualif_count_sq, cualif_count_sq.c.puesto_perfil_id == PuestoPerfil.id)
+            .outerjoin(comp_count_sq, comp_count_sq.c.puesto_perfil_id == PuestoPerfil.id)
+            .outerjoin(eval_cualif_sq, eval_cualif_sq.c.puesto_perfil_id == PuestoPerfil.id)
+            .outerjoin(eval_comp_sq, eval_comp_sq.c.puesto_perfil_id == PuestoPerfil.id)
+            .options(selectinload(PuestoPerfil.area))
+            .where(PuestoPerfil.activo.is_(True))
+            .order_by(PuestoPerfil.nombre)
+        )
+
+        result = await self.db.execute(query)
+        rows = result.all()
+
+        items = []
+        for row in rows:
+            personas = row.personas
+            total_cualif = row.total_cualif
+            total_comp = row.total_comp
+            eval_cualif = row.eval_cualif
+            eval_comp = row.eval_comp
+
+            # Cumplimiento: evaluaciones completadas / (requeridas × personas)
+            total_requeridos = (total_cualif + total_comp) * personas
+            total_evaluados = eval_cualif + eval_comp
+            cumplimiento_pct = (
+                round((total_evaluados / total_requeridos) * 100)
+                if total_requeridos > 0
+                else 0
+            )
+
+            # Brechas: requeridos sin evaluar
+            brechas = max(0, total_requeridos - total_evaluados)
+
+            items.append({
+                "id": row.id,
+                "codigo": row.codigo,
+                "nombre": row.nombre,
+                "nivel": row.nivel,
+                "personas": personas,
+                "cumplimiento_pct": cumplimiento_pct,
+                "brechas": brechas,
+            })
+
+        # Cargar area_nombre en segunda pasada (selectinload no funciona con
+        # columnas explícitas, cargamos por separado)
+        perfil_ids = [item["id"] for item in items]
+        if perfil_ids:
+            perfiles_result = await self.db.execute(
+                select(PuestoPerfil)
+                .options(selectinload(PuestoPerfil.area))
+                .where(PuestoPerfil.id.in_(perfil_ids))
+            )
+            perfiles_map = {p.id: p for p in perfiles_result.scalars().all()}
+            for item in items:
+                perfil = perfiles_map.get(item["id"])
+                item["area_nombre"] = perfil.area.descripcion if perfil and perfil.area else None
+
+        return items

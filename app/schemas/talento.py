@@ -174,6 +174,26 @@ class FilterOptionsResponse(BaseModel):
     sectores: list[FilterOption] = []
 
 
+# ── Resumen Tarjetas ────────────────────────────────────────────────────────
+
+
+class PerfilTarjetaItem(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    area_nombre: Optional[str] = None
+    nivel: Optional[str] = None
+    personas: int = 0
+    cumplimiento_pct: int = 0
+    brechas: int = 0
+    cursos: int = 0
+    evidencias: int = 0
+
+
+class ResumenTarjetasResponse(BaseModel):
+    items: list[PerfilTarjetaItem]
+
+
 # ── IA Generacion ────────────────────────────────────────────────────────────
 
 
