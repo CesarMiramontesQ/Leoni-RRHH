@@ -89,6 +89,7 @@ export function mountAsignarEmpleadoModal(
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
+    document.removeEventListener("keydown", escHandler);
     resetState();
   }
 
@@ -141,7 +142,7 @@ export function mountAsignarEmpleadoModal(
         resultadosEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
       } else {
         resultadosEl.innerHTML = items.map(emp => `
-          <button type="button" data-select-empleado='${JSON.stringify(emp)}'
+          <button type="button" data-select-empleado="${escapeHtml(JSON.stringify(emp))}"
             class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
             <span class="text-sm font-medium text-text-primary">${escapeHtml(emp.nombre)}</span>
             <span class="text-xs text-slate-500 tabular-nums">${escapeHtml(emp.no_empleado)}</span>
@@ -218,18 +219,19 @@ export function mountAsignarEmpleadoModal(
     if ((e.target as HTMLElement).closest("[data-close-asignar-modal]")) close();
   });
 
-  document.addEventListener("keydown", (e: KeyboardEvent) => {
+  function escHandler(e: KeyboardEvent): void {
     if (e.key === "Escape" && !overlay.classList.contains("hidden")) {
       e.preventDefault();
       close();
     }
-  });
+  }
 
   return {
     open: () => {
       overlay.classList.remove("hidden");
       overlay.classList.add("flex");
       document.body.style.overflow = "hidden";
+      document.addEventListener("keydown", escHandler);
       resetState();
       setTimeout(() => searchInput.focus(), 100);
     },

@@ -141,6 +141,7 @@ export function mountEditarCualificacionesModal(
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
+    document.removeEventListener("keydown", escHandler);
   }
 
   async function refreshList(): Promise<void> {
@@ -214,18 +215,19 @@ export function mountEditarCualificacionesModal(
     if ((e.target as HTMLElement).closest("[data-close-cualificaciones-modal]")) close();
   });
 
-  document.addEventListener("keydown", (e: KeyboardEvent) => {
+  function escHandler(e: KeyboardEvent): void {
     if (e.key === "Escape" && !overlay.classList.contains("hidden")) {
       e.preventDefault();
       close();
     }
-  });
+  }
 
   return {
     open: () => {
       overlay.classList.remove("hidden");
       overlay.classList.add("flex");
       document.body.style.overflow = "hidden";
+      document.addEventListener("keydown", escHandler);
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
       refreshList();
     },

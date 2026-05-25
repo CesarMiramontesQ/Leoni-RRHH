@@ -1,6 +1,7 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { getAccessToken } from "../auth/session.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_GHOST, BTN_PRIMARY, BTN_DANGER } from "../ui/uiTokens.ts";
 import { deletePerfilAsignacion } from "../api/puestos.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
@@ -83,9 +84,9 @@ async function loadPerfilHeader(container: HTMLElement, perfilId: number): Promi
     if (!res.ok) return;
 
     const perfil = await res.json();
-    const area = perfil.area_nombre ? ` · ${perfil.area_nombre}` : "";
+    const area = perfil.area_nombre ? ` · ${escapeHtml(perfil.area_nombre)}` : "";
     headerEl.innerHTML = `
-      <span class="font-semibold text-text-primary">${perfil.nombre}</span>
+      <span class="font-semibold text-text-primary">${escapeHtml(perfil.nombre)}</span>
       <span class="text-slate-400">${area}</span>
     `;
   } catch {
@@ -133,10 +134,10 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
     const rows = asignaciones.map((a) => `
       <tr class="border-b border-slate-100/80 transition-colors hover:bg-slate-50/90">
         <td class="px-4 py-3 text-sm text-text-primary">
-          <span class="font-medium">${a.nombre_empleado ?? `Empleado #${a.empleado_id}`}</span>
-          ${a.no_empleado ? `<span class="ml-2 text-xs text-slate-400 tabular-nums">${a.no_empleado}</span>` : ""}
+          <span class="font-medium">${escapeHtml(a.nombre_empleado ?? `Empleado #${a.empleado_id}`)}</span>
+          ${a.no_empleado ? `<span class="ml-2 text-xs text-slate-400 tabular-nums">${escapeHtml(a.no_empleado)}</span>` : ""}
         </td>
-        <td class="px-4 py-3 text-sm text-slate-600">${a.departamento ?? "—"}</td>
+        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(a.departamento ?? "—")}</td>
         <td class="px-4 py-3 text-sm">${a.activo ? '<span class="text-emerald-600 font-medium">Activo</span>' : '<span class="text-slate-400">Inactivo</span>'}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_superior ?? "Pendiente"}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_empleado ?? "Pendiente"}</td>
