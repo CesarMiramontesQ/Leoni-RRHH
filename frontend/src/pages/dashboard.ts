@@ -177,7 +177,10 @@ async function loadRhOperationalDashboard(
   let analyticsPayload = null;
   let analyticsPartial = false;
   try {
-    const result = await fetchRhDashboardAnalytics(periodDays).catch(() => null);
+    const result = await fetchRhDashboardAnalytics(periodDays).catch((e: unknown) => {
+      console.error("[rh-dashboard] fetch analytics failed", e);
+      return null;
+    });
     if (isStale()) return;
     if (result) {
       analyticsPayload = result.payload;
@@ -192,7 +195,15 @@ async function loadRhOperationalDashboard(
     renderRhAnalyticsSection(analyticsPayload, analyticsPartial),
   );
   if (analyticsPayload) {
-    mountRhDashboardAnalyticsCharts(root, analyticsPayload);
+    const payloadForCharts = analyticsPayload;
+    requestAnimationFrame(() => {
+      if (isStale()) return;
+      try {
+        mountRhDashboardAnalyticsCharts(root, payloadForCharts);
+      } catch (e: unknown) {
+        console.error("[rh-dashboard] chart mount failed", e);
+      }
+    });
   }
 }
 

@@ -37,6 +37,14 @@ export function tendenciaIncidenciasChartSubtitle(t: IncidenciaTendenciaPorTipo 
   return "Por mes · últimos 90 días";
 }
 
+function safeMountChart(label: string, mount: () => void): void {
+  try {
+    mount();
+  } catch (e: unknown) {
+    console.error(`[rh-dashboard] ${label}`, e);
+  }
+}
+
 export function mountRhDashboardAnalyticsCharts(
   root: ParentNode,
   payload: RhDashboardAnalyticsPayload,
@@ -45,28 +53,34 @@ export function mountRhDashboardAnalyticsCharts(
 
   const ranking = payload.laborales.empleadosRetardosRanking;
   if (ranking.length > 0) {
-    mountRankingHorizontalBar(
-      root,
-      RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
-      ranking,
-      RETARDOS_BAR_COLOR,
-      "Retardos",
+    safeMountChart("retardos", () =>
+      mountRankingHorizontalBar(
+        root,
+        RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
+        ranking,
+        RETARDOS_BAR_COLOR,
+        "Retardos",
+      ),
     );
   }
 
   const tendencia = payload.laborales.incidenciasTendenciaPorTipo;
   if (tendenciaPorTipoTieneDatos(tendencia)) {
-    mountIncidenciasTendenciaPorTipoChart(root, tendencia!, RH_DASH_INC_TENDENCIA_CHART_ID);
+    safeMountChart("tendencia incidencias", () =>
+      mountIncidenciasTendenciaPorTipoChart(root, tendencia!, RH_DASH_INC_TENDENCIA_CHART_ID),
+    );
   }
 
   const asistencia = payload.comedor.asistenciaDiaria;
   if (asistencia && asistencia.length > 0) {
-    mountDashComedorAsistenciaDiariaChart(root, asistencia);
+    safeMountChart("asistencia comedor", () => mountDashComedorAsistenciaDiariaChart(root, asistencia));
   }
 
   const futuros = payload.comedor.registrosFuturosPorSemana;
   if (futuros && futuros.length > 0) {
-    mountDashComedorRegistrosFuturosChart(root, futuros);
+    safeMountChart("registros futuros comedor", () =>
+      mountDashComedorRegistrosFuturosChart(root, futuros),
+    );
   }
 }
 

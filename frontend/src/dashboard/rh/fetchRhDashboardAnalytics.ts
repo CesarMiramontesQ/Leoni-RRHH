@@ -147,12 +147,18 @@ export async function fetchRhDashboardAnalytics(
   let incidenciasTendenciaPorTipo: RhDashboardAnalyticsPayload["laborales"]["incidenciasTendenciaPorTipo"] =
     null;
   if (incidenciasResult.ok) {
-    const periodosCanon = listPeriodosEnRango(fechaInicio, fechaFin, tendenciaAgrupacion);
-    incidenciasTendenciaPorTipo = buildIncidenciasTendenciaPorTipo(
-      incidenciasResult.v.incidencias_por_periodo_y_tipo,
-      periodosCanon,
-      tendenciaAgrupacion,
-    );
+    try {
+      const periodosCanon = listPeriodosEnRango(fechaInicio, fechaFin, tendenciaAgrupacion);
+      incidenciasTendenciaPorTipo = buildIncidenciasTendenciaPorTipo(
+        incidenciasResult.v.incidencias_por_periodo_y_tipo ?? [],
+        periodosCanon,
+        tendenciaAgrupacion,
+      );
+    } catch (e: unknown) {
+      laboralesErrors.push(
+        e instanceof Error ? e.message : "Tendencia de incidencias no disponible",
+      );
+    }
   }
 
   if (retardosEstadisticasResult.ok) {
@@ -164,18 +170,35 @@ export async function fetchRhDashboardAnalytics(
   }
 
   if (solicitudesResult.ok) {
-    const filtered = filterSolicitudRowsByPeriod(solicitudesResult.rows, fechaInicio, fechaFin);
-    solicitudesAnalytics = computeSolicitudesAnalytics(filtered);
-    laboralesKpis = {
-      solicitudes_pendientes: solicitudesAnalytics.kpis.pendientes,
-      solicitudes_cambios: solicitudesAnalytics.kpis.cambios_solicitados,
-      solicitudes_aprobadas: solicitudesAnalytics.kpis.aprobadas,
-      vacaciones_urgentes: countVacacionesUrgentes(solicitudesResult.rows, todayIso),
-      incidencias_total: 0,
-      incidencias_seguridad: 0,
-      incidencias_calidad: 0,
-      variacion_incidencias_pct: null,
-    };
+    try {
+      const filtered = filterSolicitudRowsByPeriod(solicitudesResult.rows, fechaInicio, fechaFin);
+      solicitudesAnalytics = computeSolicitudesAnalytics(filtered);
+    } catch (e: unknown) {
+      laboralesErrors.push(
+        e instanceof Error ? e.message : "Analítica de solicitudes no disponible",
+      );
+    }
+    laboralesKpis = solicitudesAnalytics
+      ? {
+          solicitudes_pendientes: solicitudesAnalytics.kpis.pendientes,
+          solicitudes_cambios: solicitudesAnalytics.kpis.cambios_solicitados,
+          solicitudes_aprobadas: solicitudesAnalytics.kpis.aprobadas,
+          vacaciones_urgentes: countVacacionesUrgentes(solicitudesResult.rows, todayIso),
+          incidencias_total: 0,
+          incidencias_seguridad: 0,
+          incidencias_calidad: 0,
+          variacion_incidencias_pct: null,
+        }
+      : {
+          solicitudes_pendientes: 0,
+          solicitudes_cambios: 0,
+          solicitudes_aprobadas: 0,
+          vacaciones_urgentes: countVacacionesUrgentes(solicitudesResult.rows, todayIso),
+          incidencias_total: 0,
+          incidencias_seguridad: 0,
+          incidencias_calidad: 0,
+          variacion_incidencias_pct: null,
+        };
   } else {
     laboralesErrors.push(solicitudesResult.err);
   }

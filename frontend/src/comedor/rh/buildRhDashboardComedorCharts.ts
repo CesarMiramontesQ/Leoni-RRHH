@@ -110,5 +110,6 @@ export function mapRegistrosFuturosPorSemana(
 export function registrosFuturosTieneDatos(
   semanas: readonly RhDashComedorSemanaFutura[] | null | undefined,
 ): boolean {
-  return (semanas?.length ?? 0) > 0 && semanas.some((s) => s.total > 0);
+  if (!semanas?.length) return false;
+  return semanas.some((s) => s.total > 0);
 }
