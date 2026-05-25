@@ -147,7 +147,7 @@ puestos_perfil (template)
 | # | Item | Estado |
 |---|------|--------|
 | 14 | Fix: 500 en PUT evaluaciones con cualificacion_id/competencia_id inválido | Pending |
-| 15 | Migrar datos JSONB existentes a nuevas tablas | Pending |
+| 15 | Migrar datos JSONB existentes a nuevas tablas | Done |
 | 16 | Eliminar campos JSONB de `puestos_perfil` | Pending |
 | 17 | Conectar detalle de puesto (`perfilPuestoDetalle.ts`) a datos reales (wire-up) | Pending |
 | 18 | Mostrar nombre del empleado en tabla de asignaciones (hoy solo muestra ID) | Pending |
@@ -159,7 +159,7 @@ puestos_perfil (template)
 - [x] Se puede asignar un empleado a un perfil y registrar su "situación actual"
 - [x] El endpoint de detalle muestra el gap (deseada vs actual) por cualificación y competencia
 - [x] Las firmas se registran con fecha e ID
-- [ ] Los datos JSONB existentes se migraron a las nuevas tablas
+- [x] Los datos JSONB existentes se migraron a las nuevas tablas
 - [x] Tests e2e para los endpoints principales
 - [x] Frontend: vista de empleados asignados funcional con datos reales
 
