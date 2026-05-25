@@ -32,18 +32,18 @@ Diseño (Stitch) → Demo hardcodeada (Track A) → Backend + modelos (Track B) 
 
 | # | Pantalla | Ruta | Track A (Demo) | Track B (Real) |
 |---|---|---|---|---|
-| 1 | Dashboard Level Up | `#/level-up` | `pending` | `pending` |
+| 1 | Dashboard Level Up | `#/level-up` | `done` | `pending` |
 | 2 | Matriz de capacidades (heatmap) | `#/capacidades` | `pending` | `pending` |
 | 3 | Detalle colaborador (capacidades + plan) | `#/empleados/:id` tab | `pending` | `pending` |
 | 4 | Matriz de habilidades | `#/habilidades` | `pending` | `pending` |
-| 5 | Perfiles de puesto (tarjetas) | `#/puestos` toggle | `pending` | `pending` |
-| 6 | Perfil de puesto (detalle) | `#/puestos/:id` | `pending` | `pending` |
+| 5 | Perfiles de puesto (tarjetas) | `#/puestos` toggle | `done` | `in-progress` |
+| 6 | Perfil de puesto (detalle) | `#/puestos/:id` | `done` | `pending` |
 | 7 | Capacitaciones (tabla asignaciones) | `#/capacitaciones` rediseño | `pending` | `pending` |
 | 8 | Catálogo de cursos | `#/cursos` | `pending` | `pending` |
-| 9 | OPLs (master-detail) | `#/opls` | `pending` | `pending` |
-| 10 | Evidencias (bandeja validación) | `#/evidencias` | `pending` | `pending` |
-| 11 | Motor de sugerencias | `#/sugerencias` | `pending` | `pending` |
-| 12 | Encuestas post curso | `#/encuestas` | `pending` | `pending` |
+| 9 | OPLs (master-detail) | `#/opls` | `done` | `pending` |
+| 10 | Evidencias (bandeja validación) | `#/evidencias` | `done` | `pending` |
+| 11 | Motor de sugerencias | `#/sugerencias` | `done` | `pending` |
+| 12 | Encuestas post curso | `#/encuestas` | `done` | `pending` |
 
 **Estados posibles:**
 - `pending` — no iniciada
