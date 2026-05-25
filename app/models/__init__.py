@@ -25,7 +25,12 @@ from app.models.notificaciones import Notificacion
 from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.tress import TressRobotQueue
-from app.models.talento import PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia, Capacitacion, Inscripcion
+from app.models.talento import (
+    PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
+    Capacitacion, Inscripcion,
+    PerfilTarea, PerfilCualificacion, PerfilCompetenciaRequerida,
+    PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia,
+)
 
 __all__ = [
     "Rol",
@@ -61,4 +66,10 @@ __all__ = [
     "EvaluacionCompetencia",
     "Capacitacion",
     "Inscripcion",
+    "PerfilTarea",
+    "PerfilCualificacion",
+    "PerfilCompetenciaRequerida",
+    "PerfilFunciones",
+    "PerfilFuncionesCualificacion",
+    "PerfilFuncionesCompetencia",
 ]
