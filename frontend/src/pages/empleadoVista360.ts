@@ -6,6 +6,10 @@ import { clearAuth } from "../auth/session.ts";
 import { mountEditarAsignacionModal } from "../components/empleados/editarAsignacionModal.ts";
 import type { EditarAsignacionModalHandle } from "../components/empleados/editarAsignacionModal.ts";
 import { vista360CardHtml, vista360FieldRowHtml, vista360FieldRowText } from "../components/vista360/card.ts";
+import {
+  vista360IncidenciasMetricasCardsHtml,
+  vista360IncidenciasMetricasSkeletonHtml,
+} from "../components/vista360/incidenciasMetricasCards.ts";
 import { escapeHtml } from "../components/vista360/html.ts";
 import { vista360CompetenciasCardHtml } from "../components/vista360/progressBar.ts";
 import { vista360ProfileHeaderHtml } from "../components/vista360/profileHeader.ts";
@@ -23,7 +27,7 @@ export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
   return "resumen";
 }
 import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
-import { loadEmpleadoVista360 } from "../hooks/useVista360.ts";
+import { loadEmpleadoVista360, type EmpleadoIncidenciasMetricas } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 import {
@@ -52,7 +56,15 @@ function forbiddenHtml(): string {
   });
 }
 
-function skeletonHtml(): string {
+function skeletonHtml(showRhMetricas: boolean): string {
+  const metricasBlock = showRhMetricas
+    ? vista360IncidenciasMetricasSkeletonHtml()
+    : `
+      <div class="flex flex-wrap gap-4">
+        <div class="h-9 w-36 rounded-md bg-slate-100"></div>
+        <div class="h-9 w-32 rounded-md bg-slate-100"></div>
+        <div class="h-9 w-40 rounded-md bg-slate-100"></div>
+      </div>`;
   return `
     <div class="animate-pulse space-y-6" aria-busy="true">
       <div class="rounded-2xl border border-border/70 bg-white p-6 shadow-sm">
@@ -76,11 +88,7 @@ function skeletonHtml(): string {
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         ${Array.from({ length: 4 }, () => '<div class="min-h-40 rounded-2xl bg-slate-100"></div>').join("")}
       </div>
-      <div class="flex flex-wrap gap-4">
-        <div class="h-9 w-36 rounded-md bg-slate-100"></div>
-        <div class="h-9 w-32 rounded-md bg-slate-100"></div>
-        <div class="h-9 w-40 rounded-md bg-slate-100"></div>
-      </div>
+      ${metricasBlock}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <div class="h-56 rounded-2xl bg-slate-100 lg:col-span-7"></div>
         <div class="h-56 rounded-2xl bg-slate-100 lg:col-span-5"></div>
@@ -247,7 +255,11 @@ function renderPlanDesarrolloPanel(): string {
     </div>`;
 }
 
-function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId): string {
+function renderVista360Content(
+  data: UsuarioVista360,
+  activeTab: Vista360TabId,
+  incidenciasMetricas: EmpleadoIncidenciasMetricas | null,
+): string {
   const u = data.usuario;
   const showRh = canAccessUsuariosAdmin();
 
@@ -288,6 +300,13 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
         Registro asistencia</button>
       </div>
     </div>`;
+
+  const metricasSection =
+    showRh && incidenciasMetricas !== null
+      ? vista360IncidenciasMetricasCardsHtml(incidenciasMetricas)
+      : showRh
+        ? vista360IncidenciasMetricasSkeletonHtml()
+        : quickActions;
 
   const cardPersonales = vista360CardHtml({
     title: "Personales",
@@ -423,7 +442,7 @@ function renderVista360Content(data: UsuarioVista360, activeTab: Vista360TabId):
       ${header}
       ${tabs}
       ${grid}
-      ${quickActions}
+      ${metricasSection}
       <div id="v360-panels-wrap">${panels}</div>
     </div>`;
 }
@@ -483,7 +502,7 @@ export function mountEmployeeVista360(
     mainHtml: `
       <div class="${vista360PageShellClass}">
         <div id="v360-root" class="mx-auto w-full max-w-[1320px] space-y-6 px-2 pb-2 sm:px-3">
-          <div id="v360-content">${skeletonHtml()}</div>
+          <div id="v360-content">${skeletonHtml(isRh)}</div>
         </div>
       </div>
       ${isRh ? `<div id="v360-edit-modal-host"></div>` : ""}`,
@@ -498,11 +517,11 @@ export function mountEmployeeVista360(
     editModal = mountEditarAsignacionModal(modalHost, {
       onSuccess: async () => {
         if (!contentEl) return;
-        contentEl.innerHTML = skeletonHtml();
+        contentEl.innerHTML = skeletonHtml(isRh);
         const r = await loadEmpleadoVista360(empleadoId, signal);
         if (!r.ok && r.aborted) return;
         if (r.ok) {
-          contentEl.innerHTML = renderVista360Content(r.data, initialTab);
+          contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas);
         } else {
           contentEl.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">${escapeHtml(r.message)}</div>`;
         }
@@ -521,12 +540,12 @@ export function mountEmployeeVista360(
 
   async function load(): Promise<void> {
     if (!contentEl) return;
-    contentEl.innerHTML = skeletonHtml();
+    contentEl.innerHTML = skeletonHtml(isRh);
     const r = await loadEmpleadoVista360(empleadoId, signal);
     if (!r.ok && r.aborted) return;
     if (!contentEl) return;
     if (r.ok) {
-      contentEl.innerHTML = renderVista360Content(r.data, initialTab);
+      contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas);
       return;
     }
     if (r.status === 401) {

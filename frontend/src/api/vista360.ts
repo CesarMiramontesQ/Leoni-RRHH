@@ -41,6 +41,13 @@ export type UsuarioVista360 = {
   turno_empleado?: Vista360TurnoEmpleado | null;
 };
 
+export type MetricasUsuario = {
+  solicitudes_por_estado: Record<string, number>;
+  incidencias_por_tipo: Record<string, number>;
+  dias_antiguedad: number;
+  total_actas: number;
+};
+
 async function readErrorDetail(res: Response): Promise<string> {
   const raw = await res.text();
   try {
@@ -66,4 +73,15 @@ export async function getEmpleadoVista360(
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as UsuarioVista360;
+}
+
+export async function getEmpleadoMetricas(
+  id: number,
+  options?: { signal?: AbortSignal },
+): Promise<MetricasUsuario> {
+  const res = await fetchWithAuth(`/api/v1/empleados/${id}/metricas`, {
+    signal: options?.signal,
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as MetricasUsuario;
 }
