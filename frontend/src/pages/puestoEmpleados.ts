@@ -142,7 +142,7 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_superior ?? "Pendiente"}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_empleado ?? "Pendiente"}</td>
         <td class="px-4 py-3 text-right space-x-2">
-          <a href="#/puestos/${perfilId}/asignaciones/${a.id}" class="text-xs font-semibold text-leoni-blue hover:underline">Ver detalle</a>
+          <a href="#/empleados/${a.empleado_id}" class="text-xs font-semibold text-leoni-blue hover:underline">Ver detalle</a>
           ${showActions && a.activo ? `<button type="button" data-desasignar="${a.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs">Desasignar</button>` : ""}
         </td>
       </tr>
