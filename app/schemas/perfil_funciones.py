@@ -125,8 +125,9 @@ class PerfilCualificacionResponse(BaseModel):
 class PerfilCompetenciaRequeridaCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
+    competencia_id: Optional[int] = None
     categoria: CategoriaCompetenciaRequerida
-    descripcion: str = Field(..., min_length=1)
+    descripcion: Optional[str] = Field(None, min_length=1)
     orden: int = Field(..., ge=1)
 
 
@@ -143,6 +144,8 @@ class PerfilCompetenciaRequeridaResponse(BaseModel):
 
     id: int
     puesto_perfil_id: int
+    competencia_id: Optional[int] = None
+    competencia_nombre: Optional[str] = None
     categoria: str
     descripcion: str
     orden: int
