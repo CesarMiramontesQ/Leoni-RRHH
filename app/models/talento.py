@@ -53,15 +53,6 @@ class PuestoPerfil(Base):
     )
     nivel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    competencias_tecnicas: Mapped[Optional[dict]] = mapped_column(
-        JSONB, nullable=True, default=dict
-    )
-    habilidades_blandas: Mapped[Optional[dict]] = mapped_column(
-        JSONB, nullable=True, default=dict
-    )
-    maquinas_herramientas: Mapped[Optional[dict]] = mapped_column(
-        JSONB, nullable=True, default=dict
-    )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[Optional[int]] = mapped_column(

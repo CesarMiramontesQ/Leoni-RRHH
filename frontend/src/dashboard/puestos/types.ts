@@ -40,9 +40,6 @@ export type PerfilPuesto = {
   nombre_puesto: string;
   area: string;
   nivel: string; // e.g. "operativo", "mando_medio", "gerencial"
-  competencias_tecnicas: CompetenciaTecnica[];
-  habilidades_blandas: HabilidadBlanda[];
-  maquinas_herramientas: MaquinaHerramienta[];
   recomendaciones_ia: IaRecomendacion[];
   version: string; // e.g. "3.2"
   ultima_actualizacion: string; // ISO datetime
@@ -78,9 +75,10 @@ export type PerfilPuestoUpdatePayload = {
 
 // ── Respuesta de generacion IA ────────────────────────────────────────
 export type GenerateAiResponse = {
-  competencias_tecnicas: CompetenciaTecnica[];
-  habilidades_blandas: HabilidadBlanda[];
-  maquinas_herramientas: MaquinaHerramienta[];
+  descripcion: string;
+  competencias_tecnicas: string[];
+  habilidades_blandas: string[];
+  maquinas_herramientas: string[];
 };
 
 // ── Estado de la pagina ───────────────────────────────────────────────

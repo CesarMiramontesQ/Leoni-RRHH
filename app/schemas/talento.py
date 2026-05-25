@@ -20,9 +20,6 @@ class PuestoPerfilCreate(BaseModel):
     area_id: Optional[int] = None
     nivel: Optional[str] = Field(None, max_length=50)
     descripcion: Optional[str] = None
-    competencias_tecnicas: Optional[dict] = None
-    habilidades_blandas: Optional[dict] = None
-    maquinas_herramientas: Optional[dict] = None
 
 
 class PuestoPerfilUpdate(BaseModel):
@@ -32,9 +29,6 @@ class PuestoPerfilUpdate(BaseModel):
     area_id: Optional[int] = None
     nivel: Optional[str] = Field(None, max_length=50)
     descripcion: Optional[str] = None
-    competencias_tecnicas: Optional[dict] = None
-    habilidades_blandas: Optional[dict] = None
-    maquinas_herramientas: Optional[dict] = None
 
 
 class PuestoPerfilResponse(BaseModel):
@@ -47,9 +41,6 @@ class PuestoPerfilResponse(BaseModel):
     area_nombre: Optional[str] = None
     nivel: Optional[str] = None
     descripcion: Optional[str] = None
-    competencias_tecnicas: Optional[dict] = None
-    habilidades_blandas: Optional[dict] = None
-    maquinas_herramientas: Optional[dict] = None
     version: int
     activo: bool
     created_by: Optional[int] = None

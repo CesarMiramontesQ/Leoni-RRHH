@@ -58,9 +58,6 @@ class PuestoPerfilService:
             area_nombre=area_nombre,
             nivel=perfil.nivel,
             descripcion=perfil.descripcion,
-            competencias_tecnicas=perfil.competencias_tecnicas,
-            habilidades_blandas=perfil.habilidades_blandas,
-            maquinas_herramientas=perfil.maquinas_herramientas,
             version=perfil.version,
             activo=perfil.activo,
             created_by=perfil.created_by,
@@ -130,9 +127,6 @@ class PuestoPerfilService:
             "area_id": data.area_id,
             "nivel": data.nivel,
             "descripcion": data.descripcion,
-            "competencias_tecnicas": data.competencias_tecnicas or {},
-            "habilidades_blandas": data.habilidades_blandas or {},
-            "maquinas_herramientas": data.maquinas_herramientas or {},
             "version": 1,
             "activo": True,
             "created_by": current_user.id,
@@ -174,12 +168,6 @@ class PuestoPerfilService:
             update_data["nivel"] = data.nivel
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
-        if data.competencias_tecnicas is not None:
-            update_data["competencias_tecnicas"] = data.competencias_tecnicas
-        if data.habilidades_blandas is not None:
-            update_data["habilidades_blandas"] = data.habilidades_blandas
-        if data.maquinas_herramientas is not None:
-            update_data["maquinas_herramientas"] = data.maquinas_herramientas
 
         # Incrementar version
         update_data["version"] = perfil.version + 1

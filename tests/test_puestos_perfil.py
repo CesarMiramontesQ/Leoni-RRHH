@@ -25,9 +25,6 @@ PERFIL_PAYLOAD = {
     "nombre": "Ingeniero de Procesos",
     "descripcion": "Optimizar procesos de manufactura",
     "nivel": "Senior",
-    "competencias_tecnicas": {"lean": 3, "kaizen": 2},
-    "habilidades_blandas": {"liderazgo": 4},
-    "maquinas_herramientas": {"torno_cnc": 3},
 }
 
 
