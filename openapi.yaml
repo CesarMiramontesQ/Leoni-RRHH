@@ -442,6 +442,21 @@ components:
         total_actas:
           type: integer
 
+    ActasPageResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
     # ── Solicitudes ───────────────────────────────────
     SolicitudCreate:
       type: object
@@ -2941,6 +2956,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetricasUsuarioResponse"
+
+  /api/v1/empleados/{empleado_id}/actas:
+    get:
+      tags: [Empleados]
+      summary: Actas administrativas del empleado (paginado)
+      operationId: empleados_actas_page
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 5
+      responses:
+        "200":
+          description: Actas del empleado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActasPageResponse"
 
   # ── Solicitudes ─────────────────────────────────────
   /api/v1/solicitudes:

@@ -81,6 +81,14 @@ export type ActaPageResponse = {
   total: number;
 };
 
+/** Listado paginado por empleado (Vista 360). */
+export type ActasEmpleadoPageResponse = {
+  items: ActaListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type ActasDashboardMetricasResponse = {
   en_proceso: number;
   pendientes_firma: number;

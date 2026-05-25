@@ -375,12 +375,12 @@ export type ComedorRhProximosFiltroEstado = "todos" | "confirmado" | "cancelado"
 
 export async function getComedorRhProximosRegistros(
   page: number,
-  pageSize: 10 | 50,
+  pageSize: number,
   opts?: { buscar?: string; filtroEstado?: ComedorRhProximosFiltroEstado },
 ): Promise<ComedorRhProximosRegistrosPageApi> {
   const params = new URLSearchParams();
   params.set("page", String(page));
-  params.set("page_size", String(pageSize));
+  params.set("page_size", String(Math.min(50, Math.max(1, pageSize))));
   params.set("filtro_estado", opts?.filtroEstado ?? "todos");
   if (opts?.buscar?.trim()) params.set("buscar", opts.buscar.trim());
   const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/proximos-registros?${params.toString()}`);
@@ -393,14 +393,14 @@ export async function getComedorRhRegistrosReporte(
   desdeIso: string,
   hastaIso: string,
   page: number,
-  pageSize: 10 | 50,
+  pageSize: number,
   opts?: { buscar?: string; filtroEstado?: ComedorRhProximosFiltroEstado },
 ): Promise<ComedorRhProximosRegistrosPageApi> {
   const params = new URLSearchParams();
   params.set("desde", desdeIso.slice(0, 10));
   params.set("hasta", hastaIso.slice(0, 10));
   params.set("page", String(page));
-  params.set("page_size", String(pageSize));
+  params.set("page_size", String(Math.min(50, Math.max(1, pageSize))));
   params.set("filtro_estado", opts?.filtroEstado ?? "todos");
   if (opts?.buscar?.trim()) params.set("buscar", opts.buscar.trim());
   const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/registros-reporte?${params.toString()}`);

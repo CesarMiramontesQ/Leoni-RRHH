@@ -126,6 +126,29 @@ async def test_rh_registros_reporte_incluye_repetido_en_todos(client: AsyncClien
 
 
 @pytest.mark.asyncio
+async def test_rh_registros_reporte_page_size_5_sin_datos(client: AsyncClient, db):
+    """Vista 360 usa page_size=5; debe responder 200 con lista vacía, no error de validación."""
+    rh = await make_empleado(db, rol="rh", email="rep_p5@test.leoni", password="RhP5!!")
+    hdrs = await auth_headers(client, rh, password="RhP5!!")
+    r = await client.get(
+        URL,
+        params={
+            "desde": "2030-01-01",
+            "hasta": "2030-01-31",
+            "page": 1,
+            "page_size": 5,
+            "buscar": "99999999",
+        },
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["total"] == 0
+    assert data["items"] == []
+    assert data["page_size"] == 5
+
+
+@pytest.mark.asyncio
 async def test_rh_registros_reporte_rango_invalido(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="rep_inv@test.leoni", password="RhInv!!")
     hdrs = await auth_headers(client, rh, password="RhInv!!")

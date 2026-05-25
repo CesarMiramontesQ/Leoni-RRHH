@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
+from app.schemas.actas import ActasPageResponse
 from app.schemas.usuarios import (
     CatalogoFiltrosResponse,
     MetricasUsuarioResponse,
@@ -21,6 +22,7 @@ from app.schemas.usuarios import (
     UsuarioResumenResponse,
     UsuarioVista360Response,
 )
+from app.services.acta_service import ActaService
 from app.services.usuario_service import UsuarioService
 
 router = APIRouter(prefix="/api/v1/empleados", tags=["Empleados - Directorio"])
@@ -129,3 +131,20 @@ async def get_metricas(
     svc: UsuarioService = Depends(_svc),
 ):
     return await svc.get_metricas(id=empleado_id, current_user=current_user)
+
+
+@router.get("/{empleado_id}/actas", response_model=ActasPageResponse)
+async def list_empleado_actas(
+    empleado_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(5, ge=1, le=50),
+    current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actas administrativas del empleado (tab Vista 360)."""
+    return await ActaService(db).list_actas_empleado_page(
+        empleado_id=empleado_id,
+        page=page,
+        page_size=page_size,
+        current_user=current_user,
+    )

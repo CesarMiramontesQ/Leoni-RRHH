@@ -56,6 +56,7 @@ from app.schemas.actas import (
     ActaGenerarRequest,
     ActasDashboardMetricasResponse,
     ActaResponse,
+    ActasPageResponse,
 )
 from app.utils.audit_logger import audit_background, log_action
 
@@ -908,6 +909,26 @@ class ActaService:
     def _get_rol(self, current_user: Empleado) -> str:
         return current_user.rol.nombre if current_user.rol else "empleado"
 
+    async def _ensure_puede_ver_empleado(
+        self,
+        current_user: Empleado,
+        empleado_id: int,
+    ) -> None:
+        rol = self._get_rol(current_user)
+        if rol in ("rh", "gerente", "director"):
+            return
+        if rol == "supervisor":
+            subordinados = await self.empleado_repo.get_subordinados(
+                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+            )
+            ids = {e.id for e in subordinados}
+            if empleado_id in ids or empleado_id == current_user.id:
+                return
+            raise ForbiddenError(detail="No tienes acceso a este empleado")
+        if empleado_id == current_user.id:
+            return
+        raise ForbiddenError(detail="No tienes acceso a este empleado")
+
     @staticmethod
     def _normalizar_numero_empleado(numero: str | None) -> str | None:
         if numero is None:
@@ -1019,6 +1040,47 @@ class ActaService:
             items=response_items,
             next_cursor=next_cursor,
             total=total,
+        )
+
+    async def list_actas_empleado_page(
+        self,
+        empleado_id: int,
+        page: int,
+        page_size: int,
+        current_user: Empleado,
+    ) -> ActasPageResponse:
+        """Actas administrativas de un empleado (Vista 360)."""
+        await self._ensure_puede_ver_empleado(current_user, empleado_id)
+        empleado = await self.empleado_repo.get_with_area_y_lider(empleado_id)
+        if not empleado:
+            raise NotFoundError(entidad="Empleado", id=empleado_id)
+
+        items, total = await self.repo.list_by_empleado_page(
+            empleado_id=empleado_id,
+            page=page,
+            page_size=page_size,
+        )
+        puesto_txt: str | None = None
+        if empleado.puesto is not None:
+            desc = getattr(empleado.puesto, "descripcion", None)
+            if desc and str(desc).strip():
+                puesto_txt = str(desc).strip()
+        response_items: list[ActaResponse] = []
+        for acta in items:
+            r = ActaResponse.model_validate(acta)
+            r.empleado_nombre = empleado.nombre
+            r.numero_empleado = empleado.no_empleado
+            if puesto_txt:
+                r.puesto = puesto_txt
+            r.aprobaciones = []
+            r.firmantes_pendientes = []
+            response_items.append(r)
+
+        return ActasPageResponse(
+            items=response_items,
+            total=total,
+            page=page,
+            page_size=page_size,
         )
 
     async def get_dashboard_metricas(

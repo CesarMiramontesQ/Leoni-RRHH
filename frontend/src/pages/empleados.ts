@@ -584,7 +584,7 @@ function rowAccionesLiderHtml(
       </summary>
       <div class="absolute right-0 z-30 mt-1 w-52 rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-900/5">
         <a href="#/empleados/${u.id}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Ver perfil</a>
-        <a href="#/empleados/${u.id}?tab=historial" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Editar</a>
+        <a href="#/empleados/${u.id}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Ver detalle</a>
         <a href="#/solicitudes?empleado_dir=${escapeHtml(empDir)}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Historial de solicitudes</a>
       </div>
     </details>

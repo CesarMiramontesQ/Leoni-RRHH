@@ -687,8 +687,8 @@ class ComedorService:
     ) -> ComedorRhProximosRegistrosPage:
         if self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar próximos registros de comedor")
-        if page_size not in (10, 50):
-            raise ConflictError(detail="page_size debe ser 10 o 50")
+        if page_size not in (5, 10, 50):
+            raise ConflictError(detail="page_size debe ser 5, 10 o 50")
         desde = business_today()
         offset = (page - 1) * page_size
         estados = self._estados_proximos_rh_filtro(filtro_estado)
@@ -752,8 +752,8 @@ class ComedorService:
             raise ForbiddenError(detail="Solo RH puede consultar registros de reporte de comedor")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
-        if page_size not in (10, 50):
-            raise ConflictError(detail="page_size debe ser 10 o 50")
+        if page_size not in (5, 10, 50):
+            raise ConflictError(detail="page_size debe ser 5, 10 o 50")
         offset = (page - 1) * page_size
         estados = self._estados_registros_reporte_rh_filtro(filtro_estado)
         buscar_norm = buscar.strip() if buscar else None
