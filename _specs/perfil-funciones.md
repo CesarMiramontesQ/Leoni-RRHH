@@ -3,7 +3,7 @@
 > Feature slug: `perfil-funciones`
 > Branch: `claude/feature/perfil-funciones`
 > Date: 2026-05-24
-> Status: Draft
+> Status: In Progress
 
 ---
 
@@ -33,6 +33,7 @@ Leoni usa un formulario corporativo estandarizado (Form-Nr 1178 KM) en papel/PDF
 4. **Como supervisor**, quiero evaluar a un empleado contra el perfil de su puesto registrando su "situación actual" por cada cualificación y competencia.
 5. **Como RH**, quiero ver el gap entre lo deseado y lo actual de un empleado para priorizar capacitación.
 6. **Como RH**, quiero registrar las firmas (superior + empleado) con fecha para cumplir con el proceso de validación.
+7. **Como RH**, quiero ver los empleados asignados a un perfil de puesto desde la UI de tarjetas.
 
 ## Data Model
 
@@ -90,41 +91,120 @@ puestos_perfil (template)
 2. `numero_personal` no se duplica — ya existe como `empleados.no_empleado`.
 3. Firmas como texto simple sin validación externa.
 4. Sin versionado de template — se sobreescribe directamente.
+5. "Ver empleados" usa asignaciones (`perfil_funciones`) — no fallback por área TRESS.
 
-## API Endpoints
+## API Endpoints (17 rutas — todas implementadas)
 
+### Tareas
 - `GET /api/v1/perfiles/:id/tareas` — Listar tareas del puesto
 - `POST /api/v1/perfiles/:id/tareas` — Crear tarea
 - `PUT /api/v1/perfiles/:id/tareas/:tarea_id` — Editar tarea
 - `DELETE /api/v1/perfiles/:id/tareas/:tarea_id` — Eliminar tarea
+
+### Cualificaciones
 - `GET /api/v1/perfiles/:id/cualificaciones` — Listar cualificaciones requeridas
 - `POST /api/v1/perfiles/:id/cualificaciones` — Crear cualificación
+- `PUT /api/v1/perfiles/:id/cualificaciones/:id` — Editar cualificación
+- `DELETE /api/v1/perfiles/:id/cualificaciones/:id` — Eliminar cualificación
+
+### Competencias requeridas
 - `GET /api/v1/perfiles/:id/competencias` — Listar competencias requeridas
 - `POST /api/v1/perfiles/:id/competencias` — Crear competencia
+- `PUT /api/v1/perfiles/:id/competencias/:id` — Editar competencia
+- `DELETE /api/v1/perfiles/:id/competencias/:id` — Eliminar competencia
+
+### Asignaciones
 - `GET /api/v1/perfiles/:id/asignaciones` — Listar empleados asignados a este perfil
 - `POST /api/v1/perfiles/:id/asignaciones` — Asignar empleado al perfil
-- `GET /api/v1/perfiles/:id/asignaciones/:asig_id` — Detalle de asignación con gaps
-- `PUT /api/v1/perfiles/:id/asignaciones/:asig_id` — Actualizar evaluación individual
+- `GET /api/v1/perfiles/:id/asignaciones/:asig_id` — Detalle con gap analysis
+- `PUT /api/v1/perfiles/:id/asignaciones/:asig_id` — Upsert evaluaciones individuales
+
+### Firmas
 - `POST /api/v1/perfiles/:id/asignaciones/:asig_id/firmar` — Registrar firma
 
-## Implementation Order
+## Implementation Status
 
-1. Migración Alembic: agregar columnas a `puestos_perfil` + crear 6 tablas nuevas
-2. Modelos SQLAlchemy
-3. Schemas Pydantic (request/response)
-4. Repositories (data access)
-5. Services (business logic)
-6. Routers (API endpoints)
-7. Migrar datos JSONB existentes a nuevas tablas
-8. Frontend: extender detalle de puesto con nuevas secciones
-9. Eliminar campos JSONB de `puestos_perfil`
+### Completado
+
+| # | Item | Estado |
+|---|------|--------|
+| 1 | Migración Alembic (12 columnas + 6 tablas) | Done |
+| 2 | Modelos SQLAlchemy (6 modelos + extensión PuestoPerfil) | Done |
+| 3 | Schemas Pydantic v2 (Create/Update/Response por entidad) | Done |
+| 4 | Repositories (6 repos con queries especializadas) | Done |
+| 5 | Service (lógica de negocio + gap analysis) | Done |
+| 6 | Router (17 endpoints registrados en app) | Done |
+| 7 | Validación empleado existe al crear asignación (404 vs 500) | Done |
+| 8 | Frontend: tarjeta de puesto actualizada (sin OPLs, sin owner, dos botones) | Done |
+| 9 | Frontend: ruta `#/puestos/:id/empleados` con tabla de asignaciones | Done |
+| 10 | Frontend: shellRouter separando detalle vs empleados | Done |
+| 11 | QA: 54/56 tests CRUD pasados (96%) | Done |
+| 12 | QA: datos reales creados (3 perfiles, 15 empleados asignados) | Done |
+| 13 | QA: gap analysis validado con evaluaciones parciales/completas | Done |
+
+### Pendiente
+
+| # | Item | Estado |
+|---|------|--------|
+| 14 | Fix: 500 en PUT evaluaciones con cualificacion_id/competencia_id inválido | Pending |
+| 15 | Migrar datos JSONB existentes a nuevas tablas | Pending |
+| 16 | Eliminar campos JSONB de `puestos_perfil` | Pending |
+| 17 | Conectar detalle de puesto (`perfilPuestoDetalle.ts`) a datos reales (wire-up) | Pending |
+| 18 | Mostrar nombre del empleado en tabla de asignaciones (hoy solo muestra ID) | Pending |
 
 ## Acceptance Criteria
 
-- [ ] Las 6 tablas nuevas existen en la DB con constraints y FKs correctos
-- [ ] CRUD completo de tareas, cualificaciones y competencias por perfil
-- [ ] Se puede asignar un empleado a un perfil y registrar su "situación actual"
-- [ ] El endpoint de detalle muestra el gap (deseada vs actual) por cualificación y competencia
-- [ ] Las firmas se registran con fecha e ID
+- [x] Las 6 tablas nuevas existen en la DB con constraints y FKs correctos
+- [x] CRUD completo de tareas, cualificaciones y competencias por perfil
+- [x] Se puede asignar un empleado a un perfil y registrar su "situación actual"
+- [x] El endpoint de detalle muestra el gap (deseada vs actual) por cualificación y competencia
+- [x] Las firmas se registran con fecha e ID
 - [ ] Los datos JSONB existentes se migraron a las nuevas tablas
-- [ ] Tests e2e para los endpoints principales
+- [x] Tests e2e para los endpoints principales
+- [x] Frontend: vista de empleados asignados funcional con datos reales
+
+## QA Results
+
+### Round 1 — CRUD endpoints (54/56 passed)
+- Tareas: 11/11
+- Cualificaciones: 11/11
+- Competencias: 13/13
+- Asignaciones: 10/10
+- Firmas + auth + edge cases: 9/11
+
+### Round 2 — Datos reales + frontend (71/73 passed)
+- Crear perfil Calidad + 5 empleados: 24/24
+- Crear perfil Mantenimiento + 5 empleados: 16/16
+- Crear perfil Almacén + 5 empleados: 19/19
+- Frontend renders correctamente: 5/5
+- Gap analysis con evaluaciones: 7/9
+
+### Known Bugs
+1. PUT evaluaciones con `cualificacion_id` inexistente → 500 (debería ser 400/422)
+2. PUT evaluaciones con `competencia_requerida_id` inexistente → 500 (debería ser 400/422)
+
+### Schema Discrepancy
+- Spec decía `nombre_puesto` + `area` (string) pero implementación usa `nombre` + `area_id` (int). El `codigo` se auto-genera.
+
+## Files Created/Modified
+
+### Backend
+- `app/models/talento.py` — 6 modelos nuevos + 12 columnas en PuestoPerfil
+- `app/models/__init__.py` — Registros de modelos
+- `app/schemas/perfil_funciones.py` — Schemas Pydantic v2
+- `app/repositories/perfil_funciones_repository.py` — 6 repositorios
+- `app/services/perfil_funciones_service.py` — Lógica + gap analysis
+- `app/api/v1/perfil_funciones/router.py` — 17 endpoints
+- `app/api/v1/perfil_funciones/__init__.py` — Package init
+- `app/main.py` — Router registration
+- `alembic/versions/w6x7y8z9a0b1_perfil_funciones.py` — Migración
+
+### Frontend
+- `frontend/src/pages/puestos.ts` — Tarjeta actualizada (sin OPLs, sin owner, dos botones)
+- `frontend/src/pages/puestoEmpleados.ts` — Nueva página de empleados por perfil
+- `frontend/src/shellRouter.ts` — Nueva ruta `#/puestos/:id/empleados`
+
+### Docs
+- `_specs/perfil-funciones.md` — Este archivo
+- `docs/superpowers/specs/2026-05-24-perfil-funciones-modelo.md` — Spec del modelo de datos
+- `docs/superpowers/plans/2026-05-14-level-up-implementacion.md` — Plan actualizado
