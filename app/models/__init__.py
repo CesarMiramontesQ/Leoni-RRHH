@@ -26,6 +26,7 @@ from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.tress import TressRobotQueue
 from app.models.talento import PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia, Capacitacion, Inscripcion
+from app.models.level_up import Habilidad
 
 __all__ = [
     "Rol",
@@ -61,4 +62,5 @@ __all__ = [
     "EvaluacionCompetencia",
     "Capacitacion",
     "Inscripcion",
+    "Habilidad",
 ]

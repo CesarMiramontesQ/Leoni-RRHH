@@ -181,6 +181,7 @@ from app.api.v1.competencias.router import router as competencias_router
 from app.api.v1.bono_productividad.router import router as bono_productividad_router
 from app.api.v1.evaluaciones.router import router as evaluaciones_router
 from app.api.v1.capacitaciones.router import router as capacitaciones_router
+from app.api.v1.level_up.router_habilidades import router as level_up_habilidades_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -197,6 +198,7 @@ app.include_router(competencias_router)
 app.include_router(bono_productividad_router)
 app.include_router(evaluaciones_router)
 app.include_router(capacitaciones_router)
+app.include_router(level_up_habilidades_router)
 
 
 # ── Root ──────────────────────────────────────────────────────
