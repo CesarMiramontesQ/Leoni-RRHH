@@ -579,6 +579,8 @@ async def test_rh_resumen_diario_global_excluye_expirados(client: AsyncClient, d
     assert data[0]["fecha"] == "2026-04-28"
     assert data[0]["caseras"] == 1
     assert data[0]["saludables"] == 1
+    assert data[0]["registros"] == 2
+    assert data[0]["asistencias"] == 1
 
 
 @pytest.mark.asyncio

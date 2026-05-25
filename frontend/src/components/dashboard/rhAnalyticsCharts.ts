@@ -13,6 +13,11 @@ import type { RhDashboardAnalyticsPayload } from "../../dashboard/rh/analyticsTy
 import type { IncidenciaTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { tendenciaPorTipoTieneDatos } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
+import {
+  mountDashComedorAsistenciaDiariaChart,
+  mountDashComedorRegistrosFuturosChart,
+  RH_DASH_COMEDOR_CHART_IDS,
+} from "./rhComedorDashboardCharts.ts";
 
 export const RH_DASH_RETARDOS_EMPLEADOS_BAR_ID = "rh-dash-retardos-empleados-bar";
 export { RH_DASH_INC_TENDENCIA_CHART_ID };
@@ -20,6 +25,7 @@ export { RH_DASH_INC_TENDENCIA_CHART_ID };
 export const RH_DASH_ANALYTICS_CHART_IDS = [
   RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
   RH_DASH_INC_TENDENCIA_CHART_ID,
+  ...RH_DASH_COMEDOR_CHART_IDS,
 ] as const;
 
 const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
@@ -51,6 +57,16 @@ export function mountRhDashboardAnalyticsCharts(
   const tendencia = payload.laborales.incidenciasTendenciaPorTipo;
   if (tendenciaPorTipoTieneDatos(tendencia)) {
     mountIncidenciasTendenciaPorTipoChart(root, tendencia!, RH_DASH_INC_TENDENCIA_CHART_ID);
+  }
+
+  const asistencia = payload.comedor.asistenciaDiaria;
+  if (asistencia && asistencia.length > 0) {
+    mountDashComedorAsistenciaDiariaChart(root, asistencia);
+  }
+
+  const futuros = payload.comedor.registrosFuturosPorSemana;
+  if (futuros && futuros.length > 0) {
+    mountDashComedorRegistrosFuturosChart(root, futuros);
   }
 }
 

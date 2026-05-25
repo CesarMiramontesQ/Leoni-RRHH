@@ -6,7 +6,10 @@ import type {
 } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import type { IncidenciaTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import type { RhIncidenciasEstadisticasData } from "../../incidencias/rh/types.ts";
-import type { ComedorSidebarDataset } from "../../comedor/rh/types.ts";
+import type {
+  RhDashComedorAsistenciaDia,
+  RhDashComedorSemanaFutura,
+} from "../../comedor/rh/buildRhDashboardComedorCharts.ts";
 
 export type RhDashboardPeriodDays = 7 | 30 | 90;
 
@@ -23,15 +26,6 @@ export const DEFAULT_RH_DASHBOARD_PERIOD: RhDashboardPeriodDays = 30;
 export type RhDashboardActasKpis = {
   en_proceso: number;
   pendientes_firma: number;
-};
-
-export type RhDashboardComedorKpis = {
-  almuerzos_hoy: number;
-  caseras_hoy: number;
-  saludables_hoy: number;
-  pct_dieta_periodo: number | null;
-  semana_actual: number | null;
-  semana_proxima: number | null;
 };
 
 export type RhDashboardLaboralesKpis = {
@@ -62,8 +56,8 @@ export type RhDashboardAnalyticsPayload = {
     errors: string[];
   };
   comedor: {
-    kpis: RhDashboardComedorKpis | null;
-    sidebar: ComedorSidebarDataset | null;
+    asistenciaDiaria: readonly RhDashComedorAsistenciaDia[] | null;
+    registrosFuturosPorSemana: readonly RhDashComedorSemanaFutura[] | null;
     errors: string[];
   };
   empleados: {

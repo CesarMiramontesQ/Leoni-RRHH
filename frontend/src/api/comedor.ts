@@ -234,6 +234,13 @@ export type ComedorResumenDiarioApiItem = {
   fecha: string;
   caseras: number;
   saludables: number;
+  registros: number;
+  asistencias: number;
+};
+
+export type ComedorRhSemanaRegistrosFuturosApiItem = {
+  semana_inicio: string;
+  total: number;
 };
 
 export type ComedorRhPaseExternoApiItem = {
@@ -410,7 +417,34 @@ export async function getComedorRhResumenDiario(
   params.set("hasta", hastaIso);
   const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/resumen-diario?${params.toString()}`);
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
-  return (await res.json()) as ComedorResumenDiarioApiItem[];
+  const raw = (await res.json()) as Partial<ComedorResumenDiarioApiItem>[];
+  return raw.map((row) => {
+    const caseras = Math.max(0, row.caseras ?? 0);
+    const saludables = Math.max(0, row.saludables ?? 0);
+    const registros =
+      typeof row.registros === "number" && row.registros >= 0
+        ? row.registros
+        : caseras + saludables;
+    return {
+      fecha: String(row.fecha ?? ""),
+      caseras,
+      saludables,
+      registros,
+      asistencias: Math.max(0, row.asistencias ?? 0),
+    };
+  });
+}
+
+export async function getComedorRhRegistrosFuturosPorSemana(
+  semanas = 8,
+): Promise<ComedorRhSemanaRegistrosFuturosApiItem[]> {
+  const params = new URLSearchParams();
+  params.set("semanas", String(Math.max(1, Math.min(16, semanas))));
+  const res = await fetchWithAuth(
+    `/api/v1/comedor/accesos/rh/registros-futuros-por-semana?${params.toString()}`,
+  );
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorRhSemanaRegistrosFuturosApiItem[];
 }
 
 export async function crearComedorRhRegistro(payload: {

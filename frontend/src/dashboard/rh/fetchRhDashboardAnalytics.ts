@@ -1,19 +1,16 @@
 import { getActasDashboardMetricas } from "../../api/actas.ts";
 import {
-  getComedorEstadisticas,
-  getComedorProyecciones,
+  getComedorRhRegistrosFuturosPorSemana,
   getComedorRhResumenDiario,
 } from "../../api/comedor.ts";
+import {
+  buildAsistenciaDiariaSerie,
+  mapRegistrosFuturosPorSemana,
+} from "../../comedor/rh/buildRhDashboardComedorCharts.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
 import { fetchIncidenciasEstadisticas } from "../../api/incidencias.ts";
 import { getDashboardKpis } from "../../api/reportes.ts";
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
-import {
-  buildRhPlatillosPorSemana,
-  getCurrentWeekStartIso,
-  mapProyeccionesToSidebar,
-  rhComedorResumenRangeForWeeks,
-} from "../../comedor/rh/buildRhComedorSidebar.ts";
 import { aggregateEmpleadosRetardosTop } from "../../incidencias/rh/aggregateEmpleadosRetardosTop.ts";
 import { buildIncidenciasTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { emptyRhIncidenciaListFilters } from "../../incidencias/rh/types.ts";
@@ -49,7 +46,7 @@ function emptyPayload(periodDays: RhDashboardPeriodDays): RhDashboardAnalyticsPa
       actas: null,
       errors: [],
     },
-    comedor: { kpis: null, sidebar: null, errors: [] },
+    comedor: { asistenciaDiaria: null, registrosFuturosPorSemana: null, errors: [] },
     empleados: { resumen: null, errors: [] },
   };
 }
@@ -59,7 +56,6 @@ export async function fetchRhDashboardAnalytics(
 ): Promise<RhDashboardAnalyticsLoadResult> {
   const { fechaInicio, fechaFin } = periodRangeIso(periodDays);
   const todayIso = isoLocalToday();
-  const weekStartIso = getCurrentWeekStartIso();
   const tendenciaAgrupacion = tendenciaAgrupacionForPeriod(periodDays);
   const incFilters = {
     ...emptyRhIncidenciaListFilters(),
@@ -108,39 +104,21 @@ export async function fetchRhDashboardAnalytics(
       })),
     (async () => {
       try {
-        const { desdeIso, hastaIso } = rhComedorResumenRangeForWeeks(4);
-        const [proyecciones, estadisticas, resumenRh] = await Promise.all([
-          getComedorProyecciones(),
-          getComedorEstadisticas(weekStartIso),
-          getComedorRhResumenDiario(desdeIso, hastaIso),
+        const [resumenRh, futurosSemana] = await Promise.all([
+          getComedorRhResumenDiario(fechaInicio, fechaFin),
+          getComedorRhRegistrosFuturosPorSemana(8),
         ]);
-        const base = mapProyeccionesToSidebar(proyecciones, estadisticas);
-        const sidebar = {
-          ...base,
-          rhPlatillosPorSemana: buildRhPlatillosPorSemana(resumenRh, weekStartIso),
-        };
-        const hoyRows = await getComedorRhResumenDiario(todayIso, todayIso).catch(() => []);
-        const hoy = hoyRows.find((r) => r.fecha === todayIso);
-        const caserasHoy = Math.max(0, hoy?.caseras ?? 0);
-        const saludablesHoy = Math.max(0, hoy?.saludables ?? 0);
-        const totalReg = Math.max(1, estadisticas.total_registros);
-        const pctDieta = Math.round((estadisticas.dieta / totalReg) * 100);
-        const semActual = estadisticas.total_registros;
-        const semProx =
-          Number.isFinite(proyecciones.promedio_semanal) && proyecciones.promedio_semanal > 0
-            ? Math.round(proyecciones.promedio_semanal)
-            : null;
+        const asistenciaDiaria = buildAsistenciaDiariaSerie(
+          resumenRh,
+          fechaInicio,
+          fechaFin,
+          todayIso,
+        );
+        const registrosFuturosPorSemana = mapRegistrosFuturosPorSemana(futurosSemana);
         return {
           ok: true as const,
-          sidebar,
-          kpis: {
-            almuerzos_hoy: caserasHoy + saludablesHoy,
-            caseras_hoy: caserasHoy,
-            saludables_hoy: saludablesHoy,
-            pct_dieta_periodo: pctDieta,
-            semana_actual: semActual,
-            semana_proxima: semProx,
-          },
+          asistenciaDiaria,
+          registrosFuturosPorSemana,
         };
       } catch (e: unknown) {
         return {
@@ -238,11 +216,12 @@ export async function fetchRhDashboardAnalytics(
     laboralesErrors.push(actasResult.err);
   }
 
-  let comedorKpis = null;
-  let comedorSidebar = null;
+  let asistenciaDiaria: RhDashboardAnalyticsPayload["comedor"]["asistenciaDiaria"] = null;
+  let registrosFuturosPorSemana: RhDashboardAnalyticsPayload["comedor"]["registrosFuturosPorSemana"] =
+    null;
   if (comedorSidebarResult.ok) {
-    comedorKpis = comedorSidebarResult.kpis;
-    comedorSidebar = comedorSidebarResult.sidebar;
+    asistenciaDiaria = comedorSidebarResult.asistenciaDiaria;
+    registrosFuturosPorSemana = comedorSidebarResult.registrosFuturosPorSemana;
   } else {
     comedorErrors.push(comedorSidebarResult.err);
   }
@@ -267,8 +246,8 @@ export async function fetchRhDashboardAnalytics(
       errors: laboralesErrors,
     },
     comedor: {
-      kpis: comedorKpis,
-      sidebar: comedorSidebar,
+      asistenciaDiaria,
+      registrosFuturosPorSemana,
       errors: comedorErrors,
     },
     empleados: {

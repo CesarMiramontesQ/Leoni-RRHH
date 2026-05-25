@@ -78,15 +78,6 @@ export function mapMetricsToCardViews(
       pendientes_firma: analytics.laborales.actas.pendientes_firma,
     };
   }
-  if (analytics?.comedor.kpis) {
-    const c = analytics.comedor.kpis;
-    m.almuerzos_hoy = {
-      total: c.almuerzos_hoy,
-      capacidad_max: m.almuerzos_hoy.capacidad_max,
-      normal: c.caseras_hoy,
-      dieta: c.saludables_hoy,
-    };
-  }
   if (laboralesKpis && laboralesKpis.solicitudes_pendientes > 0) {
     m.home_office = {
       ...m.home_office,

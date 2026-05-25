@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from tests.conftest import auth_headers, make_empleado
 
 URL = "/api/v1/comedor/accesos/rh/proximos-registros"
+URL_FUTUROS_SEMANA = "/api/v1/comedor/accesos/rh/registros-futuros-por-semana"
 
 
 @pytest.mark.asyncio
@@ -194,3 +195,53 @@ async def test_rh_proximos_registros_filtro_estado_y_buscar(client: AsyncClient,
     assert r_bus.status_code == 200
     assert r_bus.json()["total"] == 1
     assert r_bus.json()["items"][0]["no_empleado"] == "RHPFILT-2002"
+
+
+@pytest.mark.asyncio
+async def test_rh_registros_futuros_por_semana_agrupa_y_orden_asc(client: AsyncClient, db, monkeypatch):
+    from app.models.comedor import Comedor, ComedorAcceso, ComedorAccesoEstado, ComedorRegistro, ComedorTipoComida
+    from app.services import comedor_service as cs
+
+    hoy = date(2030, 6, 3)
+    monkeypatch.setattr(cs, "business_today", lambda: hoy)
+
+    comedor = Comedor(nombre="C1", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    emp = await make_empleado(db, email="fut_sem_emp@test.leoni", password="SecretF!")
+    rh = await make_empleado(db, rol="rh", email="fut_sem_rh@test.leoni", password="RhFut!!")
+
+    reg = ComedorRegistro(
+        empleado_id=emp.id,
+        comedor_id=comedor.id,
+        semana=hoy - timedelta(days=hoy.weekday()),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add(reg)
+    await db.flush()
+
+    semana_actual = hoy - timedelta(days=hoy.weekday())
+    semana_sig = semana_actual + timedelta(days=7)
+    for fecha in (hoy, hoy + timedelta(days=1), semana_sig, semana_sig + timedelta(days=2)):
+        db.add(
+            ComedorAcceso(
+                empleado_id=emp.id,
+                comedor_id=comedor.id,
+                comedor_registro_id=reg.id,
+                fecha_servicio=fecha,
+                tipo_comida=ComedorTipoComida.casera,
+                estado_acceso=ComedorAccesoEstado.PENDIENTE,
+            )
+        )
+    await db.commit()
+
+    hdrs = await auth_headers(client, rh, password="RhFut!!")
+    r = await client.get(URL_FUTUROS_SEMANA, params={"semanas": 8}, headers=hdrs)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert len(data) == 2
+    assert data[0]["total"] == 2
+    assert data[1]["total"] == 2
+    assert data[0]["semana_inicio"] <= data[1]["semana_inicio"]

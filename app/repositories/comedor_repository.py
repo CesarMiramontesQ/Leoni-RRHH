@@ -546,6 +546,19 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
                     ),
                     0,
                 ).label("saludables"),
+                func.count().label("registros"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                ComedorAcceso.estado_acceso == ComedorAccesoEstado.ACCEDIDO,
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("asistencias"),
             )
             .where(
                 ComedorAcceso.fecha_servicio >= desde,
@@ -561,9 +574,31 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
                 "fecha": row.fecha,
                 "caseras": int(row.caseras or 0),
                 "saludables": int(row.saludables or 0),
+                "registros": int(row.registros or 0),
+                "asistencias": int(row.asistencias or 0),
             }
             for row in rows
         ]
+
+    async def count_accesos_activos_por_dia_desde(
+        self, desde: date
+    ) -> list[tuple[date, int]]:
+        """Cuenta accesos PENDIENTE/ACCEDIDO con fecha_servicio >= desde (una fila por día)."""
+        estado_activo = (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+        stmt = (
+            select(
+                ComedorAcceso.fecha_servicio.label("fecha"),
+                func.count().label("cnt"),
+            )
+            .where(
+                ComedorAcceso.fecha_servicio >= desde,
+                ComedorAcceso.estado_acceso.in_(estado_activo),
+            )
+            .group_by(ComedorAcceso.fecha_servicio)
+            .order_by(ComedorAcceso.fecha_servicio.asc())
+        )
+        rows = (await self.db.execute(stmt)).all()
+        return [(row.fecha, int(row.cnt or 0)) for row in rows]
 
     async def count_comidas_activas_en_rango(self, desde: date, hasta: date) -> int:
         """Cuenta accesos PENDIENTE/ACCEDIDO por fecha_servicio (una comida por fila)."""

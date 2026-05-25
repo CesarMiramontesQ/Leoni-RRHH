@@ -2,7 +2,10 @@ import type { RhDashboardAnalyticsPayload, RhDashboardPeriodDays } from "../../d
 import { RH_DASHBOARD_PERIOD_OPTIONS } from "../../dashboard/rh/analyticsTypes.ts";
 import { RH_LISTADO_SURFACE, RH_SOLICITUDES_BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { renderOccupancyBars, renderRhPlatillosPorSemanaChart } from "../comedor/comedorCharts.ts";
+import {
+  renderDashComedorAsistenciaDiariaChart,
+  renderDashComedorRegistrosFuturosChart,
+} from "./rhComedorDashboardCharts.ts";
 import {
   renderDashEmpleadosRetardosChart,
   renderDashIncidenciasTendenciaChart,
@@ -137,46 +140,39 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
 }
 
 function renderComedorBlock(payload: RhDashboardAnalyticsPayload): string {
-  const k = payload.comedor.kpis;
-  const sidebar = payload.comedor.sidebar;
   const errors = payload.comedor.errors;
+  const asistencia = payload.comedor.asistenciaDiaria;
+  const futuros = payload.comedor.registrosFuturosPorSemana;
 
-  const kpisRow = k
-    ? `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        ${kpiMini("Hoy (total)", fmtInt(k.almuerzos_hoy), `A ${fmtInt(k.caseras_hoy)} · B ${fmtInt(k.saludables_hoy)}`)}
-        ${kpiMini("% dieta (sem.)", k.pct_dieta_periodo !== null ? `${fmtInt(k.pct_dieta_periodo)}%` : "—", "Semana ISO actual")}
-        ${kpiMini("Registros semana", fmtInt(k.semana_actual))}
-        ${kpiMini("Prom. proyectado", fmtInt(k.semana_proxima), "Promedio semanal histórico")}
-      </div>`
-    : `<p class="text-sm text-text-muted">Indicadores de comedor no disponibles.</p>`;
+  const charts = `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    ${chartCard(
+      "Porcentaje de asistencia diario",
+      "Accesos concedidos vs registros activos por día · respeta el periodo seleccionado",
+      renderDashComedorAsistenciaDiariaChart(asistencia),
+    )}
+    ${chartCard(
+      "Registros próximas semanas",
+      "Total de reservas activas por semana (fechas futuras)",
+      renderDashComedorRegistrosFuturosChart(futuros),
+    )}
+  </div>`;
 
-  const platillos =
-    sidebar?.rhPlatillosPorSemana && sidebar.rhPlatillosPorSemana.length > 0
-      ? renderRhPlatillosPorSemanaChart(sidebar.rhPlatillosPorSemana)
-      : `<p class="rh-dash-analytics-empty">Sin datos de platillos.</p>`;
-
-  const ocupacion =
-    sidebar?.weeklyOccupancy && sidebar.weeklyOccupancy.length > 0
-      ? renderOccupancyBars(sidebar.weeklyOccupancy)
-      : `<p class="rh-dash-analytics-empty">Sin datos de ocupación.</p>`;
-
-  const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-    ${chartCard("Caseras vs saludables", "Últimas 4 semanas", platillos)}
-    ${chartCard("Ocupación semanal", "% dieta por semana (proyección)", ocupacion)}
-  </div>
-  <p class="mt-2 text-[10px] text-[color:var(--color-text-muted)]">Proyección y estadísticas de semana usan la semana ISO actual; el resumen diario respeta el periodo del selector.</p>`;
+  const sinDatos =
+    !asistencia?.length && !futuros?.length && errors.length === 0
+      ? `<p class="text-sm text-text-muted">Sin datos de comedor para el periodo.</p>`
+      : "";
 
   return `
     <section class="rh-dash-analytics-block" aria-labelledby="rh-dash-comedor-title">
       <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 id="rh-dash-comedor-title" class="text-base font-semibold text-[color:var(--color-text-primary)]">Comedor</h3>
-          <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">Consumo y distribución de platillos</p>
+          <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">Asistencia diaria y registros futuros</p>
         </div>
         ${sectionLink("#/comedor", "Gestionar comedor")}
       </div>
       ${blockErrors(errors)}
-      ${kpisRow}
+      ${sinDatos}
       ${charts}
     </section>`;
 }

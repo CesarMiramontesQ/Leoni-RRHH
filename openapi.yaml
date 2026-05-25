@@ -1471,7 +1471,7 @@ components:
 
     ComedorResumenDiarioItem:
       type: object
-      required: [fecha, caseras, saludables]
+      required: [fecha, caseras, saludables, registros, asistencias]
       properties:
         fecha:
           type: string
@@ -1480,6 +1480,24 @@ components:
           type: integer
         saludables:
           type: integer
+        registros:
+          type: integer
+          description: Accesos activos (PENDIENTE/ACCEDIDO) en el día
+        asistencias:
+          type: integer
+          description: Accesos con estado ACCEDIDO en el día
+
+    ComedorRhSemanaRegistrosFuturosItem:
+      type: object
+      required: [semana_inicio, total]
+      properties:
+        semana_inicio:
+          type: string
+          format: date
+          description: Lunes de la semana ISO
+        total:
+          type: integer
+          description: Registros activos con fecha_servicio en esa semana (>= hoy)
 
     ComedorRhProximoRegistroItem:
       type: object
@@ -4174,6 +4192,31 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ComedorResumenDiarioItem"
+
+  /api/v1/comedor/accesos/rh/registros-futuros-por-semana:
+    get:
+      tags: [Comedor]
+      summary: Registros futuros agrupados por semana (RH)
+      operationId: comedor_rh_registros_futuros_por_semana
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: semanas
+          in: query
+          schema:
+            type: integer
+            default: 8
+            minimum: 1
+            maximum: 16
+      responses:
+        "200":
+          description: Totales por semana futura
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorRhSemanaRegistrosFuturosItem"
 
   /api/v1/comedor/accesos/rh/proximos-registros:
     get:

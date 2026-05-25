@@ -52,6 +52,7 @@ from app.schemas.comedor import (
     ComedorEquipoBeneficiarioItem,
     ComedorMisReservaItem,
     ComedorResumenDiarioItem,
+    ComedorRhSemanaRegistrosFuturosItem,
     ComedorRhProximoRegistroItem,
     ComedorRhProximosRegistrosPage,
     ComedorRhCredencialTemporal,
@@ -566,6 +567,8 @@ class ComedorService:
                 "fecha": row["fecha"],
                 "caseras": int(row["caseras"]),
                 "saludables": int(row["saludables"]),
+                "registros": int(row["registros"]),
+                "asistencias": int(row["asistencias"]),
             }
             for row in rows
         }
@@ -596,16 +599,59 @@ class ComedorService:
             while dia <= fin:
                 celda = resumen_por_fecha.setdefault(
                     dia,
-                    {"fecha": dia, "caseras": 0, "saludables": 0},
+                    {
+                        "fecha": dia,
+                        "caseras": 0,
+                        "saludables": 0,
+                        "registros": 0,
+                        "asistencias": 0,
+                    },
                 )
                 if tipo_comida == ComedorTipoComida.saludable.value:
                     celda["saludables"] = int(celda["saludables"]) + cantidad_personas
                 else:
                     celda["caseras"] = int(celda["caseras"]) + cantidad_personas
+                celda["registros"] = int(celda["registros"]) + cantidad_personas
                 dia += timedelta(days=1)
 
         ordenado = [resumen_por_fecha[k] for k in sorted(resumen_por_fecha.keys())]
-        return [ComedorResumenDiarioItem(**row) for row in ordenado]
+        out: list[ComedorResumenDiarioItem] = []
+        for row in ordenado:
+            registros = int(row["registros"])
+            if registros <= 0:
+                registros = int(row["caseras"]) + int(row["saludables"])
+            out.append(
+                ComedorResumenDiarioItem(
+                    fecha=row["fecha"],
+                    caseras=int(row["caseras"]),
+                    saludables=int(row["saludables"]),
+                    registros=registros,
+                    asistencias=int(row["asistencias"]),
+                )
+            )
+        return out
+
+    async def list_registros_futuros_por_semana_rh(
+        self,
+        current_user: Empleado,
+        *,
+        semanas: int = 8,
+    ) -> list[ComedorRhSemanaRegistrosFuturosItem]:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede consultar registros futuros por semana")
+        hoy = date.today()
+        limite = max(1, min(semanas, 16))
+        filas = await self.acceso_repo.count_accesos_activos_por_dia_desde(hoy)
+        por_semana: dict[date, int] = {}
+        for fecha, cnt in filas:
+            lunes = fecha - timedelta(days=fecha.weekday())
+            por_semana[lunes] = por_semana.get(lunes, 0) + cnt
+        ordenadas = sorted(por_semana.items(), key=lambda x: x[0])[:limite]
+        return [
+            ComedorRhSemanaRegistrosFuturosItem(semana_inicio=inicio, total=total)
+            for inicio, total in ordenadas
+            if total > 0
+        ]
 
     def _estados_proximos_rh_filtro(
         self, filtro_estado: Literal["todos", "confirmado", "cancelado"]
