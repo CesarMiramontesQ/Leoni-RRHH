@@ -59,9 +59,6 @@ async def make_puesto_perfil(
     area_id: int | None = None,
     nivel: str | None = None,
     descripcion: str | None = "Optimizar procesos de manufactura",
-    competencias_tecnicas: Any = _UNSET,
-    habilidades_blandas: Any = _UNSET,
-    maquinas_herramientas: Any = _UNSET,
     version: int = 1,
     activo: bool = True,
     created_by: int | None = None,
@@ -79,11 +76,6 @@ async def make_puesto_perfil(
     uid = uuid.uuid4().hex[:6].upper()
     _codigo = codigo or f"PRF-T-{uid}"  # 10 chars, bien dentro de los 20 permitidos
 
-    # Resolver campos JSONB: default {} salvo que se pase None explicitamente
-    _competencias_tecnicas = {} if competencias_tecnicas is _UNSET else competencias_tecnicas
-    _habilidades_blandas = {} if habilidades_blandas is _UNSET else habilidades_blandas
-    _maquinas_herramientas = {} if maquinas_herramientas is _UNSET else maquinas_herramientas
-
     # updated_by: default al mismo que created_by si no se especifica
     _updated_by = created_by if updated_by is _UNSET else updated_by
 
@@ -93,9 +85,6 @@ async def make_puesto_perfil(
         area_id=area_id,
         nivel=nivel,
         descripcion=descripcion,
-        competencias_tecnicas=_competencias_tecnicas,
-        habilidades_blandas=_habilidades_blandas,
-        maquinas_herramientas=_maquinas_herramientas,
         version=version,
         activo=activo,
         created_by=created_by,
