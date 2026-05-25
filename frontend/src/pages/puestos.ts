@@ -2,11 +2,13 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import {
   getPerfilesList,
   getAreasOptions,
+  getResumenTarjetas,
   createPerfil,
   updatePerfil,
   deletePerfil,
   type PuestosFetchError,
   type AreaOption,
+  type PerfilTarjetaItem,
 } from "../api/puestos.ts";
 import type {
   PerfilPuestoListItem,
@@ -25,31 +27,7 @@ import {
   FILTER_FIELD_WRAP,
 } from "../ui/uiTokens.ts";
 
-// ── Level Up fake data (demo-first) ─────────────────────────────────────
-
-interface PerfilLevelUpMetrics {
-  codigo: string;
-  puesto: string;
-  area: string;
-  personas: number;
-  cursos: number;
-  opls: number;
-  evidencias: number;
-  cumplimiento: number;
-  brechas: number;
-  owner: string;
-}
-
-const FAKE_LEVEL_UP_METRICS: PerfilLevelUpMetrics[] = [
-  { codigo: "PP-101", puesto: "Operador/a de Crimpado", area: "Cableado", personas: 48, cursos: 7, opls: 12, evidencias: 4, cumplimiento: 89, brechas: 6, owner: "María Esquivel" },
-  { codigo: "PP-102", puesto: "Técnico de Crimpado", area: "Cableado", personas: 14, cursos: 9, opls: 18, evidencias: 5, cumplimiento: 92, brechas: 3, owner: "María Esquivel" },
-  { codigo: "PP-201", puesto: "Operador/a de Ensamble", area: "Ensamble", personas: 62, cursos: 6, opls: 14, evidencias: 4, cumplimiento: 81, brechas: 11, owner: "Iván Bermúdez" },
-  { codigo: "PP-202", puesto: "Operador/a de Ruteo", area: "Ensamble", personas: 24, cursos: 7, opls: 11, evidencias: 4, cumplimiento: 76, brechas: 9, owner: "Iván Bermúdez" },
-  { codigo: "PP-301", puesto: "Operador/a de Prueba E.", area: "Prueba Eléct.", personas: 22, cursos: 8, opls: 9, evidencias: 5, cumplimiento: 94, brechas: 2, owner: "Patricia Loera" },
-  { codigo: "PP-401", puesto: "Inspector/a de Calidad", area: "Calidad", personas: 14, cursos: 10, opls: 16, evidencias: 6, cumplimiento: 96, brechas: 1, owner: "Sandra Peña" },
-  { codigo: "PP-501", puesto: "Líder de Línea", area: "Operaciones", personas: 12, cursos: 12, opls: 22, evidencias: 7, cumplimiento: 88, brechas: 4, owner: "Rafael Cuevas" },
-  { codigo: "PP-601", puesto: "Técnico de Mantenimiento", area: "Mantenim.", personas: 18, cursos: 11, opls: 19, evidencias: 6, cumplimiento: 84, brechas: 5, owner: "Hugo Cárdenas" },
-];
+// ── Card view helpers ────────────────────────────────────────────────────
 
 function cumplimientoBadge(pct: number): string {
   if (pct >= 90) {
@@ -68,19 +46,19 @@ function brechasBar(brechas: number): string {
   return `<div class="h-1.5 w-full rounded-full bg-slate-100"><div class="${tone} h-1.5 rounded-full" style="width:${pct}%"></div></div>`;
 }
 
-function ownerInitials(name: string): string {
-  return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-}
-
-function renderKpiStrip(): string {
-  const totalPersonas = FAKE_LEVEL_UP_METRICS.reduce((s, p) => s + p.personas, 0);
-  const totalEvidencias = FAKE_LEVEL_UP_METRICS.reduce((s, p) => s + p.evidencias, 0);
+function renderKpiStrip(tarjetas: PerfilTarjetaItem[]): string {
+  const totalPersonas = tarjetas.reduce((s, p) => s + p.personas, 0);
+  const totalBrechas = tarjetas.reduce((s, p) => s + p.brechas, 0);
+  const avgCumplimiento = tarjetas.length > 0
+    ? Math.round(tarjetas.reduce((s, p) => s + p.cumplimiento_pct, 0) / tarjetas.length)
+    : 0;
+  const areas = new Set(tarjetas.map(p => p.area_nombre).filter(Boolean));
 
   const kpis = [
-    { label: "Perfiles activos", value: String(FAKE_LEVEL_UP_METRICS.length), sub: "Actualizado 09/05/26" },
-    { label: "Personas vinculadas", value: String(totalPersonas), sub: "En 7 áreas operativas" },
-    { label: "Cursos asociados (únicos)", value: "42", sub: "23 obligatorios · 19 opcionales" },
-    { label: "Evidencias mínimas", value: String(totalEvidencias), sub: `Por perfil promedio: ${Math.round(totalEvidencias / FAKE_LEVEL_UP_METRICS.length)}` },
+    { label: "Perfiles activos", value: String(tarjetas.length), sub: `En ${areas.size} areas` },
+    { label: "Personas vinculadas", value: String(totalPersonas), sub: `${areas.size} areas operativas` },
+    { label: "Cumplimiento promedio", value: `${avgCumplimiento}%`, sub: "Evaluaciones completadas" },
+    { label: "Brechas totales", value: String(totalBrechas), sub: "Evaluaciones pendientes" },
   ];
 
   return `
@@ -95,16 +73,24 @@ function renderKpiStrip(): string {
   </div>`;
 }
 
-function renderCardGrid(): string {
-  const cards = FAKE_LEVEL_UP_METRICS.map(p => `
+function renderCardGrid(tarjetas: PerfilTarjetaItem[]): string {
+  if (tarjetas.length === 0) {
+    return `
+    <div class="rounded-xl border border-dashed border-border/90 bg-slate-50/40 py-12 text-center">
+      <p class="text-sm font-semibold text-text-primary">Sin perfiles de puesto</p>
+      <p class="mt-1.5 text-xs text-text-muted">Crea un nuevo perfil para comenzar a gestionar competencias.</p>
+    </div>`;
+  }
+
+  const cards = tarjetas.map(p => `
     <div class="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm transition hover:shadow-md">
       <div class="flex items-center justify-between">
-        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">${p.codigo}</span>
-        ${cumplimientoBadge(p.cumplimiento)}
+        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">${escapeHtml(p.codigo)}</span>
+        ${cumplimientoBadge(p.cumplimiento_pct)}
       </div>
       <div>
-        <p class="text-sm font-semibold text-text-primary leading-tight">${escapeHtml(p.puesto)}</p>
-        <p class="mt-0.5 text-xs text-text-muted">${escapeHtml(p.area)}</p>
+        <p class="text-sm font-semibold text-text-primary leading-tight">${escapeHtml(p.nombre)}</p>
+        <p class="mt-0.5 text-xs text-text-muted">${escapeHtml(p.area_nombre ?? "")}</p>
       </div>
       <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px]">
         <div class="flex items-center gap-1.5">
@@ -127,9 +113,9 @@ function renderCardGrid(): string {
         </div>
         ${brechasBar(p.brechas)}
       </div>
-      <div class="mt-auto flex items-center gap-2 border-t border-slate-100 pt-3">
-        <a href="#/puestos/101" class="flex-1 rounded-lg border border-leoni-blue/20 bg-leoni-blue/5 px-3 py-1.5 text-center text-xs font-semibold text-leoni-blue hover:bg-leoni-blue/10 transition">Ver puesto</a>
-        <a href="#/puestos/101/empleados" class="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Ver empleados</a>
+      <div class="mt-auto flex items-stretch gap-2 border-t border-slate-100 pt-3">
+        <a href="#/puestos/${p.id}" class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-leoni-blue/20 bg-leoni-blue/5 px-3 py-1.5 text-center text-xs font-semibold text-leoni-blue hover:bg-leoni-blue/10 transition">Ver puesto</a>
+        <a href="#/puestos/${p.id}/empleados" class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Ver empleados</a>
       </div>
     </div>
   `).join("");
@@ -463,6 +449,7 @@ function renderError(message: string): string {
 export function mountPuestos(container: HTMLElement, signal: AbortSignal): void {
   // State
   let allItems: PerfilPuestoListItem[] = [];
+  let tarjetasData: PerfilTarjetaItem[] = [];
   let areasOptions: AreaOption[] = [];
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
@@ -526,14 +513,14 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const viewToggleHtml = `
       <div class="flex items-center justify-between">
         ${renderViewToggle(viewMode)}
-        <span class="text-xs text-slate-500">${viewMode === "tarjetas" ? `${FAKE_LEVEL_UP_METRICS.length} perfiles · ordenados por cumplimiento` : `${filtered.length} perfiles`}</span>
+        <span class="text-xs text-slate-500">${viewMode === "tarjetas" ? `${tarjetasData.length} perfiles` : `${filtered.length} perfiles`}</span>
       </div>`;
 
     if (viewMode === "tarjetas") {
       content.innerHTML = `
-        ${renderKpiStrip()}
+        ${renderKpiStrip(tarjetasData)}
         <div class="mt-4">${viewToggleHtml}</div>
-        <div class="mt-4">${renderCardGrid()}</div>`;
+        <div class="mt-4">${renderCardGrid(tarjetasData)}</div>`;
     } else {
       content.innerHTML = `
         ${renderFilterBar(filters, areasOptions, niveles)}
@@ -570,9 +557,14 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     status = "loading";
     paint();
     try {
-      const [items, areas] = await Promise.all([getPerfilesList(), getAreasOptions()]);
+      const [items, areas, tarjetas] = await Promise.all([
+        getPerfilesList(),
+        getAreasOptions(),
+        getResumenTarjetas(),
+      ]);
       allItems = items;
       areasOptions = areas;
+      tarjetasData = tarjetas;
       status = "ready";
       paint();
     } catch (e: unknown) {

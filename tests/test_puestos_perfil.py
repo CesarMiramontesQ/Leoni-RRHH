@@ -394,3 +394,145 @@ async def test_generar_perfil_ia_not_found(client: AsyncClient, db):
         headers=headers,
     )
     assert response.status_code == 404
+
+
+# ===========================================================================
+# Resumen Tarjetas
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# test_resumen_tarjetas_empty
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_resumen_tarjetas_empty(client: AsyncClient, db):
+    """Resumen tarjetas sin perfiles activos → 200 con items vacio."""
+    rh = await make_empleado(db, rol="rh", email="pp_tarj_empty@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    response = await client.get(
+        "/api/v1/puestos-perfil/resumen-tarjetas",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "items" in body
+    assert isinstance(body["items"], list)
+
+
+# ---------------------------------------------------------------------------
+# test_resumen_tarjetas_with_profiles
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_resumen_tarjetas_with_profiles(client: AsyncClient, db):
+    """Resumen tarjetas con perfiles retorna datos y estructura correcta."""
+    area = await make_area(db, descripcion="Area Tarjetas")
+    rh = await make_empleado(db, rol="rh", email="pp_tarj_data@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    perfil = await make_puesto_perfil(
+        db, nombre="Operador Tarjeta Test", area_id=area.area_id
+    )
+
+    response = await client.get(
+        "/api/v1/puestos-perfil/resumen-tarjetas",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["items"]) >= 1
+
+    item = next(i for i in body["items"] if i["id"] == perfil.id)
+    assert item["codigo"] == perfil.codigo
+    assert item["nombre"] == "Operador Tarjeta Test"
+    assert item["area_nombre"] == "Area Tarjetas"
+    assert item["personas"] == 0
+    assert item["cumplimiento_pct"] == 0
+    assert item["brechas"] == 0
+
+
+# ---------------------------------------------------------------------------
+# test_resumen_tarjetas_personas_count
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_resumen_tarjetas_personas_count(client: AsyncClient, db):
+    """Resumen tarjetas cuenta personas asignadas correctamente."""
+    from app.models.talento import PerfilFunciones
+
+    area = await make_area(db, descripcion="Area Personas")
+    rh = await make_empleado(db, rol="rh", email="pp_tarj_pers@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    perfil = await make_puesto_perfil(
+        db, nombre="Perfil Con Personas", area_id=area.area_id
+    )
+
+    # Asignar 3 empleados al perfil
+    for i in range(3):
+        emp = await make_empleado(
+            db, rol="empleado", email=f"pp_tarj_emp{i}@leoni.test"
+        )
+        asignacion = PerfilFunciones(
+            puesto_perfil_id=perfil.id,
+            empleado_id=emp.id,
+            departamento="Produccion",
+            activo=True,
+        )
+        db.add(asignacion)
+    await db.flush()
+
+    response = await client.get(
+        "/api/v1/puestos-perfil/resumen-tarjetas",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    item = next(i for i in body["items"] if i["id"] == perfil.id)
+    assert item["personas"] == 3
+
+
+# ---------------------------------------------------------------------------
+# test_resumen_tarjetas_excludes_inactive
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_resumen_tarjetas_excludes_inactive(client: AsyncClient, db):
+    """Resumen tarjetas no incluye perfiles inactivos (soft-deleted)."""
+    area = await make_area(db, descripcion="Area Inactiva")
+    rh = await make_empleado(db, rol="rh", email="pp_tarj_inact@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    perfil_activo = await make_puesto_perfil(
+        db, nombre="Perfil Activo Tarj", area_id=area.area_id, activo=True
+    )
+    perfil_inactivo = await make_puesto_perfil(
+        db, nombre="Perfil Inactivo Tarj", area_id=area.area_id, activo=False
+    )
+
+    response = await client.get(
+        "/api/v1/puestos-perfil/resumen-tarjetas",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    ids = [i["id"] for i in body["items"]]
+    assert perfil_activo.id in ids
+    assert perfil_inactivo.id not in ids
+
+
+# ---------------------------------------------------------------------------
+# test_resumen_tarjetas_unauthorized
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_resumen_tarjetas_unauthorized(client: AsyncClient, db):
+    """Resumen tarjetas requiere autenticacion → 401 sin token."""
+    response = await client.get("/api/v1/puestos-perfil/resumen-tarjetas")
+    assert response.status_code == 401

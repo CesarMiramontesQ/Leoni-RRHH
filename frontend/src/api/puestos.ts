@@ -62,6 +62,28 @@ export async function getAreasOptions(): Promise<AreaOption[]> {
   }));
 }
 
+// ── Resumen tarjetas type ─────────────────────────────────────────────
+export type PerfilTarjetaItem = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  area_nombre: string | null;
+  nivel: string | null;
+  personas: number;
+  cumplimiento_pct: number;
+  brechas: number;
+  cursos: number;
+  evidencias: number;
+};
+
+/** GET /api/v1/puestos-perfil/resumen-tarjetas — metricas para vista tarjetas */
+export async function getResumenTarjetas(): Promise<PerfilTarjetaItem[]> {
+  const res = await fetchWithAuth("/api/v1/puestos-perfil/resumen-tarjetas");
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  const data = await res.json();
+  return data.items ?? [];
+}
+
 /** GET /api/v1/puestos-perfil — listado para tabla */
 export async function getPerfilesList(): Promise<PerfilPuestoListItem[]> {
   const res = await fetchWithAuth("/api/v1/puestos-perfil");

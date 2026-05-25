@@ -19,16 +19,53 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
     mainHtml: `
       <div id="puesto-empleados-root" class="space-y-4">
         <div class="flex items-center gap-3">
-          <a href="#/puestos/${perfilId}" class="${BTN_GHOST} text-sm">← Volver al puesto</a>
+          <button id="btn-volver" class="${BTN_GHOST} text-sm">← Volver</button>
           <h2 class="text-lg font-bold text-text-primary">Empleados asignados</h2>
         </div>
+        <div id="puesto-empleados-header" class="text-sm text-text-muted"></div>
         <div id="puesto-empleados-content">
           <p class="text-sm text-text-muted">Cargando...</p>
         </div>
       </div>`,
   });
 
+  const btnVolver = container.querySelector("#btn-volver") as HTMLButtonElement | null;
+  if (btnVolver) {
+    btnVolver.addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.hash = `#/puestos/${perfilId}`;
+      }
+    });
+  }
+
+  loadPerfilHeader(container, perfilId);
   loadEmpleados(container, perfilId);
+}
+
+async function loadPerfilHeader(container: HTMLElement, perfilId: number): Promise<void> {
+  const headerEl = container.querySelector("#puesto-empleados-header");
+  if (!headerEl) return;
+
+  const token = getAccessToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch(`/api/v1/puestos-perfil/${perfilId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+
+    const perfil = await res.json();
+    const area = perfil.area_nombre ? ` · ${perfil.area_nombre}` : "";
+    headerEl.innerHTML = `
+      <span class="font-semibold text-text-primary">${perfil.nombre}</span>
+      <span class="text-slate-400">${area}</span>
+    `;
+  } catch {
+    // silently fail — header is optional context
+  }
 }
 
 async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<void> {
