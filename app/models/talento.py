@@ -1,23 +1,31 @@
 # app/models/talento.py
 """
-Modelos SQLAlchemy para el modulo de Talento — Fase 1.
+Modelos SQLAlchemy para el modulo de Talento.
 
 Entidades:
   - PuestoPerfil: perfil de puesto con competencias tecnicas/blandas en JSONB
   - Competencia: catalogo de competencias (tecnicas y blandas)
   - CompetenciaRequisito: relacion puesto-competencia con nivel requerido (0-4)
+  - PerfilTarea: tareas asociadas a un puesto perfil
+  - PerfilCualificacion: cualificaciones requeridas por puesto
+  - PerfilCompetenciaRequerida: competencias requeridas por puesto (perfil funciones)
+  - PerfilFunciones: asignacion individual empleado-puesto
+  - PerfilFuncionesCualificacion: evaluacion individual de cualificacion
+  - PerfilFuncionesCompetencia: evaluacion individual de competencia
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -69,10 +77,42 @@ class PuestoPerfil(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    # ── Perfil de Funciones columns ────────────────────────────────────────────
+    division: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True, default=None
+    )  # 'holding' | 'wsd' | 'wcs'
+    centro_leoni: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    form_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    reporta_a: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    ordenes_funcional_de: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    responsable_de: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sustituye_a: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sustituido_por: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    obligaciones_empresariales: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True, default=False
+    )
+    obligacion_confidencialidad: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True, default=False
+    )
+    poderes_legales: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    complemento_poderes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="puesto_perfil", cascade="all, delete-orphan"
+    )
+    tareas: Mapped[List["PerfilTarea"]] = relationship(
+        "PerfilTarea", back_populates="puesto_perfil", cascade="all, delete-orphan"
+    )
+    cualificaciones: Mapped[List["PerfilCualificacion"]] = relationship(
+        "PerfilCualificacion", back_populates="puesto_perfil", cascade="all, delete-orphan"
+    )
+    competencias_requeridas: Mapped[List["PerfilCompetenciaRequerida"]] = relationship(
+        "PerfilCompetenciaRequerida", back_populates="puesto_perfil", cascade="all, delete-orphan"
+    )
+    asignaciones_funciones: Mapped[List["PerfilFunciones"]] = relationship(
+        "PerfilFunciones", back_populates="puesto_perfil", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -300,4 +340,226 @@ class Inscripcion(Base):
         return (
             f"<Inscripcion id={self.id} capacitacion_id={self.capacitacion_id} "
             f"empleado_id={self.empleado_id} estado={self.estado}>"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Perfil de Funciones — Modelos
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class PerfilTarea(Base):
+    """Tareas asociadas a un puesto perfil (1:N)."""
+
+    __tablename__ = "perfil_tareas"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    puesto_perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+    )
+    orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    descripcion: Mapped[str] = mapped_column(Text, nullable=False)
+    es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    puesto_perfil: Mapped["PuestoPerfil"] = relationship(
+        "PuestoPerfil", back_populates="tareas"
+    )
+
+    def __repr__(self) -> str:
+        return f"<PerfilTarea id={self.id} orden={self.orden} puesto_perfil_id={self.puesto_perfil_id}>"
+
+
+class PerfilCualificacion(Base):
+    """Cualificaciones requeridas por puesto (1:N)."""
+
+    __tablename__ = "perfil_cualificaciones"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    puesto_perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+    )
+    tipo: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # estudios_finalizados | formacion_profesional | ampliacion_formacion | estudios_universitarios | experiencia_profesional | experiencia_direccion | complementos
+    situacion_deseada: Mapped[str] = mapped_column(Text, nullable=False)
+    comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    puesto_perfil: Mapped["PuestoPerfil"] = relationship(
+        "PuestoPerfil", back_populates="cualificaciones"
+    )
+    evaluaciones: Mapped[List["PerfilFuncionesCualificacion"]] = relationship(
+        "PerfilFuncionesCualificacion", back_populates="cualificacion", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<PerfilCualificacion id={self.id} tipo={self.tipo} puesto_perfil_id={self.puesto_perfil_id}>"
+
+
+class PerfilCompetenciaRequerida(Base):
+    """Competencias requeridas por puesto para perfil de funciones (1:N)."""
+
+    __tablename__ = "perfil_competencias_requeridas"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    puesto_perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+    )
+    categoria: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # informatica | idiomas | profesional | social | personal | metodos | complementos
+    descripcion: Mapped[str] = mapped_column(Text, nullable=False)
+    orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    puesto_perfil: Mapped["PuestoPerfil"] = relationship(
+        "PuestoPerfil", back_populates="competencias_requeridas"
+    )
+    evaluaciones: Mapped[List["PerfilFuncionesCompetencia"]] = relationship(
+        "PerfilFuncionesCompetencia", back_populates="competencia_requerida", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<PerfilCompetenciaRequerida id={self.id} categoria={self.categoria} puesto_perfil_id={self.puesto_perfil_id}>"
+
+
+class PerfilFunciones(Base):
+    """Asignacion individual empleado-puesto (perfil de funciones firmado)."""
+
+    __tablename__ = "perfil_funciones"
+    __table_args__ = (
+        UniqueConstraint(
+            "puesto_perfil_id", "empleado_id",
+            name="uq_perfil_funciones_puesto_empleado_activo",
+        ),
+        Index("ix_perfil_funciones_empleado_id", "empleado_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    puesto_perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("puestos_perfil.id"), nullable=False
+    )
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.id"), nullable=False
+    )
+    departamento: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    fecha_firma_superior: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_firma_empleado: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    firma_superior_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    firma_empleado_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    puesto_perfil: Mapped["PuestoPerfil"] = relationship(
+        "PuestoPerfil", back_populates="asignaciones_funciones"
+    )
+    empleado: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[empleado_id])
+    evaluaciones_cualificacion: Mapped[List["PerfilFuncionesCualificacion"]] = relationship(
+        "PerfilFuncionesCualificacion", back_populates="perfil_funciones", cascade="all, delete-orphan"
+    )
+    evaluaciones_competencia: Mapped[List["PerfilFuncionesCompetencia"]] = relationship(
+        "PerfilFuncionesCompetencia", back_populates="perfil_funciones", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PerfilFunciones id={self.id} puesto_perfil_id={self.puesto_perfil_id} "
+            f"empleado_id={self.empleado_id} activo={self.activo}>"
+        )
+
+
+class PerfilFuncionesCualificacion(Base):
+    """Evaluacion individual de cualificacion para un perfil de funciones."""
+
+    __tablename__ = "perfil_funciones_cualificacion"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    perfil_funciones_id: Mapped[int] = mapped_column(
+        ForeignKey("perfil_funciones.id", ondelete="CASCADE"), nullable=False
+    )
+    cualificacion_id: Mapped[int] = mapped_column(
+        ForeignKey("perfil_cualificaciones.id"), nullable=False
+    )
+    situacion_actual: Mapped[str] = mapped_column(Text, nullable=False)
+    comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    perfil_funciones: Mapped["PerfilFunciones"] = relationship(
+        "PerfilFunciones", back_populates="evaluaciones_cualificacion"
+    )
+    cualificacion: Mapped["PerfilCualificacion"] = relationship(
+        "PerfilCualificacion", back_populates="evaluaciones"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PerfilFuncionesCualificacion id={self.id} "
+            f"perfil_funciones_id={self.perfil_funciones_id} cualificacion_id={self.cualificacion_id}>"
+        )
+
+
+class PerfilFuncionesCompetencia(Base):
+    """Evaluacion individual de competencia para un perfil de funciones."""
+
+    __tablename__ = "perfil_funciones_competencia"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    perfil_funciones_id: Mapped[int] = mapped_column(
+        ForeignKey("perfil_funciones.id", ondelete="CASCADE"), nullable=False
+    )
+    competencia_requerida_id: Mapped[int] = mapped_column(
+        ForeignKey("perfil_competencias_requeridas.id"), nullable=False
+    )
+    situacion_actual: Mapped[str] = mapped_column(Text, nullable=False)
+    comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    perfil_funciones: Mapped["PerfilFunciones"] = relationship(
+        "PerfilFunciones", back_populates="evaluaciones_competencia"
+    )
+    competencia_requerida: Mapped["PerfilCompetenciaRequerida"] = relationship(
+        "PerfilCompetenciaRequerida", back_populates="evaluaciones"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PerfilFuncionesCompetencia id={self.id} "
+            f"perfil_funciones_id={self.perfil_funciones_id} competencia_requerida_id={self.competencia_requerida_id}>"
         )
