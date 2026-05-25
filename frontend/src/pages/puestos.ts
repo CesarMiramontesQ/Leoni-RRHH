@@ -113,9 +113,9 @@ function renderCardGrid(tarjetas: PerfilTarjetaItem[]): string {
         </div>
         ${brechasBar(p.brechas)}
       </div>
-      <div class="mt-auto flex items-center gap-2 border-t border-slate-100 pt-3">
-        <a href="#/puestos/${p.id}" class="flex-1 rounded-lg border border-leoni-blue/20 bg-leoni-blue/5 px-3 py-1.5 text-center text-xs font-semibold text-leoni-blue hover:bg-leoni-blue/10 transition">Ver puesto</a>
-        <a href="#/puestos/${p.id}/empleados" class="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Ver empleados</a>
+      <div class="mt-auto flex items-stretch gap-2 border-t border-slate-100 pt-3">
+        <a href="#/puestos/${p.id}" class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-leoni-blue/20 bg-leoni-blue/5 px-3 py-1.5 text-center text-xs font-semibold text-leoni-blue hover:bg-leoni-blue/10 transition">Ver puesto</a>
+        <a href="#/puestos/${p.id}/empleados" class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Ver empleados</a>
       </div>
     </div>
   `).join("");
