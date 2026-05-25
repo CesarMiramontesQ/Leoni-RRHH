@@ -181,7 +181,6 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             .outerjoin(comp_count_sq, comp_count_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(eval_cualif_sq, eval_cualif_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(eval_comp_sq, eval_comp_sq.c.puesto_perfil_id == PuestoPerfil.id)
-            .options(selectinload(PuestoPerfil.area))
             .where(PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )
