@@ -156,3 +156,102 @@ export async function generateAi(id: number): Promise<GenerateAiResponse> {
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as GenerateAiResponse;
 }
+
+// ── Tareas ───────────────────────────────────────────────────────────────────
+
+export type PerfilTarea = { id: number; orden: number; descripcion: string; es_complemento: boolean };
+
+/** GET /api/v1/perfiles/:id/tareas */
+export async function getPerfilTareas(perfilId: number): Promise<PerfilTarea[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`);
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTarea[];
+}
+
+/** POST /api/v1/perfiles/:id/tareas */
+export async function createPerfilTarea(
+  perfilId: number,
+  body: { orden: number; descripcion: string; es_complemento: boolean },
+): Promise<PerfilTarea> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTarea;
+}
+
+/** DELETE /api/v1/perfiles/:id/tareas/:tareaId */
+export async function deletePerfilTarea(perfilId: number, tareaId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/${tareaId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
+// ── Cualificaciones ──────────────────────────────────────────────────────────
+
+export type PerfilCualificacion = { id: number; tipo: string; situacion_deseada: string; comentarios: string | null };
+
+/** GET /api/v1/perfiles/:id/cualificaciones */
+export async function getPerfilCualificaciones(perfilId: number): Promise<PerfilCualificacion[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones`);
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCualificacion[];
+}
+
+/** POST /api/v1/perfiles/:id/cualificaciones */
+export async function createPerfilCualificacion(
+  perfilId: number,
+  body: { tipo: string; situacion_deseada: string; comentarios?: string },
+): Promise<PerfilCualificacion> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCualificacion;
+}
+
+/** DELETE /api/v1/perfiles/:id/cualificaciones/:cualificacionId */
+export async function deletePerfilCualificacion(perfilId: number, cualificacionId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones/${cualificacionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
+// ── Competencias requeridas ──────────────────────────────────────────────────
+
+export type PerfilCompetencia = { id: number; categoria: string; descripcion: string; orden: number };
+
+/** GET /api/v1/perfiles/:id/competencias */
+export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCompetencia[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`);
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCompetencia[];
+}
+
+/** POST /api/v1/perfiles/:id/competencias */
+export async function createPerfilCompetencia(
+  perfilId: number,
+  body: { categoria: string; descripcion: string; orden: number },
+): Promise<PerfilCompetencia> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCompetencia;
+}
+
+/** DELETE /api/v1/perfiles/:id/competencias/:competenciaId */
+export async function deletePerfilCompetencia(perfilId: number, competenciaId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/${competenciaId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
