@@ -7,14 +7,20 @@ import {
 } from "../auth/jwt.ts";
 import {
   mountRhDashboardAnalyticsCharts,
+  resizeRhDashboardAnalyticsCharts,
   RH_DASH_ANALYTICS_CHART_IDS,
 } from "../components/dashboard/rhAnalyticsCharts.ts";
 import {
+  renderRhAnalyticsBody,
+  renderRhAnalyticsBodySkeleton,
   renderRhAnalyticsSection,
   renderRhAnalyticsSectionSkeleton,
 } from "../components/dashboard/rhAnalyticsSection.ts";
 import { destroyChart, destroyChartsIn } from "../charts/index.ts";
-import type { RhDashboardPeriodDays } from "../dashboard/rh/analyticsTypes.ts";
+import type {
+  RhDashboardAnalyticsPayload,
+  RhDashboardPeriodDays,
+} from "../dashboard/rh/analyticsTypes.ts";
 import { fetchRhDashboardAnalytics } from "../dashboard/rh/fetchRhDashboardAnalytics.ts";
 import {
   readStoredRhDashboardPeriod,
@@ -138,6 +144,32 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
 
 let rhDashLoadSeq = 0;
 
+function syncRhDashboardPeriodButtons(root: ParentNode, activeDays: RhDashboardPeriodDays): void {
+  root.querySelectorAll<HTMLButtonElement>("[data-rh-dash-period]").forEach((btn) => {
+    const raw = btn.getAttribute("data-rh-dash-period");
+    const days = Number(raw);
+    const isActive = days === activeDays;
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    btn.classList.toggle("rh-dash-period-btn--active", isActive);
+  });
+}
+
+function mountRhDashboardChartsWhenReady(
+  analyticsRoot: ParentNode,
+  payload: RhDashboardAnalyticsPayload,
+  isStale: () => boolean,
+): void {
+  mountRhDashboardAnalyticsCharts(analyticsRoot, payload);
+  requestAnimationFrame(() => {
+    if (isStale()) return;
+    resizeRhDashboardAnalyticsCharts();
+    requestAnimationFrame(() => {
+      if (isStale()) return;
+      resizeRhDashboardAnalyticsCharts();
+    });
+  });
+}
+
 function bindRhDashboardPeriodControls(
   container: HTMLElement,
   onPeriodChange: (days: RhDashboardPeriodDays) => void,
@@ -153,7 +185,9 @@ function bindRhDashboardPeriodControls(
     const raw = btn.getAttribute("data-rh-dash-period");
     const days = Number(raw);
     if (days !== 7 && days !== 30 && days !== 90) return;
+    if (readStoredRhDashboardPeriod() === days) return;
     storeRhDashboardPeriod(days);
+    syncRhDashboardPeriodButtons(host, days);
     onPeriodChange(days);
   });
 }
@@ -169,10 +203,18 @@ async function loadRhOperationalDashboard(
   const isStale = (): boolean => seq !== rhDashLoadSeq;
 
   for (const id of RH_DASH_ANALYTICS_CHART_IDS) destroyChart(id);
-  const analyticsHost = root.querySelector("#rh-dashboard-analytics");
-  if (analyticsHost) destroyChartsIn(analyticsHost);
+  const analyticsRoot = root.querySelector<HTMLElement>("#rh-dashboard-analytics");
+  const analyticsBody = root.querySelector<HTMLElement>("#rh-dashboard-analytics-body");
+  if (analyticsRoot) destroyChartsIn(analyticsRoot);
 
-  root.innerHTML = wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton());
+  const canPatchBody = analyticsRoot !== null && analyticsBody !== null;
+  if (canPatchBody) {
+    syncRhDashboardPeriodButtons(root, periodDays);
+    analyticsBody.setAttribute("aria-busy", "true");
+    analyticsBody.innerHTML = renderRhAnalyticsBodySkeleton();
+  } else {
+    root.innerHTML = wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton(periodDays));
+  }
 
   let analyticsPayload = null;
   let analyticsPartial = false;
@@ -191,19 +233,33 @@ async function loadRhOperationalDashboard(
     analyticsPayload = null;
   }
 
+  if (canPatchBody && analyticsBody && analyticsRoot) {
+    if (!analyticsPayload) {
+      analyticsBody.removeAttribute("aria-busy");
+      analyticsBody.innerHTML = `<p class="text-sm text-text-muted">No se pudo cargar la analítica. Intenta recargar la página.</p>`;
+      return;
+    }
+    analyticsBody.removeAttribute("aria-busy");
+    analyticsBody.innerHTML = renderRhAnalyticsBody(analyticsPayload, analyticsPartial);
+    syncRhDashboardPeriodButtons(root, analyticsPayload.periodDays);
+    try {
+      mountRhDashboardChartsWhenReady(analyticsRoot, analyticsPayload, isStale);
+    } catch (e: unknown) {
+      console.error("[rh-dashboard] chart mount failed", e);
+    }
+    return;
+  }
+
   root.innerHTML = wrapDashboardPageContent(
     renderRhAnalyticsSection(analyticsPayload, analyticsPartial),
   );
-  if (analyticsPayload) {
-    const payloadForCharts = analyticsPayload;
-    requestAnimationFrame(() => {
-      if (isStale()) return;
-      try {
-        mountRhDashboardAnalyticsCharts(root, payloadForCharts);
-      } catch (e: unknown) {
-        console.error("[rh-dashboard] chart mount failed", e);
-      }
-    });
+  const mountedAnalytics = root.querySelector<HTMLElement>("#rh-dashboard-analytics");
+  if (analyticsPayload && mountedAnalytics) {
+    try {
+      mountRhDashboardChartsWhenReady(mountedAnalytics, analyticsPayload, isStale);
+    } catch (e: unknown) {
+      console.error("[rh-dashboard] chart mount failed", e);
+    }
   }
 }
 
@@ -215,7 +271,7 @@ function mountRhOperationalDashboard(container: HTMLElement): void {
     activeNav: "dashboard",
     /** Sin padding-top en `<main>` para que no se vea `bg-surface` gris entre navbar y el degradado del dashboard. */
     mainClass: "pt-0 pb-10",
-    mainHtml: `<div id="rh-dashboard-root" class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10">${wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton())}</div>`,
+    mainHtml: `<div id="rh-dashboard-root" class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10">${wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton(period))}</div>`,
   });
 
   bindRhDashboardPeriodControls(container, (days) => {

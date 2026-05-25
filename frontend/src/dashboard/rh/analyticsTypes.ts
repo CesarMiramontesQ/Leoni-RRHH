@@ -23,6 +23,9 @@ export const RH_DASHBOARD_PERIOD_OPTIONS: readonly { days: RhDashboardPeriodDays
 
 export const DEFAULT_RH_DASHBOARD_PERIOD: RhDashboardPeriodDays = 30;
 
+/** Mensaje unificado cuando una gráfica no tiene datos en el periodo activo. */
+export const RH_DASH_PERIOD_EMPTY_MSG = "No hay datos disponibles para este período";
+
 export type RhDashboardActasKpis = {
   en_proceso: number;
   pendientes_firma: number;

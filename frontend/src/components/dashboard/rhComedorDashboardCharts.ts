@@ -4,6 +4,8 @@ import type {
   RhDashComedorAsistenciaDia,
   RhDashComedorSemanaFutura,
 } from "../../comedor/rh/buildRhDashboardComedorCharts.ts";
+import { RH_DASH_PERIOD_EMPTY_MSG } from "../../dashboard/rh/analyticsTypes.ts";
+import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   asistenciaDiariaTieneDatos,
   registrosFuturosTieneDatos,
@@ -41,7 +43,7 @@ export function renderDashComedorAsistenciaDiariaChart(
   serie: readonly RhDashComedorAsistenciaDia[] | null,
 ): string {
   if (!asistenciaDiariaTieneDatos(serie)) {
-    return `<p class="rh-dash-analytics-empty">Sin registros de asistencia en el periodo.</p>`;
+    return `<p class="rh-dash-analytics-empty">${escapeHtml(RH_DASH_PERIOD_EMPTY_MSG)}</p>`;
   }
   return chartShell(RH_DASH_COMEDOR_ASISTENCIA_CHART_ID, "Porcentaje de asistencia diario");
 }
@@ -50,7 +52,7 @@ export function renderDashComedorRegistrosFuturosChart(
   semanas: readonly RhDashComedorSemanaFutura[] | null,
 ): string {
   if (!registrosFuturosTieneDatos(semanas)) {
-    return `<p class="rh-dash-analytics-empty">Sin registros programados para próximas semanas.</p>`;
+    return `<p class="rh-dash-analytics-empty">${escapeHtml(RH_DASH_PERIOD_EMPTY_MSG)}</p>`;
   }
   return chartShell(RH_DASH_COMEDOR_FUTUROS_CHART_ID, "Registros por semana futura");
 }

@@ -1,4 +1,3 @@
-import { destroyChart } from "../../charts/index.ts";
 import { cssVar } from "../../charts/chartTokens.ts";
 import {
   mountIncidenciasTendenciaPorTipoChart,
@@ -10,6 +9,9 @@ import {
   renderRankingPlaceholder,
 } from "../solicitudes/rhSolicitudesAnalyticsCharts.ts";
 import type { RhDashboardAnalyticsPayload } from "../../dashboard/rh/analyticsTypes.ts";
+import { RH_DASH_PERIOD_EMPTY_MSG } from "../../dashboard/rh/analyticsTypes.ts";
+import { destroyChart, getChart } from "../../charts/index.ts";
+import { escapeHtml } from "../../ui/uiUtils.ts";
 import type { IncidenciaTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { tendenciaPorTipoTieneDatos } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
@@ -42,6 +44,13 @@ function safeMountChart(label: string, mount: () => void): void {
     mount();
   } catch (e: unknown) {
     console.error(`[rh-dashboard] ${label}`, e);
+  }
+}
+
+/** Reajusta gráficas tras cambio de layout (p. ej. tras filtro de periodo). */
+export function resizeRhDashboardAnalyticsCharts(): void {
+  for (const id of RH_DASH_ANALYTICS_CHART_IDS) {
+    getChart(id)?.resize();
   }
 }
 
@@ -86,10 +95,10 @@ export function mountRhDashboardAnalyticsCharts(
 
 export function renderDashEmpleadosRetardosChart(
   ranking: readonly SolicitudRankingRow[],
-  emptyMessage = "Sin retardos registrados en el periodo.",
+  emptyMessage = RH_DASH_PERIOD_EMPTY_MSG,
 ): string {
   if (ranking.length === 0) {
-    return `<p class="rh-dash-analytics-empty">${emptyMessage}</p>`;
+    return `<p class="rh-dash-analytics-empty">${escapeHtml(emptyMessage)}</p>`;
   }
   return renderRankingPlaceholder(
     ranking,
@@ -102,7 +111,7 @@ export function renderDashIncidenciasTendenciaChart(
   tendencia: IncidenciaTendenciaPorTipo | null,
 ): string {
   if (!tendenciaPorTipoTieneDatos(tendencia)) {
-    return `<p class="rh-dash-analytics-empty">Sin incidencias en el periodo.</p>`;
+    return `<p class="rh-dash-analytics-empty">${escapeHtml(RH_DASH_PERIOD_EMPTY_MSG)}</p>`;
   }
   return renderIncidenciasTendenciaPorTipoChart(tendencia!, RH_DASH_INC_TENDENCIA_CHART_ID);
 }

@@ -738,6 +738,13 @@ body {
   cursor: pointer;
 }
 
+.rh-dash-period-btn--active {
+  border-color: var(--color-accent) !important;
+  background-color: var(--color-shell-active-ring) !important;
+  color: var(--color-accent) !important;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+}
+
 .rh-dash-kpi-card {
   border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.26);

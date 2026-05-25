@@ -34,6 +34,10 @@ docker-compose run --rm test pytest tests/test_auth.py -k "test_login"  # un sol
 docker-compose exec backend alembic upgrade head
 docker-compose exec backend alembic revision --autogenerate -m "description"
 docker-compose exec backend python -m app.utils.seed  # crear roles + admin inicial
+
+# Simulación accesos comedor (solo empleados activos existentes; no crea empleados)
+docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo
+docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo --cleanup --execute  # borrar demo previo
 ```
 
 ### Frontend (build, lint)

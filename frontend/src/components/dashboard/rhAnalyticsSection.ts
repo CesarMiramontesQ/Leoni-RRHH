@@ -1,5 +1,8 @@
 import type { RhDashboardAnalyticsPayload, RhDashboardPeriodDays } from "../../dashboard/rh/analyticsTypes.ts";
-import { RH_DASHBOARD_PERIOD_OPTIONS } from "../../dashboard/rh/analyticsTypes.ts";
+import {
+  RH_DASHBOARD_PERIOD_OPTIONS,
+  RH_DASH_PERIOD_EMPTY_MSG,
+} from "../../dashboard/rh/analyticsTypes.ts";
 import { RH_LISTADO_SURFACE, RH_SOLICITUDES_BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
@@ -159,7 +162,7 @@ function renderComedorBlock(payload: RhDashboardAnalyticsPayload): string {
 
   const sinDatos =
     !asistencia?.length && !futuros?.length && errors.length === 0
-      ? `<p class="text-sm text-text-muted">Sin datos de comedor para el periodo.</p>`
+      ? `<p class="rh-dash-analytics-empty">${escapeHtml(RH_DASH_PERIOD_EMPTY_MSG)}</p>`
       : "";
 
   return `
@@ -209,16 +212,13 @@ function renderEmpleadosBlock(payload: RhDashboardAnalyticsPayload): string {
     </section>`;
 }
 
-function renderAnalyticsHero(active: RhDashboardPeriodDays): string {
+export function renderRhAnalyticsHero(active: RhDashboardPeriodDays): string {
   const buttons = RH_DASHBOARD_PERIOD_OPTIONS.map((opt) => {
     const isActive = opt.days === active;
-    const activeCls = isActive
-      ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-light)] text-[color:var(--color-accent)] shadow-sm"
-      : "";
     return `
       <button
         type="button"
-        class="${RH_SOLICITUDES_BTN_SECONDARY} rh-dash-period-btn w-full min-[520px]:w-auto ${activeCls}"
+        class="${RH_SOLICITUDES_BTN_SECONDARY} rh-dash-period-btn w-full min-[520px]:w-auto${isActive ? " rh-dash-period-btn--active" : ""}"
         data-rh-dash-period="${opt.days}"
         aria-pressed="${isActive ? "true" : "false"}"
       >${escapeHtml(opt.label)}</button>`;
@@ -240,24 +240,43 @@ function renderAnalyticsHero(active: RhDashboardPeriodDays): string {
     </section>`;
 }
 
-export function renderRhAnalyticsSectionSkeleton(): string {
+export function renderRhAnalyticsBodySkeleton(): string {
   return `
-    <div class="rh-dashboard-analytics" aria-busy="true">
-      <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card mb-5 animate-pulse p-4 sm:p-6" aria-hidden="true">
-        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div class="space-y-2">
-            <div class="h-7 w-56 max-w-full rounded bg-slate-200"></div>
-            <div class="h-4 w-72 max-w-full rounded bg-slate-100"></div>
-          </div>
-          <div class="flex gap-2">
-            <div class="h-10 w-20 rounded-md bg-slate-100"></div>
-            <div class="h-10 w-20 rounded-md bg-slate-100"></div>
-            <div class="h-10 w-20 rounded-md bg-slate-200"></div>
-          </div>
-        </div>
-      </section>
-      <div class="space-y-8">
-        ${[1, 2, 3].map(() => `<div class="${CARD} min-h-[200px] animate-pulse"><div class="h-full rounded bg-slate-100"></div></div>`).join("")}
+    <div class="flex flex-col gap-8" aria-live="polite">
+      ${[1, 2, 3]
+        .map(
+          () =>
+            `<div class="${CARD} min-h-[200px] animate-pulse" aria-hidden="true"><div class="h-full rounded bg-slate-100"></div></div>`,
+        )
+        .join("")}
+    </div>`;
+}
+
+export function renderRhAnalyticsBody(
+  payload: RhDashboardAnalyticsPayload,
+  partialFailure: boolean,
+): string {
+  const banner = partialFailure
+    ? `<div class="mb-4 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white px-4 py-3 text-sm text-amber-950" role="status">
+        Algunos bloques no pudieron cargarse. Los demás muestran datos disponibles.
+      </div>`
+    : "";
+
+  return `
+    ${banner}
+    <div class="flex flex-col gap-8">
+      ${renderLaboralesBlock(payload)}
+      ${renderComedorBlock(payload)}
+      ${renderEmpleadosBlock(payload)}
+    </div>`;
+}
+
+export function renderRhAnalyticsSectionSkeleton(periodDays: RhDashboardPeriodDays): string {
+  return `
+    <div id="rh-dashboard-analytics" class="rh-dashboard-analytics">
+      ${renderRhAnalyticsHero(periodDays)}
+      <div id="rh-dashboard-analytics-body" aria-busy="true">
+        ${renderRhAnalyticsBodySkeleton()}
       </div>
     </div>`;
 }
@@ -273,20 +292,11 @@ export function renderRhAnalyticsSection(
       </div>`;
   }
 
-  const banner = partialFailure
-    ? `<div class="mb-4 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white px-4 py-3 text-sm text-amber-950" role="status">
-        Algunos bloques no pudieron cargarse. Los demás muestran datos disponibles.
-      </div>`
-    : "";
-
   return `
     <div id="rh-dashboard-analytics" class="rh-dashboard-analytics">
-      ${renderAnalyticsHero(payload.periodDays)}
-      ${banner}
-      <div class="flex flex-col gap-8">
-        ${renderLaboralesBlock(payload)}
-        ${renderComedorBlock(payload)}
-        ${renderEmpleadosBlock(payload)}
+      ${renderRhAnalyticsHero(payload.periodDays)}
+      <div id="rh-dashboard-analytics-body">
+        ${renderRhAnalyticsBody(payload, partialFailure)}
       </div>
     </div>`;
 }
