@@ -420,6 +420,49 @@ async def test_crear_asignacion_empleado_inexistente_retorna_404(client: AsyncCl
 # ===========================================================================
 
 
+async def _setup_asignacion_con_datos(db: AsyncSession):
+    """Helper: crea perfil con cualificaciones, competencias y una asignacion activa."""
+    from app.models.talento import (
+        PerfilCompetenciaRequerida,
+        PerfilCualificacion,
+        PerfilFunciones,
+    )
+
+    area = await make_area(db, descripcion="Eval Suite Test")
+    rh = await make_empleado(db, rol="rh", email="pf_evs_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_evs_emp@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    cual = PerfilCualificacion(
+        puesto_perfil_id=perfil.id,
+        tipo="estudios_finalizados",
+        situacion_deseada="Ingenieria industrial",
+    )
+    db.add(cual)
+
+    comp = PerfilCompetenciaRequerida(
+        puesto_perfil_id=perfil.id,
+        categoria="informatica",
+        descripcion="SAP basico",
+        orden=1,
+    )
+    db.add(comp)
+
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=perfil.id,
+        empleado_id=emp.id,
+        departamento="Test",
+        activo=True,
+    )
+    db.add(asignacion)
+    await db.flush()
+    await db.refresh(cual)
+    await db.refresh(comp)
+    await db.refresh(asignacion)
+
+    return perfil, rh, emp, asignacion, cual, comp
+
+
 @pytest.mark.asyncio
 async def test_put_evaluaciones_cualificacion_id_invalido_retorna_422(client: AsyncClient, db):
     """PUT evaluaciones con cualificacion_id inexistente debe retornar 422, no 500."""
@@ -494,3 +537,192 @@ async def test_put_evaluaciones_competencia_id_invalido_retorna_422(client: Asyn
     assert response.status_code in (400, 422), (
         f"Expected 400 or 422, got {response.status_code}: {response.text}"
     )
+
+
+@pytest.mark.asyncio
+async def test_put_evaluaciones_happy_path_crea_evaluacion(client: AsyncClient, db):
+    """PUT evaluaciones con IDs validos crea evaluacion exitosamente."""
+    perfil, rh, _, asignacion, cual, comp = await _setup_asignacion_con_datos(db)
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "Tiene titulo", "comentarios": "OK"}
+        ],
+        "evaluaciones_competencia": [
+            {"competencia_requerida_id": comp.id, "situacion_actual": "SAP intermedio"}
+        ],
+    }
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    gap_cual = data["gap_cualificaciones"]
+    gap_comp = data["gap_competencias"]
+    assert len(gap_cual) == 1
+    assert len(gap_comp) == 1
+    assert gap_cual[0]["situacion_actual"] == "Tiene titulo"
+    assert gap_cual[0]["evaluado"] is True
+    assert gap_comp[0]["situacion_actual"] == "SAP intermedio"
+    assert gap_comp[0]["evaluado"] is True
+
+
+@pytest.mark.asyncio
+async def test_put_evaluaciones_upsert_actualiza_existente(client: AsyncClient, db):
+    """PUT evaluaciones actualiza una evaluacion existente sin duplicar."""
+    perfil, rh, _, asignacion, cual, _ = await _setup_asignacion_con_datos(db)
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "Version 1"}
+        ],
+    }
+    await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json=payload,
+        headers=headers,
+    )
+
+    payload["evaluaciones_cualificacion"][0]["situacion_actual"] = "Version 2"
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    gap_cual = data["gap_cualificaciones"]
+    assert len(gap_cual) == 1
+    assert gap_cual[0]["situacion_actual"] == "Version 2"
+
+
+@pytest.mark.asyncio
+async def test_put_evaluaciones_cualificacion_de_otro_perfil_retorna_422(client: AsyncClient, db):
+    """PUT evaluaciones con cualificacion_id de otro perfil retorna 422."""
+    from app.models.talento import PerfilCualificacion, PerfilFunciones
+
+    area = await make_area(db, descripcion="Cross Perfil Test")
+    rh = await make_empleado(db, rol="rh", email="pf_cross_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_cross_emp@leoni.test")
+
+    perfil_a = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    perfil_b = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    cual_b = PerfilCualificacion(
+        puesto_perfil_id=perfil_b.id,
+        tipo="experiencia_profesional",
+        situacion_deseada="5 anios en manufactura",
+    )
+    db.add(cual_b)
+
+    asignacion_a = PerfilFunciones(
+        puesto_perfil_id=perfil_a.id,
+        empleado_id=emp.id,
+        departamento="Test",
+        activo=True,
+    )
+    db.add(asignacion_a)
+    await db.flush()
+    await db.refresh(cual_b)
+    await db.refresh(asignacion_a)
+
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "evaluaciones_cualificacion": [
+            {"cualificacion_id": cual_b.id, "situacion_actual": "Cross-perfil hack"}
+        ]
+    }
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil_a.id}/asignaciones/{asignacion_a.id}",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_put_evaluaciones_multiples_ids_invalidos_reporta_todos(client: AsyncClient, db):
+    """PUT evaluaciones con varios IDs invalidos los reporta todos en el error."""
+    from app.models.talento import PerfilFunciones
+
+    area = await make_area(db, descripcion="Multi Invalid Test")
+    rh = await make_empleado(db, rol="rh", email="pf_multi_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_multi_emp@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=perfil.id,
+        empleado_id=emp.id,
+        departamento="Test",
+        activo=True,
+    )
+    db.add(asignacion)
+    await db.flush()
+    await db.refresh(asignacion)
+
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "evaluaciones_cualificacion": [
+            {"cualificacion_id": 88888, "situacion_actual": "Fake 1"},
+            {"cualificacion_id": 77777, "situacion_actual": "Fake 2"},
+        ]
+    }
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert "88888" in body["detail"]
+    assert "77777" in body["detail"]
+
+
+@pytest.mark.asyncio
+async def test_put_evaluaciones_asignacion_inexistente_retorna_404(client: AsyncClient, db):
+    """PUT evaluaciones con asignacion_id inexistente retorna 404."""
+    perfil, rh, _, _, cual, _ = await _setup_asignacion_con_datos(db)
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "No importa"}
+        ]
+    }
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/99999",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_put_evaluaciones_empleado_no_autorizado_retorna_403(client: AsyncClient, db):
+    """PUT evaluaciones con rol empleado retorna 403."""
+    perfil, _, emp, asignacion, cual, _ = await _setup_asignacion_con_datos(db)
+    headers = await auth_headers(client, emp)
+
+    payload = {
+        "evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "No deberia"}
+        ]
+    }
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 403
