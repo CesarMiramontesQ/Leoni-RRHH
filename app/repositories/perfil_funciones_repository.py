@@ -68,9 +68,10 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
         super().__init__(PerfilFunciones, db)
 
     async def list_by_perfil(self, puesto_perfil_id: int) -> list[PerfilFunciones]:
-        """Lista asignaciones activas de un puesto perfil."""
+        """Lista asignaciones activas de un puesto perfil con datos del empleado."""
         result = await self.db.execute(
             select(PerfilFunciones)
+            .options(selectinload(PerfilFunciones.empleado))
             .where(
                 PerfilFunciones.puesto_perfil_id == puesto_perfil_id,
                 PerfilFunciones.activo.is_(True),

@@ -5,6 +5,8 @@ import { BTN_GHOST } from "../ui/uiTokens.ts";
 interface AsignacionItem {
   id: number;
   empleado_id: number;
+  nombre_empleado: string | null;
+  no_empleado: string | null;
   departamento: string | null;
   activo: boolean;
   fecha_firma_superior: string | null;
@@ -67,7 +69,10 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
 
     const rows = asignaciones.map((a) => `
       <tr class="border-b border-slate-100/80 transition-colors hover:bg-slate-50/90">
-        <td class="px-4 py-3 text-sm tabular-nums text-text-primary">${a.empleado_id}</td>
+        <td class="px-4 py-3 text-sm text-text-primary">
+          <span class="font-medium">${a.nombre_empleado ?? `Empleado #${a.empleado_id}`}</span>
+          ${a.no_empleado ? `<span class="ml-2 text-xs text-slate-400 tabular-nums">${a.no_empleado}</span>` : ""}
+        </td>
         <td class="px-4 py-3 text-sm text-slate-600">${a.departamento ?? "—"}</td>
         <td class="px-4 py-3 text-sm">${a.activo ? '<span class="text-emerald-600 font-medium">Activo</span>' : '<span class="text-slate-400">Inactivo</span>'}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_superior ?? "Pendiente"}</td>
@@ -85,7 +90,7 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
           <table class="min-w-[600px] w-full text-left">
             <thead class="border-b border-leoni-blue-light">
               <tr class="text-white">
-                <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">ID Empleado</th>
+                <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Empleado</th>
                 <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Departamento</th>
                 <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Estado</th>
                 <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Firma Superior</th>

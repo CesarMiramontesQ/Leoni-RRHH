@@ -277,7 +277,14 @@ class PerfilFuncionesService:
     async def listar_asignaciones(self, perfil_id: int) -> list[PerfilFuncionesResponse]:
         await self._get_perfil_or_404(perfil_id)
         items = await self.asignacion_repo.list_by_perfil(perfil_id)
-        return [PerfilFuncionesResponse.model_validate(a) for a in items]
+        results = []
+        for a in items:
+            data = PerfilFuncionesResponse.model_validate(a)
+            if a.empleado:
+                data.nombre_empleado = a.empleado.nombre
+                data.no_empleado = a.empleado.no_empleado
+            results.append(data)
+        return results
 
     async def crear_asignacion(
         self, perfil_id: int, data: PerfilFuncionesCreate, current_user: Empleado
