@@ -14,7 +14,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.talento import PerfilFunciones, PuestoPerfil
 from app.repositories.perfil_funciones_repository import (
@@ -406,6 +406,32 @@ class PerfilFuncionesService:
         asignacion = await self.asignacion_repo.get(asignacion_id)
         if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        if evaluaciones_cualificacion:
+            valid_cual_ids = {
+                c.id for c in await self.cualificacion_repo.list_by_perfil(perfil_id)
+            }
+            invalid = [
+                e.cualificacion_id for e in evaluaciones_cualificacion
+                if e.cualificacion_id not in valid_cual_ids
+            ]
+            if invalid:
+                raise DomainValidationError(
+                    f"cualificacion_id inválido para este perfil: {invalid}"
+                )
+
+        if evaluaciones_competencia:
+            valid_comp_ids = {
+                c.id for c in await self.competencia_repo.list_by_perfil(perfil_id)
+            }
+            invalid = [
+                e.competencia_requerida_id for e in evaluaciones_competencia
+                if e.competencia_requerida_id not in valid_comp_ids
+            ]
+            if invalid:
+                raise DomainValidationError(
+                    f"competencia_requerida_id inválido para este perfil: {invalid}"
+                )
 
         # Upsert evaluaciones de cualificacion
         if evaluaciones_cualificacion:
