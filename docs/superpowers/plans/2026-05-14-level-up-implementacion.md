@@ -72,10 +72,13 @@ Diseño (Stitch) → Demo hardcodeada (Track A) → Backend + modelos (Track B) 
 **Objetivo:** Las pantallas que el cliente verá primero — perfiles y capacitación.
 
 #### Pantalla 5 — Perfiles de puesto (tarjetas)
-- [ ] Toggle vista tabla/tarjetas en página puestos existente
-- [ ] Grid de tarjetas con: nombre puesto, personas vinculadas (N), cursos (N), OPLs (N), cumplimiento %, brechas, owner avatar
-- [ ] Datos fake: 8-12 perfiles con métricas variadas
-- [ ] Badge de cumplimiento con color semáforo
+- [x] Toggle vista tabla/tarjetas en página puestos existente
+- [x] Grid de tarjetas con: nombre puesto, personas vinculadas (N), cursos (N), cumplimiento %, brechas, evidencias
+- [x] Datos fake: 8-12 perfiles con métricas variadas
+- [x] Badge de cumplimiento con color semáforo
+- [ ] Quitar owner (empleado + avatar) de la tarjeta
+- [ ] Cambiar enlace "Abrir →" por botón "Ver todos los empleados"
+- [ ] Quitar métrica de OPLs de la tarjeta
 
 #### Pantalla 6 — Perfil de puesto (detalle)
 - [ ] Ruta `#/puestos/:id` nueva página
