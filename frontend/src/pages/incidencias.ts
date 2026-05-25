@@ -89,6 +89,7 @@ function loadingViewModel(
       tableStatus: "loading",
       table: null,
       tableErrorMessage: undefined,
+      empleadosRetardosRanking: [],
     };
   }
   if (kpisHold.kind === "ready") {
@@ -107,6 +108,7 @@ function loadingViewModel(
       tableStatus: "loading",
       table: null,
       tableErrorMessage: undefined,
+      empleadosRetardosRanking: [],
     };
   }
   return {
@@ -124,6 +126,7 @@ function loadingViewModel(
     tableStatus: "loading",
     table: null,
     tableErrorMessage: undefined,
+    empleadosRetardosRanking: [],
   };
 }
 
@@ -149,6 +152,7 @@ function errorViewModel(
     tableStatus: "error",
     table: null,
     tableErrorMessage: message,
+    empleadosRetardosRanking: [],
   };
 }
 

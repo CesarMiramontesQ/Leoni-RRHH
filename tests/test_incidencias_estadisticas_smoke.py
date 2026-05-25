@@ -222,3 +222,52 @@ async def test_catalogo_areas_y_subareas(client: AsyncClient, db, empleado_rh):
     assert r_sub_area.status_code == 200, r_sub_area.text
     subs_area = r_sub_area.json()["items"]
     assert subs_area == ["Linea 1"]
+
+
+@pytest.mark.asyncio
+async def test_estadisticas_filtro_retardo_incluye_tardanza(
+    client: AsyncClient, db, empleado_rh, empleado_supervisor
+):
+    """tipo=retardo agrupa variantes (retardo, tardanza, etc.) para ranking de empleados."""
+    db.add_all(
+        [
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                nombre="Empleado RH",
+                fecha=date(2026, 3, 1),
+            ),
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                nombre="Empleado RH",
+                fecha=date(2026, 3, 2),
+            ),
+            Incidencia(
+                tipo="retardo",
+                empleado_id=empleado_supervisor.id,
+                nombre="Supervisor Uno",
+                fecha=date(2026, 3, 3),
+            ),
+            Incidencia(
+                tipo="Seguridad",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 3, 4),
+            ),
+        ]
+    )
+    await db.flush()
+    headers = await auth_headers(client, empleado_rh)
+    r = await client.get(
+        "/api/v1/incidencias/estadisticas",
+        params={"tipo": "retardo"},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["total_incidencias"] == 3
+    ranking = data["empleados_con_mas_incidencias"]
+    assert len(ranking) == 2
+    assert ranking[0]["total"] == 2
+    assert ranking[0]["nombre"] == "Empleado RH"
+    assert ranking[1]["total"] == 1

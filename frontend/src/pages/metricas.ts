@@ -14,10 +14,12 @@ import {
 } from "../incidencias/rh/incidenciaListFilterHelpers.ts";
 import { incidenciasUiConfig } from "../incidencias/rh/incidenciasUiConfig.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
+import { aggregateEmpleadosRetardosTop } from "../incidencias/rh/aggregateEmpleadosRetardosTop.ts";
 import {
   buildMetricasIncidenciasViewModel,
   type RhIncidenciasFilterCatalog,
 } from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
+import type { SolicitudRankingRow } from "../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
 import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
 import {
@@ -148,6 +150,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   let incEstadisticas: RhIncidenciasEstadisticasData | null = null;
   let incEstadisticasStatus: "loading" | "ready" | "error" = "loading";
   let incEstadisticasError: string | undefined;
+  let incEmpleadosRetardosRanking: readonly SolicitudRankingRow[] = [];
   let incLoadSeq = 0;
 
   function appliedIncidenciasFilters() {
@@ -161,9 +164,10 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       incEstadisticasStatus,
       incEstadisticasError,
       cloneRhIncidenciaListFilters(applied),
-      cloneRhIncidenciaListFilters(filterDraft),
+      cloneRhIncidenciaListFilters(incidenciasFiltersFromSolicitudesMetricas(filterDraft)),
       incUi,
       EMPTY_INC_CATALOG,
+      incEmpleadosRetardosRanking,
     );
   }
 
@@ -200,10 +204,24 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     incEstadisticasStatus = "loading";
     incEstadisticas = null;
     incEstadisticasError = undefined;
+    incEmpleadosRetardosRanking = [];
     paint();
 
     try {
-      incEstadisticas = await fetchIncidenciasEstadisticas(appliedIncidenciasFilters());
+      const applied = appliedIncidenciasFilters();
+      const filtersRetardo = { ...applied, tipo: "retardo" };
+      incEstadisticas = await fetchIncidenciasEstadisticas(applied);
+      if (isStale()) return;
+      try {
+        const retardosStats = await fetchIncidenciasEstadisticas(filtersRetardo);
+        if (!isStale()) {
+          incEmpleadosRetardosRanking = aggregateEmpleadosRetardosTop(
+            retardosStats.empleados_con_mas_incidencias,
+          );
+        }
+      } catch {
+        incEmpleadosRetardosRanking = [];
+      }
       if (isStale()) return;
       incEstadisticasStatus = "ready";
       incEstadisticasError = undefined;
@@ -222,6 +240,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       incEstadisticasStatus = "error";
       incEstadisticasError =
         fetchError?.detail || "No se pudieron cargar las estadísticas de incidencias.";
+      incEmpleadosRetardosRanking = [];
     }
     if (isStale()) return;
     paint();

@@ -14,12 +14,10 @@ import {
   mapProyeccionesToSidebar,
   rhComedorResumenRangeForWeeks,
 } from "../../comedor/rh/buildRhComedorSidebar.ts";
+import { aggregateEmpleadosRetardosTop } from "../../incidencias/rh/aggregateEmpleadosRetardosTop.ts";
 import { buildIncidenciasTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { emptyRhIncidenciaListFilters } from "../../incidencias/rh/types.ts";
-import {
-  aggregateSupervisoresPendientes,
-  computeSolicitudesAnalytics,
-} from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
+import { computeSolicitudesAnalytics } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import type {
   RhDashboardAnalyticsLoadResult,
   RhDashboardAnalyticsPayload,
@@ -45,7 +43,7 @@ function emptyPayload(periodDays: RhDashboardPeriodDays): RhDashboardAnalyticsPa
     laborales: {
       kpis: null,
       solicitudesAnalytics: null,
-      supervisoresPendientesRanking: [],
+      empleadosRetardosRanking: [],
       incidenciasEstadisticas: null,
       incidenciasTendenciaPorTipo: null,
       actas: null,
@@ -69,10 +67,13 @@ export async function fetchRhDashboardAnalytics(
     fecha_fin: fechaFin,
   };
 
+  const incFiltersRetardo = { ...incFilters, tipo: "retardo" };
+
   const [
     globalKpisResult,
     solicitudesResult,
     incidenciasResult,
+    retardosEstadisticasResult,
     actasResult,
     comedorSidebarResult,
     empleadosResult,
@@ -92,6 +93,12 @@ export async function fetchRhDashboardAnalytics(
       .catch((e: unknown) => ({
         ok: false as const,
         err: e instanceof Error ? e.message : "Estadísticas de incidencias no disponibles",
+      })),
+    fetchIncidenciasEstadisticas(incFiltersRetardo)
+      .then((v) => ({ ok: true as const, v }))
+      .catch((e: unknown) => ({
+        ok: false as const,
+        err: e instanceof Error ? e.message : "Ranking de retardos no disponible",
       })),
     getActasDashboardMetricas()
       .then((v) => ({ ok: true as const, v }))
@@ -155,7 +162,7 @@ export async function fetchRhDashboardAnalytics(
   const empleadosErrors: string[] = [];
 
   let solicitudesAnalytics = null;
-  let supervisoresPendientesRanking: RhDashboardAnalyticsPayload["laborales"]["supervisoresPendientesRanking"] =
+  let empleadosRetardosRanking: RhDashboardAnalyticsPayload["laborales"]["empleadosRetardosRanking"] =
     [];
   let laboralesKpis = null;
   let incidenciasEstadisticas = incidenciasResult.ok ? incidenciasResult.v : null;
@@ -170,8 +177,15 @@ export async function fetchRhDashboardAnalytics(
     );
   }
 
+  if (retardosEstadisticasResult.ok) {
+    empleadosRetardosRanking = aggregateEmpleadosRetardosTop(
+      retardosEstadisticasResult.v.empleados_con_mas_incidencias,
+    );
+  } else {
+    laboralesErrors.push(retardosEstadisticasResult.err);
+  }
+
   if (solicitudesResult.ok) {
-    supervisoresPendientesRanking = aggregateSupervisoresPendientes(solicitudesResult.rows);
     const filtered = filterSolicitudRowsByPeriod(solicitudesResult.rows, fechaInicio, fechaFin);
     solicitudesAnalytics = computeSolicitudesAnalytics(filtered);
     laboralesKpis = {
@@ -246,7 +260,7 @@ export async function fetchRhDashboardAnalytics(
     laborales: {
       kpis: laboralesKpis,
       solicitudesAnalytics,
-      supervisoresPendientesRanking,
+      empleadosRetardosRanking,
       incidenciasEstadisticas,
       incidenciasTendenciaPorTipo,
       actas,

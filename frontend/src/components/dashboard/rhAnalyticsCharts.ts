@@ -14,15 +14,15 @@ import type { IncidenciaTendenciaPorTipo } from "../../incidencias/rh/buildIncid
 import { tendenciaPorTipoTieneDatos } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 
-export const RH_DASH_SUP_PENDIENTES_BAR_ID = "rh-dash-sup-pendientes-bar";
+export const RH_DASH_RETARDOS_EMPLEADOS_BAR_ID = "rh-dash-retardos-empleados-bar";
 export { RH_DASH_INC_TENDENCIA_CHART_ID };
 
 export const RH_DASH_ANALYTICS_CHART_IDS = [
-  RH_DASH_SUP_PENDIENTES_BAR_ID,
+  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
   RH_DASH_INC_TENDENCIA_CHART_ID,
 ] as const;
 
-const SUP_PENDIENTES_BAR_COLOR = cssVar("--color-accent", "#2563EB");
+const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
 
 export function tendenciaIncidenciasChartSubtitle(t: IncidenciaTendenciaPorTipo | null): string {
   if (!t) return "Sin datos en el periodo";
@@ -37,14 +37,14 @@ export function mountRhDashboardAnalyticsCharts(
 ): void {
   for (const id of RH_DASH_ANALYTICS_CHART_IDS) destroyChart(id);
 
-  const ranking = payload.laborales.supervisoresPendientesRanking;
+  const ranking = payload.laborales.empleadosRetardosRanking;
   if (ranking.length > 0) {
     mountRankingHorizontalBar(
       root,
-      RH_DASH_SUP_PENDIENTES_BAR_ID,
+      RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
       ranking,
-      SUP_PENDIENTES_BAR_COLOR,
-      "Solicitudes pendientes",
+      RETARDOS_BAR_COLOR,
+      "Retardos",
     );
   }
 
@@ -54,16 +54,17 @@ export function mountRhDashboardAnalyticsCharts(
   }
 }
 
-export function renderDashSupervisoresPendientesChart(
+export function renderDashEmpleadosRetardosChart(
   ranking: readonly SolicitudRankingRow[],
+  emptyMessage = "Sin retardos registrados en el periodo.",
 ): string {
   if (ranking.length === 0) {
-    return `<p class="rh-dash-analytics-empty">Sin solicitudes pendientes de aprobación.</p>`;
+    return `<p class="rh-dash-analytics-empty">${emptyMessage}</p>`;
   }
   return renderRankingPlaceholder(
     ranking,
-    RH_DASH_SUP_PENDIENTES_BAR_ID,
-    "Supervisores y gerentes con más solicitudes pendientes",
+    RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
+    "Top 5 empleados con más retardos",
   );
 }
 

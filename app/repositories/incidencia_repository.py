@@ -40,7 +40,19 @@ def build_incidencia_query_filters(
     """Condiciones AND opcionales para listados y agregados (no incluye alcance por rol)."""
     conds: list = []
     if tipo and tipo.strip():
-        conds.append(Incidencia.tipo == tipo.strip())
+        t = tipo.strip().lower()
+        if t == "retardo":
+            tl = func.lower(Incidencia.tipo)
+            conds.append(
+                or_(
+                    tl == "retardo",
+                    tl == "tardanza",
+                    tl.like("%retard%"),
+                    tl.like("%tardan%"),
+                )
+            )
+        else:
+            conds.append(Incidencia.tipo == tipo.strip())
     if empleado_id is not None:
         conds.append(Incidencia.empleado_id == empleado_id)
     if no_empleado and no_empleado.strip():

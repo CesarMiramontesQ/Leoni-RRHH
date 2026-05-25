@@ -54,8 +54,8 @@ export type RhDashboardAnalyticsPayload = {
   laborales: {
     kpis: RhDashboardLaboralesKpis | null;
     solicitudesAnalytics: RhSolicitudesAnalyticsData | null;
-    /** Ranking por líder directo; todas las `pending` vigentes (sin filtro de periodo). */
-    supervisoresPendientesRanking: readonly SolicitudRankingRow[];
+    /** Top empleados con incidencias de retardo en el periodo seleccionado. */
+    empleadosRetardosRanking: readonly SolicitudRankingRow[];
     incidenciasEstadisticas: RhIncidenciasEstadisticasData | null;
     incidenciasTendenciaPorTipo: IncidenciaTendenciaPorTipo | null;
     actas: RhDashboardActasKpis | null;

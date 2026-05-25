@@ -2,6 +2,8 @@
  * Contratos de la vista administrativa de incidencias (rol RH).
  */
 
+import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
+
 /** Resumen KPI del listado (respuesta `resumen` de GET /incidencias). */
 export type RhIncidenciasListadoResumen = {
   abiertas: number;
@@ -186,6 +188,8 @@ export type RhIncidenciasAdminViewModel = {
   estadisticas: RhIncidenciasEstadisticasData | null;
   estadisticasStatus: "loading" | "ready" | "error";
   estadisticasErrorMessage?: string;
+  /** Top empleados con incidencias de retardo (métricas / dashboard). */
+  empleadosRetardosRanking: readonly SolicitudRankingRow[];
   /** Resumen de estatus del listado (misma petición que la tabla). */
   resumenListado: RhIncidenciasListadoResumen | null;
   filterOptions: RhIncidenciaFilterOptions;

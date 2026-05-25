@@ -4,8 +4,8 @@ import { RH_LISTADO_SURFACE, RH_SOLICITUDES_BTN_SECONDARY } from "../../ui/uiTok
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { renderOccupancyBars, renderRhPlatillosPorSemanaChart } from "../comedor/comedorCharts.ts";
 import {
+  renderDashEmpleadosRetardosChart,
   renderDashIncidenciasTendenciaChart,
-  renderDashSupervisoresPendientesChart,
   tendenciaIncidenciasChartSubtitle,
 } from "./rhAnalyticsCharts.ts";
 
@@ -113,9 +113,9 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
 
   const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
     ${chartCard(
-      "Supervisores/Gerentes con más solicitudes pendientes",
-      "Top 5 · solo colaboradores en línea directa (mando inmediato)",
-      renderDashSupervisoresPendientesChart(payload.laborales.supervisoresPendientesRanking),
+      "Top 5 empleados con más retardos",
+      "Incidencias de tipo retardo en el periodo seleccionado",
+      renderDashEmpleadosRetardosChart(payload.laborales.empleadosRetardosRanking),
     )}
     ${chartCard(
       "Tendencia de incidencias por tipo",
