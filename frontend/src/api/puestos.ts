@@ -255,3 +255,27 @@ export async function deletePerfilCompetencia(perfilId: number, competenciaId: n
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
+
+// ── Asignaciones ─────────────────────────────────────────────────────────────
+
+/** POST /api/v1/perfiles/:id/asignaciones */
+export async function createPerfilAsignacion(
+  perfilId: number,
+  body: { puesto_perfil_id: number; empleado_id: number; departamento?: string },
+): Promise<unknown> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return await res.json();
+}
+
+/** DELETE /api/v1/perfiles/:id/asignaciones/:asignacionId (soft-delete) */
+export async function deletePerfilAsignacion(perfilId: number, asignacionId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
