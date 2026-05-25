@@ -9,6 +9,7 @@ Maneja: PerfilTarea, PerfilCualificacion, PerfilCompetenciaRequerida,
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload
 
 from app.models.talento import (
     PerfilCompetenciaRequerida,
@@ -57,6 +58,7 @@ class PerfilCompetenciaRequeridaRepository(BaseRepository[PerfilCompetenciaReque
         """Lista competencias requeridas de un puesto perfil ordenadas por 'orden'."""
         result = await self.db.execute(
             select(PerfilCompetenciaRequerida)
+            .options(selectinload(PerfilCompetenciaRequerida.competencia))
             .where(PerfilCompetenciaRequerida.puesto_perfil_id == puesto_perfil_id)
             .order_by(PerfilCompetenciaRequerida.orden)
         )

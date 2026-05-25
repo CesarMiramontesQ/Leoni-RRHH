@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
-from app.models.talento import PerfilFunciones, PuestoPerfil
+from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil
 from app.repositories.perfil_funciones_repository import (
     PerfilCompetenciaRequeridaRepository,
     PerfilCualificacionRepository,
@@ -210,7 +210,13 @@ class PerfilFuncionesService:
     async def listar_competencias(self, perfil_id: int) -> list[PerfilCompetenciaRequeridaResponse]:
         await self._get_perfil_or_404(perfil_id)
         items = await self.competencia_repo.list_by_perfil(perfil_id)
-        return [PerfilCompetenciaRequeridaResponse.model_validate(c) for c in items]
+        results = []
+        for c in items:
+            data = PerfilCompetenciaRequeridaResponse.model_validate(c)
+            if c.competencia_id and c.competencia:
+                data.competencia_nombre = c.competencia.nombre
+            results.append(data)
+        return results
 
     async def crear_competencia(
         self, perfil_id: int, data: PerfilCompetenciaRequeridaCreate, current_user: Empleado
@@ -221,13 +227,31 @@ class PerfilFuncionesService:
 
         await self._get_perfil_or_404(perfil_id)
 
+        descripcion = data.descripcion or ""
+        competencia_id = data.competencia_id
+
+        if competencia_id:
+            from sqlalchemy import select
+            result = await self.db.execute(
+                select(Competencia).where(Competencia.id == competencia_id)
+            )
+            catalogo = result.scalar_one_or_none()
+            if not catalogo:
+                raise NotFoundError(entidad="Competencia", id=competencia_id)
+            descripcion = catalogo.nombre
+
         competencia = await self.competencia_repo.create({
             "puesto_perfil_id": perfil_id,
+            "competencia_id": competencia_id,
             "categoria": data.categoria,
-            "descripcion": data.descripcion,
+            "descripcion": descripcion,
             "orden": data.orden,
         })
-        return PerfilCompetenciaRequeridaResponse.model_validate(competencia)
+
+        resp = PerfilCompetenciaRequeridaResponse.model_validate(competencia)
+        if competencia_id:
+            resp.competencia_nombre = descripcion
+        return resp
 
     async def actualizar_competencia(
         self, perfil_id: int, competencia_id: int, data: PerfilCompetenciaRequeridaUpdate, current_user: Empleado

@@ -409,6 +409,9 @@ class PerfilCompetenciaRequerida(Base):
     puesto_perfil_id: Mapped[int] = mapped_column(
         ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
+    competencia_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("competencias.id", ondelete="SET NULL"), nullable=True
+    )
     categoria: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # informatica | idiomas | profesional | social | personal | metodos | complementos
@@ -424,6 +427,9 @@ class PerfilCompetenciaRequerida(Base):
     # Relationships
     puesto_perfil: Mapped["PuestoPerfil"] = relationship(
         "PuestoPerfil", back_populates="competencias_requeridas"
+    )
+    competencia: Mapped[Optional["Competencia"]] = relationship(
+        "Competencia", foreign_keys=[competencia_id]
     )
     evaluaciones: Mapped[List["PerfilFuncionesCompetencia"]] = relationship(
         "PerfilFuncionesCompetencia", back_populates="competencia_requerida", cascade="all, delete-orphan"
