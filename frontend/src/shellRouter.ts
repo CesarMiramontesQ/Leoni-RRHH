@@ -11,6 +11,7 @@ import { mountNotificaciones } from "./pages/notificaciones.ts";
 import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
 import { mountPerfilPuestoDetalle } from "./pages/perfilPuestoDetalle.ts";
+import { mountPuestoEmpleados } from "./pages/puestoEmpleados.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
@@ -125,7 +126,16 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
-    const puestoDetalleMatch = h.match(/^#\/puestos\/(\d+)/);
+    const puestoEmpleadosMatch = h.match(/^#\/puestos\/(\d+)\/empleados/);
+    if (puestoEmpleadosMatch) {
+      const id = Number.parseInt(puestoEmpleadosMatch[1] ?? "", 10);
+      if (!Number.isNaN(id)) {
+        mountPuestoEmpleados(container, id);
+        return;
+      }
+    }
+
+    const puestoDetalleMatch = h.match(/^#\/puestos\/(\d+)$/);
     if (puestoDetalleMatch) {
       const id = Number.parseInt(puestoDetalleMatch[1] ?? "", 10);
       if (!Number.isNaN(id)) {

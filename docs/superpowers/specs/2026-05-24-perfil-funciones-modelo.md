@@ -236,3 +236,4 @@ Estos campos se derivan de relaciones existentes y no necesitan duplicarse:
 2. **`numero_personal` no se duplica** — Ya existe como `empleados.no_empleado` (String(50), unique). La relación FK en `perfil_funciones.empleado_id` es suficiente.
 3. **Firmas sin integración externa** — Se almacenan como texto simple (quién + cuándo), sin validación contra Active Directory ni Okta.
 4. **Sin versionado de template** — El perfil de puesto se sobreescribe directamente. No se guarda historial de versiones.
+5. **"Ver empleados" usa asignaciones (`perfil_funciones`)** — No se usa el área de TRESS como fallback. La relación empleado ↔ puesto es exclusivamente vía `perfil_funciones` porque: (a) los PDFs son asignaciones individuales por empleado, (b) el conteo "N personas" de la tarjeta es de asignados al perfil, (c) el gap analysis requiere la asignación explícita.
