@@ -21,13 +21,7 @@ async def test_crear_habilidad_rh_201(client: AsyncClient, db: AsyncSession):
     payload = {
         "nombre": "Liderazgo Situacional",
         "descripcion": "Capacidad de adaptar el estilo de liderazgo",
-        "tipo": "liderazgo",
-        "niveles_descripcion": {
-            "1": "Basico",
-            "2": "Intermedio",
-            "3": "Avanzado",
-            "4": "Experto",
-        },
+        "tipo": "blanda",
     }
     resp = await client.post(
         "/api/v1/level-up/habilidades", json=payload, headers=headers
@@ -35,7 +29,7 @@ async def test_crear_habilidad_rh_201(client: AsyncClient, db: AsyncSession):
     assert resp.status_code == 201
     data = resp.json()
     assert data["nombre"] == "Liderazgo Situacional"
-    assert data["tipo"] == "liderazgo"
+    assert data["tipo"] == "blanda"
     assert data["activo"] is True
     assert "id" in data
 
@@ -46,7 +40,7 @@ async def test_crear_habilidad_empleado_403(client: AsyncClient, db: AsyncSessio
     emp = await make_empleado(db, rol="empleado", email="emp_hab1@leoni.test")
     headers = await auth_headers(client, emp)
 
-    payload = {"nombre": "Comunicacion Efectiva", "tipo": "comunicacion"}
+    payload = {"nombre": "Comunicacion Efectiva", "tipo": "operativa"}
     resp = await client.post(
         "/api/v1/level-up/habilidades", json=payload, headers=headers
     )
@@ -127,7 +121,7 @@ async def test_filtrar_por_tipo(client: AsyncClient, db: AsyncSession):
 
     await client.post(
         "/api/v1/level-up/habilidades",
-        json={"nombre": "Negociacion Avanzada", "tipo": "comunicacion"},
+        json={"nombre": "Negociacion Avanzada", "tipo": "operativa"},
         headers=headers,
     )
     await client.post(
@@ -137,12 +131,12 @@ async def test_filtrar_por_tipo(client: AsyncClient, db: AsyncSession):
     )
 
     resp = await client.get(
-        "/api/v1/level-up/habilidades?tipo=comunicacion", headers=headers
+        "/api/v1/level-up/habilidades?tipo=operativa", headers=headers
     )
     assert resp.status_code == 200
     data = resp.json()
     for item in data["items"]:
-        assert item["tipo"] == "comunicacion"
+        assert item["tipo"] == "operativa"
 
 
 @pytest.mark.asyncio
@@ -153,7 +147,7 @@ async def test_filtrar_por_busqueda(client: AsyncClient, db: AsyncSession):
 
     await client.post(
         "/api/v1/level-up/habilidades",
-        json={"nombre": "Comunicacion Asertiva", "tipo": "comunicacion"},
+        json={"nombre": "Comunicacion Asertiva", "tipo": "operativa"},
         headers=headers,
     )
 
@@ -196,7 +190,7 @@ async def test_obtener_por_id_200(client: AsyncClient, db: AsyncSession):
 
     resp_create = await client.post(
         "/api/v1/level-up/habilidades",
-        json={"nombre": "Pensamiento Critico", "tipo": "tecnica_transversal"},
+        json={"nombre": "Pensamiento Critico", "tipo": "tecnica"},
         headers=headers,
     )
     hab_id = resp_create.json()["id"]
@@ -233,12 +227,12 @@ async def test_actualizar_habilidad_200(client: AsyncClient, db: AsyncSession):
 
     resp = await client.put(
         f"/api/v1/level-up/habilidades/{hab_id}",
-        json={"nombre": "Adaptabilidad al Cambio", "tipo": "liderazgo"},
+        json={"nombre": "Adaptabilidad al Cambio", "tipo": "blanda"},
         headers=headers,
     )
     assert resp.status_code == 200
     assert resp.json()["nombre"] == "Adaptabilidad al Cambio"
-    assert resp.json()["tipo"] == "liderazgo"
+    assert resp.json()["tipo"] == "blanda"
 
 
 @pytest.mark.asyncio
@@ -328,18 +322,3 @@ async def test_eliminada_no_aparece_en_listado(client: AsyncClient, db: AsyncSes
     assert hab_id not in ids
 
 
-@pytest.mark.asyncio
-async def test_niveles_descripcion_claves_invalidas_422(client: AsyncClient, db: AsyncSession):
-    """niveles_descripcion con claves fuera de rango retorna 422."""
-    rh = await make_empleado(db, rol="rh", email="rh_hab_niv@leoni.test")
-    headers = await auth_headers(client, rh)
-
-    payload = {
-        "nombre": "Test Niveles",
-        "tipo": "blanda",
-        "niveles_descripcion": {"0": "Invalido", "6": "Fuera de rango"},
-    }
-    resp = await client.post(
-        "/api/v1/level-up/habilidades", json=payload, headers=headers
-    )
-    assert resp.status_code == 422
