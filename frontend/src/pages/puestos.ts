@@ -116,10 +116,6 @@ function renderCardGrid(): string {
           <span><b class="font-semibold tabular-nums">${p.cursos}</b> <span class="text-slate-500">cursos</span></span>
         </div>
         <div class="flex items-center gap-1.5">
-          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span><b class="font-semibold tabular-nums">${p.opls}</b> <span class="text-slate-500">OPLs</span></span>
-        </div>
-        <div class="flex items-center gap-1.5">
           <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <span><b class="font-semibold tabular-nums">${p.evidencias}</b> <span class="text-slate-500">evidencias</span></span>
         </div>
@@ -131,12 +127,9 @@ function renderCardGrid(): string {
         </div>
         ${brechasBar(p.brechas)}
       </div>
-      <div class="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
-        <div class="flex items-center gap-2">
-          <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${ownerInitials(p.owner)}</span>
-          <span class="text-xs text-slate-600">${escapeHtml(p.owner)}</span>
-        </div>
-        <a href="#/puestos/101" class="text-xs font-semibold text-leoni-blue hover:underline">Abrir →</a>
+      <div class="mt-auto flex items-center gap-2 border-t border-slate-100 pt-3">
+        <a href="#/puestos/101" class="flex-1 rounded-lg border border-leoni-blue/20 bg-leoni-blue/5 px-3 py-1.5 text-center text-xs font-semibold text-leoni-blue hover:bg-leoni-blue/10 transition">Ver puesto</a>
+        <a href="#/puestos/101/empleados" class="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Ver empleados</a>
       </div>
     </div>
   `).join("");
