@@ -8,6 +8,7 @@ Endpoints:
   GET    /api/v1/perfiles/{perfil_id}/tareas
   POST   /api/v1/perfiles/{perfil_id}/tareas
   PUT    /api/v1/perfiles/{perfil_id}/tareas/{tarea_id}
+  PUT    /api/v1/perfiles/{perfil_id}/tareas/reorder
   DELETE /api/v1/perfiles/{perfil_id}/tareas/{tarea_id}
 
   ── Cualificaciones ──
@@ -89,6 +90,23 @@ async def crear_tarea(
     """Crea una tarea para el perfil. Solo RH o supervisor."""
     service = PerfilFuncionesService(db)
     return await service.crear_tarea(perfil_id=perfil_id, data=body, current_user=current_user)
+
+
+class ReorderItem(BaseModel):
+    id: int
+    orden: int
+
+
+@router.put("/{perfil_id}/tareas/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reordenar_tareas(
+    perfil_id: int,
+    body: list[ReorderItem],
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reordena tareas del perfil. Solo RH o supervisor."""
+    service = PerfilFuncionesService(db)
+    await service.reordenar_tareas(perfil_id=perfil_id, items=body, current_user=current_user)
 
 
 @router.put("/{perfil_id}/tareas/{tarea_id}", response_model=PerfilTareaResponse)

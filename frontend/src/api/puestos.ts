@@ -190,6 +190,16 @@ export async function deletePerfilTarea(perfilId: number, tareaId: number): Prom
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
 
+/** PUT /api/v1/perfiles/:id/tareas/reorder */
+export async function reorderPerfilTareas(perfilId: number, items: { id: number; orden: number }[]): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(items),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
 // ── Cualificaciones ──────────────────────────────────────────────────────────
 
 export type PerfilCualificacion = { id: number; tipo: string; situacion_deseada: string; comentarios: string | null };

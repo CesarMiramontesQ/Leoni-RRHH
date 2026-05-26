@@ -136,6 +136,22 @@ class PerfilFuncionesService:
 
         await self.tarea_repo.hard_delete(tarea_id)
 
+    async def reordenar_tareas(
+        self, perfil_id: int, items: list, current_user: Empleado
+    ) -> None:
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede gestionar tareas del perfil")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        for item in items:
+            tarea = await self.tarea_repo.get(item.id)
+            if not tarea or tarea.puesto_perfil_id != perfil_id:
+                raise NotFoundError(entidad="PerfilTarea", id=item.id)
+            tarea.orden = item.orden
+        await self.db.flush()
+
     # ══════════════════════════════════════════════════════════════════════════
     # CUALIFICACIONES
     # ══════════════════════════════════════════════════════════════════════════
