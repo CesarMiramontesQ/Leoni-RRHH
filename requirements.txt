@@ -15,6 +15,7 @@ openpyxl==3.1.5
 reportlab==4.2.5
 psycopg2-binary==2.9.10
 pypdf
+# Paquetes siguientes: solo desarrollo / integraciones IA (no en imagen prod — ver requirements-prod.txt)
 pymupdf==1.25.3
 chromadb==0.5.23
 langchain==0.3.19
@@ -23,7 +24,7 @@ langchain-community==0.3.18
 langchain-ollama==0.2.3
 langchain-text-splitters==0.3.8
 
-# Windows only — TRESS integration (descomentar en servidor Windows)
+# Windows only — TRESS integration (descomentar en servidor Windows; no en imagen prod)
 # pyodbc==5.2.0
 # pywinauto==0.6.8
 # pywin32==308

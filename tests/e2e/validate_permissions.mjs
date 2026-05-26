@@ -42,8 +42,23 @@ const NAV_EXPECTATIONS = {
     hidden: ["Organigrama"],
   },
   rh: {
-    visible: ["Dashboard", "Organigrama", "Solicitudes", "Incidencias", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
-    hidden: [],
+    visible: ["Dashboard", "Métricas", "Solicitudes", "Incidencias", "Gestión Comedor", "Reporte de comedor", "Empleados"],
+    hidden: [
+      "Organigrama",
+      "Actas",
+      "Evaluaciones",
+      "Capacitaciones",
+      "Perfiles de Puesto",
+      "Matriz de Competencias",
+      "Matriz de Capacidades",
+      "Matriz de Habilidades",
+      "Manejo de Cursos",
+      "Manejo de OPLs",
+      "Motor de Evidencias",
+      "Motor de Sugerencias",
+      "Encuestas Post Curso",
+      "Ajustes",
+    ],
   },
 };
 

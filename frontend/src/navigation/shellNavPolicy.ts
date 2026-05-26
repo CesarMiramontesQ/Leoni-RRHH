@@ -36,11 +36,25 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "capacitaciones",
 ]);
 
+/**
+ * Menú lateral para rol `rh` en versión 1.0 de producción.
+ * Solo afecta visualización; rutas y permisos backend permanecen intactos.
+ */
+const RH_V1_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
+  "dashboard",
+  "metricas",
+  "solicitudes",
+  "incidencias",
+  "comedor",
+  "reportes",
+  "empleados",
+]);
+
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 
 const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
-/** Items visibles solo para rh, director, gerente (Talento + Level Up). */
+/** Items visibles solo para director y gerente (Talento + Level Up). */
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "tareas-catalogo", "competencias", "capacidades", "habilidades",
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
@@ -51,14 +65,16 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
 const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set();
 
 /**
- * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.
+ * Ítems del sidebar visibles según rol.
+ * `empleado` y `rh` usan subconjuntos explícitos; el resto de roles conservan las reglas por defecto.
  */
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+  if (rol === "rh") return RH_V1_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(rol ?? "");
   if (RH_ONLY_NAV_IDS.has(itemId)) return rol === "rh";
-  if (TALENTO_NAV_IDS.has(itemId)) return rol === "rh" || rol === "director" || rol === "gerente";
+  if (TALENTO_NAV_IDS.has(itemId)) return rol === "director" || rol === "gerente";
   if (rol === "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
   if (rol === "gerente" && GERENTE_HIDDEN_NAV_IDS.has(itemId)) return false;
   return true;

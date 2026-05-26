@@ -1,3 +1,5 @@
+# Producción V1.0: solo postgres, backend y frontend.
+# Sin servicios Ollama, TRESS ni torniquete; el backend no recibe variables de esas integraciones.
 services:
   postgres:
     image: postgres:15-alpine
@@ -34,15 +36,11 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      OLLAMA_URL: ${OLLAMA_URL:-http://localhost:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
-      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-16384}
+      # IT Mirror: opcional en V1.0; vacío = job de sync sin BD externa (ver app/main.py).
       IT_MIRROR_DB_URL: ${IT_MIRROR_DB_URL:-}
       IT_SYNC_INTERVAL_MINUTES: ${IT_SYNC_INTERVAL_MINUTES:-30}
-      TRESS_ODBC_CONN: ${TRESS_ODBC_CONN:-}
       HUELLA_WHITELIST_IPS: ${HUELLA_WHITELIST_IPS:-}
       COMEDOR_TERMINAL_IPS: ${COMEDOR_TERMINAL_IPS:-}
-      TORNIQUETE_API_KEY: ${TORNIQUETE_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

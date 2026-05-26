@@ -354,6 +354,15 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
         </li>`;
 
   const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
+  const menuPrincipalBlock =
+    primaryLis.trim() === "" ?
+      ""
+    : `<li>
+          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
+            ${primaryLis}
+          </ul>
+        </li>`;
 
   const formacionLis = NAV_FORMACION.map((d) => navItemLi(activeNav, rol, d)).join("");
   const formacionHeadingId = "shell-nav-section-formacion";
@@ -384,12 +393,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
     </div>
     <nav class="relative flex flex-1 flex-col">
       <ul role="list" class="flex flex-1 flex-col gap-y-5">
-        <li>
-          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
-            ${primaryLis}
-          </ul>
-        </li>
+        ${menuPrincipalBlock}
         ${groupSectionLis}
         ${talentoBlock}
         ${formacionBlock}
