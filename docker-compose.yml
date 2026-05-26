@@ -1,3 +1,6 @@
+# Proyecto Compose aislado: no comparte estado con docker-compose.prod.yml (leoni-rh-prod).
+name: leoni-rh-dev
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -85,4 +88,6 @@ services:
 
 volumes:
   postgres_data:
+    # Nombre fijo: conserva datos aunque cambie el proyecto Compose (antes: leoni-rrhh_postgres_data).
+    name: leoni-rrhh_postgres_data
     driver: local

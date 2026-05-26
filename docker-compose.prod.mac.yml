@@ -1,0 +1,14 @@
+# Override local Mac: puertos distintos a dev para correr prod y dev a la vez.
+# Uso:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.mac.yml \
+#     --env-file .env.prod.test up -d
+services:
+  backend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8001:8000"
+
+  frontend:
+    ports:
+      - "8080:80"

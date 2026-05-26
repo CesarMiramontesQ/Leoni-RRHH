@@ -1,6 +1,12 @@
 # Producción V1.0: backend y frontend.
 # PostgreSQL principal (leoni_rh) y bono_productividad son externos (cliente); sin contenedor de BD.
 # Sin servicios Ollama, TRESS ni torniquete; el backend no recibe variables de esas integraciones.
+#
+# Proyecto Compose: leoni-rh-prod (aislado de leoni-rh-dev).
+# Uso: docker compose -f docker-compose.prod.yml --env-file .env up -d
+# Prueba en Mac en paralelo con dev: añadir -f docker-compose.prod.mac.yml
+name: leoni-rh-prod
+
 services:
   backend:
     build:
