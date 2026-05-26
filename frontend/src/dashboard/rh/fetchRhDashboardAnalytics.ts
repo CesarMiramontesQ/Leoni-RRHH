@@ -72,7 +72,6 @@ export async function fetchRhDashboardAnalytics(
     retardosEstadisticasResult,
     actasResult,
     comedorSidebarResult,
-    empleadosResult,
   ] = await Promise.all([
     getDashboardKpis().then((v) => ({ ok: true as const, v })).catch((e: unknown) => ({
       ok: false as const,
@@ -127,17 +126,10 @@ export async function fetchRhDashboardAnalytics(
         };
       }
     })(),
-    getEmpleadosResumen()
-      .then((v) => ({ ok: true as const, v }))
-      .catch((e: unknown) => ({
-        ok: false as const,
-        err: e instanceof Error ? e.message : "Resumen de empleados no disponible",
-      })),
   ]);
 
   const laboralesErrors: string[] = [];
   const comedorErrors: string[] = [];
-  const empleadosErrors: string[] = [];
 
   let solicitudesAnalytics = null;
   let empleadosRetardosRanking: RhDashboardAnalyticsPayload["laborales"]["empleadosRetardosRanking"] =
@@ -249,13 +241,6 @@ export async function fetchRhDashboardAnalytics(
     comedorErrors.push(comedorSidebarResult.err);
   }
 
-  let empleadosResumen = null;
-  if (empleadosResult.ok) {
-    empleadosResumen = empleadosResult.v;
-  } else {
-    empleadosErrors.push(empleadosResult.err);
-  }
-
   const payload: RhDashboardAnalyticsPayload = {
     ...emptyPayload(periodDays),
     globalKpis: globalKpisResult.ok ? globalKpisResult.v : null,
@@ -273,18 +258,31 @@ export async function fetchRhDashboardAnalytics(
       registrosFuturosPorSemana,
       errors: comedorErrors,
     },
-    empleados: {
-      resumen: empleadosResumen,
-      errors: empleadosErrors,
-    },
+    empleados: { resumen: null, errors: [] },
   };
 
   if (!globalKpisResult.ok) {
     /* global KPIs optional; no block */
   }
 
-  const partialFailure =
-    laboralesErrors.length > 0 || comedorErrors.length > 0 || empleadosErrors.length > 0;
+  const partialFailure = laboralesErrors.length > 0 || comedorErrors.length > 0;
 
   return { payload, partialFailure };
+}
+
+export type RhDashboardEmpleadosSlice = RhDashboardAnalyticsPayload["empleados"];
+
+/** Resumen de plantilla: no depende del periodo del dashboard. */
+export async function fetchRhDashboardEmpleados(): Promise<RhDashboardEmpleadosSlice> {
+  try {
+    const v = await getEmpleadosResumen();
+    return { resumen: v, errors: [] };
+  } catch (e: unknown) {
+    return {
+      resumen: null,
+      errors: [
+        e instanceof Error ? e.message : "Resumen de empleados no disponible",
+      ],
+    };
+  }
 }

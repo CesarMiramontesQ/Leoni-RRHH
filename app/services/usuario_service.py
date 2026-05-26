@@ -9,6 +9,7 @@ Flujos principales:
 """
 
 import logging
+import unicodedata
 from datetime import date
 
 from fastapi import BackgroundTasks
@@ -36,12 +37,53 @@ from app.schemas.usuarios import (
     UsuarioAsignacionUpdate,
     UsuarioListItem,
     UsuarioPageResponse,
+    EmpleadoDistribucionItem,
+    EmpleadosPorClasificacionAreaSerie,
     UsuarioResumenResponse,
     UsuarioResponse,
     UsuarioVista360Response,
     Vista360TurnoEmpleado,
 )
 from app.utils.audit_logger import audit_background
+
+_CLASIFICACION_TIPOS_DASHBOARD = ("administrativo", "directo", "indirecto")
+
+
+def _normalize_clasificacion_text(value: str) -> str:
+    no_accents = "".join(
+        ch
+        for ch in unicodedata.normalize("NFD", value)
+        if unicodedata.category(ch) != "Mn"
+    )
+    return no_accents.strip().lower()
+
+
+def _tipo_clasificacion_dashboard(
+    descripcion: str,
+    significado: str | None = None,
+) -> str | None:
+    """Resuelve tipo de gráfica desde catálogo IT (códigos D/A/I o texto en significado)."""
+    for raw in (significado, descripcion):
+        if not raw or not str(raw).strip():
+            continue
+        normalized = _normalize_clasificacion_text(str(raw))
+        if normalized in ("a", "administrativo") or "administrat" in normalized:
+            return "administrativo"
+        if normalized in ("i", "indirecto") or "indirect" in normalized:
+            return "indirecto"
+        if normalized in ("d", "directo") or (
+            "direct" in normalized and "indirect" not in normalized
+        ):
+            return "directo"
+    return None
+
+
+def _clasificacion_display_label(descripcion: str, significado: str | None) -> str:
+    desc = (descripcion or "").strip()
+    sig = (significado or "").strip()
+    if sig and sig.lower() != desc.lower():
+        return f"{desc} — {sig}" if desc else sig
+    return desc or sig or "Sin nombre"
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +278,43 @@ class UsuarioService:
         contratos_pv = await self.repo.count_contratos_por_vencer(
             estados, None, hoy, dias_ventana=30
         )
+        clasificaciones = await self.repo.list_clasificaciones_activas()
+        por_tipo: dict[str, object] = {}
+        for cl in clasificaciones:
+            tipo = _tipo_clasificacion_dashboard(cl.descripcion, cl.significado)
+            if tipo and tipo not in por_tipo:
+                por_tipo[tipo] = cl
+
+        series: list[EmpleadosPorClasificacionAreaSerie] = []
+        for tipo in _CLASIFICACION_TIPOS_DASHBOARD:
+            cl = por_tipo.get(tipo)
+            if cl is not None:
+                por_area = await self.repo.count_activos_por_area_clasificacion(
+                    estados, cl.clasificacion_id
+                )
+                series.append(
+                    EmpleadosPorClasificacionAreaSerie(
+                        tipo=tipo,
+                        clasificacion_id=cl.clasificacion_id,
+                        clasificacion_descripcion=_clasificacion_display_label(
+                            cl.descripcion, cl.significado
+                        ),
+                        por_area=[
+                            EmpleadoDistribucionItem(label=label, total=total)
+                            for label, total in por_area
+                        ],
+                    )
+                )
+            else:
+                series.append(
+                    EmpleadosPorClasificacionAreaSerie(
+                        tipo=tipo,
+                        clasificacion_id=None,
+                        clasificacion_descripcion="Sin clasificación en catálogo",
+                        por_area=[],
+                    )
+                )
+
         return UsuarioResumenResponse(
             total_plantilla=total,
             activos=activos,
@@ -245,6 +324,7 @@ class UsuarioService:
             porcentaje_operatividad=pct,
             colaboradores_total=activos,
             contratos_por_vencer=contratos_pv,
+            empleados_por_clasificacion_y_area=series,
         )
 
     async def resumen_directorio(self, current_user: Empleado) -> UsuarioResumenResponse:

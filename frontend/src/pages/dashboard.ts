@@ -7,11 +7,13 @@ import {
 } from "../auth/jwt.ts";
 import {
   mountRhDashboardAnalyticsCharts,
+  mountRhDashboardEmpleadosCharts,
   resizeRhDashboardAnalyticsCharts,
   RH_DASH_ANALYTICS_CHART_IDS,
 } from "../components/dashboard/rhAnalyticsCharts.ts";
 import {
   renderRhAnalyticsBody,
+  renderRhAnalyticsBodyPeriodLoading,
   renderRhAnalyticsBodySkeleton,
   renderRhAnalyticsSection,
   renderRhAnalyticsSectionSkeleton,
@@ -21,7 +23,11 @@ import type {
   RhDashboardAnalyticsPayload,
   RhDashboardPeriodDays,
 } from "../dashboard/rh/analyticsTypes.ts";
-import { fetchRhDashboardAnalytics } from "../dashboard/rh/fetchRhDashboardAnalytics.ts";
+import {
+  fetchRhDashboardAnalytics,
+  fetchRhDashboardEmpleados,
+  type RhDashboardEmpleadosSlice,
+} from "../dashboard/rh/fetchRhDashboardAnalytics.ts";
 import {
   readStoredRhDashboardPeriod,
   storeRhDashboardPeriod,
@@ -143,6 +149,13 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
 }
 
 let rhDashLoadSeq = 0;
+let rhDashEmpleadosCache: RhDashboardEmpleadosSlice | null = null;
+
+async function loadRhDashboardEmpleados(): Promise<RhDashboardEmpleadosSlice> {
+  if (rhDashEmpleadosCache) return rhDashEmpleadosCache;
+  rhDashEmpleadosCache = await fetchRhDashboardEmpleados();
+  return rhDashEmpleadosCache;
+}
 
 function syncRhDashboardPeriodButtons(root: ParentNode, activeDays: RhDashboardPeriodDays): void {
   root.querySelectorAll<HTMLButtonElement>("[data-rh-dash-period]").forEach((btn) => {
@@ -208,25 +221,37 @@ async function loadRhOperationalDashboard(
   if (analyticsRoot) destroyChartsIn(analyticsRoot);
 
   const canPatchBody = analyticsRoot !== null && analyticsBody !== null;
+  const pinEmpleadosWhileLoading = canPatchBody && rhDashEmpleadosCache !== null;
   if (canPatchBody) {
     syncRhDashboardPeriodButtons(root, periodDays);
     analyticsBody.setAttribute("aria-busy", "true");
-    analyticsBody.innerHTML = renderRhAnalyticsBodySkeleton();
+    analyticsBody.innerHTML = pinEmpleadosWhileLoading
+      ? renderRhAnalyticsBodyPeriodLoading(rhDashEmpleadosCache!)
+      : renderRhAnalyticsBodySkeleton();
+    if (pinEmpleadosWhileLoading && analyticsRoot && rhDashEmpleadosCache) {
+      mountRhDashboardEmpleadosCharts(analyticsRoot, rhDashEmpleadosCache);
+    }
   } else {
     root.innerHTML = wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton(periodDays));
   }
 
-  let analyticsPayload = null;
+  let analyticsPayload: RhDashboardAnalyticsPayload | null = null;
   let analyticsPartial = false;
+  let empleadosSlice: RhDashboardEmpleadosSlice = { resumen: null, errors: [] };
   try {
-    const result = await fetchRhDashboardAnalytics(periodDays).catch((e: unknown) => {
-      console.error("[rh-dashboard] fetch analytics failed", e);
-      return null;
-    });
+    const [periodResult, empleadosResult] = await Promise.all([
+      fetchRhDashboardAnalytics(periodDays).catch((e: unknown) => {
+        console.error("[rh-dashboard] fetch analytics failed", e);
+        return null;
+      }),
+      loadRhDashboardEmpleados(),
+    ]);
     if (isStale()) return;
-    if (result) {
-      analyticsPayload = result.payload;
-      analyticsPartial = result.partialFailure;
+    empleadosSlice = empleadosResult;
+    if (periodResult) {
+      analyticsPayload = { ...periodResult.payload, empleados: empleadosSlice };
+      analyticsPartial =
+        periodResult.partialFailure || empleadosSlice.errors.length > 0;
     }
   } catch {
     if (isStale()) return;

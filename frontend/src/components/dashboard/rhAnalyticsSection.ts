@@ -14,6 +14,11 @@ import {
   renderDashIncidenciasTendenciaChart,
   tendenciaIncidenciasChartSubtitle,
 } from "./rhAnalyticsCharts.ts";
+import {
+  RH_DASH_EMPLEADOS_CLASIFICACION_CHARTS,
+  empleadosClasificacionChartSubtitle,
+  renderDashEmpleadosClasificacionAreaChart,
+} from "./rhEmpleadosDashboardCharts.ts";
 
 const CARD = `${RH_LISTADO_SURFACE} rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm sm:p-5`;
 
@@ -28,11 +33,19 @@ const iconKpiReloj = (): string =>
 const iconKpiVacaciones = (): string =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>`;
 
+const iconKpiActivos = (): string =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
+
+const iconKpiSinLider = (): string =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z" /></svg>`;
+
+type RhSolKpiAccent = "pendiente" | "vacaciones" | "urgente" | "aprobadas" | "ho";
+
 function laboralesKpiCard(
   title: string,
   subtitle: string,
   value: string,
-  accent: "pendiente" | "vacaciones" | "urgente",
+  accent: RhSolKpiAccent,
   icon: () => string,
 ): string {
   return `
@@ -50,18 +63,6 @@ function laboralesKpiCard(
         </div>
       </div>
     </article>`;
-}
-
-function kpiMini(label: string, value: string, hint?: string): string {
-  const hintHtml = hint
-    ? `<p class="mt-0.5 text-[10px] text-[color:var(--color-text-muted)]">${escapeHtml(hint)}</p>`
-    : "";
-  return `
-    <div class="rounded-lg border border-[rgba(148,163,184,0.22)] bg-[color:var(--color-surface-container-low)] px-3 py-2.5 min-w-0 h-full">
-      <p class="text-[10px] font-semibold uppercase leading-snug tracking-wide text-[color:var(--color-text-muted)]">${escapeHtml(label)}</p>
-      <p class="mt-0.5 text-lg font-bold tabular-nums text-[color:var(--color-text-primary)]">${escapeHtml(value)}</p>
-      ${hintHtml}
-    </div>`;
 }
 
 function renderLaboralesKpiRow(
@@ -180,27 +181,46 @@ function renderComedorBlock(payload: RhDashboardAnalyticsPayload): string {
     </section>`;
 }
 
-function renderEmpleadosBlock(payload: RhDashboardAnalyticsPayload): string {
-  const r = payload.empleados.resumen;
-  const errors = payload.empleados.errors;
+export function renderEmpleadosBlock(empleados: RhDashboardAnalyticsPayload["empleados"]): string {
+  const r = empleados.resumen;
+  const errors = empleados.errors;
+  const series = r?.empleados_por_clasificacion_y_area;
 
-  const kpisRow = r
-    ? `<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        ${kpiMini("Plantilla", fmtInt(r.total_plantilla))}
-        ${kpiMini("Activos", fmtInt(r.activos))}
-        ${kpiMini("Inactivos", fmtInt(r.inactivos))}
-        ${kpiMini("Operatividad", `${fmtInt(r.porcentaje_operatividad)}%`)}
-        ${kpiMini("Sin líder", fmtInt(r.sin_lider_asignado))}
-        ${kpiMini("Contratos 30d", fmtInt(r.contratos_por_vencer))}
+  const kpiCards = r
+    ? `<div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+        ${laboralesKpiCard(
+          "Activos",
+          `${fmtInt(r.porcentaje_operatividad)}% operatividad`,
+          fmtInt(r.activos),
+          "aprobadas",
+          iconKpiActivos,
+        )}
+        ${laboralesKpiCard(
+          "Sin líder",
+          "Sin responsable jerárquico asignado",
+          fmtInt(r.sin_lider_asignado),
+          "ho",
+          iconKpiSinLider,
+        )}
       </div>`
     : `<p class="text-sm text-text-muted">Resumen de plantilla no disponible.</p>`;
+
+  const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+    ${RH_DASH_EMPLEADOS_CLASIFICACION_CHARTS.map((def) =>
+      chartCard(
+        def.title,
+        empleadosClasificacionChartSubtitle(series, def.tipo),
+        renderDashEmpleadosClasificacionAreaChart(series, def),
+      ),
+    ).join("")}
+  </div>`;
 
   return `
     <section class="rh-dash-analytics-block" aria-labelledby="rh-dash-empleados-title">
       <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 id="rh-dash-empleados-title" class="text-base font-semibold text-[color:var(--color-text-primary)]">Empleados</h3>
-          <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">Plantilla y riesgos de contrato</p>
+          <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">Plantilla actual · sin filtro de periodo</p>
         </div>
         <div class="flex flex-wrap gap-3">
           ${sectionLink("#/empleados", "Directorio")}
@@ -208,7 +228,8 @@ function renderEmpleadosBlock(payload: RhDashboardAnalyticsPayload): string {
         </div>
       </div>
       ${blockErrors(errors)}
-      ${kpisRow}
+      ${kpiCards}
+      ${charts}
     </section>`;
 }
 
@@ -229,7 +250,7 @@ export function renderRhAnalyticsHero(active: RhDashboardPeriodDays): string {
       <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
         <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
           <h1 id="rh-dash-analytics-title" class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Analítica operativa</h1>
-          <p class="mt-2 max-w-[65ch] text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Resumen por dominio · datos filtrados por periodo (solicitudes e incidencias)</p>
+          <p class="mt-2 max-w-[65ch] text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Laborales, incidencias y comedor respetan el periodo seleccionado · empleados muestra la plantilla actual</p>
         </div>
         <div
           class="rh-sol-header__toolbar rh-sol-header__toolbar--dual flex w-full shrink-0 flex-col gap-2 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:justify-end md:w-auto md:flex-nowrap md:items-center md:justify-end md:gap-2.5"
@@ -240,15 +261,30 @@ export function renderRhAnalyticsHero(active: RhDashboardPeriodDays): string {
     </section>`;
 }
 
+const periodSkeletonCells = (): string =>
+  [1, 2]
+    .map(
+      () =>
+        `<div class="${CARD} min-h-[200px] animate-pulse" aria-hidden="true"><div class="h-full rounded bg-slate-100"></div></div>`,
+    )
+    .join("");
+
 export function renderRhAnalyticsBodySkeleton(): string {
   return `
     <div class="flex flex-col gap-8" aria-live="polite">
-      ${[1, 2, 3]
-        .map(
-          () =>
-            `<div class="${CARD} min-h-[200px] animate-pulse" aria-hidden="true"><div class="h-full rounded bg-slate-100"></div></div>`,
-        )
-        .join("")}
+      ${periodSkeletonCells()}
+      ${periodSkeletonCells()}
+    </div>`;
+}
+
+/** Al cambiar periodo: solo skeleton en bloques con filtro temporal; empleados permanece visible. */
+export function renderRhAnalyticsBodyPeriodLoading(
+  empleados: RhDashboardAnalyticsPayload["empleados"],
+): string {
+  return `
+    <div class="flex flex-col gap-8" aria-live="polite">
+      <div class="flex flex-col gap-8">${periodSkeletonCells()}</div>
+      ${renderEmpleadosBlock(empleados)}
     </div>`;
 }
 
@@ -267,7 +303,7 @@ export function renderRhAnalyticsBody(
     <div class="flex flex-col gap-8">
       ${renderLaboralesBlock(payload)}
       ${renderComedorBlock(payload)}
-      ${renderEmpleadosBlock(payload)}
+      ${renderEmpleadosBlock(payload.empleados)}
     </div>`;
 }
 

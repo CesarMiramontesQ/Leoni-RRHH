@@ -104,6 +104,22 @@ class UsuarioPageResponse(BaseModel):
     page_size: int
 
 
+class EmpleadoDistribucionItem(BaseModel):
+    """Conteo agrupado para gráficas del dashboard RH (resumen de plantilla)."""
+
+    label: str
+    total: int
+
+
+class EmpleadosPorClasificacionAreaSerie(BaseModel):
+    """Activos por área para una clasificación (catálogo `clasificacion_empleado`)."""
+
+    tipo: str
+    clasificacion_id: int | None = None
+    clasificacion_descripcion: str
+    por_area: list[EmpleadoDistribucionItem] = []
+
+
 class UsuarioResumenResponse(BaseModel):
     total_plantilla: int
     activos: int
@@ -113,6 +129,7 @@ class UsuarioResumenResponse(BaseModel):
     porcentaje_operatividad: float
     colaboradores_total: int
     contratos_por_vencer: int
+    empleados_por_clasificacion_y_area: list[EmpleadosPorClasificacionAreaSerie] = []
 
 
 class CatalogoFiltrosResponse(BaseModel):

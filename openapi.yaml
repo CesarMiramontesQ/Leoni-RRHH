@@ -289,6 +289,32 @@ components:
         page_size:
           type: integer
 
+    EmpleadoDistribucionItem:
+      type: object
+      required: [label, total]
+      properties:
+        label:
+          type: string
+        total:
+          type: integer
+
+    EmpleadosPorClasificacionAreaSerie:
+      type: object
+      required: [tipo, clasificacion_descripcion, por_area]
+      properties:
+        tipo:
+          type: string
+          enum: [administrativo, directo, indirecto]
+        clasificacion_id:
+          type: integer
+          nullable: true
+        clasificacion_descripcion:
+          type: string
+        por_area:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmpleadoDistribucionItem"
+
     UsuarioResumenResponse:
       type: object
       required:
@@ -300,6 +326,7 @@ components:
         - porcentaje_operatividad
         - colaboradores_total
         - contratos_por_vencer
+        - empleados_por_clasificacion_y_area
       properties:
         total_plantilla:
           type: integer
@@ -318,6 +345,10 @@ components:
           type: integer
         contratos_por_vencer:
           type: integer
+        empleados_por_clasificacion_y_area:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmpleadosPorClasificacionAreaSerie"
 
     CatalogoFiltrosResponse:
       type: object

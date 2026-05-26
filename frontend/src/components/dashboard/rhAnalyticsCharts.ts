@@ -20,14 +20,24 @@ import {
   mountDashComedorRegistrosFuturosChart,
   RH_DASH_COMEDOR_CHART_IDS,
 } from "./rhComedorDashboardCharts.ts";
+import {
+  mountDashEmpleadosClasificacionAreaCharts,
+  RH_DASH_EMPLEADOS_CHART_IDS,
+} from "./rhEmpleadosDashboardCharts.ts";
 
 export const RH_DASH_RETARDOS_EMPLEADOS_BAR_ID = "rh-dash-retardos-empleados-bar";
 export { RH_DASH_INC_TENDENCIA_CHART_ID };
 
-export const RH_DASH_ANALYTICS_CHART_IDS = [
+/** Gráficas que sí cambian con el selector de periodo. */
+export const RH_DASH_PERIOD_CHART_IDS = [
   RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
   RH_DASH_INC_TENDENCIA_CHART_ID,
   ...RH_DASH_COMEDOR_CHART_IDS,
+] as const;
+
+export const RH_DASH_ANALYTICS_CHART_IDS = [
+  ...RH_DASH_PERIOD_CHART_IDS,
+  ...RH_DASH_EMPLEADOS_CHART_IDS,
 ] as const;
 
 const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
@@ -54,11 +64,11 @@ export function resizeRhDashboardAnalyticsCharts(): void {
   }
 }
 
-export function mountRhDashboardAnalyticsCharts(
+export function mountRhDashboardPeriodCharts(
   root: ParentNode,
   payload: RhDashboardAnalyticsPayload,
 ): void {
-  for (const id of RH_DASH_ANALYTICS_CHART_IDS) destroyChart(id);
+  for (const id of RH_DASH_PERIOD_CHART_IDS) destroyChart(id);
 
   const ranking = payload.laborales.empleadosRetardosRanking;
   if (ranking.length > 0) {
@@ -91,6 +101,28 @@ export function mountRhDashboardAnalyticsCharts(
       mountDashComedorRegistrosFuturosChart(root, futuros),
     );
   }
+
+}
+
+export function mountRhDashboardEmpleadosCharts(
+  root: ParentNode,
+  empleados: RhDashboardAnalyticsPayload["empleados"],
+): void {
+  for (const id of RH_DASH_EMPLEADOS_CHART_IDS) destroyChart(id);
+  const series = empleados.resumen?.empleados_por_clasificacion_y_area;
+  if (!series?.length) return;
+  safeMountChart("empleados por clasificacion y area", () =>
+    mountDashEmpleadosClasificacionAreaCharts(root, series),
+  );
+}
+
+/** Monta periodo + empleados (carga inicial). */
+export function mountRhDashboardAnalyticsCharts(
+  root: ParentNode,
+  payload: RhDashboardAnalyticsPayload,
+): void {
+  mountRhDashboardPeriodCharts(root, payload);
+  mountRhDashboardEmpleadosCharts(root, payload.empleados);
 }
 
 export function renderDashEmpleadosRetardosChart(

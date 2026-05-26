@@ -1,5 +1,19 @@
 /** Tipos compartidos (directorio en GET /api/v1/empleados; CRUD en /api/v1/usuarios). */
 
+export type EmpleadoDistribucionItem = {
+  label: string;
+  total: number;
+};
+
+export type EmpleadosClasificacionTipo = "administrativo" | "directo" | "indirecto";
+
+export type EmpleadosPorClasificacionAreaSerie = {
+  tipo: EmpleadosClasificacionTipo;
+  clasificacion_id: number | null;
+  clasificacion_descripcion: string;
+  por_area: readonly EmpleadoDistribucionItem[];
+};
+
 export type UsuarioResumen = {
   total_plantilla: number;
   activos: number;
@@ -11,6 +25,8 @@ export type UsuarioResumen = {
   colaboradores_total: number;
   /** Contratos con fin en los próximos 30 días (mismo alcance). */
   contratos_por_vencer: number;
+  /** Activos por área, desglosados por clasificación (solo resumen RH / plantilla completa). */
+  empleados_por_clasificacion_y_area?: readonly EmpleadosPorClasificacionAreaSerie[];
 };
 
 export type RolBrief = { id: number; nombre: string };
