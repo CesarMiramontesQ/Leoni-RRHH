@@ -28,7 +28,7 @@ from app.models.tress import TressRobotQueue
 from app.models.talento import (
     PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
     Capacitacion, Inscripcion,
-    PerfilTarea, PerfilCualificacion, PerfilCompetenciaRequerida,
+    PerfilTarea, PerfilCualificacion,
     PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia,
 )
 from app.models.level_up import (
@@ -84,7 +84,6 @@ __all__ = [
     "Inscripcion",
     "PerfilTarea",
     "PerfilCualificacion",
-    "PerfilCompetenciaRequerida",
     "PerfilFunciones",
     "PerfilFuncionesCualificacion",
     "PerfilFuncionesCompetencia",

@@ -2,17 +2,15 @@
 """
 Repositorio de Perfil de Funciones — acceso a datos async con SQLAlchemy.
 
-Maneja: PerfilTarea, PerfilCualificacion, PerfilCompetenciaRequerida,
+Maneja: PerfilTarea, PerfilCualificacion,
         PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia.
 """
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm import selectinload
 
 from app.models.talento import (
-    PerfilCompetenciaRequerida,
     PerfilCualificacion,
     PerfilFunciones,
     PerfilFuncionesCualificacion,
@@ -48,42 +46,6 @@ class PerfilCualificacionRepository(BaseRepository[PerfilCualificacion]):
             .order_by(PerfilCualificacion.id)
         )
         return list(result.scalars().all())
-
-
-class PerfilCompetenciaRequeridaRepository(BaseRepository[PerfilCompetenciaRequerida]):
-    def __init__(self, db: AsyncSession):
-        super().__init__(PerfilCompetenciaRequerida, db)
-
-    async def list_by_perfil(self, puesto_perfil_id: int) -> list[PerfilCompetenciaRequerida]:
-        """Lista competencias requeridas de un puesto perfil ordenadas por 'orden'."""
-        result = await self.db.execute(
-            select(PerfilCompetenciaRequerida)
-            .options(selectinload(PerfilCompetenciaRequerida.competencia))
-            .where(PerfilCompetenciaRequerida.puesto_perfil_id == puesto_perfil_id)
-            .order_by(PerfilCompetenciaRequerida.orden)
-        )
-        return list(result.scalars().all())
-
-    async def exists_by_competencia_and_perfil(
-        self, competencia_id: int, puesto_perfil_id: int
-    ) -> bool:
-        result = await self.db.execute(
-            select(PerfilCompetenciaRequerida.id)
-            .where(
-                PerfilCompetenciaRequerida.competencia_id == competencia_id,
-                PerfilCompetenciaRequerida.puesto_perfil_id == puesto_perfil_id,
-            )
-            .limit(1)
-        )
-        return result.scalar_one_or_none() is not None
-
-    async def max_orden(self, puesto_perfil_id: int) -> int:
-        from sqlalchemy import func as sa_func
-        result = await self.db.execute(
-            select(sa_func.coalesce(sa_func.max(PerfilCompetenciaRequerida.orden), 0))
-            .where(PerfilCompetenciaRequerida.puesto_perfil_id == puesto_perfil_id)
-        )
-        return result.scalar_one()
 
 
 class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
@@ -169,13 +131,13 @@ class PerfilFuncionesCompetenciaRepository(BaseRepository[PerfilFuncionesCompete
         return list(result.scalars().all())
 
     async def get_by_pair(
-        self, perfil_funciones_id: int, competencia_requerida_id: int
+        self, perfil_funciones_id: int, competencia_requisito_id: int
     ) -> PerfilFuncionesCompetencia | None:
-        """Obtiene evaluacion por par asignacion-competencia_requerida."""
+        """Obtiene evaluacion por par asignacion-competencia_requisito."""
         result = await self.db.execute(
             select(PerfilFuncionesCompetencia).where(
                 PerfilFuncionesCompetencia.perfil_funciones_id == perfil_funciones_id,
-                PerfilFuncionesCompetencia.competencia_requerida_id == competencia_requerida_id,
+                PerfilFuncionesCompetencia.competencia_requisito_id == competencia_requisito_id,
             )
         )
         return result.scalar_one_or_none()

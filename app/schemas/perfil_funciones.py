@@ -7,7 +7,7 @@ Tareas, Cualificaciones, Competencias Requeridas y Asignaciones individuales.
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
@@ -119,44 +119,22 @@ class PerfilCualificacionResponse(BaseModel):
     updated_at: datetime
 
 
-# ── Perfil Competencias Requeridas ──────────────────────────────────────────
+# ── Perfil Competencias (usa tabla unificada competencia_requisitos) ────────
 
 
-class PerfilCompetenciaRequeridaCreate(BaseModel):
-    model_config = {"str_strip_whitespace": True}
-
-    competencia_id: Optional[int] = None
-    categoria: CategoriaCompetenciaRequerida
-    descripcion: Optional[str] = Field(None, min_length=1)
-    orden: Optional[int] = Field(None, ge=1)
-
-    @model_validator(mode="after")
-    def require_competencia_or_descripcion(self) -> "PerfilCompetenciaRequeridaCreate":
-        if self.competencia_id is None and not self.descripcion:
-            raise ValueError("Se requiere competencia_id o descripcion")
-        return self
+class PerfilCompetenciaCreate(BaseModel):
+    competencia_id: int
 
 
-class PerfilCompetenciaRequeridaUpdate(BaseModel):
-    model_config = {"str_strip_whitespace": True}
-
-    categoria: Optional[CategoriaCompetenciaRequerida] = None
-    descripcion: Optional[str] = Field(None, min_length=1)
-    orden: Optional[int] = Field(None, ge=1)
-
-
-class PerfilCompetenciaRequeridaResponse(BaseModel):
+class PerfilCompetenciaResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
-    puesto_perfil_id: int
-    competencia_id: Optional[int] = None
-    competencia_nombre: Optional[str] = None
-    categoria: str
-    descripcion: str
-    orden: int
-    created_at: datetime
-    updated_at: datetime
+    competencia_id: int
+    competencia_nombre: str = ""
+    subcategoria: Optional[str] = None
+    nivel_requerido: int = 0
+    orden: Optional[int] = None
 
 
 # ── Perfil Funciones (asignacion individual) ────────────────────────────────
@@ -246,7 +224,7 @@ class PerfilFuncionesCualificacionResponse(BaseModel):
 class PerfilFuncionesCompetenciaCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
-    competencia_requerida_id: int
+    competencia_requisito_id: int
     situacion_actual: str = Field(..., min_length=1)
     comentarios: Optional[str] = None
 
@@ -263,7 +241,7 @@ class PerfilFuncionesCompetenciaResponse(BaseModel):
 
     id: int
     perfil_funciones_id: int
-    competencia_requerida_id: int
+    competencia_requisito_id: int
     situacion_actual: str
     comentarios: Optional[str] = None
     created_at: datetime
@@ -298,4 +276,4 @@ class PerfilFuncionesCompletoResponse(BaseModel):
     # Colecciones hijas
     tareas: list[PerfilTareaResponse] = []
     cualificaciones: list[PerfilCualificacionResponse] = []
-    competencias_requeridas: list[PerfilCompetenciaRequeridaResponse] = []
+    competencias_requeridas: list[PerfilCompetenciaResponse] = []

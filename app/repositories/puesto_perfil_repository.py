@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.talento import (
+    CompetenciaRequisito,
     PerfilCualificacion,
-    PerfilCompetenciaRequerida,
     PerfilFunciones,
     PerfilFuncionesCualificacion,
     PerfilFuncionesCompetencia,
@@ -132,10 +132,10 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         )
         comp_count_sq = (
             select(
-                PerfilCompetenciaRequerida.puesto_perfil_id,
-                func.count(PerfilCompetenciaRequerida.id).label("total_comp"),
+                CompetenciaRequisito.puesto_perfil_id,
+                func.count(CompetenciaRequisito.id).label("total_comp"),
             )
-            .group_by(PerfilCompetenciaRequerida.puesto_perfil_id)
+            .group_by(CompetenciaRequisito.puesto_perfil_id)
             .subquery()
         )
 

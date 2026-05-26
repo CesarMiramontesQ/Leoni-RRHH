@@ -35,11 +35,11 @@ interface Cualificacion {
 
 interface Competencia {
   id: number;
-  competencia_id: number | null;
-  competencia_nombre: string | null;
-  categoria: string;
-  descripcion: string;
-  orden: number;
+  competencia_id: number;
+  competencia_nombre: string;
+  subcategoria: string | null;
+  nivel_requerido: number;
+  orden: number | null;
 }
 
 interface AsignacionResumen {
@@ -248,22 +248,25 @@ function renderCompetencias(competencias: Competencia[]): string {
 
   const grouped = new Map<string, Competencia[]>();
   for (const c of competencias) {
-    const list = grouped.get(c.categoria) ?? [];
+    const key = c.subcategoria ?? "sin_categoria";
+    const list = grouped.get(key) ?? [];
     list.push(c);
-    grouped.set(c.categoria, list);
+    grouped.set(key, list);
   }
 
-  const sections = Array.from(grouped.entries()).map(([cat, items]) => {
-    const colorClass = CATEGORIA_COLORS[cat] ?? "bg-slate-100 text-slate-600";
+  const sections = Array.from(grouped.entries()).map(([sub, items]) => {
+    const colorClass = CATEGORIA_COLORS[sub] ?? "bg-slate-100 text-slate-600";
+    const label = CATEGORIA_LABELS[sub] ?? sub;
     return `
       <div class="mb-4 last:mb-0">
         <div class="mb-2 flex items-center gap-2">
-          <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${CATEGORIA_LABELS[cat] ?? cat}</span>
+          <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${escapeHtml(label)}</span>
           <span class="text-[10px] text-slate-400">${items.length} competencia${items.length !== 1 ? "s" : ""}</span>
         </div>
         ${items.map(c => `
-          <div class="flex items-center gap-2 py-1.5">
-            <span class="text-sm text-text-primary">${escapeHtml(c.competencia_nombre ?? c.descripcion)}</span>
+          <div class="flex items-center justify-between gap-2 py-1.5">
+            <span class="text-sm text-text-primary">${escapeHtml(c.competencia_nombre)}</span>
+            ${c.nivel_requerido > 0 ? `<span class="text-xs text-slate-500">Nivel ${c.nivel_requerido}</span>` : ""}
           </div>
         `).join("")}
       </div>
@@ -275,10 +278,10 @@ function renderCompetencias(competencias: Competencia[]): string {
     <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
       <div>
         <h2 class="text-sm font-semibold text-text-primary">Competencias requeridas</h2>
-        <p class="text-xs text-slate-500">Por categoria: informatica, idiomas, profesional, etc.</p>
+        <p class="text-xs text-slate-500">Agrupadas por subcategoria del catalogo</p>
       </div>
       <div class="flex items-center gap-2">
-        ${pencilBtn("edit-competencias", "Editar competencias")}
+        ${pencilBtn("edit-competencias", "Agregar competencias")}
         <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${competencias.length}</span>
       </div>
     </div>
