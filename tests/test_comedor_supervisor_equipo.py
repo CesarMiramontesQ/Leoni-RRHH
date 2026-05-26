@@ -442,7 +442,7 @@ async def test_supervisor_metricas_dashboard(client: AsyncClient, db, monkeypatc
                 comedor_registro_id=reg_sup.id,
                 fecha_servicio=date(2026, 4, 23),
                 tipo_comida=ComedorTipoComida.casera,
-                estado_acceso=ComedorAccesoEstado.PENDIENTE,
+                estado_acceso=ComedorAccesoEstado.ACCEDIDO,
             ),
             # Semana próxima (2026-04-27..2026-05-03) dentro del scope
             ComedorAcceso(
@@ -481,6 +481,8 @@ async def test_supervisor_metricas_dashboard(client: AsyncClient, db, monkeypatc
     data = r.json()
     assert data["semana_actual_total"] == 1
     assert data["semana_proxima_total"] == 1
+    assert data["total_asistencias"] == 2
+    assert data["porcentaje_asistencia"] == 100
     assert data["total_activas"] == 2
     assert data["porcentaje_caseras"] == 50
     assert data["porcentaje_saludables"] == 50

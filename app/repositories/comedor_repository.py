@@ -447,6 +447,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
             return {
                 "total_semana_actual": 0,
                 "total_semana_siguiente": 0,
+                "total_asistencias": 0,
                 "total_activas": 0,
                 "total_caseras": 0,
                 "total_saludables": 0,
@@ -485,6 +486,15 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
                     ),
                     0,
                 ).label("total_semana_siguiente"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (ComedorAcceso.estado_acceso == ComedorAccesoEstado.ACCEDIDO, 1),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("total_asistencias"),
                 func.coalesce(func.count(ComedorAcceso.id), 0).label("total_activas"),
                 func.coalesce(
                     func.sum(
@@ -514,6 +524,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         return {
             "total_semana_actual": int(row.total_semana_actual or 0),
             "total_semana_siguiente": int(row.total_semana_siguiente or 0),
+            "total_asistencias": int(row.total_asistencias or 0),
             "total_activas": int(row.total_activas or 0),
             "total_caseras": int(row.total_caseras or 0),
             "total_saludables": int(row.total_saludables or 0),

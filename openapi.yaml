@@ -1597,6 +1597,34 @@ components:
         nombre_corto:
           type: string
 
+    ComedorEquipoMetricas:
+      type: object
+      required:
+        - semana_actual_total
+        - semana_proxima_total
+        - total_asistencias
+        - porcentaje_asistencia
+        - porcentaje_caseras
+        - porcentaje_saludables
+        - total_activas
+      properties:
+        semana_actual_total:
+          type: integer
+        semana_proxima_total:
+          type: integer
+        total_asistencias:
+          type: integer
+          description: Reservas con acceso validado (ACCEDIDO) sobre el total activo del equipo.
+        porcentaje_asistencia:
+          type: integer
+          description: Porcentaje de asistencia vs todas las reservas activas del equipo (0-100).
+        porcentaje_caseras:
+          type: integer
+        porcentaje_saludables:
+          type: integer
+        total_activas:
+          type: integer
+
     ComedorPrimeraFechaReservaResponse:
       type: object
       required: [fecha_iso]
@@ -4241,7 +4269,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/ComedorEquipoMetricas"
 
   /api/v1/comedor/accesos/rh/resumen-diario:
     get:

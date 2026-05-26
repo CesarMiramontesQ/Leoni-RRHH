@@ -225,6 +225,10 @@ export type ComedorEquipoBeneficiarioApiItem = {
 export type ComedorEquipoMetricasApi = {
   semana_actual_total: number;
   semana_proxima_total: number;
+  /** Reservas con acceso validado (huella) sobre el total activo del equipo. */
+  total_asistencias: number;
+  /** Porcentaje de asistencia vs todas las reservas activas/confirmadas del equipo. */
+  porcentaje_asistencia: number;
   porcentaje_caseras: number;
   porcentaje_saludables: number;
   total_activas: number;

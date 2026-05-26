@@ -1,5 +1,28 @@
+import type { ComedorKpi } from "../../comedor/rh/types.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+
+/** KPIs «% Opción A» / «% Opción B» en vista líder (`#/comedor`). */
+const COMEDOR_KPI_IDS_OPCION_AB = new Set(["porcentaje_caseras", "porcentaje_saludables"]);
+
+/** Oculta tarjetas Opción A/B para supervisor; gerente y demás roles sin cambios. */
+export function filterComedorKpisOpcionAbForSupervisor(
+  kpis: readonly ComedorKpi[],
+  isSupervisor: boolean,
+): readonly ComedorKpi[] {
+  if (!isSupervisor) return kpis;
+  return kpis.filter((k) => !COMEDOR_KPI_IDS_OPCION_AB.has(k.id));
+}
+
+export function comedorLiderStatsGridClass(isSupervisor: boolean): string {
+  return isSupervisor
+    ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+    : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
+}
+
+export function comedorLiderStatsSkeletonCount(isSupervisor: boolean): number {
+  return isSupervisor ? 3 : 5;
+}
 
 /** Cabecera de tabla alineada a Solicitudes (`.rh-sol-th` + reglas bajo `#rh-comedor-page`). */
 export const COMEDOR_TABLE_TH =

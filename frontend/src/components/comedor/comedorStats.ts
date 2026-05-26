@@ -76,8 +76,8 @@ function renderKpiCard(kpi: ComedorKpi): string {
     </article>`;
 }
 
-function renderLoadingCards(): string {
-  const skel = `
+function renderLoadingCardSkeleton(): string {
+  return `
     <div class="rh-sol-kpi-skel rh-comedor-kpi-card flex min-h-46 animate-pulse flex-col rounded-2xl border border-[rgba(148,163,184,0.2)] bg-linear-to-br from-white to-[#f8fbff] p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] sm:p-5">
       <div class="flex items-center gap-2.5">
         <div class="size-11 shrink-0 rounded-[12px] bg-slate-200/90"></div>
@@ -89,17 +89,27 @@ function renderLoadingCards(): string {
         <div class="h-3 w-2/3 rounded-md bg-slate-100/80"></div>
       </div>
     </div>`;
-  return Array.from({ length: 4 }, () => skel).join("");
 }
+
+export type RenderComedorStatsOptions = {
+  gridClass?: string;
+  skeletonCount?: number;
+};
 
 export function renderComedorStats(
   state: ComedorPanelState,
   kpis: readonly ComedorKpi[] | null,
   errorMessage: string | null,
-  gridClass = "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4",
+  opts?: RenderComedorStatsOptions | string,
 ): string {
+  const resolvedOpts: RenderComedorStatsOptions =
+    typeof opts === "string" ? { gridClass: opts } : (opts ?? {});
+  const gridClass = resolvedOpts.gridClass ?? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4";
+  const skeletonCount = resolvedOpts.skeletonCount ?? 4;
+
   if (state === "loading") {
-    return `<section class="${gridClass}">${renderLoadingCards()}</section>`;
+    const skelCards = Array.from({ length: skeletonCount }, () => renderLoadingCardSkeleton()).join("");
+    return `<section class="${gridClass}">${skelCards}</section>`;
   }
 
   if (state === "error") {
