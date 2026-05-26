@@ -155,6 +155,18 @@ export async function updateCompetencia(id: number, payload: CompetenciaUpdatePa
   };
 }
 
+/** GET /api/v1/competencias/:id/puestos — puestos asociados */
+export type PuestoAsociado = { id: number; codigo: string; nombre: string };
+
+export async function getCompetenciaPuestos(id: number): Promise<PuestoAsociado[]> {
+  const res = await fetchWithAuth(`/api/v1/competencias/${id}/puestos`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as CompetenciasFetchError;
+  }
+  return (await res.json()) as PuestoAsociado[];
+}
+
 /** DELETE /api/v1/competencias/:id */
 export async function deleteCompetencia(id: number): Promise<void> {
   const res = await fetchWithAuth(`/api/v1/competencias/${id}`, {

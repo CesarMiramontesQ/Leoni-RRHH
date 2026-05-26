@@ -179,6 +179,17 @@ async def actualizar_competencia(
     return await service.actualizar(id=id, data=body, current_user=current_user)
 
 
+@router.get("/{id}/puestos")
+async def listar_puestos_asociados(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista los puestos que tienen esta competencia como requisito."""
+    service = CompetenciaService(db)
+    return await service.listar_puestos_asociados(id=id)
+
+
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_competencia(
     id: int,
