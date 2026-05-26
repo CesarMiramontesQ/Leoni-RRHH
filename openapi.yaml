@@ -2323,6 +2323,82 @@ components:
           additionalProperties:
             type: string
 
+    BonoHistoricoImportLogItem:
+      type: object
+      required:
+        - id
+        - fuente
+        - origen_ejecucion
+        - status
+        - started_at
+        - finished_at
+        - created_at
+      properties:
+        id:
+          type: integer
+        fuente:
+          type: string
+          enum:
+            - empleados
+            - calidad_historico
+            - seguridad_historico
+            - importadas_historico
+            - evaluacion_historica_gral
+        corrida_id:
+          type: string
+          format: uuid
+          nullable: true
+        origen_ejecucion:
+          type: string
+          enum: [scheduler, manual]
+        status:
+          type: string
+          enum: [ok, skipped, error]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        leidos:
+          type: integer
+          nullable: true
+        insertados:
+          type: integer
+          nullable: true
+        omitidos:
+          type: integer
+          nullable: true
+        errores:
+          type: integer
+          nullable: true
+        mensajes_error:
+          type: array
+          items:
+            type: string
+          nullable: true
+        error_msg:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    BonoHistoricoImportLogListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BonoHistoricoImportLogItem"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
     MessageResponse:
       type: object
       required: [message]
@@ -2749,6 +2825,67 @@ paths:
           description: Rol no autorizado
         "503":
           description: Error de lectura/inserción en proceso de sincronización
+
+  /api/v1/bono-productividad/import-historico/logs:
+    get:
+      tags: [Bono productividad]
+      summary: Historial de importaciones bono histórico
+      description: >-
+        Corridas de los jobs programados (empleados, calidad_historico, seguridad_historico,
+        importadas_historico, evaluacion_historica_gral) y ejecuciones manuales.
+      operationId: bono_productividad_import_historico_logs_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fuente
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - empleados
+              - calidad_historico
+              - seguridad_historico
+              - importadas_historico
+              - evaluacion_historica_gral
+        - name: corrida_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ok, skipped, error]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Historial paginado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BonoHistoricoImportLogListResponse"
+        "401":
+          description: No autenticado
+        "403":
+          description: Rol no autorizado
 
   # ── Autenticacion ───────────────────────────────────
   /api/v1/auth/login:

@@ -50,6 +50,7 @@ import app.models.emails  # noqa: F401
 import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
 import app.models.vacaciones  # noqa: F401
+import app.models.bono_historico_import_log  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password

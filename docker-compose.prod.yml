@@ -1,33 +1,34 @@
-# Producción V1.0: solo postgres, backend y frontend.
+# Producción V1.0: backend y frontend.
+# PostgreSQL principal (leoni_rh) y bono_productividad son externos (cliente); sin contenedor de BD.
 # Sin servicios Ollama, TRESS ni torniquete; el backend no recibe variables de esas integraciones.
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: leoni_rh_db
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
-
   backend:
     build:
       context: .
       target: production
-    container_name: leoni_rh_backend
+    container_name: leoni_rh_backend_prod
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # DATABASE_URL explícita tiene prioridad; si no, se arma con DB_* (ver .env.prod.example).
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_WAIT_MAX_RETRIES: ${DB_WAIT_MAX_RETRIES:-30}
+      DB_WAIT_DELAY_SECONDS: ${DB_WAIT_DELAY_SECONDS:-2}
+      # Bono productividad (solo lectura): scheduler nocturno e imports históricos (ver .env.prod.example)
+      BONO_DB_HOST: ${BONO_DB_HOST:-}
+      BONO_DB_PORT: ${BONO_DB_PORT:-5432}
+      BONO_DB_NAME: ${BONO_DB_NAME:-}
+      BONO_DB_USER: ${BONO_DB_USER:-}
+      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD:-}
+      BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
+      BONO_CALIDAD_HISTORICO_IMPORT_ENABLED: ${BONO_CALIDAD_HISTORICO_IMPORT_ENABLED:-true}
+      BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: ${BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR:-2}
+      BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: ${BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE:-0}
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-15}
@@ -41,22 +42,16 @@ services:
       IT_SYNC_INTERVAL_MINUTES: ${IT_SYNC_INTERVAL_MINUTES:-30}
       HUELLA_WHITELIST_IPS: ${HUELLA_WHITELIST_IPS:-}
       COMEDOR_TERMINAL_IPS: ${COMEDOR_TERMINAL_IPS:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Mexico_City}
     restart: always
 
   frontend:
     build:
       context: ./frontend
       target: production
-    container_name: leoni_rh_frontend
+    container_name: leoni_rh_frontend_prod
     ports:
       - "80:80"
     depends_on:
       - backend
     restart: always
-
-volumes:
-  postgres_data:
-    driver: local

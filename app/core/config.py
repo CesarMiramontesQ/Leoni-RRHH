@@ -1,6 +1,8 @@
-from typing import List, Union
+import os
+from typing import List, Self, Union
+from urllib.parse import quote_plus
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,8 +24,26 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    # Database
+    # Database (desarrollo: DATABASE_URL o postgres local; producción: DB_* o DATABASE_URL)
     DATABASE_URL: str = "postgresql+asyncpg://leoni:leoni_dev_pass@localhost:5432/leoni_rh"
+    DB_HOST: str = ""
+    DB_PORT: int = 5432
+    DB_NAME: str = ""
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+
+    @model_validator(mode="after")
+    def resolve_database_url(self) -> Self:
+        if os.getenv("DATABASE_URL"):
+            return self
+        if self.DB_HOST.strip() and self.DB_NAME.strip() and self.DB_USER.strip():
+            user = quote_plus(self.DB_USER.strip())
+            password = quote_plus(self.DB_PASSWORD)
+            self.DATABASE_URL = (
+                f"postgresql+asyncpg://{user}:{password}"
+                f"@{self.DB_HOST.strip()}:{self.DB_PORT}/{self.DB_NAME.strip()}"
+            )
+        return self
 
     # PostgreSQL bono_productividad (solo lectura; independiente de DATABASE_URL)
     BONO_DB_HOST: str = ""

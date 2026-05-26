@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
         logger.info(
-            "Job bono_historico_import (calidad, seguridad, importadas, evaluación) programado a las %02d:%02d (%s)",
+            "Job bono_historico_import (empleados, calidad, seguridad, importadas, evaluación) programado a las %02d:%02d (%s)",
             settings.BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR,
             settings.BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE,
             settings.APP_TIMEZONE,

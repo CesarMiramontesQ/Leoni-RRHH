@@ -10,10 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import role_checker
 from app.models.empleados import Empleado
+from app.schemas.bono_historico_import_log import (
+    BonoHistoricoImportLogListResponse,
+    FuenteBonoHistoricoSchema,
+)
 from app.schemas.bono_productividad import (
     BonoIncidenciasListaResponse,
     BonoIncidenciasSyncResponse,
 )
+from app.services.bono_historico_import_log_service import BonoHistoricoImportLogService
 from app.services.bono_productividad_incidencias_service import (
     BonoProductividadIncidenciasService,
 )
@@ -101,4 +106,42 @@ async def sync_incidencias_bono_a_local(
     return await service.sync_incidencias(
         dry_run=dry_run,
         limit=limit,
+    )
+
+
+@router.get(
+    "/import-historico/logs",
+    response_model=BonoHistoricoImportLogListResponse,
+    summary="Historial de importaciones bono histórico",
+    description=(
+        "Corridas de los jobs programados (calidad, seguridad, importadas, evaluación) "
+        "y ejecuciones manuales. Filtrar por `fuente`, `corrida_id` o `status`."
+    ),
+)
+async def listar_logs_import_historico_bono(
+    fuente: Annotated[
+        FuenteBonoHistoricoSchema | None,
+        Query(description="Tabla fuente en bono_productividad"),
+    ] = None,
+    corrida_id: Annotated[
+        str | None,
+        Query(description="UUID que agrupa los 4 imports de una misma corrida nocturna"),
+    ] = None,
+    status: Annotated[
+        str | None,
+        Query(description="ok, skipped o error"),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    service = BonoHistoricoImportLogService(db)
+    return await service.listar(
+        fuente=fuente,
+        corrida_id=(corrida_id or "").strip() or None,
+        status=(status or "").strip() or None,
+        limit=limit,
+        offset=offset,
     )
