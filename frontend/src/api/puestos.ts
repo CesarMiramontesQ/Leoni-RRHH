@@ -247,7 +247,7 @@ export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCom
 /** POST /api/v1/perfiles/:id/competencias */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id?: number; categoria: string; descripcion?: string; orden: number },
+  body: { competencia_id?: number; categoria: string; descripcion?: string; orden?: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",

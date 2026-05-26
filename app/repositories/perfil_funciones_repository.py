@@ -64,6 +64,27 @@ class PerfilCompetenciaRequeridaRepository(BaseRepository[PerfilCompetenciaReque
         )
         return list(result.scalars().all())
 
+    async def exists_by_competencia_and_perfil(
+        self, competencia_id: int, puesto_perfil_id: int
+    ) -> bool:
+        result = await self.db.execute(
+            select(PerfilCompetenciaRequerida.id)
+            .where(
+                PerfilCompetenciaRequerida.competencia_id == competencia_id,
+                PerfilCompetenciaRequerida.puesto_perfil_id == puesto_perfil_id,
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def max_orden(self, puesto_perfil_id: int) -> int:
+        from sqlalchemy import func as sa_func
+        result = await self.db.execute(
+            select(sa_func.coalesce(sa_func.max(PerfilCompetenciaRequerida.orden), 0))
+            .where(PerfilCompetenciaRequerida.puesto_perfil_id == puesto_perfil_id)
+        )
+        return result.scalar_one()
+
 
 class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
     def __init__(self, db: AsyncSession):

@@ -128,7 +128,7 @@ class PerfilCompetenciaRequeridaCreate(BaseModel):
     competencia_id: Optional[int] = None
     categoria: CategoriaCompetenciaRequerida
     descripcion: Optional[str] = Field(None, min_length=1)
-    orden: int = Field(..., ge=1)
+    orden: Optional[int] = Field(None, ge=1)
 
     @model_validator(mode="after")
     def require_competencia_or_descripcion(self) -> "PerfilCompetenciaRequeridaCreate":

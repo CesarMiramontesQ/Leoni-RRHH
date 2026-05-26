@@ -1830,6 +1830,9 @@ components:
         categoria:
           type: string
           enum: [tecnica, blanda]
+        subcategoria:
+          type: [string, "null"]
+          enum: [informatica, idiomas, profesional, social, personal, metodos, complementos, null]
         area_id:
           type: [integer, "null"]
 
@@ -1845,6 +1848,9 @@ components:
         categoria:
           type: string
           enum: [tecnica, blanda]
+        subcategoria:
+          type: [string, "null"]
+          enum: [informatica, idiomas, profesional, social, personal, metodos, complementos, null]
         area_id:
           type: [integer, "null"]
 
@@ -1861,6 +1867,8 @@ components:
         categoria:
           type: string
           enum: [tecnica, blanda]
+        subcategoria:
+          type: [string, "null"]
         area_id:
           type: [integer, "null"]
         area_nombre:

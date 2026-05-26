@@ -72,6 +72,7 @@ export async function getCompetencias(opts?: { page_size?: number }): Promise<Co
     id: c.id as number,
     nombre: (c.nombre ?? "") as string,
     grupo: (c.categoria === "blanda" ? "habilidad_blanda" : "tecnica") as Competencia["grupo"],
+    subcategoria: (c.subcategoria ?? undefined) as string | undefined,
     descripcion: (c.descripcion ?? "") as string,
     activa: (c.activo ?? true) as boolean,
     created_at: (c.created_at ?? "") as string,
@@ -90,6 +91,7 @@ export async function getCompetenciaById(id: number): Promise<Competencia> {
     id: c.id,
     nombre: c.nombre ?? "",
     grupo: c.categoria === "blanda" ? "habilidad_blanda" : "tecnica",
+    subcategoria: c.subcategoria ?? undefined,
     descripcion: c.descripcion ?? "",
     activa: c.activo ?? true,
     created_at: c.created_at ?? "",
@@ -98,11 +100,12 @@ export async function getCompetenciaById(id: number): Promise<Competencia> {
 
 /** POST /api/v1/competencias */
 export async function createCompetencia(payload: CompetenciaCreatePayload): Promise<Competencia> {
-  const body = {
+  const body: Record<string, unknown> = {
     nombre: payload.nombre,
     descripcion: payload.descripcion,
     categoria: payload.grupo === "habilidad_blanda" ? "blanda" : "tecnica",
   };
+  if (payload.subcategoria) body.subcategoria = payload.subcategoria;
   const res = await fetchWithAuth("/api/v1/competencias", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -117,6 +120,7 @@ export async function createCompetencia(payload: CompetenciaCreatePayload): Prom
     id: c.id,
     nombre: c.nombre ?? "",
     grupo: c.categoria === "blanda" ? "habilidad_blanda" : "tecnica",
+    subcategoria: c.subcategoria ?? undefined,
     descripcion: c.descripcion ?? "",
     activa: c.activo ?? true,
     created_at: c.created_at ?? "",
@@ -129,6 +133,7 @@ export async function updateCompetencia(id: number, payload: CompetenciaUpdatePa
   if (payload.nombre !== undefined) body.nombre = payload.nombre;
   if (payload.descripcion !== undefined) body.descripcion = payload.descripcion;
   if (payload.grupo !== undefined) body.categoria = payload.grupo === "habilidad_blanda" ? "blanda" : "tecnica";
+  if (payload.subcategoria !== undefined) body.subcategoria = payload.subcategoria;
   const res = await fetchWithAuth(`/api/v1/competencias/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -143,6 +148,7 @@ export async function updateCompetencia(id: number, payload: CompetenciaUpdatePa
     id: c.id,
     nombre: c.nombre ?? "",
     grupo: c.categoria === "blanda" ? "habilidad_blanda" : "tecnica",
+    subcategoria: c.subcategoria ?? undefined,
     descripcion: c.descripcion ?? "",
     activa: c.activo ?? true,
     created_at: c.created_at ?? "",

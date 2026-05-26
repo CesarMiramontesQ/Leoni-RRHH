@@ -119,6 +119,7 @@ class Competencia(Base):
     categoria: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # 'tecnica' | 'blanda'
+    subcategoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     area_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("areas.area_id"), nullable=True
     )

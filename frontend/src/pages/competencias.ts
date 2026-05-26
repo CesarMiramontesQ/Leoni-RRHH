@@ -103,13 +103,19 @@ function renderCatalogoTab(items: Competencia[], filterText: string): string {
     ? items.filter((c) => c.nombre.toLowerCase().includes(filterText.toLowerCase()) || c.descripcion.toLowerCase().includes(filterText.toLowerCase()))
     : items;
 
+  const subcatLabels: Record<string, string> = {
+    informatica: "Informatica", idiomas: "Idiomas", profesional: "Profesional",
+    social: "Social", personal: "Personal", metodos: "Metodos", complementos: "Complementos",
+  };
+
   const rows = filtered.length === 0
-    ? `<tr><td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500">No hay competencias registradas.</td></tr>`
+    ? `<tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">No hay competencias registradas.</td></tr>`
     : filtered.map((c) => `
       <tr class="hover:bg-slate-50/80 transition-colors">
         <td class="px-4 py-3 text-sm font-medium text-slate-900">${escapeHtml(c.nombre)}</td>
         <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(c.descripcion)}</td>
         <td class="px-4 py-3">${grupoBadge(c.grupo)}</td>
+        <td class="px-4 py-3 text-sm text-slate-600">${c.subcategoria ? escapeHtml(subcatLabels[c.subcategoria] ?? c.subcategoria) : `<span class="text-slate-400">—</span>`}</td>
         <td class="px-4 py-3 text-sm">
           ${c.activa
             ? `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">Activa</span>`
@@ -158,6 +164,7 @@ function renderCatalogoTab(items: Competencia[], filterText: string): string {
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Nombre</th>
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Descripcion</th>
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Grupo</th>
+                <th class="px-4 py-3 text-sm font-semibold text-slate-700">Subcategoría</th>
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Estado</th>
                 <th class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Acciones</th>
               </tr>
@@ -453,6 +460,18 @@ function renderCompetenciaModal(comp: Competencia | null): string {
   const nombre = comp?.nombre ?? "";
   const descripcion = comp?.descripcion ?? "";
   const grupo = comp?.grupo ?? "tecnica";
+  const subcategoria = comp?.subcategoria ?? "";
+
+  const subcatOptions = [
+    { value: "", label: "Sin subcategoría" },
+    { value: "informatica", label: "Informatica" },
+    { value: "idiomas", label: "Idiomas" },
+    { value: "profesional", label: "Profesional" },
+    { value: "social", label: "Social" },
+    { value: "personal", label: "Personal" },
+    { value: "metodos", label: "Metodos" },
+    { value: "complementos", label: "Complementos" },
+  ];
 
   return `
     <div id="comp-modal-backdrop" data-action="close-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -476,6 +495,15 @@ function renderCompetenciaModal(comp: Competencia | null): string {
               <select name="grupo" class="col-start-1 row-start-1 h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pr-8 pl-2.5 text-sm text-slate-900 ${FIELD_FOCUS}">
                 <option value="tecnica" ${grupo === "tecnica" ? "selected" : ""}>Tecnica</option>
                 <option value="habilidad_blanda" ${grupo === "habilidad_blanda" ? "selected" : ""}>Habilidad blanda</option>
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Subcategoría</label>
+            <div class="grid grid-cols-1">
+              <select name="subcategoria" class="col-start-1 row-start-1 h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pr-8 pl-2.5 text-sm text-slate-900 ${FIELD_FOCUS}">
+                ${subcatOptions.map((o) => `<option value="${o.value}" ${subcategoria === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
               </select>
               ${SELECT_CHEVRON}
             </div>
@@ -867,6 +895,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     const nombre = (fd.get("nombre") as string)?.trim();
     const descripcion = (fd.get("descripcion") as string)?.trim();
     const grupo = fd.get("grupo") as "tecnica" | "habilidad_blanda";
+    const subcategoria = (fd.get("subcategoria") as string) || undefined;
     const idRaw = fd.get("id") as string | null;
 
     if (!nombre || !descripcion) return;
@@ -875,9 +904,9 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       try {
         if (idRaw) {
           const id = Number.parseInt(idRaw, 10);
-          await updateCompetencia(id, { nombre, descripcion, grupo });
+          await updateCompetencia(id, { nombre, descripcion, grupo, subcategoria });
         } else {
-          await createCompetencia({ nombre, descripcion, grupo });
+          await createCompetencia({ nombre, descripcion, grupo, subcategoria });
         }
         showModal = false;
         paintModal();
