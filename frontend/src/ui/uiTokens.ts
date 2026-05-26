@@ -87,6 +87,13 @@ export const RH_LISTADO_PAGE_OUTER =
 export const RH_LISTADO_PAGE_OUTER_GRADIENT =
   "mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 px-2 pb-2 sm:gap-6 sm:px-3";
 
+/**
+ * Envoltorio full-bleed con degradado (`.rh-dashboard-page`).
+ * Cancela y reaplica el padding horizontal de `<main>` (`px-4 sm:px-6 lg:px-8`).
+ */
+export const RH_DASHBOARD_PAGE_SHELL =
+  "rh-dashboard-page relative flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
+
 /** Tarjeta / panel estándar: borde suave, sombra institucional. */
 export const RH_LISTADO_SURFACE =
   "rounded-2xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]";

@@ -75,7 +75,7 @@ export function rowEnRangoFechaServicio(fechaServicioIso: string, desdeIso: stri
 
 export function clasificarEstadoOps(estadoAcceso: string): EstadoOps {
   const k = estadoAcceso.trim().toUpperCase();
-  if (k === "ACCEDIDO") return "confirmado";
+  if (k === "ACCEDIDO" || k === "REPETIDO") return "confirmado";
   if (k === "EXPIRADO") return "cancelado";
   return "pendiente";
 }

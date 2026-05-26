@@ -192,7 +192,14 @@ async def test_terminal_flujo_reserva_acceder_consumir_doble_409(client: AsyncCl
 
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             r3 = await c.post(CONSUMIR_URL, json={"acceso_id": acceso_id})
-        assert r3.status_code == 409
+        assert r3.status_code == 200, r3.text
+        assert r3.json()["ok"] is True
+
+        from app.models.comedor import ComedorAccesoEstado
+
+        acceso_final = await db.get(ComedorAcceso, acceso_id)
+        assert acceso_final is not None
+        assert acceso_final.estado_acceso == ComedorAccesoEstado.REPETIDO
     finally:
         fastapi_app.dependency_overrides.clear()
 

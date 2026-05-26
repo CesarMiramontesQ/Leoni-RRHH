@@ -27,6 +27,21 @@ function tipoLabel(row: RhIncidenciaTablaFila): string {
   return raw && raw.length > 0 ? raw : row.tipo;
 }
 
+function isoHoyLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Fecha de negocio definida y no posterior a hoy (zona local del navegador). */
+function fechaIncidenciaHastaHoy(fecha: string | undefined | null): boolean {
+  const f = fecha?.trim();
+  if (!f || f.length < 10 || !/^\d{4}-\d{2}-\d{2}/.test(f)) return false;
+  return f.slice(0, 10) <= isoHoyLocal();
+}
+
 /** Agregados locales (p. ej. dataset mock) alineados con GET /incidencias/estadisticas. */
 export function computeRhIncidenciasEstadisticasFromFilas(
   rows: readonly RhIncidenciaTablaFila[],
@@ -109,20 +124,33 @@ export function computeRhIncidenciasEstadisticasFromFilas(
   }));
 
   const byMonth = new Map<string, number>();
+  const byMonthTipo = new Map<string, Map<string, number>>();
   for (const r of rows) {
-    const fromFecha = r.fecha?.trim();
-    const key =
-      fromFecha && fromFecha.length >= 7 ? fromFecha.slice(0, 7)
-      : r.created_at?.trim() && r.created_at.length >= 7 ? r.created_at.slice(0, 7)
-      : null;
+    if (!fechaIncidenciaHastaHoy(r.fecha)) continue;
+    const fromFecha = r.fecha!.trim();
+    const key = fromFecha.length >= 7 ? fromFecha.slice(0, 7) : null;
     if (key && /^\d{4}-\d{2}$/.test(key)) {
       byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
+      const t = tipoLabel(r);
+      let inner = byMonthTipo.get(key);
+      if (!inner) {
+        inner = new Map();
+        byMonthTipo.set(key, inner);
+      }
+      inner.set(t, (inner.get(t) ?? 0) + 1);
     }
   }
   const incidencias_por_mes = [...byMonth.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-18)
     .map(([periodo, total]) => ({ periodo, total }));
+
+  const incidencias_por_mes_y_tipo: { periodo: string; tipo: string; total: number }[] = [];
+  for (const [periodo, tmap] of [...byMonthTipo.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [tipo, total] of tmap.entries()) {
+      incidencias_por_mes_y_tipo.push({ periodo, tipo, total });
+    }
+  }
 
   return {
     total_incidencias: rows.length,
@@ -133,6 +161,9 @@ export function computeRhIncidenciasEstadisticasFromFilas(
     empleados_con_mas_incidencias: empleados,
     incidencias_por_tipo,
     incidencias_por_mes,
+    incidencias_por_mes_y_tipo,
+    tendencia_agrupacion: null,
+    incidencias_por_periodo_y_tipo: [],
     total_periodo_anterior: null,
     variacion_total_pct: null,
   };

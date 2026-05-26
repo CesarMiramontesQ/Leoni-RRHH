@@ -50,9 +50,7 @@ function miniCampoDetalle(label: string, valor: string): string {
   </div>`;
 }
 
-function fmtSemanaUi(row: RhIncidenciaTablaFila): string {
-  if (row.numero_semana != null && Number.isFinite(row.numero_semana)) return String(row.numero_semana);
-  if (row.semana_id != null && Number.isFinite(row.semana_id)) return String(row.semana_id);
+function fmtSemanaUi(_row: RhIncidenciaTablaFila): string {
   return "—";
 }
 
@@ -81,6 +79,7 @@ function buildRhIncidenciaDetalleInnerHtml(row: RhIncidenciaTablaFila): string {
     </div>`;
 
   const tipoUi = labelTipoIncidenciaUi(row.tipo_texto?.trim() || String(row.tipo));
+  const subtipoRaw = row.subtipo?.trim() ?? "";
   const fechaUi = fmtFechaLargaEsMx(row.fecha);
   const semanaUi = fmtSemanaUi(row);
   const areaInc = dash(row.area);
@@ -89,6 +88,7 @@ function buildRhIncidenciaDetalleInnerHtml(row: RhIncidenciaTablaFila): string {
   const gridDetalle = `
     <div class="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
       ${miniCampoDetalle(INC_COPY.cardLblTipo, tipoUi)}
+      ${subtipoRaw ? miniCampoDetalle(INC_COPY.cardLblSubtipo, subtipoRaw) : ""}
       ${miniCampoDetalle(INC_COPY.colFecha, fechaUi)}
       ${miniCampoDetalle(INC_COPY.cardLblSemana, semanaUi)}
       ${miniCampoDetalle(INC_COPY.cardLblArea, areaInc)}

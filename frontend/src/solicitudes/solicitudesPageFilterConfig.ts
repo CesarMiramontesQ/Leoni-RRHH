@@ -39,6 +39,8 @@ export type SolicitudesPageUiConfig = {
   visibleFilterKeys: readonly RequestFilterKey[];
   /** KPIs agregados del alcance (gestores). */
   showStatsCards: boolean;
+  /** Datos para gráficas analíticas (página Métricas). */
+  showPersonasDiaChart: boolean;
   /** KPIs personales del colaborador. */
   showEmployeePersonalStats: boolean;
   /** Botón exportar listado (solo RH en toolbar gestor). */
@@ -47,6 +49,8 @@ export type SolicitudesPageUiConfig = {
   showNewRequestButton: boolean;
   /** Exportar + nueva solicitud en nombre de terceros (compat: ambos gestor). */
   showGestorToolbar: boolean;
+  /** Barra de filtros propia de `#/metricas` (empleado #, área, fechas, aplicar). */
+  metricasFilterBar?: boolean;
 };
 
 /** Alcance de datos para mock / futura API. */
@@ -79,10 +83,25 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
     role,
     visibleFilterKeys: resolveVisibleFilterKeys(role),
     showStatsCards: isGestor,
+    showPersonasDiaChart: false,
     showEmployeePersonalStats: variant === "empleado",
     showExportButton: isGestor,
     showNewRequestButton: true,
     showGestorToolbar: isGestor,
+  };
+}
+
+/** UI de `#/metricas`: filtros globales + gráficas analíticas (sin tabla ni toolbar de solicitudes). */
+export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
+  return {
+    ...buildDefaultSolicitudesPageUiConfig("rh"),
+    showStatsCards: false,
+    showPersonasDiaChart: true,
+    showExportButton: false,
+    showNewRequestButton: false,
+    showGestorToolbar: false,
+    metricasFilterBar: true,
+    visibleFilterKeys: [],
   };
 }
 

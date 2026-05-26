@@ -100,14 +100,15 @@ def role_checker(roles_requeridos: list[str]):
 
 async def require_huella_ip(request: Request) -> None:
     """Verifica que la IP del cliente esté en la whitelist de lectores de huella."""
-    from app.core.config import settings
+    from app.core.config import parse_comma_separated_ips, settings
 
-    if not settings.HUELLA_WHITELIST_IPS:
+    allowed = parse_comma_separated_ips(settings.HUELLA_WHITELIST_IPS)
+    if not allowed:
         # Lista vacía = permite todo (entorno de desarrollo)
         return
 
     client_ip = request.client.host if request.client else None
-    if not client_ip or client_ip not in settings.HUELLA_WHITELIST_IPS:
+    if not client_ip or client_ip not in allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="IP no autorizada para acceso de lector de huella",
@@ -115,11 +116,12 @@ async def require_huella_ip(request: Request) -> None:
 
 
 def _comedor_terminal_allowed_ips() -> list[str]:
-    from app.core.config import settings
+    from app.core.config import parse_comma_separated_ips, settings
 
-    if settings.COMEDOR_TERMINAL_IPS:
-        return list(settings.COMEDOR_TERMINAL_IPS)
-    return list(settings.HUELLA_WHITELIST_IPS)
+    terminal = parse_comma_separated_ips(settings.COMEDOR_TERMINAL_IPS)
+    if terminal:
+        return terminal
+    return parse_comma_separated_ips(settings.HUELLA_WHITELIST_IPS)
 
 
 async def require_comedor_terminal_ip(request: Request) -> None:

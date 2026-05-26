@@ -19,6 +19,7 @@ function estadoAccesoLabel(estado: string): string {
   if (k === "ACCEDIDO") return "Accedido";
   if (k === "PENDIENTE") return "Pendiente";
   if (k === "EXPIRADO") return "Cancelado";
+  if (k === "REPETIDO") return "Repetido";
   return estado.trim() || "—";
 }
 

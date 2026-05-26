@@ -26,16 +26,18 @@ from app.repositories.incidencia_repository import (
 from app.schemas import PaginatedResponse
 from app.schemas.incidencias import (
     EvidenciaResponse,
+    IncidenciaAreaTotalItem,
     IncidenciaCreate,
     IncidenciaEmpleadoTotalItem,
+    IncidenciaMesTipoItem,
+    IncidenciaPeriodoTipoItem,
     IncidenciaResponse,
+    IncidenciaSerieMensualItem,
+    IncidenciaSubareaTotalItem,
     IncidenciaTipoDistribucionItem,
     IncidenciasEstadisticasResponse,
     IncidenciasKpiResumen,
     IncidenciasListPageResponse,
-    IncidenciaAreaTotalItem,
-    IncidenciaSerieMensualItem,
-    IncidenciaSubareaTotalItem,
 )
 from app.utils.audit_logger import audit_background
 
@@ -127,6 +129,37 @@ class IncidenciaService:
             total=total,
         )
 
+    async def _build_list_filters(
+        self,
+        current_user: Empleado,
+        *,
+        tipo: str | None = None,
+        empleado_id: int | None = None,
+        no_empleado: str | None = None,
+        nombre: str | None = None,
+        fecha: date | None = None,
+        categoria: str | None = None,
+        area: str | None = None,
+        subarea: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+    ) -> list | None:
+        scope = await self._scope_filters_for_list(current_user)
+        user_filters = build_incidencia_query_filters(
+            tipo=tipo,
+            empleado_id=empleado_id,
+            no_empleado=no_empleado,
+            nombre=nombre,
+            fecha=fecha,
+            categoria=categoria,
+            area=area,
+            subarea=subarea,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        )
+        all_filters = [*scope, filtro_tipos_visibles_en_listados(), *user_filters]
+        return all_filters if all_filters else None
+
     async def list_incidencias_paginated(
         self,
         current_user: Empleado,
@@ -138,36 +171,29 @@ class IncidenciaService:
         no_empleado: str | None = None,
         nombre: str | None = None,
         fecha: date | None = None,
-        semana_id: int | None = None,
-        numero_semana: int | None = None,
         categoria: str | None = None,
-        estatus_id: int | None = None,
         area: str | None = None,
         subarea: str | None = None,
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
     ) -> IncidenciasListPageResponse:
+        """Listado paginado desde la tabla interna `incidencias`."""
         page_size = min(10, max(1, page_size))
         page = max(1, page)
 
-        scope = await self._scope_filters_for_list(current_user)
-        user_filters = build_incidencia_query_filters(
+        filters_arg = await self._build_list_filters(
+            current_user,
             tipo=tipo,
             empleado_id=empleado_id,
             no_empleado=no_empleado,
             nombre=nombre,
             fecha=fecha,
-            semana_id=semana_id,
-            numero_semana=numero_semana,
             categoria=categoria,
-            estatus_id=estatus_id,
             area=area,
             subarea=subarea,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
         )
-        all_filters = [*scope, filtro_tipos_visibles_en_listados(), *user_filters]
-        filters_arg = all_filters if all_filters else None
 
         total = await self.repo.count(filters=filters_arg)
         offset = (page - 1) * page_size
@@ -210,34 +236,27 @@ class IncidenciaService:
         no_empleado: str | None = None,
         nombre: str | None = None,
         fecha: date | None = None,
-        semana_id: int | None = None,
-        numero_semana: int | None = None,
         categoria: str | None = None,
-        estatus_id: int | None = None,
         area: str | None = None,
         subarea: str | None = None,
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
+        tendencia_agrupacion: str | None = None,
     ) -> IncidenciasEstadisticasResponse:
-        """Top áreas/subáreas/empleados y distribución por tipo con los mismos filtros que el listado."""
-        scope = await self._scope_filters_for_list(current_user)
-        user_filters = build_incidencia_query_filters(
+        """Agregados desde la tabla interna `incidencias` (mismos filtros que el listado)."""
+        filters_arg = await self._build_list_filters(
+            current_user,
             tipo=tipo,
             empleado_id=empleado_id,
             no_empleado=no_empleado,
             nombre=nombre,
             fecha=fecha,
-            semana_id=semana_id,
-            numero_semana=numero_semana,
             categoria=categoria,
-            estatus_id=estatus_id,
             area=area,
             subarea=subarea,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
         )
-        all_filters = [*scope, filtro_tipos_visibles_en_listados(), *user_filters]
-        filters_arg = all_filters if all_filters else None
 
         total_incidencias, incidencias_seguridad, incidencias_calidad = (
             await self.repo.aggregate_total_y_seguridad_calidad(filters_arg)
@@ -247,6 +266,7 @@ class IncidenciaService:
         empleados_raw = await self.repo.aggregate_empleados_top(filters_arg, limit=10)
         tipos_raw = await self.repo.aggregate_tipos_con_totales(filters_arg)
         mes_rows = await self.repo.aggregate_totales_por_mes(filters_arg)
+        mes_tipo_rows = await self.repo.aggregate_totales_por_mes_y_tipo(filters_arg)
 
         total_tipos = sum(c for _, c in tipos_raw)
         incidencias_por_tipo: list[IncidenciaTipoDistribucionItem] = []
@@ -259,6 +279,21 @@ class IncidenciaService:
         incidencias_por_mes = [
             IncidenciaSerieMensualItem(periodo=p, total=c) for p, c in mes_rows
         ]
+        incidencias_por_mes_y_tipo = [
+            IncidenciaMesTipoItem(periodo=p, tipo=t, total=c)
+            for p, t, c in mes_tipo_rows
+        ]
+
+        periodo_y_tipo: list[IncidenciaPeriodoTipoItem] = []
+        agr = tendencia_agrupacion if tendencia_agrupacion in ("dia", "semana", "mes") else None
+        if agr:
+            periodo_rows = await self.repo.aggregate_totales_por_periodo_y_tipo(
+                filters_arg, agrupacion=agr
+            )
+            periodo_y_tipo = [
+                IncidenciaPeriodoTipoItem(periodo=p, tipo=t, total=c)
+                for p, t, c in periodo_rows
+            ]
 
         total_periodo_anterior: int | None = None
         variacion_total_pct: float | None = None
@@ -266,25 +301,20 @@ class IncidenciaService:
             span_days = (fecha_fin - fecha_inicio).days + 1
             prev_end = fecha_inicio - timedelta(days=1)
             prev_start = prev_end - timedelta(days=span_days - 1)
-            prev_user_filters = build_incidencia_query_filters(
+            prev_filters = await self._build_list_filters(
+                current_user,
                 tipo=tipo,
                 empleado_id=empleado_id,
                 no_empleado=no_empleado,
                 nombre=nombre,
                 fecha=fecha,
-                semana_id=semana_id,
-                numero_semana=numero_semana,
                 categoria=categoria,
-                estatus_id=estatus_id,
                 area=area,
                 subarea=subarea,
                 fecha_inicio=prev_start,
                 fecha_fin=prev_end,
             )
-            prev_all = [*scope, filtro_tipos_visibles_en_listados(), *prev_user_filters]
-            total_prev = await self.repo.count_incidencias(
-                prev_all if prev_all else None
-            )
+            total_prev = await self.repo.count_incidencias(prev_filters)
             total_periodo_anterior = total_prev
             if total_prev > 0:
                 variacion_total_pct = round(
@@ -314,6 +344,9 @@ class IncidenciaService:
             ],
             incidencias_por_tipo=incidencias_por_tipo,
             incidencias_por_mes=incidencias_por_mes,
+            incidencias_por_mes_y_tipo=incidencias_por_mes_y_tipo,
+            tendencia_agrupacion=agr,
+            incidencias_por_periodo_y_tipo=periodo_y_tipo,
             total_periodo_anterior=total_periodo_anterior,
             variacion_total_pct=variacion_total_pct,
         )
@@ -400,14 +433,11 @@ class IncidenciaService:
             "no_empleado": data.no_empleado,
             "nombre": data.nombre,
             "fecha": data.fecha,
-            "semana_id": data.semana_id,
-            "numero_semana": data.numero_semana,
             "categoria": data.categoria,
             "detalle": data.detalle,
-            "descuento_porcentaje": data.descuento_porcentaje,
-            "estatus_id": data.estatus_id,
             "area": data.area,
             "subarea": data.subarea,
+            "origen": data.origen,
         })
 
         audit_background(
@@ -420,7 +450,7 @@ class IncidenciaService:
             datos_despues={
                 "empleado_id": incidencia.empleado_id,
                 "tipo": incidencia.tipo,
-                "estatus_id": incidencia.estatus_id,
+                "origen": incidencia.origen,
             },
         )
 

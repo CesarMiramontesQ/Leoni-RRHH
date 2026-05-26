@@ -110,6 +110,15 @@ class ActaResponse(BaseModel):
     firmantes_pendientes: list[str] = []
 
 
+class ActasPageResponse(BaseModel):
+    """Listado paginado de actas (p. ej. Vista 360 por empleado)."""
+
+    items: list[ActaResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class ActasDashboardMetricasResponse(BaseModel):
     """Conteos para tarjeta operativa RH (alineado a estados del listado de actas)."""
 

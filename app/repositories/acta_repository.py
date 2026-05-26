@@ -38,6 +38,27 @@ class ActaRepository(BaseRepository[ActaAdministrativa]):
         filters = [ActaAdministrativa.empleado_id == empleado_id]
         return await self.list_paginated(cursor=cursor, limit=limit, filters=filters)
 
+    async def list_by_empleado_page(
+        self,
+        empleado_id: int,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[ActaAdministrativa], int]:
+        """Listado offset por empleado (Vista 360), ordenado por id descendente."""
+        total = await self.count(filters=[ActaAdministrativa.empleado_id == empleado_id])
+        offset = max(0, (page - 1) * page_size)
+        result = await self.db.execute(
+            select(ActaAdministrativa)
+            .options(
+                selectinload(ActaAdministrativa.empleado).selectinload(Empleado.puesto),
+            )
+            .where(ActaAdministrativa.empleado_id == empleado_id)
+            .order_by(ActaAdministrativa.id.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        return list(result.scalars().all()), total
+
     async def get_aprobacion_by_firmante(
         self,
         acta_id: int,

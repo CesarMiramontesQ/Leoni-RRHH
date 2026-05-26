@@ -95,7 +95,7 @@ function aggregateSolicitudesByDay(
 }
 
 /**
- * Fuente de la seccion inferior RH.
+ * Fuente de la sección inferior RH (calendario). Ya no se usa en `#/`; conservada para reutilización.
  */
 export async function fetchRhDashboardLowerSection(): Promise<RhLowerSectionPayload | null> {
   const now = new Date();

@@ -108,14 +108,11 @@ class BonoIncidenciasSyncResponse(BaseModel):
             "bono.no_empleado": "incidencias.no_empleado",
             "bono.nombre": "incidencias.nombre",
             "bono.fecha": "incidencias.fecha",
-            "bono.semana_id": "incidencias.semana_id",
-            "bono.numero_semana": "incidencias.numero_semana",
             "bono.categoria": "incidencias.categoria",
             "bono.detalle": "incidencias.detalle",
-            "bono.descuento_porcentaje": "incidencias.descuento_porcentaje",
-            "bono.estatus_id": "incidencias.estatus_id",
             "bono.area": "incidencias.area",
             "bono.subarea": "incidencias.subarea",
+            "(fijo)": "incidencias.origen=bono, incidencias.synced_at=now()",
         }
     )
 

@@ -25,6 +25,7 @@ class ComedorAccesoEstado(str, enum.Enum):
     PENDIENTE = "PENDIENTE"
     ACCEDIDO = "ACCEDIDO"
     EXPIRADO = "EXPIRADO"
+    REPETIDO = "REPETIDO"
 
 
 class ComedorTipoComida(str, enum.Enum):

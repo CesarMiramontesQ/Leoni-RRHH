@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.emails import Email
 from app.models.empleados import Empleado
-from app.models.catalogos import Area, Puesto
+from app.models.catalogos import Area, ClasificacionEmpleado, Puesto
 from app.repositories.base import BaseRepository
 
 ModoEstadoListado = Literal["todos", "activos", "inactivos", "permiso"]
@@ -273,6 +273,34 @@ class UsuarioRepository(BaseRepository[Empleado]):
             query = query.where(Empleado.estado_id.in_(estados_activos))
         result = await self.db.execute(query)
         return result.scalar_one()
+
+    async def list_clasificaciones_activas(self) -> list[ClasificacionEmpleado]:
+        result = await self.db.execute(
+            select(ClasificacionEmpleado)
+            .where(ClasificacionEmpleado.estatus_id == 1)
+            .order_by(ClasificacionEmpleado.descripcion.asc())
+        )
+        return list(result.scalars().all())
+
+    async def count_activos_por_area_clasificacion(
+        self, estados_activos: list[int], clasificacion_id: int
+    ) -> list[tuple[str, int]]:
+        if not estados_activos:
+            return []
+        area_label = func.coalesce(Area.descripcion, "Sin área")
+        query = (
+            select(area_label, func.count())
+            .select_from(Empleado)
+            .outerjoin(Area, Empleado.area_id == Area.area_id)
+            .where(
+                Empleado.estado_id.in_(estados_activos),
+                Empleado.clasificacion_id == clasificacion_id,
+            )
+            .group_by(area_label)
+            .order_by(func.count().desc(), area_label.asc())
+        )
+        result = await self.db.execute(query)
+        return [(str(label), int(total)) for label, total in result.all()]
 
     async def count_contratos_por_vencer(
         self,

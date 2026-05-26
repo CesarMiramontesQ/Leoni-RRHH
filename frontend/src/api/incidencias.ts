@@ -20,17 +20,17 @@ export type IncidenciaApiItem = {
   id: number;
   empleado_id: number;
   tipo: string;
+  subtipo?: string | null;
   no_empleado?: string | null;
   nombre?: string | null;
   fecha?: string | null;
-  semana_id?: number | null;
-  numero_semana?: number | null;
   categoria?: string | null;
   detalle?: string | null;
-  descuento_porcentaje?: number | null;
-  estatus_id?: number | null;
   area?: string | null;
   subarea?: string | null;
+  origen?: string | null;
+  origen_id?: number | null;
+  synced_at?: string | null;
   puesto?: string | null;
   supervisor_directo?: string | null;
   created_at: string;
@@ -125,14 +125,8 @@ export function appendIncidenciasFilterParams(p: URLSearchParams, filters: RhInc
   if (nom) p.set("nombre", nom);
   const fecha = parseOptionalDate(filters.fecha);
   if (fecha) p.set("fecha", fecha);
-  const sid = parseOptionalInt(filters.semana_id);
-  if (sid !== undefined) p.set("semana_id", String(sid));
-  const nsem = parseOptionalInt(filters.numero_semana);
-  if (nsem !== undefined) p.set("numero_semana", String(nsem));
   const cat = filters.categoria.trim();
   if (cat) p.set("categoria", cat);
-  const est = parseOptionalInt(filters.estatus_id);
-  if (est !== undefined) p.set("estatus_id", String(est));
   const ar = filters.area.trim();
   if (ar) p.set("area", ar);
   const sub = filters.subarea.trim();
@@ -156,33 +150,28 @@ export function buildIncidenciasListQuery(
   return p.toString();
 }
 
-export function buildIncidenciasEstadisticasQuery(filters: RhIncidenciaListFilters): string {
+export function buildIncidenciasEstadisticasQuery(
+  filters: RhIncidenciaListFilters,
+  opts?: { tendencia_agrupacion?: "dia" | "semana" | "mes" },
+): string {
   const p = new URLSearchParams();
   appendIncidenciasFilterParams(p, filters);
+  if (opts?.tendencia_agrupacion) {
+    p.set("tendencia_agrupacion", opts.tendencia_agrupacion);
+  }
   return p.toString();
 }
 
 function inferTipoCodigo(tipo: string): RhIncidenciaTipoCodigo {
   const t = tipo.toLowerCase();
+  if (t.includes("evaluacion") || t.includes("evaluación")) return "indisciplina";
+  if (t.includes("seguridad")) return "indisciplina";
+  if (t.includes("calidad")) return "indisciplina";
   if (t.includes("retardo")) return "retardo";
   if (t.includes("daño") || t.includes("dano") || t.includes("equipo")) return "dano_equipo";
   if (t.includes("indisciplina") || t.includes("disciplina")) return "indisciplina";
   if (t.includes("falta") || t.includes("ausencia")) return "falta_injustificada";
   return "indisciplina";
-}
-
-function inferEstadoFromEstatus(estatusId: number | null | undefined): RhIncidenciaEstadoCodigo {
-  if (estatusId == null || estatusId === 1) return "abierto";
-  if (estatusId === 2) return "en_investigacion";
-  return "cerrado";
-}
-
-function inferPrioridad(desc: number | null | undefined): RhIncidenciaPrioridadCodigo {
-  const d = desc ?? 0;
-  if (d >= 50) return "critica";
-  if (d >= 25) return "alta";
-  if (d >= 10) return "media";
-  return "baja";
 }
 
 /** Texto de API/JSON a string recortada; vacío si nulo o sin contenido. */
@@ -199,6 +188,8 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
   const nombre = item.nombre?.trim();
   const supervisorDirecto = item.supervisor_directo?.trim();
   const puestoApi = item.puesto?.trim();
+  const tipoTexto = strCampoIncidencia(item.tipo) || item.tipo;
+  const subtipoTexto = strCampoIncidencia(item.subtipo) || null;
   return {
     id: item.id,
     empleado_id: String(item.empleado_id),
@@ -208,20 +199,20 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
     area: strCampoIncidencia(item.area),
     supervisor_id: "",
     supervisor_nombre: supervisorDirecto || "—",
-    tipo: inferTipoCodigo(item.tipo),
-    tipo_texto: item.tipo,
+    tipo: inferTipoCodigo(tipoTexto),
+    tipo_texto: tipoTexto,
+    subtipo: subtipoTexto,
     fecha: fechaDisplay,
-    estado: inferEstadoFromEstatus(item.estatus_id ?? null),
-    prioridad: inferPrioridad(item.descuento_porcentaje ?? null),
+    estado: "abierto",
+    prioridad: "baja",
     descripcion: item.detalle?.trim() || undefined,
     no_empleado: item.no_empleado,
-    semana_id: item.semana_id ?? null,
-    numero_semana: item.numero_semana ?? null,
     categoria: item.categoria,
     detalle: item.detalle,
-    descuento_porcentaje: item.descuento_porcentaje ?? null,
-    estatus_id: item.estatus_id ?? null,
     subarea: strCampoIncidencia(item.subarea) || null,
+    origen: item.origen ?? null,
+    origen_id: item.origen_id ?? null,
+    synced_at: item.synced_at ?? null,
     created_at: item.created_at,
     updated_at: item.updated_at,
     supervisor_directo: item.supervisor_directo ?? null,
@@ -232,8 +223,9 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
 
 export async function fetchIncidenciasEstadisticas(
   filters: RhIncidenciaListFilters,
+  opts?: { tendencia_agrupacion?: "dia" | "semana" | "mes" },
 ): Promise<RhIncidenciasEstadisticasData> {
-  const qs = buildIncidenciasEstadisticasQuery(filters);
+  const qs = buildIncidenciasEstadisticasQuery(filters, opts);
   const suffix = qs.length > 0 ? `?${qs}` : "";
   const res = await fetchWithAuth(`/api/v1/incidencias/estadisticas${suffix}`);
   if (!res.ok) {
@@ -255,6 +247,14 @@ export async function fetchIncidenciasEstadisticas(
     empleados_con_mas_incidencias: raw.empleados_con_mas_incidencias ?? [],
     incidencias_por_tipo: raw.incidencias_por_tipo ?? [],
     incidencias_por_mes: raw.incidencias_por_mes ?? [],
+    incidencias_por_mes_y_tipo: raw.incidencias_por_mes_y_tipo ?? [],
+    tendencia_agrupacion:
+      raw.tendencia_agrupacion === "dia" ||
+      raw.tendencia_agrupacion === "semana" ||
+      raw.tendencia_agrupacion === "mes"
+        ? raw.tendencia_agrupacion
+        : null,
+    incidencias_por_periodo_y_tipo: raw.incidencias_por_periodo_y_tipo ?? [],
     total_periodo_anterior:
       typeof raw.total_periodo_anterior === "number" ? raw.total_periodo_anterior : null,
     variacion_total_pct:

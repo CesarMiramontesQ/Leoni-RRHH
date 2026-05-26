@@ -6,17 +6,32 @@ import {
   canAccessRhOperationalDashboard,
 } from "../auth/jwt.ts";
 import {
-  renderRhDashboardSkeletonGrid,
-  renderRhOperationalDashboardGrid,
-} from "../components/dashboard/rhOperationalCards.ts";
+  mountRhDashboardAnalyticsCharts,
+  mountRhDashboardEmpleadosCharts,
+  resizeRhDashboardAnalyticsCharts,
+  RH_DASH_ANALYTICS_CHART_IDS,
+} from "../components/dashboard/rhAnalyticsCharts.ts";
 import {
-  bindRhCalendarNavigation,
-  renderRhLowerSection,
-  renderRhLowerSectionSkeleton,
-} from "../components/dashboard/rhLowerSection.ts";
-import { fetchRhDashboardLowerSection } from "../dashboard/rh/fetchRhDashboardLowerSection.ts";
-import { fetchRhDashboardMetrics } from "../dashboard/rh/fetchRhDashboardMetrics.ts";
-import { mapMetricsToCardViews } from "../dashboard/rh/mapMetricsToCardViews.ts";
+  renderRhAnalyticsBody,
+  renderRhAnalyticsBodyPeriodLoading,
+  renderRhAnalyticsBodySkeleton,
+  renderRhAnalyticsSection,
+  renderRhAnalyticsSectionSkeleton,
+} from "../components/dashboard/rhAnalyticsSection.ts";
+import { destroyChart, destroyChartsIn } from "../charts/index.ts";
+import type {
+  RhDashboardAnalyticsPayload,
+  RhDashboardPeriodDays,
+} from "../dashboard/rh/analyticsTypes.ts";
+import {
+  fetchRhDashboardAnalytics,
+  fetchRhDashboardEmpleados,
+  type RhDashboardEmpleadosSlice,
+} from "../dashboard/rh/fetchRhDashboardAnalytics.ts";
+import {
+  readStoredRhDashboardPeriod,
+  storeRhDashboardPeriod,
+} from "../dashboard/rh/filterRowsByPeriod.ts";
 import { fetchEmpleadoDashboard } from "../dashboard/empleado/fetchEmpleadoDashboard.ts";
 import { emptyEmpleadoDashboardPayload } from "../dashboard/empleado/mock.ts";
 import {
@@ -40,7 +55,13 @@ import {
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import type { RhSolicitudTablaFila } from "../solicitudes/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+
+/** Mismo ancho y padding X que Solicitudes, Actas e Incidencias sobre `.rh-dashboard-page`. */
+function wrapDashboardPageContent(innerHtml: string): string {
+  return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">${innerHtml}</div>`;
+}
 
 function renderError(message: string): string {
   return `
@@ -127,51 +148,162 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
   }
 }
 
-function rhMetricsUnavailableBanner(): string {
-  return `
-    <div class="mb-4 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white px-4 py-3 text-sm text-amber-950 shadow-[0_8px_24px_rgba(15,23,42,0.06)]" role="status">
-      No se pudieron obtener las métricas en este momento. Las tarjetas muestran valores no disponibles (—) sin afectar el diseño.
-    </div>`;
+let rhDashLoadSeq = 0;
+let rhDashEmpleadosCache: RhDashboardEmpleadosSlice | null = null;
+
+async function loadRhDashboardEmpleados(): Promise<RhDashboardEmpleadosSlice> {
+  if (rhDashEmpleadosCache) return rhDashEmpleadosCache;
+  rhDashEmpleadosCache = await fetchRhDashboardEmpleados();
+  return rhDashEmpleadosCache;
 }
 
-async function loadRhOperationalDashboard(container: HTMLElement): Promise<void> {
+function syncRhDashboardPeriodButtons(root: ParentNode, activeDays: RhDashboardPeriodDays): void {
+  root.querySelectorAll<HTMLButtonElement>("[data-rh-dash-period]").forEach((btn) => {
+    const raw = btn.getAttribute("data-rh-dash-period");
+    const days = Number(raw);
+    const isActive = days === activeDays;
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    btn.classList.toggle("rh-dash-period-btn--active", isActive);
+  });
+}
+
+function mountRhDashboardChartsWhenReady(
+  analyticsRoot: ParentNode,
+  payload: RhDashboardAnalyticsPayload,
+  isStale: () => boolean,
+): void {
+  mountRhDashboardAnalyticsCharts(analyticsRoot, payload);
+  requestAnimationFrame(() => {
+    if (isStale()) return;
+    resizeRhDashboardAnalyticsCharts();
+    requestAnimationFrame(() => {
+      if (isStale()) return;
+      resizeRhDashboardAnalyticsCharts();
+    });
+  });
+}
+
+function bindRhDashboardPeriodControls(
+  container: HTMLElement,
+  onPeriodChange: (days: RhDashboardPeriodDays) => void,
+): void {
+  const host = container.querySelector<HTMLElement>("#rh-dashboard-root");
+  if (!host) return;
+  if (host.dataset.rhDashPeriodBound === "1") return;
+  host.dataset.rhDashPeriodBound = "1";
+  host.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const btn = target.closest<HTMLButtonElement>("[data-rh-dash-period]");
+    if (!btn) return;
+    const raw = btn.getAttribute("data-rh-dash-period");
+    const days = Number(raw);
+    if (days !== 7 && days !== 30 && days !== 90) return;
+    if (readStoredRhDashboardPeriod() === days) return;
+    storeRhDashboardPeriod(days);
+    syncRhDashboardPeriodButtons(host, days);
+    onPeriodChange(days);
+  });
+}
+
+async function loadRhOperationalDashboard(
+  container: HTMLElement,
+  periodDays: RhDashboardPeriodDays = readStoredRhDashboardPeriod(),
+): Promise<void> {
   const root = container.querySelector<HTMLElement>("#rh-dashboard-root");
   if (!root) return;
 
-  let data = null;
-  let lower = null;
-  try {
-    const results = await Promise.all([
-      fetchRhDashboardMetrics().catch(() => null),
-      fetchRhDashboardLowerSection().catch(() => null),
-    ]);
-    data = results[0];
-    lower = results[1];
-  } catch {
-    data = null;
-    lower = null;
+  const seq = ++rhDashLoadSeq;
+  const isStale = (): boolean => seq !== rhDashLoadSeq;
+
+  for (const id of RH_DASH_ANALYTICS_CHART_IDS) destroyChart(id);
+  const analyticsRoot = root.querySelector<HTMLElement>("#rh-dashboard-analytics");
+  const analyticsBody = root.querySelector<HTMLElement>("#rh-dashboard-analytics-body");
+  if (analyticsRoot) destroyChartsIn(analyticsRoot);
+
+  const canPatchBody = analyticsRoot !== null && analyticsBody !== null;
+  const pinEmpleadosWhileLoading = canPatchBody && rhDashEmpleadosCache !== null;
+  if (canPatchBody) {
+    syncRhDashboardPeriodButtons(root, periodDays);
+    analyticsBody.setAttribute("aria-busy", "true");
+    analyticsBody.innerHTML = pinEmpleadosWhileLoading
+      ? renderRhAnalyticsBodyPeriodLoading(rhDashEmpleadosCache!)
+      : renderRhAnalyticsBodySkeleton();
+    if (pinEmpleadosWhileLoading && analyticsRoot && rhDashEmpleadosCache) {
+      mountRhDashboardEmpleadosCharts(analyticsRoot, rhDashEmpleadosCache);
+    }
+  } else {
+    root.innerHTML = wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton(periodDays));
   }
 
-  const views = mapMetricsToCardViews(data);
-  const banner = data === null ? rhMetricsUnavailableBanner() : "";
-  const now = new Date();
-  const calYear = lower?.calendar.initialYear ?? now.getFullYear();
-  const calMonth = lower?.calendar.initialMonthIndex ?? now.getMonth();
-  root.innerHTML =
-    banner + renderRhOperationalDashboardGrid(views) + renderRhLowerSection(calYear, calMonth, lower);
-  bindRhCalendarNavigation(container, lower, calYear, calMonth);
+  let analyticsPayload: RhDashboardAnalyticsPayload | null = null;
+  let analyticsPartial = false;
+  let empleadosSlice: RhDashboardEmpleadosSlice = { resumen: null, errors: [] };
+  try {
+    const [periodResult, empleadosResult] = await Promise.all([
+      fetchRhDashboardAnalytics(periodDays).catch((e: unknown) => {
+        console.error("[rh-dashboard] fetch analytics failed", e);
+        return null;
+      }),
+      loadRhDashboardEmpleados(),
+    ]);
+    if (isStale()) return;
+    empleadosSlice = empleadosResult;
+    if (periodResult) {
+      analyticsPayload = { ...periodResult.payload, empleados: empleadosSlice };
+      analyticsPartial =
+        periodResult.partialFailure || empleadosSlice.errors.length > 0;
+    }
+  } catch {
+    if (isStale()) return;
+    analyticsPayload = null;
+  }
+
+  if (canPatchBody && analyticsBody && analyticsRoot) {
+    if (!analyticsPayload) {
+      analyticsBody.removeAttribute("aria-busy");
+      analyticsBody.innerHTML = `<p class="text-sm text-text-muted">No se pudo cargar la analítica. Intenta recargar la página.</p>`;
+      return;
+    }
+    analyticsBody.removeAttribute("aria-busy");
+    analyticsBody.innerHTML = renderRhAnalyticsBody(analyticsPayload, analyticsPartial);
+    syncRhDashboardPeriodButtons(root, analyticsPayload.periodDays);
+    try {
+      mountRhDashboardChartsWhenReady(analyticsRoot, analyticsPayload, isStale);
+    } catch (e: unknown) {
+      console.error("[rh-dashboard] chart mount failed", e);
+    }
+    return;
+  }
+
+  root.innerHTML = wrapDashboardPageContent(
+    renderRhAnalyticsSection(analyticsPayload, analyticsPartial),
+  );
+  const mountedAnalytics = root.querySelector<HTMLElement>("#rh-dashboard-analytics");
+  if (analyticsPayload && mountedAnalytics) {
+    try {
+      mountRhDashboardChartsWhenReady(mountedAnalytics, analyticsPayload, isStale);
+    } catch (e: unknown) {
+      console.error("[rh-dashboard] chart mount failed", e);
+    }
+  }
 }
 
 function mountRhOperationalDashboard(container: HTMLElement): void {
+  const period = readStoredRhDashboardPeriod();
+
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
     /** Sin padding-top en `<main>` para que no se vea `bg-surface` gris entre navbar y el degradado del dashboard. */
     mainClass: "pt-0 pb-10",
-    mainHtml: `<div id="rh-dashboard-root" class="rh-dashboard-page -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8">${renderRhDashboardSkeletonGrid()}${renderRhLowerSectionSkeleton()}</div>`,
+    mainHtml: `<div id="rh-dashboard-root" class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10">${wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton(period))}</div>`,
   });
 
-  void loadRhOperationalDashboard(container);
+  bindRhDashboardPeriodControls(container, (days) => {
+    void loadRhOperationalDashboard(container, days);
+  });
+
+  void loadRhOperationalDashboard(container, period);
 }
 
 async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<void> {
@@ -206,7 +338,7 @@ function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
     mainClass: "py-0",
-    mainHtml: `<div class="rh-dashboard-page flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div></div>`,
+    mainHtml: `<div class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10"><div id="empleado-dashboard-root">${renderEmpleadoDashboardSkeleton()}</div></div>`,
   });
 
   void loadEmpleadoPersonalDashboard(container);
@@ -306,7 +438,7 @@ function mountLiderTeamDashboardShell(container: HTMLElement): void {
     activeNav: "dashboard",
     /** Misma envolvente visual que dashboard RH y empleado (degradado + ancho). */
     mainClass: "py-0",
-    mainHtml: `<div class="rh-dashboard-page flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-10 pt-8 sm:-mx-6 sm:px-6 sm:pt-10 lg:-mx-8 lg:px-8"><div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div><div id="lider-solicitud-detalle-modal-host" class="shrink-0"></div></div>`,
+    mainHtml: `<div class="${RH_DASHBOARD_PAGE_SHELL} pb-10 sm:pb-10"><div id="lider-dashboard-root">${renderLiderDashboardSkeleton()}</div><div id="lider-solicitud-detalle-modal-host" class="shrink-0"></div></div>`,
   });
 
   setupLiderSolicitudDetalleModal(container);
@@ -317,7 +449,7 @@ function mountStandardDashboard(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Dashboard",
     activeNav: "dashboard",
-    mainHtml: `
+    mainHtml: wrapDashboardPageContent(`
       <div id="dashboard-kpis-root">
         <div class="flex items-center gap-3 py-8 text-sm text-text-muted">
           <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -327,7 +459,7 @@ function mountStandardDashboard(container: HTMLElement): void {
           Cargando indicadores…
         </div>
       </div>
-    `,
+    `),
   });
 
   void loadDashboardKpis(container);

@@ -34,6 +34,10 @@ docker-compose run --rm test pytest tests/test_auth.py -k "test_login"  # un sol
 docker-compose exec backend alembic upgrade head
 docker-compose exec backend alembic revision --autogenerate -m "description"
 docker-compose exec backend python -m app.utils.seed  # crear roles + admin inicial
+
+# Simulación accesos comedor (solo empleados activos existentes; no crea empleados)
+docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo
+docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo --cleanup --execute  # borrar demo previo
 ```
 
 ### Frontend (build, lint)
@@ -67,7 +71,7 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Key Patterns
 - Async everywhere: asyncpg driver, async sessions, async test fixtures
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
-- APScheduler runs periodic jobs (TRESS queue processing, IT Mirror sync)
+- APScheduler runs periodic jobs (TRESS queue processing, IT Mirror sync, nightly bono imports: `calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`)
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
 

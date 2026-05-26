@@ -38,6 +38,17 @@ async def test_resumen_rh_devuelve_inactivos(client: AsyncClient, db, empleado_r
     assert data["inactivos"] >= 1
     assert data["activos"] >= 1
     assert data["total_plantilla"] >= data["activos"]
+    assert "empleados_por_clasificacion_y_area" in data
+    series = data["empleados_por_clasificacion_y_area"]
+    assert isinstance(series, list)
+    assert len(series) == 3
+    tipos = {item["tipo"] for item in series}
+    assert tipos == {"administrativo", "directo", "indirecto"}
+    for item in series:
+        assert item["tipo"] in tipos
+        assert "clasificacion_descripcion" in item
+        assert "por_area" in item
+        assert isinstance(item["por_area"], list)
 
 
 @pytest.mark.asyncio

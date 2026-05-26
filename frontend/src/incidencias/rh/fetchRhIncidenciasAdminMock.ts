@@ -2,6 +2,7 @@ import { buildRhIncidenciaFilterOptions } from "./buildRhIncidenciaFilterOptions
 import { computeRhIncidenciasEstadisticasFromFilas } from "./computeRhIncidenciasEstadisticasFromFilas.ts";
 import { filterRhIncidenciaRows, paginateRhIncidencias } from "./filterAndPaginateRhIncidencias.ts";
 import { buildRhIncidenciasMockFilas } from "./mockDataset.ts";
+import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import type {
   RhIncidenciaFilterState,
   RhIncidenciasAdminViewModel,
@@ -78,6 +79,44 @@ export function buildRhIncidenciasAdminViewModelFromApi(
     tableStatus,
     table,
     tableErrorMessage: undefined,
+    empleadosRetardosRanking: [],
+  };
+}
+
+const METRICAS_INCIDENCIAS_EMPTY_TABLE = {
+  items: [] as RhIncidenciaTablaFila[],
+  total: 0,
+  page: 1,
+  page_size: 10,
+};
+
+/** View-model de analítica de incidencias en `#/metricas` (sin tabla de listado). */
+export function buildMetricasIncidenciasViewModel(
+  estadisticas: RhIncidenciasEstadisticasData | null,
+  estadisticasStatus: "loading" | "ready" | "error",
+  estadisticasErrorMessage: string | undefined,
+  filterDraft: RhIncidenciaListFilters,
+  appliedFilters: RhIncidenciaListFilters,
+  ui: RhIncidenciasUiConfig,
+  catalog: RhIncidenciasFilterCatalog,
+  empleadosRetardosRanking: readonly SolicitudRankingRow[] = [],
+): RhIncidenciasAdminViewModel {
+  return {
+    estadisticas,
+    estadisticasStatus,
+    estadisticasErrorMessage,
+    empleadosRetardosRanking,
+    resumenListado: null,
+    filterOptions: buildRhIncidenciaFilterOptions([]),
+    tiposRegistrados: catalog.tiposRegistrados,
+    areasRegistradas: catalog.areasRegistradas,
+    subareasRegistradas: catalog.subareasRegistradas,
+    filterDraft,
+    appliedFilters,
+    ui,
+    tableStatus: "ready",
+    table: METRICAS_INCIDENCIAS_EMPTY_TABLE,
+    tableErrorMessage: undefined,
   };
 }
 
@@ -107,5 +146,6 @@ export function buildRhIncidenciasAdminViewModel(
     tableStatus,
     table,
     tableErrorMessage: undefined,
+    empleadosRetardosRanking: [],
   };
 }

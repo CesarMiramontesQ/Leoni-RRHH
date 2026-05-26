@@ -30,19 +30,29 @@ def build_incidencia_query_filters(
     no_empleado: str | None = None,
     nombre: str | None = None,
     fecha: date | None = None,
-    semana_id: int | None = None,
-    numero_semana: int | None = None,
     categoria: str | None = None,
-    estatus_id: int | None = None,
     area: str | None = None,
     subarea: str | None = None,
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
+    origen: str | None = None,
 ) -> list:
     """Condiciones AND opcionales para listados y agregados (no incluye alcance por rol)."""
     conds: list = []
     if tipo and tipo.strip():
-        conds.append(Incidencia.tipo == tipo.strip())
+        t = tipo.strip().lower()
+        if t == "retardo":
+            tl = func.lower(Incidencia.tipo)
+            conds.append(
+                or_(
+                    tl == "retardo",
+                    tl == "tardanza",
+                    tl.like("%retard%"),
+                    tl.like("%tardan%"),
+                )
+            )
+        else:
+            conds.append(Incidencia.tipo == tipo.strip())
     if empleado_id is not None:
         conds.append(Incidencia.empleado_id == empleado_id)
     if no_empleado and no_empleado.strip():
@@ -51,14 +61,10 @@ def build_incidencia_query_filters(
         conds.append(Incidencia.nombre.ilike(f"%{nombre.strip()}%"))
     if fecha is not None:
         conds.append(Incidencia.fecha == fecha)
-    if semana_id is not None:
-        conds.append(Incidencia.semana_id == semana_id)
-    if numero_semana is not None:
-        conds.append(Incidencia.numero_semana == numero_semana)
     if categoria and categoria.strip():
         conds.append(Incidencia.categoria.ilike(f"%{categoria.strip()}%"))
-    if estatus_id is not None:
-        conds.append(Incidencia.estatus_id == estatus_id)
+    if origen and origen.strip():
+        conds.append(Incidencia.origen == origen.strip())
     if area and area.strip():
         sin_ar = literal("(sin área)", type_=String)
         area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
@@ -157,42 +163,14 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         return list(result.scalars().all())
 
     async def aggregate_kpis(self, filters: list | None = None) -> tuple[int, int, int, int]:
-        """
-        Totales para tarjetas resumen (misma semántica aproximada que la UI previa).
-        abiertas: sin estatus o estatus 1
-        en_investigacion: estatus 2
-        resueltas: cualquier otro estatus definido
-        criticas: descuento >= 25 %
-        """
-        stmt = (
-            select(
-                func.count()
-                .filter(or_(Incidencia.estatus_id.is_(None), Incidencia.estatus_id == 1))
-                .label("abiertas"),
-                func.count()
-                .filter(Incidencia.estatus_id == 2)
-                .label("en_investigacion"),
-                func.count()
-                .filter(
-                    and_(
-                        Incidencia.estatus_id.isnot(None),
-                        Incidencia.estatus_id != 1,
-                        Incidencia.estatus_id != 2,
-                    )
-                )
-                .label("resueltas"),
-                func.count()
-                .filter(Incidencia.descuento_porcentaje >= 25)
-                .label("criticas"),
-            )
-            .select_from(Incidencia)
-        )
+        """Totales para tarjetas resumen (sin estatus en modelo: todo el filtro cuenta como abierto)."""
+        stmt = select(func.count()).select_from(Incidencia)
         if filters:
             for condition in filters:
                 stmt = stmt.where(condition)
         result = await self.db.execute(stmt)
-        row = result.one()
-        return int(row.abiertas), int(row.en_investigacion), int(row.resueltas), int(row.criticas)
+        total = int(result.scalar_one() or 0)
+        return total, 0, 0, 0
 
     def _apply_filters(self, stmt: Any, filters: list | None) -> Any:
         if filters:
@@ -342,19 +320,22 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
     ) -> list[tuple[str, int]]:
         """
         Serie temporal por mes natural (YYYY-MM).
-        Usa `fecha` de negocio si existe; si no, la parte fecha de `created_at`.
+        Solo incidencias con `fecha` de negocio definida y no posterior a hoy.
         Compatible con PostgreSQL (producción) y SQLite (tests).
         """
-        date_col = func.coalesce(Incidencia.fecha, cast(Incidencia.created_at, Date))
+        date_col = Incidencia.fecha
         bind = self.db.get_bind()
         dialect_name = bind.dialect.name if bind is not None else "sqlite"
         if dialect_name == "postgresql":
             period_key = func.to_char(date_col, "YYYY-MM")
         else:
             period_key = func.strftime("%Y-%m", date_col)
+        hoy = date.today()
+        periodo_max = f"{hoy.year:04d}-{hoy.month:02d}"
         stmt = (
             select(period_key.label("periodo"), func.count().label("cnt"))
             .select_from(Incidencia)
+            .where(Incidencia.fecha.isnot(None), Incidencia.fecha <= hoy)
         )
         stmt = self._apply_filters(stmt, filters)
         stmt = stmt.group_by(period_key).order_by(period_key.asc())
@@ -365,12 +346,105 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
             if p is None:
                 continue
             ps = str(p).strip()
-            if len(ps) != 7 or ps[4] != "-":
+            if len(ps) != 7 or ps[4] != "-" or ps > periodo_max:
                 continue
             rows.append((ps, int(r.cnt)))
         if len(rows) > max_points:
             rows = rows[-max_points:]
         return rows
+
+    def _incidencia_date_col(self):
+        """Fecha para tendencia por periodo/tipo (dashboard); conserva fallback a alta."""
+        return func.coalesce(Incidencia.fecha, cast(Incidencia.created_at, Date))
+
+    def _period_key_expr(self, date_col, *, agrupacion: str):
+        bind = self.db.get_bind()
+        dialect_name = bind.dialect.name if bind is not None else "sqlite"
+        if agrupacion == "dia":
+            if dialect_name == "postgresql":
+                return func.to_char(date_col, "YYYY-MM-DD")
+            return func.strftime("%Y-%m-%d", date_col)
+        if agrupacion == "semana":
+            if dialect_name == "postgresql":
+                monday = cast(func.date_trunc("week", date_col), Date)
+                return func.to_char(monday, "YYYY-MM-DD")
+            return func.strftime("%Y-%m-%d", func.date(date_col, "weekday 1", "-6 days"))
+        if dialect_name == "postgresql":
+            return func.to_char(date_col, "YYYY-MM")
+        return func.strftime("%Y-%m", date_col)
+
+    async def aggregate_totales_por_periodo_y_tipo(
+        self,
+        filters: list | None,
+        *,
+        agrupacion: str,
+    ) -> list[tuple[str, str, int]]:
+        """
+        Conteo por periodo y tipo. `agrupacion`: dia (YYYY-MM-DD), semana (lunes YYYY-MM-DD), mes (YYYY-MM).
+        """
+        date_col = self._incidencia_date_col()
+        period_key = self._period_key_expr(date_col, agrupacion=agrupacion)
+        stmt = (
+            select(
+                period_key.label("periodo"),
+                Incidencia.tipo.label("tipo"),
+                func.count().label("cnt"),
+            )
+            .select_from(Incidencia)
+        )
+        stmt = self._apply_filters(stmt, filters)
+        stmt = stmt.group_by(period_key, Incidencia.tipo).order_by(
+            period_key.asc(), Incidencia.tipo.asc()
+        )
+        result = await self.db.execute(stmt)
+        out: list[tuple[str, str, int]] = []
+        for r in result.all():
+            p = r.periodo
+            t = r.tipo
+            if p is None or t is None:
+                continue
+            ps = str(p).strip()
+            ts = str(t).strip()
+            if not ps or not ts:
+                continue
+            out.append((ps, ts, int(r.cnt)))
+        return out
+
+    async def aggregate_totales_por_mes_y_tipo(
+        self,
+        filters: list | None,
+    ) -> list[tuple[str, str, int]]:
+        """Conteo por mes y tipo; solo incidencias con `fecha` de negocio hasta hoy."""
+        hoy = date.today()
+        periodo_max = f"{hoy.year:04d}-{hoy.month:02d}"
+        date_col = Incidencia.fecha
+        period_key = self._period_key_expr(date_col, agrupacion="mes")
+        stmt = (
+            select(
+                period_key.label("periodo"),
+                Incidencia.tipo.label("tipo"),
+                func.count().label("cnt"),
+            )
+            .select_from(Incidencia)
+            .where(Incidencia.fecha.isnot(None), Incidencia.fecha <= hoy)
+        )
+        stmt = self._apply_filters(stmt, filters)
+        stmt = stmt.group_by(period_key, Incidencia.tipo).order_by(
+            period_key.asc(), Incidencia.tipo.asc()
+        )
+        result = await self.db.execute(stmt)
+        out: list[tuple[str, str, int]] = []
+        for r in result.all():
+            p = r.periodo
+            t = r.tipo
+            if p is None or t is None:
+                continue
+            ps = str(p).strip()
+            ts = str(t).strip()
+            if not ps or not ts or ps > periodo_max:
+                continue
+            out.append((ps, ts, int(r.cnt)))
+        return out
 
     async def count_evidencias(self, incidencia_id: int) -> int:
         result = await self.db.execute(

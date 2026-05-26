@@ -25,6 +25,7 @@ from app.schemas.comedor import (
     ComedorEquipoReservaItem,
     ComedorEquipoBeneficiarioItem,
     ComedorResumenDiarioItem,
+    ComedorRhSemanaRegistrosFuturosItem,
     ComedorRhProximosRegistrosPage,
     ComedorRhRegistroCreate,
     ComedorRhRegistroResponse,
@@ -262,6 +263,23 @@ async def rh_resumen_diario_comedor(
         current_user=current_user,
         desde=desde,
         hasta=hasta,
+    )
+
+
+@router.get(
+    "/accesos/rh/registros-futuros-por-semana",
+    response_model=list[ComedorRhSemanaRegistrosFuturosItem],
+)
+async def rh_registros_futuros_por_semana_comedor(
+    semanas: int = Query(8, ge=1, le=16, description="Máximo de semanas futuras a devolver"),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Totales de registros activos agrupados por semana ISO (solo fechas >= hoy)."""
+    service = ComedorService(db)
+    return await service.list_registros_futuros_por_semana_rh(
+        current_user,
+        semanas=semanas,
     )
 
 

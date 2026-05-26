@@ -53,7 +53,6 @@ import type {
   ComedorEmployeeOption,
   ComedorKpi,
   ComedorPanelState,
-  ComedorRhSemanaPlatilloPorSemana,
   ComedorSupervisorTableSegment,
   ComedorTeamReservationsPage,
   ComedorSidebarDataset,
@@ -77,6 +76,11 @@ import {
   type ComedorWeeklyPlannerViewState,
 } from "../components/comedor/comedorWeeklyPlanner.ts";
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
+import {
+  buildRhPlatillosPorSemana,
+  getCurrentWeekStartIso,
+  mapProyeccionesToSidebar,
+} from "../comedor/rh/buildRhComedorSidebar.ts";
 import { reporteDetalleRowsSorted } from "../components/comedor/comedorReporteAnalytics.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { downloadReporteComedorExcel } from "../comedor/reportes/exportReporteComedorExcel.ts";
@@ -320,10 +324,6 @@ function formatWeekLabel(start: Date, end: Date): string {
   return `${startLabel} - ${endLabel}`;
 }
 
-function getCurrentWeekStartIso(): string {
-  return dateToIso(mondayOf(new Date()));
-}
-
 function shiftWeekStartIso(weekStartIso: string, deltaWeeks: number): string {
   const start = isoToDate(weekStartIso);
   return dateToIso(addDays(start, deltaWeeks * 7));
@@ -508,6 +508,7 @@ function formatEstadoAccesoLabel(estadoAcceso: string): string {
   const key = estadoAcceso.trim().toUpperCase();
   if (key === "ACCEDIDO") return "Accedido";
   if (key === "PENDIENTE") return "Pendiente";
+  if (key === "REPETIDO") return "Repetido";
   return estadoAcceso;
 }
 
@@ -627,69 +628,6 @@ function mapMetricasLiderToKpis(metricas: Awaited<ReturnType<typeof getComedorEq
       progressPercent: metricas.porcentaje_saludables ?? 0,
     },
   ];
-}
-
-/** Agrupa filas diarias del resumen RH en las 4 semanas calendario que terminan en `currentWeekStartIso` (lunes). */
-function buildRhPlatillosPorSemana(
-  items: Awaited<ReturnType<typeof getComedorRhResumenDiario>>,
-  currentWeekStartIso: string,
-): readonly ComedorRhSemanaPlatilloPorSemana[] {
-  const currentMonday = isoToDate(currentWeekStartIso);
-  const weekStarts: Date[] = [0, 1, 2, 3].map((i) => addDays(currentMonday, -21 + i * 7));
-  const bucket = new Map<string, { caseras: number; saludables: number }>();
-  for (const ws of weekStarts) {
-    bucket.set(dateToIso(ws), { caseras: 0, saludables: 0 });
-  }
-  for (const row of items) {
-    const mondayIso = dateToIso(mondayOf(isoToDate(row.fecha)));
-    const cell = bucket.get(mondayIso);
-    if (!cell) continue;
-    cell.caseras += Number.isFinite(row.caseras) ? Math.max(0, row.caseras) : 0;
-    cell.saludables += Number.isFinite(row.saludables) ? Math.max(0, row.saludables) : 0;
-  }
-  return weekStarts.map((ws) => {
-    const iso = dateToIso(ws);
-    const c = bucket.get(iso)!;
-    const end = addDays(ws, 6);
-    const label = `${formatWeekShortDate(ws)}–${formatWeekShortDate(end)}`;
-    return {
-      weekStartIso: iso,
-      label,
-      caseras: c.caseras,
-      saludables: c.saludables,
-      total: c.caseras + c.saludables,
-    };
-  });
-}
-
-function mapProyeccionesToSidebar(
-  proyecciones: Awaited<ReturnType<typeof getComedorProyecciones>>,
-  estadisticas: Awaited<ReturnType<typeof getComedorEstadisticas>>,
-): ComedorSidebarDataset {
-  const weeklyOccupancy = Object.entries(proyecciones.ultimas_4_semanas)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-4)
-    .map(([_week, values], idx) => {
-      const total = Math.max(1, values.normal + values.dieta);
-      const percent = Math.round((values.dieta / total) * 100);
-      return { label: `Semana ${idx + 1}`, percent };
-    });
-
-  const total = Math.max(1, estadisticas.total_registros);
-  const saludablePercent = Math.round((estadisticas.dieta / total) * 100);
-  const regularPercent = Math.max(0, 100 - saludablePercent);
-
-  return {
-    alerts: [],
-    weeklyOccupancy,
-    dietDistribution: { saludablePercent, regularPercent },
-    externalCodesCard: {
-      titulo: "Códigos externos",
-      mensaje: "Consulta y rastrea credenciales temporales de personal externo.",
-      ctaLabel: "Listado de códigos externos",
-      ctaRoute: "#/comedor/codigos-externos",
-    },
-  };
 }
 
 function mapEstadisticasToReporteKpis(

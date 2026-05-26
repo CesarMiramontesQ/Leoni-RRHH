@@ -69,6 +69,9 @@ function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesA
       supervisor_id: "",
       empleado_id: "",
       empleado_busqueda: "",
+      no_empleado: "",
+      fecha_inicio: "",
+      fecha_fin: "",
       estado: "",
       page: 1,
       page_size: 10,
@@ -78,6 +81,7 @@ function loadingViewModel(ui: RhSolicitudesAdminViewModel["ui"]): RhSolicitudesA
     tableErrorMessage: undefined,
     profileResumen: null,
     ui,
+    personasDiaChartRows: [],
   };
 }
 
@@ -94,6 +98,9 @@ function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]):
       supervisor_id: "",
       empleado_id: "",
       empleado_busqueda: "",
+      no_empleado: "",
+      fecha_inicio: "",
+      fecha_fin: "",
       estado: "",
       page: 1,
       page_size: 10,
@@ -103,6 +110,7 @@ function errorViewModel(message: string, ui: RhSolicitudesAdminViewModel["ui"]):
     tableErrorMessage: message,
     profileResumen: null,
     ui,
+    personasDiaChartRows: [],
   };
 }
 
@@ -307,6 +315,9 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     supervisor_id: "",
     empleado_id: "",
     empleado_busqueda: "",
+    no_empleado: "",
+    fecha_inicio: "",
+    fecha_fin: "",
     estado: "",
     page: 1,
     page_size: 10,

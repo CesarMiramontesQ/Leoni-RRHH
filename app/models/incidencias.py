@@ -6,7 +6,6 @@ from sqlalchemy import (
     Date,
     DateTime,
     Enum,
-    Float,
     ForeignKey,
     Integer,
     String,
@@ -17,25 +16,31 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
+ORIGEN_INCIDENCIA_MANUAL = "manual"
+ORIGEN_INCIDENCIA_BONO = "bono"
+
 
 class Incidencia(Base):
     __tablename__ = "incidencias"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
-    tipo: Mapped[str] = mapped_column(String(100), nullable=False)
-    # Campos de negocio solicitados para incidencias importadas/consultadas.
     no_empleado: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     nombre: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    tipo: Mapped[str] = mapped_column(String(255), nullable=False)
+    subtipo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     fecha: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    semana_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    numero_semana: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     categoria: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     detalle: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    descuento_porcentaje: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    estatus_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     area: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     subarea: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    origen: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=ORIGEN_INCIDENCIA_MANUAL
+    )
+    origen_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    synced_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -46,11 +51,10 @@ class Incidencia(Base):
         nullable=False,
     )
 
-    # Relationships
     empleado = relationship("Empleado", foreign_keys=[empleado_id])
 
     def __repr__(self) -> str:
-        return f"<Incidencia id={self.id} tipo={self.tipo}>"
+        return f"<Incidencia id={self.id} tipo={self.tipo} origen={self.origen}>"
 
 
 class Evidencia(Base):
@@ -72,8 +76,10 @@ class Evidencia(Base):
     )
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    # Relationships
     subidor = relationship("Empleado", foreign_keys=[subido_por])
 
     def __repr__(self) -> str:
-        return f"<Evidencia id={self.id} entidad_tipo={self.entidad_tipo} entidad_id={self.entidad_id}>"
+        return (
+            f"<Evidencia id={self.id} entidad_tipo={self.entidad_tipo} "
+            f"entidad_id={self.entidad_id}>"
+        )

@@ -201,6 +201,15 @@ class ComedorResumenDiarioItem(BaseModel):
     fecha: date
     caseras: int
     saludables: int
+    registros: int
+    asistencias: int
+
+
+class ComedorRhSemanaRegistrosFuturosItem(BaseModel):
+    """Total de registros activos (PENDIENTE/ACCEDIDO) por semana ISO (fecha futura)."""
+
+    semana_inicio: date
+    total: int
 
 
 class ComedorRhProximoRegistroItem(BaseModel):

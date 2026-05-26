@@ -17,6 +17,9 @@ import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
+import { renderRhIncidenciasChartsSection } from "../incidencias/rhIncidenciasAnalyticsSection.ts";
+import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
+import { renderRhSolicitudesAnalyticsSection } from "./rhSolicitudesAnalyticsSection.ts";
 import { escapeHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
 import {
   FIELD_FOCUS,
@@ -617,7 +620,104 @@ function renderFiltersSkeleton(visibleCount: number): string {
     </section>`;
 }
 
+/** Filtros globales de `#/metricas`: número de empleado, área, rango de fechas y aplicar. */
+export function renderMetricasFiltersSection(vm: RhSolicitudesAdminViewModel): string {
+  const filtersLoading = vm.tableStatus === "loading";
+  if (filtersLoading) {
+    return renderFiltersSkeleton(4);
+  }
+
+  const f = vm.filters;
+  const opt = vm.filterOptions;
+  const wrapCls = FILTER_FIELD_WRAP;
+
+  const areaOpts =
+    `<option value="" ${f.area_id === "" ? "selected" : ""}>Todas las áreas</option>` +
+    opt.areas
+      .map(
+        (a) =>
+          `<option value="${escapeHtml(a.id)}" ${f.area_id === a.id ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
+      )
+      .join("");
+
+  const noEmpId = "rh-metricas-f-noemp";
+  const fiId = "rh-metricas-f-fi";
+  const ffId = "rh-metricas-f-ff";
+
+  const fields = `
+    <div class="${wrapCls} min-w-[min(100%,10rem)] flex-[1_1_10rem]">
+      <label for="${noEmpId}" class="${RH_LISTADO_LABEL}">Número de empleado</label>
+      <input
+        type="text"
+        inputmode="numeric"
+        id="${noEmpId}"
+        name="no_empleado"
+        data-rh-metricas-filter-field="no_empleado"
+        autocomplete="off"
+        placeholder="Ej. 10042"
+        value="${escapeHtml(f.no_empleado)}"
+        class="${SOL_FILTER_CONTROL} ${FIELD_FOCUS}"
+      />
+    </div>
+    <div class="${wrapCls} min-w-[min(100%,12rem)] flex-[1_1_12rem]">
+      <label for="rh-metricas-f-area" class="${RH_LISTADO_LABEL}">Área</label>
+      <div class="grid grid-cols-1">
+        <select
+          id="rh-metricas-f-area"
+          name="area_id"
+          data-rh-metricas-filter-field="area_id"
+          class="${RH_LISTADO_SELECT} rh-sol-filter-select min-h-[42px] rounded-[12px] border-[rgba(148,163,184,0.35)] py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] ${FIELD_FOCUS}"
+        >
+          ${areaOpts}
+        </select>
+        ${SELECT_CHEVRON}
+      </div>
+    </div>
+    <div class="${wrapCls} min-w-[min(100%,11rem)] flex-[1_1_11rem]">
+      <label for="${fiId}" class="${RH_LISTADO_LABEL}">Fecha inicial</label>
+      <input
+        type="date"
+        id="${fiId}"
+        name="fecha_inicio"
+        data-rh-metricas-filter-field="fecha_inicio"
+        value="${escapeHtml(f.fecha_inicio)}"
+        class="${SOL_FILTER_CONTROL} ${FIELD_FOCUS}"
+      />
+    </div>
+    <div class="${wrapCls} min-w-[min(100%,11rem)] flex-[1_1_11rem]">
+      <label for="${ffId}" class="${RH_LISTADO_LABEL}">Fecha final</label>
+      <input
+        type="date"
+        id="${ffId}"
+        name="fecha_fin"
+        data-rh-metricas-filter-field="fecha_fin"
+        value="${escapeHtml(f.fecha_fin)}"
+        class="${SOL_FILTER_CONTROL} ${FIELD_FOCUS}"
+      />
+    </div>`;
+
+  const applyBtn = `<div class="w-full shrink-0 sm:w-auto xl:ml-auto">
+      <button
+        type="button"
+        data-rh-metricas-apply-filters
+        class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-[42px] w-full justify-center sm:w-auto"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M8 4a4 4 0 1 0 2.545 7.086l3.684 3.684a.75.75 0 1 0 1.06-1.06l-3.683-3.685A4 4 0 0 0 8 4ZM5.5 8a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0Z" clip-rule="evenodd" /></svg>
+        Aplicar filtros
+      </button>
+    </div>`;
+
+  return `
+    <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros de métricas">
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-3 sm:gap-x-3 xl:flex-nowrap">
+        ${fields}
+        ${applyBtn}
+      </div>
+    </section>`;
+}
+
 function renderFiltersSection(vm: RhSolicitudesAdminViewModel, scope: SolicitudesRenderScope): string {
+  if (vm.ui.metricasFilterBar) return "";
   const statsFallo = vm.ui.showEmployeePersonalStats
     ? vm.empleadoPersonalStatsStatus === "error"
     : vm.statsStatus === "error";
@@ -1053,6 +1153,59 @@ export function renderRhSolicitudesAdminView(vm: RhSolicitudesAdminViewModel): s
       <div id="rh-sol-stats" class="shrink-0">${renderStatCards(vm)}</div>
       <div id="rh-sol-filters" class="shrink-0">${renderFiltersSection(vm, "main")}</div>
       <div id="rh-sol-table" class="flex min-h-0 flex-1 flex-col">${renderTable(vm, "main")}</div>
+    </div>`;
+}
+
+/** Sección por dominio en `#/metricas` (p. ej. Solicitudes; futuro: Incidencias, Actas). */
+function renderMetricasDomainSection(sectionId: string, title: string, bodyHtml: string): string {
+  const headingId = `${sectionId}-heading`;
+  return `
+    <section id="${escapeHtml(sectionId)}" class="flex shrink-0 flex-col gap-4 sm:gap-5" aria-labelledby="${escapeHtml(headingId)}">
+      <header class="border-b border-slate-200/90 pb-3">
+        <h2 id="${escapeHtml(headingId)}" class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(title)}</h2>
+      </header>
+      ${bodyHtml}
+    </section>`;
+}
+
+/** Vista `#/metricas`: hero, filtros globales de solicitudes y secciones por dominio. */
+export function renderRhMetricasView(
+  solicitudesVm: RhSolicitudesAdminViewModel,
+  incidenciasVm: RhIncidenciasAdminViewModel,
+): string {
+  const analyticsState =
+    solicitudesVm.ui.showPersonasDiaChart ?
+      solicitudesVm.tableStatus === "loading" ?
+        "loading"
+      : "ready"
+    : "hidden";
+
+  const metricasFilters = `<div id="rh-metricas-filters" class="shrink-0">${renderMetricasFiltersSection(solicitudesVm)}</div>`;
+
+  return `
+    <div id="rh-metricas-root" class="rh-solicitudes-module ${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+      <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6">
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
+          <div class="rh-sol-hero__copy min-w-0 w-full flex-1 md:max-w-[min(100%,42rem)]">
+            <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Metricas area laborales</h1>
+            <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Analítica y tendencias del personal</p>
+          </div>
+        </div>
+      </section>
+      ${metricasFilters}
+      ${renderMetricasDomainSection(
+        "rh-metricas-seccion-solicitudes",
+        "Solicitudes",
+        renderRhSolicitudesAnalyticsSection({
+          state: analyticsState,
+          rows: solicitudesVm.personasDiaChartRows,
+        }),
+      )}
+      ${renderMetricasDomainSection(
+        "rh-metricas-seccion-incidencias",
+        "Incidencias",
+        renderRhIncidenciasChartsSection(incidenciasVm),
+      )}
     </div>`;
 }
 

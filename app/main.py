@@ -1,8 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
+from zoneinfo import ZoneInfo
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,6 +47,20 @@ async def _tress_scheduler_job():
         logger.error("Error en TRESS scheduler job: %s", str(exc), exc_info=True)
 
 
+async def _bono_historico_import_job():
+    """Importa calidad_historico y seguridad_historico desde bono_productividad."""
+    try:
+        from app.integrations.bono_historico_nightly import ejecutar_importaciones_bono_historico
+
+        await ejecutar_importaciones_bono_historico()
+    except Exception as exc:
+        logger.error(
+            "Error en job import bono histórico: %s",
+            str(exc),
+            exc_info=True,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -78,6 +94,26 @@ async def lifespan(app: FastAPI):
         minutes=5,
         id="tress_scheduler",
     )
+    if settings.BONO_CALIDAD_HISTORICO_IMPORT_ENABLED:
+        tz = ZoneInfo(settings.APP_TIMEZONE)
+        scheduler.add_job(
+            _bono_historico_import_job,
+            CronTrigger(
+                hour=settings.BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR,
+                minute=settings.BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE,
+                timezone=tz,
+            ),
+            id="bono_historico_import",
+            replace_existing=True,
+        )
+        logger.info(
+            "Job bono_historico_import (calidad, seguridad, importadas, evaluación) programado a las %02d:%02d (%s)",
+            settings.BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR,
+            settings.BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE,
+            settings.APP_TIMEZONE,
+        )
+    else:
+        logger.info("Job bono_historico_import deshabilitado (config)")
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
 

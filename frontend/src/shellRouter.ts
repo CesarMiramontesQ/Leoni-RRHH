@@ -12,6 +12,7 @@ import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
 import { mountPerfilPuestoDetalle } from "./pages/perfilPuestoDetalle.ts";
 import { mountPuestoEmpleados } from "./pages/puestoEmpleados.ts";
+import { mountMetricas } from "./pages/metricas.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
@@ -175,6 +176,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountEvaluaciones(container, signal);
     } else if (h.startsWith("#/empleados")) {
       mountEmpleados(container, signal);
+    } else if (h.startsWith("#/metricas")) {
+      mountMetricas(container, signal);
     } else if (h.startsWith("#/solicitudes")) {
       mountSolicitudes(container, signal);
     } else if (h.startsWith("#/incidencias")) {

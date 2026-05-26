@@ -40,10 +40,7 @@ async def list_incidencias(
     no_empleado: str | None = Query(None),
     nombre: str | None = Query(None),
     fecha: date | None = Query(None),
-    semana_id: int | None = Query(None),
-    numero_semana: int | None = Query(None),
     categoria: str | None = Query(None),
-    estatus_id: int | None = Query(None),
     area: str | None = Query(None),
     subarea: str | None = Query(None),
     fecha_inicio: date | None = Query(None),
@@ -59,10 +56,7 @@ async def list_incidencias(
         no_empleado=no_empleado.strip() if no_empleado and no_empleado.strip() else None,
         nombre=nombre.strip() if nombre and nombre.strip() else None,
         fecha=fecha,
-        semana_id=semana_id,
-        numero_semana=numero_semana,
         categoria=categoria.strip() if categoria and categoria.strip() else None,
-        estatus_id=estatus_id,
         area=area.strip() if area and area.strip() else None,
         subarea=subarea.strip() if subarea and subarea.strip() else None,
         fecha_inicio=fecha_inicio,
@@ -118,16 +112,20 @@ async def estadisticas_incidencias(
     no_empleado: str | None = Query(None),
     nombre: str | None = Query(None),
     fecha: date | None = Query(None),
-    semana_id: int | None = Query(None),
-    numero_semana: int | None = Query(None),
     categoria: str | None = Query(None),
-    estatus_id: int | None = Query(None),
     area: str | None = Query(None),
     subarea: str | None = Query(None),
     fecha_inicio: date | None = Query(None),
     fecha_fin: date | None = Query(None),
+    tendencia_agrupacion: str | None = Query(
+        None,
+        description="Granularidad de tendencia: dia, semana o mes (dashboard RH)",
+    ),
 ):
     """Agregados para analítica (totales, top 10, distribución por tipo) con los mismos filtros que el listado."""
+    agr = (tendencia_agrupacion or "").strip().lower() or None
+    if agr not in (None, "dia", "semana", "mes"):
+        agr = None
     return await svc.estadisticas_incidencias(
         current_user,
         tipo=tipo.strip() if tipo and tipo.strip() else None,
@@ -135,14 +133,12 @@ async def estadisticas_incidencias(
         no_empleado=no_empleado.strip() if no_empleado and no_empleado.strip() else None,
         nombre=nombre.strip() if nombre and nombre.strip() else None,
         fecha=fecha,
-        semana_id=semana_id,
-        numero_semana=numero_semana,
         categoria=categoria.strip() if categoria and categoria.strip() else None,
-        estatus_id=estatus_id,
         area=area.strip() if area and area.strip() else None,
         subarea=subarea.strip() if subarea and subarea.strip() else None,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
+        tendencia_agrupacion=agr,
     )
 
 

@@ -52,6 +52,7 @@ from app.schemas.comedor import (
     ComedorEquipoBeneficiarioItem,
     ComedorMisReservaItem,
     ComedorResumenDiarioItem,
+    ComedorRhSemanaRegistrosFuturosItem,
     ComedorRhProximoRegistroItem,
     ComedorRhProximosRegistrosPage,
     ComedorRhCredencialTemporal,
@@ -566,6 +567,8 @@ class ComedorService:
                 "fecha": row["fecha"],
                 "caseras": int(row["caseras"]),
                 "saludables": int(row["saludables"]),
+                "registros": int(row["registros"]),
+                "asistencias": int(row["asistencias"]),
             }
             for row in rows
         }
@@ -596,16 +599,59 @@ class ComedorService:
             while dia <= fin:
                 celda = resumen_por_fecha.setdefault(
                     dia,
-                    {"fecha": dia, "caseras": 0, "saludables": 0},
+                    {
+                        "fecha": dia,
+                        "caseras": 0,
+                        "saludables": 0,
+                        "registros": 0,
+                        "asistencias": 0,
+                    },
                 )
                 if tipo_comida == ComedorTipoComida.saludable.value:
                     celda["saludables"] = int(celda["saludables"]) + cantidad_personas
                 else:
                     celda["caseras"] = int(celda["caseras"]) + cantidad_personas
+                celda["registros"] = int(celda["registros"]) + cantidad_personas
                 dia += timedelta(days=1)
 
         ordenado = [resumen_por_fecha[k] for k in sorted(resumen_por_fecha.keys())]
-        return [ComedorResumenDiarioItem(**row) for row in ordenado]
+        out: list[ComedorResumenDiarioItem] = []
+        for row in ordenado:
+            registros = int(row["registros"])
+            if registros <= 0:
+                registros = int(row["caseras"]) + int(row["saludables"])
+            out.append(
+                ComedorResumenDiarioItem(
+                    fecha=row["fecha"],
+                    caseras=int(row["caseras"]),
+                    saludables=int(row["saludables"]),
+                    registros=registros,
+                    asistencias=int(row["asistencias"]),
+                )
+            )
+        return out
+
+    async def list_registros_futuros_por_semana_rh(
+        self,
+        current_user: Empleado,
+        *,
+        semanas: int = 8,
+    ) -> list[ComedorRhSemanaRegistrosFuturosItem]:
+        if self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede consultar registros futuros por semana")
+        hoy = date.today()
+        limite = max(1, min(semanas, 16))
+        filas = await self.acceso_repo.count_accesos_activos_por_dia_desde(hoy)
+        por_semana: dict[date, int] = {}
+        for fecha, cnt in filas:
+            lunes = fecha - timedelta(days=fecha.weekday())
+            por_semana[lunes] = por_semana.get(lunes, 0) + cnt
+        ordenadas = sorted(por_semana.items(), key=lambda x: x[0])[:limite]
+        return [
+            ComedorRhSemanaRegistrosFuturosItem(semana_inicio=inicio, total=total)
+            for inicio, total in ordenadas
+            if total > 0
+        ]
 
     def _estados_proximos_rh_filtro(
         self, filtro_estado: Literal["todos", "confirmado", "cancelado"]
@@ -615,6 +661,21 @@ class ComedorService:
         if filtro_estado == "cancelado":
             return (ComedorAccesoEstado.EXPIRADO,)
         return (ComedorAccesoEstado.PENDIENTE, ComedorAccesoEstado.ACCEDIDO)
+
+    def _estados_registros_reporte_rh_filtro(
+        self, filtro_estado: Literal["todos", "confirmado", "cancelado"]
+    ) -> tuple[ComedorAccesoEstado, ...]:
+        """Reporte RH: «todos» incluye EXPIRADO y REPETIDO; confirmado incluye acceso repetido."""
+        if filtro_estado == "confirmado":
+            return (ComedorAccesoEstado.ACCEDIDO, ComedorAccesoEstado.REPETIDO)
+        if filtro_estado == "cancelado":
+            return (ComedorAccesoEstado.EXPIRADO,)
+        return (
+            ComedorAccesoEstado.PENDIENTE,
+            ComedorAccesoEstado.ACCEDIDO,
+            ComedorAccesoEstado.EXPIRADO,
+            ComedorAccesoEstado.REPETIDO,
+        )
 
     async def list_proximos_registros_rh_paginated(
         self,
@@ -626,8 +687,8 @@ class ComedorService:
     ) -> ComedorRhProximosRegistrosPage:
         if self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar próximos registros de comedor")
-        if page_size not in (10, 50):
-            raise ConflictError(detail="page_size debe ser 10 o 50")
+        if page_size not in (5, 10, 50):
+            raise ConflictError(detail="page_size debe ser 5, 10 o 50")
         desde = business_today()
         offset = (page - 1) * page_size
         estados = self._estados_proximos_rh_filtro(filtro_estado)
@@ -691,10 +752,10 @@ class ComedorService:
             raise ForbiddenError(detail="Solo RH puede consultar registros de reporte de comedor")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
-        if page_size not in (10, 50):
-            raise ConflictError(detail="page_size debe ser 10 o 50")
+        if page_size not in (5, 10, 50):
+            raise ConflictError(detail="page_size debe ser 5, 10 o 50")
         offset = (page - 1) * page_size
-        estados = self._estados_proximos_rh_filtro(filtro_estado)
+        estados = self._estados_registros_reporte_rh_filtro(filtro_estado)
         buscar_norm = buscar.strip() if buscar else None
         if buscar_norm == "":
             buscar_norm = None
@@ -1223,6 +1284,8 @@ class ComedorService:
     ) -> ComedorTerminalConsumirResponse:
         dia = business_today()
         n = await self.acceso_repo.consumir_si_pendiente(data.acceso_id, dia)
+        if n == 0:
+            n = await self.acceso_repo.marcar_repetido_si_accedido(data.acceso_id, dia)
         if n == 0:
             raise ConflictError(detail="Acceso no disponible o ya utilizado")
         acceso = await self.acceso_repo.get(data.acceso_id)

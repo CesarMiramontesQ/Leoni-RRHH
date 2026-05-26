@@ -26,8 +26,7 @@ function filtrosDraftActivos(f: RhIncidenciaListFilters): boolean {
     f.fecha_inicio.trim().length > 0 ||
     f.fecha_fin.trim().length > 0 ||
     f.area.trim().length > 0 ||
-    f.subarea.trim().length > 0 ||
-    f.estatus_id.trim().length > 0
+    f.subarea.trim().length > 0
   );
 }
 
@@ -39,8 +38,7 @@ function filtrosAppliedActivos(a: RhIncidenciaListFilters): boolean {
     a.fecha_inicio.trim().length > 0 ||
     a.fecha_fin.trim().length > 0 ||
     a.area.trim().length > 0 ||
-    a.subarea.trim().length > 0 ||
-    a.estatus_id.trim().length > 0
+    a.subarea.trim().length > 0
   );
 }
 
@@ -246,17 +244,28 @@ function renderFiltersSkeleton(): string {
     </div>`;
 }
 
+export type RhIncidenciasFiltersContext = "listado" | "metricas";
+
 /** Barra de filtros o skeleton según estado de carga (patrón Solicitudes). */
-export function renderRhIncidenciasFiltersSection(vm: RhIncidenciasAdminViewModel): string {
-  if (vm.tableStatus === "error") {
+export function renderRhIncidenciasFiltersSection(
+  vm: RhIncidenciasAdminViewModel,
+  opts?: { context?: RhIncidenciasFiltersContext },
+): string {
+  const context = opts?.context ?? "listado";
+  if (context === "listado" && vm.tableStatus === "error") {
     return "";
   }
-  const filtersLoading = vm.estadisticasStatus === "loading" && vm.tableStatus === "loading";
+  const filtersLoading =
+    context === "metricas"
+      ? vm.estadisticasStatus === "loading"
+      : vm.estadisticasStatus === "loading" && vm.tableStatus === "loading";
   if (filtersLoading) {
     return renderFiltersSkeleton();
   }
   const resultCount =
-    vm.table && vm.tableStatus !== "loading" ? vm.table.total : null;
+    context === "metricas" ? null
+    : vm.table && vm.tableStatus !== "loading" ? vm.table.total
+    : null;
   return renderFilters(vm, { resultCount });
 }
 

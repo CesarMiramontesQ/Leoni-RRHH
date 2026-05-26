@@ -29,8 +29,7 @@ function filtrosActivosTabla(vm: RhIncidenciasAdminViewModel): boolean {
     a.fecha_inicio.trim().length > 0 ||
     a.fecha_fin.trim().length > 0 ||
     a.area.trim().length > 0 ||
-    a.subarea.trim().length > 0 ||
-    a.estatus_id.trim().length > 0
+    a.subarea.trim().length > 0
   );
 }
 
@@ -43,7 +42,9 @@ function celdaTextoTruncado(val: string, maxLen = 48): string {
 
 function tipoBadge(tipoUi: string): string {
   const lower = tipoUi.toLowerCase();
-  const cls = lower.includes("seguridad")
+  const cls = lower.includes("evaluacion") || lower.includes("evaluación")
+    ? "rh-inc-type-pill--evaluacion"
+    : lower.includes("seguridad")
     ? "rh-inc-type-pill--seguridad"
     : lower.includes("calidad")
       ? "rh-inc-type-pill--calidad"

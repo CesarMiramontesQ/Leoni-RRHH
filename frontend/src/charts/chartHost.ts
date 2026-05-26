@@ -118,7 +118,8 @@ export function mountChart(
   };
   const built = buildConfig(ctx);
   const chart = new Chart(canvas, {
-    ...built,
+    type: built.type,
+    data: built.data,
     options: {
       ...built.options,
       plugins: {
@@ -126,6 +127,7 @@ export function mountChart(
         ...built.options?.plugins,
       },
     },
+    plugins: built.plugins,
   });
   registry.set(chartId, chart);
   return chart;

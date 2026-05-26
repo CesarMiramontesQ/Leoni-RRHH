@@ -2,6 +2,8 @@
  * Contratos de la vista administrativa de incidencias (rol RH).
  */
 
+import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
+
 /** Resumen KPI del listado (respuesta `resumen` de GET /incidencias). */
 export type RhIncidenciasListadoResumen = {
   abiertas: number;
@@ -55,14 +57,15 @@ export type RhIncidenciaTablaFila = {
   prioridad: RhIncidenciaPrioridadCodigo;
   /** Texto de tipo tal como en base de datos (columna `tipo`). */
   tipo_texto?: string;
+  /** Clasificación secundaria (p. ej. ponderación en evaluaciones). */
+  subtipo?: string | null;
   no_empleado?: string | null;
-  semana_id?: number | null;
-  numero_semana?: number | null;
   categoria?: string | null;
   detalle?: string | null;
-  descuento_porcentaje?: number | null;
-  estatus_id?: number | null;
   subarea?: string | null;
+  origen?: string | null;
+  origen_id?: number | null;
+  synced_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   descripcion?: string;
@@ -106,6 +109,10 @@ export type RhIncidenciasEstadisticasData = {
   incidencias_por_tipo: { tipo: string; total: number; porcentaje: number }[];
   /** Serie mensual (YYYY-MM) desde el backend; vacía si no hay datos. */
   incidencias_por_mes: { periodo: string; total: number }[];
+  /** Buckets mes × tipo (analítica de incidencias). */
+  incidencias_por_mes_y_tipo: { periodo: string; tipo: string; total: number }[];
+  tendencia_agrupacion?: "dia" | "semana" | "mes" | null;
+  incidencias_por_periodo_y_tipo: { periodo: string; tipo: string; total: number }[];
   total_periodo_anterior?: number | null;
   variacion_total_pct?: number | null;
 };
@@ -117,10 +124,7 @@ export type RhIncidenciaListFilters = {
   no_empleado: string;
   nombre: string;
   fecha: string;
-  semana_id: string;
-  numero_semana: string;
   categoria: string;
-  estatus_id: string;
   area: string;
   subarea: string;
   fecha_inicio: string;
@@ -134,10 +138,7 @@ export function emptyRhIncidenciaListFilters(): RhIncidenciaListFilters {
     no_empleado: "",
     nombre: "",
     fecha: "",
-    semana_id: "",
-    numero_semana: "",
     categoria: "",
-    estatus_id: "",
     area: "",
     subarea: "",
     fecha_inicio: "",
@@ -187,6 +188,8 @@ export type RhIncidenciasAdminViewModel = {
   estadisticas: RhIncidenciasEstadisticasData | null;
   estadisticasStatus: "loading" | "ready" | "error";
   estadisticasErrorMessage?: string;
+  /** Top empleados con incidencias de retardo (métricas / dashboard). */
+  empleadosRetardosRanking: readonly SolicitudRankingRow[];
   /** Resumen de estatus del listado (misma petición que la tabla). */
   resumenListado: RhIncidenciasListadoResumen | null;
   filterOptions: RhIncidenciaFilterOptions;
