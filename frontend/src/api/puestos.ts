@@ -190,6 +190,16 @@ export async function deletePerfilTarea(perfilId: number, tareaId: number): Prom
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
 
+/** PUT /api/v1/perfiles/:id/tareas/reorder */
+export async function reorderPerfilTareas(perfilId: number, items: { id: number; orden: number }[]): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(items),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
 // ── Cualificaciones ──────────────────────────────────────────────────────────
 
 export type PerfilCualificacion = { id: number; tipo: string; situacion_deseada: string; comentarios: string | null };
@@ -225,7 +235,7 @@ export async function deletePerfilCualificacion(perfilId: number, cualificacionI
 
 // ── Competencias requeridas ──────────────────────────────────────────────────
 
-export type PerfilCompetencia = { id: number; categoria: string; descripcion: string; orden: number };
+export type PerfilCompetencia = { id: number; competencia_id: number | null; competencia_nombre: string | null; categoria: string; descripcion: string; orden: number };
 
 /** GET /api/v1/perfiles/:id/competencias */
 export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCompetencia[]> {
@@ -237,7 +247,7 @@ export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCom
 /** POST /api/v1/perfiles/:id/competencias */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { categoria: string; descripcion: string; orden: number },
+  body: { competencia_id?: number; categoria: string; descripcion?: string; orden: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",

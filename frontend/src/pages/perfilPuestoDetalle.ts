@@ -35,6 +35,8 @@ interface Cualificacion {
 
 interface Competencia {
   id: number;
+  competencia_id: number | null;
+  competencia_nombre: string | null;
   categoria: string;
   descripcion: string;
   orden: number;
@@ -261,7 +263,7 @@ function renderCompetencias(competencias: Competencia[]): string {
         </div>
         ${items.map(c => `
           <div class="flex items-center gap-2 py-1.5">
-            <span class="text-sm text-text-primary">${escapeHtml(c.descripcion)}</span>
+            <span class="text-sm text-text-primary">${escapeHtml(c.competencia_nombre ?? c.descripcion)}</span>
           </div>
         `).join("")}
       </div>

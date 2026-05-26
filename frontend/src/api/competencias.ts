@@ -57,8 +57,11 @@ async function readErrorDetail(res: Response): Promise<string> {
 // ── Catalogo CRUD ─────────────────────────────────────────────────────
 
 /** GET /api/v1/competencias — listado de competencias del catalogo */
-export async function getCompetencias(): Promise<Competencia[]> {
-  const res = await fetchWithAuth("/api/v1/competencias");
+export async function getCompetencias(opts?: { page_size?: number }): Promise<Competencia[]> {
+  const qs = new URLSearchParams();
+  if (opts?.page_size) qs.set("page_size", String(opts.page_size));
+  const url = `/api/v1/competencias${qs.toString() ? `?${qs}` : ""}`;
+  const res = await fetchWithAuth(url);
   if (!res.ok) {
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail } as CompetenciasFetchError;
