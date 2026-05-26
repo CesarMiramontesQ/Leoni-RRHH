@@ -8,6 +8,7 @@ import {
   createCompetencia,
   updateCompetencia,
   deleteCompetencia,
+  getCompetenciaPuestos,
   type CompetenciasFetchError,
 } from "../api/competencias.ts";
 import type {
@@ -28,6 +29,7 @@ import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   BTN_PRIMARY,
   BTN_SECONDARY,
+  BTN_DANGER,
   FIELD_FOCUS,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
@@ -109,19 +111,13 @@ function renderCatalogoTab(items: Competencia[], filterText: string): string {
   };
 
   const rows = filtered.length === 0
-    ? `<tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">No hay competencias registradas.</td></tr>`
+    ? `<tr><td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500">No hay competencias registradas.</td></tr>`
     : filtered.map((c) => `
       <tr class="hover:bg-slate-50/80 transition-colors">
         <td class="px-4 py-3 text-sm font-medium text-slate-900">${escapeHtml(c.nombre)}</td>
         <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(c.descripcion)}</td>
         <td class="px-4 py-3">${grupoBadge(c.grupo)}</td>
         <td class="px-4 py-3 text-sm text-slate-600">${c.subcategoria ? escapeHtml(subcatLabels[c.subcategoria] ?? c.subcategoria) : `<span class="text-slate-400">—</span>`}</td>
-        <td class="px-4 py-3 text-sm">
-          ${c.activa
-            ? `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">Activa</span>`
-            : `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">Inactiva</span>`
-          }
-        </td>
         <td class="px-4 py-3 text-right">
           <button type="button" data-action="edit-competencia" data-id="${c.id}" class="mr-2 rounded p-1 text-slate-500 hover:text-leoni-blue" title="Editar">
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-4"><path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" /></svg>
@@ -165,7 +161,6 @@ function renderCatalogoTab(items: Competencia[], filterText: string): string {
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Descripcion</th>
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Grupo</th>
                 <th class="px-4 py-3 text-sm font-semibold text-slate-700">Subcategoría</th>
-                <th class="px-4 py-3 text-sm font-semibold text-slate-700">Estado</th>
                 <th class="px-4 py-3 text-right text-sm font-semibold text-slate-700">Acciones</th>
               </tr>
             </thead>
@@ -545,6 +540,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     mainHtml: `<div id="competencias-page-root" class="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5">
       <div id="competencias-inner">${renderLoading()}</div>
       <div id="comp-modal-host"></div>
+      <div id="comp-delete-modal-host"></div>
     </div>`,
   });
 
@@ -606,6 +602,36 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       return;
     }
     host.innerHTML = renderCompetenciaModal(editingCompetencia);
+  }
+
+  function showDeleteConfirmModal(id: number, nombre: string, puestos: { id: number; codigo: string; nombre: string }[]): void {
+    const host = container.querySelector("#comp-delete-modal-host");
+    if (!host) return;
+
+    const puestosHtml = puestos.length === 0
+      ? `<p class="text-sm text-slate-500 italic">No está asociada a ningún perfil de puesto.</p>`
+      : `<p class="text-sm text-slate-600 mb-2">Se eliminará de <strong>${puestos.length}</strong> perfil${puestos.length !== 1 ? "es" : ""} de puesto:</p>
+         <ul class="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-2">
+           ${puestos.map(p => `<li class="flex items-center gap-2 text-sm text-slate-700 py-1"><span class="font-mono text-xs text-slate-400">${escapeHtml(p.codigo)}</span> ${escapeHtml(p.nombre)}</li>`).join("")}
+         </ul>`;
+
+    host.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+          <h3 class="text-base font-semibold text-slate-900 mb-3">Eliminar competencia</h3>
+          <p class="text-sm text-slate-700 mb-3">¿Eliminar <strong>${escapeHtml(nombre)}</strong> del catálogo?</p>
+          ${puestosHtml}
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" data-action="cancel-delete-competencia" class="${BTN_SECONDARY}">Cancelar</button>
+            <button type="button" data-action="confirm-delete-competencia" data-id="${id}" class="${BTN_DANGER}">Eliminar</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function closeDeleteConfirmModal(): void {
+    const host = container.querySelector("#comp-delete-modal-host");
+    if (host) host.innerHTML = "";
   }
 
   function handleSessionExpired(): void {
@@ -719,23 +745,54 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       return;
     }
 
-    // Delete competencia
+    // Delete competencia — show confirmation with affected puestos
     const delBtn = t.closest<HTMLElement>("[data-action='delete-competencia']");
     if (delBtn) {
       const id = Number.parseInt(delBtn.getAttribute("data-id") ?? "", 10);
       if (!Number.isFinite(id)) return;
-      if (!confirm("Eliminar esta competencia?")) return;
+      void (async () => {
+        try {
+          const puestos = await getCompetenciaPuestos(id);
+          const comp = catalogoItems.find(c => c.id === id);
+          const nombre = comp?.nombre ?? "esta competencia";
+          showDeleteConfirmModal(id, nombre, puestos);
+        } catch (err: unknown) {
+          const fe = err as CompetenciasFetchError;
+          if (fe?.status === 401) { handleSessionExpired(); return; }
+          alert(fe?.detail || "Error al consultar puestos asociados");
+        }
+      })();
+      return;
+    }
+
+    // Confirm delete from modal
+    const confirmDelBtn = t.closest<HTMLElement>("[data-action='confirm-delete-competencia']");
+    if (confirmDelBtn) {
+      const id = Number.parseInt(confirmDelBtn.getAttribute("data-id") ?? "", 10);
+      if (!Number.isFinite(id)) return;
+      confirmDelBtn.setAttribute("disabled", "true");
+      confirmDelBtn.textContent = "Eliminando...";
       void (async () => {
         try {
           await deleteCompetencia(id);
+          closeDeleteConfirmModal();
           await loadCatalogo();
           paint();
         } catch (err: unknown) {
           const fe = err as CompetenciasFetchError;
           if (fe?.status === 401) { handleSessionExpired(); return; }
           alert(fe?.detail || "Error al eliminar");
+          confirmDelBtn.removeAttribute("disabled");
+          confirmDelBtn.textContent = "Eliminar";
         }
       })();
+      return;
+    }
+
+    // Cancel delete from modal
+    const cancelDelBtn = t.closest<HTMLElement>("[data-action='cancel-delete-competencia']");
+    if (cancelDelBtn) {
+      closeDeleteConfirmModal();
       return;
     }
 

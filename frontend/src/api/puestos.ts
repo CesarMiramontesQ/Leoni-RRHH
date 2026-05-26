@@ -233,9 +233,16 @@ export async function deletePerfilCualificacion(perfilId: number, cualificacionI
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
 
-// ── Competencias requeridas ──────────────────────────────────────────────────
+// ── Competencias requeridas (tabla unificada) ───────────────────────────────
 
-export type PerfilCompetencia = { id: number; competencia_id: number | null; competencia_nombre: string | null; categoria: string; descripcion: string; orden: number };
+export type PerfilCompetencia = {
+  id: number;
+  competencia_id: number;
+  competencia_nombre: string;
+  subcategoria: string | null;
+  nivel_requerido: number;
+  orden: number | null;
+};
 
 /** GET /api/v1/perfiles/:id/competencias */
 export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCompetencia[]> {
@@ -244,10 +251,10 @@ export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCom
   return (await res.json()) as PerfilCompetencia[];
 }
 
-/** POST /api/v1/perfiles/:id/competencias */
+/** POST /api/v1/perfiles/:id/competencias — agrega competencia del catalogo */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id?: number; categoria: string; descripcion?: string; orden?: number },
+  body: { competencia_id: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",
@@ -256,14 +263,6 @@ export async function createPerfilCompetencia(
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilCompetencia;
-}
-
-/** DELETE /api/v1/perfiles/:id/competencias/:competenciaId */
-export async function deletePerfilCompetencia(perfilId: number, competenciaId: number): Promise<void> {
-  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/${competenciaId}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
 
 // ── Asignaciones ─────────────────────────────────────────────────────────────

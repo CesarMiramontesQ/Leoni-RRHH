@@ -206,6 +206,25 @@ class CompetenciaService:
         comp = await self.repo.get_with_relations(id)
         return self._to_response(comp)
 
+    # ── Puestos asociados ──────────────────────────────────────────────────
+
+    async def listar_puestos_asociados(self, id: int) -> list[dict]:
+        """Lista puestos que tienen esta competencia como requisito."""
+        comp = await self.repo.get_with_relations(id)
+        if not comp:
+            raise NotFoundError(entidad="Competencia", id=id)
+
+        result = await self.db.execute(
+            select(PuestoPerfil.id, PuestoPerfil.codigo, PuestoPerfil.nombre)
+            .join(CompetenciaRequisito, CompetenciaRequisito.puesto_perfil_id == PuestoPerfil.id)
+            .where(
+                CompetenciaRequisito.competencia_id == id,
+                PuestoPerfil.activo.is_(True),
+            )
+            .order_by(PuestoPerfil.nombre)
+        )
+        return [{"id": r.id, "codigo": r.codigo, "nombre": r.nombre} for r in result.all()]
+
     # ── Eliminar ─────────────────────────────────────────────────────────────
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:

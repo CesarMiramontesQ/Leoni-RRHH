@@ -122,30 +122,52 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         )
         return list(result.scalars().all())
 
+    async def list_by_puesto_with_competencia(
+        self, puesto_perfil_id: int
+    ) -> list[CompetenciaRequisito]:
+        """Lista requisitos de un puesto con eager load de competencia, ordenados por orden."""
+        result = await self.db.execute(
+            select(CompetenciaRequisito)
+            .options(selectinload(CompetenciaRequisito.competencia))
+            .where(CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id)
+            .order_by(CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id)
+        )
+        return list(result.scalars().all())
+
+    async def exists_by_competencia_and_perfil(
+        self, competencia_id: int, puesto_perfil_id: int
+    ) -> bool:
+        """Verifica si ya existe la combinacion competencia+puesto."""
+        result = await self.db.execute(
+            select(CompetenciaRequisito.id)
+            .where(
+                CompetenciaRequisito.competencia_id == competencia_id,
+                CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def max_orden(self, puesto_perfil_id: int) -> int:
+        """Obtiene el maximo orden actual para un puesto."""
+        result = await self.db.execute(
+            select(func.coalesce(func.max(CompetenciaRequisito.orden), 0))
+            .where(CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id)
+        )
+        return result.scalar_one()
+
     async def upsert(
         self, competencia_id: int, puesto_perfil_id: int, nivel_requerido: int
     ) -> CompetenciaRequisito:
-        """Crea o actualiza un requisito de competencia."""
+        """Crea o actualiza un requisito de competencia. Nivel 0 se mantiene (no elimina)."""
         existing = await self.get_by_pair(competencia_id, puesto_perfil_id)
 
         if existing:
-            if nivel_requerido == 0:
-                # Nivel 0 = eliminar el requisito
-                await self.db.delete(existing)
-                await self.db.flush()
-                return existing
             existing.nivel_requerido = nivel_requerido
             await self.db.flush()
             await self.db.refresh(existing)
             return existing
         else:
-            if nivel_requerido == 0:
-                # No crear si nivel es 0
-                return CompetenciaRequisito(
-                    competencia_id=competencia_id,
-                    puesto_perfil_id=puesto_perfil_id,
-                    nivel_requerido=0,
-                )
             return await self.create({
                 "competencia_id": competencia_id,
                 "puesto_perfil_id": puesto_perfil_id,

@@ -1,12 +1,11 @@
 import {
   getPerfilCompetencias,
   createPerfilCompetencia,
-  deletePerfilCompetencia,
   type PerfilCompetencia,
 } from "../../api/puestos.ts";
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
 export type EditarCompetenciasModalHandle = {
   open: () => void;
@@ -42,19 +41,6 @@ const SUBCATEGORIA_COLORS: Record<string, string> = {
   complementos: "bg-slate-100 text-slate-600",
 };
 
-function subcategoriaSelect(id: string): string {
-  const opts = SUBCATEGORIA_OPTIONS.map(o =>
-    `<option value="${o.value}">${escapeHtml(o.label)}</option>`
-  ).join("");
-  return `
-    <div class="grid grid-cols-1">
-      <select id="${id}" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-        ${opts}
-      </select>
-      ${SELECT_CHEVRON}
-    </div>`;
-}
-
 function overlayHtml(): string {
   return `
     <div
@@ -69,7 +55,7 @@ function overlayHtml(): string {
         aria-labelledby="editar-competencias-title"
       >
         <div class="flex items-start justify-between gap-3 mb-4">
-          <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Editar competencias</h2>
+          <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias del perfil</h2>
           <button
             type="button"
             data-close-competencias-modal
@@ -92,29 +78,40 @@ function renderList(competencias: PerfilCompetencia[]): string {
   if (competencias.length === 0) {
     return `<p class="text-sm text-slate-500 italic py-2">Sin competencias registradas.</p>`;
   }
-  return `
-    <div class="max-h-48 overflow-y-auto divide-y divide-slate-100 mb-4">
-      ${competencias.map(c => {
-        const colorClass = SUBCATEGORIA_COLORS[c.categoria] ?? "bg-slate-100 text-slate-600";
-        const displayName = c.competencia_nombre ?? c.descripcion;
-        return `
-        <div class="flex items-center justify-between gap-2 py-2">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${escapeHtml(SUBCATEGORIA_LABELS[c.categoria] ?? c.categoria)}</span>
-            <span class="text-sm text-text-primary truncate">${escapeHtml(displayName)}</span>
-          </div>
-          <button type="button" data-delete-competencia="${c.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
-            <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>`;
-      }).join("")}
-    </div>`;
+
+  const grouped = new Map<string, PerfilCompetencia[]>();
+  for (const c of competencias) {
+    const key = c.subcategoria ?? "sin_categoria";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(c);
+  }
+
+  let html = `<div class="max-h-56 overflow-y-auto space-y-3 mb-4">`;
+  for (const [subcategoria, items] of grouped) {
+    const label = SUBCATEGORIA_LABELS[subcategoria] ?? subcategoria;
+    const colorClass = SUBCATEGORIA_COLORS[subcategoria] ?? "bg-slate-100 text-slate-600";
+    html += `
+      <div>
+        <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold mb-1 ${colorClass}">${escapeHtml(label)}</span>
+        <div class="divide-y divide-slate-100">
+          ${items.map(c => `
+            <div class="flex items-center justify-between gap-2 py-1.5 pl-2">
+              <span class="text-sm text-text-primary truncate">${escapeHtml(c.competencia_nombre)}</span>
+              ${c.nivel_requerido > 0 ? `<span class="shrink-0 text-xs text-slate-500">Nivel ${c.nivel_requerido}</span>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>`;
+  }
+  html += `</div>`;
+  html += `<p class="text-xs text-slate-400 italic mb-4">Para editar nivel o eliminar, ir a Matriz de Competencias.</p>`;
+  return html;
 }
 
 function renderAddForm(showCreateNew: boolean): string {
   return `
     <div class="border-t border-slate-200 pt-4 space-y-3">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar del catálogo</p>
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar del catalogo</p>
 
       <!-- Search -->
       <div>
@@ -124,28 +121,24 @@ function renderAddForm(showCreateNew: boolean): string {
       </div>
       <div id="comp-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
 
-      <!-- Selected + inline subcategoria + agregar (single step) -->
-      <div id="comp-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3 space-y-3">
+      <!-- Selected + agregar -->
+      <div id="comp-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="comp-selected-info" class="flex items-center justify-between"></div>
-        <div class="flex items-end gap-3">
-          <div class="flex-1">
-            <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoría</label>
-            ${subcategoriaSelect("comp-categoria")}
-          </div>
-          <button type="button" id="comp-submit-assign" class="${BTN_PRIMARY} text-sm shrink-0">Agregar</button>
+        <div class="flex justify-end mt-2">
+          <button type="button" id="comp-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar al perfil</button>
         </div>
       </div>
 
       <!-- Create new toggle -->
       <div class="pt-2 border-t border-slate-100">
         <button type="button" id="comp-toggle-create" class="${BTN_GHOST} text-xs">
-          ${showCreateNew ? "▼ Cerrar" : "+ Crear nueva competencia"}
+          ${showCreateNew ? "Cerrar" : "+ Crear nueva competencia"}
         </button>
       </div>
 
       ${showCreateNew ? `
       <div id="comp-create-form" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-        <p class="text-xs font-semibold text-slate-600">Nueva competencia en catálogo</p>
+        <p class="text-xs font-semibold text-slate-600">Nueva competencia en catalogo</p>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
           <input id="comp-new-nombre" type="text" required
@@ -153,24 +146,29 @@ function renderAddForm(showCreateNew: boolean): string {
             placeholder="Nombre de la competencia" />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Descripción</label>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Descripcion</label>
           <textarea id="comp-new-desc" rows="2"
             class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-            placeholder="Descripción breve..."></textarea>
+            placeholder="Descripcion breve..."></textarea>
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Grupo</label>
           <div class="grid grid-cols-1">
             <select id="comp-new-grupo" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-              <option value="tecnica">Técnica</option>
+              <option value="tecnica">Tecnica</option>
               <option value="habilidad_blanda">Habilidad blanda</option>
             </select>
             ${SELECT_CHEVRON}
           </div>
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoría</label>
-          ${subcategoriaSelect("comp-new-subcategoria")}
+          <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoria</label>
+          <div class="grid grid-cols-1">
+            <select id="comp-new-subcategoria" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+              ${SUBCATEGORIA_OPTIONS.map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
         <div class="flex justify-end">
           <button type="button" id="comp-create-submit" class="${BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
@@ -205,9 +203,7 @@ export function mountEditarCompetenciasModal(
   async function refreshList(): Promise<void> {
     try {
       const items = await getPerfilCompetencias(options.perfilId);
-      assignedCompetenciaIds = new Set(
-        items.filter(c => c.competencia_id != null).map(c => c.competencia_id!)
-      );
+      assignedCompetenciaIds = new Set(items.map(c => c.competencia_id));
       selectedCatalogo = null;
       body.innerHTML = renderList(items) + renderAddForm(showCreateNew);
       bindInteractions();
@@ -217,31 +213,10 @@ export function mountEditarCompetenciasModal(
   }
 
   function bindInteractions(): void {
-    bindDeleteButtons();
     bindSearch();
     bindAssignButton();
     bindCreateToggle();
     bindCreateSubmit();
-  }
-
-  function bindDeleteButtons(): void {
-    body.querySelectorAll<HTMLButtonElement>("[data-delete-competencia]").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const id = Number(btn.dataset.deleteCompetencia);
-        if (loading) return;
-        loading = true;
-        btn.disabled = true;
-        try {
-          await deletePerfilCompetencia(options.perfilId, id);
-          options.onSuccess();
-          await refreshList();
-        } catch {
-          // silently fail
-        } finally {
-          loading = false;
-        }
-      });
-    });
   }
 
   function bindSearch(): void {
@@ -280,13 +255,16 @@ export function mountEditarCompetenciasModal(
     if (filtered.length === 0) {
       resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
     } else {
-      resultsEl.innerHTML = filtered.slice(0, 10).map(c => `
+      resultsEl.innerHTML = filtered.slice(0, 10).map(c => {
+        const subLabel = c.subcategoria ? SUBCATEGORIA_LABELS[c.subcategoria] ?? c.subcategoria : "";
+        return `
         <button type="button" data-select-comp="${c.id}" data-select-nombre="${escapeHtml(c.nombre)}" data-select-grupo="${escapeHtml(c.grupo)}"
           class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
           <span class="text-sm font-medium text-text-primary">${escapeHtml(c.nombre)}</span>
-          <span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${c.grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${c.grupo === "tecnica" ? "Técnica" : "Blanda"}</span>
-        </button>
-      `).join("");
+          ${subLabel ? `<span class="text-[10px] text-slate-500">${escapeHtml(subLabel)}</span>` : ""}
+          <span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${c.grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${c.grupo === "tecnica" ? "Tecnica" : "Blanda"}</span>
+        </button>`;
+      }).join("");
     }
     resultsEl.classList.remove("hidden");
   }
@@ -302,10 +280,14 @@ export function mountEditarCompetenciasModal(
     selectedRow.classList.remove("hidden");
     searchInput.value = "";
 
+    const catItem = catalogoCache.find(c => c.id === id);
+    const subLabel = catItem?.subcategoria ? SUBCATEGORIA_LABELS[catItem.subcategoria] ?? catItem.subcategoria : "";
+
     selectedInfo.innerHTML = `
       <div class="flex items-center gap-2">
         <span class="text-sm font-medium text-text-primary">${escapeHtml(nombre)}</span>
-        <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${grupo === "tecnica" ? "Técnica" : "Blanda"}</span>
+        <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${grupo === "tecnica" ? "Tecnica" : "Blanda"}</span>
+        ${subLabel ? `<span class="text-[10px] text-slate-500">${escapeHtml(subLabel)}</span>` : ""}
       </div>
       <button type="button" id="comp-deselect" class="text-xs text-red-600 hover:underline">Quitar</button>`;
 
@@ -313,13 +295,6 @@ export function mountEditarCompetenciasModal(
       selectedCatalogo = null;
       selectedRow.classList.add("hidden");
     });
-
-    // Pre-select subcategoria from catalog if available
-    const catItem = catalogoCache.find(c => c.id === id);
-    if (catItem?.subcategoria) {
-      const select = body.querySelector("#comp-categoria") as HTMLSelectElement | null;
-      if (select) select.value = catItem.subcategoria;
-    }
   }
 
   function bindAssignButton(): void {
@@ -331,12 +306,9 @@ export function mountEditarCompetenciasModal(
       btn.disabled = true;
       btn.textContent = "Agregando...";
 
-      const categoria = (body.querySelector("#comp-categoria") as HTMLSelectElement)?.value ?? "profesional";
-
       try {
         await createPerfilCompetencia(options.perfilId, {
           competencia_id: selectedCatalogo.id,
-          categoria,
         });
         options.onSuccess();
         await refreshList();
@@ -345,7 +317,7 @@ export function mountEditarCompetenciasModal(
       } finally {
         loading = false;
         btn.disabled = false;
-        btn.textContent = "Agregar";
+        btn.textContent = "Agregar al perfil";
       }
     });
   }
@@ -379,10 +351,8 @@ export function mountEditarCompetenciasModal(
         const created = await createCompetencia({ nombre, descripcion, grupo, subcategoria });
         catalogoCache.push(created);
 
-        // Assign to profile immediately with the chosen subcategoria
         await createPerfilCompetencia(options.perfilId, {
           competencia_id: created.id,
-          categoria: subcategoria,
         });
 
         showCreateNew = false;
@@ -425,7 +395,7 @@ export function mountEditarCompetenciasModal(
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
       getCompetencias({ page_size: 100 }).then(items => {
         catalogoCache = items;
-      }).catch(() => { /* cache stays empty, search won't match */ });
+      }).catch(() => { /* cache stays empty */ });
       refreshList();
     },
     close,

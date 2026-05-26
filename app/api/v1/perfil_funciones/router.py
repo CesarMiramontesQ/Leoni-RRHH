@@ -17,11 +17,9 @@ Endpoints:
   PUT    /api/v1/perfiles/{perfil_id}/cualificaciones/{cualificacion_id}
   DELETE /api/v1/perfiles/{perfil_id}/cualificaciones/{cualificacion_id}
 
-  ── Competencias Requeridas ──
+  ── Competencias Requeridas (tabla unificada competencia_requisitos) ──
   GET    /api/v1/perfiles/{perfil_id}/competencias
   POST   /api/v1/perfiles/{perfil_id}/competencias
-  PUT    /api/v1/perfiles/{perfil_id}/competencias/{competencia_id}
-  DELETE /api/v1/perfiles/{perfil_id}/competencias/{competencia_id}
 
   ── Asignaciones ──
   GET    /api/v1/perfiles/{perfil_id}/asignaciones
@@ -40,9 +38,8 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.perfil_funciones import (
-    PerfilCompetenciaRequeridaCreate,
-    PerfilCompetenciaRequeridaResponse,
-    PerfilCompetenciaRequeridaUpdate,
+    PerfilCompetenciaCreate,
+    PerfilCompetenciaResponse,
     PerfilCualificacionCreate,
     PerfilCualificacionResponse,
     PerfilCualificacionUpdate,
@@ -209,74 +206,36 @@ async def eliminar_cualificacion(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# COMPETENCIAS REQUERIDAS
+# COMPETENCIAS REQUERIDAS (tabla unificada — editar/borrar solo desde Matriz)
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@router.get("/{perfil_id}/competencias", response_model=list[PerfilCompetenciaRequeridaResponse])
+@router.get("/{perfil_id}/competencias", response_model=list[PerfilCompetenciaResponse])
 async def listar_competencias(
     perfil_id: int,
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista todas las competencias requeridas del perfil."""
+    """Lista competencias requeridas del perfil (desde tabla unificada)."""
     service = PerfilFuncionesService(db)
     return await service.listar_competencias(perfil_id=perfil_id)
 
 
 @router.post(
     "/{perfil_id}/competencias",
-    response_model=PerfilCompetenciaRequeridaResponse,
+    response_model=PerfilCompetenciaResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def crear_competencia(
     perfil_id: int,
-    body: PerfilCompetenciaRequeridaCreate,
+    body: PerfilCompetenciaCreate,
     current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Crea una competencia requerida para el perfil. Solo RH o supervisor."""
+    """Agrega competencia del catalogo al perfil (nivel_requerido=0). Solo RH o supervisor."""
     service = PerfilFuncionesService(db)
     return await service.crear_competencia(
         perfil_id=perfil_id, data=body, current_user=current_user
-    )
-
-
-@router.put(
-    "/{perfil_id}/competencias/{competencia_id}",
-    response_model=PerfilCompetenciaRequeridaResponse,
-)
-async def actualizar_competencia(
-    perfil_id: int,
-    competencia_id: int,
-    body: PerfilCompetenciaRequeridaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
-    db: AsyncSession = Depends(get_db),
-):
-    """Actualiza una competencia requerida del perfil. Solo RH o supervisor."""
-    service = PerfilFuncionesService(db)
-    return await service.actualizar_competencia(
-        perfil_id=perfil_id,
-        competencia_id=competencia_id,
-        data=body,
-        current_user=current_user,
-    )
-
-
-@router.delete(
-    "/{perfil_id}/competencias/{competencia_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def eliminar_competencia(
-    perfil_id: int,
-    competencia_id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
-    db: AsyncSession = Depends(get_db),
-):
-    """Elimina una competencia requerida del perfil. Solo RH o supervisor."""
-    service = PerfilFuncionesService(db)
-    await service.eliminar_competencia(
-        perfil_id=perfil_id, competencia_id=competencia_id, current_user=current_user
     )
 
 

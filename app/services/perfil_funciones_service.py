@@ -17,8 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil
+from app.repositories.competencia_repository import CompetenciaRequisitoRepository
 from app.repositories.perfil_funciones_repository import (
-    PerfilCompetenciaRequeridaRepository,
     PerfilCualificacionRepository,
     PerfilFuncionesCualificacionRepository,
     PerfilFuncionesCompetenciaRepository,
@@ -27,9 +27,8 @@ from app.repositories.perfil_funciones_repository import (
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.perfil_funciones import (
-    PerfilCompetenciaRequeridaCreate,
-    PerfilCompetenciaRequeridaResponse,
-    PerfilCompetenciaRequeridaUpdate,
+    PerfilCompetenciaCreate,
+    PerfilCompetenciaResponse,
     PerfilCualificacionCreate,
     PerfilCualificacionResponse,
     PerfilCualificacionUpdate,
@@ -52,7 +51,7 @@ class PerfilFuncionesService:
         self.puesto_repo = PuestoPerfilRepository(db)
         self.tarea_repo = PerfilTareaRepository(db)
         self.cualificacion_repo = PerfilCualificacionRepository(db)
-        self.competencia_repo = PerfilCompetenciaRequeridaRepository(db)
+        self.competencia_repo = CompetenciaRequisitoRepository(db)
         self.asignacion_repo = PerfilFuncionesRepository(db)
         self.eval_cualificacion_repo = PerfilFuncionesCualificacionRepository(db)
         self.eval_competencia_repo = PerfilFuncionesCompetenciaRepository(db)
@@ -220,100 +219,62 @@ class PerfilFuncionesService:
         await self.cualificacion_repo.hard_delete(cualificacion_id)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # COMPETENCIAS REQUERIDAS
+    # COMPETENCIAS REQUERIDAS (usa tabla unificada competencia_requisitos)
     # ══════════════════════════════════════════════════════════════════════════
 
-    async def listar_competencias(self, perfil_id: int) -> list[PerfilCompetenciaRequeridaResponse]:
+    async def listar_competencias(self, perfil_id: int) -> list[PerfilCompetenciaResponse]:
         await self._get_perfil_or_404(perfil_id)
-        items = await self.competencia_repo.list_by_perfil(perfil_id)
+        items = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
         results = []
         for c in items:
-            data = PerfilCompetenciaRequeridaResponse.model_validate(c)
-            if c.competencia_id and c.competencia:
-                data.competencia_nombre = c.competencia.nombre
-            results.append(data)
+            resp = PerfilCompetenciaResponse(
+                id=c.id,
+                competencia_id=c.competencia_id,
+                competencia_nombre=c.competencia.nombre if c.competencia else "",
+                subcategoria=c.competencia.subcategoria if c.competencia else None,
+                nivel_requerido=c.nivel_requerido,
+                orden=c.orden,
+            )
+            results.append(resp)
         return results
 
     async def crear_competencia(
-        self, perfil_id: int, data: PerfilCompetenciaRequeridaCreate, current_user: Empleado
-    ) -> PerfilCompetenciaRequeridaResponse:
+        self, perfil_id: int, data: PerfilCompetenciaCreate, current_user: Empleado
+    ) -> PerfilCompetenciaResponse:
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
         await self._get_perfil_or_404(perfil_id)
 
-        descripcion = data.descripcion or ""
-        competencia_id = data.competencia_id
+        if await self.competencia_repo.exists_by_competencia_and_perfil(data.competencia_id, perfil_id):
+            raise ConflictError(detail="Esta competencia ya está asignada al perfil")
 
-        if competencia_id:
-            if await self.competencia_repo.exists_by_competencia_and_perfil(competencia_id, perfil_id):
-                raise ConflictError(detail="Esta competencia ya está asignada al perfil")
+        from sqlalchemy import select
+        result = await self.db.execute(
+            select(Competencia).where(Competencia.id == data.competencia_id)
+        )
+        catalogo = result.scalar_one_or_none()
+        if not catalogo:
+            raise NotFoundError(entidad="Competencia", id=data.competencia_id)
 
-            from sqlalchemy import select
-            result = await self.db.execute(
-                select(Competencia).where(Competencia.id == competencia_id)
-            )
-            catalogo = result.scalar_one_or_none()
-            if not catalogo:
-                raise NotFoundError(entidad="Competencia", id=competencia_id)
-            descripcion = catalogo.nombre
+        orden = (await self.competencia_repo.max_orden(perfil_id)) + 1
 
-        orden = data.orden if data.orden is not None else (await self.competencia_repo.max_orden(perfil_id)) + 1
-
-        competencia = await self.competencia_repo.create({
+        requisito = await self.competencia_repo.create({
             "puesto_perfil_id": perfil_id,
-            "competencia_id": competencia_id,
-            "categoria": data.categoria,
-            "descripcion": descripcion,
+            "competencia_id": data.competencia_id,
+            "nivel_requerido": 0,
             "orden": orden,
         })
 
-        resp = PerfilCompetenciaRequeridaResponse.model_validate(competencia)
-        if competencia_id:
-            resp.competencia_nombre = descripcion
-        return resp
-
-    async def actualizar_competencia(
-        self, perfil_id: int, competencia_id: int, data: PerfilCompetenciaRequeridaUpdate, current_user: Empleado
-    ) -> PerfilCompetenciaRequeridaResponse:
-        rol = self._get_rol(current_user)
-        if rol not in ("rh", "supervisor"):
-            raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
-
-        await self._get_perfil_or_404(perfil_id)
-
-        competencia = await self.competencia_repo.get(competencia_id)
-        if not competencia or competencia.puesto_perfil_id != perfil_id:
-            raise NotFoundError(entidad="PerfilCompetenciaRequerida", id=competencia_id)
-
-        update_data: dict = {}
-        if data.categoria is not None:
-            update_data["categoria"] = data.categoria
-        if data.descripcion is not None:
-            update_data["descripcion"] = data.descripcion
-        if data.orden is not None:
-            update_data["orden"] = data.orden
-
-        if update_data:
-            competencia = await self.competencia_repo.update(competencia_id, update_data)
-
-        return PerfilCompetenciaRequeridaResponse.model_validate(competencia)
-
-    async def eliminar_competencia(
-        self, perfil_id: int, competencia_id: int, current_user: Empleado
-    ) -> None:
-        rol = self._get_rol(current_user)
-        if rol not in ("rh", "supervisor"):
-            raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
-
-        await self._get_perfil_or_404(perfil_id)
-
-        competencia = await self.competencia_repo.get(competencia_id)
-        if not competencia or competencia.puesto_perfil_id != perfil_id:
-            raise NotFoundError(entidad="PerfilCompetenciaRequerida", id=competencia_id)
-
-        await self.competencia_repo.hard_delete(competencia_id)
+        return PerfilCompetenciaResponse(
+            id=requisito.id,
+            competencia_id=requisito.competencia_id,
+            competencia_nombre=catalogo.nombre,
+            subcategoria=catalogo.subcategoria,
+            nivel_requerido=requisito.nivel_requerido,
+            orden=requisito.orden,
+        )
 
     # ══════════════════════════════════════════════════════════════════════════
     # ASIGNACIONES
@@ -375,7 +336,7 @@ class PerfilFuncionesService:
 
         # Obtener definiciones del perfil
         cualificaciones_perfil = await self.cualificacion_repo.list_by_perfil(perfil_id)
-        competencias_perfil = await self.competencia_repo.list_by_perfil(perfil_id)
+        competencias_perfil = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
 
         # Mapear evaluaciones existentes
         eval_cual_map = {
@@ -383,7 +344,7 @@ class PerfilFuncionesService:
             for ec in asignacion.evaluaciones_cualificacion
         }
         eval_comp_map = {
-            ec.competencia_requerida_id: ec
+            ec.competencia_requisito_id: ec
             for ec in asignacion.evaluaciones_competencia
         }
 
@@ -405,9 +366,10 @@ class PerfilFuncionesService:
         for comp in competencias_perfil:
             evaluacion = eval_comp_map.get(comp.id)
             gap_competencias.append({
-                "competencia_requerida_id": comp.id,
-                "categoria": comp.categoria,
-                "descripcion": comp.descripcion,
+                "competencia_requisito_id": comp.id,
+                "competencia_nombre": comp.competencia.nombre if comp.competencia else "",
+                "subcategoria": comp.competencia.subcategoria if comp.competencia else None,
+                "nivel_requerido": comp.nivel_requerido,
                 "situacion_actual": evaluacion.situacion_actual if evaluacion else None,
                 "comentarios": evaluacion.comentarios if evaluacion else None,
                 "evaluado": evaluacion is not None,
@@ -467,15 +429,15 @@ class PerfilFuncionesService:
 
         if evaluaciones_competencia:
             valid_comp_ids = {
-                c.id for c in await self.competencia_repo.list_by_perfil(perfil_id)
+                c.id for c in await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
             }
             invalid = [
-                e.competencia_requerida_id for e in evaluaciones_competencia
-                if e.competencia_requerida_id not in valid_comp_ids
+                e.competencia_requisito_id for e in evaluaciones_competencia
+                if e.competencia_requisito_id not in valid_comp_ids
             ]
             if invalid:
                 raise DomainValidationError(
-                    f"competencia_requerida_id inválido para este perfil: {invalid}"
+                    f"competencia_requisito_id inválido para este perfil: {invalid}"
                 )
 
         # Upsert evaluaciones de cualificacion
@@ -503,7 +465,7 @@ class PerfilFuncionesService:
             for eval_data in evaluaciones_competencia:
                 existing = await self.eval_competencia_repo.get_by_pair(
                     perfil_funciones_id=asignacion_id,
-                    competencia_requerida_id=eval_data.competencia_requerida_id,
+                    competencia_requisito_id=eval_data.competencia_requisito_id,
                 )
                 if existing:
                     update_fields = {"situacion_actual": eval_data.situacion_actual}
@@ -513,7 +475,7 @@ class PerfilFuncionesService:
                 else:
                     await self.eval_competencia_repo.create({
                         "perfil_funciones_id": asignacion_id,
-                        "competencia_requerida_id": eval_data.competencia_requerida_id,
+                        "competencia_requisito_id": eval_data.competencia_requisito_id,
                         "situacion_actual": eval_data.situacion_actual,
                         "comentarios": eval_data.comentarios,
                     })
