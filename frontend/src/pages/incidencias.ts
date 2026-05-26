@@ -73,6 +73,25 @@ function loadingViewModel(
   catalog: RhIncidenciasFilterCatalog,
   kpisHold?: KpisHold,
 ): RhIncidenciasAdminViewModel {
+  if (!ui.mostrarTarjetasEstadisticas) {
+    return {
+      estadisticas: null,
+      estadisticasStatus: "ready",
+      estadisticasErrorMessage: undefined,
+      resumenListado: null,
+      filterOptions: buildRhIncidenciaFilterOptions([]),
+      tiposRegistrados: catalog.tiposRegistrados,
+      areasRegistradas: catalog.areasRegistradas,
+      subareasRegistradas: catalog.subareasRegistradas,
+      filterDraft: cloneRhIncidenciaListFilters(filterDraft),
+      appliedFilters: cloneRhIncidenciaListFilters(appliedFilters),
+      ui,
+      tableStatus: "loading",
+      table: null,
+      tableErrorMessage: undefined,
+      empleadosRetardosRanking: [],
+    };
+  }
   if (!kpisHold) {
     return {
       estadisticas: null,
@@ -227,7 +246,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
 
     await ensureFilterCatalog();
     let kpisHold: KpisHold | undefined;
-    if (!refreshEstadisticas) {
+    if (uiConfig.mostrarTarjetasEstadisticas && !refreshEstadisticas) {
       if (lastEstadisticasStatus === "ready" && lastEstadisticas !== null) {
         kpisHold = { kind: "ready", data: lastEstadisticas };
       } else if (lastEstadisticasStatus === "error") {
@@ -243,7 +262,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       const pageData = await fetchIncidenciasListPage(appliedFilters, page, 10);
       if (isStale()) return;
       currentRows = pageData.items.map(incidenciaApiItemToTablaFila);
-      if (refreshEstadisticas) {
+      if (refreshEstadisticas && uiConfig.mostrarTarjetasEstadisticas) {
         try {
           lastEstadisticas = await fetchIncidenciasEstadisticas(appliedFilters);
           lastEstadisticasStatus = "ready";
@@ -257,12 +276,19 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
         }
       }
       if (isStale()) return;
+      const estadisticasVm = uiConfig.mostrarTarjetasEstadisticas
+        ? {
+            data: lastEstadisticas,
+            status: lastEstadisticasStatus,
+            error: lastEstadisticasError,
+          }
+        : { data: null, status: "ready" as const, error: undefined };
       paintVm(
         buildRhIncidenciasAdminViewModelFromApi(
           pageData,
-          lastEstadisticas,
-          lastEstadisticasStatus,
-          lastEstadisticasError,
+          estadisticasVm.data,
+          estadisticasVm.status,
+          estadisticasVm.error,
           filterDraft,
           appliedFilters,
           uiConfig,
