@@ -473,7 +473,15 @@ function renderFilters(
   const opt = vm.filterOptions;
   const keys = vm.ui.visibleFilterKeys;
   const wrapCls = FILTER_FIELD_WRAP;
-  const wrapTipoEstadoEquipo = clusterEquipo ? " sm:min-w-[12rem] sm:max-w-[14rem] sm:flex-none" : "";
+  /** Filtros de «Solicitudes del Equipo» (scope `equipo`: supervisor/gerente). */
+  const wrapEquipoEmpleado =
+    "min-w-0 w-full md:flex-[0_1_48%] md:max-w-[55%] md:min-w-[12rem]";
+  const wrapEquipoSelect = "min-w-0 w-full md:min-w-[10rem] md:flex-1";
+  const wrapEquipoField = (kind: "empleado" | "select") =>
+    kind === "empleado" ? wrapEquipoEmpleado : wrapEquipoSelect;
+  const filtersRowCls = clusterEquipo
+    ? "rh-sol-filters-equipo-row flex min-w-0 flex-col items-stretch gap-3 md:flex-row md:flex-nowrap md:items-end md:gap-x-3"
+    : "flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5";
 
   const tiposPermitidosEmpleado = new Set<RhSolicitudTipoCodigo>([
     "vacaciones",
@@ -536,22 +544,24 @@ function renderFilters(
   const fields: string[] = [];
   for (const key of keys) {
     if (key === "type") {
+      const tipoWrap = clusterEquipo ? wrapEquipoField("select") : wrapCls;
       fields.push(
-        `<div class="${wrapCls}${wrapTipoEstadoEquipo}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts, scope)}</div>`,
+        `<div class="${tipoWrap}">${selectFilter("rh-sol-f-tipo", "Tipo de solicitud", "tipo", tipoOpts, scope)}</div>`,
       );
     } else if (key === "area") {
       fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-area", "Área", "area", areaOpts, scope)}</div>`);
     } else if (key === "supervisor") {
       fields.push(`<div class="${wrapCls}">${selectFilter("rh-sol-f-sup", "Supervisor", "supervisor", supOpts, scope)}</div>`);
     } else if (key === "employee") {
-      const empWrap = clusterEquipo ? `${wrapCls} min-w-[min(100%,18rem)] flex-[1_1_18rem]` : wrapCls;
+      const empWrap = clusterEquipo ? wrapEquipoField("empleado") : wrapCls;
       const empField = solicitudesUsaFiltroEmpleadoTexto(vm.ui.role)
         ? empleadoTextoBusquedaFilterField(f, scope)
         : selectFilter("rh-sol-f-emp", "Empleado", "empleado", empOpts, scope);
       fields.push(`<div class="${empWrap}">${empField}</div>`);
     } else if (key === "status") {
+      const estadoWrap = clusterEquipo ? wrapEquipoField("select") : wrapCls;
       fields.push(
-        `<div class="${wrapCls}${wrapTipoEstadoEquipo}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts, scope)}</div>`,
+        `<div class="${estadoWrap}">${selectFilter("rh-sol-f-est", "Estado", "estado", estOpts, scope)}</div>`,
       );
     }
   }
@@ -573,7 +583,7 @@ function renderFilters(
   const chipsRow = renderFilterChipsRow(vm, keys);
 
   const inner = `
-      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
+      <div class="${filtersRowCls}">
         ${fields.join("")}
         ${clearBtn}
       </div>`;
