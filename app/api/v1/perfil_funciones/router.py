@@ -27,6 +27,7 @@ Endpoints:
   POST   /api/v1/perfiles/{perfil_id}/asignaciones
   GET    /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}
   PUT    /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}
+  DELETE /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}
   POST   /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/firmar
 """
 
@@ -330,6 +331,23 @@ async def actualizar_evaluaciones(
         evaluaciones_cualificacion=body.evaluaciones_cualificacion,
         evaluaciones_competencia=body.evaluaciones_competencia,
         current_user=current_user,
+    )
+
+
+@router.delete(
+    "/{perfil_id}/asignaciones/{asignacion_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def desactivar_asignacion(
+    perfil_id: int,
+    asignacion_id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Desactiva (soft-delete) una asignacion. Solo RH."""
+    service = PerfilFuncionesService(db)
+    await service.desactivar_asignacion(
+        perfil_id=perfil_id, asignacion_id=asignacion_id, current_user=current_user
     )
 
 

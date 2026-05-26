@@ -183,6 +183,39 @@ function uniqueNiveles(items: PerfilPuestoListItem[]): string[] {
   );
 }
 
+function filterTarjetas(
+  items: PerfilTarjetaItem[],
+  filters: PuestosFilterState,
+): PerfilTarjetaItem[] {
+  let result = items;
+
+  if (filters.q.trim()) {
+    const q = filters.q.trim().toLowerCase();
+    result = result.filter(
+      (p) =>
+        p.codigo.toLowerCase().includes(q) ||
+        p.nombre.toLowerCase().includes(q) ||
+        (p.area_nombre ?? "").toLowerCase().includes(q),
+    );
+  }
+
+  if (filters.area) {
+    result = result.filter((p) => p.area_nombre === filters.area);
+  }
+
+  if (filters.nivel) {
+    result = result.filter((p) => p.nivel === filters.nivel);
+  }
+
+  return result;
+}
+
+function uniqueNivelesTarjetas(items: PerfilTarjetaItem[]): string[] {
+  return [...new Set(items.map((p) => p.nivel).filter((n): n is string => n != null))].sort((a, b) =>
+    a.localeCompare(b, "es"),
+  );
+}
+
 // ── Render functions ─────────────────────────────────────────────────────
 
 function renderFilterBar(filters: PuestosFilterState, areas: AreaOption[], niveles: string[]): string {
@@ -507,21 +540,31 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       return;
     }
 
-    const niveles = uniqueNiveles(allItems);
-    const filtered = filterItems(allItems, filters);
-
-    const viewToggleHtml = `
-      <div class="flex items-center justify-between">
-        ${renderViewToggle(viewMode)}
-        <span class="text-xs text-slate-500">${viewMode === "tarjetas" ? `${tarjetasData.length} perfiles` : `${filtered.length} perfiles`}</span>
-      </div>`;
-
     if (viewMode === "tarjetas") {
+      const niveles = uniqueNivelesTarjetas(tarjetasData);
+      const filtered = filterTarjetas(tarjetasData, filters);
+
+      const viewToggleHtml = `
+        <div class="flex items-center justify-between">
+          ${renderViewToggle(viewMode)}
+          <span class="text-xs text-slate-500">${filtered.length} perfiles</span>
+        </div>`;
+
       content.innerHTML = `
-        ${renderKpiStrip(tarjetasData)}
+        ${renderFilterBar(filters, areasOptions, niveles)}
+        <div class="mt-4">${renderKpiStrip(filtered)}</div>
         <div class="mt-4">${viewToggleHtml}</div>
-        <div class="mt-4">${renderCardGrid(tarjetasData)}</div>`;
+        <div class="mt-4">${renderCardGrid(filtered)}</div>`;
     } else {
+      const niveles = uniqueNiveles(allItems);
+      const filtered = filterItems(allItems, filters);
+
+      const viewToggleHtml = `
+        <div class="flex items-center justify-between">
+          ${renderViewToggle(viewMode)}
+          <span class="text-xs text-slate-500">${filtered.length} perfiles</span>
+        </div>`;
+
       content.innerHTML = `
         ${renderFilterBar(filters, areasOptions, niveles)}
         <div class="mt-4">${viewToggleHtml}</div>

@@ -1,6 +1,10 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { getAccessToken } from "../auth/session.ts";
-import { BTN_GHOST } from "../ui/uiTokens.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
+import { BTN_GHOST, BTN_PRIMARY, BTN_DANGER } from "../ui/uiTokens.ts";
+import { deletePerfilAsignacion } from "../api/puestos.ts";
+import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 
 interface AsignacionItem {
   id: number;
@@ -13,19 +17,27 @@ interface AsignacionItem {
   fecha_firma_empleado: string | null;
 }
 
+function isRh(): boolean {
+  return getRolFromAccessToken() === "rh";
+}
+
 export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): void {
   mountAppShell(container, {
     pageTitle: "Empleados del Puesto",
     mainHtml: `
       <div id="puesto-empleados-root" class="space-y-4">
-        <div class="flex items-center gap-3">
-          <button id="btn-volver" class="${BTN_GHOST} text-sm">← Volver</button>
-          <h2 class="text-lg font-bold text-text-primary">Empleados asignados</h2>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button id="btn-volver" class="${BTN_GHOST} text-sm">← Volver</button>
+            <h2 class="text-lg font-bold text-text-primary">Empleados asignados</h2>
+          </div>
+          ${isRh() ? `<button id="btn-asignar" class="${BTN_PRIMARY} text-sm">+ Asignar empleado</button>` : ""}
         </div>
         <div id="puesto-empleados-header" class="text-sm text-text-muted"></div>
         <div id="puesto-empleados-content">
           <p class="text-sm text-text-muted">Cargando...</p>
         </div>
+        <div id="modal-host-asignar"></div>
       </div>`,
   });
 
@@ -38,6 +50,20 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         window.location.hash = `#/puestos/${perfilId}`;
       }
     });
+  }
+
+  // Mount asignar modal (RH only)
+  if (isRh()) {
+    const modalHost = container.querySelector("#modal-host-asignar") as HTMLElement;
+    const asignarModal = mountAsignarEmpleadoModal(modalHost, {
+      perfilId,
+      onSuccess: () => loadEmpleados(container, perfilId),
+    });
+
+    const btnAsignar = container.querySelector("#btn-asignar") as HTMLButtonElement | null;
+    if (btnAsignar) {
+      btnAsignar.addEventListener("click", () => asignarModal.open());
+    }
   }
 
   loadPerfilHeader(container, perfilId);
@@ -58,13 +84,13 @@ async function loadPerfilHeader(container: HTMLElement, perfilId: number): Promi
     if (!res.ok) return;
 
     const perfil = await res.json();
-    const area = perfil.area_nombre ? ` · ${perfil.area_nombre}` : "";
+    const area = perfil.area_nombre ? ` · ${escapeHtml(perfil.area_nombre)}` : "";
     headerEl.innerHTML = `
-      <span class="font-semibold text-text-primary">${perfil.nombre}</span>
+      <span class="font-semibold text-text-primary">${escapeHtml(perfil.nombre)}</span>
       <span class="text-slate-400">${area}</span>
     `;
   } catch {
-    // silently fail — header is optional context
+    // header is optional context
   }
 }
 
@@ -104,18 +130,20 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
       return;
     }
 
+    const showActions = isRh();
     const rows = asignaciones.map((a) => `
       <tr class="border-b border-slate-100/80 transition-colors hover:bg-slate-50/90">
         <td class="px-4 py-3 text-sm text-text-primary">
-          <span class="font-medium">${a.nombre_empleado ?? `Empleado #${a.empleado_id}`}</span>
-          ${a.no_empleado ? `<span class="ml-2 text-xs text-slate-400 tabular-nums">${a.no_empleado}</span>` : ""}
+          <span class="font-medium">${escapeHtml(a.nombre_empleado ?? `Empleado #${a.empleado_id}`)}</span>
+          ${a.no_empleado ? `<span class="ml-2 text-xs text-slate-400 tabular-nums">${escapeHtml(a.no_empleado)}</span>` : ""}
         </td>
-        <td class="px-4 py-3 text-sm text-slate-600">${a.departamento ?? "—"}</td>
+        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(a.departamento ?? "—")}</td>
         <td class="px-4 py-3 text-sm">${a.activo ? '<span class="text-emerald-600 font-medium">Activo</span>' : '<span class="text-slate-400">Inactivo</span>'}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_superior ?? "Pendiente"}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_empleado ?? "Pendiente"}</td>
-        <td class="px-4 py-3 text-right">
-          <a href="#/puestos/${perfilId}/asignaciones/${a.id}" class="text-xs font-semibold text-leoni-blue hover:underline">Ver detalle</a>
+        <td class="px-4 py-3 text-right space-x-2">
+          <a href="#/empleados/${a.empleado_id}" class="text-xs font-semibold text-leoni-blue hover:underline">Ver detalle</a>
+          ${showActions && a.activo ? `<button type="button" data-desasignar="${a.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs">Desasignar</button>` : ""}
         </td>
       </tr>
     `).join("");
@@ -139,6 +167,28 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
           </table>
         </div>
       </section>`;
+
+    // Bind desasignar buttons
+    if (showActions) {
+      contentEl.querySelectorAll<HTMLButtonElement>("[data-desasignar]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const asignacionId = Number(btn.dataset.desasignar);
+          const confirmed = confirm("¿Desasignar a este empleado del perfil? La asignación se desactivará.");
+          if (!confirmed) return;
+
+          btn.disabled = true;
+          btn.textContent = "...";
+          try {
+            await deletePerfilAsignacion(perfilId, asignacionId);
+            loadEmpleados(container, perfilId);
+          } catch {
+            btn.disabled = false;
+            btn.textContent = "Desasignar";
+            alert("Error al desasignar empleado.");
+          }
+        });
+      });
+    }
   } catch {
     contentEl.innerHTML = `<p class="text-sm text-red-600">Error de conexión</p>`;
   }

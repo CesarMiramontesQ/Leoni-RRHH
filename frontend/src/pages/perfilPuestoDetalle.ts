@@ -1,7 +1,12 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { getAccessToken } from "../auth/session.ts";
-import { BTN_GHOST } from "../ui/uiTokens.ts";
+import { BTN_GHOST, BTN_PRIMARY, FIELD_FOCUS } from "../ui/uiTokens.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
+import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
+import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasModal.ts";
+import { updatePerfil } from "../api/puestos.ts";
 
 interface PuestoPerfilInfo {
   id: number;
@@ -73,6 +78,21 @@ const CATEGORIA_COLORS: Record<string, string> = {
   complementos: "bg-slate-100 text-slate-600",
 };
 
+function isRhUser(): boolean {
+  return getRolFromAccessToken() === "rh";
+}
+
+function pencilBtn(action: string, label: string): string {
+  if (!isRhUser()) return "";
+  return `
+    <button type="button" data-action="${action}" class="${BTN_GHOST} !px-2 !py-1.5 text-xs" title="${label}">
+      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>`;
+}
+
 function emptyState(message: string): string {
   return `
     <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50/40 py-6 text-center">
@@ -106,6 +126,7 @@ function renderHeader(puesto: PuestoPerfilInfo, empleadosCount: number): string 
         </div>
       </div>
       <div class="flex items-center gap-2">
+        ${isRhUser() ? `<button type="button" data-action="edit-base" class="${BTN_GHOST} text-sm">Editar</button>` : ""}
         <a href="#/puestos/${puesto.id}/empleados" class="${BTN_GHOST} text-sm">Ver empleados</a>
       </div>
     </div>
@@ -121,8 +142,9 @@ function renderTareas(tareas: Tarea[]): string {
   if (tareas.length === 0) {
     return `
     <div class="rounded-xl border border-border bg-white shadow-sm">
-      <div class="border-b border-slate-100 px-5 py-3.5">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
         <h2 class="text-sm font-semibold text-text-primary">Tareas principales</h2>
+        ${pencilBtn("edit-tareas", "Editar tareas")}
       </div>
       <div class="p-5">${emptyState("Sin tareas registradas")}</div>
     </div>`;
@@ -145,7 +167,10 @@ function renderTareas(tareas: Tarea[]): string {
         <h2 class="text-sm font-semibold text-text-primary">Tareas principales</h2>
         <p class="text-xs text-slate-500">${tareas.length} tarea${tareas.length !== 1 ? "s" : ""} definida${tareas.length !== 1 ? "s" : ""}</p>
       </div>
-      <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${tareas.length}</span>
+      <div class="flex items-center gap-2">
+        ${pencilBtn("edit-tareas", "Editar tareas")}
+        <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${tareas.length}</span>
+      </div>
     </div>
     <div class="p-5">
       <div class="flex flex-col divide-y divide-slate-100">${renderList(principales)}</div>
@@ -162,8 +187,9 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
   if (cualificaciones.length === 0) {
     return `
     <div class="rounded-xl border border-border bg-white shadow-sm">
-      <div class="border-b border-slate-100 px-5 py-3.5">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
         <h2 class="text-sm font-semibold text-text-primary">Cualificaciones requeridas</h2>
+        ${pencilBtn("edit-cualificaciones", "Editar cualificaciones")}
       </div>
       <div class="p-5">${emptyState("Sin cualificaciones registradas")}</div>
     </div>`;
@@ -197,7 +223,10 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
         <h2 class="text-sm font-semibold text-text-primary">Cualificaciones requeridas</h2>
         <p class="text-xs text-slate-500">Por tipo: estudios, experiencia, formacion</p>
       </div>
-      <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${cualificaciones.length}</span>
+      <div class="flex items-center gap-2">
+        ${pencilBtn("edit-cualificaciones", "Editar cualificaciones")}
+        <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${cualificaciones.length}</span>
+      </div>
     </div>
     <div class="p-5">${sections}</div>
   </div>`;
@@ -207,8 +236,9 @@ function renderCompetencias(competencias: Competencia[]): string {
   if (competencias.length === 0) {
     return `
     <div class="rounded-xl border border-border bg-white shadow-sm">
-      <div class="border-b border-slate-100 px-5 py-3.5">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
         <h2 class="text-sm font-semibold text-text-primary">Competencias requeridas</h2>
+        ${pencilBtn("edit-competencias", "Editar competencias")}
       </div>
       <div class="p-5">${emptyState("Sin competencias registradas")}</div>
     </div>`;
@@ -245,7 +275,10 @@ function renderCompetencias(competencias: Competencia[]): string {
         <h2 class="text-sm font-semibold text-text-primary">Competencias requeridas</h2>
         <p class="text-xs text-slate-500">Por categoria: informatica, idiomas, profesional, etc.</p>
       </div>
-      <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${competencias.length}</span>
+      <div class="flex items-center gap-2">
+        ${pencilBtn("edit-competencias", "Editar competencias")}
+        <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${competencias.length}</span>
+      </div>
     </div>
     <div class="p-5">${sections}</div>
   </div>`;
@@ -352,8 +385,160 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
           ${renderCompetencias(competencias ?? [])}
           ${renderEmpleadosResumen(asignaciones ?? [], perfilId)}
         </div>
-      </div>`;
+      </div>
+      <div id="modal-host-tareas"></div>
+      <div id="modal-host-cualificaciones"></div>
+      <div id="modal-host-competencias"></div>
+      <div id="modal-host-edit-base"></div>`;
+
+    // ── Wire up modals (RH only) ──────────────────────────────────────
+    if (isRhUser()) {
+      const reload = () => loadPerfilDetalle(container, perfilId);
+
+      // Tareas modal
+      const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
+      const tareasModal = mountEditarTareasModal(tareasHost, { perfilId, onSuccess: reload });
+
+      // Cualificaciones modal
+      const cualHost = contentEl.querySelector("#modal-host-cualificaciones") as HTMLElement;
+      const cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
+
+      // Competencias modal
+      const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
+      const compModal = mountEditarCompetenciasModal(compHost, { perfilId, onSuccess: reload });
+
+      // Event delegation for edit buttons
+      contentEl.addEventListener("click", (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+        if (!btn) return;
+        const action = btn.dataset.action;
+        switch (action) {
+          case "edit-tareas":
+            tareasModal.open();
+            break;
+          case "edit-cualificaciones":
+            cualModal.open();
+            break;
+          case "edit-competencias":
+            compModal.open();
+            break;
+          case "edit-base":
+            openEditBaseModal(contentEl.querySelector("#modal-host-edit-base") as HTMLElement, puesto, perfilId, reload);
+            break;
+        }
+      });
+    }
   } catch {
     contentEl.innerHTML = `<p class="text-sm text-red-600">Error de conexion al cargar el perfil</p>`;
   }
+}
+
+// ── Edit base fields modal (inline, simple) ──────────────────────────────────
+
+function openEditBaseModal(
+  host: HTMLElement,
+  puesto: PuestoPerfilInfo,
+  perfilId: number,
+  onSuccess: () => void,
+): void {
+  const overlayId = "edit-base-overlay";
+
+  host.innerHTML = `
+    <div
+      id="${overlayId}"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="presentation"
+    >
+      <div
+        class="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-base-title"
+      >
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <h2 id="edit-base-title" class="text-lg font-semibold text-text-primary">Editar perfil</h2>
+          <button
+            type="button"
+            id="edit-base-close"
+            class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary"
+            aria-label="Cerrar"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
+              <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </div>
+        <p id="edit-base-error" class="mb-3 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
+        <form id="form-edit-base" class="space-y-4">
+          <div>
+            <label for="eb-nombre" class="mb-1 block text-xs font-medium text-slate-600">Nombre del puesto</label>
+            <input id="eb-nombre" name="nombre_puesto" type="text" required
+              value="${escapeHtml(puesto.nombre)}"
+              class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}" />
+          </div>
+          <div>
+            <label for="eb-nivel" class="mb-1 block text-xs font-medium text-slate-600">Nivel</label>
+            <input id="eb-nivel" name="nivel" type="text"
+              value="${escapeHtml(puesto.nivel)}"
+              class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}" />
+          </div>
+          <div class="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <button type="button" id="edit-base-cancel"
+              class="${BTN_GHOST} text-sm">Cancelar</button>
+            <button type="submit" id="edit-base-submit"
+              class="${BTN_PRIMARY} text-sm">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+
+  const overlay = host.querySelector(`#${overlayId}`) as HTMLElement;
+  const form = host.querySelector("#form-edit-base") as HTMLFormElement;
+  const errorEl = host.querySelector("#edit-base-error") as HTMLElement;
+
+  function close() {
+    host.innerHTML = "";
+    document.body.style.overflow = "";
+  }
+
+  document.body.style.overflow = "hidden";
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  host.querySelector("#edit-base-close")!.addEventListener("click", close);
+  host.querySelector("#edit-base-cancel")!.addEventListener("click", close);
+
+  const escHandler = (e: KeyboardEvent) => {
+    if (e.key === "Escape") { e.preventDefault(); close(); document.removeEventListener("keydown", escHandler); }
+  };
+  document.addEventListener("keydown", escHandler);
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
+    const nivel = String(fd.get("nivel") ?? "").trim();
+
+    if (!nombre_puesto) {
+      errorEl.textContent = "El nombre es requerido.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const submitBtn = host.querySelector("#edit-base-submit") as HTMLButtonElement;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Guardando...";
+
+    try {
+      await updatePerfil(perfilId, { nombre_puesto, nivel: nivel || undefined });
+      close();
+      document.removeEventListener("keydown", escHandler);
+      onSuccess();
+    } catch (err: unknown) {
+      const detail = (err as { detail?: string })?.detail ?? "Error al guardar.";
+      errorEl.textContent = detail;
+      errorEl.classList.remove("hidden");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Guardar";
+    }
+  });
 }

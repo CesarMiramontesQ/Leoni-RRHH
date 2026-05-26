@@ -513,3 +513,16 @@ class PerfilFuncionesService:
         # Reload
         asignacion = await self.asignacion_repo.get(asignacion_id)
         return PerfilFuncionesResponse.model_validate(asignacion)
+
+    async def desactivar_asignacion(
+        self, perfil_id: int, asignacion_id: int, current_user: Empleado
+    ) -> None:
+        """Desactiva (soft-delete) una asignacion. Solo RH."""
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        await self.asignacion_repo.update(asignacion_id, {"activo": False})
+        await self.db.commit()
