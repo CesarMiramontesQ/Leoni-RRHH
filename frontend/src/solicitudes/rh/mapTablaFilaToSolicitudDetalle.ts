@@ -38,7 +38,7 @@ export function mapTablaFilaToSolicitudDetallePendiente(
   opciones?: MapTablaFilaToSolicitudDetalleOpciones,
 ): SolicitudDetallePendienteVm | null {
   if (row.estado !== "pending") return null;
-  const soloLectura = opciones?.soloLectura ?? false;
+  void opciones?.soloLectura;
   const extra = getSolicitudDetalleMockExtra(row.id);
   const nombre = formatNombreEmpleadoUi(row.empleado_nombre_raw).trim() || row.empleado_nombre_raw.trim() || "Sin nombre";
   const supervisor =

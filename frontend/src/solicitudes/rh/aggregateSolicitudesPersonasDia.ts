@@ -134,10 +134,9 @@ export function aggregateSolicitudesPersonasDia(
     }
   }
 
-  const seriesValues: Record<RhSolicitudTipoCodigo, number[]> = emptyConteoPorTipo();
-  for (const t of RH_SOLICITUD_TIPOS_ORDEN) {
-    seriesValues[t] = [];
-  }
+  const seriesValues = Object.fromEntries(
+    RH_SOLICITUD_TIPOS_ORDEN.map((t) => [t, [] as number[]]),
+  ) as Record<RhSolicitudTipoCodigo, number[]>;
   const totales: number[] = [];
 
   for (const iso of dayLabels) {

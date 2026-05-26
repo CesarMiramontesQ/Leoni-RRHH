@@ -1,8 +1,6 @@
 import { fetchWithAuth } from "./http.ts";
 import type {
-  RhIncidenciaEstadoCodigo,
   RhIncidenciaListFilters,
-  RhIncidenciaPrioridadCodigo,
   RhIncidenciaTablaFila,
   RhIncidenciaTipoCodigo,
   RhIncidenciasEstadisticasData,

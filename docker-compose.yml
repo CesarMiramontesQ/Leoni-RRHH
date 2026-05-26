@@ -1,10 +1,13 @@
-# Proyecto Compose aislado: no comparte estado con docker-compose.prod.yml (leoni-rh-prod).
+# DESARROLLO: incluye Postgres en Docker. No usar para probar producción V1.0.
+# Producción (solo backend + frontend, BD externa):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.mac.yml --env-file .env.prod.test up -d
+# Proyecto Compose aislado: leoni-rh-dev (no comparte estado con leoni-rh-prod).
 name: leoni-rh-dev
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: leoni_rh_db
+    container_name: leoni_rh_db_dev
     environment:
       POSTGRES_DB: leoni_rh
       POSTGRES_USER: leoni
@@ -88,6 +91,6 @@ services:
 
 volumes:
   postgres_data:
-    # Nombre fijo: conserva datos aunque cambie el proyecto Compose (antes: leoni-rrhh_postgres_data).
+    # Volumen creado por el proyecto anterior (leoni-rrhh); reutiliza los mismos datos.
+    external: true
     name: leoni-rrhh_postgres_data
-    driver: local

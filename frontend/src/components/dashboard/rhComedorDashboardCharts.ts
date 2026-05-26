@@ -64,7 +64,7 @@ export function mountDashComedorAsistenciaDiariaChart(
   if (!asistenciaDiariaTieneDatos(serie)) return;
   const accent = cssVar("--color-accent", "#2563EB");
   mountChart(root, RH_DASH_COMEDOR_ASISTENCIA_CHART_ID, ({ colors }) => {
-    const cartesian = chartCartesianScales(colors);
+    const cartesian = chartCartesianScales(colors) ?? {};
     return {
       type: "line",
       data: {
