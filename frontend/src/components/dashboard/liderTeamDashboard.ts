@@ -16,6 +16,7 @@ import {
   type CalendarWeekStart,
 } from "./calendarShared.ts";
 import { renderEmpleadoStatCards } from "./empleadoPersonalDashboard.ts";
+import { renderSupervisorChartsSection, renderSupervisorChartsSkeleton } from "./liderSupervisorChartsSection.ts";
 import { SOLICITUDES_HASH_LIDER_EQUIPO_PENDING } from "../../solicitudes/solicitudesPageFilterConfig.ts";
 import {
   RH_LISTADO_BTN_SECONDARY,
@@ -24,7 +25,11 @@ import {
   badgePending,
 } from "../../ui/uiTokens.ts";
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
-import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
+import {
+  canSeeDashboardTeamCalendar,
+  getEmpleadoIdFromAccessToken,
+  getRolFromAccessToken,
+} from "../../auth/jwt.ts";
 import { emptyEmpleadoDashboardPayload } from "../../dashboard/empleado/mock.ts";
 import { getCalendarRequestBadge } from "../../dashboard/empleado/solicitudCalendarioConsts.ts";
 import type { EmpleadoDashboardPayload } from "../../dashboard/empleado/types.ts";
@@ -117,11 +122,15 @@ const LIDER_KPI_ICON_WRAP: Record<LiderKpiAccent, string> = {
   blue: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
 };
 
+type LiderTeamKpiCardId = "incidencias" | "vacaciones" | "home_office" | "colaboradores";
+
 export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
   const t = team;
   const rolLider = getRolFromAccessToken();
   const esGerente = rolLider === "gerente";
+  const esSupervisor = rolLider === "supervisor";
   const cards: Array<{
+    id: LiderTeamKpiCardId;
     title: string;
     accent: LiderKpiAccent;
     icon: string;
@@ -129,6 +138,7 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
     sub: string;
   }> = [
     {
+      id: "incidencias",
       title: "Incidencias activas",
       accent: "red",
       icon: iconIncidencias(),
@@ -136,6 +146,7 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Incidencias del equipo",
     },
     {
+      id: "vacaciones",
       title: "Vacaciones por aprobar",
       accent: "orange",
       icon: iconVacPend(),
@@ -143,6 +154,7 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Pendientes de aprobación",
     },
     {
+      id: "home_office",
       title: "Home Office pendientes",
       accent: "violet",
       icon: iconHoPend(),
@@ -150,6 +162,7 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Home Office por aprobar",
     },
     {
+      id: "colaboradores",
       title: esGerente ? "Miembro de mi equipo" : "Total colaboradores",
       accent: "blue",
       icon: iconColaboradores(),
@@ -158,7 +171,11 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
     },
   ];
 
-  const html = cards
+  const visibleCards = esSupervisor
+    ? cards.filter((c) => c.id !== "incidencias" && c.id !== "colaboradores")
+    : cards;
+
+  const html = visibleCards
     .map(
       (c) => `
     <article class="rh-dash-kpi-card flex h-full flex-col rounded-[18px] p-5">
@@ -174,7 +191,11 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
     )
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+  const gridClass = esSupervisor
+    ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+    : "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4";
+
+  return `<div class="${gridClass}">${html}</div>`;
 }
 
 function approvalTypeLabel(tp: LiderApprovalRequestType): string {
@@ -747,7 +768,16 @@ export function renderLiderTeamDashboard(
   const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null);
   const teamHtml = renderLiderTeamStatCards(p?.team ?? null);
   const approvalsHtml = renderApprovalRequestsCard(p?.approval_requests ?? []);
-  const calHtml = renderLiderTeamCalendarCard(year, monthIndex, p, selectedMeal);
+  const supervisorChartsHtml =
+    getRolFromAccessToken() === "supervisor"
+      ? renderSupervisorChartsSection(
+          p?.supervisor_incidencias_chart ?? null,
+          p?.supervisor_ho_weekday_chart ?? null,
+        )
+      : "";
+  const calHtml = canSeeDashboardTeamCalendar()
+    ? renderLiderTeamCalendarCard(year, monthIndex, p, selectedMeal)
+    : "";
 
   const teamHeading = renderLiderDashboardSectionHeader(
     "Resumen del equipo",
@@ -769,6 +799,7 @@ export function renderLiderTeamDashboard(
           ${teamHeading}
           ${teamHtml}
           ${approvalsHtml}
+          ${supervisorChartsHtml}
         </section>
         ${calHtml}
       </div>
@@ -788,12 +819,17 @@ export function renderLiderDashboardSkeleton(): string {
       <div class="mt-2 h-4 w-36 rounded bg-slate-50"></div>
     </div>`.repeat(4)}
   </div>`;
-  const teamRow = `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+  const esSupervisor = getRolFromAccessToken() === "supervisor";
+  const teamKpiCount = esSupervisor ? 2 : 4;
+  const teamKpiGridClass = esSupervisor
+    ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+    : "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4";
+  const teamRow = `<div class="${teamKpiGridClass}">
     ${`<div class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
       <div class="flex justify-between gap-3"><div class="h-4 w-32 rounded bg-slate-200"></div><div class="size-10 rounded-xl bg-slate-200"></div></div>
       <div class="mt-4 h-8 w-24 rounded bg-slate-200"></div>
       <div class="mt-3 h-3 w-40 rounded bg-slate-100"></div>
-    </div>`.repeat(4)}
+    </div>`.repeat(teamKpiCount)}
   </div>`;
   const table = `<div class="${RH_LISTADO_SURFACE} mt-8 animate-pulse p-6">
     <div class="flex flex-col gap-2 sm:flex-row sm:justify-between">
@@ -803,18 +839,21 @@ export function renderLiderDashboardSkeleton(): string {
     <div class="mt-6 h-4 w-full max-w-md rounded bg-slate-100"></div>
     <div class="mt-6 h-36 rounded-xl bg-slate-50"></div>
   </div>`;
-  const cal = `<div class="rh-cal-card mt-8 animate-pulse overflow-hidden rounded-[20px] p-4 sm:p-6">
+  const supervisorChartsSkel = esSupervisor ? renderSupervisorChartsSkeleton() : "";
+  const cal = canSeeDashboardTeamCalendar()
+    ? `<div class="rh-cal-card mt-8 animate-pulse overflow-hidden rounded-[20px] p-4 sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:justify-between">
       <div class="space-y-2"><div class="h-6 w-48 rounded bg-slate-200"></div><div class="h-3 w-full max-w-xs rounded bg-slate-100"></div></div>
       <div class="h-10 w-full max-w-[16rem] rounded-xl bg-slate-100 sm:ml-auto"></div>
     </div>
     <div class="mt-6 grid grid-cols-7 gap-1">${"<div class=\"h-9 rounded-lg bg-slate-100\"></div>".repeat(7)}</div>
     <div class="mt-1 grid grid-cols-7 gap-1">${"<div class=\"h-16 rounded-lg bg-slate-50\"></div>".repeat(7)}</div>
-  </div>`;
+  </div>`
+    : "";
   return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} min-h-0">
     <div class="flex flex-col gap-8 sm:gap-10">
       ${headingSkel + personalRow}
-      ${headingSkel + teamRow + table + cal}
+      ${headingSkel + teamRow + table + supervisorChartsSkel + cal}
     </div>
   </div>`;
 }

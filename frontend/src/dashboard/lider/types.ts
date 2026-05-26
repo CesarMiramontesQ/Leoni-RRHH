@@ -72,10 +72,53 @@ export type LiderDashboardPayload = {
   personal: LiderPersonalStats;
   team: LiderTeamStats;
   approval_requests: LiderApprovalRequestRow[];
+  /** Gráfica de incidencias por colaborador (solo rol supervisor). */
+  supervisor_incidencias_chart: SupervisorIncidenciasChartData | null;
+  /** Home office por día laboral (solo rol supervisor). */
+  supervisor_ho_weekday_chart: SupervisorHomeOfficeWeekdayChartData | null;
   team_calendar: {
     initial_year: number;
     initial_month_index: number;
     day_entries: Record<string, TeamCalendarDayEntry>;
     selected_iso_date: string | null;
   };
+};
+
+/** Fila agregada para la gráfica de incidencias del supervisor. */
+export type SupervisorIncidenciasChartRow = {
+  empleado_id: string;
+  empleado_nombre: string;
+  /** Etiqueta breve para eje X / tabla. */
+  empleado_nombre_corto: string;
+  total: number;
+  byTipo: Record<string, number>;
+};
+
+export type SupervisorIncidenciasChartView = "bars" | "heatmap";
+
+export type SupervisorIncidenciasChartData = {
+  rows: SupervisorIncidenciasChartRow[];
+  /** Tipos visibles en leyenda (máx. 6; puede incluir `otros`). */
+  tipos: string[];
+  /** Barras verticales (≤15 colaboradores) o tabla heatmap (>15). */
+  view: SupervisorIncidenciasChartView;
+};
+
+export type SupervisorHomeOfficeWeekdaySlot = {
+  /** 1 = lunes … 5 = viernes */
+  weekday: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  count: number;
+};
+
+export type SupervisorHomeOfficeWeekdayChartData = {
+  days: SupervisorHomeOfficeWeekdaySlot[];
+  /** Total de días laborales (lun–vie) con HO aprobado. */
+  total_dias_ho: number;
+  /** Número de solicitudes HO aprobadas del equipo. */
+  solicitudes_ho: number;
+  /** Etiqueta del día con más días HO (p. ej. «Jueves»). */
+  dia_mas_solicitado: string | null;
+  /** Porcentaje de días HO en el día principal. */
+  concentracion_dia_principal_pct: number | null;
 };

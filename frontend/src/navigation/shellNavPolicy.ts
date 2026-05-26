@@ -44,7 +44,7 @@ const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
-const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
+const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes", "ajustes"]);
 
 /**
  * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.

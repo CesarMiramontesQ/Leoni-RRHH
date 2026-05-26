@@ -4,6 +4,8 @@ import {
   canAccessEmpleadoPersonalDashboard,
   canAccessLiderTeamDashboard,
   canAccessRhOperationalDashboard,
+  canSeeDashboardTeamCalendar,
+  getRolFromAccessToken,
 } from "../auth/jwt.ts";
 import {
   mountRhDashboardAnalyticsCharts,
@@ -19,6 +21,8 @@ import {
   renderRhAnalyticsSectionSkeleton,
 } from "../components/dashboard/rhAnalyticsSection.ts";
 import { destroyChart, destroyChartsIn } from "../charts/index.ts";
+import { mountSupervisorIncidenciasChart } from "../components/dashboard/liderSupervisorIncidenciasChart.ts";
+import { mountSupervisorHomeOfficeWeekdayChart } from "../components/dashboard/liderSupervisorHomeOfficeWeekdayChart.ts";
 import type {
   RhDashboardAnalyticsPayload,
   RhDashboardPeriodDays,
@@ -392,10 +396,30 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   const calYear = cal.initial_year ?? now.getFullYear();
   const calMonth = cal.initial_month_index ?? now.getMonth();
 
-  root.innerHTML = renderLiderTeamDashboard(calYear, calMonth, payload);
-  bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth, {
-    loadMonthData: async (target) => fetchLiderDashboard(target).catch(() => null),
-  });
+  destroyChartsIn(root);
+  try {
+    root.innerHTML = renderLiderTeamDashboard(calYear, calMonth, payload);
+  } catch (e: unknown) {
+    console.error("[lider-dashboard] render failed", e);
+    root.innerHTML = wrapDashboardPageContent(renderError("No se pudo mostrar el dashboard. Recarga la página."));
+    return;
+  }
+  if (getRolFromAccessToken() === "supervisor") {
+    const chartsHost = root.querySelector("#lider-supervisor-charts");
+    if (chartsHost) {
+      if (payload.supervisor_incidencias_chart) {
+        mountSupervisorIncidenciasChart(chartsHost, payload.supervisor_incidencias_chart);
+      }
+      if (payload.supervisor_ho_weekday_chart) {
+        mountSupervisorHomeOfficeWeekdayChart(chartsHost, payload.supervisor_ho_weekday_chart);
+      }
+    }
+  }
+  if (canSeeDashboardTeamCalendar()) {
+    bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth, {
+      loadMonthData: async (target) => fetchLiderDashboard(target).catch(() => null),
+    });
+  }
 
   if (root.dataset.liderApprovalBound !== "1") {
     root.dataset.liderApprovalBound = "1";

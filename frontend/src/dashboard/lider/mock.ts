@@ -179,6 +179,8 @@ export function buildLiderDashboardMock(now: Date = new Date()): LiderDashboardP
     personal: MOCK_PERSONAL,
     team: MOCK_TEAM,
     approval_requests: MOCK_APPROVALS,
+    supervisor_incidencias_chart: null,
+    supervisor_ho_weekday_chart: null,
     team_calendar: {
       initial_year: y,
       initial_month_index: m,
@@ -206,6 +208,8 @@ export function emptyLiderDashboardPayload(now: Date = new Date()): LiderDashboa
       team_collaborators_count: null,
     },
     approval_requests: [],
+    supervisor_incidencias_chart: null,
+    supervisor_ho_weekday_chart: null,
     team_calendar: {
       initial_year: y,
       initial_month_index: mo,

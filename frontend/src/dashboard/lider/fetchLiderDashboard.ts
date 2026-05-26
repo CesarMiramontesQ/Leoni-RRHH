@@ -8,6 +8,8 @@ import type { RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
+import { buildSupervisorIncidenciasChart } from "./buildSupervisorIncidenciasChart.ts";
+import { buildSupervisorHomeOfficeWeekdayChart } from "./buildSupervisorHomeOfficeWeekday.ts";
 import {
   esSolicitudTipoCalendarioDashboard,
   SOLICITUD_ESTADO_API,
@@ -259,7 +261,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         : Promise.resolve([]),
       getEmpleadosResumen().catch(() => null),
       myVista360Id !== null ? getEmpleadoVista360(myVista360Id).catch(() => null) : Promise.resolve(null),
-      getIncidenciasRows(500).catch(() => []),
+      getIncidenciasRows(100).catch(() => []),
     ]);
     const todayIso = rhIsoLocalDate(now);
     const { monthStartIso, monthEndIso } = monthIsoRange(now);
@@ -317,6 +319,13 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         ? Math.max(0, (empleadosResumen.colaboradores_total ?? 0) - 1)
         : fallbackTeamCount;
     const teamActiveIncidents = countIncidenciasActivas(incidenciasFilas);
+    const supervisorIncidenciasChart =
+      role === "supervisor" ? buildSupervisorIncidenciasChart(incidenciasFilas, myId) : null;
+    const hoTeamRows = teamRows.filter(
+      (r) => r.tipo === "home_office" && r.estado === SOLICITUD_ESTADO_API.APROBADO,
+    );
+    const supervisorHoWeekdayChart =
+      role === "supervisor" ? buildSupervisorHomeOfficeWeekdayChart(hoTeamRows) : null;
     const approvalRequests = teamPendingRows
       .map((r) => {
         const tipo = mapSolicitudTipoToApprovalUi(r.tipo);
@@ -375,6 +384,8 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         team_collaborators_count: teamCollaboratorsCount,
       },
       approval_requests: approvalRequests,
+      supervisor_incidencias_chart: supervisorIncidenciasChart,
+      supervisor_ho_weekday_chart: supervisorHoWeekdayChart,
       team_calendar: {
         ...base.team_calendar,
         initial_year: initialYear,
