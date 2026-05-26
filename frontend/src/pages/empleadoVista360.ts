@@ -17,8 +17,8 @@ import { bindVista360RegistrosTablas } from "../components/vista360/bindVista360
 import {
   vista360TabButtonClass,
   vista360TabsHtml,
-  VISTA360_TABLE_TAB_IDS,
   type Vista360TabId,
+  type Vista360TableTabId,
 } from "../components/vista360/tabs.ts";
 import { renderVista360TablaMount } from "../components/vista360/vista360RegistrosTabla.ts";
 import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
@@ -271,8 +271,8 @@ function renderPlanDesarrolloPanel(): string {
     </div>`;
 }
 
-function isTableTab(tab: Vista360TabId): boolean {
-  return (VISTA360_TABLE_TAB_IDS as readonly string[]).includes(tab);
+function isTableTab(tab: Vista360TabId): tab is Vista360TableTabId {
+  return tab === "incidencias" || tab === "actas" || tab === "registros-comedor";
 }
 
 function renderVista360Content(

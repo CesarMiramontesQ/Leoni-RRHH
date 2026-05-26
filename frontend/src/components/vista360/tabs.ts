@@ -1,14 +1,14 @@
 import { escapeHtml } from "./html.ts";
 
+export type Vista360TableTabId = "incidencias" | "actas" | "registros-comedor";
+
 export type Vista360TabId =
   | "resumen"
-  | "incidencias"
+  | Vista360TableTabId
   | "historial"
   | "beneficios"
   | "capacidades"
-  | "plan_desarrollo"
-  | "actas"
-  | "registros-comedor";
+  | "plan_desarrollo";
 
 const TABS: { id: Vista360TabId; label: string }[] = [
   { id: "resumen", label: "Resumen" },
@@ -54,7 +54,7 @@ export function vista360TabsHtml(active: Vista360TabId): string {
 }
 
 /** Tabs con tablas paginadas vía API (incidencias, actas, comedor). */
-export const VISTA360_TABLE_TAB_IDS: readonly Vista360TabId[] = [
+export const VISTA360_TABLE_TAB_IDS: readonly Vista360TableTabId[] = [
   "incidencias",
   "actas",
   "registros-comedor",

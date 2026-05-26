@@ -6,7 +6,7 @@ import {
 } from "../../api/vista360Tablas.ts";
 import { canAccessUsuariosAdmin } from "../../auth/jwt.ts";
 import { fmtDateTimeIso, fmtFechaCorta, fmtTablaCelda } from "../../ui/uiUtils.ts";
-import type { Vista360TabId } from "./tabs.ts";
+import { type Vista360TabId, type Vista360TableTabId } from "./tabs.ts";
 import {
   renderVista360Tabla,
   renderVista360TablaEmpty,
@@ -110,7 +110,7 @@ export function bindVista360RegistrosTablas(opts: {
   const { root, empleadoId, noEmpleado, signal } = opts;
   const isRh = canAccessUsuariosAdmin();
 
-  const pages: Record<Vista360TabId, TabPageState> = {
+  const pages: Record<Vista360TableTabId, TabPageState> = {
     incidencias: { page: 1, total: 0 },
     actas: { page: 1, total: 0 },
     "registros-comedor": { page: 1, total: 0 },
@@ -188,13 +188,15 @@ export function bindVista360RegistrosTablas(opts: {
   }
 
   async function loadTab(tab: Vista360TabId): Promise<void> {
+    if (tab !== "incidencias" && tab !== "actas" && tab !== "registros-comedor") return;
+    const tableTab = tab as Vista360TableTabId;
     const gen = ++loadGen;
-    const host = hostEl(root, tab);
+    const host = hostEl(root, tableTab);
     if (!host) return;
     try {
-      const page = pages[tab].page;
-      if (tab === "incidencias") await renderIncidencias(page);
-      else if (tab === "actas") await renderActas(page);
+      const page = pages[tableTab].page;
+      if (tableTab === "incidencias") await renderIncidencias(page);
+      else if (tableTab === "actas") await renderActas(page);
       else await renderComedor(page);
     } catch (e: unknown) {
       if (signal.aborted || isAbortError(e) || gen !== loadGen) return;
@@ -208,7 +210,7 @@ export function bindVista360RegistrosTablas(opts: {
     (ev) => {
       const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-v360-tabla-page]");
       if (!btn || !root.contains(btn)) return;
-      const tabId = btn.getAttribute("data-v360-tabla-page") as Vista360TabId | null;
+      const tabId = btn.getAttribute("data-v360-tabla-page") as Vista360TableTabId | null;
       const pageRaw = btn.getAttribute("data-v360-page");
       if (!tabId || !pageRaw) return;
       const page = Number.parseInt(pageRaw, 10);
