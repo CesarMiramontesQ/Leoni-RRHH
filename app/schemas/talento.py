@@ -67,6 +67,7 @@ class CompetenciaCreate(BaseModel):
     nombre: str = Field(..., min_length=2, max_length=255)
     descripcion: Optional[str] = None
     categoria: CategoriaCompetencia
+    subcategoria: Optional[str] = None
     area_id: Optional[int] = None
 
 
@@ -76,6 +77,7 @@ class CompetenciaUpdate(BaseModel):
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     descripcion: Optional[str] = None
     categoria: Optional[CategoriaCompetencia] = None
+    subcategoria: Optional[str] = None
     area_id: Optional[int] = None
 
 
@@ -86,6 +88,7 @@ class CompetenciaResponse(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
     categoria: str
+    subcategoria: Optional[str] = None
     area_id: Optional[int] = None
     area_nombre: Optional[str] = None
     activo: bool

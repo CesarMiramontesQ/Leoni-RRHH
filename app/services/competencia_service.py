@@ -68,6 +68,7 @@ class CompetenciaService:
             nombre=comp.nombre,
             descripcion=comp.descripcion,
             categoria=comp.categoria,
+            subcategoria=comp.subcategoria,
             area_id=comp.area_id,
             area_nombre=area_nombre,
             activo=comp.activo,
@@ -155,6 +156,7 @@ class CompetenciaService:
             "nombre": data.nombre,
             "descripcion": data.descripcion,
             "categoria": data.categoria,
+            "subcategoria": data.subcategoria,
             "area_id": data.area_id,
             "activo": True,
         })
@@ -193,6 +195,8 @@ class CompetenciaService:
             update_data["descripcion"] = data.descripcion
         if data.categoria is not None:
             update_data["categoria"] = data.categoria
+        if data.subcategoria is not None:
+            update_data["subcategoria"] = data.subcategoria
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
 

@@ -18,7 +18,7 @@ export type EditarCompetenciasModalOptions = {
   onSuccess: () => void;
 };
 
-const CATEGORIA_OPTIONS: { value: string; label: string }[] = [
+const SUBCATEGORIA_OPTIONS: { value: string; label: string }[] = [
   { value: "informatica", label: "Informatica" },
   { value: "idiomas", label: "Idiomas" },
   { value: "profesional", label: "Profesional" },
@@ -28,11 +28,11 @@ const CATEGORIA_OPTIONS: { value: string; label: string }[] = [
   { value: "complementos", label: "Complementos" },
 ];
 
-const CATEGORIA_LABELS: Record<string, string> = Object.fromEntries(
-  CATEGORIA_OPTIONS.map(o => [o.value, o.label]),
+const SUBCATEGORIA_LABELS: Record<string, string> = Object.fromEntries(
+  SUBCATEGORIA_OPTIONS.map(o => [o.value, o.label]),
 );
 
-const CATEGORIA_COLORS: Record<string, string> = {
+const SUBCATEGORIA_COLORS: Record<string, string> = {
   informatica: "bg-blue-50 text-blue-700",
   idiomas: "bg-violet-50 text-violet-700",
   profesional: "bg-emerald-50 text-emerald-700",
@@ -41,6 +41,19 @@ const CATEGORIA_COLORS: Record<string, string> = {
   metodos: "bg-cyan-50 text-cyan-700",
   complementos: "bg-slate-100 text-slate-600",
 };
+
+function subcategoriaSelect(id: string): string {
+  const opts = SUBCATEGORIA_OPTIONS.map(o =>
+    `<option value="${o.value}">${escapeHtml(o.label)}</option>`
+  ).join("");
+  return `
+    <div class="grid grid-cols-1">
+      <select id="${id}" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+        ${opts}
+      </select>
+      ${SELECT_CHEVRON}
+    </div>`;
+}
 
 function overlayHtml(): string {
   return `
@@ -82,12 +95,12 @@ function renderList(competencias: PerfilCompetencia[]): string {
   return `
     <div class="max-h-48 overflow-y-auto divide-y divide-slate-100 mb-4">
       ${competencias.map(c => {
-        const colorClass = CATEGORIA_COLORS[c.categoria] ?? "bg-slate-100 text-slate-600";
+        const colorClass = SUBCATEGORIA_COLORS[c.categoria] ?? "bg-slate-100 text-slate-600";
         const displayName = c.competencia_nombre ?? c.descripcion;
         return `
         <div class="flex items-center justify-between gap-2 py-2">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${escapeHtml(CATEGORIA_LABELS[c.categoria] ?? c.categoria)}</span>
+            <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${escapeHtml(SUBCATEGORIA_LABELS[c.categoria] ?? c.categoria)}</span>
             <span class="text-sm text-text-primary truncate">${escapeHtml(displayName)}</span>
           </div>
           <button type="button" data-delete-competencia="${c.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
@@ -99,10 +112,6 @@ function renderList(competencias: PerfilCompetencia[]): string {
 }
 
 function renderAddForm(showCreateNew: boolean): string {
-  const catOpts = CATEGORIA_OPTIONS.map(o =>
-    `<option value="${o.value}">${escapeHtml(o.label)}</option>`
-  ).join("");
-
   return `
     <div class="border-t border-slate-200 pt-4 space-y-3">
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar del catálogo</p>
@@ -115,27 +124,15 @@ function renderAddForm(showCreateNew: boolean): string {
       </div>
       <div id="comp-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
 
-      <!-- Selected -->
-      <div id="comp-selected" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 px-3 py-2.5"></div>
-
-      <!-- Categoria + orden (visible after selection) -->
-      <div id="comp-assign-fields" class="hidden space-y-3">
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoría</label>
-          <div class="grid grid-cols-1">
-            <select id="comp-categoria" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-              ${catOpts}
-            </select>
-            ${SELECT_CHEVRON}
+      <!-- Selected + inline subcategoria + agregar (single step) -->
+      <div id="comp-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3 space-y-3">
+        <div id="comp-selected-info" class="flex items-center justify-between"></div>
+        <div class="flex items-end gap-3">
+          <div class="flex-1">
+            <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoría</label>
+            ${subcategoriaSelect("comp-categoria")}
           </div>
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Orden</label>
-          <input id="comp-orden" type="number" min="1" value="1"
-            class="block w-24 rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}" />
-        </div>
-        <div class="flex justify-end">
-          <button type="button" id="comp-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar al perfil</button>
+          <button type="button" id="comp-submit-assign" class="${BTN_PRIMARY} text-sm shrink-0">Agregar</button>
         </div>
       </div>
 
@@ -171,8 +168,12 @@ function renderAddForm(showCreateNew: boolean): string {
             ${SELECT_CHEVRON}
           </div>
         </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoría</label>
+          ${subcategoriaSelect("comp-new-subcategoria")}
+        </div>
         <div class="flex justify-end">
-          <button type="button" id="comp-create-submit" class="${BTN_PRIMARY} text-sm">Crear y seleccionar</button>
+          <button type="button" id="comp-create-submit" class="${BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
         </div>
       </div>` : ""}
     </div>`;
@@ -192,6 +193,7 @@ export function mountEditarCompetenciasModal(
   let selectedCatalogo: { id: number; nombre: string; grupo: string } | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let catalogoCache: Awaited<ReturnType<typeof getCompetencias>> = [];
+  let assignedCompetenciaIds: Set<number> = new Set();
 
   function close(): void {
     overlay.classList.add("hidden");
@@ -203,6 +205,9 @@ export function mountEditarCompetenciasModal(
   async function refreshList(): Promise<void> {
     try {
       const items = await getPerfilCompetencias(options.perfilId);
+      assignedCompetenciaIds = new Set(
+        items.filter(c => c.competencia_id != null).map(c => c.competencia_id!)
+      );
       selectedCatalogo = null;
       body.innerHTML = renderList(items) + renderAddForm(showCreateNew);
       bindInteractions();
@@ -268,8 +273,9 @@ export function mountEditarCompetenciasModal(
     }
     const lower = q.toLowerCase();
     const filtered = catalogoCache.filter(c =>
-      c.nombre.toLowerCase().includes(lower) ||
-      c.descripcion.toLowerCase().includes(lower)
+      !assignedCompetenciaIds.has(c.id) &&
+      (c.nombre.toLowerCase().includes(lower) ||
+      c.descripcion.toLowerCase().includes(lower))
     );
     if (filtered.length === 0) {
       resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
@@ -288,29 +294,32 @@ export function mountEditarCompetenciasModal(
   function selectCompetencia(id: number, nombre: string, grupo: string): void {
     selectedCatalogo = { id, nombre, grupo };
     const resultsEl = body.querySelector("#comp-search-results") as HTMLElement;
-    const selectedEl = body.querySelector("#comp-selected") as HTMLElement;
-    const fieldsEl = body.querySelector("#comp-assign-fields") as HTMLElement;
+    const selectedRow = body.querySelector("#comp-selected-row") as HTMLElement;
+    const selectedInfo = body.querySelector("#comp-selected-info") as HTMLElement;
     const searchInput = body.querySelector("#comp-search") as HTMLInputElement;
 
     resultsEl.classList.add("hidden");
-    selectedEl.classList.remove("hidden");
-    fieldsEl.classList.remove("hidden");
+    selectedRow.classList.remove("hidden");
     searchInput.value = "";
 
-    selectedEl.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div>
-          <span class="text-sm font-medium text-text-primary">${escapeHtml(nombre)}</span>
-          <span class="ml-2 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${grupo === "tecnica" ? "Técnica" : "Blanda"}</span>
-        </div>
-        <button type="button" id="comp-deselect" class="text-xs text-red-600 hover:underline">Quitar</button>
-      </div>`;
+    selectedInfo.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-text-primary">${escapeHtml(nombre)}</span>
+        <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${grupo === "tecnica" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}">${grupo === "tecnica" ? "Técnica" : "Blanda"}</span>
+      </div>
+      <button type="button" id="comp-deselect" class="text-xs text-red-600 hover:underline">Quitar</button>`;
 
-    selectedEl.querySelector("#comp-deselect")?.addEventListener("click", () => {
+    selectedInfo.querySelector("#comp-deselect")?.addEventListener("click", () => {
       selectedCatalogo = null;
-      selectedEl.classList.add("hidden");
-      fieldsEl.classList.add("hidden");
+      selectedRow.classList.add("hidden");
     });
+
+    // Pre-select subcategoria from catalog if available
+    const catItem = catalogoCache.find(c => c.id === id);
+    if (catItem?.subcategoria) {
+      const select = body.querySelector("#comp-categoria") as HTMLSelectElement | null;
+      if (select) select.value = catItem.subcategoria;
+    }
   }
 
   function bindAssignButton(): void {
@@ -323,13 +332,11 @@ export function mountEditarCompetenciasModal(
       btn.textContent = "Agregando...";
 
       const categoria = (body.querySelector("#comp-categoria") as HTMLSelectElement)?.value ?? "profesional";
-      const orden = Number((body.querySelector("#comp-orden") as HTMLInputElement)?.value ?? 1);
 
       try {
         await createPerfilCompetencia(options.perfilId, {
           competencia_id: selectedCatalogo.id,
           categoria,
-          orden,
         });
         options.onSuccess();
         await refreshList();
@@ -338,7 +345,7 @@ export function mountEditarCompetenciasModal(
       } finally {
         loading = false;
         btn.disabled = false;
-        btn.textContent = "Agregar al perfil";
+        btn.textContent = "Agregar";
       }
     });
   }
@@ -360,6 +367,7 @@ export function mountEditarCompetenciasModal(
       const nombre = (body.querySelector("#comp-new-nombre") as HTMLInputElement)?.value.trim();
       const descripcion = (body.querySelector("#comp-new-desc") as HTMLTextAreaElement)?.value.trim();
       const grupo = (body.querySelector("#comp-new-grupo") as HTMLSelectElement)?.value as "tecnica" | "habilidad_blanda";
+      const subcategoria = (body.querySelector("#comp-new-subcategoria") as HTMLSelectElement)?.value;
 
       if (!nombre || !descripcion) return;
 
@@ -368,23 +376,24 @@ export function mountEditarCompetenciasModal(
       btn.textContent = "Creando...";
 
       try {
-        const created = await createCompetencia({ nombre, descripcion, grupo });
+        const created = await createCompetencia({ nombre, descripcion, grupo, subcategoria });
         catalogoCache.push(created);
+
+        // Assign to profile immediately with the chosen subcategoria
+        await createPerfilCompetencia(options.perfilId, {
+          competencia_id: created.id,
+          categoria: subcategoria,
+        });
+
         showCreateNew = false;
-        selectCompetencia(created.id, created.nombre, created.grupo);
-        // Re-render list but keep selection
-        const items = await getPerfilCompetencias(options.perfilId);
-        const listHtml = renderList(items);
-        const addFormHtml = renderAddForm(false);
-        body.innerHTML = listHtml + addFormHtml;
-        bindInteractions();
-        selectCompetencia(created.id, created.nombre, created.grupo);
+        options.onSuccess();
+        await refreshList();
       } catch {
         // keep form
       } finally {
         loading = false;
         btn.disabled = false;
-        btn.textContent = "Crear y seleccionar";
+        btn.textContent = "Crear y agregar al perfil";
       }
     });
   }

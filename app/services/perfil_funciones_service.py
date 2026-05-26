@@ -247,6 +247,9 @@ class PerfilFuncionesService:
         competencia_id = data.competencia_id
 
         if competencia_id:
+            if await self.competencia_repo.exists_by_competencia_and_perfil(competencia_id, perfil_id):
+                raise ConflictError(detail="Esta competencia ya está asignada al perfil")
+
             from sqlalchemy import select
             result = await self.db.execute(
                 select(Competencia).where(Competencia.id == competencia_id)
@@ -256,12 +259,14 @@ class PerfilFuncionesService:
                 raise NotFoundError(entidad="Competencia", id=competencia_id)
             descripcion = catalogo.nombre
 
+        orden = data.orden if data.orden is not None else (await self.competencia_repo.max_orden(perfil_id)) + 1
+
         competencia = await self.competencia_repo.create({
             "puesto_perfil_id": perfil_id,
             "competencia_id": competencia_id,
             "categoria": data.categoria,
             "descripcion": descripcion,
-            "orden": data.orden,
+            "orden": orden,
         })
 
         resp = PerfilCompetenciaRequeridaResponse.model_validate(competencia)
