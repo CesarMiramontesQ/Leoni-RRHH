@@ -3,7 +3,7 @@ import type { RhIncidenciasUiConfig } from "./types.ts";
 
 export function incidenciasUiConfig(): RhIncidenciasUiConfig {
   const rol = getRolFromAccessToken();
-  const mostrarTarjetasEstadisticas = rol !== "supervisor";
+  const mostrarTarjetasEstadisticas = rol !== "supervisor" && rol !== "gerente";
   if (rol === "rh") {
     return { modoFiltros: "rh", mostrarFiltroSupervisor: true, mostrarTarjetasEstadisticas };
   }
