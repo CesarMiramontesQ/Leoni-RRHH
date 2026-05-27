@@ -2,7 +2,9 @@
  * Modal «Nueva solicitud»: modo RH (selector de colaborador) y modo portal (`fixedEmpleadoDirectoryId`).
  */
 
+import { getAuthMe, isAuthFetchError } from "../../api/auth.ts";
 import { getEmpleadosPage } from "../../api/empleados.ts";
+import type { UsuarioListItem } from "../../api/usuarios.ts";
 import {
   getSolicitudById,
   patchSolicitudRevision,
@@ -10,8 +12,8 @@ import {
 } from "../../api/solicitudes.ts";
 import { getUserDisplayNameFromAccessToken } from "../../auth/jwt.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
-import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
+import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
@@ -33,6 +35,13 @@ import {
 
 function empleadosExcluyeId(items: UsuarioListItem[], excluirId: number): UsuarioListItem[] {
   return items.filter((u) => u.id !== excluirId);
+}
+
+const MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO =
+  "Home Office solo está disponible para colaboradores con clasificación Administrativo.";
+
+function empleadoAdministrativoDesdeItem(item: UsuarioListItem | undefined): boolean {
+  return esEmpleadoAdministrativo(item?.clasificacion);
 }
 
 export type RhNewRequestModalOptions = {
@@ -109,6 +118,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     | "paternidad"
     | "permiso_sin_goce_sueldo" = "vacaciones";
   let empleadosCache: UsuarioListItem[] = [];
+  /** Clasificación del colaborador titular (null = sin empleado seleccionado). */
+  let empleadoEsAdministrativo: boolean | null = null;
   let contextoVac: number | null = null;
   let contextoHoText = "";
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -128,6 +139,56 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       return empleadosExcluyeId(empleadosCache, supervisorDirResolved);
     }
     return empleadosCache;
+  }
+
+  function empleadoEnCache(empleadoId: number): UsuarioListItem | undefined {
+    return empleadosCache.find((u) => u.id === empleadoId);
+  }
+
+  function puedeMostrarHomeOffice(): boolean {
+    return empleadoEsAdministrativo === true;
+  }
+
+  function asegurarTipoSolicitudPermitido(): void {
+    if (tipo === "home_office" && !puedeMostrarHomeOffice()) {
+      tipo = "vacaciones";
+    }
+  }
+
+  function esEmpleadoSolicitudPropia(empleadoId: number): boolean {
+    if (fixedSelfId != null && empleadoId === fixedSelfId) return true;
+    return (
+      supervisorDirResolved != null &&
+      showSupervisorSujeto &&
+      solicitudSubjectSupervisor === "personal" &&
+      empleadoId === supervisorDirResolved
+    );
+  }
+
+  async function resolverEmpleadoEsAdministrativo(empleadoId: number): Promise<boolean> {
+    const cached = empleadoEnCache(empleadoId);
+    if (cached) return empleadoAdministrativoDesdeItem(cached);
+
+    if (esEmpleadoSolicitudPropia(empleadoId)) {
+      const me = await getAuthMe();
+      return esEmpleadoAdministrativo(me.clasificacion);
+    }
+
+    const pg = await getEmpleadosPage({ page: 1, page_size: 20, q: String(empleadoId), activo: true });
+    const hit = pg.items.find((u) => u.id === empleadoId);
+    if (hit) {
+      if (!empleadoEnCache(hit.id)) empleadosCache.push(hit);
+      return empleadoAdministrativoDesdeItem(hit);
+    }
+    return false;
+  }
+
+  async function actualizarClasificacionEmpleado(empleadoId: number | null): Promise<void> {
+    if (empleadoId == null) {
+      empleadoEsAdministrativo = null;
+      return;
+    }
+    empleadoEsAdministrativo = await resolverEmpleadoEsAdministrativo(empleadoId);
   }
 
   function close(): void {
@@ -191,9 +252,13 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   }
 
   async function refreshContextForEmpleado(empleadoId: number | null): Promise<void> {
-    const ctx = await fetchRhEmpleadoRequestContext(empleadoId);
+    const [ctx] = await Promise.all([
+      fetchRhEmpleadoRequestContext(empleadoId),
+      actualizarClasificacionEmpleado(empleadoId),
+    ]);
     contextoVac = ctx.diasVacacionesDisponibles;
     contextoHoText = ctx.homeOfficeResumen;
+    asegurarTipoSolicitudPermitido();
     updateInfoCard();
     applyRhModalLiveFeedback(host, tipo, contextoVac);
   }
@@ -255,6 +320,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       tipo === "home_office" && (actuaComoColaboradorPropio || supervisorSolicitudEquipo);
     const hideMotivoEmpleado = actuaComoColaboradorPropio && (tipo === "home_office" || tipo === "vacaciones");
     const snap = readFormSnapshot();
+    asegurarTipoSolicitudPermitido();
 
     if (
       showSupervisorSujeto &&
@@ -359,6 +425,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       : undefined,
       supervisorOcultarPermisoSinGoceEnTipo:
         showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "personal" ? true : undefined,
+      showHomeOfficeType: puedeMostrarHomeOffice(),
     });
     bindFormInteractions();
     applyRhModalLiveFeedback(host, tipo, contextoVac);
@@ -402,6 +469,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               t !== "home_office" &&
               t !== "permiso_sin_goce_sueldo"
             ) return;
+            if (t === "home_office" && !puedeMostrarHomeOffice()) return;
             tipo = t;
             renderForm({});
           },
@@ -422,6 +490,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             raw === "paternidad" ||
             raw === "permiso_sin_goce_sueldo"
           ) {
+            if (raw === "home_office" && !puedeMostrarHomeOffice()) return;
             tipo = raw;
             renderForm({});
           }
@@ -456,7 +525,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                   motivo: snapSubject.motivo,
                   comentarios: snapSubject.comentarios,
                 });
-                void refreshContextForEmpleado(null);
+                await refreshContextForEmpleado(null);
+                renderForm({
+                  selectedId: "",
+                  fechaInicio: snapSubject.fechaInicio,
+                  fechaFin: snapSubject.fechaFin,
+                  motivo: snapSubject.motivo,
+                  comentarios: snapSubject.comentarios,
+                });
               } else if (supervisorDirResolved != null) {
                 if (tipo === "permiso_sin_goce_sueldo") {
                   tipo = "vacaciones";
@@ -495,7 +571,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               await loadEmpleados(q);
               renderForm({ selectedId: prev });
               const pid = prev ? Number.parseInt(prev, 10) : NaN;
-              void refreshContextForEmpleado(Number.isFinite(pid) ? pid : null);
+              await refreshContextForEmpleado(Number.isFinite(pid) ? pid : null);
+              renderForm({ selectedId: prev });
             } catch {
               showError("No se pudo cargar el listado de empleados.");
             }
@@ -508,13 +585,27 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         "change",
         () => {
           const v = sel.value;
-          if (v === "") {
-            void refreshContextForEmpleado(null);
-          } else {
-            const id = Number.parseInt(v, 10);
-            void refreshContextForEmpleado(Number.isFinite(id) ? id : null);
-          }
-          hideError();
+          const snapEmp = readFormSnapshot();
+          void (async (): Promise<void> => {
+            try {
+              if (v === "") {
+                await refreshContextForEmpleado(null);
+              } else {
+                const id = Number.parseInt(v, 10);
+                await refreshContextForEmpleado(Number.isFinite(id) ? id : null);
+              }
+              renderForm({
+                selectedId: v,
+                fechaInicio: snapEmp.fechaInicio,
+                fechaFin: snapEmp.fechaFin,
+                motivo: snapEmp.motivo,
+                comentarios: snapEmp.comentarios,
+              });
+              hideError();
+            } catch {
+              showError("No se pudo actualizar la información del empleado.");
+            }
+          })();
         },
         { signal: options.signal },
       );
@@ -581,6 +672,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         ) {
           showError("No está permitido modificar el colaborador de la solicitud.");
           return;
+        }
+        if (tipo === "home_office") {
+          const esAdmin = await resolverEmpleadoEsAdministrativo(empleado_id);
+          empleadoEsAdministrativo = esAdmin;
+          if (!esAdmin) {
+            showError(MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO);
+            return;
+          }
         }
         const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
         const singleDayHOEnvio =
@@ -734,6 +833,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         titleEl.textContent = revisionSolicitudId != null ? "Corregir solicitud" : "Nueva solicitud";
       }
       tipo = "vacaciones";
+      empleadoEsAdministrativo = null;
       contextoVac = null;
       contextoHoText = "";
       lastSearchQ = "";
@@ -861,7 +961,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
         }
       } catch (e: unknown) {
-        if (isUsuariosFetchError(e) && e.status === 401) {
+        if (
+          (isUsuariosFetchError(e) || isAuthFetchError(e)) &&
+          e.status === 401
+        ) {
           options.onSessionExpired();
           close();
           return;

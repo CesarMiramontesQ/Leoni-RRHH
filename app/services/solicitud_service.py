@@ -27,6 +27,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -578,6 +579,15 @@ class SolicitudService:
             raise DomainValidationError(
                 detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
             )
+        if data.tipo == "home_office":
+            target_cl = await self.empleado_repo.get_with_clasificacion(target.id)
+            if not target_cl or not empleado_es_administrativo(target_cl):
+                raise DomainValidationError(
+                    detail=(
+                        "Home Office solo está disponible para colaboradores "
+                        "con clasificación Administrativo."
+                    )
+                )
         if data.tipo == "permiso_sin_goce_sueldo" and rol not in (
             "supervisor",
             "gerente",

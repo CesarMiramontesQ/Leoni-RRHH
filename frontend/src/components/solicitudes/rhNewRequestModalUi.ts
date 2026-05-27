@@ -166,8 +166,14 @@ function buildRhTipoChipRowHtml(opts: {
   hoActive: boolean;
   permisoActive: boolean;
   showPermisoSinGoce: boolean;
+  showHomeOffice?: boolean;
 }): string {
-  const gridCols = opts.showPermisoSinGoce ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
+  const showHo = opts.showHomeOffice !== false;
+  const tipoCount = 1 + (showHo ? 1 : 0) + (opts.showPermisoSinGoce ? 1 : 0);
+  const gridCols =
+    tipoCount >= 3 ? "grid-cols-1 sm:grid-cols-3"
+    : tipoCount === 2 ? "grid-cols-1 sm:grid-cols-2"
+    : "grid-cols-1";
 
   function chip(
     active: boolean,
@@ -201,11 +207,15 @@ function buildRhTipoChipRowHtml(opts: {
     ? chip(opts.permisoActive, "permiso_sin_goce_sueldo", iconSvgPermisoSinGoce(), "Permiso sin goce", "Sin goce de sueldo")
     : "";
 
+  const hoBtn = showHo
+    ? chip(opts.hoActive, "home_office", iconSvgHomeOffice(), "Home Office", null)
+    : "";
+
   return `
     <div class="${NR_TIPO_LIST_WRAP}" role="tablist" aria-label="Tipo de solicitud">
       <div class="grid ${gridCols} gap-2.5 sm:gap-3">
         ${chip(opts.vacActive, "vacaciones", iconSvgVacaciones(), "Vacaciones", null)}
-        ${chip(opts.hoActive, "home_office", iconSvgHomeOffice(), "Home Office", null)}
+        ${hoBtn}
         ${permisoBtn}
       </div>
     </div>`;
@@ -308,6 +318,8 @@ export type RhNewRequestFormParams = {
    * Supervisor en «Miembro del equipo»: no mostrar campo Motivo; solo comentarios (permiso sin goce se valida ahí).
    */
   omitMotivoCampoSupervisorEquipo?: boolean;
+  /** Oculta Home Office cuando el colaborador no es Administrativo (roles distintos a RH). */
+  showHomeOfficeType?: boolean;
 };
 
 export const RESUMEN_BASE =
@@ -480,6 +492,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
 
   const chipIncluyePermisoSinGoce =
     p.showUnpaidLeaveType === true && p.supervisorOcultarPermisoSinGoceEnTipo !== true;
+  const showHomeOfficeType = p.showHomeOfficeType !== false;
 
   const avisoTipoSupervisorSinPermisoSinGoce =
     p.showSupervisorSolicitudSubject &&
@@ -488,8 +501,11 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     p.showUnpaidLeaveType &&
     !p.showPaidLeaveTypes
       ? `<p class="mt-1.5 text-xs leading-relaxed text-slate-500">
-          En solicitud personal solo puedes usar <strong class="font-medium text-slate-700">Vacaciones</strong> u
-          <strong class="font-medium text-slate-700">Home Office</strong>. El permiso sin goce solo aplica al registrar una solicitud para un miembro del equipo.
+          En solicitud personal solo puedes usar <strong class="font-medium text-slate-700">Vacaciones</strong>${
+            showHomeOfficeType
+              ? ` u <strong class="font-medium text-slate-700">Home Office</strong>`
+              : ""
+          }. El permiso sin goce solo aplica al registrar una solicitud para un miembro del equipo.
         </p>`
       : "";
 
@@ -518,7 +534,11 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
             <select id="rh-nr-tipo-select" data-rh-nr-tipo-select class="col-start-1 row-start-1 ${CONTROL} cursor-pointer appearance-none pr-10 font-medium">
               <optgroup label="Solicitudes estándar">
                 <option value="vacaciones" ${p.tipo === "vacaciones" ? "selected" : ""}>Vacaciones</option>
-                <option value="home_office" ${p.tipo === "home_office" ? "selected" : ""}>Home Office</option>
+                ${
+                  showHomeOfficeType
+                    ? `<option value="home_office" ${p.tipo === "home_office" ? "selected" : ""}>Home Office</option>`
+                    : ""
+                }
                 ${
                   p.showUnpaidLeaveType
                     ? `<option value="permiso_sin_goce_sueldo" ${p.tipo === "permiso_sin_goce_sueldo" ? "selected" : ""}>Permiso sin goce de sueldo</option>`
@@ -541,12 +561,14 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
               hoActive,
               permisoActive: permisoSinGoceActive,
               showPermisoSinGoce: chipIncluyePermisoSinGoce,
+              showHomeOffice: showHomeOfficeType,
             })}`
           : `${buildRhTipoChipRowHtml({
               vacActive,
               hoActive,
               permisoActive: permisoSinGoceActive,
               showPermisoSinGoce: false,
+              showHomeOffice: showHomeOfficeType,
             })}`
         }
       </section>

@@ -47,4 +47,17 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     expect(html).toContain("data-rh-nr-tipo=");
     expect(html).toContain('id="rh-nr-empleado"');
   });
+
+  it("oculta Home Office cuando showHomeOfficeType es false", () => {
+    const html = buildFormHtml({
+      ...base,
+      tipo: "vacaciones",
+      modoRevision: false,
+      items: [],
+      selectedEmpleadoId: "",
+      showHomeOfficeType: false,
+    });
+    expect(html).not.toContain('data-rh-nr-tipo="home_office"');
+    expect(html).toContain('data-rh-nr-tipo="vacaciones"');
+  });
 });

@@ -181,6 +181,7 @@ async def make_empleado(
     password: str = "Passw0rd!Seguro",
     lider_id: int | None = None,
     estado_id: int = 1,
+    clasificacion_id: int | None = None,
     fecha_fin_contrato: date | None = None,
 ):
     """
@@ -207,6 +208,7 @@ async def make_empleado(
         rol_id=rol_obj.id,
         lider_id=lider_id,
         estado_id=estado_id,
+        clasificacion_id=clasificacion_id,
         fecha_fin_contrato=fecha_fin_contrato,
     )
     db.add(empleado)
@@ -214,6 +216,21 @@ async def make_empleado(
     await db.refresh(empleado)
     empleado.rol = rol_obj
     return empleado
+
+
+async def make_clasificacion_administrativo(db: AsyncSession):
+    """Catálogo Administrativo (código A) para pruebas de Home Office."""
+    from app.models.catalogos import ClasificacionEmpleado
+
+    cl = ClasificacionEmpleado(
+        clasificacion_id=901,
+        descripcion="A",
+        significado="Administrativo",
+        estatus_id=1,
+    )
+    db.add(cl)
+    await db.flush()
+    return cl
 
 
 async def make_solicitud(
