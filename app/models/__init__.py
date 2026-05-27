@@ -10,6 +10,7 @@ from app.models.catalogos import (
 )
 from app.models.empleados import Empleado
 from app.models.turnos_empleados import TurnoEmpleado
+from app.models.vacaciones import Vacaciones
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
@@ -58,6 +59,7 @@ __all__ = [
     "ClasificacionEmpleado",
     "Empleado",
     "TurnoEmpleado",
+    "Vacaciones",
     "Solicitud",
     "SolicitudAprobacion",
     "Incidencia",

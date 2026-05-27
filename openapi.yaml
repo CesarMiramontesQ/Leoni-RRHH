@@ -421,6 +421,32 @@ components:
           type: string
           nullable: true
 
+    VacacionesResponse:
+      type: object
+      required:
+        - empleado_id
+        - dias_disponibles
+      properties:
+        empleado_id:
+          type: integer
+        dias_disponibles:
+          type: integer
+          minimum: 0
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    VacacionesUpdate:
+      type: object
+      required:
+        - dias_disponibles
+      properties:
+        dias_disponibles:
+          type: integer
+          minimum: 0
+          description: Saldo de días de vacaciones disponibles
+
     UsuarioVista360Response:
       type: object
       required:
@@ -2981,6 +3007,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UsuarioPageResponse"
+
+  /api/v1/empleados/{empleado_id}/vacaciones:
+    get:
+      tags: [Empleados]
+      summary: Saldo de vacaciones del empleado
+      operationId: empleados_vacaciones_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saldo de días disponibles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacacionesResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
+    put:
+      tags: [Empleados]
+      summary: Actualizar saldo de vacaciones (solo RH)
+      operationId: empleados_vacaciones_put
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VacacionesUpdate"
+      responses:
+        "200":
+          description: Saldo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacacionesResponse"
+        "403":
+          description: Solo RH puede actualizar el saldo
+        "404":
+          description: Empleado no encontrado
+        "422":
+          description: Validación de días disponibles
 
   /api/v1/empleados/{empleado_id}/vista360:
     get:
