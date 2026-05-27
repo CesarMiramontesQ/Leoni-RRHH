@@ -1,6 +1,6 @@
 /**
  * Modal para evaluar cualificaciones de un empleado asignado a un perfil.
- * Muestra gap analysis con badges de compliance para estudios_finalizados.
+ * Muestra gap analysis con badges de compliance para escolaridad, años y N/A.
  */
 
 import {
@@ -11,7 +11,7 @@ import {
 } from "../../api/puestos.ts";
 import { CATALOGO_ESCOLARIDAD, escolaridadLabel } from "../../ui/catalogoEscolaridad.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON, badgeApproved, badgeRejected, badgePending } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON, badgeApproved, badgeRejected, badgePending, badgeCancelled } from "../../ui/uiTokens.ts";
 
 export type EvaluarCualificacionesModalHandle = {
   open: () => void;
@@ -35,6 +35,8 @@ const TIPO_LABELS: Record<string, string> = {
   complementos: "Complementos",
 };
 
+const TIPOS_CON_ANIOS = new Set(["experiencia_profesional", "experiencia_direccion"]);
+
 function complianceBadge(cumple: boolean | null): string {
   if (cumple === true) return badgeApproved("Cumple");
   if (cumple === false) return badgeRejected("No cumple");
@@ -43,7 +45,23 @@ function complianceBadge(cumple: boolean | null): string {
 
 function renderGapItem(g: GapCualificacion, idx: number): string {
   const isEscolaridad = g.tipo === "estudios_finalizados";
+  const isNA = g.situacion_deseada === "N/A";
+  const hasAnios = TIPOS_CON_ANIOS.has(g.tipo) && g.anios_minimos != null;
   const deseadaDisplay = isEscolaridad ? escolaridadLabel(g.situacion_deseada) : g.situacion_deseada;
+
+  // N/A: no input needed, always complies
+  if (isNA) {
+    return `
+      <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(TIPO_LABELS[g.tipo] ?? g.tipo)}</span>
+            <span class="text-sm text-slate-500">${badgeCancelled("No aplica")}</span>
+          </div>
+          <div class="shrink-0">${badgeApproved("Cumple")}</div>
+        </div>
+      </div>`;
+  }
 
   let inputHtml: string;
   if (isEscolaridad) {
@@ -67,12 +85,26 @@ function renderGapItem(g: GapCualificacion, idx: number): string {
         placeholder="Situación actual del empleado" />`;
   }
 
+  // Años numéricos para experiencia
+  let aniosHtml = "";
+  if (hasAnios) {
+    aniosHtml = `
+      <div class="mt-2">
+        <label class="mb-1 block text-xs font-medium text-slate-600">Años de experiencia del empleado (requeridos: ${g.anios_minimos})</label>
+        <input name="anios-${idx}" data-anios-cual-id="${g.cualificacion_id}" type="number" min="0" step="1"
+          value="${g.anios_actuales ?? ""}"
+          class="block w-32 rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          placeholder="0" />
+      </div>`;
+  }
+
   return `
     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
       <div class="flex items-center justify-between gap-2">
         <div class="min-w-0">
           <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(TIPO_LABELS[g.tipo] ?? g.tipo)}</span>
           <span class="text-sm font-medium text-text-primary">${escapeHtml(deseadaDisplay)}</span>
+          ${g.anios_minimos != null ? `<span class="text-xs text-slate-500 ml-1">(${g.anios_minimos} años mín.)</span>` : ""}
         </div>
         <div class="shrink-0">
           ${g.evaluado ? complianceBadge(g.cumple) : badgePending("Pendiente")}
@@ -82,6 +114,7 @@ function renderGapItem(g: GapCualificacion, idx: number): string {
         <label class="mb-1 block text-xs font-medium text-slate-600">Situación actual</label>
         ${inputHtml}
       </div>
+      ${aniosHtml}
     </div>`;
 }
 
@@ -180,10 +213,16 @@ export function mountEvaluarCualificacionesModal(
       form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-cual-id]").forEach(el => {
         const val = el.value.trim();
         if (val) {
-          evaluaciones.push({
-            cualificacion_id: Number(el.dataset.cualId),
+          const cualId = Number(el.dataset.cualId);
+          const payload: EvaluacionCualificacionPayload = {
+            cualificacion_id: cualId,
             situacion_actual: val,
-          });
+          };
+          const aniosEl = form.querySelector<HTMLInputElement>(`[data-anios-cual-id="${cualId}"]`);
+          if (aniosEl && aniosEl.value.trim()) {
+            payload.anios_actuales = Number(aniosEl.value.trim());
+          }
+          evaluaciones.push(payload);
         }
       });
 

@@ -414,6 +414,7 @@ class PerfilCualificacion(Base):
     )  # estudios_finalizados | formacion_profesional | ampliacion_formacion | estudios_universitarios | experiencia_profesional | experiencia_direccion | complementos
     situacion_deseada: Mapped[str] = mapped_column(Text, nullable=False)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    anios_minimos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -501,6 +502,7 @@ class PerfilFuncionesCualificacion(Base):
     )
     situacion_actual: Mapped[str] = mapped_column(Text, nullable=False)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    anios_actuales: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

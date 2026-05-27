@@ -5795,3 +5795,45 @@ paths:
                     peso:
                       type: integer
                       example: 4
+
+  /api/v1/perfiles/catalogos/sugerencias:
+    get:
+      tags: [Talento - Perfil Funciones]
+      summary: Sugerencias de valores históricos para autocomplete
+      description: Retorna valores DISTINCT de situacion_deseada usados previamente para un tipo de cualificación. Excluye variantes de N/A.
+      operationId: sugerencias_cualificacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tipo
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [formacion_profesional, ampliacion_formacion, estudios_universitarios, experiencia_profesional, experiencia_direccion, complementos]
+          description: Tipo de cualificación
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ""
+          description: Texto de búsqueda (ILIKE)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            maximum: 20
+          description: Máximo de resultados
+      responses:
+        "200":
+          description: Lista de valores sugeridos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                example: ["Ing. Mecánica", "Ing. Electrónica", "Lic. Administración"]
