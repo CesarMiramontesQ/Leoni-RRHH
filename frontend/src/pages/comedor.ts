@@ -85,10 +85,11 @@ import { renderComedorReporteDashboard } from "../components/comedor/comedorRepo
 import { downloadReporteComedorExcel } from "../comedor/reportes/exportReporteComedorExcel.ts";
 import {
   COMEDOR_TABLE_TH,
+  comedorLiderOcultaKpisOpcionAb,
   comedorLiderStatsGridClass,
   comedorLiderStatsSkeletonCount,
   escapeComedorHtml,
-  filterComedorKpisOpcionAbForSupervisor,
+  filterComedorKpisOpcionAb,
 } from "../components/comedor/comedorUiUtils.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
@@ -165,23 +166,26 @@ type LiderComedorState = {
   /** Solo aplica filtros de segmento en `loadTable` cuando `isSupervisorTable` es true. */
   tableSegment: ComedorSupervisorTableSegment;
   isSupervisorTable: boolean;
+  /** Oculta KPIs «% Opción A» / «% Opción B» (supervisor y gerente). */
+  hideOpcionKpis: boolean;
 } & Omit<
   ComedorDashboardLiderViewState,
   | "statsState"
   | "statsError"
+  | "statsGridClass"
+  | "statsSkeletonCount"
   | "tableState"
   | "tableError"
   | "tableFilters"
 >;
 
 function toLiderViewState(state: LiderComedorState): ComedorDashboardLiderViewState {
-  const hideOpcionKpis = state.isSupervisorTable;
   return {
     statsState: state.statsState,
     stats: state.stats,
     statsError: state.statsError,
-    statsGridClass: comedorLiderStatsGridClass(hideOpcionKpis),
-    statsSkeletonCount: comedorLiderStatsSkeletonCount(hideOpcionKpis),
+    statsGridClass: comedorLiderStatsGridClass(state.hideOpcionKpis),
+    statsSkeletonCount: comedorLiderStatsSkeletonCount(state.hideOpcionKpis),
     tableState: state.tableState,
     table: state.table,
     tableError: state.tableError,
@@ -2218,7 +2222,9 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 }
 
 function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
-  const isSupervisor = getRolFromAccessToken() === "supervisor";
+  const rol = getRolFromAccessToken();
+  const isSupervisor = rol === "supervisor";
+  const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(rol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const comedorIdResolver = createComedorIdResolver();
   const resolveComedorId = () => comedorIdResolver.resolve();
@@ -2234,6 +2240,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     pageSize: 10,
     tableSegment: "equipo",
     isSupervisorTable: isSupervisor,
+    hideOpcionKpis,
   };
 
   function paint(): void {
@@ -2247,9 +2254,9 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     state.statsError = null;
     paint();
     try {
-      const rows = filterComedorKpisOpcionAbForSupervisor(
+      const rows = filterComedorKpisOpcionAb(
         mapMetricasLiderToKpis(await getComedorEquipoMetricas()),
-        isSupervisor,
+        hideOpcionKpis,
       );
       if (signal.aborted) return;
       state.stats = rows;

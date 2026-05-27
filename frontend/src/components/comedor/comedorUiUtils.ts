@@ -5,23 +5,35 @@ import { escapeHtml } from "../../ui/uiUtils.ts";
 /** KPIs «% Opción A» / «% Opción B» en vista líder (`#/comedor`). */
 const COMEDOR_KPI_IDS_OPCION_AB = new Set(["porcentaje_caseras", "porcentaje_saludables"]);
 
-/** Oculta tarjetas Opción A/B para supervisor; gerente y demás roles sin cambios. */
-export function filterComedorKpisOpcionAbForSupervisor(
+/** Oculta tarjetas Opción A/B para supervisor y gerente en `#/comedor`. */
+export function filterComedorKpisOpcionAb(
   kpis: readonly ComedorKpi[],
-  isSupervisor: boolean,
+  hideOpcionAb: boolean,
 ): readonly ComedorKpi[] {
-  if (!isSupervisor) return kpis;
+  if (!hideOpcionAb) return kpis;
   return kpis.filter((k) => !COMEDOR_KPI_IDS_OPCION_AB.has(k.id));
 }
 
-export function comedorLiderStatsGridClass(isSupervisor: boolean): string {
-  return isSupervisor
+/** @deprecated Usar `filterComedorKpisOpcionAb`. */
+export function filterComedorKpisOpcionAbForSupervisor(
+  kpis: readonly ComedorKpi[],
+  hideOpcionAb: boolean,
+): readonly ComedorKpi[] {
+  return filterComedorKpisOpcionAb(kpis, hideOpcionAb);
+}
+
+export function comedorLiderOcultaKpisOpcionAb(rol: string | null): boolean {
+  return rol === "supervisor" || rol === "gerente";
+}
+
+export function comedorLiderStatsGridClass(hideOpcionAb: boolean): string {
+  return hideOpcionAb
     ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
     : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
 }
 
-export function comedorLiderStatsSkeletonCount(isSupervisor: boolean): number {
-  return isSupervisor ? 3 : 5;
+export function comedorLiderStatsSkeletonCount(hideOpcionAb: boolean): number {
+  return hideOpcionAb ? 3 : 5;
 }
 
 /** Cabecera de tabla alineada a Solicitudes (`.rh-sol-th` + reglas bajo `#rh-comedor-page`). */
