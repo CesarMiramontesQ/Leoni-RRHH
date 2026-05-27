@@ -86,6 +86,14 @@ async def list_empleados(
         False,
         description="Solo supervisor/gerente: filtra por contrato en ventana 30 días",
     ),
+    solo_sin_lider: bool = Query(
+        False,
+        description="Solo RH: empleados activos sin líder asignado (mismo criterio que KPI)",
+    ),
+    solo_sin_email: bool = Query(
+        False,
+        description="Solo RH: administrativos activos sin email registrado (mismo criterio que KPI)",
+    ),
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
     svc: UsuarioService = Depends(_svc),
 ):
@@ -99,6 +107,8 @@ async def list_empleados(
             puesto_id=puesto_id,
             current_user=current_user,
             activo=activo,
+            solo_sin_lider=solo_sin_lider,
+            solo_sin_email=solo_sin_email,
         )
     if estatus is not None and estatus.strip():
         v = estatus.strip().lower()

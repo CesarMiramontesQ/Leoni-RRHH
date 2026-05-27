@@ -336,6 +336,9 @@ components:
           type: integer
         sin_lider_asignado:
           type: integer
+        sin_email_administrativo:
+          type: integer
+          description: Administrativos activos sin correo en empleado ni tabla emails
         practicantes:
           type: integer
         porcentaje_operatividad:
@@ -2998,6 +3001,16 @@ paths:
         - name: solo_contratos_por_vencer
           in: query
           description: Contratos que vencen en 30 dias
+          schema:
+            type: boolean
+        - name: solo_sin_lider
+          in: query
+          description: "Solo RH: empleados activos sin lider asignado (mismo criterio que KPI)"
+          schema:
+            type: boolean
+        - name: solo_sin_email
+          in: query
+          description: "Solo RH: administrativos activos sin email registrado (mismo criterio que KPI)"
           schema:
             type: boolean
       responses:

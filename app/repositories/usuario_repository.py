@@ -24,6 +24,13 @@ class UsuarioRepository(BaseRepository[Empleado]):
         return re.sub(r"\s+", " ", no_accents).strip().lower()
 
     @staticmethod
+    def _sin_email_condition():
+        """Sin correo en empleado.email ni en tabla emails (misma lógica que UsuarioResponse)."""
+        tiene_empleado = and_(Empleado.email.isnot(None), func.trim(Empleado.email) != "")
+        tiene_alterno = and_(Email.email.isnot(None), func.trim(Email.email) != "")
+        return ~or_(tiene_empleado, tiene_alterno)
+
+    @staticmethod
     def _normalized_sql(expr):
         # Normaliza en SQL para búsquedas case/diacritics insensitive.
         lowered = func.lower(func.coalesce(expr, ""))
@@ -88,6 +95,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
         solo_contrato_por_vencer: bool = False,
         hoy_contrato: date | None = None,
         dias_ventana_contrato: int = 30,
+        solo_sin_lider: bool = False,
+        solo_sin_email: bool = False,
+        clasificacion_admin_ids: list[int] | None = None,
     ) -> list:
         conditions: list = []
         est = UsuarioRepository._estado_condition(
@@ -136,6 +146,15 @@ class UsuarioRepository(BaseRepository[Empleado]):
                     Empleado.fecha_fin_contrato <= hasta,
                 ]
             )
+        if solo_sin_lider:
+            conditions.append(Empleado.lider_id.is_(None))
+        if solo_sin_email:
+            ids_admin = clasificacion_admin_ids or []
+            if not ids_admin:
+                conditions.append(Empleado.id == -1)
+            else:
+                conditions.append(Empleado.clasificacion_id.in_(ids_admin))
+                conditions.append(UsuarioRepository._sin_email_condition())
         return conditions
 
     async def list_page(
@@ -152,6 +171,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
         estados_permiso_ids: list[int] | None = None,
         solo_contrato_por_vencer: bool = False,
         hoy_contrato: date | None = None,
+        solo_sin_lider: bool = False,
+        solo_sin_email: bool = False,
+        clasificacion_admin_ids: list[int] | None = None,
     ) -> list[Empleado]:
         ea = estados_activos or []
         conditions = self._list_filters(
@@ -164,6 +186,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
             estados_permiso_ids=estados_permiso_ids,
             solo_contrato_por_vencer=solo_contrato_por_vencer,
             hoy_contrato=hoy_contrato,
+            solo_sin_lider=solo_sin_lider,
+            solo_sin_email=solo_sin_email,
+            clasificacion_admin_ids=clasificacion_admin_ids,
         )
         query = select(Empleado).options(
             selectinload(Empleado.rol),
@@ -195,6 +220,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
         estados_permiso_ids: list[int] | None = None,
         solo_contrato_por_vencer: bool = False,
         hoy_contrato: date | None = None,
+        solo_sin_lider: bool = False,
+        solo_sin_email: bool = False,
+        clasificacion_admin_ids: list[int] | None = None,
     ) -> int:
         ea = estados_activos or []
         conditions = self._list_filters(
@@ -207,6 +235,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
             estados_permiso_ids=estados_permiso_ids,
             solo_contrato_por_vencer=solo_contrato_por_vencer,
             hoy_contrato=hoy_contrato,
+            solo_sin_lider=solo_sin_lider,
+            solo_sin_email=solo_sin_email,
+            clasificacion_admin_ids=clasificacion_admin_ids,
         )
         query = (
             select(func.count())
@@ -265,6 +296,26 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 )
             )
         )
+        return result.scalar_one()
+
+    async def count_sin_email_administrativo(
+        self,
+        clasificacion_admin_ids: list[int],
+        estados_activos: list[int],
+    ) -> int:
+        if not clasificacion_admin_ids or not estados_activos:
+            return 0
+        query = (
+            select(func.count())
+            .select_from(Empleado)
+            .outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
+            .where(
+                Empleado.clasificacion_id.in_(clasificacion_admin_ids),
+                Empleado.estado_id.in_(estados_activos),
+                self._sin_email_condition(),
+            )
+        )
+        result = await self.db.execute(query)
         return result.scalar_one()
 
     async def count_sin_lider_asignado(self, estados_activos: list[int] | None = None) -> int:
