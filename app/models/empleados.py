@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.models.notificaciones import Notificacion
     from app.models.auditoria import AuditLog
     from app.models.turnos_empleados import TurnoEmpleado
+    from app.models.vacaciones import Vacaciones
     from app.models.catalogos import (
         Area,
         Categoria,
@@ -110,6 +111,11 @@ class Empleado(Base):
     )
     turno_empleado: Mapped[Optional["TurnoEmpleado"]] = relationship(
         "TurnoEmpleado",
+        back_populates="empleado",
+        uselist=False,
+    )
+    vacaciones: Mapped[Optional["Vacaciones"]] = relationship(
+        "Vacaciones",
         back_populates="empleado",
         uselist=False,
     )

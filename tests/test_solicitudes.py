@@ -5,7 +5,7 @@ Tests del dominio solicitudes — Plataforma RH Leoni Cable.
 Cubre:
   - Crear solicitud (todos los roles permitidos)
   - Duplicidad exacta (mismas fechas inicio/fin que solicitud activa) → 409 mensaje fijo
-  - Saldo vacaciones insuficiente (TRESS mockeado) → 422
+  - Saldo vacaciones insuficiente → 422
   - Validacion de esquema (fecha_fin < fecha_inicio, tipo invalido) → 422
   - Listado con filtrado por rol (empleado, supervisor, gerente, rh)
   - Gerente: acceso por subarbol; GET enriquecido; aprobacion jerarquica en un solo paso (supervisor o gerente)
@@ -33,7 +33,6 @@ from httpx import AsyncClient
 from sqlalchemy import update
 
 from app.models.empleados import Empleado
-from app.services import solicitud_service as solicitud_service_module
 from tests.conftest import auth_headers, make_empleado, make_solicitud
 
 # Payload de solicitud valido reutilizable
@@ -239,18 +238,11 @@ async def test_crear_solicitud_duplicado_exacto_retorna_409_mensaje_fijo(
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_duplicado_exacto_antes_que_saldo(
-    client: AsyncClient, db, monkeypatch
+    client: AsyncClient, db,
 ):
-    async def saldo_muy_bajo(_no: str):
-        return {"DiasDisponibles": 1}
-
-    monkeypatch.setattr(
-        solicitud_service_module,
-        "_resolver_fila_saldo_vacaciones_tress",
-        saldo_muy_bajo,
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol004a@leoni.test", dias_vacaciones=1
     )
-
-    empleado = await make_empleado(db, rol="empleado", email="sol004a@leoni.test")
     await make_solicitud(
         db,
         empleado_id=empleado.id,
@@ -343,7 +335,15 @@ async def test_crear_solicitud_periodos_solapados_mismo_tipo_retorna_409(
 async def test_crear_solicitud_empalme_tipos_distintos_retorna_409(
     client: AsyncClient, db
 ):
-    empleado = await make_empleado(db, rol="empleado", email="sol004d@leoni.test")
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004d-empalme@test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
     await make_solicitud(
         db,
         empleado_id=empleado.id,
@@ -412,24 +412,17 @@ async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
 
 
 # ---------------------------------------------------------------------------
-# TC-SOL-004d: Vacaciones con saldo insuficiente (TRESS mockeado) → 422
+# TC-SOL-004d: Vacaciones con saldo insuficiente → 422
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_saldo_insuficiente_422(
-    client: AsyncClient, db, monkeypatch
+    client: AsyncClient, db,
 ):
-    async def saldo_bajo(_no: str):
-        return {"DiasDisponibles": 2}
-
-    monkeypatch.setattr(
-        solicitud_service_module,
-        "_resolver_fila_saldo_vacaciones_tress",
-        saldo_bajo,
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol004d@leoni.test", dias_vacaciones=2
     )
-
-    empleado = await make_empleado(db, rol="empleado", email="sol004d@leoni.test")
     headers = await auth_headers(client, empleado)
     response = await client.post(
         "/api/v1/solicitudes",

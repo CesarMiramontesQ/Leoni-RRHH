@@ -125,6 +125,7 @@ class UsuarioResumenResponse(BaseModel):
     activos: int
     inactivos: int
     sin_lider_asignado: int
+    sin_email_administrativo: int = 0
     practicantes: int
     porcentaje_operatividad: float
     colaboradores_total: int

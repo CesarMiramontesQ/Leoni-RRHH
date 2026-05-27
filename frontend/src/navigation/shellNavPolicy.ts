@@ -26,8 +26,7 @@ export type AppShellNavItemId =
   | "evidencias"
   | "sugerencias"
   | "encuestas"
-  | "level-up"
-  | "ajustes";
+  | "level-up";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
@@ -46,9 +45,9 @@ const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
-const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes", "ajustes"]);
+const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
 
-const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["ajustes"]);
+const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set();
 
 /**
  * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.

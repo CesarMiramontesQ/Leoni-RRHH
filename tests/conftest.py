@@ -49,6 +49,7 @@ import app.models.notificaciones  # noqa: F401
 import app.models.emails  # noqa: F401
 import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
+import app.models.vacaciones  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password
@@ -183,6 +184,7 @@ async def make_empleado(
     estado_id: int = 1,
     clasificacion_id: int | None = None,
     fecha_fin_contrato: date | None = None,
+    dias_vacaciones: int | None = 30,
 ):
     """
     Factory para crear un Empleado con Rol asociado.
@@ -215,6 +217,15 @@ async def make_empleado(
     await db.flush()
     await db.refresh(empleado)
     empleado.rol = rol_obj
+
+    if dias_vacaciones is not None:
+        from app.models.vacaciones import Vacaciones
+
+        db.add(
+            Vacaciones(empleado_id=empleado.id, dias_disponibles=dias_vacaciones)
+        )
+        await db.flush()
+
     return empleado
 
 

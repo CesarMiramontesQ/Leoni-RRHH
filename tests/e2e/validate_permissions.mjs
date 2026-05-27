@@ -31,7 +31,7 @@ const NAV_EXPECTATIONS = {
   },
   supervisor: {
     visible: ["Dashboard", "Organigrama", "Solicitudes", "Incidencias", "Comedor", "Evaluaciones", "Notificaciones", "Empleados"],
-    hidden: ["Actas", "Reporte comedor", "Perfiles de Puesto", "Matriz de Competencias", "Ajustes"],
+    hidden: ["Actas", "Reporte comedor", "Perfiles de Puesto", "Matriz de Competencias"],
   },
   gerente: {
     visible: ["Dashboard", "Solicitudes", "Incidencias", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],

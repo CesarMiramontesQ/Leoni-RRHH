@@ -26,6 +26,7 @@ from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.usuario_repository import ModoEstadoListado, UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.repositories.vacaciones_repository import VacacionesRepository
 from app.schemas.empleados import AreaResponse, PuestoResponse
 from app.schemas.usuarios import (
     ActaBrief,
@@ -45,6 +46,7 @@ from app.schemas.usuarios import (
     Vista360TurnoEmpleado,
 )
 from app.utils.audit_logger import audit_background
+from app.utils.clasificacion_empleado import clasificacion_es_administrativo
 
 _CLASIFICACION_TIPOS_DASHBOARD = ("administrativo", "directo", "indirecto")
 
@@ -158,6 +160,14 @@ class UsuarioService:
             return
         raise ForbiddenError(detail="No tienes acceso a este usuario")
 
+    async def _clasificacion_administrativo_ids(self) -> list[int]:
+        clasificaciones = await self.repo.list_clasificaciones_activas()
+        return [
+            cl.clasificacion_id
+            for cl in clasificaciones
+            if clasificacion_es_administrativo(cl)
+        ]
+
     def _to_list_item(self, u: Empleado) -> UsuarioListItem:
         base = UsuarioResponse.model_validate(u)
         lider_nombre: str | None = None
@@ -174,21 +184,46 @@ class UsuarioService:
         puesto_id: list[int] | None,
         current_user: Empleado,
         activo: bool | None = None,
+        solo_sin_lider: bool = False,
+        solo_sin_email: bool = False,
     ) -> UsuarioPageResponse:
         self._require_rh_only(current_user)
         estados = settings.ESTADOS_ACTIVOS_IDS
-        if activo is True:
+        solo_sl = bool(solo_sin_lider)
+        solo_se = bool(solo_sin_email)
+        admin_ids: list[int] | None = None
+        if solo_se:
+            admin_ids = await self._clasificacion_administrativo_ids()
+        if solo_sl or solo_se:
             modo: ModoEstadoListado = "activos"
+        elif activo is True:
+            modo = "activos"
         elif activo is False:
             modo = "inactivos"
         else:
             modo = "todos"
         offset = (page - 1) * page_size
         total = await self.repo.count_filtered(
-            q, area_id, puesto_id, modo, estados
+            q,
+            area_id,
+            puesto_id,
+            modo,
+            estados,
+            solo_sin_lider=solo_sl,
+            solo_sin_email=solo_se,
+            clasificacion_admin_ids=admin_ids,
         )
         items = await self.repo.list_page(
-            offset, page_size, q, area_id, puesto_id, modo, estados
+            offset,
+            page_size,
+            q,
+            area_id,
+            puesto_id,
+            modo,
+            estados,
+            solo_sin_lider=solo_sl,
+            solo_sin_email=solo_se,
+            clasificacion_admin_ids=admin_ids,
         )
         return UsuarioPageResponse(
             items=[self._to_list_item(u) for u in items],
@@ -273,12 +308,20 @@ class UsuarioService:
         activos = await self.repo.count_activos(estados)
         inactivos = await self.repo.count_inactivos(estados)
         sin_lider_asignado = await self.repo.count_sin_lider_asignado(estados)
+        clasificaciones = await self.repo.list_clasificaciones_activas()
+        admin_ids = [
+            cl.clasificacion_id
+            for cl in clasificaciones
+            if clasificacion_es_administrativo(cl)
+        ]
+        sin_email_administrativo = await self.repo.count_sin_email_administrativo(
+            admin_ids, estados
+        )
         pct = round((activos / total) * 100, 1) if total else 0.0
         hoy = date.today()
         contratos_pv = await self.repo.count_contratos_por_vencer(
             estados, None, hoy, dias_ventana=30
         )
-        clasificaciones = await self.repo.list_clasificaciones_activas()
         por_tipo: dict[str, object] = {}
         for cl in clasificaciones:
             tipo = _tipo_clasificacion_dashboard(cl.descripcion, cl.significado)
@@ -320,6 +363,7 @@ class UsuarioService:
             activos=activos,
             inactivos=inactivos,
             sin_lider_asignado=sin_lider_asignado,
+            sin_email_administrativo=sin_email_administrativo,
             practicantes=0,
             porcentaje_operatividad=pct,
             colaboradores_total=activos,
@@ -485,7 +529,9 @@ class UsuarioService:
             solicitudes_recientes=[SolicitudBrief.model_validate(s) for s in solicitudes],
             incidencias_activas=[IncidenciaBrief.model_validate(i) for i in incidencias],
             actas_firmadas=[ActaBrief.model_validate(a) for a in actas],
-            saldo_vacaciones=0,
+            saldo_vacaciones=await VacacionesRepository(self.db).get_dias_disponibles(
+                usuario.id
+            ),
             turno_empleado=turno_empleado,
         )
 

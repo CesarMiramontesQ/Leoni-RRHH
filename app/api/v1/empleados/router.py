@@ -22,8 +22,10 @@ from app.schemas.usuarios import (
     UsuarioResumenResponse,
     UsuarioVista360Response,
 )
+from app.schemas.vacaciones import VacacionesResponse, VacacionesUpdate
 from app.services.acta_service import ActaService
 from app.services.usuario_service import UsuarioService
+from app.services.vacaciones_service import VacacionesService
 
 router = APIRouter(prefix="/api/v1/empleados", tags=["Empleados - Directorio"])
 
@@ -32,6 +34,10 @@ _ROLES_DIRECTORIO = ["rh", "gerente", "director", "supervisor"]
 
 def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
     return UsuarioService(db)
+
+
+def _vac_svc(db: AsyncSession = Depends(get_db)) -> VacacionesService:
+    return VacacionesService(db)
 
 
 def _rol_nombre(u: Empleado) -> str:
@@ -80,6 +86,14 @@ async def list_empleados(
         False,
         description="Solo supervisor/gerente: filtra por contrato en ventana 30 días",
     ),
+    solo_sin_lider: bool = Query(
+        False,
+        description="Solo RH: empleados activos sin líder asignado (mismo criterio que KPI)",
+    ),
+    solo_sin_email: bool = Query(
+        False,
+        description="Solo RH: administrativos activos sin email registrado (mismo criterio que KPI)",
+    ),
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
     svc: UsuarioService = Depends(_svc),
 ):
@@ -93,6 +107,8 @@ async def list_empleados(
             puesto_id=puesto_id,
             current_user=current_user,
             activo=activo,
+            solo_sin_lider=solo_sin_lider,
+            solo_sin_email=solo_sin_email,
         )
     if estatus is not None and estatus.strip():
         v = estatus.strip().lower()
@@ -112,6 +128,31 @@ async def list_empleados(
         current_user=current_user,
         estatus_filtro=estatus if use_lider_filtros else None,
         solo_contratos_por_vencer=solo_contratos_por_vencer if use_lider_filtros else False,
+    )
+
+
+@router.get("/{empleado_id}/vacaciones", response_model=VacacionesResponse)
+async def get_vacaciones_empleado(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: VacacionesService = Depends(_vac_svc),
+):
+    """Saldo de días de vacaciones del empleado."""
+    return await svc.obtener_saldo(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.put("/{empleado_id}/vacaciones", response_model=VacacionesResponse)
+async def actualizar_vacaciones_empleado(
+    empleado_id: int,
+    body: VacacionesUpdate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    svc: VacacionesService = Depends(_vac_svc),
+):
+    """Asigna o actualiza el saldo de vacaciones (solo RH)."""
+    return await svc.actualizar_saldo(
+        empleado_id=empleado_id,
+        data=body,
+        current_user=current_user,
     )
 
 

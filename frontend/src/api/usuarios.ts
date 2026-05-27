@@ -19,6 +19,8 @@ export type UsuarioResumen = {
   activos: number;
   inactivos: number;
   sin_lider_asignado: number;
+  /** Administrativos activos sin correo registrado (empleado.email ni tabla emails). */
+  sin_email_administrativo: number;
   practicantes: number;
   porcentaje_operatividad: number;
   /** Activos en el alcance del rol (plantilla completa para RH; equipo para supervisor/gerente). */

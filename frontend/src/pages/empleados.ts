@@ -155,6 +155,10 @@ type State = {
   estatus_lider: "" | "inactivo" | "permiso";
   /** KPI: tabla solo colaboradores con contrato por vencer (30 días). */
   kpi_filtrar_contratos: boolean;
+  /** KPI RH: tabla solo empleados activos sin líder asignado. */
+  kpi_filtrar_sin_lider: boolean;
+  /** KPI RH: tabla solo administrativos activos sin email registrado. */
+  kpi_filtrar_sin_email: boolean;
 };
 
 function parseOptionalInt(s: string): number | undefined {
@@ -185,6 +189,8 @@ function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   if (state.area_id) return true;
   if (state.puesto_id) return true;
   if (rh && state.activo_rh) return true;
+  if (rh && state.kpi_filtrar_sin_lider) return true;
+  if (rh && state.kpi_filtrar_sin_email) return true;
   if (liderUi) {
     if (state.estatus_lider) return true;
     if (state.kpi_filtrar_contratos) return true;
@@ -208,6 +214,8 @@ function buildEmpleadosListParams(state: State, isRh: boolean, kpiGestionEquipo:
     area_id: parseOptionalInt(state.area_id),
     puesto_id: parseOptionalIntList(state.puesto_id),
     ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
+    ...(isRh && state.kpi_filtrar_sin_lider ? { solo_sin_lider: true } : {}),
+    ...(isRh && state.kpi_filtrar_sin_email ? { solo_sin_email: true } : {}),
   };
   if (!kpiGestionEquipo || isRh) return base;
   if (state.kpi_filtrar_contratos) base.solo_contratos_por_vencer = true;
@@ -254,7 +262,7 @@ function textoLiderMostrar(val: string | null | undefined): string {
   return f || "Sin asignar";
 }
 
-type KpiMetricSemantic = "total" | "activo" | "inactivo" | "sinLider" | "contrato";
+type KpiMetricSemantic = "total" | "activo" | "inactivo" | "sinLider" | "contrato" | "sinEmail";
 
 /** Contenedor homogéneo: tinte suave, icono 600, borde y anillo inset para definición. */
 function kpiMetricIconBox(semantic: KpiMetricSemantic, svgHtml: string): string {
@@ -269,21 +277,23 @@ function kpiMetricIconBox(semantic: KpiMetricSemantic, svgHtml: string): string 
       "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-amber-50 text-amber-700 border-amber-300/60 ring-amber-200/60",
     contrato:
       "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-orange-50 text-orange-700 border-orange-300/60 ring-orange-200/60",
+    sinEmail:
+      "flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm ring-1 ring-inset bg-violet-50 text-violet-700 border-violet-300/60 ring-violet-200/60",
   };
   return `<span class="${cls[semantic]}" aria-hidden="true">${svgHtml}</span>`;
-}
-
-/** Icono KPI: grupo / plantilla (Heroicons user-group). */
-function svgKpiTotalPlantilla(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-  </svg>`;
 }
 
 /** Icono KPI: no activos (Heroicons x-circle). */
 function svgKpiNoActivo(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+  </svg>`;
+}
+
+function svgKpiSinEmail(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
   </svg>`;
 }
 
@@ -311,6 +321,22 @@ const RH_EMPLEADOS_KPI_CARD_SHELL =
   "flex min-h-[10.5rem] flex-col rounded-[14px] border p-5 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.1)]";
 
 type LiderKpiResaltado = { resaltarEquipo: boolean; resaltarContratos: boolean };
+type RhKpiResaltado = { resaltarSinLider: boolean; resaltarSinEmail: boolean };
+
+function rhKpiUiDesdeState(s: State): RhKpiResaltado {
+  return {
+    resaltarSinLider: s.kpi_filtrar_sin_lider,
+    resaltarSinEmail: s.kpi_filtrar_sin_email,
+  };
+}
+
+function kpiRhSinLiderCardRing(on: boolean): string {
+  return on ? " ring-2 ring-amber-400/55 ring-offset-2 ring-offset-white" : "";
+}
+
+function kpiRhSinEmailCardRing(on: boolean): string {
+  return on ? " ring-2 ring-violet-400/55 ring-offset-2 ring-offset-white" : "";
+}
 
 function liderKpiUiDesdeState(s: State): LiderKpiResaltado {
   return {
@@ -330,6 +356,7 @@ function renderKpis(
   isRh: boolean,
   kpiGestionEquipo: boolean,
   liderKpi: LiderKpiResaltado | null,
+  rhKpi: RhKpiResaltado | null = null,
 ): string {
   if (!isRh && kpiGestionEquipo && liderKpi) {
     const kpiLiderCardCls =
@@ -423,25 +450,20 @@ function renderKpis(
       </p>`;
 
   const sinLiderResaltar = r.sin_lider_asignado > 50;
+  const sinEmailResaltar = (r.sin_email_administrativo ?? 0) > 0;
+  const ringSinLiderFiltro = rhKpi ? kpiRhSinLiderCardRing(rhKpi.resaltarSinLider) : "";
+  const ringSinEmailFiltro = rhKpi ? kpiRhSinEmailCardRing(rhKpi.resaltarSinEmail) : "";
   const titleKpi = "text-[13px] font-bold leading-tight text-[#475569]";
-  const numPlantilla = `${KPI_NUM_CLS} text-[#0c2340]`;
-  const numActivos = `${KPI_NUM_CLS} text-emerald-900`;
+  const numEmpleados = `${KPI_NUM_CLS} text-emerald-900`;
   const numSinLider = `${KPI_NUM_CLS} ${sinLiderResaltar ? "text-amber-900" : "text-[#0c2340]"}`;
+  const numSinEmail = `${KPI_NUM_CLS} ${sinEmailResaltar ? "text-violet-900" : "text-[#0c2340]"}`;
+  const nSinEmail = r.sin_email_administrativo ?? 0;
 
   return `
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(37,99,235,0.2)] bg-linear-to-br from-white to-[#eff6ff]">
-        <div class="flex items-start justify-between gap-3">
-          <h2 class="${titleKpi}">Total de plantilla</h2>
-          ${kpiMetricIconBox("total", svgKpiTotalPlantilla())}
-        </div>
-        <p class="${numPlantilla}">${escapeHtml(String(r.total_plantilla))}</p>
-        <p class="${KPI_SUB_CLS}">Registro actual de personas en nómina</p>
-        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Variación vs mes anterior: pendiente de datos</p>
-      </article>
       <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} border-emerald-200/60 bg-linear-to-br from-white to-emerald-50/90">
         <div class="flex items-start justify-between gap-3">
-          <h2 class="${titleKpi}">Activos</h2>
+          <h2 class="${titleKpi}">Empleados</h2>
           ${kpiMetricIconBox(
             "activo",
             `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
@@ -449,12 +471,12 @@ function renderKpis(
             </svg>`,
           )}
         </div>
-        <p class="${numActivos}">${escapeHtml(String(r.activos))}</p>
+        <p class="${numEmpleados}">${escapeHtml(String(r.activos))}</p>
         <p class="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-emerald-800">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0 text-emerald-600" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>
           ${escapeHtml(String(r.porcentaje_operatividad))}% operatividad
         </p>
-        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Personal en estados activos</p>
       </article>
       <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} bg-linear-to-br from-white to-amber-50/80${bordeContratosRh}">
         <div class="flex items-start justify-between gap-3">
@@ -466,15 +488,24 @@ function renderKpis(
         ${estadoContratosRh}
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
       </article>
-      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}">
+      <button type="button" data-emp-kpi="sin-lider" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar && !ringSinLiderFiltro ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinLiderFiltro}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Sin Líder Asignado</h2>
           ${kpiMetricIconBox("sinLider", svgKpiSinLider())}
         </div>
         <p class="${numSinLider}">${escapeHtml(String(r.sin_lider_asignado))}</p>
-        <p class="${KPI_SUB_CLS}">Empleados sin responsable jerárquico</p>
-        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Requieren asignación de líder</p>
-      </article>
+        <p class="${KPI_SUB_CLS}">Empleados activos sin responsable jerárquico</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Clic para filtrar la tabla · otra vez para quitar</p>
+      </button>
+      <button type="button" data-emp-kpi="sin-email" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-violet-200/55 bg-linear-to-br from-white to-violet-50/95${sinEmailResaltar && !ringSinEmailFiltro ? " ring-2 ring-violet-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinEmailFiltro}">
+        <div class="flex items-start justify-between gap-3">
+          <h2 class="${titleKpi}">Sin Email</h2>
+          ${kpiMetricIconBox("sinEmail", svgKpiSinEmail())}
+        </div>
+        <p class="${numSinEmail}">${escapeHtml(String(nSinEmail))}</p>
+        <p class="${KPI_SUB_CLS}">Administrativos activos sin correo registrado</p>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Clic para filtrar la tabla · otra vez para quitar</p>
+      </button>
     </div>`;
 }
 
@@ -1266,6 +1297,8 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     activo_rh: "",
     estatus_lider: "",
     kpi_filtrar_contratos: false,
+    kpi_filtrar_sin_lider: false,
+    kpi_filtrar_sin_email: false,
   };
 
   let resumenGestion: UsuarioResumen | null = null;
@@ -1439,8 +1472,14 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       const pm = panelMode(isRh, kpiGestionEquipo);
       panel.innerHTML = renderPanel(state, catalogo, pg, pm, kpiGestionEquipo);
       const kEl = kpisEl();
-      if (kpiGestionEquipo && resumenGestion && kEl) {
-        kEl.innerHTML = renderKpis(resumenGestion, isRh, true, liderKpiUiDesdeState(state));
+      if (resumenGestion && kEl) {
+        kEl.innerHTML = renderKpis(
+          resumenGestion,
+          isRh,
+          kpiGestionEquipo,
+          kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
+          isRh ? rhKpiUiDesdeState(state) : null,
+        );
       }
       if (shouldRestoreSearch) {
         const nextSearch = container.querySelector<HTMLInputElement>("#emp-search");
@@ -1492,6 +1531,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
           isRh,
           kpiGestionEquipo,
           kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
+          isRh ? rhKpiUiDesdeState(state) : null,
         );
       }
       const panel = panelEl();
@@ -1521,19 +1561,33 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         return;
       }
       const kpiBtn = t.closest<HTMLButtonElement>("[data-emp-kpi]");
-      if (kpiBtn && kpiGestionEquipo) {
+      if (kpiBtn) {
         const kind = kpiBtn.getAttribute("data-emp-kpi");
-        if (kind === "equipo") {
-          state.kpi_filtrar_contratos = false;
-          state.estatus_lider = "";
+        if (kind === "sin-lider" && isRh) {
+          state.kpi_filtrar_sin_lider = !state.kpi_filtrar_sin_lider;
           state.page = 1;
-        } else if (kind === "contratos") {
-          state.kpi_filtrar_contratos = !state.kpi_filtrar_contratos;
-          if (state.kpi_filtrar_contratos) state.estatus_lider = "";
-          state.page = 1;
+          void loadPage();
+          return;
         }
-        void loadPage();
-        return;
+        if (kind === "sin-email" && isRh) {
+          state.kpi_filtrar_sin_email = !state.kpi_filtrar_sin_email;
+          state.page = 1;
+          void loadPage();
+          return;
+        }
+        if (kpiGestionEquipo) {
+          if (kind === "equipo") {
+            state.kpi_filtrar_contratos = false;
+            state.estatus_lider = "";
+            state.page = 1;
+          } else if (kind === "contratos") {
+            state.kpi_filtrar_contratos = !state.kpi_filtrar_contratos;
+            if (state.kpi_filtrar_contratos) state.estatus_lider = "";
+            state.page = 1;
+          }
+          void loadPage();
+          return;
+        }
       }
       if (t.closest("[data-emp-clear-filters]")) {
         state.q = "";
@@ -1542,6 +1596,8 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         state.activo_rh = "";
         state.estatus_lider = "";
         state.kpi_filtrar_contratos = false;
+        state.kpi_filtrar_sin_lider = false;
+        state.kpi_filtrar_sin_email = false;
         state.page = 1;
         void loadPage();
         return;

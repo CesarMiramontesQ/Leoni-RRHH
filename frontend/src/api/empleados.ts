@@ -43,6 +43,10 @@ export type EmpleadosListParams = {
   estatus?: string;
   /** Solo supervisor/gerente: contrato por vencer en 30 días. */
   solo_contratos_por_vencer?: boolean;
+  /** Solo RH: activos sin líder asignado (mismo criterio que KPI). */
+  solo_sin_lider?: boolean;
+  /** Solo RH: administrativos activos sin email registrado (mismo criterio que KPI). */
+  solo_sin_email?: boolean;
 };
 
 export async function getEmpleadosPage(params: EmpleadosListParams): Promise<UsuarioPage> {
@@ -64,6 +68,8 @@ export async function getEmpleadosPage(params: EmpleadosListParams): Promise<Usu
   if (params.activo === false) sp.set("activo", "false");
   if (params.estatus?.trim()) sp.set("estatus", params.estatus.trim().toLowerCase());
   if (params.solo_contratos_por_vencer === true) sp.set("solo_contratos_por_vencer", "true");
+  if (params.solo_sin_lider === true) sp.set("solo_sin_lider", "true");
+  if (params.solo_sin_email === true) sp.set("solo_sin_email", "true");
 
   const res = await fetchWithAuth(`/api/v1/empleados?${sp.toString()}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
