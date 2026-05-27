@@ -257,6 +257,24 @@ class PerfilFuncionesCompetenciaResponse(BaseModel):
     updated_at: datetime
 
 
+# ── Tareas Extra (per-employee) ───────────────────────────────────────────────
+
+
+class PerfilFuncionesTareaCreate(BaseModel):
+    tarea_catalogo_id: int
+
+
+class PerfilFuncionesTareaResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    perfil_funciones_id: int
+    tarea_catalogo_id: int
+    tarea_catalogo_nombre: str = ""
+    tarea_catalogo_categoria: Optional[str] = None
+    created_at: datetime
+
+
 # ── Respuesta compuesta (perfil completo de un puesto) ──────────────────────
 
 

@@ -24,6 +24,7 @@ from app.repositories.perfil_funciones_repository import (
     PerfilFuncionesCualificacionRepository,
     PerfilFuncionesCompetenciaRepository,
     PerfilFuncionesRepository,
+    PerfilFuncionesTareaRepository,
     PerfilTareaRepository,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
@@ -37,6 +38,8 @@ from app.schemas.perfil_funciones import (
     PerfilFuncionesCualificacionCreate,
     PerfilFuncionesCreate,
     PerfilFuncionesResponse,
+    PerfilFuncionesTareaCreate,
+    PerfilFuncionesTareaResponse,
     PerfilFuncionesUpdate,
     PerfilTareaCreate,
     PerfilTareaResponse,
@@ -56,6 +59,7 @@ class PerfilFuncionesService:
         self.asignacion_repo = PerfilFuncionesRepository(db)
         self.eval_cualificacion_repo = PerfilFuncionesCualificacionRepository(db)
         self.eval_competencia_repo = PerfilFuncionesCompetenciaRepository(db)
+        self.tarea_extra_repo = PerfilFuncionesTareaRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -574,4 +578,84 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
 
         await self.asignacion_repo.update(asignacion_id, {"activo": False})
+        await self.db.commit()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # TAREAS EXTRA (per-employee)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    async def listar_tareas_extra(
+        self, perfil_id: int, asignacion_id: int
+    ) -> list[PerfilFuncionesTareaResponse]:
+        await self._get_perfil_or_404(perfil_id)
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        items = await self.tarea_extra_repo.list_by_asignacion(asignacion_id)
+        return [
+            PerfilFuncionesTareaResponse(
+                id=t.id,
+                perfil_funciones_id=t.perfil_funciones_id,
+                tarea_catalogo_id=t.tarea_catalogo_id,
+                tarea_catalogo_nombre=t.tarea_catalogo.nombre if t.tarea_catalogo else "",
+                tarea_catalogo_categoria=t.tarea_catalogo.categoria if t.tarea_catalogo else None,
+                created_at=t.created_at,
+            )
+            for t in items
+        ]
+
+    async def crear_tarea_extra(
+        self, perfil_id: int, asignacion_id: int, data: PerfilFuncionesTareaCreate, current_user: Empleado
+    ) -> PerfilFuncionesTareaResponse:
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        result = await self.db.execute(
+            select(TareaCatalogo).where(
+                TareaCatalogo.id == data.tarea_catalogo_id,
+                TareaCatalogo.activo.is_(True),
+            )
+        )
+        tarea_cat = result.scalar_one_or_none()
+        if not tarea_cat:
+            raise NotFoundError(entidad="TareaCatalogo", id=data.tarea_catalogo_id)
+
+        existing = await self.tarea_extra_repo.get_by_pair(asignacion_id, data.tarea_catalogo_id)
+        if existing:
+            raise ConflictError(detail="Esta tarea ya esta asignada como extra a este empleado")
+
+        item = await self.tarea_extra_repo.create({
+            "perfil_funciones_id": asignacion_id,
+            "tarea_catalogo_id": data.tarea_catalogo_id,
+        })
+        await self.db.commit()
+        await self.db.refresh(item)
+
+        return PerfilFuncionesTareaResponse(
+            id=item.id,
+            perfil_funciones_id=item.perfil_funciones_id,
+            tarea_catalogo_id=item.tarea_catalogo_id,
+            tarea_catalogo_nombre=tarea_cat.nombre,
+            tarea_catalogo_categoria=tarea_cat.categoria,
+            created_at=item.created_at,
+        )
+
+    async def eliminar_tarea_extra(
+        self, perfil_id: int, asignacion_id: int, tarea_extra_id: int, current_user: Empleado
+    ) -> None:
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        tarea_extra = await self.tarea_extra_repo.get(tarea_extra_id)
+        if not tarea_extra or tarea_extra.perfil_funciones_id != asignacion_id:
+            raise NotFoundError(entidad="PerfilFuncionesTarea", id=tarea_extra_id)
+
+        await self.tarea_extra_repo.hard_delete(tarea_extra_id)
         await self.db.commit()

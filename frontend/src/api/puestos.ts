@@ -295,3 +295,57 @@ export async function deletePerfilAsignacion(perfilId: number, asignacionId: num
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
+
+// ── Tareas Extra (per-employee) ──────────────────────────────────────────────
+
+export type PerfilTareaExtra = {
+  id: number;
+  perfil_funciones_id: number;
+  tarea_catalogo_id: number;
+  tarea_catalogo_nombre: string;
+  tarea_catalogo_categoria: string | null;
+  created_at: string;
+};
+
+/** GET /api/v1/perfiles/:perfilId/asignaciones/:asignacionId/tareas-extra */
+export async function getAsignacionTareasExtra(
+  perfilId: number,
+  asignacionId: number,
+): Promise<PerfilTareaExtra[]> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/tareas-extra`,
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTareaExtra[];
+}
+
+/** POST /api/v1/perfiles/:perfilId/asignaciones/:asignacionId/tareas-extra */
+export async function createAsignacionTareaExtra(
+  perfilId: number,
+  asignacionId: number,
+  body: { tarea_catalogo_id: number },
+): Promise<PerfilTareaExtra> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/tareas-extra`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTareaExtra;
+}
+
+/** DELETE /api/v1/perfiles/:perfilId/asignaciones/:asignacionId/tareas-extra/:tareaExtraId */
+export async function deleteAsignacionTareaExtra(
+  perfilId: number,
+  asignacionId: number,
+  tareaExtraId: number,
+): Promise<void> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/tareas-extra/${tareaExtraId}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
