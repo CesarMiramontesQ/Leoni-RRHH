@@ -68,7 +68,8 @@ function emptySolicitudFilterState(): RhSolicitudFilterState {
 function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
-    description: "La analítica de métricas está disponible solo para usuarios con rol Recursos Humanos.",
+    description:
+      "La analítica de métricas está disponible solo para usuarios con rol Recursos Humanos o gerente.",
     linkHref: "#/",
     linkLabel: "Volver al dashboard",
   });

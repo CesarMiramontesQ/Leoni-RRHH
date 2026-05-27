@@ -93,8 +93,10 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
 
 /** UI de `#/metricas`: filtros globales + gráficas analíticas (sin tabla ni toolbar de solicitudes). */
 export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
+  const sessionRole = getSolicitudesPageRoleFromSession();
+  const role: SolicitudesPageRole = sessionRole === "gerente" ? "gerente" : "rh";
   return {
-    ...buildDefaultSolicitudesPageUiConfig("rh"),
+    ...buildDefaultSolicitudesPageUiConfig(role),
     showStatsCards: false,
     showPersonasDiaChart: true,
     showExportButton: false,

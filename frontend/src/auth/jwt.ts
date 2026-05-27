@@ -123,9 +123,10 @@ export function canAccessRhSolicitudesAdminPage(): boolean {
   return getRolFromAccessToken() === "rh";
 }
 
-/** Analítica de solicitudes (`#/metricas`). Solo RH. */
+/** Analítica de solicitudes e incidencias (`#/metricas`). RH (global) y gerente (equipo). */
 export function canAccessMetricasPage(): boolean {
-  return canAccessRhSolicitudesAdminPage();
+  const r = getRolFromAccessToken();
+  return r === "rh" || r === "gerente";
 }
 
 /** Gestión de solicitudes (`#/solicitudes`): RH, supervisores y gerentes (alcance y filtros según rol). */
