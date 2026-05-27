@@ -128,12 +128,16 @@ async def test_crear_solicitud_supervisor_para_subordinado_home_office_un_dia_re
     client: AsyncClient,
     db,
 ):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
     supervisor = await make_empleado(db, rol="supervisor", email="sol002b_sup_ho@leoni.test")
     subordinado = await make_empleado(
         db,
         rol="empleado",
         email="sol002b_sub_ho@leoni.test",
         lider_id=supervisor.id,
+        clasificacion_id=cl_admin.clasificacion_id,
     )
     headers = await auth_headers(client, supervisor)
     payload = {
@@ -1566,7 +1570,15 @@ async def test_crear_solicitud_tipos_validos(tipo, client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_home_office_empleado_un_dia_valido(client: AsyncClient, db):
-    empleado = await make_empleado(db, rol="empleado", email="sol027_ho1@leoni.test")
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho1@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
     headers = await auth_headers(client, empleado)
     response = await client.post(
         "/api/v1/solicitudes",
@@ -1585,8 +1597,58 @@ async def test_crear_solicitud_home_office_empleado_un_dia_valido(client: AsyncC
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_home_office_no_administrativo_retorna_422(
+    client: AsyncClient,
+    db,
+):
+    empleado = await make_empleado(db, rol="empleado", email="sol027_ho3@leoni.test")
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-02",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "Administrativo" in response.text
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_rh_home_office_no_administrativo_retorna_422(
+    client: AsyncClient,
+    db,
+):
+    rh = await make_empleado(db, rol="rh", email="sol027_ho_rh@leoni.test")
+    colaborador = await make_empleado(db, rol="empleado", email="sol027_ho_sub@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-02",
+            "empleado_id": colaborador.id,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "Administrativo" in response.text
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: AsyncClient, db):
-    empleado = await make_empleado(db, rol="empleado", email="sol027_ho2@leoni.test")
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho2@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
     headers = await auth_headers(client, empleado)
     response = await client.post(
         "/api/v1/solicitudes",
@@ -1720,6 +1782,39 @@ async def test_aprobar_solicitud_gerente_linea_un_solo_paso_ok(client: AsyncClie
         f"/api/v1/solicitudes/{solicitud.id}/approve",
         json=APROBACION_PAYLOAD,
         headers=headers_g,
+    )
+    assert response.status_code == 200
+    assert response.json()["estado"] == "approved"
+
+
+# ---------------------------------------------------------------------------
+# TC-SOL-030b: Gerente raíz aprueba solicitud de subárbol aunque no sea gerente de línea
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aprobar_solicitud_gerente_raiz_subarbol_sin_ser_linea(client: AsyncClient, db):
+    gerente_raiz = await make_empleado(db, rol="gerente", email="sol030br@leoni.test")
+    gerente_intermedio = await make_empleado(
+        db, rol="gerente", email="sol030bi@leoni.test", lider_id=gerente_raiz.id
+    )
+    supervisor = await make_empleado(
+        db, rol="supervisor", email="sol030bs@leoni.test", lider_id=gerente_intermedio.id
+    )
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol030be@leoni.test", lider_id=supervisor.id
+    )
+    solicitud = await make_solicitud(db, empleado_id=empleado.id)
+
+    headers_raiz = await auth_headers(client, gerente_raiz)
+    det = await client.get(f"/api/v1/solicitudes/{solicitud.id}", headers=headers_raiz)
+    assert det.status_code == 200
+    assert det.json()["gerente_linea_id"] == gerente_intermedio.id
+
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_raiz,
     )
     assert response.status_code == 200
     assert response.json()["estado"] == "approved"

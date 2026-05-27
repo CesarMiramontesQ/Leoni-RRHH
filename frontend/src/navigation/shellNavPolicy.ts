@@ -36,7 +36,9 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "capacitaciones",
 ]);
 
-const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama", "metricas"]);
+const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
+
+const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
 /** Items visibles solo para rh, director, gerente (Talento + Level Up). */
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
@@ -44,7 +46,9 @@ const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
-const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
+const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes", "ajustes"]);
+
+const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["ajustes"]);
 
 /**
  * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.
@@ -52,9 +56,11 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+  if (itemId === "metricas") return METRICAS_NAV_ROLES.has(rol ?? "");
   if (RH_ONLY_NAV_IDS.has(itemId)) return rol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return rol === "rh" || rol === "director" || rol === "gerente";
   if (rol === "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
+  if (rol === "gerente" && GERENTE_HIDDEN_NAV_IDS.has(itemId)) return false;
   return true;
 }
 

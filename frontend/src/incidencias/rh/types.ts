@@ -182,6 +182,8 @@ export type RhIncidenciasUiConfig = {
   modoFiltros: "rh" | "estandar";
   /** Filtro por supervisor en la barra (solo rol `rh`; gerente/supervisor comparten el resto con RH). */
   mostrarFiltroSupervisor: boolean;
+  /** Tarjetas KPI en la parte superior de `#/incidencias` (ocultas para supervisor y gerente). */
+  mostrarTarjetasEstadisticas: boolean;
 };
 
 export type RhIncidenciasAdminViewModel = {

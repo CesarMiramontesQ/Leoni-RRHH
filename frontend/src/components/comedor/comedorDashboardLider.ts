@@ -1,5 +1,4 @@
 import type {
-  ComedorCalendarMonth,
   ComedorKpi,
   ComedorPanelState,
   ComedorSupervisorTableSegment,
@@ -10,7 +9,6 @@ import {
   RH_LISTADO_SURFACE,
   RH_SOLICITUDES_BTN_PRIMARY,
 } from "../../ui/uiTokens.ts";
-import { renderComedorCalendar } from "./comedorCalendar.ts";
 import { renderComedorStats } from "./comedorStats.ts";
 import { renderComedorTeamReservationsTable } from "./comedorTeamReservationsTable.ts";
 
@@ -18,9 +16,8 @@ export type ComedorDashboardLiderViewState = {
   statsState: ComedorPanelState;
   stats: readonly ComedorKpi[] | null;
   statsError: string | null;
-  calendarState: ComedorPanelState;
-  calendar: ComedorCalendarMonth | null;
-  calendarError: string | null;
+  statsGridClass: string;
+  statsSkeletonCount: number;
   tableState: ComedorPanelState;
   table: ComedorTeamReservationsPage | null;
   tableError: string | null;
@@ -54,13 +51,10 @@ export function renderComedorDashboardLider(state: ComedorDashboardLiderViewStat
   return `
     <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">
       ${renderHeader()}
-      ${renderComedorStats(
-        state.statsState,
-        state.stats,
-        state.statsError,
-        "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4",
-      )}
-      ${renderComedorCalendar(state.calendarState, state.calendar, state.calendarError)}
+      ${renderComedorStats(state.statsState, state.stats, state.statsError, {
+        gridClass: state.statsGridClass,
+        skeletonCount: state.statsSkeletonCount,
+      })}
       ${renderComedorTeamReservationsTable(state.tableState, state.table, state.tableFilters, state.tableError)}
     </div>`;
 }

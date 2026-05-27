@@ -31,11 +31,12 @@ export const SD_COPY = {
   gerPendienteAprobacion: "Pendiente de aprobación del gerente de línea.",
   gerEsperaSiAplica: "Hay gerente de línea; la etapa de gerencia procede tras el supervisor.",
   gerSinEnCadena: "No hay gerente en la cadena de mando sobre el solicitante.",
-  gerPuedeAprobarUnPaso: "Puede aprobar o rechazar como gerente de línea del solicitante.",
+  gerPuedeAprobarUnPaso:
+    "Puede aprobar o rechazar como gerente de línea o como gerente del equipo jerárquico del solicitante.",
   gerEstadoCerrada: "Referencia de organigrama (solicitud ya no pendiente).",
 
   jerarquiaUnaSolaAprobacion:
-    "Basta una sola decisión: el supervisor directo o el gerente de línea puede aprobar o rechazar (en cualquier orden). No se requiere segunda aprobación.",
+    "Basta una sola decisión: el supervisor directo o un gerente con alcance sobre el solicitante puede aprobar o rechazar (en cualquier orden). No se requiere segunda aprobación.",
 
   /** Solicitud propia (supervisor/gerente): sin botones de decisión jerárquica. */
   avisoAutopaprobacionBloqueada:

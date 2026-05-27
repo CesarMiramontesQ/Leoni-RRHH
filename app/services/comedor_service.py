@@ -536,16 +536,22 @@ class ComedorService:
             semana_siguiente_fin=fin_semana_siguiente,
         )
         total_activas = metricas["total_activas"]
+        total_semana_actual = metricas["total_semana_actual"]
+        total_asistencias = metricas["total_asistencias"]
         if total_activas <= 0:
             porcentaje_caseras = 0
             porcentaje_saludables = 0
+            porcentaje_asistencia = 0
         else:
             porcentaje_caseras = round((metricas["total_caseras"] / total_activas) * 100)
             porcentaje_saludables = round((metricas["total_saludables"] / total_activas) * 100)
+            porcentaje_asistencia = round((total_asistencias / total_activas) * 100)
 
         return {
-            "semana_actual_total": metricas["total_semana_actual"],
+            "semana_actual_total": total_semana_actual,
             "semana_proxima_total": metricas["total_semana_siguiente"],
+            "total_asistencias": total_asistencias,
+            "porcentaje_asistencia": int(porcentaje_asistencia),
             "porcentaje_caseras": int(porcentaje_caseras),
             "porcentaje_saludables": int(porcentaje_saludables),
             "total_activas": total_activas,

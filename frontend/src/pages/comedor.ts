@@ -31,7 +31,6 @@ import {
   getComedorMisProximasReservas,
   getComedorMisReservasMes,
   getComedorEquipoProximasReservas,
-  getComedorEquipoReservasMes,
   getComedorRhRegistrosReporte,
   getComedorRhResumenDiario,
   getComedorEquipoMetricas,
@@ -84,7 +83,14 @@ import {
 import { reporteDetalleRowsSorted } from "../components/comedor/comedorReporteAnalytics.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { downloadReporteComedorExcel } from "../comedor/reportes/exportReporteComedorExcel.ts";
-import { COMEDOR_TABLE_TH, escapeComedorHtml } from "../components/comedor/comedorUiUtils.ts";
+import {
+  COMEDOR_TABLE_TH,
+  comedorLiderOcultaKpisOpcionAb,
+  comedorLiderStatsGridClass,
+  comedorLiderStatsSkeletonCount,
+  escapeComedorHtml,
+  filterComedorKpisOpcionAb,
+} from "../components/comedor/comedorUiUtils.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
   BTN_GHOST,
@@ -152,24 +158,22 @@ function toViewState(state: RhComedorState): ComedorDashboardRhViewState {
 type LiderComedorState = {
   statsState: ComedorPanelState;
   statsError: string | null;
-  calendarState: ComedorPanelState;
-  calendarError: string | null;
   tableState: ComedorPanelState;
   tableError: string | null;
   search: string;
   page: number;
   pageSize: number;
-  year: number;
-  monthIndex: number;
   /** Solo aplica filtros de segmento en `loadTable` cuando `isSupervisorTable` es true. */
   tableSegment: ComedorSupervisorTableSegment;
   isSupervisorTable: boolean;
+  /** Oculta KPIs «% Opción A» / «% Opción B» (supervisor y gerente). */
+  hideOpcionKpis: boolean;
 } & Omit<
   ComedorDashboardLiderViewState,
   | "statsState"
   | "statsError"
-  | "calendarState"
-  | "calendarError"
+  | "statsGridClass"
+  | "statsSkeletonCount"
   | "tableState"
   | "tableError"
   | "tableFilters"
@@ -180,9 +184,8 @@ function toLiderViewState(state: LiderComedorState): ComedorDashboardLiderViewSt
     statsState: state.statsState,
     stats: state.stats,
     statsError: state.statsError,
-    calendarState: state.calendarState,
-    calendar: state.calendar,
-    calendarError: state.calendarError,
+    statsGridClass: comedorLiderStatsGridClass(state.hideOpcionKpis),
+    statsSkeletonCount: comedorLiderStatsSkeletonCount(state.hideOpcionKpis),
     tableState: state.tableState,
     table: state.table,
     tableError: state.tableError,
@@ -428,49 +431,6 @@ function mapReservasEmpleadoToCalendarMonth(
   };
 }
 
-function mapReservasEquipoToCalendarMonth(
-  year: number,
-  monthIndex: number,
-  items: Awaited<ReturnType<typeof getComedorEquipoReservasMes>>,
-  currentUserId: number | null,
-): ComedorCalendarMonth {
-  const visible = calendarVisibleDateRange(year, monthIndex);
-  const dayMetrics: ComedorCalendarMonth["dayMetrics"] = {};
-  for (const r of items) {
-    const dayDate = isoToDate(r.fecha_servicio);
-    if (dayDate < visible.start || dayDate > visible.end) continue;
-    const iso = dateToIso(dayDate);
-    if (!dayMetrics[iso]) {
-      dayMetrics[iso] = { isoDate: iso, reservas: 0, tags: [] };
-    }
-    const nombreCorto = (r.empleado_nombre_corto || "").trim() || extraerPrimerNombreApellido(r.empleado_nombre);
-    dayMetrics[iso].reservas += 1;
-    const isOwnReservation = currentUserId != null && r.empleado_id === currentUserId;
-    dayMetrics[iso].tags.push(
-      isOwnReservation
-        ? {
-            id: `equipo-${r.id}`,
-            label: etiquetaTipoComida(r.tipo_comida),
-            tone: "supervisor",
-          }
-        : {
-            id: `equipo-${r.id}`,
-            label: `Comida ${nombreCorto}`,
-            tone: "reserva",
-          },
-    );
-  }
-  return {
-    year,
-    monthIndex,
-    legend: [
-      { id: "equipo_reservas", label: "Reservas de equipo", dotClass: "bg-orange-500" },
-      { id: "mis_reservas_supervisor", label: "Mis reservas", dotClass: "bg-violet-500" },
-    ],
-    dayMetrics,
-  };
-}
-
 function mapResumenRhToCalendarMonth(
   year: number,
   monthIndex: number,
@@ -610,6 +570,14 @@ function mapMetricasLiderToKpis(metricas: Awaited<ReturnType<typeof getComedorEq
       valor: String(metricas.semana_proxima_total ?? 0),
       descripcion: "Reservas activas y confirmadas para la próxima semana.",
       accentClass: "border-t-sky-500",
+    },
+    {
+      id: "porcentaje_asistencia",
+      titulo: "Asistencia del equipo",
+      valor: `${metricas.porcentaje_asistencia ?? 0}%`,
+      descripcion: `Asistencia vs reserva\n${metricas.total_asistencias ?? 0} asistencias de ${metricas.total_activas ?? 0} registros del equipo.`,
+      accentClass: "border-t-violet-500",
+      progressPercent: metricas.porcentaje_asistencia ?? 0,
     },
     {
       id: "porcentaje_caseras",
@@ -2254,8 +2222,9 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 }
 
 function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
-  const now = new Date();
-  const isSupervisor = getRolFromAccessToken() === "supervisor";
+  const rol = getRolFromAccessToken();
+  const isSupervisor = rol === "supervisor";
+  const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(rol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const comedorIdResolver = createComedorIdResolver();
   const resolveComedorId = () => comedorIdResolver.resolve();
@@ -2263,21 +2232,16 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     statsState: "loading",
     stats: null,
     statsError: null,
-    calendarState: "loading",
-    calendar: null,
-    calendarError: null,
     tableState: "loading",
     table: null,
     tableError: null,
     search: "",
     page: 1,
     pageSize: 10,
-    year: now.getFullYear(),
-    monthIndex: now.getMonth(),
     tableSegment: "equipo",
     isSupervisorTable: isSupervisor,
+    hideOpcionKpis,
   };
-  let calendarRequestVersion = 0;
 
   function paint(): void {
     const root = container.querySelector<HTMLElement>("#comedor-lider-root");
@@ -2285,37 +2249,15 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     root.innerHTML = renderComedorDashboardLider(toLiderViewState(state));
   }
 
-  async function loadCalendar(): Promise<void> {
-    const requestVersion = ++calendarRequestVersion;
-    state.calendarState = "loading";
-    state.calendarError = null;
-    paint();
-    try {
-      const monthsToLoad = monthsCoveredByVisibleRange(state.year, state.monthIndex);
-      const reservasPorMes = await Promise.all(
-        monthsToLoad.map(({ year, month }) => getComedorEquipoReservasMes(year, month)),
-      );
-      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
-      const reservas = reservasPorMes.flat();
-      const reservasUnicas = Array.from(new Map(reservas.map((item) => [item.id, item])).values());
-      const month = mapReservasEquipoToCalendarMonth(state.year, state.monthIndex, reservasUnicas, currentUserId);
-      state.calendar = month;
-      state.calendarState = "ready";
-    } catch (error) {
-      if (signal.aborted || requestVersion !== calendarRequestVersion) return;
-      state.calendar = null;
-      state.calendarState = "error";
-      state.calendarError = error instanceof Error ? error.message : "Error al cargar calendario.";
-    }
-    paint();
-  }
-
   async function loadKpis(): Promise<void> {
     state.statsState = "loading";
     state.statsError = null;
     paint();
     try {
-      const rows = mapMetricasLiderToKpis(await getComedorEquipoMetricas());
+      const rows = filterComedorKpisOpcionAb(
+        mapMetricasLiderToKpis(await getComedorEquipoMetricas()),
+        hideOpcionKpis,
+      );
       if (signal.aborted) return;
       state.stats = rows;
       state.statsState = rows.length > 0 ? "ready" : "empty";
@@ -2472,7 +2414,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
             tipoComida: payload.menuId,
             targetUserId,
           });
-          await Promise.all([loadCalendar(), loadTable()]);
+          await loadTable();
         },
       })
       : null;
@@ -2489,10 +2431,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         void loadKpis();
         return;
       }
-      if (target.closest("[data-comedor-retry-calendar]")) {
-        void loadCalendar();
-        return;
-      }
       if (target.closest("[data-comedor-retry-table]")) {
         void loadTable();
         return;
@@ -2505,42 +2443,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         if (Number.isFinite(page) && page > 0) {
           state.page = page;
           void loadTable();
-        }
-        return;
-      }
-
-      const prevBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-prev-year]");
-      if (prevBtn) {
-        const year = Number.parseInt(prevBtn.getAttribute("data-comedor-cal-prev-year") ?? "", 10);
-        const month = Number.parseInt(prevBtn.getAttribute("data-comedor-cal-prev-month") ?? "", 10);
-        if (Number.isFinite(year) && Number.isFinite(month)) {
-          state.year = year;
-          state.monthIndex = month;
-          void loadCalendar();
-        }
-        return;
-      }
-
-      const nextBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-next-year]");
-      if (nextBtn) {
-        const year = Number.parseInt(nextBtn.getAttribute("data-comedor-cal-next-year") ?? "", 10);
-        const month = Number.parseInt(nextBtn.getAttribute("data-comedor-cal-next-month") ?? "", 10);
-        if (Number.isFinite(year) && Number.isFinite(month)) {
-          state.year = year;
-          state.monthIndex = month;
-          void loadCalendar();
-        }
-        return;
-      }
-
-      const todayBtn = target.closest<HTMLButtonElement>("[data-comedor-cal-today-year]");
-      if (todayBtn) {
-        const year = Number.parseInt(todayBtn.getAttribute("data-comedor-cal-today-year") ?? "", 10);
-        const month = Number.parseInt(todayBtn.getAttribute("data-comedor-cal-today-month") ?? "", 10);
-        if (Number.isFinite(year) && Number.isFinite(month)) {
-          state.year = year;
-          state.monthIndex = month;
-          void loadCalendar();
         }
         return;
       }
@@ -2575,7 +2477,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           try {
             await editarComedorAcceso({ accesoId, tipoComida: nuevoTipo });
             showEmpleadosToast(container, "Registro actualizado correctamente.", "success");
-            await Promise.all([loadCalendar(), loadTable()]);
+            await loadTable();
           } catch (error) {
             showEmpleadosToast(
               container,
@@ -2602,7 +2504,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           try {
             await cancelarComedorAcceso(accesoId);
             showEmpleadosToast(container, "Registro cancelado correctamente.", "success");
-            await Promise.all([loadCalendar(), loadTable()]);
+            await loadTable();
           } catch (error) {
             showEmpleadosToast(
               container,
@@ -2657,7 +2559,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     });
 
     void loadKpis();
-    void loadCalendar();
     void loadTable();
   })();
 }

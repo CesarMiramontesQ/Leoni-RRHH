@@ -11,7 +11,8 @@ Flujo de estados:
   changes_requested → pending  (via requisitor_actualizar_y_reenviar — solo el solicitante)
 
 Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (supervisor directo O gerente
-de linea, en cualquier orden; no hay segunda etapa obligatoria).
+de linea o gerente con el solicitante en su subarbol jerarquico, en cualquier orden; no hay segunda
+etapa obligatoria).
 
 Al aprobar: estado `approved`, registro de aprobacion, cola TRESS y notificacion in-app al requisitor
 en la misma transaccion del request (rollback conjunto si falla cualquier paso).
@@ -26,6 +27,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -258,11 +260,18 @@ def _puede_actuar_jerarquia_solicitud(
     lider_id: int | None,
     primer_gerente_id: int | None,
     current_user_id: int,
+    empleado_en_subarbol_gerente: bool = False,
 ) -> bool:
-    """Supervisor directo o gerente de linea (primer gerente en cadena) pueden aprobar/rechazar."""
+    """
+    Supervisor directo o gerente (de linea o con el solicitante en su subarbol) pueden decidir.
+    `empleado_en_subarbol_gerente` solo aplica cuando rol == gerente.
+    """
     if rol == "supervisor" and lider_id is not None and lider_id == current_user_id:
         return True
-    if rol == "gerente" and primer_gerente_id is not None and primer_gerente_id == current_user_id:
+    if rol == "gerente" and (
+        (primer_gerente_id is not None and primer_gerente_id == current_user_id)
+        or empleado_en_subarbol_gerente
+    ):
         return True
     return False
 
@@ -294,6 +303,31 @@ class SolicitudService:
         self.empleado_repo = EmpleadoRepository(db)
         self.comedor_acceso_repo = ComedorAccesoRepository(db)
         self.db = db
+
+    async def _empleado_en_subarbol_gerente(self, gerente_id: int, empleado_id: int) -> bool:
+        equipo = await self.empleado_repo.get_ids_subarbol(
+            gerente_id, settings.ESTADOS_ACTIVOS_IDS
+        )
+        return empleado_id in equipo
+
+    async def _puede_actuar_jerarquia_solicitud_async(
+        self,
+        *,
+        rol: str,
+        emp: Empleado,
+        current_user_id: int,
+    ) -> bool:
+        primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
+        en_subarbol = False
+        if rol == "gerente":
+            en_subarbol = await self._empleado_en_subarbol_gerente(current_user_id, emp.id)
+        return _puede_actuar_jerarquia_solicitud(
+            rol=rol,
+            lider_id=emp.lider_id,
+            primer_gerente_id=primer_g.id if primer_g else None,
+            current_user_id=current_user_id,
+            empleado_en_subarbol_gerente=en_subarbol,
+        )
 
     async def _cancelar_reservas_comedor_si_vacaciones_aprobadas(
         self,
@@ -545,6 +579,15 @@ class SolicitudService:
             raise DomainValidationError(
                 detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
             )
+        if data.tipo == "home_office":
+            target_cl = await self.empleado_repo.get_with_clasificacion(target.id)
+            if not target_cl or not empleado_es_administrativo(target_cl):
+                raise DomainValidationError(
+                    detail=(
+                        "Home Office solo está disponible para colaboradores "
+                        "con clasificación Administrativo."
+                    )
+                )
         if data.tipo == "permiso_sin_goce_sueldo" and rol not in (
             "supervisor",
             "gerente",
@@ -780,14 +823,9 @@ class SolicitudService:
                 background_tasks=background_tasks,
             )
 
-        primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
-        lid = emp.lider_id
-        gid = primer_g.id if primer_g else None
-
-        if _puede_actuar_jerarquia_solicitud(
+        if await self._puede_actuar_jerarquia_solicitud_async(
             rol=rol,
-            lider_id=lid,
-            primer_gerente_id=gid,
+            emp=emp,
             current_user_id=current_user.id,
         ):
             return await self._aprobar_final_con_tress(
@@ -826,13 +864,9 @@ class SolicitudService:
         emp = solicitud.empleado
 
         if rol not in ("director", "rh"):
-            primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
-            lid = emp.lider_id
-            gid = primer_g.id if primer_g else None
-            if not _puede_actuar_jerarquia_solicitud(
+            if not await self._puede_actuar_jerarquia_solicitud_async(
                 rol=rol,
-                lider_id=lid,
-                primer_gerente_id=gid,
+                emp=emp,
                 current_user_id=current_user.id,
             ):
                 raise ForbiddenError(
@@ -936,13 +970,9 @@ class SolicitudService:
         emp = solicitud.empleado
 
         if rol not in ("director", "rh"):
-            primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
-            lid = emp.lider_id
-            gid = primer_g.id if primer_g else None
-            if not _puede_actuar_jerarquia_solicitud(
+            if not await self._puede_actuar_jerarquia_solicitud_async(
                 rol=rol,
-                lider_id=lid,
-                primer_gerente_id=gid,
+                emp=emp,
                 current_user_id=current_user.id,
             ):
                 raise ForbiddenError(

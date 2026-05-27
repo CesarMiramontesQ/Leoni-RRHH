@@ -205,6 +205,7 @@ function renderChartsContent(
 
 /** Tarjetas KPI de incidencias (página Incidencias). */
 export function renderRhIncidenciasKpiSection(vm: RhIncidenciasAdminViewModel): string {
+  if (!vm.ui.mostrarTarjetasEstadisticas) return "";
   if (vm.estadisticasStatus === "loading") {
     return `<div id="rh-inc-kpis" class="shrink-0" aria-busy="true">${kpiSkeleton()}</div>`;
   }

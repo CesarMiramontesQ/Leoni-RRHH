@@ -1,13 +1,15 @@
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
+import { fetchAllIncidenciasForExport, getIncidenciasRows } from "../../api/incidencias.ts";
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
-import { getIncidenciasRows } from "../../api/incidencias.ts";
 import { getEmpleadoVista360 } from "../../api/vista360.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
-import type { RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
+import { emptyRhIncidenciaListFilters, type RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
+import { buildSupervisorIncidenciasChart, GERENTE_INCIDENCIAS_CHART_TOP_N } from "./buildSupervisorIncidenciasChart.ts";
+import { buildSupervisorHomeOfficeWeekdayChart } from "./buildSupervisorHomeOfficeWeekday.ts";
 import {
   esSolicitudTipoCalendarioDashboard,
   SOLICITUD_ESTADO_API,
@@ -233,6 +235,7 @@ function countIncidenciasActivas(filas: RhIncidenciaTablaFila[]): number {
 export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Promise<LiderDashboardPayload | null> {
   const role = getRolFromAccessToken();
   if (role !== "supervisor" && role !== "gerente") return null;
+  const esGerente = role === "gerente";
 
   const now = new Date();
   const referenceDate =
@@ -252,6 +255,9 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
   try {
     // API `/api/v1/solicitudes` admite máximo `limit=100`.
     const mealMonths = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
+    const incidenciasPromise = esGerente
+      ? fetchAllIncidenciasForExport(emptyRhIncidenciaListFilters()).catch(() => [] as RhIncidenciaTablaFila[])
+      : getIncidenciasRows(100).catch(() => [] as RhIncidenciaTablaFila[]);
     const [rows, mealRowsByMonth, empleadosResumen, vista360, incidenciasFilas] = await Promise.all([
       getSolicitudesRows(100),
       role === "supervisor"
@@ -259,7 +265,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         : Promise.resolve([]),
       getEmpleadosResumen().catch(() => null),
       myVista360Id !== null ? getEmpleadoVista360(myVista360Id).catch(() => null) : Promise.resolve(null),
-      getIncidenciasRows(500).catch(() => []),
+      incidenciasPromise,
     ]);
     const todayIso = rhIsoLocalDate(now);
     const { monthStartIso, monthEndIso } = monthIsoRange(now);
@@ -281,19 +287,23 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         (r.estado === SOLICITUD_ESTADO_API.APROBADO || r.estado === SOLICITUD_ESTADO_API.PENDIENTE),
     );
 
-    const solicitudesCalendario = solicitudesGestion.filter(
-      (r) =>
-        !(r.fecha_fin.slice(0, 10) < rangeStartIso || r.fecha_inicio.slice(0, 10) > rangeEndIso),
-    );
+    const solicitudesCalendario = esGerente
+      ? []
+      : solicitudesGestion.filter(
+          (r) =>
+            !(r.fecha_fin.slice(0, 10) < rangeStartIso || r.fecha_inicio.slice(0, 10) > rangeEndIso),
+        );
 
     const day_entries: Record<string, TeamCalendarDayEntry> = {};
-    for (const r of solicitudesCalendario) {
-      const estado = r.estado === SOLICITUD_ESTADO_API.APROBADO ? "approved" : "pending";
-      const line = toTeamCalendarLine(r.tipo, estado, r.empleado_id, r.empleado_nombre_raw);
-      for (const iso of eachIsoDayInclusive(r.fecha_inicio, r.fecha_fin)) {
-        if (iso < rangeStartIso || iso > rangeEndIso) continue;
-        const prev = day_entries[iso]?.lines ?? [];
-        day_entries[iso] = { lines: [...prev, line] };
+    if (!esGerente) {
+      for (const r of solicitudesCalendario) {
+        const estado = r.estado === SOLICITUD_ESTADO_API.APROBADO ? "approved" : "pending";
+        const line = toTeamCalendarLine(r.tipo, estado, r.empleado_id, r.empleado_nombre_raw);
+        for (const iso of eachIsoDayInclusive(r.fecha_inicio, r.fecha_fin)) {
+          if (iso < rangeStartIso || iso > rangeEndIso) continue;
+          const prev = day_entries[iso]?.lines ?? [];
+          day_entries[iso] = { lines: [...prev, line] };
+        }
       }
     }
 
@@ -317,6 +327,21 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         ? Math.max(0, (empleadosResumen.colaboradores_total ?? 0) - 1)
         : fallbackTeamCount;
     const teamActiveIncidents = countIncidenciasActivas(incidenciasFilas);
+    const esLiderConGraficas = role === "supervisor" || esGerente;
+    const supervisorIncidenciasChart = esLiderConGraficas
+      ? esGerente
+        ? buildSupervisorIncidenciasChart(incidenciasFilas, myId, {
+            maxEmployees: GERENTE_INCIDENCIAS_CHART_TOP_N,
+            forceView: "bars",
+          })
+        : buildSupervisorIncidenciasChart(incidenciasFilas, myId)
+      : null;
+    const hoTeamRows = teamRows.filter(
+      (r) => r.tipo === "home_office" && r.estado === SOLICITUD_ESTADO_API.APROBADO,
+    );
+    const supervisorHoWeekdayChart = esLiderConGraficas
+      ? buildSupervisorHomeOfficeWeekdayChart(hoTeamRows)
+      : null;
     const approvalRequests = teamPendingRows
       .map((r) => {
         const tipo = mapSolicitudTipoToApprovalUi(r.tipo);
@@ -341,13 +366,19 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       })
       .sort((a, b) => Number.parseInt(a.id, 10) - Number.parseInt(b.id, 10));
 
-    const initial = solicitudesCalendario
-      .map((r) => r.fecha_inicio.slice(0, 10))
-      .filter((iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso))
-      .sort()[0] ?? null;
-    const initDate = initial ? new Date(`${initial}T00:00:00`) : now;
-    const initialYear = Number.isNaN(initDate.getTime()) ? now.getFullYear() : initDate.getFullYear();
-    const initialMonth = Number.isNaN(initDate.getTime()) ? now.getMonth() : initDate.getMonth();
+    let initialYear = now.getFullYear();
+    let initialMonth = now.getMonth();
+    if (!esGerente) {
+      const initial = solicitudesCalendario
+        .map((r) => r.fecha_inicio.slice(0, 10))
+        .filter((iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso))
+        .sort()[0] ?? null;
+      const initDate = initial ? new Date(`${initial}T00:00:00`) : now;
+      if (!Number.isNaN(initDate.getTime())) {
+        initialYear = initDate.getFullYear();
+        initialMonth = initDate.getMonth();
+      }
+    }
 
     return {
       ...base,
@@ -375,6 +406,8 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         team_collaborators_count: teamCollaboratorsCount,
       },
       approval_requests: approvalRequests,
+      supervisor_incidencias_chart: supervisorIncidenciasChart,
+      supervisor_ho_weekday_chart: supervisorHoWeekdayChart,
       team_calendar: {
         ...base.team_calendar,
         initial_year: initialYear,

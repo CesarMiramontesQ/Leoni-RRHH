@@ -122,6 +122,14 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         )
         return result.scalar_one_or_none()
 
+    async def get_with_clasificacion(self, id: int) -> Empleado | None:
+        result = await self.db.execute(
+            select(Empleado)
+            .options(selectinload(Empleado.clasificacion))
+            .where(Empleado.id == id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_subordinados(self, lider_id: int, estados_activos: list[int]) -> list[Empleado]:
         result = await self.db.execute(
             select(Empleado).where(
