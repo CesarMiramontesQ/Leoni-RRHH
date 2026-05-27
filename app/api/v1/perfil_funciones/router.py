@@ -59,9 +59,24 @@ from app.schemas.perfil_funciones import (
     PerfilTareaResponse,
     PerfilTareaUpdate,
 )
+from app.core.catalogos_cualificacion import CATALOGO_ESCOLARIDAD
 from app.services.perfil_funciones_service import PerfilFuncionesService
 
 router = APIRouter(prefix="/api/v1/perfiles", tags=["Perfil de Funciones"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CATÁLOGOS (rutas estáticas antes de {perfil_id})
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/catalogos/escolaridad")
+async def obtener_catalogo_escolaridad():
+    """Retorna el catálogo de niveles de escolaridad."""
+    return [
+        {"key": k, "label": v["label"], "peso": v["peso"]}
+        for k, v in CATALOGO_ESCOLARIDAD.items()
+    ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════

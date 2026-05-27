@@ -9,6 +9,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.catalogos_cualificacion import ESCOLARIDAD_KEYS
+
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
 
@@ -107,6 +109,14 @@ class PerfilCualificacionCreate(BaseModel):
     situacion_deseada: str = Field(..., min_length=1)
     comentarios: Optional[str] = None
 
+    @model_validator(mode="after")
+    def _validar_escolaridad(self) -> "PerfilCualificacionCreate":
+        if self.tipo == "estudios_finalizados" and self.situacion_deseada not in ESCOLARIDAD_KEYS:
+            raise ValueError(
+                f"Para tipo 'estudios_finalizados', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
+            )
+        return self
+
 
 class PerfilCualificacionUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
@@ -114,6 +124,15 @@ class PerfilCualificacionUpdate(BaseModel):
     tipo: Optional[TipoCualificacion] = None
     situacion_deseada: Optional[str] = Field(None, min_length=1)
     comentarios: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validar_escolaridad(self) -> "PerfilCualificacionUpdate":
+        if self.tipo == "estudios_finalizados" and self.situacion_deseada is not None:
+            if self.situacion_deseada not in ESCOLARIDAD_KEYS:
+                raise ValueError(
+                    f"Para tipo 'estudios_finalizados', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
+                )
+        return self
 
 
 class PerfilCualificacionResponse(BaseModel):
