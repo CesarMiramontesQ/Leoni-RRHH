@@ -13,6 +13,7 @@ Entidades:
   - PerfilFunciones: asignacion individual empleado-puesto
   - PerfilFuncionesCualificacion: evaluacion individual de cualificacion
   - PerfilFuncionesCompetencia: evaluacion individual de competencia
+  - PerfilFuncionesTarea: tarea extra individual asignada a un empleado
 """
 
 from datetime import date, datetime
@@ -475,6 +476,9 @@ class PerfilFunciones(Base):
     evaluaciones_competencia: Mapped[List["PerfilFuncionesCompetencia"]] = relationship(
         "PerfilFuncionesCompetencia", back_populates="perfil_funciones", cascade="all, delete-orphan"
     )
+    tareas_extra: Mapped[List["PerfilFuncionesTarea"]] = relationship(
+        "PerfilFuncionesTarea", back_populates="perfil_funciones", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return (
@@ -552,4 +556,39 @@ class PerfilFuncionesCompetencia(Base):
         return (
             f"<PerfilFuncionesCompetencia id={self.id} "
             f"perfil_funciones_id={self.perfil_funciones_id} competencia_requisito_id={self.competencia_requisito_id}>"
+        )
+
+
+class PerfilFuncionesTarea(Base):
+    """Tarea extra asignada individualmente a un empleado (perfil_funciones)."""
+
+    __tablename__ = "perfil_funciones_tarea"
+    __table_args__ = (
+        UniqueConstraint(
+            "perfil_funciones_id", "tarea_catalogo_id",
+            name="uq_perfil_funciones_tarea_pair",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    perfil_funciones_id: Mapped[int] = mapped_column(
+        ForeignKey("perfil_funciones.id", ondelete="CASCADE"), nullable=False
+    )
+    tarea_catalogo_id: Mapped[int] = mapped_column(
+        ForeignKey("tareas_catalogo.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    perfil_funciones: Mapped["PerfilFunciones"] = relationship(
+        "PerfilFunciones", back_populates="tareas_extra"
+    )
+    tarea_catalogo: Mapped["TareaCatalogo"] = relationship("TareaCatalogo")
+
+    def __repr__(self) -> str:
+        return (
+            f"<PerfilFuncionesTarea id={self.id} "
+            f"perfil_funciones_id={self.perfil_funciones_id} tarea_catalogo_id={self.tarea_catalogo_id}>"
         )

@@ -15,6 +15,7 @@ from app.models.talento import (
     PerfilFunciones,
     PerfilFuncionesCualificacion,
     PerfilFuncionesCompetencia,
+    PerfilFuncionesTarea,
     PerfilTarea,
 )
 from app.repositories.base import BaseRepository
@@ -139,6 +140,33 @@ class PerfilFuncionesCompetenciaRepository(BaseRepository[PerfilFuncionesCompete
             select(PerfilFuncionesCompetencia).where(
                 PerfilFuncionesCompetencia.perfil_funciones_id == perfil_funciones_id,
                 PerfilFuncionesCompetencia.competencia_requisito_id == competencia_requisito_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+class PerfilFuncionesTareaRepository(BaseRepository[PerfilFuncionesTarea]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(PerfilFuncionesTarea, db)
+
+    async def list_by_asignacion(self, perfil_funciones_id: int) -> list[PerfilFuncionesTarea]:
+        """Lista tareas extra de una asignacion con datos del catalogo."""
+        result = await self.db.execute(
+            select(PerfilFuncionesTarea)
+            .options(selectinload(PerfilFuncionesTarea.tarea_catalogo))
+            .where(PerfilFuncionesTarea.perfil_funciones_id == perfil_funciones_id)
+            .order_by(PerfilFuncionesTarea.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_by_pair(
+        self, perfil_funciones_id: int, tarea_catalogo_id: int
+    ) -> PerfilFuncionesTarea | None:
+        """Obtiene tarea extra por par asignacion-tarea_catalogo."""
+        result = await self.db.execute(
+            select(PerfilFuncionesTarea).where(
+                PerfilFuncionesTarea.perfil_funciones_id == perfil_funciones_id,
+                PerfilFuncionesTarea.tarea_catalogo_id == tarea_catalogo_id,
             )
         )
         return result.scalar_one_or_none()

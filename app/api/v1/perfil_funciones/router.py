@@ -28,6 +28,11 @@ Endpoints:
   PUT    /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}
   DELETE /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}
   POST   /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/firmar
+
+  ── Tareas Extra (per-employee) ──
+  GET    /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra
+  POST   /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra
+  DELETE /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra/{tarea_extra_id}
 """
 
 from fastapi import APIRouter, Depends, status
@@ -47,6 +52,8 @@ from app.schemas.perfil_funciones import (
     PerfilFuncionesCualificacionCreate,
     PerfilFuncionesCreate,
     PerfilFuncionesResponse,
+    PerfilFuncionesTareaCreate,
+    PerfilFuncionesTareaResponse,
     PerfilFuncionesUpdate,
     PerfilTareaCreate,
     PerfilTareaResponse,
@@ -340,4 +347,62 @@ async def firmar_asignacion(
     service = PerfilFuncionesService(db)
     return await service.firmar_asignacion(
         perfil_id=perfil_id, asignacion_id=asignacion_id, data=body, current_user=current_user
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAREAS EXTRA (per-employee)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get(
+    "/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra",
+    response_model=list[PerfilFuncionesTareaResponse],
+)
+async def listar_tareas_extra(
+    perfil_id: int,
+    asignacion_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista tareas extra asignadas a un empleado."""
+    service = PerfilFuncionesService(db)
+    return await service.listar_tareas_extra(perfil_id=perfil_id, asignacion_id=asignacion_id)
+
+
+@router.post(
+    "/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra",
+    response_model=PerfilFuncionesTareaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def crear_tarea_extra(
+    perfil_id: int,
+    asignacion_id: int,
+    body: PerfilFuncionesTareaCreate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna una tarea extra del catalogo a un empleado. Solo RH o supervisor."""
+    service = PerfilFuncionesService(db)
+    return await service.crear_tarea_extra(
+        perfil_id=perfil_id, asignacion_id=asignacion_id, data=body, current_user=current_user
+    )
+
+
+@router.delete(
+    "/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra/{tarea_extra_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def eliminar_tarea_extra(
+    perfil_id: int,
+    asignacion_id: int,
+    tarea_extra_id: int,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elimina una tarea extra de un empleado. Solo RH o supervisor."""
+    service = PerfilFuncionesService(db)
+    await service.eliminar_tarea_extra(
+        perfil_id=perfil_id, asignacion_id=asignacion_id,
+        tarea_extra_id=tarea_extra_id, current_user=current_user
     )
