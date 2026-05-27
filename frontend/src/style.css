@@ -538,27 +538,6 @@ body {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
-.login-page-forgot-link {
-  font-weight: 600;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: #021b3a;
-  text-decoration: none;
-  text-underline-offset: 3px;
-  transition: color 0.15s ease, text-decoration-color 0.15s ease;
-}
-
-.login-page-forgot-link:hover {
-  color: #063b73;
-  text-decoration: underline;
-}
-
-.login-page-forgot-link:focus-visible {
-  outline: none;
-  border-radius: 4px;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(37, 99, 235, 0.35);
-}
-
 .login-page-checkbox {
   appearance: none;
   width: 1rem;
@@ -687,7 +666,6 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .login-page-input,
-  .login-page-forgot-link,
   .login-page-checkbox,
   .login-page-submit {
     transition: none;

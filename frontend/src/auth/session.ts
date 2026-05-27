@@ -1,6 +1,8 @@
 const KEY_ACCESS = "access_token";
 const KEY_REFRESH = "refresh_token";
 const KEY_PERSISTENT = "auth_persistent";
+/** Preferencia de UI «Recordarme»; no se borra al cerrar sesión. */
+const KEY_REMEMBER_PREF = "auth_remember_pref";
 const PERSISTENT_VALUE = "1";
 
 export type AuthTokens = {
@@ -16,7 +18,25 @@ function activeStorage(): Storage {
   return isPersistent() ? localStorage : sessionStorage;
 }
 
+function readToken(key: string): string | null {
+  const primary = activeStorage().getItem(key);
+  if (primary) return primary;
+  const secondary = isPersistent() ? sessionStorage : localStorage;
+  return secondary.getItem(key);
+}
+
+/** Preferencia guardada del checkbox «Recordarme» en la pantalla de login. */
+export function getRememberMePreference(): boolean {
+  return localStorage.getItem(KEY_REMEMBER_PREF) === PERSISTENT_VALUE;
+}
+
 export function setSession(tokens: AuthTokens, remember: boolean): void {
+  if (remember) {
+    localStorage.setItem(KEY_REMEMBER_PREF, PERSISTENT_VALUE);
+  } else {
+    localStorage.removeItem(KEY_REMEMBER_PREF);
+  }
+
   if (remember) {
     localStorage.setItem(KEY_PERSISTENT, PERSISTENT_VALUE);
     localStorage.setItem(KEY_ACCESS, tokens.access_token);
@@ -33,17 +53,11 @@ export function setSession(tokens: AuthTokens, remember: boolean): void {
 }
 
 export function getAccessToken(): string | null {
-  if (isPersistent()) {
-    return localStorage.getItem(KEY_ACCESS);
-  }
-  return sessionStorage.getItem(KEY_ACCESS);
+  return readToken(KEY_ACCESS);
 }
 
 export function getRefreshToken(): string | null {
-  if (isPersistent()) {
-    return localStorage.getItem(KEY_REFRESH);
-  }
-  return sessionStorage.getItem(KEY_REFRESH);
+  return readToken(KEY_REFRESH);
 }
 
 export function updateAccessToken(access: string): void {
