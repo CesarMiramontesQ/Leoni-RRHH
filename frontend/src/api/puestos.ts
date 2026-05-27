@@ -209,7 +209,13 @@ export async function reorderPerfilTareas(perfilId: number, items: { id: number;
 
 // ── Cualificaciones ──────────────────────────────────────────────────────────
 
-export type PerfilCualificacion = { id: number; tipo: string; situacion_deseada: string; comentarios: string | null };
+export type PerfilCualificacion = {
+  id: number;
+  tipo: string;
+  situacion_deseada: string;
+  comentarios: string | null;
+  anios_minimos: number | null;
+};
 
 /** GET /api/v1/perfiles/:id/cualificaciones */
 export async function getPerfilCualificaciones(perfilId: number): Promise<PerfilCualificacion[]> {
@@ -221,7 +227,7 @@ export async function getPerfilCualificaciones(perfilId: number): Promise<Perfil
 /** POST /api/v1/perfiles/:id/cualificaciones */
 export async function createPerfilCualificacion(
   perfilId: number,
-  body: { tipo: string; situacion_deseada: string; comentarios?: string },
+  body: { tipo: string; situacion_deseada: string; comentarios?: string; anios_minimos?: number },
 ): Promise<PerfilCualificacion> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones`, {
     method: "POST",
@@ -238,6 +244,14 @@ export async function deletePerfilCualificacion(perfilId: number, cualificacionI
     method: "DELETE",
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
+/** GET /api/v1/perfiles/catalogos/sugerencias?tipo=X&q=Y */
+export async function getSugerenciasCualificacion(tipo: string, q: string, limit = 10): Promise<string[]> {
+  const params = new URLSearchParams({ tipo, q, limit: String(limit) });
+  const res = await fetchWithAuth(`/api/v1/perfiles/catalogos/sugerencias?${params}`);
+  if (!res.ok) return [];
+  return (await res.json()) as string[];
 }
 
 // ── Competencias requeridas (tabla unificada) ───────────────────────────────
@@ -282,6 +296,8 @@ export type GapCualificacion = {
   comentarios: string | null;
   evaluado: boolean;
   cumple: boolean | null;
+  anios_minimos: number | null;
+  anios_actuales: number | null;
 };
 
 export type GapAnalysis = {
@@ -302,6 +318,7 @@ export type EvaluacionCualificacionPayload = {
   cualificacion_id: number;
   situacion_actual: string;
   comentarios?: string;
+  anios_actuales?: number;
 };
 
 /** PUT /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (upsert evaluaciones) */

@@ -6,7 +6,7 @@ Maneja: PerfilTarea, PerfilCualificacion,
         PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia.
 """
 
-from sqlalchemy import select
+from sqlalchemy import distinct, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +36,9 @@ class PerfilTareaRepository(BaseRepository[PerfilTarea]):
         return list(result.scalars().all())
 
 
+_NA_VARIANTS = ("N/A", "NA", "n.a", "n.a.", "Ninguna", "ninguna", "N/a")
+
+
 class PerfilCualificacionRepository(BaseRepository[PerfilCualificacion]):
     def __init__(self, db: AsyncSession):
         super().__init__(PerfilCualificacion, db)
@@ -48,6 +51,21 @@ class PerfilCualificacionRepository(BaseRepository[PerfilCualificacion]):
             .order_by(PerfilCualificacion.id)
         )
         return list(result.scalars().all())
+
+    async def buscar_sugerencias(self, tipo: str, q: str, limit: int = 10) -> list[str]:
+        """Valores DISTINCT de situacion_deseada filtrados por tipo y query, excluyendo N/A."""
+        stmt = (
+            select(distinct(PerfilCualificacion.situacion_deseada))
+            .where(
+                PerfilCualificacion.tipo == tipo,
+                PerfilCualificacion.situacion_deseada.notin_(_NA_VARIANTS),
+            )
+        )
+        if q:
+            stmt = stmt.where(PerfilCualificacion.situacion_deseada.ilike(f"%{q}%"))
+        stmt = stmt.order_by(PerfilCualificacion.situacion_deseada).limit(limit)
+        result = await self.db.execute(stmt)
+        return [row[0] for row in result.all()]
 
 
 class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):

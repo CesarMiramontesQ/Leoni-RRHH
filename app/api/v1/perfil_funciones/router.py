@@ -79,6 +79,19 @@ async def obtener_catalogo_escolaridad():
     ]
 
 
+@router.get("/catalogos/sugerencias")
+async def obtener_sugerencias_cualificacion(
+    tipo: str,
+    q: str = "",
+    limit: int = 10,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sugerencias de valores históricos para autocomplete de cualificaciones."""
+    service = PerfilFuncionesService(db)
+    return await service.buscar_sugerencias_cualificacion(tipo=tipo, q=q, limit=min(limit, 20))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAREAS
 # ══════════════════════════════════════════════════════════════════════════════

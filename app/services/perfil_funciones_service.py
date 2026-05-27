@@ -223,12 +223,15 @@ class PerfilFuncionesService:
                     "Solo puede existir una cualificación de tipo 'estudios_finalizados' por perfil"
                 )
 
-        cualificacion = await self.cualificacion_repo.create({
+        create_data: dict = {
             "puesto_perfil_id": perfil_id,
             "tipo": data.tipo,
             "situacion_deseada": data.situacion_deseada,
             "comentarios": data.comentarios,
-        })
+        }
+        if data.anios_minimos is not None:
+            create_data["anios_minimos"] = data.anios_minimos
+        cualificacion = await self.cualificacion_repo.create(create_data)
         return PerfilCualificacionResponse.model_validate(cualificacion)
 
     async def actualizar_cualificacion(
@@ -251,6 +254,8 @@ class PerfilFuncionesService:
             update_data["situacion_deseada"] = data.situacion_deseada
         if data.comentarios is not None:
             update_data["comentarios"] = data.comentarios
+        if data.anios_minimos is not None:
+            update_data["anios_minimos"] = data.anios_minimos
 
         if update_data:
             cualificacion = await self.cualificacion_repo.update(cualificacion_id, update_data)
@@ -271,6 +276,12 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PerfilCualificacion", id=cualificacion_id)
 
         await self.cualificacion_repo.hard_delete(cualificacion_id)
+
+    async def buscar_sugerencias_cualificacion(
+        self, tipo: str, q: str, limit: int = 10
+    ) -> list[str]:
+        """Valores históricos únicos de situacion_deseada para autocomplete."""
+        return await self.cualificacion_repo.buscar_sugerencias(tipo, q, limit)
 
     # ══════════════════════════════════════════════════════════════════════════
     # COMPETENCIAS REQUERIDAS (usa tabla unificada competencia_requisitos)
@@ -407,8 +418,14 @@ class PerfilFuncionesService:
         for cual in cualificaciones_perfil:
             evaluacion = eval_cual_map.get(cual.id)
             cumple: bool | None = None
-            if cual.tipo == "estudios_finalizados" and evaluacion is not None:
-                cumple = calcular_cumplimiento(cual.situacion_deseada, evaluacion.situacion_actual)
+            if evaluacion is not None:
+                if cual.tipo == "estudios_finalizados":
+                    cumple = calcular_cumplimiento(cual.situacion_deseada, evaluacion.situacion_actual)
+                elif cual.situacion_deseada == "N/A":
+                    cumple = True
+                elif cual.tipo in ("experiencia_profesional", "experiencia_direccion"):
+                    if cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
+                        cumple = evaluacion.anios_actuales >= cual.anios_minimos
             gap_cualificaciones.append({
                 "cualificacion_id": cual.id,
                 "tipo": cual.tipo,
@@ -417,6 +434,8 @@ class PerfilFuncionesService:
                 "comentarios": evaluacion.comentarios if evaluacion else None,
                 "evaluado": evaluacion is not None,
                 "cumple": cumple,
+                "anios_minimos": cual.anios_minimos,
+                "anios_actuales": evaluacion.anios_actuales if evaluacion else None,
             })
 
         # Construir gap analysis de competencias
@@ -517,14 +536,19 @@ class PerfilFuncionesService:
                     update_fields: dict = {"situacion_actual": eval_data.situacion_actual}
                     if eval_data.comentarios is not None:
                         update_fields["comentarios"] = eval_data.comentarios
+                    if eval_data.anios_actuales is not None:
+                        update_fields["anios_actuales"] = eval_data.anios_actuales
                     await self.eval_cualificacion_repo.update(existing.id, update_fields)
                 else:
-                    await self.eval_cualificacion_repo.create({
+                    create_fields: dict = {
                         "perfil_funciones_id": asignacion_id,
                         "cualificacion_id": eval_data.cualificacion_id,
                         "situacion_actual": eval_data.situacion_actual,
                         "comentarios": eval_data.comentarios,
-                    })
+                    }
+                    if eval_data.anios_actuales is not None:
+                        create_fields["anios_actuales"] = eval_data.anios_actuales
+                    await self.eval_cualificacion_repo.create(create_fields)
 
         # Upsert evaluaciones de competencia
         if evaluaciones_competencia:
