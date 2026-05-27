@@ -159,7 +159,14 @@ export async function generateAi(id: number): Promise<GenerateAiResponse> {
 
 // ── Tareas ───────────────────────────────────────────────────────────────────
 
-export type PerfilTarea = { id: number; orden: number; descripcion: string; es_complemento: boolean };
+export type PerfilTarea = {
+  id: number;
+  orden: number;
+  descripcion: string;
+  es_complemento: boolean;
+  tarea_catalogo_id: number | null;
+  tarea_catalogo_nombre: string | null;
+};
 
 /** GET /api/v1/perfiles/:id/tareas */
 export async function getPerfilTareas(perfilId: number): Promise<PerfilTarea[]> {
@@ -171,7 +178,7 @@ export async function getPerfilTareas(perfilId: number): Promise<PerfilTarea[]> 
 /** POST /api/v1/perfiles/:id/tareas */
 export async function createPerfilTarea(
   perfilId: number,
-  body: { orden: number; descripcion: string; es_complemento: boolean },
+  body: { orden: number; descripcion?: string; es_complemento?: boolean; tarea_catalogo_id?: number },
 ): Promise<PerfilTarea> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`, {
     method: "POST",

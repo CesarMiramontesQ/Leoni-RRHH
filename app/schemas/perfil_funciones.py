@@ -7,7 +7,7 @@ Tareas, Cualificaciones, Competencias Requeridas y Asignaciones individuales.
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
@@ -63,9 +63,16 @@ class PuestoPerfilFuncionesUpdate(BaseModel):
 class PerfilTareaCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
+    tarea_catalogo_id: Optional[int] = None
     orden: int = Field(..., ge=1)
-    descripcion: str = Field(..., min_length=1)
+    descripcion: Optional[str] = Field(None, min_length=1)
     es_complemento: bool = False
+
+    @model_validator(mode="after")
+    def check_source(self) -> "PerfilTareaCreate":
+        if not self.tarea_catalogo_id and not self.descripcion:
+            raise ValueError("Se requiere tarea_catalogo_id o descripcion")
+        return self
 
 
 class PerfilTareaUpdate(BaseModel):
@@ -84,6 +91,8 @@ class PerfilTareaResponse(BaseModel):
     orden: int
     descripcion: str
     es_complemento: bool
+    tarea_catalogo_id: Optional[int] = None
+    tarea_catalogo_nombre: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

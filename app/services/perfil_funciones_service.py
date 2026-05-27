@@ -12,11 +12,12 @@ Responsabilidades:
 
 import logging
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
-from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil
+from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil, TareaCatalogo
 from app.repositories.competencia_repository import CompetenciaRequisitoRepository
 from app.repositories.perfil_funciones_repository import (
     PerfilCualificacionRepository,
@@ -75,7 +76,20 @@ class PerfilFuncionesService:
     async def listar_tareas(self, perfil_id: int) -> list[PerfilTareaResponse]:
         await self._get_perfil_or_404(perfil_id)
         items = await self.tarea_repo.list_by_perfil(perfil_id)
-        return [PerfilTareaResponse.model_validate(t) for t in items]
+        return [
+            PerfilTareaResponse(
+                id=t.id,
+                puesto_perfil_id=t.puesto_perfil_id,
+                orden=t.orden,
+                descripcion=t.descripcion,
+                es_complemento=t.es_complemento,
+                tarea_catalogo_id=t.tarea_catalogo_id,
+                tarea_catalogo_nombre=t.tarea_catalogo.nombre if t.tarea_catalogo else None,
+                created_at=t.created_at,
+                updated_at=t.updated_at,
+            )
+            for t in items
+        ]
 
     async def crear_tarea(
         self, perfil_id: int, data: PerfilTareaCreate, current_user: Empleado
@@ -86,13 +100,41 @@ class PerfilFuncionesService:
 
         await self._get_perfil_or_404(perfil_id)
 
+        descripcion = data.descripcion
+        es_complemento = data.es_complemento
+
+        if data.tarea_catalogo_id:
+            result = await self.db.execute(
+                select(TareaCatalogo).where(
+                    TareaCatalogo.id == data.tarea_catalogo_id,
+                    TareaCatalogo.activo.is_(True),
+                )
+            )
+            tarea_cat = result.scalar_one_or_none()
+            if not tarea_cat:
+                raise NotFoundError(entidad="TareaCatalogo", id=data.tarea_catalogo_id)
+            if not descripcion:
+                descripcion = tarea_cat.nombre
+            es_complemento = tarea_cat.es_complemento
+
         tarea = await self.tarea_repo.create({
             "puesto_perfil_id": perfil_id,
             "orden": data.orden,
-            "descripcion": data.descripcion,
-            "es_complemento": data.es_complemento,
+            "descripcion": descripcion,
+            "es_complemento": es_complemento,
+            "tarea_catalogo_id": data.tarea_catalogo_id,
         })
-        return PerfilTareaResponse.model_validate(tarea)
+        return PerfilTareaResponse(
+            id=tarea.id,
+            puesto_perfil_id=tarea.puesto_perfil_id,
+            orden=tarea.orden,
+            descripcion=tarea.descripcion,
+            es_complemento=tarea.es_complemento,
+            tarea_catalogo_id=tarea.tarea_catalogo_id,
+            tarea_catalogo_nombre=descripcion if data.tarea_catalogo_id else None,
+            created_at=tarea.created_at,
+            updated_at=tarea.updated_at,
+        )
 
     async def actualizar_tarea(
         self, perfil_id: int, tarea_id: int, data: PerfilTareaUpdate, current_user: Empleado

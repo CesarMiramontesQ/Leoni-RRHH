@@ -28,6 +28,7 @@ class PerfilTareaRepository(BaseRepository[PerfilTarea]):
         """Lista tareas de un puesto perfil ordenadas por 'orden'."""
         result = await self.db.execute(
             select(PerfilTarea)
+            .options(selectinload(PerfilTarea.tarea_catalogo))
             .where(PerfilTarea.puesto_perfil_id == puesto_perfil_id)
             .order_by(PerfilTarea.orden)
         )

@@ -18,6 +18,7 @@ export type AppShellNavItemId =
   | "capacitaciones"
   | "reportes"
   | "puestos"
+  | "tareas-catalogo"
   | "competencias"
   | "capacidades"
   | "habilidades"
@@ -41,7 +42,7 @@ const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
 /** Items visibles solo para rh, director, gerente (Talento + Level Up). */
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
-  "puestos", "competencias", "capacidades", "habilidades",
+  "puestos", "tareas-catalogo", "competencias", "capacidades", "habilidades",
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
