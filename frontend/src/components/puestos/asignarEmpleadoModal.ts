@@ -132,7 +132,7 @@ export function mountAsignarEmpleadoModal(
     try {
       const page = await getEmpleadosPage({ page: 1, page_size: 10, q, activo: true });
       const items: EmpleadoResult[] = page.items.map(i => ({
-        empleado_id: i.empleado_id,
+        empleado_id: i.id,
         no_empleado: i.no_empleado,
         nombre: i.nombre,
         area: i.area?.descripcion ?? null,
