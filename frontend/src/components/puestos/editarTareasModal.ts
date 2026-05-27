@@ -1,6 +1,7 @@
 /**
  * Modal para editar tareas de un perfil de puesto (solo RH).
- * Permite agregar, eliminar y reordenar tareas con drag & drop.
+ * Permite buscar y asignar tareas del catálogo, crear nuevas inline,
+ * eliminar y reordenar con drag & drop.
  */
 
 import {
@@ -10,8 +11,13 @@ import {
   reorderPerfilTareas,
   type PerfilTarea,
 } from "../../api/puestos.ts";
+import {
+  getTareasCatalogo,
+  createTareaCatalogo,
+  type TareaCatalogo,
+} from "../../api/tareasCatalogo.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_GHOST, BTN_DANGER, FIELD_FOCUS } from "../../ui/uiTokens.ts";
 
 export type EditarTareasModalHandle = {
   open: () => void;
@@ -61,7 +67,7 @@ function renderTareasList(tareas: PerfilTarea[]): string {
     return `<p class="text-sm text-slate-500 italic py-2">Sin tareas registradas.</p>`;
   }
   return `
-    <div id="tareas-sortable" class="divide-y divide-slate-100 mb-4">
+    <div id="tareas-sortable" class="divide-y divide-slate-100 mb-4 max-h-56 overflow-y-auto">
       ${tareas.map(t => `
         <div class="flex items-center justify-between gap-2 py-2 cursor-grab active:cursor-grabbing select-none"
              draggable="true" data-tarea-id="${t.id}">
@@ -72,6 +78,7 @@ function renderTareasList(tareas: PerfilTarea[]): string {
             <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold text-leoni-blue" data-orden-badge>${t.orden}</span>
             <span class="text-sm text-text-primary truncate">${escapeHtml(t.descripcion)}</span>
             ${t.es_complemento ? `<span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Comp.</span>` : ""}
+            ${t.tarea_catalogo_id ? `<span class="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">Cat.</span>` : ""}
           </div>
           <button type="button" data-delete-tarea="${t.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -81,27 +88,61 @@ function renderTareasList(tareas: PerfilTarea[]): string {
     </div>`;
 }
 
-function renderForm(): string {
+function renderAddForm(showCreateNew: boolean): string {
   return `
-    <form id="form-agregar-tarea" class="border-t border-slate-200 pt-4 space-y-3">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar tarea</p>
+    <div class="border-t border-slate-200 pt-4 space-y-3">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar del catalogo</p>
+
+      <!-- Search -->
       <div>
-        <label for="tarea-descripcion" class="mb-1 block text-xs font-medium text-slate-600">Descripcion</label>
-        <input id="tarea-descripcion" name="descripcion" type="text" required
+        <input id="tarea-search" type="text" autocomplete="off"
           class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-          placeholder="Descripcion de la tarea" />
+          placeholder="Buscar tarea por nombre..." />
       </div>
-      <div class="flex items-end pb-1">
-        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-          <input id="tarea-complemento" name="es_complemento" type="checkbox"
-            class="size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
-          Complementaria
-        </label>
+      <div id="tarea-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
+
+      <!-- Selected + agregar -->
+      <div id="tarea-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
+        <div id="tarea-selected-info" class="flex items-center justify-between"></div>
+        <div class="flex justify-end mt-2">
+          <button type="button" id="tarea-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar al perfil</button>
+        </div>
       </div>
-      <div class="flex justify-end gap-2 pt-2">
-        <button type="submit" class="${BTN_PRIMARY} text-sm">Agregar</button>
+
+      <!-- Create new toggle -->
+      <div class="pt-2 border-t border-slate-100">
+        <button type="button" id="tarea-toggle-create" class="${BTN_GHOST} text-xs">
+          ${showCreateNew ? "Cerrar" : "+ Crear nueva tarea"}
+        </button>
       </div>
-    </form>`;
+
+      ${showCreateNew ? `
+      <div id="tarea-create-form" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+        <p class="text-xs font-semibold text-slate-600">Nueva tarea en catalogo</p>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
+          <input id="tarea-new-nombre" type="text" required
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Descripcion de la tarea" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Categoria (opcional)</label>
+          <input id="tarea-new-categoria" type="text"
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Ej: logistica, calidad, seguridad..." />
+        </div>
+        <div class="flex items-end pb-1">
+          <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input id="tarea-new-complemento" type="checkbox"
+              class="size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+            Complementaria
+          </label>
+        </div>
+        <div class="flex justify-end">
+          <button type="button" id="tarea-create-submit" class="${BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
+        </div>
+      </div>` : ""}
+    </div>`;
 }
 
 export function mountEditarTareasModal(
@@ -114,6 +155,11 @@ export function mountEditarTareasModal(
   const body = host.querySelector("#editar-tareas-body") as HTMLElement;
 
   let loading = false;
+  let showCreateNew = false;
+  let selectedCatalogo: TareaCatalogo | null = null;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let catalogoCache: TareaCatalogo[] = [];
+  let assignedCatalogoIds: Set<number> = new Set();
   let tareas: PerfilTarea[] = [];
 
   function close(): void {
@@ -126,10 +172,14 @@ export function mountEditarTareasModal(
   async function refreshList(): Promise<void> {
     try {
       tareas = await getPerfilTareas(options.perfilId);
-      body.innerHTML = renderTareasList(tareas) + renderForm();
-      bindForm();
+      assignedCatalogoIds = new Set(
+        tareas.filter(t => t.tarea_catalogo_id).map(t => t.tarea_catalogo_id as number),
+      );
+      selectedCatalogo = null;
+      body.innerHTML = renderTareasList(tareas) + renderAddForm(showCreateNew);
       bindDeleteButtons();
       bindDragDrop();
+      bindInteractions();
     } catch {
       body.innerHTML = `<p class="text-sm text-red-600">Error al cargar tareas.</p>`;
     }
@@ -216,33 +266,154 @@ export function mountEditarTareasModal(
     });
   }
 
-  function bindForm(): void {
-    const form = body.querySelector("#form-agregar-tarea") as HTMLFormElement | null;
-    if (!form) return;
-    form.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      if (loading) return;
+  function bindInteractions(): void {
+    bindSearch();
+    bindAssignButton();
+    bindCreateToggle();
+    bindCreateSubmit();
+  }
+
+  function bindSearch(): void {
+    const searchInput = body.querySelector("#tarea-search") as HTMLInputElement | null;
+    const resultsEl = body.querySelector("#tarea-search-results") as HTMLElement | null;
+    if (!searchInput || !resultsEl) return;
+
+    searchInput.addEventListener("input", () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        doSearch(searchInput.value.trim(), resultsEl);
+      }, 320);
+    });
+
+    resultsEl.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-select-tarea]");
+      if (!btn) return;
+      const id = Number(btn.dataset.selectTarea);
+      const item = catalogoCache.find(t => t.id === id);
+      if (item) selectTarea(item);
+    });
+  }
+
+  function doSearch(q: string, resultsEl: HTMLElement): void {
+    if (q.length < 2) {
+      resultsEl.classList.add("hidden");
+      return;
+    }
+    const lower = q.toLowerCase();
+    const filtered = catalogoCache.filter(t =>
+      !assignedCatalogoIds.has(t.id) &&
+      t.nombre.toLowerCase().includes(lower),
+    );
+    if (filtered.length === 0) {
+      resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
+    } else {
+      resultsEl.innerHTML = filtered.slice(0, 10).map(t => `
+        <button type="button" data-select-tarea="${t.id}"
+          class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
+          <span class="text-sm font-medium text-text-primary">${escapeHtml(t.nombre)}</span>
+          ${t.categoria ? `<span class="text-[10px] text-slate-500">${escapeHtml(t.categoria)}</span>` : ""}
+          ${t.es_complemento ? `<span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600">Comp.</span>` : ""}
+        </button>
+      `).join("");
+    }
+    resultsEl.classList.remove("hidden");
+  }
+
+  function selectTarea(item: TareaCatalogo): void {
+    selectedCatalogo = item;
+    const resultsEl = body.querySelector("#tarea-search-results") as HTMLElement;
+    const selectedRow = body.querySelector("#tarea-selected-row") as HTMLElement;
+    const selectedInfo = body.querySelector("#tarea-selected-info") as HTMLElement;
+    const searchInput = body.querySelector("#tarea-search") as HTMLInputElement;
+
+    resultsEl.classList.add("hidden");
+    selectedRow.classList.remove("hidden");
+    searchInput.value = "";
+
+    selectedInfo.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</span>
+        ${item.categoria ? `<span class="text-[10px] text-slate-500">${escapeHtml(item.categoria)}</span>` : ""}
+        ${item.es_complemento ? `<span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600">Comp.</span>` : ""}
+      </div>
+      <button type="button" id="tarea-deselect" class="text-xs text-red-600 hover:underline">Quitar</button>`;
+
+    selectedInfo.querySelector("#tarea-deselect")?.addEventListener("click", () => {
+      selectedCatalogo = null;
+      selectedRow.classList.add("hidden");
+    });
+  }
+
+  function bindAssignButton(): void {
+    const btn = body.querySelector("#tarea-submit-assign") as HTMLButtonElement | null;
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      if (!selectedCatalogo || loading) return;
       loading = true;
-
-      const fd = new FormData(form);
-      const descripcion = String(fd.get("descripcion") ?? "").trim();
-      const es_complemento = !!(fd.get("es_complemento"));
-
-      if (!descripcion) { loading = false; return; }
-
-      const orden = tareas.length + 1;
-      const submitBtn = form.querySelector<HTMLButtonElement>("button[type=submit]");
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Agregando..."; }
+      btn.disabled = true;
+      btn.textContent = "Agregando...";
 
       try {
-        await createPerfilTarea(options.perfilId, { orden, descripcion, es_complemento });
+        const orden = tareas.length + 1;
+        await createPerfilTarea(options.perfilId, {
+          orden,
+          tarea_catalogo_id: selectedCatalogo.id,
+        });
         options.onSuccess();
         await refreshList();
       } catch {
-        // keep form as is
+        // keep state
       } finally {
         loading = false;
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Agregar"; }
+        btn.disabled = false;
+        btn.textContent = "Agregar al perfil";
+      }
+    });
+  }
+
+  function bindCreateToggle(): void {
+    const btn = body.querySelector("#tarea-toggle-create") as HTMLButtonElement | null;
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      showCreateNew = !showCreateNew;
+      refreshList();
+    });
+  }
+
+  function bindCreateSubmit(): void {
+    const btn = body.querySelector("#tarea-create-submit") as HTMLButtonElement | null;
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      if (loading) return;
+      const nombre = (body.querySelector("#tarea-new-nombre") as HTMLInputElement)?.value.trim();
+      const categoria = (body.querySelector("#tarea-new-categoria") as HTMLInputElement)?.value.trim() || undefined;
+      const es_complemento = (body.querySelector("#tarea-new-complemento") as HTMLInputElement)?.checked ?? false;
+
+      if (!nombre) return;
+
+      loading = true;
+      btn.disabled = true;
+      btn.textContent = "Creando...";
+
+      try {
+        const created = await createTareaCatalogo({ nombre, categoria, es_complemento });
+        catalogoCache.push(created);
+
+        const orden = tareas.length + 1;
+        await createPerfilTarea(options.perfilId, {
+          orden,
+          tarea_catalogo_id: created.id,
+        });
+
+        showCreateNew = false;
+        options.onSuccess();
+        await refreshList();
+      } catch {
+        // keep form
+      } finally {
+        loading = false;
+        btn.disabled = false;
+        btn.textContent = "Crear y agregar al perfil";
       }
     });
   }
@@ -269,7 +440,12 @@ export function mountEditarTareasModal(
       overlay.classList.add("flex");
       document.body.style.overflow = "hidden";
       document.addEventListener("keydown", escHandler);
+      showCreateNew = false;
+      selectedCatalogo = null;
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
+      getTareasCatalogo({ page_size: 200 }).then(items => {
+        catalogoCache = items;
+      }).catch(() => { /* cache stays empty */ });
       refreshList();
     },
     close,

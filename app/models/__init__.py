@@ -29,7 +29,7 @@ from app.models.tress import TressRobotQueue
 from app.models.talento import (
     PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
     Capacitacion, Inscripcion,
-    PerfilTarea, PerfilCualificacion,
+    TareaCatalogo, PerfilTarea, PerfilCualificacion,
     PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia,
 )
 from app.models.level_up import (

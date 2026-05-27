@@ -6,7 +6,8 @@ Entidades:
   - PuestoPerfil: perfil de puesto con competencias tecnicas/blandas en JSONB
   - Competencia: catalogo de competencias (tecnicas y blandas)
   - CompetenciaRequisito: relacion puesto-competencia con nivel requerido (0-4)
-  - PerfilTarea: tareas asociadas a un puesto perfil
+  - TareaCatalogo: catalogo centralizado de tareas reutilizables
+  - PerfilTarea: tareas asociadas a un puesto perfil (vinculadas al catalogo)
   - PerfilCualificacion: cualificaciones requeridas por puesto
   - CompetenciaRequisito: competencias requeridas por puesto (unificado perfil + matriz)
   - PerfilFunciones: asignacion individual empleado-puesto
@@ -338,14 +339,43 @@ class Inscripcion(Base):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+class TareaCatalogo(Base):
+    """Catalogo centralizado de tareas reutilizables."""
+
+    __tablename__ = "tareas_catalogo"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    categoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    perfil_tareas: Mapped[List["PerfilTarea"]] = relationship(
+        "PerfilTarea", back_populates="tarea_catalogo"
+    )
+
+    def __repr__(self) -> str:
+        return f"<TareaCatalogo id={self.id} nombre={self.nombre}>"
+
+
 class PerfilTarea(Base):
-    """Tareas asociadas a un puesto perfil (1:N)."""
+    """Tareas asociadas a un puesto perfil (1:N), vinculadas al catalogo."""
 
     __tablename__ = "perfil_tareas"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     puesto_perfil_id: Mapped[int] = mapped_column(
         ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+    )
+    tarea_catalogo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("tareas_catalogo.id", ondelete="SET NULL"), nullable=True
     )
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
@@ -360,6 +390,9 @@ class PerfilTarea(Base):
     # Relationships
     puesto_perfil: Mapped["PuestoPerfil"] = relationship(
         "PuestoPerfil", back_populates="tareas"
+    )
+    tarea_catalogo: Mapped[Optional["TareaCatalogo"]] = relationship(
+        "TareaCatalogo", back_populates="perfil_tareas"
     )
 
     def __repr__(self) -> str:

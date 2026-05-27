@@ -15,6 +15,7 @@ import { mountPuestoEmpleados } from "./pages/puestoEmpleados.ts";
 import { mountMetricas } from "./pages/metricas.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
+import { mountTareasCatalogo } from "./pages/tareasCatalogo.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountCapacitaciones } from "./pages/capacitaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
@@ -151,6 +152,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/competencias")) {
       mountCompetencias(container, signal);
+      return;
+    }
+
+    if (h.startsWith("#/tareas-catalogo")) {
+      mountTareasCatalogo(container, signal);
       return;
     }
 
