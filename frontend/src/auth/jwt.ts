@@ -95,9 +95,10 @@ export function canAccessLiderTeamDashboard(): boolean {
   return r === "supervisor" || r === "gerente";
 }
 
-/** Calendario del equipo en `#/` (dashboard líder). Oculto para supervisor; visible para gerente. */
+/** Calendario del equipo en `#/` (dashboard líder). Oculto para supervisor y gerente. */
 export function canSeeDashboardTeamCalendar(): boolean {
-  return getRolFromAccessToken() !== "supervisor";
+  const r = getRolFromAccessToken();
+  return r !== "supervisor" && r !== "gerente";
 }
 
 /** Directorio GET /api/v1/empleados (RH ve plantilla completa; otros solo activos). */

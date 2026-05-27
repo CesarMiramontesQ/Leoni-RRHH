@@ -102,6 +102,12 @@ export type SupervisorIncidenciasChartData = {
   tipos: string[];
   /** Barras verticales (≤15 colaboradores) o tabla heatmap (>15). */
   view: SupervisorIncidenciasChartView;
+  /** Total de incidencias en alcance antes de recortar a top N (p. ej. gerente). */
+  total_incidencias?: number;
+  /** Colaboradores con al menos una incidencia antes del recorte. */
+  total_colaboradores?: number;
+  /** Cantidad mostrada cuando solo se listan los N con más incidencias. */
+  top_n?: number;
 };
 
 export type SupervisorHomeOfficeWeekdaySlot = {

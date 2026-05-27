@@ -1726,6 +1726,39 @@ async def test_aprobar_solicitud_gerente_linea_un_solo_paso_ok(client: AsyncClie
 
 
 # ---------------------------------------------------------------------------
+# TC-SOL-030b: Gerente raíz aprueba solicitud de subárbol aunque no sea gerente de línea
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aprobar_solicitud_gerente_raiz_subarbol_sin_ser_linea(client: AsyncClient, db):
+    gerente_raiz = await make_empleado(db, rol="gerente", email="sol030br@leoni.test")
+    gerente_intermedio = await make_empleado(
+        db, rol="gerente", email="sol030bi@leoni.test", lider_id=gerente_raiz.id
+    )
+    supervisor = await make_empleado(
+        db, rol="supervisor", email="sol030bs@leoni.test", lider_id=gerente_intermedio.id
+    )
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol030be@leoni.test", lider_id=supervisor.id
+    )
+    solicitud = await make_solicitud(db, empleado_id=empleado.id)
+
+    headers_raiz = await auth_headers(client, gerente_raiz)
+    det = await client.get(f"/api/v1/solicitudes/{solicitud.id}", headers=headers_raiz)
+    assert det.status_code == 200
+    assert det.json()["gerente_linea_id"] == gerente_intermedio.id
+
+    response = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers_raiz,
+    )
+    assert response.status_code == 200
+    assert response.json()["estado"] == "approved"
+
+
+# ---------------------------------------------------------------------------
 # TC-SOL-031: Un solo paso — supervisor aprueba y queda cerrada; segundo intento 409
 # ---------------------------------------------------------------------------
 

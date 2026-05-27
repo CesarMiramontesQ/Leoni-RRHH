@@ -9,6 +9,13 @@ import type {
 export const SUPERVISOR_INC_CHART_OTROS_TIPO = "otros";
 const MAX_TIPOS_VISIBLES = 5;
 const HEATMAP_EMPLOYEE_THRESHOLD = 15;
+export const GERENTE_INCIDENCIAS_CHART_TOP_N = 8;
+
+export type BuildSupervisorIncidenciasChartOptions = {
+  /** Máximo de colaboradores en la gráfica (top por total de incidencias). */
+  maxEmployees?: number;
+  forceView?: SupervisorIncidenciasChartView;
+};
 
 function resolveTipoIncidencia(fila: RhIncidenciaTablaFila): string {
   const raw = fila.tipo_texto?.trim() || fila.tipo?.trim() || "";
@@ -62,6 +69,7 @@ function collapseTipos(
 export function buildSupervisorIncidenciasChart(
   filas: readonly RhIncidenciaTablaFila[],
   excludeEmpleadoId: string | null,
+  options?: BuildSupervisorIncidenciasChartOptions,
 ): SupervisorIncidenciasChartData {
   const scoped =
     excludeEmpleadoId != null ? filas.filter((f) => f.empleado_id !== excludeEmpleadoId) : [...filas];
@@ -79,10 +87,6 @@ export function buildSupervisorIncidenciasChart(
     }
     entry.byTipo.set(tipo, (entry.byTipo.get(tipo) ?? 0) + 1);
   }
-
-  const tiposRaw = Array.from(
-    new Set(Array.from(byEmployee.values()).flatMap((e) => Array.from(e.byTipo.keys()))),
-  ).sort((a, b) => a.localeCompare(b, "es"));
 
   let rows: SupervisorIncidenciasChartRow[] = Array.from(byEmployee.entries())
     .map(([empleado_id, entry]) => {
@@ -105,12 +109,36 @@ export function buildSupervisorIncidenciasChart(
       (a, b) => b.total - a.total || a.empleado_nombre.localeCompare(b.empleado_nombre, "es"),
     );
 
+  const totalIncidencias = rows.reduce((sum, row) => sum + row.total, 0);
+  const totalColaboradores = rows.length;
+  const topN =
+    options?.maxEmployees != null && options.maxEmployees > 0 ? options.maxEmployees : undefined;
+  if (topN != null && rows.length > topN) {
+    rows = rows.slice(0, topN);
+  }
+
+  const tiposRaw = Array.from(
+    new Set(rows.flatMap((row) => Object.keys(row.byTipo))),
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
   const collapsed = collapseTipos(rows, tiposRaw);
   rows = collapsed.rows;
   const tipos = collapsed.tipos;
 
   const view: SupervisorIncidenciasChartView =
-    rows.length > HEATMAP_EMPLOYEE_THRESHOLD ? "heatmap" : "bars";
+    options?.forceView ??
+    (rows.length > HEATMAP_EMPLOYEE_THRESHOLD ? "heatmap" : "bars");
 
-  return { rows, tipos, view };
+  return {
+    rows,
+    tipos,
+    view,
+    ...(topN != null
+      ? {
+          total_incidencias: totalIncidencias,
+          total_colaboradores: totalColaboradores,
+          top_n: topN,
+        }
+      : {}),
+  };
 }

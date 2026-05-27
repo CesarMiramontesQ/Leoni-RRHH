@@ -27,6 +27,7 @@ import {
 import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/calendarMonthGrid.ts";
 import {
   canSeeDashboardTeamCalendar,
+  canAccessLiderTeamDashboard,
   getEmpleadoIdFromAccessToken,
   getRolFromAccessToken,
 } from "../../auth/jwt.ts";
@@ -768,8 +769,7 @@ export function renderLiderTeamDashboard(
   const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null);
   const teamHtml = renderLiderTeamStatCards(p?.team ?? null);
   const approvalsHtml = renderApprovalRequestsCard(p?.approval_requests ?? []);
-  const supervisorChartsHtml =
-    getRolFromAccessToken() === "supervisor"
+  const liderChartsHtml = canAccessLiderTeamDashboard()
       ? renderSupervisorChartsSection(
           p?.supervisor_incidencias_chart ?? null,
           p?.supervisor_ho_weekday_chart ?? null,
@@ -799,7 +799,7 @@ export function renderLiderTeamDashboard(
           ${teamHeading}
           ${teamHtml}
           ${approvalsHtml}
-          ${supervisorChartsHtml}
+          ${liderChartsHtml}
         </section>
         ${calHtml}
       </div>
@@ -820,6 +820,7 @@ export function renderLiderDashboardSkeleton(): string {
     </div>`.repeat(4)}
   </div>`;
   const esSupervisor = getRolFromAccessToken() === "supervisor";
+  const muestraGraficasLider = canAccessLiderTeamDashboard();
   const teamKpiCount = esSupervisor ? 2 : 4;
   const teamKpiGridClass = esSupervisor
     ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
@@ -839,7 +840,7 @@ export function renderLiderDashboardSkeleton(): string {
     <div class="mt-6 h-4 w-full max-w-md rounded bg-slate-100"></div>
     <div class="mt-6 h-36 rounded-xl bg-slate-50"></div>
   </div>`;
-  const supervisorChartsSkel = esSupervisor ? renderSupervisorChartsSkeleton() : "";
+  const supervisorChartsSkel = muestraGraficasLider ? renderSupervisorChartsSkeleton() : "";
   const cal = canSeeDashboardTeamCalendar()
     ? `<div class="rh-cal-card mt-8 animate-pulse overflow-hidden rounded-[20px] p-4 sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:justify-between">

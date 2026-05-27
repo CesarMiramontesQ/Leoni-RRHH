@@ -19,6 +19,14 @@ export function labelTipoIncidenciaUi(codigo: string): string {
       return "Indisciplina";
     case "dano_equipo":
       return "Daño a equipo";
+    case "falta_justificada":
+      return "Falta justificada";
+    case "vacaciones":
+      return "Vacaciones";
+    case "permiso_con_goce":
+      return "Permiso con goce";
+    case "permiso_sin_goce":
+      return "Permiso sin goce";
     case "Evaluacion":
     case "evaluacion":
       return "Evaluación";

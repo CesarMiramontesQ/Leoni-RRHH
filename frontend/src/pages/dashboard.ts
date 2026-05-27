@@ -404,7 +404,7 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
     root.innerHTML = wrapDashboardPageContent(renderError("No se pudo mostrar el dashboard. Recarga la página."));
     return;
   }
-  if (getRolFromAccessToken() === "supervisor") {
+  if (canAccessLiderTeamDashboard()) {
     const chartsHost = root.querySelector("#lider-supervisor-charts");
     if (chartsHost) {
       if (payload.supervisor_incidencias_chart) {

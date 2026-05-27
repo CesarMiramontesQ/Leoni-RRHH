@@ -77,6 +77,34 @@ describe("buildSupervisorIncidenciasChart", () => {
     expect(data.rows).toHaveLength(16);
   });
 
+  it("recorta a top N conservando totales globales (gerente)", () => {
+    const filas: RhIncidenciaTablaFila[] = [];
+    let id = 1;
+    for (let i = 0; i < 10; i += 1) {
+      const count = 10 - i;
+      for (let j = 0; j < count; j += 1) {
+        filas.push(
+          fila({
+            id: id++,
+            empleado_id: String(100 + i),
+            empleado_nombre_raw: `Empleado ${i}`,
+            tipo: "retardo",
+          }),
+        );
+      }
+    }
+
+    const data = buildSupervisorIncidenciasChart(filas, null, { maxEmployees: 8, forceView: "bars" });
+
+    expect(data.rows).toHaveLength(8);
+    expect(data.top_n).toBe(8);
+    expect(data.total_colaboradores).toBe(10);
+    expect(data.total_incidencias).toBe(55);
+    expect(data.view).toBe("bars");
+    expect(data.rows[0]?.total).toBe(10);
+    expect(data.rows[7]?.total).toBe(3);
+  });
+
   it("devuelve estructura vacía sin incidencias de equipo", () => {
     const data = buildSupervisorIncidenciasChart([], "99");
     expect(data.rows).toEqual([]);

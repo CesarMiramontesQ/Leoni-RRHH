@@ -20,41 +20,20 @@ export const LIDER_SUPERVISOR_INC_CHART_ID = "lider-supervisor-incidencias-chart
 
 const BAR_FILL_ALPHA = 0.82;
 
-/** Colores fijos por familia de tipo (evita confundir retardo con falta). */
-const TIPO_COLOR_RETARDO = "#2563EB";
-const TIPO_COLOR_FALTA = "#9333EA";
+/** Colores fijos por tipo de incidencia (leyenda y barras apiladas). */
+const TIPO_COLOR_RETARDO = "#DC2626";
+const TIPO_COLOR_FALTA_INJUSTIFICADA = "#9333EA";
+const TIPO_COLOR_FALTA_JUSTIFICADA = "#2563EB";
+const TIPO_COLOR_VACACIONES = "#0891B2";
+const TIPO_COLOR_PERMISO_GOCE = "#059669";
+const TIPO_COLOR_PERMISO_SIN_GOCE = "#D97706";
 const TIPO_COLOR_INDISCIPLINA = "#002147";
 const TIPO_COLOR_DANO = "#0D3D66";
-const TIPO_COLOR_SEGURIDAD = "#EF4444";
+const TIPO_COLOR_SEGURIDAD = "#EA580C";
 const TIPO_COLOR_CALIDAD = "#00C853";
 const TIPO_COLOR_OTROS = "#64748B";
 
 type TipoColor = { fill: string; border: string };
-
-/** Paleta fija y contrastada (máx. 6 tipos visibles). */
-function tipoColorMap(): Record<string, TipoColor> {
-  return {
-    retardo: { fill: colorConAlpha(TIPO_COLOR_RETARDO, BAR_FILL_ALPHA), border: TIPO_COLOR_RETARDO },
-    falta_injustificada: { fill: colorConAlpha(TIPO_COLOR_FALTA, BAR_FILL_ALPHA), border: TIPO_COLOR_FALTA },
-    indisciplina: { fill: colorConAlpha(TIPO_COLOR_INDISCIPLINA, BAR_FILL_ALPHA), border: TIPO_COLOR_INDISCIPLINA },
-    dano_equipo: { fill: colorConAlpha(TIPO_COLOR_DANO, BAR_FILL_ALPHA), border: TIPO_COLOR_DANO },
-    seguridad: { fill: colorConAlpha(TIPO_COLOR_SEGURIDAD, BAR_FILL_ALPHA), border: TIPO_COLOR_SEGURIDAD },
-    calidad: { fill: colorConAlpha(TIPO_COLOR_CALIDAD, BAR_FILL_ALPHA), border: TIPO_COLOR_CALIDAD },
-    [SUPERVISOR_INC_CHART_OTROS_TIPO]: {
-      fill: colorConAlpha(TIPO_COLOR_OTROS, 0.35),
-      border: TIPO_COLOR_OTROS,
-    },
-  };
-}
-
-const FALLBACK_TIPO_COLORS: readonly TipoColor[] = [
-  { fill: colorConAlpha(TIPO_COLOR_RETARDO, BAR_FILL_ALPHA), border: TIPO_COLOR_RETARDO },
-  { fill: colorConAlpha(TIPO_COLOR_FALTA, BAR_FILL_ALPHA), border: TIPO_COLOR_FALTA },
-  { fill: colorConAlpha(TIPO_COLOR_SEGURIDAD, BAR_FILL_ALPHA), border: TIPO_COLOR_SEGURIDAD },
-  { fill: colorConAlpha(TIPO_COLOR_CALIDAD, BAR_FILL_ALPHA), border: TIPO_COLOR_CALIDAD },
-  { fill: colorConAlpha("#7C3AED", BAR_FILL_ALPHA), border: "#7C3AED" },
-  { fill: colorConAlpha(TIPO_COLOR_OTROS, BAR_FILL_ALPHA), border: TIPO_COLOR_OTROS },
-];
 
 function colorConAlpha(hex: string, alpha: number): string {
   const raw = hex.replace("#", "").trim();
@@ -64,6 +43,36 @@ function colorConAlpha(hex: string, alpha: number): string {
   const b = Number.parseInt(raw.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+function tipoColorEntry(hex: string, alpha = BAR_FILL_ALPHA): TipoColor {
+  return { fill: colorConAlpha(hex, alpha), border: hex };
+}
+
+/** Paleta fija y contrastada por clave normalizada. */
+function tipoColorMap(): Record<string, TipoColor> {
+  return {
+    retardo: tipoColorEntry(TIPO_COLOR_RETARDO),
+    falta_injustificada: tipoColorEntry(TIPO_COLOR_FALTA_INJUSTIFICADA),
+    falta_justificada: tipoColorEntry(TIPO_COLOR_FALTA_JUSTIFICADA),
+    vacaciones: tipoColorEntry(TIPO_COLOR_VACACIONES),
+    permiso_con_goce: tipoColorEntry(TIPO_COLOR_PERMISO_GOCE),
+    permiso_sin_goce: tipoColorEntry(TIPO_COLOR_PERMISO_SIN_GOCE),
+    indisciplina: tipoColorEntry(TIPO_COLOR_INDISCIPLINA),
+    dano_equipo: tipoColorEntry(TIPO_COLOR_DANO),
+    seguridad: tipoColorEntry(TIPO_COLOR_SEGURIDAD),
+    calidad: tipoColorEntry(TIPO_COLOR_CALIDAD),
+    [SUPERVISOR_INC_CHART_OTROS_TIPO]: tipoColorEntry(TIPO_COLOR_OTROS, 0.35),
+  };
+}
+
+const FALLBACK_TIPO_COLORS: readonly TipoColor[] = [
+  tipoColorEntry(TIPO_COLOR_FALTA_JUSTIFICADA),
+  tipoColorEntry(TIPO_COLOR_VACACIONES),
+  tipoColorEntry(TIPO_COLOR_PERMISO_GOCE),
+  tipoColorEntry(TIPO_COLOR_PERMISO_SIN_GOCE),
+  tipoColorEntry("#7C3AED"),
+  tipoColorEntry(TIPO_COLOR_OTROS),
+];
 
 function normalizeTipoKey(tipo: string): string {
   return tipo
@@ -83,7 +92,22 @@ function resolveTipoColor(tipo: string, index: number): TipoColor {
   if (key.includes("retard") || key.includes("tardan")) {
     return map.retardo!;
   }
-  if (key.includes("falta") || key.includes("ausencia") || key.includes("injustific")) {
+  if (key.includes("injustific") || key === "falta_injustificada") {
+    return map.falta_injustificada!;
+  }
+  if (key.includes("justific") || key === "falta_justificada") {
+    return map.falta_justificada!;
+  }
+  if (key.includes("vacacion")) {
+    return map.vacaciones!;
+  }
+  if (key.includes("permiso") && key.includes("sin") && key.includes("goce")) {
+    return map.permiso_sin_goce!;
+  }
+  if (key.includes("permiso") && key.includes("goce")) {
+    return map.permiso_con_goce!;
+  }
+  if (key.includes("falta") || key.includes("ausencia")) {
     return map.falta_injustificada!;
   }
   if (key.includes("indisciplina")) return map.indisciplina!;
@@ -203,23 +227,39 @@ function renderHeatmapTable(data: SupervisorIncidenciasChartData): string {
 export function renderSupervisorIncidenciasChartCard(
   data: SupervisorIncidenciasChartData | null,
 ): string {
-  const total = data?.rows.reduce((sum, row) => sum + row.total, 0) ?? 0;
+  const visibleTotal = data?.rows.reduce((sum, row) => sum + row.total, 0) ?? 0;
+  const grandTotal = data?.total_incidencias ?? visibleTotal;
   const body =
-    total <= 0 || !data?.rows.length
+    grandTotal <= 0 || !data?.rows.length
       ? emptyState()
       : data.view === "heatmap"
         ? renderHeatmapTable(data)
         : renderHorizontalChartPanel(data);
 
+  const topMeta =
+    data?.top_n != null &&
+    data.total_colaboradores != null &&
+    data.total_colaboradores > data.top_n
+      ? `Top ${data.top_n} de ${data.total_colaboradores} colaboradores · ${grandTotal} incidencias en total. `
+      : data?.total_incidencias != null
+        ? `${grandTotal} incidencias en total. `
+        : "";
+
   const subtitle =
     data?.view === "heatmap"
-      ? "Resumen tabular por colaborador y tipo (equipos extensos)."
-      : "Barras horizontales por colaborador; colores diferenciados por tipo de incidencia.";
+      ? `${topMeta}Resumen tabular por colaborador y tipo (equipos extensos).`
+      : `${topMeta}Barras horizontales por colaborador; colores diferenciados por tipo de incidencia.`;
+
+  const totalBadge =
+    grandTotal > 0
+      ? `<p class="mt-2 text-sm font-semibold tabular-nums text-text-primary">${grandTotal} incidencias en total</p>`
+      : "";
 
   return `
     <div class="flex h-full min-h-0 min-w-0 flex-col" aria-label="Incidencias por colaborador">
       <header class="shrink-0">
         <h2 class="text-lg font-semibold text-text-primary">Incidencias por colaborador</h2>
+        ${totalBadge}
         <p class="mt-1 text-sm text-text-muted">${subtitle}</p>
       </header>
       <div class="${SUPERVISOR_CHART_CARD_BODY_CLASS} min-w-0">${body}</div>
