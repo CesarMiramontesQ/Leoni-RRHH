@@ -15,6 +15,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.catalogos_cualificacion import calcular_cumplimiento, es_clave_escolaridad_valida
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil, TareaCatalogo
@@ -215,6 +216,13 @@ class PerfilFuncionesService:
 
         await self._get_perfil_or_404(perfil_id)
 
+        if data.tipo == "estudios_finalizados":
+            existentes = await self.cualificacion_repo.list_by_perfil(perfil_id)
+            if any(c.tipo == "estudios_finalizados" for c in existentes):
+                raise DomainValidationError(
+                    "Solo puede existir una cualificación de tipo 'estudios_finalizados' por perfil"
+                )
+
         cualificacion = await self.cualificacion_repo.create({
             "puesto_perfil_id": perfil_id,
             "tipo": data.tipo,
@@ -398,6 +406,9 @@ class PerfilFuncionesService:
         gap_cualificaciones = []
         for cual in cualificaciones_perfil:
             evaluacion = eval_cual_map.get(cual.id)
+            cumple: bool | None = None
+            if cual.tipo == "estudios_finalizados" and evaluacion is not None:
+                cumple = calcular_cumplimiento(cual.situacion_deseada, evaluacion.situacion_actual)
             gap_cualificaciones.append({
                 "cualificacion_id": cual.id,
                 "tipo": cual.tipo,
@@ -405,6 +416,7 @@ class PerfilFuncionesService:
                 "situacion_actual": evaluacion.situacion_actual if evaluacion else None,
                 "comentarios": evaluacion.comentarios if evaluacion else None,
                 "evaluado": evaluacion is not None,
+                "cumple": cumple,
             })
 
         # Construir gap analysis de competencias
@@ -461,9 +473,9 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
 
         if evaluaciones_cualificacion:
-            valid_cual_ids = {
-                c.id for c in await self.cualificacion_repo.list_by_perfil(perfil_id)
-            }
+            cuales_perfil = await self.cualificacion_repo.list_by_perfil(perfil_id)
+            cuales_by_id = {c.id: c for c in cuales_perfil}
+            valid_cual_ids = set(cuales_by_id.keys())
             invalid = [
                 e.cualificacion_id for e in evaluaciones_cualificacion
                 if e.cualificacion_id not in valid_cual_ids
@@ -472,6 +484,14 @@ class PerfilFuncionesService:
                 raise DomainValidationError(
                     f"cualificacion_id inválido para este perfil: {invalid}"
                 )
+            for eval_data in evaluaciones_cualificacion:
+                cual = cuales_by_id[eval_data.cualificacion_id]
+                if cual.tipo == "estudios_finalizados" and es_clave_escolaridad_valida(cual.situacion_deseada):
+                    if not es_clave_escolaridad_valida(eval_data.situacion_actual):
+                        raise DomainValidationError(
+                            f"Para cualificación tipo 'estudios_finalizados' (id={eval_data.cualificacion_id}), "
+                            f"situacion_actual debe ser una clave válida del catálogo de escolaridad"
+                        )
 
         if evaluaciones_competencia:
             valid_comp_ids = {

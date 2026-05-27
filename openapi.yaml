@@ -5766,3 +5766,32 @@ paths:
           description: Solo puedes cancelar tus propias inscripciones
         "409":
           description: Ya esta cancelada
+
+  # ── Talento — Perfil de Funciones (catálogos) ─────────────────────
+  /api/v1/perfiles/catalogos/escolaridad:
+    get:
+      tags: [Talento - Perfil Funciones]
+      summary: Catálogo de niveles de escolaridad
+      description: Retorna los niveles jerárquicos de escolaridad usados para compliance automático en cualificaciones tipo estudios_finalizados.
+      operationId: catalogo_escolaridad
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Catálogo ordenado por peso ascendente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      example: licenciatura
+                    label:
+                      type: string
+                      example: Licenciatura
+                    peso:
+                      type: integer
+                      example: 4

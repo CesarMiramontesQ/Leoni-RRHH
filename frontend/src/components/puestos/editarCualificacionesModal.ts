@@ -9,6 +9,7 @@ import {
   deletePerfilCualificacion,
   type PerfilCualificacion,
 } from "../../api/puestos.ts";
+import { CATALOGO_ESCOLARIDAD, escolaridadLabel } from "../../ui/catalogoEscolaridad.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
@@ -79,7 +80,7 @@ function renderList(cualificaciones: PerfilCualificacion[]): string {
         <div class="flex items-start justify-between gap-2 py-2">
           <div class="min-w-0">
             <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</span>
-            <span class="text-sm text-text-primary">${escapeHtml(c.situacion_deseada)}</span>
+            <span class="text-sm text-text-primary">${escapeHtml(c.tipo === "estudios_finalizados" ? escolaridadLabel(c.situacion_deseada) : c.situacion_deseada)}</span>
             ${c.comentarios ? `<span class="block text-xs text-slate-500 mt-0.5">${escapeHtml(c.comentarios)}</span>` : ""}
           </div>
           <button type="button" data-delete-cualificacion="${c.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
@@ -110,9 +111,11 @@ function renderForm(): string {
       </div>
       <div>
         <label for="cual-situacion" class="mb-1 block text-xs font-medium text-slate-600">Situacion deseada</label>
-        <input id="cual-situacion" name="situacion_deseada" type="text" required
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-          placeholder="Descripcion de la situacion deseada" />
+        <div id="cual-situacion-wrap">
+          <input id="cual-situacion" name="situacion_deseada" type="text" required
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Descripcion de la situacion deseada" />
+        </div>
       </div>
       <div>
         <label for="cual-comentarios" class="mb-1 block text-xs font-medium text-slate-600">Comentarios (opcional)</label>
@@ -178,6 +181,34 @@ export function mountEditarCualificacionesModal(
   function bindForm(): void {
     const form = body.querySelector("#form-agregar-cualificacion") as HTMLFormElement | null;
     if (!form) return;
+
+    const tipoSelect = form.querySelector("#cual-tipo") as HTMLSelectElement;
+    const wrap = form.querySelector("#cual-situacion-wrap") as HTMLElement;
+
+    function updateSituacionField(): void {
+      if (tipoSelect.value === "estudios_finalizados") {
+        const opts = CATALOGO_ESCOLARIDAD.map(n =>
+          `<option value="${n.key}">${escapeHtml(n.label)}</option>`
+        ).join("");
+        wrap.innerHTML = `
+          <div class="grid grid-cols-1">
+            <select id="cual-situacion" name="situacion_deseada" required
+              class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+              ${opts}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>`;
+      } else {
+        wrap.innerHTML = `
+          <input id="cual-situacion" name="situacion_deseada" type="text" required
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Descripcion de la situacion deseada" />`;
+      }
+    }
+
+    tipoSelect.addEventListener("change", updateSituacionField);
+    updateSituacionField();
+
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (loading) return;

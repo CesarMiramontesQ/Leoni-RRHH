@@ -5,6 +5,7 @@ import { BTN_GHOST, BTN_PRIMARY, FIELD_FOCUS } from "../ui/uiTokens.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
+import { escolaridadLabel } from "../ui/catalogoEscolaridad.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasModal.ts";
 import { updatePerfil } from "../api/puestos.ts";
 
@@ -210,7 +211,7 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
       ${items.map(c => `
         <div class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 mb-2 last:mb-0">
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-text-primary">${escapeHtml(c.situacion_deseada)}</p>
+            <p class="text-sm font-medium text-text-primary">${escapeHtml(c.tipo === "estudios_finalizados" ? escolaridadLabel(c.situacion_deseada) : c.situacion_deseada)}</p>
             ${c.comentarios ? `<p class="mt-0.5 text-xs text-slate-500">${escapeHtml(c.comentarios)}</p>` : ""}
           </div>
         </div>

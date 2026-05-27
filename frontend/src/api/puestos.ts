@@ -272,6 +272,53 @@ export async function createPerfilCompetencia(
   return (await res.json()) as PerfilCompetencia;
 }
 
+// ── Gap Analysis / Evaluaciones ──────────────────────────────────────────────
+
+export type GapCualificacion = {
+  cualificacion_id: number;
+  tipo: string;
+  situacion_deseada: string;
+  situacion_actual: string | null;
+  comentarios: string | null;
+  evaluado: boolean;
+  cumple: boolean | null;
+};
+
+export type GapAnalysis = {
+  asignacion: { id: number; empleado_id: number; [k: string]: unknown };
+  gap_cualificaciones: GapCualificacion[];
+  gap_competencias: unknown[];
+  resumen: { total_cualificaciones: number; evaluadas_cualificaciones: number; pendientes_cualificaciones: number };
+};
+
+/** GET /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (gap analysis) */
+export async function getAsignacionGap(perfilId: number, asignacionId: number): Promise<GapAnalysis> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`);
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as GapAnalysis;
+}
+
+export type EvaluacionCualificacionPayload = {
+  cualificacion_id: number;
+  situacion_actual: string;
+  comentarios?: string;
+};
+
+/** PUT /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (upsert evaluaciones) */
+export async function updateEvaluaciones(
+  perfilId: number,
+  asignacionId: number,
+  body: { evaluaciones_cualificacion?: EvaluacionCualificacionPayload[] },
+): Promise<GapAnalysis> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as GapAnalysis;
+}
+
 // ── Asignaciones ─────────────────────────────────────────────────────────────
 
 /** POST /api/v1/perfiles/:id/asignaciones */
