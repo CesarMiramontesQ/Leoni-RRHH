@@ -185,10 +185,45 @@ function rowMatchesSupervisorId(row: RhSolicitudTablaFila, empleadoDirId: number
   return Number.isFinite(sid) && sid === empleadoDirId;
 }
 
+/**
+ * Separa solicitudes personales vs equipo para supervisor/gerente.
+ * El API ya acota por rol (supervisor: reportes directos; gerente: subárbol jerárquico).
+ */
+function splitPersonalAndTeamRows(
+  allRows: RhSolicitudTablaFila[],
+  sessionEmpleadoDirId: number,
+  pageRole: "supervisor" | "gerente",
+): { personalRows: RhSolicitudTablaFila[]; teamRows: RhSolicitudTablaFila[] } {
+  const personalRows = allRows.filter((row) => rowMatchesEmpleadoId(row, sessionEmpleadoDirId));
+  const teamWithoutSelf = allRows.filter((row) => !rowMatchesEmpleadoId(row, sessionEmpleadoDirId));
+
+  if (pageRole === "gerente") {
+    return { personalRows, teamRows: teamWithoutSelf };
+  }
+
+  const teamBySupervisor = teamWithoutSelf.filter((row) =>
+    rowMatchesSupervisorId(row, sessionEmpleadoDirId),
+  );
+  return {
+    personalRows,
+    teamRows: teamBySupervisor.length > 0 ? teamBySupervisor : teamWithoutSelf,
+  };
+}
+
+function equipoSectionSubtitle(role: "supervisor" | "gerente"): string {
+  return role === "gerente"
+    ? "Trámites de todo tu equipo jerárquico (supervisores y colaboradores en todos los niveles)"
+    : "Trámites del personal a tu cargo";
+}
+
 function renderSplitSolicitudesView(
   personalVm: RhSolicitudesAdminViewModel,
   equipoVm: RhSolicitudesAdminViewModel,
-  options: { showExportButton: boolean; showNewRequestButton: boolean },
+  options: {
+    showExportButton: boolean;
+    showNewRequestButton: boolean;
+    equipoSubtitle: string;
+  },
 ): string {
   const exportBtn = options.showExportButton
     ? `<button
@@ -232,7 +267,7 @@ function renderSplitSolicitudesView(
       ${renderRhSolicitudesScopedSection(equipoVm, {
         scope: "equipo",
         title: "Solicitudes del Equipo",
-        subtitle: "Trámites del personal a tu cargo",
+        subtitle: options.equipoSubtitle,
       })}
     </div>`;
 }
@@ -265,6 +300,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
+  const splitGestorRole = pageRole === "gerente" ? "gerente" : "supervisor";
+  const equipoSubtitle = equipoSectionSubtitle(splitGestorRole);
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
 
   const hashDeepLink = parseSolicitudesHashDeepLink();
@@ -361,10 +398,9 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     allRows = await getSolicitudesRows();
     filterOpts = buildRhSolicitudFilterOptions(allRows);
     if (isSplitGestorRole && sessionEmpleadoDirId != null) {
-      personalRows = allRows.filter((row) => rowMatchesEmpleadoId(row, sessionEmpleadoDirId));
-      const teamWithoutSelf = allRows.filter((row) => !rowMatchesEmpleadoId(row, sessionEmpleadoDirId));
-      const teamBySupervisor = teamWithoutSelf.filter((row) => rowMatchesSupervisorId(row, sessionEmpleadoDirId));
-      teamRows = teamBySupervisor.length > 0 ? teamBySupervisor : teamWithoutSelf;
+      const split = splitPersonalAndTeamRows(allRows, sessionEmpleadoDirId, splitGestorRole);
+      personalRows = split.personalRows;
+      teamRows = split.teamRows;
       personalFilterOpts = buildRhSolicitudFilterOptions(personalRows);
       teamFilterOpts = buildRhSolicitudFilterOptions(teamRows);
     } else {
@@ -462,6 +498,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
           renderSplitSolicitudesView(personalVm, equipoVm, {
             showExportButton: pageUi.showExportButton,
             showNewRequestButton: pageUi.showNewRequestButton,
+            equipoSubtitle,
           })
         : renderRhSolicitudesAdminView(vm);
       const scrollDeep = solicitudesDeepLinkScrollTarget;
@@ -516,6 +553,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
             {
               showExportButton: pageUi.showExportButton,
               showNewRequestButton: pageUi.showNewRequestButton,
+              equipoSubtitle,
             },
           )
         : renderRhSolicitudesAdminView(loadingViewModel(pageUi))
@@ -838,6 +876,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
             {
               showExportButton: pageUi.showExportButton,
               showNewRequestButton: pageUi.showNewRequestButton,
+              equipoSubtitle,
             },
           );
         } else {
