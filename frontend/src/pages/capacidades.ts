@@ -277,15 +277,17 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
       ${renderFilters(puestoOptions, selectedPuestoId, searchFilter)}`;
 
     if (!selectedPuestoId || !matrizData) {
-      content += renderEmptyState();
+      content += `<div id="cap-results">${renderEmptyState()}</div>`;
     } else {
       const filtered = searchFilter
         ? matrizData.empleados.filter(e => e.nombre.toLowerCase().includes(searchFilter.toLowerCase()))
         : matrizData.empleados;
 
+      content += `<div id="cap-results">`;
       content += renderKpis(matrizData.competencias, filtered);
       content += renderLegend();
       content += renderHeatmap(matrizData.competencias, filtered);
+      content += `</div>`;
     }
 
     content += `</div>`;
@@ -336,14 +338,31 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
     }
   }
 
+  function paintResults(): void {
+    const resultsEl = root.querySelector<HTMLElement>("#cap-results");
+    if (!resultsEl) return;
+
+    if (!selectedPuestoId || !matrizData) {
+      resultsEl.innerHTML = renderEmptyState();
+      return;
+    }
+    const filtered = searchFilter
+      ? matrizData.empleados.filter(e => e.nombre.toLowerCase().includes(searchFilter.toLowerCase()))
+      : matrizData.empleados;
+
+    resultsEl.innerHTML = renderKpis(matrizData.competencias, filtered)
+      + renderLegend()
+      + renderHeatmap(matrizData.competencias, filtered);
+  }
+
   function handleInput(e: Event): void {
     const target = e.target as HTMLElement;
     if (target.matches("[data-action='search-empleado']")) {
       const val = (target as HTMLInputElement).value;
+      searchFilter = val;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        searchFilter = val;
-        paint();
+        paintResults();
       }, 250);
     }
   }
@@ -367,7 +386,6 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
   function showTooltip(target: HTMLElement): void {
     const name = target.dataset.tooltipName;
     const cat = target.dataset.tooltipCat;
-    const req = target.dataset.tooltipReq;
     if (!name) return;
 
     if (!tooltip) {
