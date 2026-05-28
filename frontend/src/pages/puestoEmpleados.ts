@@ -8,6 +8,7 @@ import { deletePerfilAsignacion } from "../api/puestos.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts";
 import { mountEvaluarCualificacionesModal } from "../components/puestos/evaluarCualificacionesModal.ts";
+import { mountEvaluarCompetenciasModal } from "../components/puestos/evaluarCompetenciasModal.ts";
 
 interface AsignacionItem {
   id: number;
@@ -43,6 +44,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         <div id="modal-host-asignar"></div>
         <div id="modal-host-tareas-extra"></div>
         <div id="modal-host-evaluar-cual"></div>
+        <div id="modal-host-evaluar-comp"></div>
       </div>`,
   });
 
@@ -147,7 +149,8 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_superior ?? "Pendiente"}</td>
         <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_empleado ?? "Pendiente"}</td>
         <td class="px-4 py-3 text-right space-x-2">
-          ${showActions && a.activo ? `<button type="button" data-evaluar-cual="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Evaluar</button>` : ""}
+          ${showActions && a.activo ? `<button type="button" data-evaluar-cual="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Evaluar cual.</button>` : ""}
+          ${showActions && a.activo ? `<button type="button" data-evaluar-comp="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Evaluar comp.</button>` : ""}
           ${showActions && a.activo ? `<button type="button" data-tareas-extra="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Tareas extra</button>` : ""}
           ${showActions && a.activo ? `<button type="button" data-desasignar="${a.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs">Desasignar</button>` : ""}
         </td>
@@ -217,6 +220,21 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
           const asignacionId = Number(btn.dataset.evaluarCual);
           const nombreEmpleado = btn.dataset.nombre ?? "";
           const modal = mountEvaluarCualificacionesModal(evalModalHost, {
+            perfilId,
+            asignacionId,
+            nombreEmpleado,
+          });
+          modal.open();
+        });
+      });
+
+      // Bind evaluar competencias buttons
+      const evalCompHost = container.querySelector("#modal-host-evaluar-comp") as HTMLElement;
+      contentEl.querySelectorAll<HTMLButtonElement>("[data-evaluar-comp]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const asignacionId = Number(btn.dataset.evaluarComp);
+          const nombreEmpleado = btn.dataset.nombre ?? "";
+          const modal = mountEvaluarCompetenciasModal(evalCompHost, {
             perfilId,
             asignacionId,
             nombreEmpleado,

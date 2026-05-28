@@ -6,7 +6,7 @@ import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
 import { escolaridadLabel } from "../ui/catalogoEscolaridad.ts";
-import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasModal.ts";
+import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import { updatePerfil } from "../api/puestos.ts";
 
 interface PuestoPerfilInfo {
@@ -254,7 +254,7 @@ function renderCompetencias(competencias: Competencia[]): string {
     return `
     <div class="rounded-xl border border-border bg-white shadow-sm">
       <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-        <h2 class="text-sm font-semibold text-text-primary">Competencias requeridas</h2>
+        <h2 class="text-sm font-semibold text-text-primary">Competencias demostradas</h2>
         ${pencilBtn("edit-competencias", "Editar competencias")}
       </div>
       <div class="p-5">${emptyState("Sin competencias registradas")}</div>
@@ -278,12 +278,9 @@ function renderCompetencias(competencias: Competencia[]): string {
           <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorClass}">${escapeHtml(label)}</span>
           <span class="text-[10px] text-slate-400">${items.length} competencia${items.length !== 1 ? "s" : ""}</span>
         </div>
-        ${items.map(c => `
-          <div class="flex items-center justify-between gap-2 py-1.5">
-            <span class="text-sm text-text-primary">${escapeHtml(c.competencia_nombre)}</span>
-            ${c.nivel_requerido > 0 ? `<span class="text-xs text-slate-500">Nivel ${c.nivel_requerido}</span>` : ""}
-          </div>
-        `).join("")}
+        <div class="flex flex-wrap gap-1.5">
+          ${items.map(c => `<span class="inline-block rounded-md border ${colorClass} px-2 py-0.5 text-xs font-medium">${escapeHtml(c.competencia_nombre)}</span>`).join("")}
+        </div>
       </div>
     `;
   }).join("");
@@ -292,11 +289,11 @@ function renderCompetencias(competencias: Competencia[]): string {
   <div class="rounded-xl border border-border bg-white shadow-sm">
     <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
       <div>
-        <h2 class="text-sm font-semibold text-text-primary">Competencias requeridas</h2>
-        <p class="text-xs text-slate-500">Agrupadas por subcategoria del catalogo</p>
+        <h2 class="text-sm font-semibold text-text-primary">Competencias demostradas</h2>
+        <p class="text-xs text-slate-500">Situación deseada por categoría</p>
       </div>
       <div class="flex items-center gap-2">
-        ${pencilBtn("edit-competencias", "Agregar competencias")}
+        ${pencilBtn("edit-competencias", "Editar competencias")}
         <span class="rounded-full bg-leoni-blue/10 px-2 py-0.5 font-mono text-xs font-bold text-leoni-blue">${competencias.length}</span>
       </div>
     </div>

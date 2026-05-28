@@ -286,6 +286,38 @@ export async function createPerfilCompetencia(
   return (await res.json()) as PerfilCompetencia;
 }
 
+/** PUT /api/v1/perfiles/:id/competencias/sync — sync multi-select por categoría */
+export async function syncPerfilCompetencias(
+  perfilId: number,
+  body: { subcategoria: string; competencia_ids: number[] },
+): Promise<PerfilCompetencia[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/sync`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCompetencia[];
+}
+
+/** PUT /api/v1/perfiles/:id/asignaciones/:asigId/competencias-eval */
+export async function syncEvaluacionCompetencias(
+  perfilId: number,
+  asignacionId: number,
+  body: { competencia_requisito_ids: number[] },
+): Promise<GapAnalysis> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/competencias-eval`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as GapAnalysis;
+}
+
 // ── Gap Analysis / Evaluaciones ──────────────────────────────────────────────
 
 export type GapCualificacion = {
@@ -300,11 +332,28 @@ export type GapCualificacion = {
   anios_actuales: number | null;
 };
 
+export type GapCompetencia = {
+  competencia_requisito_id: number;
+  competencia_nombre: string;
+  subcategoria: string | null;
+  nivel_requerido: number;
+  situacion_actual: string | null;
+  comentarios: string | null;
+  evaluado: boolean;
+};
+
 export type GapAnalysis = {
   asignacion: { id: number; empleado_id: number; [k: string]: unknown };
   gap_cualificaciones: GapCualificacion[];
-  gap_competencias: unknown[];
-  resumen: { total_cualificaciones: number; evaluadas_cualificaciones: number; pendientes_cualificaciones: number };
+  gap_competencias: GapCompetencia[];
+  resumen: {
+    total_cualificaciones: number;
+    evaluadas_cualificaciones: number;
+    pendientes_cualificaciones: number;
+    total_competencias: number;
+    evaluadas_competencias: number;
+    pendientes_competencias: number;
+  };
 };
 
 /** GET /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (gap analysis) */

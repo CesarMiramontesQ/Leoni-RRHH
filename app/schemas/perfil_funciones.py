@@ -289,6 +289,18 @@ class PerfilFuncionesCompetenciaResponse(BaseModel):
     updated_at: datetime
 
 
+# ── Sync bulk de competencias (multi-select por categoría) ───────────────────
+
+
+class PerfilCompetenciaSyncBody(BaseModel):
+    subcategoria: str = Field(..., min_length=1)
+    competencia_ids: list[int]
+
+
+class EvaluacionCompetenciaSyncBody(BaseModel):
+    competencia_requisito_ids: list[int]
+
+
 # ── Tareas Extra (per-employee) ───────────────────────────────────────────────
 
 

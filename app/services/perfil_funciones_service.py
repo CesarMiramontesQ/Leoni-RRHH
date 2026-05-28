@@ -341,6 +341,105 @@ class PerfilFuncionesService:
             orden=requisito.orden,
         )
 
+    async def sincronizar_competencias(
+        self,
+        perfil_id: int,
+        subcategoria: str,
+        competencia_ids: list[int],
+        current_user: Empleado,
+    ) -> list[PerfilCompetenciaResponse]:
+        """Sync completo de competencias por subcategoría (add missing, remove deselected)."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        current = await self.competencia_repo.list_by_puesto_and_subcategoria(perfil_id, subcategoria)
+        current_map = {r.competencia_id: r for r in current}
+        current_ids = set(current_map.keys())
+        requested_ids = set(competencia_ids)
+
+        if requested_ids:
+            result = await self.db.execute(
+                select(Competencia).where(
+                    Competencia.id.in_(requested_ids),
+                    Competencia.subcategoria == subcategoria,
+                    Competencia.activo.is_(True),
+                )
+            )
+            valid_ids = {c.id for c in result.scalars().all()}
+            invalid = requested_ids - valid_ids
+            if invalid:
+                raise DomainValidationError(
+                    f"competencia_ids inválidos para subcategoría '{subcategoria}': {sorted(invalid)}"
+                )
+
+        to_remove = current_ids - requested_ids
+        to_add = requested_ids - current_ids
+
+        if to_remove:
+            ids_to_delete = [current_map[cid].id for cid in to_remove]
+            await self.competencia_repo.delete_by_ids(ids_to_delete)
+
+        if to_add:
+            orden_base = (await self.competencia_repo.max_orden(perfil_id)) + 1
+            for i, comp_id in enumerate(sorted(to_add)):
+                await self.competencia_repo.create({
+                    "puesto_perfil_id": perfil_id,
+                    "competencia_id": comp_id,
+                    "nivel_requerido": 1,
+                    "orden": orden_base + i,
+                })
+
+        return await self.listar_competencias(perfil_id)
+
+    async def sincronizar_evaluacion_competencias(
+        self,
+        perfil_id: int,
+        asignacion_id: int,
+        competencia_requisito_ids: list[int],
+        current_user: Empleado,
+    ) -> dict:
+        """Sync evaluación de competencias del empleado (presencia = cumple)."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        if competencia_requisito_ids:
+            valid_comp_ids = {
+                c.id for c in await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
+            }
+            invalid = [cid for cid in competencia_requisito_ids if cid not in valid_comp_ids]
+            if invalid:
+                raise DomainValidationError(
+                    f"competencia_requisito_id inválido para este perfil: {invalid}"
+                )
+
+        await self.eval_competencia_repo.delete_by_asignacion_excluding(
+            asignacion_id, competencia_requisito_ids
+        )
+
+        for req_id in competencia_requisito_ids:
+            existing = await self.eval_competencia_repo.get_by_pair(
+                perfil_funciones_id=asignacion_id,
+                competencia_requisito_id=req_id,
+            )
+            if not existing:
+                await self.eval_competencia_repo.create({
+                    "perfil_funciones_id": asignacion_id,
+                    "competencia_requisito_id": req_id,
+                    "situacion_actual": "cumple",
+                })
+
+        return await self.obtener_asignacion_con_gap(perfil_id, asignacion_id)
+
     # ══════════════════════════════════════════════════════════════════════════
     # ASIGNACIONES
     # ══════════════════════════════════════════════════════════════════════════
