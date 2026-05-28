@@ -5,7 +5,6 @@ import {
   canAccessLiderTeamDashboard,
   canAccessRhOperationalDashboard,
   canSeeDashboardTeamCalendar,
-  getRolFromAccessToken,
 } from "../auth/jwt.ts";
 import {
   mountRhDashboardAnalyticsCharts,
