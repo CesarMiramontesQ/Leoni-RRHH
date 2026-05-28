@@ -1,10 +1,11 @@
 import {
   getPerfilCompetencias,
   syncPerfilCompetencias,
+  createPerfilCompetencia,
 } from "../../api/puestos.ts";
-import { getCompetencias } from "../../api/competencias.ts";
+import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS } from "../../ui/uiTokens.ts";
 
 export type EditarCompetenciasModalHandle = {
   open: () => void;
@@ -34,10 +35,8 @@ const SUBCATEGORIA_COLORS: Record<string, string> = {
   metodos: "bg-cyan-50 text-cyan-700 border-cyan-200",
 };
 
-const SELECTED_CHIP = "border border-solid cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-all";
-const UNSELECTED_CHIP = "border border-dashed border-slate-300 text-slate-500 cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-all hover:border-slate-400 hover:text-slate-700";
-
 type CatalogoItem = { id: number; nombre: string; subcategoria?: string };
+type AssignedItem = { requisito_id: number; competencia_id: number; nombre: string; subcategoria: string | null };
 
 export function mountEditarCompetenciasModal(
   host: HTMLElement,
@@ -48,8 +47,14 @@ export function mountEditarCompetenciasModal(
   const body = host.querySelector("#editar-competencias-body") as HTMLElement;
 
   let catalogo: CatalogoItem[] = [];
-  let selections: Map<string, Set<number>> = new Map();
+  let assigned: AssignedItem[] = [];
+  let pendingRemovals: Set<number> = new Set(); // requisito_ids to remove
+  let pendingAdds: Set<number> = new Set(); // competencia_ids to add
   let saving = false;
+  let searchQuery = "";
+  let searchSubcategoria = "";
+  let showSearch = false;
+  let showCreate = false;
 
   function close(): void {
     overlay.classList.add("hidden");
@@ -59,7 +64,7 @@ export function mountEditarCompetenciasModal(
   }
 
   async function load(): Promise<void> {
-    body.innerHTML = `<p class="text-sm text-text-muted">Cargando catálogo...</p>`;
+    body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
       const [catalogoItems, perfilComps] = await Promise.all([
         getCompetencias({ page_size: 200 }),
@@ -70,97 +75,312 @@ export function mountEditarCompetenciasModal(
         .filter(c => c.subcategoria && SUBCATEGORIAS.some(s => s.key === c.subcategoria))
         .map(c => ({ id: c.id, nombre: c.nombre, subcategoria: c.subcategoria }));
 
-      const catalogoIdSet = new Set(catalogo.map(c => c.id));
-      selections = new Map();
-      for (const sub of SUBCATEGORIAS) {
-        const selectedInCategory = new Set(
-          perfilComps
-            .filter(c => c.subcategoria === sub.key && catalogoIdSet.has(c.competencia_id))
-            .map(c => c.competencia_id),
-        );
-        selections.set(sub.key, selectedInCategory);
-      }
+      assigned = perfilComps
+        .filter(c => c.subcategoria && SUBCATEGORIAS.some(s => s.key === c.subcategoria))
+        .map(c => ({
+          requisito_id: c.id,
+          competencia_id: c.competencia_id,
+          nombre: c.competencia_nombre,
+          subcategoria: c.subcategoria,
+        }));
 
+      pendingRemovals = new Set();
+      pendingAdds = new Set();
+      showSearch = false;
+      showCreate = false;
+      searchQuery = "";
+      searchSubcategoria = "";
       render();
     } catch {
-      body.innerHTML = `<p class="text-sm text-red-600">Error al cargar catálogo</p>`;
+      body.innerHTML = `<p class="text-sm text-red-600">Error al cargar datos</p>`;
     }
+  }
+
+  function getVisibleAssigned(): AssignedItem[] {
+    return assigned.filter(a => !pendingRemovals.has(a.requisito_id));
+  }
+
+  function getVisiblePendingAdds(): CatalogoItem[] {
+    const assignedIds = new Set(assigned.map(a => a.competencia_id));
+    return catalogo.filter(c => pendingAdds.has(c.id) && !assignedIds.has(c.id));
   }
 
   function render(): void {
-    const sections = SUBCATEGORIAS.map(sub => {
-      const items = catalogo.filter(c => c.subcategoria === sub.key);
-      const selected = selections.get(sub.key) ?? new Set();
-      const colors = SUBCATEGORIA_COLORS[sub.key] ?? "bg-slate-100 text-slate-600 border-slate-300";
+    const visible = getVisibleAssigned();
+    const adding = getVisiblePendingAdds();
 
-      const chips = items.map(item => {
-        const isSelected = selected.has(item.id);
-        const cls = isSelected ? `${SELECTED_CHIP} ${colors}` : UNSELECTED_CHIP;
-        return `<button type="button" class="${cls}" data-comp-id="${item.id}" data-sub="${sub.key}">${escapeHtml(item.nombre)}</button>`;
-      }).join("");
+    const grouped = new Map<string, { assigned: AssignedItem[]; adding: CatalogoItem[] }>();
+    for (const sub of SUBCATEGORIAS) {
+      grouped.set(sub.key, { assigned: [], adding: [] });
+    }
+    for (const a of visible) {
+      const g = grouped.get(a.subcategoria ?? "");
+      if (g) g.assigned.push(a);
+    }
+    for (const a of adding) {
+      const g = grouped.get(a.subcategoria ?? "");
+      if (g) g.adding.push(a);
+    }
+
+    const hasChanges = pendingRemovals.size > 0 || pendingAdds.size > 0;
+    const totalCount = visible.length + adding.length;
+
+    const sections = SUBCATEGORIAS.map(sub => {
+      const g = grouped.get(sub.key)!;
+      const colors = SUBCATEGORIA_COLORS[sub.key] ?? "bg-slate-100 text-slate-600 border-slate-300";
+      const count = g.assigned.length + g.adding.length;
+      if (count === 0) return "";
+
+      const chips = [
+        ...g.assigned.map(a => `
+          <span class="inline-flex items-center gap-1 rounded-md border ${colors} px-2 py-0.5 text-xs font-medium">
+            ${escapeHtml(a.nombre)}
+            <button type="button" data-remove-req="${a.requisito_id}" class="ml-0.5 text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
+          </span>`),
+        ...g.adding.map(a => `
+          <span class="inline-flex items-center gap-1 rounded-md border border-dashed ${colors} px-2 py-0.5 text-xs font-medium opacity-75">
+            ${escapeHtml(a.nombre)}
+            <button type="button" data-undo-add="${a.id}" class="ml-0.5 text-current opacity-50 hover:opacity-100" aria-label="Deshacer">×</button>
+          </span>`),
+      ].join("");
 
       return `
-        <div class="mb-5 last:mb-0">
-          <div class="mb-2 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub.label)}</span>
-              <span class="text-[10px] text-slate-400">${selected.size} / ${items.length}</span>
-            </div>
-            <button type="button" data-save-sub="${sub.key}" class="text-[11px] font-medium text-leoni-blue hover:underline ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar</button>
+        <div class="mb-3 last:mb-0">
+          <div class="mb-1.5 flex items-center gap-2">
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub.label)}</span>
+            <span class="text-[10px] text-slate-400">${count}</span>
           </div>
-          <div class="flex flex-wrap gap-1.5">${chips || '<span class="text-xs text-slate-400 italic">Sin opciones en catálogo</span>'}</div>
+          <div class="flex flex-wrap gap-1.5">${chips}</div>
         </div>`;
-    }).join("");
+    }).filter(Boolean).join("");
+
+    const searchPanel = showSearch ? renderSearchPanel() : "";
+    const createPanel = showCreate ? renderCreatePanel() : "";
 
     body.innerHTML = `
-      <div class="space-y-1">${sections}</div>
-      <div class="mt-5 flex justify-end">
-        <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar todo</button>
+      ${sections || `<p class="text-sm text-slate-400 italic mb-4">Sin competencias asignadas</p>`}
+
+      <div class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
+        <button type="button" data-toggle-search class="${BTN_GHOST} text-xs">+ Agregar del catálogo</button>
+        <button type="button" data-toggle-create class="${BTN_GHOST} text-xs">+ Crear nueva</button>
+        <span class="ml-auto text-[10px] text-slate-400">${totalCount} total</span>
+      </div>
+
+      ${searchPanel}
+      ${createPanel}
+
+      ${hasChanges ? `
+        <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+          <span class="text-xs text-slate-500">
+            ${pendingAdds.size ? `+${pendingAdds.size} por agregar` : ""}
+            ${pendingAdds.size && pendingRemovals.size ? " · " : ""}
+            ${pendingRemovals.size ? `−${pendingRemovals.size} por quitar` : ""}
+          </span>
+          <div class="flex gap-2">
+            <button type="button" data-discard class="${BTN_GHOST} text-xs">Descartar</button>
+            <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
+          </div>
+        </div>` : ""}
+    `;
+  }
+
+  function renderSearchPanel(): string {
+    const assignedIds = new Set([
+      ...assigned.map(a => a.competencia_id),
+      ...pendingAdds,
+    ]);
+    const removedIds = new Set(
+      [...pendingRemovals].map(rid => assigned.find(a => a.requisito_id === rid)?.competencia_id).filter(Boolean),
+    );
+
+    let results = catalogo.filter(c => !assignedIds.has(c.id) || removedIds.has(c.id));
+    if (searchSubcategoria) {
+      results = results.filter(c => c.subcategoria === searchSubcategoria);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      results = results.filter(c => c.nombre.toLowerCase().includes(q));
+    }
+    results = results.slice(0, 20);
+
+    const subcatOptions = SUBCATEGORIAS.map(s =>
+      `<option value="${s.key}" ${searchSubcategoria === s.key ? "selected" : ""}>${escapeHtml(s.label)}</option>`
+    ).join("");
+
+    return `
+      <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <input type="text" data-search-input placeholder="Buscar competencia..." value="${escapeHtml(searchQuery)}"
+            class="flex-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-sm ${FIELD_FOCUS}" />
+          <select data-search-subcat class="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs ${FIELD_FOCUS}">
+            <option value="">Todas</option>
+            ${subcatOptions}
+          </select>
+          <button type="button" data-close-search class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+        </div>
+        ${results.length > 0 ? `
+          <div class="max-h-40 overflow-y-auto space-y-0.5">
+            ${results.map(c => {
+              const sub = SUBCATEGORIAS.find(s => s.key === c.subcategoria);
+              const colors = SUBCATEGORIA_COLORS[c.subcategoria ?? ""] ?? "bg-slate-100 text-slate-600";
+              return `
+                <button type="button" data-add-comp="${c.id}" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-white transition-colors">
+                  <span class="rounded px-1 py-0.5 text-[9px] font-medium ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub?.label ?? "")}</span>
+                  <span class="text-slate-700">${escapeHtml(c.nombre)}</span>
+                </button>`;
+            }).join("")}
+          </div>
+        ` : `<p class="text-xs text-slate-400 italic py-2">Sin resultados${searchQuery ? ` para "${escapeHtml(searchQuery)}"` : ""}</p>`}
       </div>`;
   }
 
+  function renderCreatePanel(): string {
+    const subcatOptions = SUBCATEGORIAS.map(s =>
+      `<option value="${s.key}">${escapeHtml(s.label)}</option>`
+    ).join("");
+
+    return `
+      <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <p class="text-xs font-medium text-slate-600 mb-2">Crear nueva competencia</p>
+        <div class="flex items-end gap-2">
+          <div class="flex-1">
+            <input type="text" data-create-nombre placeholder="Nombre de la competencia"
+              class="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <select data-create-subcat class="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs ${FIELD_FOCUS}">
+            ${subcatOptions}
+          </select>
+          <button type="button" data-do-create class="${BTN_PRIMARY} !px-3 !py-1.5 text-xs">Crear y agregar</button>
+          <button type="button" data-close-create class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+        </div>
+      </div>`;
+  }
+
+  // Single event delegation listener
   body.addEventListener("click", (e) => {
-    const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-comp-id]");
-    if (chip && !saving) {
-      const compId = Number(chip.dataset.compId);
-      const sub = chip.dataset.sub!;
-      const set = selections.get(sub) ?? new Set();
-      if (set.has(compId)) {
-        set.delete(compId);
-      } else {
-        set.add(compId);
-      }
-      selections.set(sub, set);
+    const target = e.target as HTMLElement;
+
+    const removeBtn = target.closest<HTMLElement>("[data-remove-req]");
+    if (removeBtn && !saving) {
+      pendingRemovals.add(Number(removeBtn.dataset.removeReq));
       render();
       return;
     }
 
-    const saveSubBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-sub]");
-    if (saveSubBtn && !saving) {
-      const sub = saveSubBtn.dataset.saveSub!;
-      saveCategory(sub);
+    const undoAddBtn = target.closest<HTMLElement>("[data-undo-add]");
+    if (undoAddBtn && !saving) {
+      pendingAdds.delete(Number(undoAddBtn.dataset.undoAdd));
+      render();
       return;
     }
 
-    const saveAllBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-all]");
+    const toggleSearch = target.closest<HTMLElement>("[data-toggle-search]");
+    if (toggleSearch) {
+      showSearch = !showSearch;
+      showCreate = false;
+      render();
+      return;
+    }
+
+    const toggleCreate = target.closest<HTMLElement>("[data-toggle-create]");
+    if (toggleCreate) {
+      showCreate = !showCreate;
+      showSearch = false;
+      render();
+      return;
+    }
+
+    const closeSearch = target.closest<HTMLElement>("[data-close-search]");
+    if (closeSearch) {
+      showSearch = false;
+      render();
+      return;
+    }
+
+    const closeCreate = target.closest<HTMLElement>("[data-close-create]");
+    if (closeCreate) {
+      showCreate = false;
+      render();
+      return;
+    }
+
+    const addComp = target.closest<HTMLElement>("[data-add-comp]");
+    if (addComp && !saving) {
+      const compId = Number(addComp.dataset.addComp);
+      const alreadyAssigned = assigned.find(a => a.competencia_id === compId);
+      if (alreadyAssigned && pendingRemovals.has(alreadyAssigned.requisito_id)) {
+        pendingRemovals.delete(alreadyAssigned.requisito_id);
+      } else {
+        pendingAdds.add(compId);
+      }
+      render();
+      return;
+    }
+
+    const doCreate = target.closest<HTMLElement>("[data-do-create]");
+    if (doCreate && !saving) {
+      handleCreate();
+      return;
+    }
+
+    const discardBtn = target.closest<HTMLElement>("[data-discard]");
+    if (discardBtn && !saving) {
+      pendingRemovals = new Set();
+      pendingAdds = new Set();
+      render();
+      return;
+    }
+
+    const saveAllBtn = target.closest<HTMLElement>("[data-save-all]");
     if (saveAllBtn && !saving) {
       saveAll();
     }
   });
 
-  async function saveCategory(sub: string): Promise<void> {
+  body.addEventListener("input", (e) => {
+    const target = e.target as HTMLElement;
+    if (target.matches("[data-search-input]")) {
+      searchQuery = (target as HTMLInputElement).value;
+      render();
+      const input = body.querySelector("[data-search-input]") as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+  });
+
+  body.addEventListener("change", (e) => {
+    const target = e.target as HTMLElement;
+    if (target.matches("[data-search-subcat]")) {
+      searchSubcategoria = (target as HTMLSelectElement).value;
+      render();
+    }
+  });
+
+  async function handleCreate(): Promise<void> {
+    const nombreInput = body.querySelector("[data-create-nombre]") as HTMLInputElement | null;
+    const subcatSelect = body.querySelector("[data-create-subcat]") as HTMLSelectElement | null;
+    if (!nombreInput || !subcatSelect) return;
+
+    const nombre = nombreInput.value.trim();
+    const subcategoria = subcatSelect.value;
+    if (!nombre) { nombreInput.focus(); return; }
+
     saving = true;
     render();
     try {
-      const ids = [...(selections.get(sub) ?? [])];
-      await syncPerfilCompetencias(options.perfilId, {
-        subcategoria: sub,
-        competencia_ids: ids,
+      const newComp = await createCompetencia({
+        nombre,
+        descripcion: "",
+        grupo: "tecnica",
+        subcategoria,
       });
+      await createPerfilCompetencia(options.perfilId, { competencia_id: newComp.id });
+      // Reload fresh data
+      await load();
       options.onSuccess();
     } catch {
-      // keep state
-    } finally {
       saving = false;
       render();
     }
@@ -170,13 +390,27 @@ export function mountEditarCompetenciasModal(
     saving = true;
     render();
     try {
+      // Group changes by subcategoria and sync each
       for (const sub of SUBCATEGORIAS) {
-        const ids = [...(selections.get(sub.key) ?? [])];
+        const currentInSub = assigned.filter(a => a.subcategoria === sub.key);
+        const hasRemovals = currentInSub.some(a => pendingRemovals.has(a.requisito_id));
+        const addsInSub = [...pendingAdds].filter(id => {
+          const c = catalogo.find(cat => cat.id === id);
+          return c?.subcategoria === sub.key;
+        });
+        if (!hasRemovals && addsInSub.length === 0) continue;
+
+        const keepIds = currentInSub
+          .filter(a => !pendingRemovals.has(a.requisito_id))
+          .map(a => a.competencia_id);
+        const finalIds = [...new Set([...keepIds, ...addsInSub])];
+
         await syncPerfilCompetencias(options.perfilId, {
           subcategoria: sub.key,
-          competencia_ids: ids,
+          competencia_ids: finalIds,
         });
       }
+
       options.onSuccess();
       close();
     } catch {
@@ -222,7 +456,7 @@ function overlayHtml(): string {
       role="presentation"
     >
       <div
-        class="w-full max-w-2xl rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        class="w-full max-w-xl rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="editar-competencias-title"
@@ -230,7 +464,7 @@ function overlayHtml(): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Selecciona las competencias requeridas para este puesto por categoría</p>
+            <p class="text-xs text-slate-500 mt-0.5">Gestiona las competencias requeridas para este puesto</p>
           </div>
           <button
             type="button"
