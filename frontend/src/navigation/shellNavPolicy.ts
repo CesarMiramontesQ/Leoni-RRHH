@@ -33,7 +33,6 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "solicitudes",
   "comedor",
-  "capacitaciones",
 ]);
 
 /**
@@ -111,7 +110,6 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
-  if (h.startsWith("#/capacitaciones")) return true;
   if (h.startsWith("#/metricas")) return false;
   return false;
 }

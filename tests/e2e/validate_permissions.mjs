@@ -27,7 +27,7 @@ const USERS = [
 const NAV_EXPECTATIONS = {
   empleado: {
     visible: ["Dashboard", "Solicitudes", "Comedor", "Notificaciones"],
-    hidden: ["Organigrama", "Incidencias", "Actas", "Reporte comedor", "Evaluaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
+    hidden: ["Organigrama", "Incidencias", "Actas", "Reporte comedor", "Evaluaciones", "Capacitaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
   },
   supervisor: {
     visible: ["Dashboard", "Organigrama", "Solicitudes", "Incidencias", "Comedor", "Notificaciones", "Empleados"],
@@ -80,7 +80,7 @@ const NAV_EXPECTATIONS = {
 const ROUTE_TESTS = {
   empleado: {
     allowed: ["#/", "#/solicitudes", "#/comedor", "#/notificaciones"],
-    blocked: ["#/empleados", "#/evaluaciones", "#/puestos", "#/competencias", "#/actas", "#/incidencias", "#/organigrama"],
+    blocked: ["#/empleados", "#/evaluaciones", "#/capacitaciones", "#/puestos", "#/competencias", "#/actas", "#/incidencias", "#/organigrama"],
   },
   supervisor: {
     allowed: ["#/", "#/solicitudes", "#/incidencias", "#/comedor", "#/empleados", "#/evaluaciones", "#/notificaciones"],
