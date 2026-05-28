@@ -315,7 +315,7 @@ function renderEmpleadosResumen(asignaciones: AsignacionResumen[], perfilId: num
   const rows = asignaciones.slice(0, 5).map(a => `
     <div class="flex items-center justify-between py-1.5">
       <span class="text-sm text-text-primary">${a.nombre_empleado ? escapeHtml(a.nombre_empleado) : `Empleado #${a.empleado_id}`}</span>
-      ${a.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">${escapeHtml(a.no_empleado)}</span>` : ""}
+      ${a.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">${escapeHtml(String(parseInt(a.no_empleado, 10) || a.no_empleado))}</span>` : ""}
     </div>
   `).join("");
 
