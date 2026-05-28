@@ -24,12 +24,14 @@ for var in DB_HOST DB_USER DB_PASSWORD DB_NAME; do
   fi
 done
 
+DB_PORT="${DB_PORT:-5432}"
+
 echo "=== Build backend ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
 
 echo "=== Limpiar revisiones fantasma en alembic_version ==="
 export PGPASSWORD="$DB_PASSWORD"
-psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 <<'SQL'
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 <<'SQL'
 DELETE FROM alembic_version
 WHERE version_num IN (
   '943c7b427a37',
