@@ -66,7 +66,6 @@ export type ShellNavKey =
   | "evaluaciones"
   | "capacitaciones"
   | "capacidades"
-  | "habilidades"
   | "cursos"
   | "opls"
   | "evidencias"
@@ -268,17 +267,9 @@ const NAV_FORMACION: readonly NavItemDef[] = [
     id: "capacidades",
     key: "capacidades",
     hrefFor: () => "#/capacidades",
-    label: "Matriz de Capacidades",
+    label: "Matriz de Multihabilidades",
     labelWrapClass: "truncate",
     svgPaths: `<path d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-  {
-    id: "habilidades",
-    key: "habilidades",
-    hrefFor: () => "#/habilidades",
-    label: "Matriz de Habilidades",
-    labelWrapClass: "truncate",
-    svgPaths: `<path d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75l-5.571-3m11.142 0 4.179 2.25L12 17.25l-9.75-5.25 4.179-2.25m11.142 4.5L21.75 16.5 12 21.75 2.25 16.5l4.179-2.25m11.142 0L12 16.5l-5.571-2.25" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
     id: "cursos",

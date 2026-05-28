@@ -23,7 +23,6 @@ import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 import {
   mountLevelUpDashboard,
   mountCapacidades,
-  mountHabilidades,
   mountCursos,
   mountOPLs,
   mountEvidencias,
@@ -101,10 +100,6 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/capacidades")) {
       mountCapacidades(container);
-      return;
-    }
-    if (h.startsWith("#/habilidades")) {
-      mountHabilidades(container);
       return;
     }
     if (h.startsWith("#/cursos")) {
