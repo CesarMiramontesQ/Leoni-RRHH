@@ -212,3 +212,35 @@ class GenerarPerfilIAResponse(BaseModel):
     competencias_tecnicas: list[str]
     habilidades_blandas: list[str]
     maquinas_herramientas: list[str]
+
+
+# ── Multihabilidades (Matriz por Puesto) ────────────────────────────────────
+
+
+class MultihabilidadesCompetenciaItem(BaseModel):
+    competencia_id: int
+    competencia_nombre: str
+    subcategoria: Optional[str] = None
+    nivel_requerido: int
+
+
+class MultihabilidadesEmpleadoItem(BaseModel):
+    empleado_id: int
+    nombre: str
+    no_empleado: str
+    niveles: dict[int, int]
+
+
+class MultihabilidadesResponse(BaseModel):
+    puesto_perfil_id: int
+    puesto_nombre: str
+    competencias: list[MultihabilidadesCompetenciaItem]
+    empleados: list[MultihabilidadesEmpleadoItem]
+
+
+class MultihabilidadesPuestoOption(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    num_competencias: int
+    num_empleados: int
