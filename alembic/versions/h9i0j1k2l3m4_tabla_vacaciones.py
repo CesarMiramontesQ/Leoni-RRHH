@@ -12,6 +12,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
+from app.utils.migration_helpers import table_exists
+
 revision: str = "h9i0j1k2l3m4"
 down_revision: Union[str, None] = "l5m6n7o8p9q0"
 branch_labels: Union[str, Sequence[str], None] = None
@@ -19,6 +21,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    if table_exists("vacaciones"):
+        return
     op.create_table(
         "vacaciones",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),

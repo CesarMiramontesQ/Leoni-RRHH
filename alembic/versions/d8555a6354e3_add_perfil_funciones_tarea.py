@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from app.utils.migration_helpers import table_exists
+
 # revision identifiers, used by Alembic.
 revision: str = 'd8555a6354e3'
 down_revision: Union[str, None] = '04548db06678'
@@ -18,6 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    if table_exists("perfil_funciones_tarea"):
+        return
     op.create_table('perfil_funciones_tarea',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('perfil_funciones_id', sa.Integer(), nullable=False),

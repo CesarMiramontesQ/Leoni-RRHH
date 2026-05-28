@@ -5,7 +5,7 @@
 #   cd /levelup/Leoni-RRHH
 #   ./scripts/prod-migrate.sh
 #
-# Si falla "Can't locate revision" o overlap con 943c7b427a37 (tras pull del fix):
+# Si falla "Can't locate revision" o overlap de merges obsoletos (tras pull):
 #   ./scripts/prod-alembic-recover.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."

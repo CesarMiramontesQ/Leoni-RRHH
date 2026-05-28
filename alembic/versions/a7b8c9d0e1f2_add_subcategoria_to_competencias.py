@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from app.utils.migration_helpers import column_names, table_exists
+
 
 # revision identifiers, used by Alembic.
 revision: str = 'a7b8c9d0e1f2'
@@ -19,8 +21,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('competencias', sa.Column('subcategoria', sa.String(50), nullable=True))
+    if not table_exists("competencias"):
+        return
+    if "subcategoria" not in column_names("competencias"):
+        op.add_column("competencias", sa.Column("subcategoria", sa.String(50), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column('competencias', 'subcategoria')
+    if not table_exists("competencias"):
+        return
+    if "subcategoria" in column_names("competencias"):
+        op.drop_column("competencias", "subcategoria")

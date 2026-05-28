@@ -4,8 +4,8 @@
 #
 # Proyecto Compose: leoni-rh-prod (aislado de leoni-rh-dev).
 # Uso: docker compose -f docker-compose.prod.yml --env-file .env up -d
-# Tras git pull con cambios en backend/alembic: build antes de up (ver scripts/prod-migrate.sh)
-# Prueba en Mac en paralelo con dev: añadir -f docker-compose.prod.mac.yml
+# Uso en servidor: docker compose -f docker-compose.prod.yml --env-file .env up -d
+# Tras git pull con cambios en backend/alembic: ./scripts/prod-migrate.sh
 name: leoni-rh-prod
 
 services:

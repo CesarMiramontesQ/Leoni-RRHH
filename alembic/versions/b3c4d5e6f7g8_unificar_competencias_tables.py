@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from app.utils.migration_helpers import column_names, foreign_key_names, table_exists
+
 
 revision: str = 'b3c4d5e6f7g8'
 down_revision: Union[str, None] = 'a7b8c9d0e1f2'
@@ -18,48 +20,73 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 1. Add orden column to competencia_requisitos
-    op.add_column('competencia_requisitos', sa.Column('orden', sa.SmallInteger(), nullable=True))
+    if not table_exists("competencia_requisitos"):
+        return
 
-    # 2. Add competencia_requisito_id column to perfil_funciones_competencia
-    op.add_column('perfil_funciones_competencia', sa.Column('competencia_requisito_id', sa.Integer(), nullable=True))
+    cols = column_names("competencia_requisitos")
+    if "orden" not in cols:
+        op.add_column(
+            "competencia_requisitos",
+            sa.Column("orden", sa.SmallInteger(), nullable=True),
+        )
 
-    # 3. Migrate data: perfil_competencias_requeridas → competencia_requisitos
-    # Use DISTINCT ON to avoid duplicate rows for same (competencia_id, puesto_perfil_id)
-    op.execute("""
-        INSERT INTO competencia_requisitos (competencia_id, puesto_perfil_id, nivel_requerido, orden)
-        SELECT DISTINCT ON (pcr.competencia_id, pcr.puesto_perfil_id)
-            pcr.competencia_id, pcr.puesto_perfil_id, 0, pcr.orden
-        FROM perfil_competencias_requeridas pcr
-        WHERE pcr.competencia_id IS NOT NULL
-        ORDER BY pcr.competencia_id, pcr.puesto_perfil_id, pcr.orden
-        ON CONFLICT (competencia_id, puesto_perfil_id) DO UPDATE SET orden = EXCLUDED.orden
-    """)
+    if table_exists("perfil_funciones_competencia"):
+        pfc_cols = column_names("perfil_funciones_competencia")
+        if "competencia_requisito_id" not in pfc_cols:
+            op.add_column(
+                "perfil_funciones_competencia",
+                sa.Column("competencia_requisito_id", sa.Integer(), nullable=True),
+            )
 
-    # 4. Update perfil_funciones_competencia to point to competencia_requisitos
-    op.execute("""
-        UPDATE perfil_funciones_competencia pfc
-        SET competencia_requisito_id = cr.id
-        FROM perfil_competencias_requeridas pcr
-        JOIN competencia_requisitos cr ON cr.competencia_id = pcr.competencia_id
-            AND cr.puesto_perfil_id = pcr.puesto_perfil_id
-        WHERE pfc.competencia_requerida_id = pcr.id
-    """)
+    if table_exists("perfil_competencias_requeridas"):
+        op.execute("""
+            INSERT INTO competencia_requisitos (competencia_id, puesto_perfil_id, nivel_requerido, orden)
+            SELECT DISTINCT ON (pcr.competencia_id, pcr.puesto_perfil_id)
+                pcr.competencia_id, pcr.puesto_perfil_id, 0, pcr.orden
+            FROM perfil_competencias_requeridas pcr
+            WHERE pcr.competencia_id IS NOT NULL
+            ORDER BY pcr.competencia_id, pcr.puesto_perfil_id, pcr.orden
+            ON CONFLICT (competencia_id, puesto_perfil_id) DO UPDATE SET orden = EXCLUDED.orden
+        """)
 
-    # 5. Drop old FK and column from perfil_funciones_competencia
-    op.drop_constraint('perfil_funciones_competencia_competencia_requerida_id_fkey', 'perfil_funciones_competencia', type_='foreignkey')
-    op.drop_column('perfil_funciones_competencia', 'competencia_requerida_id')
+        if table_exists("perfil_funciones_competencia"):
+            pfc_cols = column_names("perfil_funciones_competencia")
+            if "competencia_requerida_id" in pfc_cols:
+                op.execute("""
+                    UPDATE perfil_funciones_competencia pfc
+                    SET competencia_requisito_id = cr.id
+                    FROM perfil_competencias_requeridas pcr
+                    JOIN competencia_requisitos cr ON cr.competencia_id = pcr.competencia_id
+                        AND cr.puesto_perfil_id = pcr.puesto_perfil_id
+                    WHERE pfc.competencia_requerida_id = pcr.id
+                      AND pfc.competencia_requisito_id IS NULL
+                """)
 
-    # 6. Add FK constraint for new column
-    op.create_foreign_key(
-        'fk_pfc_competencia_requisito',
-        'perfil_funciones_competencia', 'competencia_requisitos',
-        ['competencia_requisito_id'], ['id'],
-        ondelete='CASCADE'
-    )
+                if "perfil_funciones_competencia_competencia_requerida_id_fkey" in foreign_key_names(
+                    "perfil_funciones_competencia"
+                ):
+                    op.drop_constraint(
+                        "perfil_funciones_competencia_competencia_requerida_id_fkey",
+                        "perfil_funciones_competencia",
+                        type_="foreignkey",
+                    )
+                op.drop_column("perfil_funciones_competencia", "competencia_requerida_id")
 
-    # 7. Drop the old table
-    op.drop_table('perfil_competencias_requeridas')
+    if table_exists("perfil_funciones_competencia"):
+        if "fk_pfc_competencia_requisito" not in foreign_key_names(
+            "perfil_funciones_competencia"
+        ):
+            op.create_foreign_key(
+                "fk_pfc_competencia_requisito",
+                "perfil_funciones_competencia",
+                "competencia_requisitos",
+                ["competencia_requisito_id"],
+                ["id"],
+                ondelete="CASCADE",
+            )
+
+    if table_exists("perfil_competencias_requeridas"):
+        op.drop_table("perfil_competencias_requeridas")
 
 
 def downgrade() -> None:

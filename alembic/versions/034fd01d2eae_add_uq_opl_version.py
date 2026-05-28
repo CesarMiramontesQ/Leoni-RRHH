@@ -9,6 +9,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
+from app.utils.migration_helpers import constraint_names, table_exists
+
 
 # revision identifiers, used by Alembic.
 revision: str = '034fd01d2eae'
@@ -18,8 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_unique_constraint('uq_opl_version', 'opl_versiones', ['opl_id', 'version_num'])
+    if not table_exists("opl_versiones"):
+        return
+    if "uq_opl_version" not in constraint_names("opl_versiones"):
+        op.create_unique_constraint(
+            "uq_opl_version", "opl_versiones", ["opl_id", "version_num"]
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint('uq_opl_version', 'opl_versiones', type_='unique')
+    if not table_exists("opl_versiones"):
+        return
+    if "uq_opl_version" in constraint_names("opl_versiones"):
+        op.drop_constraint("uq_opl_version", "opl_versiones", type_="unique")

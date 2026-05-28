@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recuperación Alembic en producción tras quitar el merge duplicado 943c7b427a37.
+# Recuperación Alembic en producción tras pull con cambios en la cadena de migraciones.
 #
 # Uso en el servidor (tras git pull):
 #   cd /levelup/Leoni-RRHH
@@ -33,7 +33,8 @@ psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 <<'SQL'
 DELETE FROM alembic_version
 WHERE version_num IN (
   '943c7b427a37',
-  'f1e2d3c4b5a6'
+  'f1e2d3c4b5a6',
+  '6e1c0bf591c7'
 );
 SELECT version_num FROM alembic_version ORDER BY 1;
 SQL
