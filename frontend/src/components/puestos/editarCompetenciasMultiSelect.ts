@@ -70,11 +70,12 @@ export function mountEditarCompetenciasModal(
         .filter(c => c.subcategoria && SUBCATEGORIAS.some(s => s.key === c.subcategoria))
         .map(c => ({ id: c.id, nombre: c.nombre, subcategoria: c.subcategoria }));
 
+      const catalogoIdSet = new Set(catalogo.map(c => c.id));
       selections = new Map();
       for (const sub of SUBCATEGORIAS) {
         const selectedInCategory = new Set(
           perfilComps
-            .filter(c => c.subcategoria === sub.key)
+            .filter(c => c.subcategoria === sub.key && catalogoIdSet.has(c.competencia_id))
             .map(c => c.competencia_id),
         );
         selections.set(sub.key, selectedInCategory);
@@ -116,40 +117,36 @@ export function mountEditarCompetenciasModal(
       <div class="mt-5 flex justify-end">
         <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar todo</button>
       </div>`;
-
-    bindEvents();
   }
 
-  function bindEvents(): void {
-    body.addEventListener("click", (e) => {
-      const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-comp-id]");
-      if (chip && !saving) {
-        const compId = Number(chip.dataset.compId);
-        const sub = chip.dataset.sub!;
-        const set = selections.get(sub) ?? new Set();
-        if (set.has(compId)) {
-          set.delete(compId);
-        } else {
-          set.add(compId);
-        }
-        selections.set(sub, set);
-        render();
-        return;
+  body.addEventListener("click", (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-comp-id]");
+    if (chip && !saving) {
+      const compId = Number(chip.dataset.compId);
+      const sub = chip.dataset.sub!;
+      const set = selections.get(sub) ?? new Set();
+      if (set.has(compId)) {
+        set.delete(compId);
+      } else {
+        set.add(compId);
       }
+      selections.set(sub, set);
+      render();
+      return;
+    }
 
-      const saveSubBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-sub]");
-      if (saveSubBtn && !saving) {
-        const sub = saveSubBtn.dataset.saveSub!;
-        saveCategory(sub);
-        return;
-      }
+    const saveSubBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-sub]");
+    if (saveSubBtn && !saving) {
+      const sub = saveSubBtn.dataset.saveSub!;
+      saveCategory(sub);
+      return;
+    }
 
-      const saveAllBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-all]");
-      if (saveAllBtn && !saving) {
-        saveAll();
-      }
-    });
-  }
+    const saveAllBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save-all]");
+    if (saveAllBtn && !saving) {
+      saveAll();
+    }
+  });
 
   async function saveCategory(sub: string): Promise<void> {
     saving = true;

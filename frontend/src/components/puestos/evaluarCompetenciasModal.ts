@@ -87,11 +87,13 @@ export function mountEvaluarCompetenciasModal(
     document.removeEventListener("keydown", escHandler);
   }
 
+  const VALID_SUBCATEGORIAS = new Set(SUBCATEGORIAS.map(s => s.key));
+
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando evaluación...</p>`;
     try {
       const gap = await getAsignacionGap(options.perfilId, options.asignacionId);
-      gapItems = gap.gap_competencias;
+      gapItems = gap.gap_competencias.filter(g => g.subcategoria && VALID_SUBCATEGORIAS.has(g.subcategoria));
       actualIds = new Set(
         gapItems
           .filter(g => g.evaluado && g.situacion_actual === "cumple")
@@ -150,36 +152,32 @@ export function mountEvaluarCompetenciasModal(
         <button type="button" data-save class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar evaluación</button>
       </div>
     ` : `<p class="text-sm text-slate-500 italic">Sin competencias requeridas para este perfil.</p>`;
-
-    bindEvents();
   }
 
-  function bindEvents(): void {
-    body.addEventListener("click", (e) => {
-      const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-req-id]");
-      if (chip && !saving) {
-        const reqId = Number(chip.dataset.reqId);
-        if (actualIds.has(reqId)) {
-          actualIds.delete(reqId);
-        } else {
-          actualIds.add(reqId);
-        }
-        render();
-        return;
+  body.addEventListener("click", (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-req-id]");
+    if (chip && !saving) {
+      const reqId = Number(chip.dataset.reqId);
+      if (actualIds.has(reqId)) {
+        actualIds.delete(reqId);
+      } else {
+        actualIds.add(reqId);
       }
+      render();
+      return;
+    }
 
-      const cancelBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-cancel]");
-      if (cancelBtn) {
-        close();
-        return;
-      }
+    const cancelBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-cancel]");
+    if (cancelBtn) {
+      close();
+      return;
+    }
 
-      const saveBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save]");
-      if (saveBtn && !saving) {
-        save();
-      }
-    });
-  }
+    const saveBtn = (e.target as HTMLElement).closest<HTMLElement>("[data-save]");
+    if (saveBtn && !saving) {
+      save();
+    }
+  });
 
   async function save(): Promise<void> {
     saving = true;

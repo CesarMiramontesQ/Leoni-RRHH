@@ -100,14 +100,22 @@ function renderTabs(active: CompetenciasTab): string {
 
 // ── Catalogo tab ──────────────────────────────────────────────────────
 
-function renderCatalogoTab(items: Competencia[], filterText: string): string {
-  const filtered = filterText.trim()
-    ? items.filter((c) => c.nombre.toLowerCase().includes(filterText.toLowerCase()) || c.descripcion.toLowerCase().includes(filterText.toLowerCase()))
-    : items;
+function renderCatalogoTab(items: Competencia[], filterText: string, grupoFilter: string, subcategoriaFilter: string): string {
+  let filtered = items;
+  if (filterText.trim()) {
+    const q = filterText.toLowerCase();
+    filtered = filtered.filter((c) => c.nombre.toLowerCase().includes(q) || c.descripcion.toLowerCase().includes(q));
+  }
+  if (grupoFilter) {
+    filtered = filtered.filter((c) => c.grupo === grupoFilter);
+  }
+  if (subcategoriaFilter) {
+    filtered = filtered.filter((c) => c.subcategoria === subcategoriaFilter);
+  }
 
   const subcatLabels: Record<string, string> = {
-    informatica: "Informatica", idiomas: "Idiomas", profesional: "Profesional",
-    social: "Social", personal: "Personal", metodos: "Metodos", complementos: "Complementos",
+    informatica: "Informática", idiomas: "Idiomas", profesional: "Profesional",
+    social: "Social", personal: "Personal", metodos: "Métodos", complementos: "Complementos",
   };
 
   const rows = filtered.length === 0
@@ -133,18 +141,35 @@ function renderCatalogoTab(items: Competencia[], filterText: string): string {
     <div class="flex flex-col gap-4">
       <!-- Filter bar + Add button -->
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="relative max-w-sm flex-1">
-          <input
-            type="text"
-            id="comp-catalogo-search"
-            data-action="catalogo-filter"
-            placeholder="Buscar competencia..."
-            value="${escapeHtml(filterText)}"
-            class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-9 text-sm text-slate-900 placeholder:text-slate-400 ${FIELD_FOCUS}"
-          />
-          <svg viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true">
-            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
-          </svg>
+        <div class="flex items-center gap-2 flex-1">
+          <div class="relative max-w-xs flex-1">
+            <input
+              type="text"
+              id="comp-catalogo-search"
+              data-action="catalogo-filter"
+              placeholder="Buscar competencia..."
+              value="${escapeHtml(filterText)}"
+              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-9 text-sm text-slate-900 placeholder:text-slate-400 ${FIELD_FOCUS}"
+            />
+            <svg viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true">
+              <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <select id="comp-catalogo-grupo" class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-700 ${FIELD_FOCUS}">
+            <option value="">Grupo</option>
+            <option value="tecnica" ${grupoFilter === "tecnica" ? "selected" : ""}>Técnica</option>
+            <option value="habilidad_blanda" ${grupoFilter === "habilidad_blanda" ? "selected" : ""}>Habilidad blanda</option>
+          </select>
+          <select id="comp-catalogo-subcategoria" class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-700 ${FIELD_FOCUS}">
+            <option value="">Subcategoría</option>
+            <option value="informatica" ${subcategoriaFilter === "informatica" ? "selected" : ""}>Informática</option>
+            <option value="idiomas" ${subcategoriaFilter === "idiomas" ? "selected" : ""}>Idiomas</option>
+            <option value="profesional" ${subcategoriaFilter === "profesional" ? "selected" : ""}>Profesional</option>
+            <option value="social" ${subcategoriaFilter === "social" ? "selected" : ""}>Social</option>
+            <option value="personal" ${subcategoriaFilter === "personal" ? "selected" : ""}>Personal</option>
+            <option value="metodos" ${subcategoriaFilter === "metodos" ? "selected" : ""}>Métodos</option>
+            <option value="complementos" ${subcategoriaFilter === "complementos" ? "selected" : ""}>Complementos</option>
+          </select>
         </div>
         <button type="button" data-action="add-competencia" class="${BTN_PRIMARY}">
           <span aria-hidden="true">+</span> Nueva competencia
@@ -520,6 +545,8 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
   let activeTab: CompetenciasTab = "catalogo";
   let catalogoItems: Competencia[] = [];
   let catalogoFilter = "";
+  let catalogoGrupo = "";
+  let catalogoSubcategoria = "";
   let filters: CompetenciasFilterState = { area_id: "", linea_id: "", sector_id: "" };
   let filterOptions: CompetenciasFilterOptions = { areas: [], lineas: [], sectores: [] };
   let puestos: PuestoColumna[] = [];
@@ -560,7 +587,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     let tabContent = "";
     switch (activeTab) {
       case "catalogo":
-        tabContent = renderCatalogoTab(catalogoItems, catalogoFilter);
+        tabContent = renderCatalogoTab(catalogoItems, catalogoFilter, catalogoGrupo, catalogoSubcategoria);
         break;
       case "matriz":
         tabContent = renderMatrizTab(filters, filterOptions, competencias, puestos, celdas, celdasModificadas, resumen, gaps);
@@ -644,7 +671,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
 
   async function loadCatalogo(): Promise<void> {
     try {
-      catalogoItems = await getCompetencias();
+      catalogoItems = await getCompetencias({ page_size: 200 });
     } catch (e: unknown) {
       const err = e as CompetenciasFetchError;
       if (err?.status === 401) { handleSessionExpired(); return; }
@@ -876,6 +903,18 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
 
   root?.addEventListener("change", (e) => {
     const t = e.target as HTMLElement;
+
+    // Catalogo grupo/subcategoria filters
+    if (t.id === "comp-catalogo-grupo") {
+      catalogoGrupo = (t as HTMLSelectElement).value;
+      paint();
+      return;
+    }
+    if (t.id === "comp-catalogo-subcategoria") {
+      catalogoSubcategoria = (t as HTMLSelectElement).value;
+      paint();
+      return;
+    }
 
     // Matriz filters
     const filterSelect = t.closest<HTMLSelectElement>("[data-action='filter']");

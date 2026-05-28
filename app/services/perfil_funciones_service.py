@@ -348,38 +348,43 @@ class PerfilFuncionesService:
         competencia_ids: list[int],
         current_user: Empleado,
     ) -> list[PerfilCompetenciaResponse]:
-        """Sync completo de competencias por subcategoría (add missing, remove deselected)."""
+        """Sync competencias del catálogo por subcategoría. No afecta competencias custom."""
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
         await self._get_perfil_or_404(perfil_id)
 
-        current = await self.competencia_repo.list_by_puesto_and_subcategoria(perfil_id, subcategoria)
-        current_map = {r.competencia_id: r for r in current}
-        current_ids = set(current_map.keys())
-        requested_ids = set(competencia_ids)
-
-        if requested_ids:
-            result = await self.db.execute(
-                select(Competencia).where(
-                    Competencia.id.in_(requested_ids),
-                    Competencia.subcategoria == subcategoria,
-                    Competencia.activo.is_(True),
-                )
+        # Obtener IDs válidos del catálogo para esta subcategoría
+        result = await self.db.execute(
+            select(Competencia.id).where(
+                Competencia.subcategoria == subcategoria,
+                Competencia.activo.is_(True),
             )
-            valid_ids = {c.id for c in result.scalars().all()}
-            invalid = requested_ids - valid_ids
+        )
+        catalogo_ids = {row[0] for row in result.all()}
+
+        if competencia_ids:
+            requested_ids = set(competencia_ids)
+            invalid = requested_ids - catalogo_ids
             if invalid:
                 raise DomainValidationError(
                     f"competencia_ids inválidos para subcategoría '{subcategoria}': {sorted(invalid)}"
                 )
+        else:
+            requested_ids = set()
 
-        to_remove = current_ids - requested_ids
-        to_add = requested_ids - current_ids
+        # Requisitos actuales de esta subcategoría para el perfil
+        current = await self.competencia_repo.list_by_puesto_and_subcategoria(perfil_id, subcategoria)
+        # Solo operar sobre las que pertenecen al catálogo (no tocar custom)
+        current_catalogo = {r.competencia_id: r for r in current if r.competencia_id in catalogo_ids}
+        current_catalogo_ids = set(current_catalogo.keys())
+
+        to_remove = current_catalogo_ids - requested_ids
+        to_add = requested_ids - current_catalogo_ids
 
         if to_remove:
-            ids_to_delete = [current_map[cid].id for cid in to_remove]
+            ids_to_delete = [current_catalogo[cid].id for cid in to_remove]
             await self.competencia_repo.delete_by_ids(ids_to_delete)
 
         if to_add:
@@ -394,6 +399,8 @@ class PerfilFuncionesService:
 
         return await self.listar_competencias(perfil_id)
 
+    SUBCATEGORIAS_DEMOSTRADAS = {"informatica", "idiomas", "profesional", "social", "personal", "metodos"}
+
     async def sincronizar_evaluacion_competencias(
         self,
         perfil_id: int,
@@ -401,7 +408,7 @@ class PerfilFuncionesService:
         competencia_requisito_ids: list[int],
         current_user: Empleado,
     ) -> dict:
-        """Sync evaluación de competencias del empleado (presencia = cumple)."""
+        """Sync evaluación de competencias demostradas (presencia = cumple). No afecta competencias de Matriz."""
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
@@ -412,18 +419,25 @@ class PerfilFuncionesService:
         if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
 
+        all_requisitos = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
+        demostradas_ids = {
+            c.id for c in all_requisitos
+            if c.competencia and c.competencia.subcategoria in self.SUBCATEGORIAS_DEMOSTRADAS
+        }
+
         if competencia_requisito_ids:
-            valid_comp_ids = {
-                c.id for c in await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
-            }
-            invalid = [cid for cid in competencia_requisito_ids if cid not in valid_comp_ids]
+            invalid = [cid for cid in competencia_requisito_ids if cid not in demostradas_ids]
             if invalid:
                 raise DomainValidationError(
-                    f"competencia_requisito_id inválido para este perfil: {invalid}"
+                    f"competencia_requisito_id inválido para competencias demostradas: {invalid}"
                 )
 
+        # Preservar evaluaciones de competencias de Matriz (no-demostradas)
+        matriz_ids = [c.id for c in all_requisitos if c.id not in demostradas_ids]
+        preserve_ids = list(competencia_requisito_ids) + matriz_ids
+
         await self.eval_competencia_repo.delete_by_asignacion_excluding(
-            asignacion_id, competencia_requisito_ids
+            asignacion_id, preserve_ids
         )
 
         for req_id in competencia_requisito_ids:
