@@ -304,7 +304,7 @@ export async function syncPerfilCompetencias(
 export async function syncEvaluacionCompetencias(
   perfilId: number,
   asignacionId: number,
-  body: { competencia_requisito_ids: number[] },
+  body: { evaluaciones: { competencia_requisito_id: number; nivel: number }[] },
 ): Promise<GapAnalysis> {
   const res = await fetchWithAuth(
     `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/competencias-eval`,

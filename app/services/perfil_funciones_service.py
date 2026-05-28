@@ -405,10 +405,10 @@ class PerfilFuncionesService:
         self,
         perfil_id: int,
         asignacion_id: int,
-        competencia_requisito_ids: list[int],
+        evaluaciones: list[tuple[int, int]],
         current_user: Empleado,
     ) -> dict:
-        """Sync evaluación de competencias demostradas (presencia = cumple). No afecta competencias de Matriz."""
+        """Sync evaluación de competencias demostradas (nivel 0-4). No afecta competencias de Matriz."""
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
@@ -425,8 +425,9 @@ class PerfilFuncionesService:
             if c.competencia and c.competencia.subcategoria in self.SUBCATEGORIAS_DEMOSTRADAS
         }
 
-        if competencia_requisito_ids:
-            invalid = [cid for cid in competencia_requisito_ids if cid not in demostradas_ids]
+        eval_req_ids = [req_id for req_id, _ in evaluaciones]
+        if eval_req_ids:
+            invalid = [cid for cid in eval_req_ids if cid not in demostradas_ids]
             if invalid:
                 raise DomainValidationError(
                     f"competencia_requisito_id inválido para competencias demostradas: {invalid}"
@@ -434,24 +435,28 @@ class PerfilFuncionesService:
 
         # Preservar evaluaciones de competencias de Matriz (no-demostradas)
         matriz_ids = [c.id for c in all_requisitos if c.id not in demostradas_ids]
-        preserve_ids = list(competencia_requisito_ids) + matriz_ids
+        preserve_ids = eval_req_ids + matriz_ids
 
         await self.eval_competencia_repo.delete_by_asignacion_excluding(
             asignacion_id, preserve_ids
         )
 
-        for req_id in competencia_requisito_ids:
+        for req_id, nivel in evaluaciones:
             existing = await self.eval_competencia_repo.get_by_pair(
                 perfil_funciones_id=asignacion_id,
                 competencia_requisito_id=req_id,
             )
-            if not existing:
+            situacion = str(nivel)
+            if existing:
+                existing.situacion_actual = situacion
+            else:
                 await self.eval_competencia_repo.create({
                     "perfil_funciones_id": asignacion_id,
                     "competencia_requisito_id": req_id,
-                    "situacion_actual": "cumple",
+                    "situacion_actual": situacion,
                 })
 
+        await self.db.flush()
         return await self.obtener_asignacion_con_gap(perfil_id, asignacion_id)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -539,6 +544,12 @@ class PerfilFuncionesService:
                 elif cual.tipo in ("experiencia_profesional", "experiencia_direccion"):
                     if cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
                         cumple = evaluacion.anios_actuales >= cual.anios_minimos
+                else:
+                    val = (evaluacion.comentarios or "").strip().lower()
+                    if val == "cumple":
+                        cumple = True
+                    elif val == "no cumple":
+                        cumple = False
             gap_cualificaciones.append({
                 "cualificacion_id": cual.id,
                 "tipo": cual.tipo,

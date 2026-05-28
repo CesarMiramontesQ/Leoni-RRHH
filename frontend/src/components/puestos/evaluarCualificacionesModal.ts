@@ -82,7 +82,19 @@ function renderGapItem(g: GapCualificacion, idx: number): string {
       <input name="eval-${idx}" data-cual-id="${g.cualificacion_id}" type="text"
         value="${escapeHtml(g.situacion_actual ?? "")}"
         class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-        placeholder="Situación actual del empleado" />`;
+        placeholder="Situación actual del empleado" />
+      <div class="mt-2">
+        <label class="mb-1 block text-xs font-medium text-slate-600">¿Cumple?</label>
+        <div class="grid grid-cols-1">
+          <select data-cumple-cual-id="${g.cualificacion_id}"
+            class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+            <option value="">— Seleccionar —</option>
+            <option value="cumple" ${(g.comentarios ?? "").toLowerCase() === "cumple" ? "selected" : ""}>Cumple</option>
+            <option value="no cumple" ${(g.comentarios ?? "").toLowerCase() === "no cumple" ? "selected" : ""}>No cumple</option>
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>`;
   }
 
   // Años numéricos para experiencia
@@ -221,6 +233,10 @@ export function mountEvaluarCualificacionesModal(
           const aniosEl = form.querySelector<HTMLInputElement>(`[data-anios-cual-id="${cualId}"]`);
           if (aniosEl && aniosEl.value.trim()) {
             payload.anios_actuales = Number(aniosEl.value.trim());
+          }
+          const cumpleEl = form.querySelector<HTMLSelectElement>(`[data-cumple-cual-id="${cualId}"]`);
+          if (cumpleEl && cumpleEl.value) {
+            payload.comentarios = cumpleEl.value;
           }
           evaluaciones.push(payload);
         }

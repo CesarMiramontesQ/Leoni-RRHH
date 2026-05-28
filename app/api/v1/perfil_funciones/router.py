@@ -301,12 +301,12 @@ async def sincronizar_evaluacion_competencias(
     current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sync evaluación de competencias del empleado (presencia = cumple)."""
+    """Sync evaluación de competencias del empleado (nivel 0-4)."""
     service = PerfilFuncionesService(db)
     return await service.sincronizar_evaluacion_competencias(
         perfil_id=perfil_id,
         asignacion_id=asignacion_id,
-        competencia_requisito_ids=body.competencia_requisito_ids,
+        evaluaciones=[(e.competencia_requisito_id, e.nivel) for e in body.evaluaciones],
         current_user=current_user,
     )
 

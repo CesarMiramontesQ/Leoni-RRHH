@@ -297,8 +297,13 @@ class PerfilCompetenciaSyncBody(BaseModel):
     competencia_ids: list[int]
 
 
+class EvaluacionCompetenciaItem(BaseModel):
+    competencia_requisito_id: int
+    nivel: int = Field(..., ge=0, le=4)
+
+
 class EvaluacionCompetenciaSyncBody(BaseModel):
-    competencia_requisito_ids: list[int]
+    evaluaciones: list[EvaluacionCompetenciaItem]
 
 
 # ── Tareas Extra (per-employee) ───────────────────────────────────────────────
