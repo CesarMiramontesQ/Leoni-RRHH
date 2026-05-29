@@ -121,21 +121,21 @@ class UsuarioService:
         if rol == "gerente":
             if alcance_todos_los_estados:
                 subarbol = await self.empleado_repo.get_ids_subarbol_sin_filtro_estado(
-                    current_user.id
+                    current_user.empleado_id
                 )
             else:
                 subarbol = await self.empleado_repo.get_ids_subarbol(
-                    current_user.id, estados
+                    current_user.empleado_id, estados
                 )
             return list(subarbol) + [current_user.id]
         if rol == "supervisor":
             if alcance_todos_los_estados:
                 directos = await self.empleado_repo.get_subordinados_directos_ids(
-                    current_user.id
+                    current_user.empleado_id
                 )
                 return directos + [current_user.id]
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, estados
+                current_user.empleado_id, estados
             )
             return [e.id for e in subordinados] + [current_user.id]
         return None
@@ -150,7 +150,7 @@ class UsuarioService:
             return
         if rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = {e.id for e in subordinados}
             if empleado_id in ids or empleado_id == current_user.id:

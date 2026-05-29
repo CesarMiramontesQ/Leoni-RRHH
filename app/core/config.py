@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: int = 2
     BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: int = 0
 
+    # Sincronización periódica bono_productividad.empleados → empleados
+    BONO_EMPLEADOS_IMPORT_ENABLED: bool = True
+    BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES: int = 30
+
     # Estados que se consideran "empleado activo" — ajustar en producción
     ESTADOS_ACTIVOS_IDS: List[int] = [1]
     # Estados mostrados como "Permiso" en filtros de líderes (p. ej. Suspendido)

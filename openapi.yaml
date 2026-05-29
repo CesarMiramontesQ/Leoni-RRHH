@@ -200,6 +200,7 @@ components:
           $ref: "#/components/schemas/ClasificacionEmpleadoResponse"
         lider_id:
           type: [integer, "null"]
+          description: empleado_id del líder inmediato
         centrocosto_id:
           type: [integer, "null"]
         recibe_bono:
@@ -249,6 +250,7 @@ components:
           $ref: "#/components/schemas/ClasificacionEmpleadoResponse"
         lider_id:
           type: [integer, "null"]
+          description: empleado_id del líder inmediato
         foto:
           type: [string, "null"]
         registro:
@@ -271,6 +273,7 @@ components:
       properties:
         lider_id:
           type: [integer, "null"]
+          description: empleado_id del líder inmediato
         rol_id:
           type: [integer, "null"]
 
@@ -603,6 +606,7 @@ components:
           type: [string, "null"]
         lider_id:
           type: [integer, "null"]
+          description: empleado_id del líder inmediato
         lider_nombre:
           type: [string, "null"]
         gerente_linea_id:

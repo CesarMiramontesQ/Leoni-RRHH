@@ -110,7 +110,7 @@ async def test_crear_solicitud_supervisor_para_subordinado_usa_empleado_id_objet
         db,
         rol="empleado",
         email="sol002b_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     headers = await auth_headers(client, supervisor)
 
@@ -135,7 +135,7 @@ async def test_crear_solicitud_supervisor_para_subordinado_home_office_un_dia_re
         db,
         rol="empleado",
         email="sol002b_sub_ho@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
         clasificacion_id=cl_admin.clasificacion_id,
     )
     headers = await auth_headers(client, supervisor)
@@ -574,7 +574,7 @@ async def test_listar_solicitudes_supervisor_ve_equipo(client: AsyncClient, db):
     # Subordinado del supervisor
     subordinado = await make_empleado(
         db, rol="empleado", email="sol009sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     # Empleado de otro equipo
     otro = await make_empleado(db, rol="empleado", email="sol009otro@leoni.test")
@@ -602,7 +602,7 @@ async def test_aprobar_solicitud_supervisor_directo_ok(client: AsyncClient, db):
     supervisor = await make_empleado(db, rol="supervisor", email="sol010sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol010sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -629,7 +629,7 @@ async def test_aprobar_solicitud_persiste_notificacion_in_app_para_requisitor(cl
         db,
         rol="empleado",
         email="sol_notif_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -671,7 +671,7 @@ async def test_aprobar_vacaciones_expira_accesos_comedor_en_rango(client: AsyncC
         db,
         rol="empleado",
         email="sol_vac_com_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(
         db,
@@ -761,7 +761,7 @@ async def test_aprobar_vacaciones_crea_notificacion_cancelacion_comidas(client: 
         db,
         rol="empleado",
         email="sol_vac_notif_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(
         db,
@@ -873,7 +873,7 @@ async def test_aprobar_solicitud_supervisor_no_directo_retorna_403(client: Async
     # Subordinado de supervisor_b, no de supervisor_a
     subordinado = await make_empleado(
         db, rol="empleado", email="sol012sub@leoni.test",
-        lider_id=supervisor_b.id,
+        lider_id=supervisor_b.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -898,7 +898,7 @@ async def test_aprobar_solicitud_supervisor_no_directo_retorna_403(client: Async
 async def test_aprobar_solicitud_supervisor_propia_retorna_403(client: AsyncClient, db):
     supervisor = await make_empleado(db, rol="supervisor", email="sol012bself@leoni.test")
     await db.execute(
-        update(Empleado).where(Empleado.id == supervisor.id).values(lider_id=supervisor.id)
+        update(Empleado).where(Empleado.id == supervisor.id).values(lider_id=supervisor.empleado_id)
     )
     await db.flush()
     solicitud = await make_solicitud(db, empleado_id=supervisor.id, estado="pending")
@@ -926,10 +926,10 @@ async def test_aprobar_solicitud_gerente_propia_supervisor_cierra_un_paso(client
     """
     gerente = await make_empleado(db, rol="gerente", email="sol012cg@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol012cs@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="sol012cs@leoni.test", lider_id=gerente.empleado_id
     )
     await db.execute(
-        update(Empleado).where(Empleado.id == gerente.id).values(lider_id=supervisor.id)
+        update(Empleado).where(Empleado.id == gerente.id).values(lider_id=supervisor.empleado_id)
     )
     await db.flush()
 
@@ -1083,7 +1083,7 @@ async def test_rechazar_solicitud_supervisor_retorna_rejected(client: AsyncClien
     supervisor = await make_empleado(db, rol="supervisor", email="sol019sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -1107,7 +1107,7 @@ async def test_rechazar_solicitud_no_pending_retorna_409(client: AsyncClient, db
     supervisor = await make_empleado(db, rol="supervisor", email="sol020sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol020sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="approved")
 
@@ -1135,7 +1135,7 @@ async def test_solicitar_cambios_supervisor_pending_ok(client: AsyncClient, db):
     supervisor = await make_empleado(db, rol="supervisor", email="sol019b_sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019b_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -1170,7 +1170,7 @@ async def test_solicitar_cambios_persiste_notificacion_in_app_para_requisitor(
     supervisor = await make_empleado(db, rol="supervisor", email="sol019c_sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019c_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -1213,7 +1213,7 @@ async def test_solicitar_cambios_no_pending_retorna_409(client: AsyncClient, db)
     supervisor = await make_empleado(db, rol="supervisor", email="sol019e_sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019e_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="approved")
 
@@ -1232,7 +1232,7 @@ async def test_patch_revision_requisitor_changes_requested_ok(client: AsyncClien
     supervisor = await make_empleado(db, rol="supervisor", email="sol019f_sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019f_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(
         db,
@@ -1267,7 +1267,7 @@ async def test_patch_revision_otro_empleado_retorna_403(client: AsyncClient, db)
     supervisor = await make_empleado(db, rol="supervisor", email="sol019g_sup@leoni.test")
     dueno = await make_empleado(
         db, rol="empleado", email="sol019g_own@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     otro = await make_empleado(db, rol="empleado", email="sol019g_otr@leoni.test")
     solicitud = await make_solicitud(db, empleado_id=dueno.id, estado="changes_requested")
@@ -1307,7 +1307,7 @@ async def test_patch_revision_supervisor_retorna_403(client: AsyncClient, db):
     supervisor = await make_empleado(db, rol="supervisor", email="sol019i_sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019i_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="changes_requested")
 
@@ -1350,7 +1350,7 @@ async def test_patch_revision_notifica_supervisor_corregida_reenviada(client: As
     supervisor = await make_empleado(db, rol="supervisor", email="sol019k_sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol019k_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(
         db,
@@ -1454,7 +1454,7 @@ async def test_get_aprobaciones_incluye_nombre_aprobador(client: AsyncClient, db
         db,
         rol="empleado",
         email="sol023b_sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="pending")
 
@@ -1488,7 +1488,7 @@ async def test_aprobar_solicitud_ya_aprobada_retorna_409(client: AsyncClient, db
     supervisor = await make_empleado(db, rol="supervisor", email="sol024sup@leoni.test")
     subordinado = await make_empleado(
         db, rol="empleado", email="sol024sub@leoni.test",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
     )
     solicitud = await make_solicitud(db, empleado_id=subordinado.id, estado="approved")
 
@@ -1724,10 +1724,10 @@ async def test_crear_solicitud_goce_no_rh_retorna_403(client: AsyncClient, db):
 async def test_listar_solicitudes_gerente_incluye_subarbol(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="sol028g@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol028s@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="sol028s@leoni.test", lider_id=gerente.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol028e@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="sol028e@leoni.test", lider_id=supervisor.empleado_id
     )
     solicitud = await make_solicitud(db, empleado_id=empleado.id)
 
@@ -1746,8 +1746,8 @@ async def test_listar_solicitudes_gerente_incluye_subarbol(client: AsyncClient, 
 async def test_get_solicitud_gerente_fuera_de_linea_retorna_403(client: AsyncClient, db):
     gerente_a = await make_empleado(db, rol="gerente", email="sol029ga@leoni.test")
     gerente_b = await make_empleado(db, rol="gerente", email="sol029gb@leoni.test")
-    sup_a = await make_empleado(db, rol="supervisor", email="sol029sa@leoni.test", lider_id=gerente_a.id)
-    emp_a = await make_empleado(db, rol="empleado", email="sol029ea@leoni.test", lider_id=sup_a.id)
+    sup_a = await make_empleado(db, rol="supervisor", email="sol029sa@leoni.test", lider_id=gerente_a.empleado_id)
+    emp_a = await make_empleado(db, rol="empleado", email="sol029ea@leoni.test", lider_id=sup_a.empleado_id)
     solicitud = await make_solicitud(db, empleado_id=emp_a.id)
 
     headers_b = await auth_headers(client, gerente_b)
@@ -1763,10 +1763,10 @@ async def test_get_solicitud_gerente_fuera_de_linea_retorna_403(client: AsyncCli
 async def test_aprobar_solicitud_gerente_linea_un_solo_paso_ok(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="sol030g@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol030s@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="sol030s@leoni.test", lider_id=gerente.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol030e@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="sol030e@leoni.test", lider_id=supervisor.empleado_id
     )
     solicitud = await make_solicitud(db, empleado_id=empleado.id)
 
@@ -1789,13 +1789,13 @@ async def test_aprobar_solicitud_gerente_linea_un_solo_paso_ok(client: AsyncClie
 async def test_aprobar_solicitud_gerente_raiz_subarbol_sin_ser_linea(client: AsyncClient, db):
     gerente_raiz = await make_empleado(db, rol="gerente", email="sol030br@leoni.test")
     gerente_intermedio = await make_empleado(
-        db, rol="gerente", email="sol030bi@leoni.test", lider_id=gerente_raiz.id
+        db, rol="gerente", email="sol030bi@leoni.test", lider_id=gerente_raiz.empleado_id
     )
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol030bs@leoni.test", lider_id=gerente_intermedio.id
+        db, rol="supervisor", email="sol030bs@leoni.test", lider_id=gerente_intermedio.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol030be@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="sol030be@leoni.test", lider_id=supervisor.empleado_id
     )
     solicitud = await make_solicitud(db, empleado_id=empleado.id)
 
@@ -1821,10 +1821,10 @@ async def test_aprobar_solicitud_gerente_raiz_subarbol_sin_ser_linea(client: Asy
 async def test_flujo_aprobacion_supervisor_un_paso_segundo_409(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="sol031g@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol031s@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="sol031s@leoni.test", lider_id=gerente.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol031e@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="sol031e@leoni.test", lider_id=supervisor.empleado_id
     )
     solicitud = await make_solicitud(db, empleado_id=empleado.id)
 
@@ -1868,10 +1868,10 @@ async def test_flujo_aprobacion_supervisor_un_paso_segundo_409(client: AsyncClie
 async def test_flujo_aprobacion_gerente_primero_ok(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="sol031bgg@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol031bss@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="sol031bss@leoni.test", lider_id=gerente.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol031bee@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="sol031bee@leoni.test", lider_id=supervisor.empleado_id
     )
     solicitud = await make_solicitud(db, empleado_id=empleado.id)
 
@@ -1902,10 +1902,10 @@ async def test_aprobar_otro_gerente_sin_permiso_o_ya_aprobada(client: AsyncClien
     gerente_a = await make_empleado(db, rol="gerente", email="sol032ga@leoni.test")
     gerente_b = await make_empleado(db, rol="gerente", email="sol032gb@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="sol032s@leoni.test", lider_id=gerente_a.id
+        db, rol="supervisor", email="sol032s@leoni.test", lider_id=gerente_a.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol032e@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="sol032e@leoni.test", lider_id=supervisor.empleado_id
     )
     solicitud = await make_solicitud(db, empleado_id=empleado.id)
 

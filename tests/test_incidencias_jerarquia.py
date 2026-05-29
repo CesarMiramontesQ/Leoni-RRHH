@@ -10,10 +10,10 @@ from tests.conftest import auth_headers, make_empleado, make_incidencia
 async def test_listar_incidencias_gerente_incluye_subarbol(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="inc_jer_g@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="inc_jer_s@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="inc_jer_s@leoni.test", lider_id=gerente.empleado_id
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="inc_jer_e@leoni.test", lider_id=supervisor.id
+        db, rol="empleado", email="inc_jer_e@leoni.test", lider_id=supervisor.empleado_id
     )
     incidencia = await make_incidencia(db, empleado_id=empleado.id)
 
@@ -28,13 +28,13 @@ async def test_listar_incidencias_gerente_incluye_subarbol(client: AsyncClient, 
 async def test_listar_incidencias_supervisor_solo_reportes_directos(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="inc_jer2_g@leoni.test")
     supervisor = await make_empleado(
-        db, rol="supervisor", email="inc_jer2_s@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="inc_jer2_s@leoni.test", lider_id=gerente.empleado_id
     )
     otro_supervisor = await make_empleado(
-        db, rol="supervisor", email="inc_jer2_s2@leoni.test", lider_id=gerente.id
+        db, rol="supervisor", email="inc_jer2_s2@leoni.test", lider_id=gerente.empleado_id
     )
     empleado_indirecto = await make_empleado(
-        db, rol="empleado", email="inc_jer2_e@leoni.test", lider_id=otro_supervisor.id
+        db, rol="empleado", email="inc_jer2_e@leoni.test", lider_id=otro_supervisor.empleado_id
     )
     incidencia_indirecta = await make_incidencia(db, empleado_id=empleado_indirecto.id)
 

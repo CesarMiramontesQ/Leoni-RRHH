@@ -919,7 +919,7 @@ class ActaService:
             return
         if rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = {e.id for e in subordinados}
             if empleado_id in ids or empleado_id == current_user.id:
@@ -1009,7 +1009,7 @@ class ActaService:
             total = await self.repo.count()
         elif rol == "gerente":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = [e.id for e in subordinados] + [current_user.id]
             items, next_cursor = await self.repo.list_paginated(
@@ -1094,7 +1094,7 @@ class ActaService:
             pass
         elif rol == "gerente":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = [e.id for e in subordinados] + [current_user.id]
             emp_filters = [ActaAdministrativa.empleado_id.in_(ids)]

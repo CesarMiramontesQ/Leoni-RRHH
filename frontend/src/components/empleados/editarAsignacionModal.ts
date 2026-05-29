@@ -74,28 +74,33 @@ function construirClaveBusquedaSupervisor(u: UsuarioListItem): string {
 
 function renderSupervisorOption(
   u: UsuarioListItem,
-  selectedLiderId: number | null,
+  selectedLiderEmpleadoId: number | null,
   selectedSuffix = "",
 ): string {
   const label = etiquetaSupervisor(u);
-  const sel = u.id === selectedLiderId ? "selected" : "";
-  return `<option value="${u.id}" ${sel}>${escapeHtml(label)} · #${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}${escapeHtml(selectedSuffix)}</option>`;
+  const sel = u.empleado_id === selectedLiderEmpleadoId ? "selected" : "";
+  return `<option value="${u.empleado_id}" ${sel}>${escapeHtml(label)} · #${escapeHtml(formatNoEmpleadoDisplay(u.no_empleado))}${escapeHtml(selectedSuffix)}</option>`;
 }
 
 function renderSupervisorOptions(
-  empleadoId: number,
+  empleadoEmpleadoId: number,
   supervisoresOriginales: UsuarioListItem[],
   supervisoresFiltrados: UsuarioListItem[],
-  selectedLiderId: number | null,
+  selectedLiderEmpleadoId: number | null,
 ): string {
-  const seleccion = selectedLiderId == null ? "selected" : "";
+  const seleccion = selectedLiderEmpleadoId == null ? "selected" : "";
   let html = `<option value="" ${seleccion}>Sin líder</option>`;
 
-  const filtradosSinSelf = supervisoresFiltrados.filter((u) => u.id !== empleadoId);
-  if (selectedLiderId != null && !filtradosSinSelf.some((u) => u.id === selectedLiderId)) {
-    const seleccionado = supervisoresOriginales.find((u) => u.id === selectedLiderId && u.id !== empleadoId);
+  const filtradosSinSelf = supervisoresFiltrados.filter((u) => u.empleado_id !== empleadoEmpleadoId);
+  if (
+    selectedLiderEmpleadoId != null &&
+    !filtradosSinSelf.some((u) => u.empleado_id === selectedLiderEmpleadoId)
+  ) {
+    const seleccionado = supervisoresOriginales.find(
+      (u) => u.empleado_id === selectedLiderEmpleadoId && u.empleado_id !== empleadoEmpleadoId,
+    );
     if (seleccionado) {
-      html += renderSupervisorOption(seleccionado, selectedLiderId, " (seleccionado)");
+      html += renderSupervisorOption(seleccionado, selectedLiderEmpleadoId, " (seleccionado)");
     }
   }
 
@@ -104,7 +109,7 @@ function renderSupervisorOptions(
     return html;
   }
 
-  html += filtradosSinSelf.map((u) => renderSupervisorOption(u, selectedLiderId)).join("");
+  html += filtradosSinSelf.map((u) => renderSupervisorOption(u, selectedLiderEmpleadoId)).join("");
   return html;
 }
 
@@ -166,7 +171,7 @@ function formBodyHtml(
     .join("");
 
   const supOpts = renderSupervisorOptions(
-    empleado.id,
+    empleado.empleado_id,
     supervisores,
     supervisores,
     empleado.lider_id ?? null,
@@ -356,7 +361,7 @@ export function mountEditarAsignacionModal(
               .map((item) => item.supervisor);
 
       liderSelect.innerHTML = renderSupervisorOptions(
-        empleado.id,
+        empleado.empleado_id,
         supervisores,
         filtrados,
         Number.isNaN(selectedLiderId ?? Number.NaN) ? null : selectedLiderId,
@@ -368,7 +373,7 @@ export function mountEditarAsignacionModal(
       if (liderSelect.value !== selectedStr) liderSelect.value = "";
 
       if (!status) return;
-      if (termino && filtrados.filter((u) => u.id !== empleado.id).length === 0) {
+      if (termino && filtrados.filter((u) => u.empleado_id !== empleado.empleado_id).length === 0) {
         status.textContent = "Sin resultados";
         return;
       }

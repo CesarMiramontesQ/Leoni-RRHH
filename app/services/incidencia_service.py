@@ -93,13 +93,13 @@ class IncidenciaService:
             return []
         if rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = [e.id for e in subordinados] + [current_user.id]
             return [Incidencia.empleado_id.in_(ids)]
         if rol == "gerente":
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = list(equipo) + [current_user.id]
             return [Incidencia.empleado_id.in_(ids)]
@@ -425,7 +425,7 @@ class IncidenciaService:
 
         if rol in ("gerente", "supervisor"):
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             permitidos = {e.id for e in subordinados} | {current_user.id}
             if data.empleado_id not in permitidos:

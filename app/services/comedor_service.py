@@ -211,7 +211,7 @@ class ComedorService:
             return beneficiario_id
 
         subordinados = await self.empleado_repo.get_subordinados(
-            current_user.id,
+            current_user.empleado_id,
             settings.ESTADOS_ACTIVOS_IDS,
         )
         subordinados_ids = {emp.id for emp in subordinados}
@@ -228,7 +228,7 @@ class ComedorService:
         if self._get_rol(current_user) != "supervisor":
             raise ForbiddenError(detail="Solo supervisor puede consultar beneficiarios")
         subordinados = await self.empleado_repo.get_subordinados(
-            current_user.id,
+            current_user.empleado_id,
             settings.ESTADOS_ACTIVOS_IDS,
         )
         rows = [current_user, *sorted(subordinados, key=lambda x: (x.nombre or "").lower())]
@@ -451,7 +451,7 @@ class ComedorService:
         if self._get_rol(current_user) not in ("supervisor", "gerente"):
             raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar reservas de equipo")
         equipo_ids = await self.empleado_repo.get_ids_subarbol(
-            current_user.id,
+            current_user.empleado_id,
             settings.ESTADOS_ACTIVOS_IDS,
         )
         equipo_ids.add(current_user.id)
@@ -487,7 +487,7 @@ class ComedorService:
         ultimo = calendar.monthrange(anio, mes)[1]
         hasta = date(anio, mes, ultimo)
         equipo_ids = await self.empleado_repo.get_ids_subarbol(
-            current_user.id,
+            current_user.empleado_id,
             settings.ESTADOS_ACTIVOS_IDS,
         )
         equipo_ids.add(current_user.id)
@@ -524,7 +524,7 @@ class ComedorService:
         fin_semana_siguiente = inicio_semana_siguiente + timedelta(days=6)
 
         equipo_ids = await self.empleado_repo.get_ids_subarbol(
-            current_user.id,
+            current_user.empleado_id,
             settings.ESTADOS_ACTIVOS_IDS,
         )
         equipo_ids.add(current_user.id)
