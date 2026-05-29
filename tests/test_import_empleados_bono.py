@@ -179,3 +179,41 @@ def test_aplicar_payload_actualiza_otros_campos_aunque_no_empleado_sea_equivalen
     assert _aplicar_payload(empleado, payload) is True
     assert empleado.no_empleado == "108.0"
     assert empleado.nombre == "David Actualizado"
+
+
+def test_payload_desde_bono_normaliza_booleano_si_no():
+    row = {
+        "empleado_id": 34,
+        "no_empleado": "200",
+        "nombre": "Restringido",
+        "a_restringido": "N",
+        "recibe_bono": "S",
+        "requiere_cambio_password": "N",
+    }
+    payload = _payload_desde_bono(
+        row,
+        [
+            "empleado_id",
+            "no_empleado",
+            "nombre",
+            "a_restringido",
+            "recibe_bono",
+            "requiere_cambio_password",
+        ],
+    )
+    assert payload["a_restringido"] is False
+    assert payload["recibe_bono"] is True
+    assert payload["requiere_cambio_password"] is False
+
+
+def test_payload_desde_bono_booleano_vacio_queda_none():
+    row = {
+        "empleado_id": 35,
+        "no_empleado": "201",
+        "nombre": "Sin flag",
+        "a_restringido": " ",
+    }
+    payload = _payload_desde_bono(
+        row, ["empleado_id", "no_empleado", "nombre", "a_restringido"]
+    )
+    assert payload["a_restringido"] is None
