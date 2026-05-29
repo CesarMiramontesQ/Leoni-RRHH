@@ -1,16 +1,18 @@
 /**
  * Modal para editar cualificaciones de un perfil de puesto (solo RH).
- * Permite agregar y eliminar cualificaciones inmediatamente.
+ * Formulario condicional por tipo con toggle N/A, años numéricos y autocomplete.
  */
 
 import {
   getPerfilCualificaciones,
   createPerfilCualificacion,
   deletePerfilCualificacion,
+  getSugerenciasCualificacion,
   type PerfilCualificacion,
 } from "../../api/puestos.ts";
+import { CATALOGO_ESCOLARIDAD, escolaridadLabel } from "../../ui/catalogoEscolaridad.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON, badgeCancelled } from "../../ui/uiTokens.ts";
 
 export type EditarCualificacionesModalHandle = {
   open: () => void;
@@ -35,6 +37,15 @@ const TIPO_OPTIONS: { value: string; label: string }[] = [
 const TIPO_LABELS: Record<string, string> = Object.fromEntries(
   TIPO_OPTIONS.map(o => [o.value, o.label]),
 );
+
+const TIPOS_CON_NA = new Set([
+  "formacion_profesional", "ampliacion_formacion", "estudios_universitarios", "experiencia_direccion",
+]);
+const TIPOS_CON_ANIOS = new Set(["experiencia_profesional", "experiencia_direccion"]);
+const TIPOS_CON_AUTOCOMPLETE = new Set([
+  "formacion_profesional", "ampliacion_formacion", "estudios_universitarios",
+  "experiencia_profesional", "experiencia_direccion",
+]);
 
 function overlayHtml(): string {
   return `
@@ -75,18 +86,29 @@ function renderList(cualificaciones: PerfilCualificacion[]): string {
   }
   return `
     <div class="max-h-60 overflow-y-auto divide-y divide-slate-100 mb-4">
-      ${cualificaciones.map(c => `
+      ${cualificaciones.map(c => {
+        const isNA = c.situacion_deseada === "N/A";
+        let valor: string;
+        if (isNA) {
+          valor = badgeCancelled("No aplica");
+        } else if (c.tipo === "estudios_finalizados") {
+          valor = escapeHtml(escolaridadLabel(c.situacion_deseada));
+        } else {
+          valor = escapeHtml(c.situacion_deseada);
+        }
+        const aniosInfo = c.anios_minimos != null ? `<span class="text-xs text-slate-500 ml-1">(${c.anios_minimos} años mín.)</span>` : "";
+        return `
         <div class="flex items-start justify-between gap-2 py-2">
           <div class="min-w-0">
             <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</span>
-            <span class="text-sm text-text-primary">${escapeHtml(c.situacion_deseada)}</span>
+            <span class="text-sm text-text-primary">${valor}${aniosInfo}</span>
             ${c.comentarios ? `<span class="block text-xs text-slate-500 mt-0.5">${escapeHtml(c.comentarios)}</span>` : ""}
           </div>
           <button type="button" data-delete-cualificacion="${c.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-        </div>
-      `).join("")}
+        </div>`;
+      }).join("")}
     </div>`;
 }
 
@@ -108,11 +130,26 @@ function renderForm(): string {
           ${SELECT_CHEVRON}
         </div>
       </div>
-      <div>
+      <div id="cual-na-wrap" class="hidden">
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="cual-na-toggle" class="size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+          <span class="text-sm text-slate-700">No aplica</span>
+        </label>
+      </div>
+      <div id="cual-anios-wrap" class="hidden">
+        <label for="cual-anios" class="mb-1 block text-xs font-medium text-slate-600">Años mínimos de experiencia</label>
+        <input id="cual-anios" name="anios_minimos" type="number" min="0" step="1"
+          class="block w-32 rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          placeholder="0" />
+      </div>
+      <div id="cual-situacion-container">
         <label for="cual-situacion" class="mb-1 block text-xs font-medium text-slate-600">Situacion deseada</label>
-        <input id="cual-situacion" name="situacion_deseada" type="text" required
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-          placeholder="Descripcion de la situacion deseada" />
+        <div id="cual-situacion-wrap" class="relative">
+          <input id="cual-situacion" name="situacion_deseada" type="text" required autocomplete="off"
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Descripcion de la situacion deseada" />
+          <div id="cual-sugerencias" class="absolute z-10 mt-1 hidden max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg"></div>
+        </div>
       </div>
       <div>
         <label for="cual-comentarios" class="mb-1 block text-xs font-medium text-slate-600">Comentarios (opcional)</label>
@@ -136,6 +173,7 @@ export function mountEditarCualificacionesModal(
   const body = host.querySelector("#editar-cualificaciones-body") as HTMLElement;
 
   let loading = false;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function close(): void {
     overlay.classList.add("hidden");
@@ -178,23 +216,139 @@ export function mountEditarCualificacionesModal(
   function bindForm(): void {
     const form = body.querySelector("#form-agregar-cualificacion") as HTMLFormElement | null;
     if (!form) return;
+
+    const tipoSelect = form.querySelector("#cual-tipo") as HTMLSelectElement;
+    const naWrap = form.querySelector("#cual-na-wrap") as HTMLElement;
+    const naToggle = form.querySelector("#cual-na-toggle") as HTMLInputElement;
+    const aniosWrap = form.querySelector("#cual-anios-wrap") as HTMLElement;
+    const situacionContainer = form.querySelector("#cual-situacion-container") as HTMLElement;
+    const wrap = form.querySelector("#cual-situacion-wrap") as HTMLElement;
+
+    function updateFormFields(): void {
+      const tipo = tipoSelect.value;
+      const showNA = TIPOS_CON_NA.has(tipo);
+      const showAnios = TIPOS_CON_ANIOS.has(tipo);
+      const isEscolaridad = tipo === "estudios_finalizados";
+      const isComplementos = tipo === "complementos";
+
+      // Toggle N/A
+      naWrap.classList.toggle("hidden", !showNA);
+      if (!showNA) naToggle.checked = false;
+
+      // Años
+      aniosWrap.classList.toggle("hidden", !showAnios);
+
+      // Situacion field
+      if (naToggle.checked) {
+        situacionContainer.classList.add("hidden");
+      } else if (isEscolaridad) {
+        situacionContainer.classList.remove("hidden");
+        const opts = CATALOGO_ESCOLARIDAD.map(n =>
+          `<option value="${n.key}">${escapeHtml(n.label)}</option>`
+        ).join("");
+        wrap.innerHTML = `
+          <div class="grid grid-cols-1">
+            <select id="cual-situacion" name="situacion_deseada" required
+              class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+              ${opts}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>`;
+      } else if (isComplementos) {
+        situacionContainer.classList.remove("hidden");
+        wrap.innerHTML = `
+          <textarea id="cual-situacion" name="situacion_deseada" required rows="6"
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Requisitos, NOMs, etc."></textarea>`;
+      } else if (showAnios) {
+        situacionContainer.classList.remove("hidden");
+        const label = tipo === "experiencia_profesional" ? "Conocimientos y habilidades requeridas" : "Descripcion adicional";
+        wrap.innerHTML = `
+          <textarea id="cual-situacion" name="situacion_deseada" required rows="3" autocomplete="off"
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="${label}"></textarea>
+          <div id="cual-sugerencias" class="absolute z-10 mt-1 hidden max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg"></div>`;
+        bindAutocomplete(tipo);
+      } else {
+        situacionContainer.classList.remove("hidden");
+        wrap.innerHTML = `
+          <input id="cual-situacion" name="situacion_deseada" type="text" required autocomplete="off"
+            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            placeholder="Descripcion de la situacion deseada" />
+          <div id="cual-sugerencias" class="absolute z-10 mt-1 hidden max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg"></div>`;
+        if (TIPOS_CON_AUTOCOMPLETE.has(tipo)) bindAutocomplete(tipo);
+      }
+    }
+
+    function bindAutocomplete(tipo: string): void {
+      const input = wrap.querySelector("#cual-situacion") as HTMLInputElement | HTMLTextAreaElement | null;
+      const sugDiv = wrap.querySelector("#cual-sugerencias") as HTMLElement | null;
+      if (!input || !sugDiv) return;
+
+      input.addEventListener("input", () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        const val = input.value.trim();
+        if (val.length < 2) { sugDiv.classList.add("hidden"); return; }
+        debounceTimer = setTimeout(async () => {
+          const items = await getSugerenciasCualificacion(tipo, val);
+          if (items.length === 0) { sugDiv.classList.add("hidden"); return; }
+          sugDiv.innerHTML = items.map(s =>
+            `<button type="button" class="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100" data-sug="${escapeHtml(s)}">${escapeHtml(s)}</button>`
+          ).join("");
+          sugDiv.classList.remove("hidden");
+        }, 320);
+      });
+
+      input.addEventListener("blur", () => {
+        setTimeout(() => sugDiv.classList.add("hidden"), 200);
+      });
+
+      sugDiv.addEventListener("click", (e) => {
+        const btn = (e.target as HTMLElement).closest("[data-sug]") as HTMLElement | null;
+        if (!btn) return;
+        input.value = btn.dataset.sug ?? "";
+        sugDiv.classList.add("hidden");
+      });
+    }
+
+    naToggle.addEventListener("change", updateFormFields);
+    tipoSelect.addEventListener("change", () => {
+      naToggle.checked = false;
+      updateFormFields();
+    });
+    updateFormFields();
+
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (loading) return;
       loading = true;
 
-      const fd = new FormData(form);
-      const tipo = String(fd.get("tipo") ?? "").trim();
-      const situacion_deseada = String(fd.get("situacion_deseada") ?? "").trim();
-      const comentarios = String(fd.get("comentarios") ?? "").trim() || undefined;
+      const tipo = tipoSelect.value;
+      let situacion_deseada: string;
+      let anios_minimos: number | undefined;
 
-      if (!tipo || !situacion_deseada) { loading = false; return; }
+      if (naToggle.checked) {
+        situacion_deseada = "N/A";
+      } else {
+        const fd = new FormData(form);
+        situacion_deseada = String(fd.get("situacion_deseada") ?? "").trim();
+        if (!situacion_deseada) { loading = false; return; }
+      }
+
+      if (TIPOS_CON_ANIOS.has(tipo)) {
+        const aniosInput = form.querySelector("#cual-anios") as HTMLInputElement | null;
+        const raw = aniosInput?.value?.trim();
+        if (raw) anios_minimos = Number(raw);
+      }
+
+      const fd2 = new FormData(form);
+      const comentarios = String(fd2.get("comentarios") ?? "").trim() || undefined;
 
       const submitBtn = form.querySelector<HTMLButtonElement>("button[type=submit]");
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Agregando..."; }
 
       try {
-        await createPerfilCualificacion(options.perfilId, { tipo, situacion_deseada, comentarios });
+        await createPerfilCualificacion(options.perfilId, { tipo, situacion_deseada, comentarios, anios_minimos });
         options.onSuccess();
         await refreshList();
       } catch {

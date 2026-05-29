@@ -1,10 +1,11 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { getAccessToken } from "../auth/session.ts";
-import { BTN_GHOST, BTN_PRIMARY, FIELD_FOCUS } from "../ui/uiTokens.ts";
+import { BTN_GHOST, BTN_PRIMARY, FIELD_FOCUS, badgeCancelled } from "../ui/uiTokens.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
+import { escolaridadLabel } from "../ui/catalogoEscolaridad.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasModal.ts";
 import { updatePerfil } from "../api/puestos.ts";
 
@@ -31,6 +32,7 @@ interface Cualificacion {
   tipo: string;
   situacion_deseada: string;
   comentarios: string | null;
+  anios_minimos: number | null;
 }
 
 interface Competencia {
@@ -207,14 +209,27 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
   const sections = Array.from(grouped.entries()).map(([tipo, items]) => `
     <div class="mb-4 last:mb-0">
       <p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">${TIPO_LABELS[tipo] ?? tipo}</p>
-      ${items.map(c => `
+      ${items.map(c => {
+        const isNA = c.situacion_deseada === "N/A";
+        let valor: string;
+        if (isNA) {
+          valor = badgeCancelled("No aplica");
+        } else if (c.tipo === "estudios_finalizados") {
+          valor = escapeHtml(escolaridadLabel(c.situacion_deseada));
+        } else if (c.tipo === "complementos") {
+          valor = `<span class="whitespace-pre-line">${escapeHtml(c.situacion_deseada)}</span>`;
+        } else {
+          valor = escapeHtml(c.situacion_deseada);
+        }
+        const aniosInfo = c.anios_minimos != null ? `<span class="text-xs text-slate-500 ml-1">(${c.anios_minimos} años mín.)</span>` : "";
+        return `
         <div class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 mb-2 last:mb-0">
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-text-primary">${escapeHtml(c.situacion_deseada)}</p>
+            <p class="text-sm font-medium text-text-primary">${valor}${aniosInfo}</p>
             ${c.comentarios ? `<p class="mt-0.5 text-xs text-slate-500">${escapeHtml(c.comentarios)}</p>` : ""}
           </div>
-        </div>
-      `).join("")}
+        </div>`;
+      }).join("")}
     </div>
   `).join("");
 

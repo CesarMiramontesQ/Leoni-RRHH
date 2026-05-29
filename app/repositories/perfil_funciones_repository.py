@@ -6,7 +6,7 @@ Maneja: PerfilTarea, PerfilCualificacion,
         PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia.
 """
 
-from sqlalchemy import select
+from sqlalchemy import distinct, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,6 +15,7 @@ from app.models.talento import (
     PerfilFunciones,
     PerfilFuncionesCualificacion,
     PerfilFuncionesCompetencia,
+    PerfilFuncionesTarea,
     PerfilTarea,
 )
 from app.repositories.base import BaseRepository
@@ -35,6 +36,9 @@ class PerfilTareaRepository(BaseRepository[PerfilTarea]):
         return list(result.scalars().all())
 
 
+_NA_VARIANTS = ("N/A", "NA", "n.a", "n.a.", "Ninguna", "ninguna", "N/a")
+
+
 class PerfilCualificacionRepository(BaseRepository[PerfilCualificacion]):
     def __init__(self, db: AsyncSession):
         super().__init__(PerfilCualificacion, db)
@@ -47,6 +51,21 @@ class PerfilCualificacionRepository(BaseRepository[PerfilCualificacion]):
             .order_by(PerfilCualificacion.id)
         )
         return list(result.scalars().all())
+
+    async def buscar_sugerencias(self, tipo: str, q: str, limit: int = 10) -> list[str]:
+        """Valores DISTINCT de situacion_deseada filtrados por tipo y query, excluyendo N/A."""
+        stmt = (
+            select(distinct(PerfilCualificacion.situacion_deseada))
+            .where(
+                PerfilCualificacion.tipo == tipo,
+                PerfilCualificacion.situacion_deseada.notin_(_NA_VARIANTS),
+            )
+        )
+        if q:
+            stmt = stmt.where(PerfilCualificacion.situacion_deseada.ilike(f"%{q}%"))
+        stmt = stmt.order_by(PerfilCualificacion.situacion_deseada).limit(limit)
+        result = await self.db.execute(stmt)
+        return [row[0] for row in result.all()]
 
 
 class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
@@ -139,6 +158,33 @@ class PerfilFuncionesCompetenciaRepository(BaseRepository[PerfilFuncionesCompete
             select(PerfilFuncionesCompetencia).where(
                 PerfilFuncionesCompetencia.perfil_funciones_id == perfil_funciones_id,
                 PerfilFuncionesCompetencia.competencia_requisito_id == competencia_requisito_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+class PerfilFuncionesTareaRepository(BaseRepository[PerfilFuncionesTarea]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(PerfilFuncionesTarea, db)
+
+    async def list_by_asignacion(self, perfil_funciones_id: int) -> list[PerfilFuncionesTarea]:
+        """Lista tareas extra de una asignacion con datos del catalogo."""
+        result = await self.db.execute(
+            select(PerfilFuncionesTarea)
+            .options(selectinload(PerfilFuncionesTarea.tarea_catalogo))
+            .where(PerfilFuncionesTarea.perfil_funciones_id == perfil_funciones_id)
+            .order_by(PerfilFuncionesTarea.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_by_pair(
+        self, perfil_funciones_id: int, tarea_catalogo_id: int
+    ) -> PerfilFuncionesTarea | None:
+        """Obtiene tarea extra por par asignacion-tarea_catalogo."""
+        result = await self.db.execute(
+            select(PerfilFuncionesTarea).where(
+                PerfilFuncionesTarea.perfil_funciones_id == perfil_funciones_id,
+                PerfilFuncionesTarea.tarea_catalogo_id == tarea_catalogo_id,
             )
         )
         return result.scalar_one_or_none()

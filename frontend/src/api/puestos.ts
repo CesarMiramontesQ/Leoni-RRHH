@@ -209,7 +209,13 @@ export async function reorderPerfilTareas(perfilId: number, items: { id: number;
 
 // ── Cualificaciones ──────────────────────────────────────────────────────────
 
-export type PerfilCualificacion = { id: number; tipo: string; situacion_deseada: string; comentarios: string | null };
+export type PerfilCualificacion = {
+  id: number;
+  tipo: string;
+  situacion_deseada: string;
+  comentarios: string | null;
+  anios_minimos: number | null;
+};
 
 /** GET /api/v1/perfiles/:id/cualificaciones */
 export async function getPerfilCualificaciones(perfilId: number): Promise<PerfilCualificacion[]> {
@@ -221,7 +227,7 @@ export async function getPerfilCualificaciones(perfilId: number): Promise<Perfil
 /** POST /api/v1/perfiles/:id/cualificaciones */
 export async function createPerfilCualificacion(
   perfilId: number,
-  body: { tipo: string; situacion_deseada: string; comentarios?: string },
+  body: { tipo: string; situacion_deseada: string; comentarios?: string; anios_minimos?: number },
 ): Promise<PerfilCualificacion> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones`, {
     method: "POST",
@@ -238,6 +244,14 @@ export async function deletePerfilCualificacion(perfilId: number, cualificacionI
     method: "DELETE",
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
+/** GET /api/v1/perfiles/catalogos/sugerencias?tipo=X&q=Y */
+export async function getSugerenciasCualificacion(tipo: string, q: string, limit = 10): Promise<string[]> {
+  const params = new URLSearchParams({ tipo, q, limit: String(limit) });
+  const res = await fetchWithAuth(`/api/v1/perfiles/catalogos/sugerencias?${params}`);
+  if (!res.ok) return [];
+  return (await res.json()) as string[];
 }
 
 // ── Competencias requeridas (tabla unificada) ───────────────────────────────
@@ -272,6 +286,56 @@ export async function createPerfilCompetencia(
   return (await res.json()) as PerfilCompetencia;
 }
 
+// ── Gap Analysis / Evaluaciones ──────────────────────────────────────────────
+
+export type GapCualificacion = {
+  cualificacion_id: number;
+  tipo: string;
+  situacion_deseada: string;
+  situacion_actual: string | null;
+  comentarios: string | null;
+  evaluado: boolean;
+  cumple: boolean | null;
+  anios_minimos: number | null;
+  anios_actuales: number | null;
+};
+
+export type GapAnalysis = {
+  asignacion: { id: number; empleado_id: number; [k: string]: unknown };
+  gap_cualificaciones: GapCualificacion[];
+  gap_competencias: unknown[];
+  resumen: { total_cualificaciones: number; evaluadas_cualificaciones: number; pendientes_cualificaciones: number };
+};
+
+/** GET /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (gap analysis) */
+export async function getAsignacionGap(perfilId: number, asignacionId: number): Promise<GapAnalysis> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`);
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as GapAnalysis;
+}
+
+export type EvaluacionCualificacionPayload = {
+  cualificacion_id: number;
+  situacion_actual: string;
+  comentarios?: string;
+  anios_actuales?: number;
+};
+
+/** PUT /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (upsert evaluaciones) */
+export async function updateEvaluaciones(
+  perfilId: number,
+  asignacionId: number,
+  body: { evaluaciones_cualificacion?: EvaluacionCualificacionPayload[] },
+): Promise<GapAnalysis> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as GapAnalysis;
+}
+
 // ── Asignaciones ─────────────────────────────────────────────────────────────
 
 /** POST /api/v1/perfiles/:id/asignaciones */
@@ -293,5 +357,59 @@ export async function deletePerfilAsignacion(perfilId: number, asignacionId: num
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`, {
     method: "DELETE",
   });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
+// ── Tareas Extra (per-employee) ──────────────────────────────────────────────
+
+export type PerfilTareaExtra = {
+  id: number;
+  perfil_funciones_id: number;
+  tarea_catalogo_id: number;
+  tarea_catalogo_nombre: string;
+  tarea_catalogo_categoria: string | null;
+  created_at: string;
+};
+
+/** GET /api/v1/perfiles/:perfilId/asignaciones/:asignacionId/tareas-extra */
+export async function getAsignacionTareasExtra(
+  perfilId: number,
+  asignacionId: number,
+): Promise<PerfilTareaExtra[]> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/tareas-extra`,
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTareaExtra[];
+}
+
+/** POST /api/v1/perfiles/:perfilId/asignaciones/:asignacionId/tareas-extra */
+export async function createAsignacionTareaExtra(
+  perfilId: number,
+  asignacionId: number,
+  body: { tarea_catalogo_id: number },
+): Promise<PerfilTareaExtra> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/tareas-extra`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTareaExtra;
+}
+
+/** DELETE /api/v1/perfiles/:perfilId/asignaciones/:asignacionId/tareas-extra/:tareaExtraId */
+export async function deleteAsignacionTareaExtra(
+  perfilId: number,
+  asignacionId: number,
+  tareaExtraId: number,
+): Promise<void> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/tareas-extra/${tareaExtraId}`,
+    { method: "DELETE" },
+  );
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }

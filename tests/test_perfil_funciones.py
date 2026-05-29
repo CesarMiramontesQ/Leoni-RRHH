@@ -98,7 +98,8 @@ async def make_perfil_with_cualificaciones(db: AsyncSession):
 
 async def make_perfil_with_competencias(db: AsyncSession):
     """Crea un perfil con competencias requeridas."""
-    from app.models.talento import PerfilCompetenciaRequerida
+    from app.models.talento import CompetenciaRequisito
+    from tests.conftest_talento import make_competencia
 
     area = await make_area(db, descripcion="Logistica Test")
     rh = await make_empleado(db, rol="rh", email="pf_comp_rh@leoni.test")
@@ -106,11 +107,11 @@ async def make_perfil_with_competencias(db: AsyncSession):
 
     categorias = ["informatica", "profesional", "social"]
     for i, cat in enumerate(categorias):
-        comp = PerfilCompetenciaRequerida(
+        competencia = await make_competencia(db, nombre=f"Comp {cat} #{i+1}", categoria="tecnica")
+        comp = CompetenciaRequisito(
+            competencia_id=competencia.id,
             puesto_perfil_id=perfil.id,
-            categoria=cat,
-            descripcion=f"Competencia {cat} #{i+1}",
-            orden=i + 1,
+            nivel_requerido=i + 1,
         )
         db.add(comp)
 
@@ -325,7 +326,7 @@ async def test_crear_cualificacion_success(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_listar_competencias_success(client: AsyncClient, db):
-    """GET /perfiles/{id}/competencias retorna competencias por categoria."""
+    """GET /perfiles/{id}/competencias retorna competencias requeridas."""
     perfil, rh = await make_perfil_with_competencias(db)
     headers = await auth_headers(client, rh)
 
@@ -337,19 +338,21 @@ async def test_listar_competencias_success(client: AsyncClient, db):
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 3
-    categorias = {c["categoria"] for c in data}
-    assert categorias == {"informatica", "profesional", "social"}
+    assert all("competencia_id" in c for c in data)
 
 
 @pytest.mark.asyncio
 async def test_crear_competencia_success(client: AsyncClient, db):
     """POST /perfiles/{id}/competencias crea competencia requerida."""
+    from tests.conftest_talento import make_competencia
+
     area = await make_area(db, descripcion="Crear Comp Test")
     rh = await make_empleado(db, rol="rh", email="pf_ccomp_rh@leoni.test")
     perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    competencia = await make_competencia(db, nombre="Ingles B2", categoria="tecnica")
     headers = await auth_headers(client, rh)
 
-    payload = {"categoria": "idiomas", "descripcion": "Ingles B2", "orden": 1}
+    payload = {"competencia_id": competencia.id}
     response = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
         json=payload,
@@ -358,8 +361,7 @@ async def test_crear_competencia_success(client: AsyncClient, db):
 
     assert response.status_code == 201
     data = response.json()
-    assert data["categoria"] == "idiomas"
-    assert data["descripcion"] == "Ingles B2"
+    assert data["competencia_id"] == competencia.id
 
 
 # ===========================================================================
@@ -423,10 +425,11 @@ async def test_crear_asignacion_empleado_inexistente_retorna_404(client: AsyncCl
 async def _setup_asignacion_con_datos(db: AsyncSession):
     """Helper: crea perfil con cualificaciones, competencias y una asignacion activa."""
     from app.models.talento import (
-        PerfilCompetenciaRequerida,
+        CompetenciaRequisito,
         PerfilCualificacion,
         PerfilFunciones,
     )
+    from tests.conftest_talento import make_competencia
 
     area = await make_area(db, descripcion="Eval Suite Test")
     rh = await make_empleado(db, rol="rh", email="pf_evs_rh@leoni.test")
@@ -440,11 +443,11 @@ async def _setup_asignacion_con_datos(db: AsyncSession):
     )
     db.add(cual)
 
-    comp = PerfilCompetenciaRequerida(
+    competencia = await make_competencia(db, nombre="SAP basico", categoria="tecnica")
+    comp = CompetenciaRequisito(
+        competencia_id=competencia.id,
         puesto_perfil_id=perfil.id,
-        categoria="informatica",
-        descripcion="SAP basico",
-        orden=1,
+        nivel_requerido=3,
     )
     db.add(comp)
 
@@ -550,7 +553,7 @@ async def test_put_evaluaciones_happy_path_crea_evaluacion(client: AsyncClient, 
             {"cualificacion_id": cual.id, "situacion_actual": "Tiene titulo", "comentarios": "OK"}
         ],
         "evaluaciones_competencia": [
-            {"competencia_requerida_id": comp.id, "situacion_actual": "SAP intermedio"}
+            {"competencia_requisito_id": comp.id, "situacion_actual": "SAP intermedio"}
         ],
     }
     response = await client.put(
@@ -726,3 +729,491 @@ async def test_put_evaluaciones_empleado_no_autorizado_retorna_403(client: Async
     )
 
     assert response.status_code == 403
+
+
+# ===========================================================================
+# CUALIFICACIONES — Auto-compliance escolaridad
+# ===========================================================================
+
+
+async def _setup_escolaridad(db: AsyncSession):
+    """Helper: perfil con cualificacion estudios_finalizados usando clave del catalogo."""
+    from app.models.talento import PerfilCualificacion, PerfilFunciones
+
+    area = await make_area(db, descripcion="Escolaridad Compliance Test")
+    rh = await make_empleado(db, rol="rh", email="pf_esc_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_esc_emp@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    cual = PerfilCualificacion(
+        puesto_perfil_id=perfil.id,
+        tipo="estudios_finalizados",
+        situacion_deseada="preparatoria",
+    )
+    db.add(cual)
+
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=perfil.id,
+        empleado_id=emp.id,
+        departamento="Test",
+        activo=True,
+    )
+    db.add(asignacion)
+    await db.flush()
+    await db.refresh(cual)
+    await db.refresh(asignacion)
+    return perfil, rh, emp, asignacion, cual
+
+
+@pytest.mark.asyncio
+async def test_crear_cualificacion_estudios_finalizados_clave_valida(client: AsyncClient, db):
+    """POST cualificacion tipo estudios_finalizados con clave valida → 201."""
+    area = await make_area(db, descripcion="EscVal Test")
+    rh = await make_empleado(db, rol="rh", email="pf_escval_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json={"tipo": "estudios_finalizados", "situacion_deseada": "licenciatura"},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["situacion_deseada"] == "licenciatura"
+
+
+@pytest.mark.asyncio
+async def test_crear_cualificacion_estudios_finalizados_texto_libre_retorna_422(client: AsyncClient, db):
+    """POST cualificacion tipo estudios_finalizados con texto libre → 422."""
+    area = await make_area(db, descripcion="EscInv Test")
+    rh = await make_empleado(db, rol="rh", email="pf_escinv_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json={"tipo": "estudios_finalizados", "situacion_deseada": "Ingenieria Industrial"},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_crear_cualificacion_otro_tipo_acepta_texto_libre(client: AsyncClient, db):
+    """POST cualificacion tipo != estudios_finalizados acepta texto libre → 201."""
+    area = await make_area(db, descripcion="OtroTipo Test")
+    rh = await make_empleado(db, rol="rh", email="pf_otro_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json={"tipo": "experiencia_profesional", "situacion_deseada": "5 años en manufactura"},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_gap_analysis_cumple_true(client: AsyncClient, db):
+    """Gap analysis: cumple=True cuando nivel actual >= deseado."""
+    perfil, rh, _, asignacion, cual = await _setup_escolaridad(db)
+    headers = await auth_headers(client, rh)
+
+    await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json={"evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "licenciatura"}
+        ]},
+        headers=headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    gap = response.json()["gap_cualificaciones"][0]
+    assert gap["cumple"] is True
+
+
+@pytest.mark.asyncio
+async def test_gap_analysis_cumple_false(client: AsyncClient, db):
+    """Gap analysis: cumple=False cuando nivel actual < deseado."""
+    perfil, rh, _, asignacion, cual = await _setup_escolaridad(db)
+    headers = await auth_headers(client, rh)
+
+    await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json={"evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "primaria"}
+        ]},
+        headers=headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    gap = response.json()["gap_cualificaciones"][0]
+    assert gap["cumple"] is False
+
+
+@pytest.mark.asyncio
+async def test_gap_analysis_cumple_none_texto_libre_legacy(client: AsyncClient, db):
+    """Gap analysis: cumple=None cuando situacion_deseada es texto libre (legacy)."""
+    perfil, rh, _, asignacion, cual, _ = await _setup_asignacion_con_datos(db)
+    headers = await auth_headers(client, rh)
+
+    # _setup_asignacion_con_datos usa "Ingenieria industrial" (texto libre, no clave catalogo)
+    await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json={"evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "Tiene titulo"}
+        ]},
+        headers=headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    gap_cual = next(g for g in response.json()["gap_cualificaciones"] if g["cualificacion_id"] == cual.id)
+    assert gap_cual["cumple"] is None
+
+
+@pytest.mark.asyncio
+async def test_gap_analysis_cumple_none_tipo_no_escolaridad(client: AsyncClient, db):
+    """Gap analysis: cumple=None para tipo distinto a estudios_finalizados."""
+    perfil, rh, _, asignacion, _ = await _setup_escolaridad(db)
+    headers = await auth_headers(client, rh)
+
+    resp = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json={"tipo": "experiencia_profesional", "situacion_deseada": "3 años"},
+        headers=headers,
+    )
+    cual2_id = resp.json()["id"]
+
+    await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json={"evaluaciones_cualificacion": [
+            {"cualificacion_id": cual2_id, "situacion_actual": "5 años"}
+        ]},
+        headers=headers,
+    )
+
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    exp_gap = next(g for g in response.json()["gap_cualificaciones"] if g["tipo"] == "experiencia_profesional")
+    assert exp_gap["cumple"] is None
+
+
+@pytest.mark.asyncio
+async def test_evaluacion_escolaridad_clave_invalida_retorna_422(client: AsyncClient, db):
+    """PUT evaluacion con clave invalida para estudios_finalizados → 422."""
+    perfil, rh, _, asignacion, cual = await _setup_escolaridad(db)
+    headers = await auth_headers(client, rh)
+
+    response = await client.put(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        json={"evaluaciones_cualificacion": [
+            {"cualificacion_id": cual.id, "situacion_actual": "Ingenieria Industrial"}
+        ]},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_catalogo_escolaridad_endpoint(client: AsyncClient, db):
+    """GET /api/v1/perfiles/catalogos/escolaridad retorna catalogo ordenado."""
+    rh = await make_empleado(db, rol="rh", email="pf_cat_rh@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    response = await client.get("/api/v1/perfiles/catalogos/escolaridad", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 7
+    assert data[0]["key"] == "ninguno"
+    assert data[6]["key"] == "doctorado"
+    assert data[4]["peso"] == 4
+
+
+# ===========================================================================
+# CUALIFICACIONES — Años mínimos y N/A
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_crear_cualificacion_con_anios_minimos(client: AsyncClient, db):
+    """POST cualificacion con anios_minimos para experiencia_profesional."""
+    area = await make_area(db, descripcion="Anios Test")
+    rh = await make_empleado(db, rol="rh", email="pf_anios_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "tipo": "experiencia_profesional",
+        "situacion_deseada": "Conocimiento en producción",
+        "anios_minimos": 3,
+    }
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["anios_minimos"] == 3
+    assert data["situacion_deseada"] == "Conocimiento en producción"
+
+
+@pytest.mark.asyncio
+async def test_anios_minimos_rechaza_tipo_invalido(client: AsyncClient, db):
+    """POST cualificacion con anios_minimos para tipo no-experiencia retorna 422."""
+    area = await make_area(db, descripcion="Anios Invalid Test")
+    rh = await make_empleado(db, rol="rh", email="pf_anios_inv_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "tipo": "formacion_profesional",
+        "situacion_deseada": "Ing. Mecánica",
+        "anios_minimos": 5,
+    }
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_crear_cualificacion_na(client: AsyncClient, db):
+    """POST cualificacion con N/A como situacion_deseada para tipo opcional."""
+    area = await make_area(db, descripcion="NA Test")
+    rh = await make_empleado(db, rol="rh", email="pf_na_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    headers = await auth_headers(client, rh)
+
+    payload = {"tipo": "formacion_profesional", "situacion_deseada": "N/A"}
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/cualificaciones",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["situacion_deseada"] == "N/A"
+
+
+@pytest.mark.asyncio
+async def test_gap_cumple_anios(client: AsyncClient, db):
+    """Gap analysis: anios_actuales >= anios_minimos → cumple=True."""
+    from app.models.talento import PerfilCualificacion, PerfilFunciones, PerfilFuncionesCualificacion
+
+    area = await make_area(db, descripcion="Gap Anios Test")
+    rh = await make_empleado(db, rol="rh", email="pf_gap_anios_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_gap_anios_emp@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    cual = PerfilCualificacion(
+        puesto_perfil_id=perfil.id,
+        tipo="experiencia_profesional",
+        situacion_deseada="Producción",
+        anios_minimos=3,
+    )
+    db.add(cual)
+    await db.flush()
+
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", activo=True,
+    )
+    db.add(asignacion)
+    await db.flush()
+
+    eval_cual = PerfilFuncionesCualificacion(
+        perfil_funciones_id=asignacion.id,
+        cualificacion_id=cual.id,
+        situacion_actual="5 años en planta",
+        anios_actuales=5,
+    )
+    db.add(eval_cual)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    gap = response.json()["gap_cualificaciones"][0]
+    assert gap["cumple"] is True
+    assert gap["anios_minimos"] == 3
+    assert gap["anios_actuales"] == 5
+
+
+@pytest.mark.asyncio
+async def test_gap_no_cumple_anios(client: AsyncClient, db):
+    """Gap analysis: anios_actuales < anios_minimos → cumple=False."""
+    from app.models.talento import PerfilCualificacion, PerfilFunciones, PerfilFuncionesCualificacion
+
+    area = await make_area(db, descripcion="Gap NoCumple Test")
+    rh = await make_empleado(db, rol="rh", email="pf_gap_nc_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_gap_nc_emp@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    cual = PerfilCualificacion(
+        puesto_perfil_id=perfil.id,
+        tipo="experiencia_direccion",
+        situacion_deseada="Gerencia",
+        anios_minimos=5,
+    )
+    db.add(cual)
+    await db.flush()
+
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", activo=True,
+    )
+    db.add(asignacion)
+    await db.flush()
+
+    eval_cual = PerfilFuncionesCualificacion(
+        perfil_funciones_id=asignacion.id,
+        cualificacion_id=cual.id,
+        situacion_actual="2 años",
+        anios_actuales=2,
+    )
+    db.add(eval_cual)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    gap = response.json()["gap_cualificaciones"][0]
+    assert gap["cumple"] is False
+
+
+@pytest.mark.asyncio
+async def test_gap_na_siempre_cumple(client: AsyncClient, db):
+    """Gap analysis: cualificacion con N/A siempre cumple."""
+    from app.models.talento import PerfilCualificacion, PerfilFunciones, PerfilFuncionesCualificacion
+
+    area = await make_area(db, descripcion="Gap NA Test")
+    rh = await make_empleado(db, rol="rh", email="pf_gap_na_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_gap_na_emp@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    cual = PerfilCualificacion(
+        puesto_perfil_id=perfil.id,
+        tipo="formacion_profesional",
+        situacion_deseada="N/A",
+    )
+    db.add(cual)
+    await db.flush()
+
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", activo=True,
+    )
+    db.add(asignacion)
+    await db.flush()
+
+    eval_cual = PerfilFuncionesCualificacion(
+        perfil_funciones_id=asignacion.id,
+        cualificacion_id=cual.id,
+        situacion_actual="N/A",
+    )
+    db.add(eval_cual)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones/{asignacion.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    gap = response.json()["gap_cualificaciones"][0]
+    assert gap["cumple"] is True
+
+
+@pytest.mark.asyncio
+async def test_sugerencias_filtra_por_tipo_y_query(client: AsyncClient, db):
+    """GET /catalogos/sugerencias filtra por tipo y query."""
+    from app.models.talento import PerfilCualificacion
+
+    area = await make_area(db, descripcion="Sug Test")
+    rh = await make_empleado(db, rol="rh", email="pf_sug_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    for val in ["Ing. Mecánica", "Ing. Electrónica", "Lic. Administración"]:
+        db.add(PerfilCualificacion(
+            puesto_perfil_id=perfil.id,
+            tipo="formacion_profesional",
+            situacion_deseada=val,
+        ))
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        "/api/v1/perfiles/catalogos/sugerencias?tipo=formacion_profesional&q=Ing",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    assert all("Ing" in s for s in data)
+
+
+@pytest.mark.asyncio
+async def test_sugerencias_excluye_na_variantes(client: AsyncClient, db):
+    """GET /catalogos/sugerencias excluye N/A, NA, Ninguna."""
+    from app.models.talento import PerfilCualificacion
+
+    area = await make_area(db, descripcion="Sug NA Test")
+    rh = await make_empleado(db, rol="rh", email="pf_sug_na_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    for val in ["N/A", "NA", "Ninguna", "Curso válido"]:
+        db.add(PerfilCualificacion(
+            puesto_perfil_id=perfil.id,
+            tipo="ampliacion_formacion",
+            situacion_deseada=val,
+        ))
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        "/api/v1/perfiles/catalogos/sugerencias?tipo=ampliacion_formacion",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "N/A" not in data
+    assert "NA" not in data
+    assert "Ninguna" not in data
+    assert "Curso válido" in data

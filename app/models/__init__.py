@@ -31,6 +31,7 @@ from app.models.talento import (
     Capacitacion, Inscripcion,
     TareaCatalogo, PerfilTarea, PerfilCualificacion,
     PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia,
+    PerfilFuncionesTarea,
 )
 from app.models.level_up import (
     Capacidad,
@@ -89,6 +90,7 @@ __all__ = [
     "PerfilFunciones",
     "PerfilFuncionesCualificacion",
     "PerfilFuncionesCompetencia",
+    "PerfilFuncionesTarea",
     "Capacidad",
     "CapacidadPuestoPerfil",
     "Habilidad",

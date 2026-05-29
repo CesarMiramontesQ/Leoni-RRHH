@@ -9,6 +9,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.catalogos_cualificacion import ESCOLARIDAD_KEYS
+
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
 
@@ -100,12 +102,26 @@ class PerfilTareaResponse(BaseModel):
 # ── Perfil Cualificaciones ──────────────────────────────────────────────────
 
 
+TIPOS_CON_ANIOS = ("experiencia_profesional", "experiencia_direccion")
+
+
 class PerfilCualificacionCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     tipo: TipoCualificacion
     situacion_deseada: str = Field(..., min_length=1)
     comentarios: Optional[str] = None
+    anios_minimos: Optional[int] = Field(None, ge=0)
+
+    @model_validator(mode="after")
+    def _validar_campos(self) -> "PerfilCualificacionCreate":
+        if self.tipo == "estudios_finalizados" and self.situacion_deseada not in ESCOLARIDAD_KEYS:
+            raise ValueError(
+                f"Para tipo 'estudios_finalizados', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
+            )
+        if self.anios_minimos is not None and self.tipo not in TIPOS_CON_ANIOS:
+            raise ValueError("anios_minimos solo aplica para experiencia_profesional o experiencia_direccion")
+        return self
 
 
 class PerfilCualificacionUpdate(BaseModel):
@@ -114,6 +130,18 @@ class PerfilCualificacionUpdate(BaseModel):
     tipo: Optional[TipoCualificacion] = None
     situacion_deseada: Optional[str] = Field(None, min_length=1)
     comentarios: Optional[str] = None
+    anios_minimos: Optional[int] = Field(None, ge=0)
+
+    @model_validator(mode="after")
+    def _validar_campos(self) -> "PerfilCualificacionUpdate":
+        if self.tipo == "estudios_finalizados" and self.situacion_deseada is not None:
+            if self.situacion_deseada not in ESCOLARIDAD_KEYS:
+                raise ValueError(
+                    f"Para tipo 'estudios_finalizados', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
+                )
+        if self.anios_minimos is not None and self.tipo is not None and self.tipo not in TIPOS_CON_ANIOS:
+            raise ValueError("anios_minimos solo aplica para experiencia_profesional o experiencia_direccion")
+        return self
 
 
 class PerfilCualificacionResponse(BaseModel):
@@ -124,6 +152,7 @@ class PerfilCualificacionResponse(BaseModel):
     tipo: str
     situacion_deseada: str
     comentarios: Optional[str] = None
+    anios_minimos: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -206,6 +235,7 @@ class PerfilFuncionesCualificacionCreate(BaseModel):
     cualificacion_id: int
     situacion_actual: str = Field(..., min_length=1)
     comentarios: Optional[str] = None
+    anios_actuales: Optional[int] = Field(None, ge=0)
 
 
 class PerfilFuncionesCualificacionUpdate(BaseModel):
@@ -213,6 +243,7 @@ class PerfilFuncionesCualificacionUpdate(BaseModel):
 
     situacion_actual: Optional[str] = Field(None, min_length=1)
     comentarios: Optional[str] = None
+    anios_actuales: Optional[int] = Field(None, ge=0)
 
 
 class PerfilFuncionesCualificacionResponse(BaseModel):
@@ -223,6 +254,7 @@ class PerfilFuncionesCualificacionResponse(BaseModel):
     cualificacion_id: int
     situacion_actual: str
     comentarios: Optional[str] = None
+    anios_actuales: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -255,6 +287,24 @@ class PerfilFuncionesCompetenciaResponse(BaseModel):
     comentarios: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+# ── Tareas Extra (per-employee) ───────────────────────────────────────────────
+
+
+class PerfilFuncionesTareaCreate(BaseModel):
+    tarea_catalogo_id: int
+
+
+class PerfilFuncionesTareaResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    perfil_funciones_id: int
+    tarea_catalogo_id: int
+    tarea_catalogo_nombre: str = ""
+    tarea_catalogo_categoria: Optional[str] = None
+    created_at: datetime
 
 
 # ── Respuesta compuesta (perfil completo de un puesto) ──────────────────────
