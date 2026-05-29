@@ -88,11 +88,20 @@ def _normalizar_no_empleado(value: Any) -> str | None:
     return raw
 
 
+def _normalizar_email(value: Any) -> str | None:
+    if value is None:
+        return None
+    email = str(value).strip().lower()
+    return email if email else None
+
+
 def _normalizar_valor_campo(campo: str, valor: Any) -> Any:
     if valor is None:
         return None
     if campo == "no_empleado":
         return _normalizar_no_empleado(valor)
+    if campo == "email":
+        return _normalizar_email(valor)
     if campo in _columnas_string_locales():
         return _texto(valor)
     return valor

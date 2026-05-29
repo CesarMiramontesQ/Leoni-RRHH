@@ -128,6 +128,45 @@ def test_aplicar_payload_no_cambia_no_empleado_si_es_equivalente():
     assert empleado.no_empleado == "108.0"
 
 
+def test_payload_desde_bono_normaliza_email():
+    row = {
+        "empleado_id": 2,
+        "no_empleado": "108",
+        "nombre": "David",
+        "email": "  David.Barraza@LeoniCables.com ",
+    }
+    payload = _payload_desde_bono(
+        row,
+        ["empleado_id", "no_empleado", "nombre", "email"],
+    )
+    assert payload["email"] == "david.barraza@leonicables.com"
+
+
+def test_payload_desde_bono_email_vacio_queda_none():
+    row = {"empleado_id": 4, "no_empleado": "109", "nombre": "Sin Mail", "email": "   "}
+    payload = _payload_desde_bono(row, ["empleado_id", "no_empleado", "nombre", "email"])
+    assert payload["email"] is None
+
+
+def test_aplicar_payload_actualiza_email_desde_bono():
+    empleado = Empleado(
+        empleado_id=2,
+        no_empleado="108.0",
+        nombre="David",
+        password_hash="$2b$12$hash",
+        rol_id=1,
+        email=None,
+    )
+    payload = {
+        "no_empleado": "108",
+        "email": "david.barraza@leonicables.com",
+        "nombre": "David",
+    }
+    assert _aplicar_payload(empleado, payload) is True
+    assert empleado.email == "david.barraza@leonicables.com"
+    assert empleado.no_empleado == "108.0"
+
+
 def test_aplicar_payload_actualiza_otros_campos_aunque_no_empleado_sea_equivalente():
     empleado = Empleado(
         empleado_id=2,
