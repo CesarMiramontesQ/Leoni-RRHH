@@ -1,7 +1,7 @@
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Optional
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class CatalogoSimpleResponse(BaseModel):
@@ -64,45 +64,3 @@ class EmpleadoResponse(BaseModel):
     a_restringido: Optional[bool] = None
     requiere_cambio_password: Optional[bool] = None
     created_at: datetime
-
-    @model_validator(mode="before")
-    @classmethod
-    def resolver_email_alterno(cls, value: Any) -> Any:
-        if isinstance(value, dict):
-            if not value.get("email"):
-                email_rel = value.get("email_alterno")
-                if isinstance(email_rel, dict) and email_rel.get("email"):
-                    value["email"] = email_rel["email"]
-            return value
-
-        if getattr(value, "email", None):
-            return value
-
-        email_rel = getattr(value, "email_alterno", None)
-        if email_rel and getattr(email_rel, "email", None):
-            payload = {
-                "id": value.id,
-                "empleado_id": value.empleado_id,
-                "no_empleado": value.no_empleado,
-                "no_sap": value.no_sap,
-                "nombre": value.nombre,
-                "email": email_rel.email,
-                "usuario": value.usuario,
-                "rol_id": value.rol_id,
-                "categoria": value.categoria,
-                "subarea": value.subarea,
-                "puesto": value.puesto,
-                "estado": value.estado,
-                "area": value.area,
-                "clasificacion": value.clasificacion,
-                "lider_id": value.lider_id,
-                "centrocosto_id": value.centrocosto_id,
-                "recibe_bono": value.recibe_bono,
-                "brigada": value.brigada,
-                "registro": value.registro,
-                "a_restringido": value.a_restringido,
-                "requiere_cambio_password": value.requiere_cambio_password,
-                "created_at": value.created_at,
-            }
-            return payload
-        return value

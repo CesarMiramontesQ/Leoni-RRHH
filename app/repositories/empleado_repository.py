@@ -1,8 +1,7 @@
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.emails import Email
 from app.models.empleados import Empleado
 from app.repositories.base import BaseRepository
 
@@ -31,15 +30,8 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
-                selectinload(Empleado.email_alterno),
             )
-            .outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
-            .where(
-                or_(
-                    func.lower(Empleado.email) == normalized_email,
-                    func.lower(Email.email) == normalized_email,
-                )
-            )
+            .where(func.lower(Empleado.email) == normalized_email)
         )
         return result.scalar_one_or_none()
 
@@ -51,7 +43,6 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
-                selectinload(Empleado.email_alterno),
             )
             .where(
                 Empleado.usuario.isnot(None),
@@ -69,7 +60,6 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
-                selectinload(Empleado.email_alterno),
             )
             .where(
                 func.lower(Empleado.no_empleado).in_(variantes_lower),

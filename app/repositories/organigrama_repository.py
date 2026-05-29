@@ -21,7 +21,6 @@ class OrganigramaRepository(BaseRepository[Empleado]):
             selectinload(Empleado.lider),
             selectinload(Empleado.categoria),
             selectinload(Empleado.rol),
-            selectinload(Empleado.email_alterno),
         )
 
         if estados_activos:

@@ -155,20 +155,15 @@ async def test_login_no_empleado_exitoso_retorna_tokens(client: AsyncClient, db)
 
 
 @pytest.mark.asyncio
-async def test_login_email_alterno_exitoso_y_me_retorna_email_alterno(
+async def test_login_por_email_empleado_exitoso_y_me_retorna_email(
     client: AsyncClient, db
 ):
-    from app.models.emails import Email
-
-    empleado = await make_empleado(
+    await make_empleado(
         db,
         rol="empleado",
-        email="primario@leoni.test",
+        email="alterno@leoni.test",
         no_empleado="EMP-ALT-01",
     )
-    empleado.email = None
-    db.add(Email(no_empleado=empleado.no_empleado, email="alterno@leoni.test"))
-    await db.flush()
 
     login_resp = await client.post(
         "/api/v1/auth/login",
