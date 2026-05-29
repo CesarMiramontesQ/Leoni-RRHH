@@ -7,8 +7,6 @@ from app.integrations.bono_empleados_sync import (
     BonoEmpleadosSyncService,
     validar_fila_empleado_bono,
 )
-from app.integrations.bono_empleados_import import importar_bono_empleados_job
-from app.models.bono_historico_import_log import BonoHistoricoImportLog
 from app.models.empleados import Empleado
 from tests.conftest import make_empleado
 
@@ -139,28 +137,3 @@ async def test_sync_empleado_no_sobrescribe_email_ni_rol(db, monkeypatch):
     assert refreshed.email == email_prev
     assert refreshed.rol_id == rol_prev
 
-
-@pytest.mark.asyncio
-async def test_importar_bono_empleados_job_registra_log(db, monkeypatch):
-    from app.integrations.bono_empleados_sync import BonoEmpleadosImportStats
-
-    async def _fake_sync(self, *, execute=True, commit=True):
-        return BonoEmpleadosImportStats(leidos=1, insertados=0, actualizados=1)
-
-    monkeypatch.setattr(
-        "app.integrations.bono_empleados_import.BonoEmpleadosSyncService.sincronizar_empleados",
-        _fake_sync,
-    )
-
-    await importar_bono_empleados_job(corrida_id="test-corrida-emp", db=db)
-
-    row = (
-        await db.execute(
-            select(BonoHistoricoImportLog).where(
-                BonoHistoricoImportLog.fuente == "empleados"
-            )
-        )
-    ).scalar_one()
-    assert row.corrida_id == "test-corrida-emp"
-    assert row.status == "ok"
-    assert row.leidos == 1

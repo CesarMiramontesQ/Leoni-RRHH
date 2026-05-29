@@ -54,7 +54,7 @@ async def test_supervisor_ve_solo_reservas_de_subordinados(client: AsyncClient, 
         db,
         rol="empleado",
         nombre="Maria Lopez Perez",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
         email="sub_equipo@test.leoni",
         password="SubPass1!",
     )
@@ -142,7 +142,7 @@ async def test_supervisor_reservas_mes_equipo(client: AsyncClient, db, monkeypat
         db,
         rol="empleado",
         nombre="LOYA FROESE, KARIME GISELLE",
-        lider_id=supervisor.id,
+        lider_id=supervisor.empleado_id,
         email="sub_mes@test.leoni",
         password="SubMes1!",
     )
@@ -185,10 +185,10 @@ async def test_supervisor_beneficiarios_equipo_directo(client: AsyncClient, db):
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_benef@test.leoni", password="SupBenef1!"
     )
     sub1 = await make_empleado(
-        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.id, email="sub1_benef@test.leoni", password="Sub1!"
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub1_benef@test.leoni", password="Sub1!"
     )
     await make_empleado(
-        db, rol="empleado", nombre="RAMIREZ, LUZ", lider_id=sub1.id, email="sub2_benef@test.leoni", password="Sub2!"
+        db, rol="empleado", nombre="RAMIREZ, LUZ", lider_id=sub1.empleado_id, email="sub2_benef@test.leoni", password="Sub2!"
     )
 
     headers = await auth_headers(client, supervisor, password="SupBenef1!")
@@ -217,7 +217,7 @@ async def test_supervisor_reserva_para_subordinado_refleja_en_empleado(client: A
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_reserva@test.leoni", password="SupReserva1!"
     )
     sub = await make_empleado(
-        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.id, email="sub_reserva@test.leoni", password="SubReserva1!"
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_reserva@test.leoni", password="SubReserva1!"
     )
 
     headers_sup = await auth_headers(client, supervisor, password="SupReserva1!")
@@ -280,7 +280,7 @@ async def test_gerente_no_puede_consultar_beneficiarios_ni_reservar_para_tercero
         db, rol="gerente", nombre="GERENTE, ANA", email="gerente_reserva@test.leoni", password="Gerente1!"
     )
     sub = await make_empleado(
-        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=gerente.id, email="sub_gerente@test.leoni", password="SubGerente1!"
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=gerente.empleado_id, email="sub_gerente@test.leoni", password="SubGerente1!"
     )
 
     headers = await auth_headers(client, gerente, password="Gerente1!")
@@ -321,7 +321,7 @@ async def test_supervisor_ve_sus_reservas_y_puede_editar_solo_las_propias(client
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_perm@test.leoni", password="SupPerm1!"
     )
     sub = await make_empleado(
-        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.id, email="sub_perm@test.leoni", password="SubPerm1!"
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_perm@test.leoni", password="SubPerm1!"
     )
     reg_sup = ComedorRegistro(
         empleado_id=supervisor.id,
@@ -403,7 +403,7 @@ async def test_supervisor_metricas_dashboard(client: AsyncClient, db, monkeypatc
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_metricas@test.leoni", password="SupMetricas1!"
     )
     sub = await make_empleado(
-        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.id, email="sub_metricas@test.leoni", password="SubMetricas1!"
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_metricas@test.leoni", password="SubMetricas1!"
     )
     externo = await make_empleado(
         db, rol="empleado", nombre="FUERA, SCOPE", email="ext_metricas@test.leoni", password="ExtMetricas1!"

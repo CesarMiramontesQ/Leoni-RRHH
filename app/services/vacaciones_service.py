@@ -28,14 +28,14 @@ class VacacionesService:
                 raise NotFoundError(entidad="Empleado", id=empleado_id)
             if rol == "supervisor":
                 subordinados = await self.empleado_repo.get_subordinados(
-                    current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                    current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
                 )
                 if empleado_id not in {e.id for e in subordinados}:
                     raise ForbiddenError(detail="No tienes acceso a este empleado")
                 return
             if rol == "gerente":
                 equipo = await self.empleado_repo.get_ids_subarbol(
-                    current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                    current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
                 )
                 if empleado_id not in equipo:
                     raise ForbiddenError(detail="No tienes acceso a este empleado")

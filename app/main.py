@@ -61,6 +61,20 @@ async def _bono_historico_import_job():
         )
 
 
+async def _bono_empleados_import_job():
+    """Sincroniza empleados desde bono_productividad.empleados hacia BD principal."""
+    try:
+        from app.integrations.bono_empleados_import import importar_empleados_bono_job
+
+        await importar_empleados_bono_job()
+    except Exception as exc:
+        logger.error(
+            "Error en job import empleados bono: %s",
+            str(exc),
+            exc_info=True,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -114,6 +128,20 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info("Job bono_historico_import deshabilitado (config)")
+    if settings.BONO_EMPLEADOS_IMPORT_ENABLED:
+        scheduler.add_job(
+            _bono_empleados_import_job,
+            "interval",
+            minutes=settings.BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES,
+            id="bono_empleados_import",
+            replace_existing=True,
+        )
+        logger.info(
+            "Job bono_empleados_import programado cada %s minutos",
+            settings.BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES,
+        )
+    else:
+        logger.info("Job bono_empleados_import deshabilitado (config)")
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
 

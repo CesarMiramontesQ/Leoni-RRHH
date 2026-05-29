@@ -1,101 +1,53 @@
-"""Job programado: importación empleados desde bono_productividad.empleados."""
+"""Job programado: sincronización bono.empleados → empleados (BD principal)."""
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import AsyncSessionLocal
-from app.integrations.bono_empleados_sync import BonoEmpleadosImportStats, BonoEmpleadosSyncService
-from app.integrations.bono_historico_import_log import (
-    OrigenEjecucion,
-    ImportStatus,
-    _ImportStatsLike,
-    registrar_corrida_importacion,
-)
+from app.scripts.import_empleados_bono import ImportStats, ejecutar_importacion
 
 logger = logging.getLogger(__name__)
 
 
-def _stats_to_log_like(stats: BonoEmpleadosImportStats) -> _ImportStatsLike:
-    mensajes = list(stats.mensajes_error)
-    if stats.actualizados and not any(m.startswith("actualizados=") for m in mensajes):
-        mensajes.insert(0, f"actualizados={stats.actualizados}")
-    return _ImportStatsLike(
-        leidos=stats.leidos,
-        insertados=stats.insertados,
-        omitidos=stats.omitidos,
-        errores=stats.errores,
-        mensajes_error=mensajes,
-    )
+async def importar_empleados_bono_job() -> ImportStats | None:
+    """
+    Ejecuta la sincronización con persistencia (equivalente a ``--execute`` del script CLI).
 
-
-async def _ejecutar_con_sesion(
-    db: AsyncSession,
-    *,
-    origen_ejecucion: OrigenEjecucion,
-    corrida_id: str | None,
-) -> BonoEmpleadosImportStats | None:
-    started_at = datetime.now(timezone.utc)
-    stats: BonoEmpleadosImportStats | None = None
-    status: ImportStatus = "ok"
-    error_msg: str | None = None
-
+    Returns:
+        Estadísticas del corrido, o None si bono no está configurado (solo warning en log).
+    """
     try:
-        service = BonoEmpleadosSyncService(db)
-        stats = await service.sincronizar_empleados(execute=True, commit=False)
-        await db.commit()
+        stats = await ejecutar_importacion(execute=True, limit=None)
     except ConnectionError as exc:
-        status = "skipped"
-        error_msg = str(exc)
-        await db.rollback()
+        logger.warning(
+            "Import empleados bono omitido (bono no disponible): %s",
+            exc,
+        )
         return None
     except Exception as exc:
-        status = "error"
-        error_msg = str(exc)
-        await db.rollback()
+        logger.error(
+            "Error en import empleados bono: %s",
+            exc,
+            exc_info=True,
+        )
         raise
-    finally:
-        finished_at = datetime.now(timezone.utc)
-        await registrar_corrida_importacion(
-            "empleados",
-            status=status,
-            started_at=started_at,
-            finished_at=finished_at,
-            origen_ejecucion=origen_ejecucion,
-            corrida_id=corrida_id,
-            stats=_stats_to_log_like(stats) if stats else None,
-            error_msg=error_msg,
-            db=db,
-        )
 
-    if stats:
-        log_like = _stats_to_log_like(stats)
-        logger.info(
-            "Import empleados completado | leidos=%s insertados=%s actualizados=%s omitidos=%s errores=%s",
-            log_like.leidos,
-            log_like.insertados,
-            stats.actualizados,
-            log_like.omitidos,
-            log_like.errores,
-        )
+    logger.info(
+        "Import empleados bono completado | leidos=%s creados=%s actualizados=%s "
+        "omitidos=%s errores=%s columnas=%s",
+        stats.leidos,
+        stats.creados,
+        stats.actualizados,
+        stats.omitidos,
+        stats.errores,
+        stats.columnas_importadas,
+    )
+    if stats.mensajes_error:
+        for msg in stats.mensajes_error[:20]:
+            logger.warning("Import empleados bono detalle: %s", msg)
+        if len(stats.mensajes_error) > 20:
+            logger.warning(
+                "Import empleados bono: %s errores adicionales no listados",
+                len(stats.mensajes_error) - 20,
+            )
     return stats
-
-
-async def importar_bono_empleados_job(
-    *,
-    origen_ejecucion: OrigenEjecucion = "scheduler",
-    corrida_id: str | None = None,
-    db: AsyncSession | None = None,
-) -> BonoEmpleadosImportStats | None:
-    """Ejecuta sync de empleados con persistencia y registro en bono_historico_import_log."""
-    if db is not None:
-        return await _ejecutar_con_sesion(
-            db, origen_ejecucion=origen_ejecucion, corrida_id=corrida_id
-        )
-    async with AsyncSessionLocal() as session:
-        return await _ejecutar_con_sesion(
-            session, origen_ejecucion=origen_ejecucion, corrida_id=corrida_id
-        )

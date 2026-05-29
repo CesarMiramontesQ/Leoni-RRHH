@@ -1,6 +1,7 @@
 import { getAccessToken, getRefreshToken, updateAccessToken } from "../auth/session.ts";
 
-async function tryRefreshAccessToken(): Promise<boolean> {
+/** Renueva el access token con el refresh guardado en sesión (p. ej. al abrir la app). */
+export async function refreshAccessTokenSession(): Promise<boolean> {
   const refresh = getRefreshToken();
   if (!refresh) return false;
 
@@ -37,7 +38,7 @@ export async function fetchWithAuth(url: string, init: RequestInit = {}): Promis
     return res;
   }
 
-  const refreshed = await tryRefreshAccessToken();
+  const refreshed = await refreshAccessTokenSession();
   if (!refreshed) {
     return res;
   }

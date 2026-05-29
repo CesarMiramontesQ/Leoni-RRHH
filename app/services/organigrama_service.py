@@ -83,7 +83,7 @@ class OrganigramaService:
             correo=cls._correo_preferente(empleado),
             foto_url=empleado.foto,
             extension_telefono=None,
-            parent_id=empleado.lider_id,
+            parent_id=empleado.lider.id if empleado.lider else None,
             nivel_jerarquico=0,
             nivel_visual="operacion",
             activo=True,
@@ -129,9 +129,12 @@ class OrganigramaService:
             )
 
         nodos_por_id: dict[int, OrganigramaNodoResponse] = {}
+        nodos_por_empleado_id: dict[int, OrganigramaNodoResponse] = {}
         empleados_por_id: dict[int, Empleado] = {}
         for empleado in empleados:
-            nodos_por_id[empleado.id] = self._construir_nodo_base(empleado)
+            nodo = self._construir_nodo_base(empleado)
+            nodos_por_id[empleado.id] = nodo
+            nodos_por_empleado_id[empleado.empleado_id] = nodo
             empleados_por_id[empleado.id] = empleado
 
         roots: list[OrganigramaNodoResponse] = []
@@ -139,22 +142,19 @@ class OrganigramaService:
 
         for empleado in empleados:
             nodo = nodos_por_id[empleado.id]
-            parent_id = empleado.lider_id
-            if parent_id is None:
+            lider_empleado_id = empleado.lider_id
+            if lider_empleado_id is None:
                 roots.append(nodo)
                 continue
 
-            parent = nodos_por_id.get(parent_id)
+            parent = nodos_por_empleado_id.get(lider_empleado_id)
             if not parent:
                 nodo.relacion_incompleta = True
-                relations_missing = True
-            else:
-                parent.children.append(nodo)
-                relations_missing = False
-
-            if relations_missing:
                 relaciones_incompletas += 1
                 roots.append(nodo)
+                continue
+
+            parent.children.append(nodo)
 
         for root in roots:
             self._asignar_nivel_recursivo(root, 0, empleados_por_id)

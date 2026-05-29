@@ -47,13 +47,13 @@ async def test_patch_asignacion_supervisor_rh_retorna_200(client: AsyncClient, d
 
     response = await client.patch(
         f"/api/v1/usuarios/{empleado.id}",
-        json={"lider_id": supervisor.id},
+        json={"lider_id": supervisor.empleado_id},
         headers=headers,
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["lider_id"] == supervisor.id
+    assert body["lider_id"] == supervisor.empleado_id
     assert body["id"] == empleado.id
 
 

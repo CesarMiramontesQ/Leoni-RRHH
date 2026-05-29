@@ -60,7 +60,7 @@ class Empleado(Base):
     )
 
     lider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
 
     centrocosto_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -95,7 +95,7 @@ class Empleado(Base):
     )
     lider: Mapped[Optional["Empleado"]] = relationship(
         "Empleado",
-        remote_side="Empleado.id",
+        remote_side="Empleado.empleado_id",
         foreign_keys=[lider_id],
         back_populates="subordinados",
     )

@@ -1,4 +1,5 @@
 import {
+  canAccessEmpleadoPersonalDashboard,
   getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
   getUserInitialsFromAccessToken,
@@ -428,7 +429,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
   const rawRol = getRolFromAccessToken();
   const userRolLine =
-    rawRol ?
+    rawRol && !canAccessEmpleadoPersonalDashboard() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
     : "";
 

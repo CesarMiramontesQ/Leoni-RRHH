@@ -224,16 +224,21 @@ _ROLES_APROBADOR_JERARQUICO = frozenset({"supervisor", "gerente"})
 def _puede_actuar_jerarquia_solicitud(
     *,
     rol: str,
-    lider_id: int | None,
+    lider_empleado_id: int | None,
     primer_gerente_id: int | None,
     current_user_id: int,
+    current_user_empleado_id: int,
     empleado_en_subarbol_gerente: bool = False,
 ) -> bool:
     """
     Supervisor directo o gerente (de linea o con el solicitante en su subarbol) pueden decidir.
-    `empleado_en_subarbol_gerente` solo aplica cuando rol == gerente.
+    ``lider_empleado_id`` es el ``empleado_id`` del jefe inmediato del solicitante.
     """
-    if rol == "supervisor" and lider_id is not None and lider_id == current_user_id:
+    if (
+        rol == "supervisor"
+        and lider_empleado_id is not None
+        and lider_empleado_id == current_user_empleado_id
+    ):
         return True
     if rol == "gerente" and (
         (primer_gerente_id is not None and primer_gerente_id == current_user_id)
@@ -272,28 +277,33 @@ class SolicitudService:
         self.vacaciones_repo = VacacionesRepository(db)
         self.db = db
 
-    async def _empleado_en_subarbol_gerente(self, gerente_id: int, empleado_id: int) -> bool:
+    async def _empleado_en_subarbol_gerente(
+        self, gerente_empleado_id: int, empleado_local_id: int
+    ) -> bool:
         equipo = await self.empleado_repo.get_ids_subarbol(
-            gerente_id, settings.ESTADOS_ACTIVOS_IDS
+            gerente_empleado_id, settings.ESTADOS_ACTIVOS_IDS
         )
-        return empleado_id in equipo
+        return empleado_local_id in equipo
 
     async def _puede_actuar_jerarquia_solicitud_async(
         self,
         *,
         rol: str,
         emp: Empleado,
-        current_user_id: int,
+        current_user: Empleado,
     ) -> bool:
         primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
         en_subarbol = False
         if rol == "gerente":
-            en_subarbol = await self._empleado_en_subarbol_gerente(current_user_id, emp.id)
+            en_subarbol = await self._empleado_en_subarbol_gerente(
+                current_user.empleado_id, emp.id
+            )
         return _puede_actuar_jerarquia_solicitud(
             rol=rol,
-            lider_id=emp.lider_id,
+            lider_empleado_id=emp.lider_id,
             primer_gerente_id=primer_g.id if primer_g else None,
-            current_user_id=current_user_id,
+            current_user_id=current_user.id,
+            current_user_empleado_id=current_user.empleado_id,
             empleado_en_subarbol_gerente=en_subarbol,
         )
 
@@ -339,8 +349,8 @@ class SolicitudService:
         if not emp:
             return base
         primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
-        sup_id = emp.lider_id
-        sup_aprobo = _supervisor_ya_aprobo(solicitud, sup_id)
+        sup_local_id = emp.lider.id if emp.lider else None
+        sup_aprobo = _supervisor_ya_aprobo(solicitud, sup_local_id)
         # Una sola aprobacion requerida: no se exponen colas obligatorias supervisor→gerente.
         return base.model_copy(
             update={
@@ -375,7 +385,7 @@ class SolicitudService:
 
         elif rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = [e.id for e in subordinados] + [current_user.id]
             items, next_cursor = await self.repo.list_by_equipo(
@@ -387,7 +397,7 @@ class SolicitudService:
 
         elif rol == "gerente":
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = list(equipo) + [current_user.id]
             items, next_cursor = await self.repo.list_by_equipo(
@@ -438,14 +448,14 @@ class SolicitudService:
             pass
         elif rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = {e.id for e in subordinados}
             if solicitud.empleado_id not in ids:
                 raise ForbiddenError(detail="No tienes acceso a esta solicitud")
         elif rol == "gerente":
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             if solicitud.empleado_id not in equipo:
                 raise ForbiddenError(detail="No tienes acceso a esta solicitud")
@@ -505,7 +515,7 @@ class SolicitudService:
 
         if rol in ("gerente", "supervisor"):
             subordinados = await self.empleado_repo.get_subordinados(
-                current_user.id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             permitidos = {e.id for e in subordinados} | {current_user.id}
             if requested not in permitidos:
@@ -646,8 +656,8 @@ class SolicitudService:
             },
         )
 
-        if target.lider_id:
-            supervisor_id = target.lider_id
+        if target.lider_id and target.lider:
+            supervisor_id = target.lider.id
             nombre_empleado = target.nombre or ""
             tipo = data.tipo
 
@@ -792,7 +802,7 @@ class SolicitudService:
         if await self._puede_actuar_jerarquia_solicitud_async(
             rol=rol,
             emp=emp,
-            current_user_id=current_user.id,
+            current_user=current_user,
         ):
             return await self._aprobar_final_con_tress(
                 solicitud_id=solicitud_id,
@@ -833,7 +843,7 @@ class SolicitudService:
             if not await self._puede_actuar_jerarquia_solicitud_async(
                 rol=rol,
                 emp=emp,
-                current_user_id=current_user.id,
+                current_user=current_user,
             ):
                 raise ForbiddenError(
                     detail="No tienes permiso para rechazar esta solicitud. Solo el supervisor directo, "
@@ -945,7 +955,7 @@ class SolicitudService:
             if not await self._puede_actuar_jerarquia_solicitud_async(
                 rol=rol,
                 emp=emp,
-                current_user_id=current_user.id,
+                current_user=current_user,
             ):
                 raise ForbiddenError(
                     detail="No tienes permiso para solicitar cambios en esta solicitud. Solo el supervisor "
@@ -1095,8 +1105,8 @@ class SolicitudService:
             },
         )
 
-        if current_user.lider_id:
-            supervisor_id = current_user.lider_id
+        if current_user.lider_id and current_user.lider:
+            supervisor_id = current_user.lider.id
             nombre_empleado = current_user.nombre
             tipo = solicitud.tipo
             tipo_txt = tipo.replace("_", " ")
