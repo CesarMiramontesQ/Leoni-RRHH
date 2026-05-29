@@ -1,11 +1,13 @@
 """Tests unitarios de import_empleados_bono (sin BD externa)."""
 
 from app.scripts.import_empleados_bono import (
+    _aplicar_payload,
     _normalizar_empleado_id,
     _payload_desde_bono,
     _validar_fila,
     resolver_columnas_importables,
 )
+from app.models.empleados import Empleado
 
 
 def test_resolver_columnas_importables_copia_todas_las_compartidas():
@@ -106,3 +108,35 @@ def test_payload_desde_bono_normaliza_no_empleado_desde_float_excel():
     row = {"empleado_id": 3, "no_empleado": 108.0, "nombre": "Ana"}
     payload = _payload_desde_bono(row, ["empleado_id", "no_empleado", "nombre"])
     assert payload["no_empleado"] == "108"
+
+
+def test_aplicar_payload_no_cambia_no_empleado_si_es_equivalente():
+    empleado = Empleado(
+        empleado_id=2,
+        no_empleado="108.0",
+        nombre="David",
+        password_hash="$2b$12$hash",
+        rol_id=1,
+        email="david.barraza@leonicables.com",
+    )
+    payload = {
+        "no_empleado": "108",
+        "email": "david.barraza@leonicables.com",
+        "nombre": "David",
+    }
+    assert _aplicar_payload(empleado, payload) is False
+    assert empleado.no_empleado == "108.0"
+
+
+def test_aplicar_payload_actualiza_otros_campos_aunque_no_empleado_sea_equivalente():
+    empleado = Empleado(
+        empleado_id=2,
+        no_empleado="108.0",
+        nombre="David",
+        password_hash="$2b$12$hash",
+        rol_id=1,
+    )
+    payload = {"no_empleado": "108", "nombre": "David Actualizado"}
+    assert _aplicar_payload(empleado, payload) is True
+    assert empleado.no_empleado == "108.0"
+    assert empleado.nombre == "David Actualizado"

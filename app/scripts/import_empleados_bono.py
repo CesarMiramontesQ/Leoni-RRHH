@@ -164,10 +164,19 @@ async def _cargar_indice_empleado_id(db: AsyncSession) -> dict[int, Empleado]:
     return {int(e.empleado_id): e for e in empleados}
 
 
+def _valores_no_empleado_equivalentes(actual: Any, nuevo: Any) -> bool:
+    norm_actual = _normalizar_no_empleado(actual)
+    norm_nuevo = _normalizar_no_empleado(nuevo)
+    return norm_actual is not None and norm_actual == norm_nuevo
+
+
 def _aplicar_payload(empleado: Empleado, payload: dict[str, Any]) -> bool:
     hubo_cambio = False
     for campo, valor in payload.items():
-        if getattr(empleado, campo) != valor:
+        actual = getattr(empleado, campo)
+        if campo == "no_empleado" and _valores_no_empleado_equivalentes(actual, valor):
+            continue
+        if actual != valor:
             setattr(empleado, campo, valor)
             hubo_cambio = True
     return hubo_cambio
