@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -12,6 +13,7 @@ from app.core.security import (
 )
 from app.models.auditoria import TokenBlacklist
 from app.models.empleados import Empleado
+from app.models.roles import Rol
 from app.repositories.empleado_repository import EmpleadoRepository
 
 
@@ -87,11 +89,34 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
             detail="Refresh token revocado",
         )
 
+    empleado_id = payload.get("sub")
+    if not empleado_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token invalido: sin sub",
+        )
+
+    repo = EmpleadoRepository(db)
+    empleado = await repo.get_with_rol(int(empleado_id))
+    if not empleado:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Empleado no encontrado",
+        )
+    if empleado.estado_id is None or empleado.estado_id not in settings.ESTADOS_ACTIVOS_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Empleado inactivo",
+        )
+
+    rol_result = await db.execute(select(Rol).where(Rol.id == empleado.rol_id))
+    rol = rol_result.scalar_one_or_none()
+    rol_nombre = rol.nombre if rol else "empleado"
     new_payload = {
-        "sub": payload["sub"],
-        "rol": payload.get("rol", "empleado"),
-        "num": payload.get("num", ""),
-        "nombre": payload.get("nombre") or "",
+        "sub": str(empleado.id),
+        "rol": rol_nombre,
+        "num": empleado.no_empleado,
+        "nombre": empleado.nombre,
     }
     return {
         "access_token": create_access_token(new_payload),

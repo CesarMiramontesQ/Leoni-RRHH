@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.models.auditoria import TokenBlacklist
 from app.models.empleados import Empleado
+from app.models.roles import Rol
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -85,8 +86,12 @@ def role_checker(roles_requeridos: list[str]):
 
     async def check_role(
         current_user: Empleado = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
     ) -> Empleado:
-        rol_nombre = current_user.rol.nombre if current_user.rol else None
+        rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))
+        rol = rol_result.scalar_one_or_none()
+        # Alinear con auth_service y servicios de dominio: sin rol explícito → empleado.
+        rol_nombre = rol.nombre if rol else "empleado"
         if rol_nombre not in roles_requeridos:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
