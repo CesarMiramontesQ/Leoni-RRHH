@@ -85,3 +85,24 @@ def test_payload_desde_bono_copia_lider_id_tal_cual():
     assert payload["password_hash"] == "$2b$12$hash"
     assert payload["rol_id"] == 3
     assert payload["lider_id"] == 500
+
+
+def test_payload_desde_bono_convierte_no_empleado_entero_a_string():
+    row = {
+        "empleado_id": 2,
+        "no_empleado": 108,
+        "nombre": "David",
+        "email": "david.barraza@leonicables.com",
+    }
+    payload = _payload_desde_bono(
+        row,
+        ["empleado_id", "no_empleado", "nombre", "email"],
+    )
+    assert payload["no_empleado"] == "108"
+    assert isinstance(payload["no_empleado"], str)
+
+
+def test_payload_desde_bono_normaliza_no_empleado_desde_float_excel():
+    row = {"empleado_id": 3, "no_empleado": 108.0, "nombre": "Ana"}
+    payload = _payload_desde_bono(row, ["empleado_id", "no_empleado", "nombre"])
+    assert payload["no_empleado"] == "108"
