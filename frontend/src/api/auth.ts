@@ -1,9 +1,13 @@
 import { fetchWithAuth } from "./http.ts";
-import type { ClasificacionEmpleadoResponse } from "./usuarios.ts";
+import type { AreaResponse, ClasificacionEmpleadoResponse } from "./usuarios.ts";
 
 export type AuthMeResponse = {
   id: number;
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
   clasificacion: ClasificacionEmpleadoResponse | null;
+  area: AreaResponse | null;
 };
 
 export type AuthFetchError = {
