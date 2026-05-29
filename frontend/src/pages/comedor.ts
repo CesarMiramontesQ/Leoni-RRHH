@@ -9,6 +9,7 @@ import {
   getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
+import { getAuthMe } from "../api/auth.ts";
 import { refreshAccessTokenSession } from "../api/http.ts";
 import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
 import { mountComedorEditarComedorModal } from "../components/comedor/comedorEditarComedorModal.ts";
@@ -935,8 +936,21 @@ async function resolveEmpleadoOptionForComedor(
     area: "Sin área",
     avatarUrl: null,
   };
-  // El directorio GET /empleados no está disponible para rol empleado; usar datos del JWT.
-  if (canAccessEmpleadoPersonalDashboard()) return base;
+  if (canAccessEmpleadoPersonalDashboard()) {
+    try {
+      const me = await getAuthMe();
+      const areaLabel = me.area?.descripcion?.trim();
+      return {
+        id: String(me.empleado_id),
+        nombre: me.nombre?.trim() || base.nombre,
+        numero: formatNoEmpleadoDisplay(me.no_empleado) || base.numero,
+        area: areaLabel || base.area,
+        avatarUrl: null,
+      };
+    } catch {
+      return base;
+    }
+  }
   const q = (noEmpleadoJwt || empleadoId || empleadoNombre).trim();
   if (!q) return base;
   try {
