@@ -152,25 +152,28 @@ async def _load_active_empleado_ids(session, *, demo_ids: set[int]) -> list[int]
     return list(rows.all())
 
 
-async def _validate_demo_safe_to_delete(session, empleado_id: int) -> None:
+async def _validate_demo_safe_to_delete(session, empleado_local_id: int) -> None:
     """Verifica que el empleado demo no tenga datos productivos fuera de comedor."""
+    emp = await session.get(Empleado, empleado_local_id)
+    if emp is None:
+        return
     checks: list[tuple[str, object]] = [
-        ("solicitudes", Solicitud.empleado_id == empleado_id),
-        ("solicitudes_aprobador", SolicitudAprobacion.aprobador_id == empleado_id),
-        ("incidencias", Incidencia.empleado_id == empleado_id),
-        ("evidencias", Evidencia.subido_por == empleado_id),
-        ("actas", ActaAdministrativa.empleado_id == empleado_id),
-        ("actas_generadas", ActaAdministrativa.generado_por == empleado_id),
-        ("actas_firmante", ActaAprobacion.firmante_id == empleado_id),
-        ("notificaciones", Notificacion.user_id == empleado_id),
-        ("menus_creados", MenuSemanal.created_by == empleado_id),
-        ("subordinados", Empleado.lider_id == empleado_id),
+        ("solicitudes", Solicitud.empleado_id == empleado_local_id),
+        ("solicitudes_aprobador", SolicitudAprobacion.aprobador_id == empleado_local_id),
+        ("incidencias", Incidencia.empleado_id == empleado_local_id),
+        ("evidencias", Evidencia.subido_por == empleado_local_id),
+        ("actas", ActaAdministrativa.empleado_id == empleado_local_id),
+        ("actas_generadas", ActaAdministrativa.generado_por == empleado_local_id),
+        ("actas_firmante", ActaAprobacion.firmante_id == empleado_local_id),
+        ("notificaciones", Notificacion.user_id == empleado_local_id),
+        ("menus_creados", MenuSemanal.created_by == empleado_local_id),
+        ("subordinados", Empleado.lider_id == emp.empleado_id),
     ]
     for label, cond in checks:
         n = (await session.execute(select(func.count()).where(cond))).scalar_one()
         if n:
             raise DemoEmployeeNotSafeError(
-                f"Empleado demo id={empleado_id} tiene {n} registro(s) en '{label}'; no se elimina."
+                f"Empleado demo id={empleado_local_id} tiene {n} registro(s) en '{label}'; no se elimina."
             )
 
 

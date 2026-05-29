@@ -6,7 +6,8 @@ La BD de IT es la fuente de verdad para empleados y catálogos.
 Este módulo sincroniza cada IT_SYNC_INTERVAL_MINUTES hacia la BD local.
 
 Invariantes de seguridad:
-  - NUNCA sobreescribir: rol_id, lider_id, password_hash
+  - NUNCA sobreescribir: rol_id, password_hash
+  - ``lider_id`` se copia tal cual (``empleado_id`` del jefe en IT/bono)
   - Si estado deja de ser activo y el empleado tiene solicitudes PENDING → cancelarlas y notificar
   - Si la conexión falla → loggear + registrar en it_sync_log + NO propagar excepción
 """
@@ -232,16 +233,6 @@ class ITMirrorClient:
         result = await rh_db.execute(stmt)
         emp_local = result.scalar_one_or_none()
 
-        lider_local_id: int | None = None
-        if emp_it.get("lider_id"):
-            lider_stmt = select(Empleado).where(
-                Empleado.empleado_id == emp_it["lider_id"]
-            )
-            lider_result = await rh_db.execute(lider_stmt)
-            lider = lider_result.scalar_one_or_none()
-            if lider:
-                lider_local_id = lider.id
-
         campos_sync = {
             "empleado_id": emp_it["empleado_id"],
             "no_sap": emp_it.get("no_sap"),
@@ -253,7 +244,7 @@ class ITMirrorClient:
             "estado_id": emp_it.get("estado_id"),
             "area_id": emp_it.get("area_id"),
             "clasificacion_id": emp_it.get("clasificacion_id"),
-            "lider_id": lider_local_id,
+            "lider_id": emp_it.get("lider_id"),
             "centrocosto_id": emp_it.get("centrocosto_id"),
             "foto": emp_it.get("foto"),
             "recibe_bono": emp_it.get("recibe_bono"),

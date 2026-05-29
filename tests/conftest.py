@@ -189,6 +189,7 @@ async def make_empleado(
     """
     Factory para crear un Empleado con Rol asociado.
     Genera identificadores unicos automaticamente para evitar colisiones entre tests.
+    ``lider_id`` debe ser el ``empleado_id`` del líder (no el ``id`` local).
     """
     import uuid
     from app.models.empleados import Empleado

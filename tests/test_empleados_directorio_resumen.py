@@ -30,7 +30,7 @@ async def test_resumen_supervisor_colaboradores_y_contratos_en_equipo(
         empleado_id=91002,
         no_empleado="SUB-R-01",
         estado_id=1,
-        lider_id=sup.id,
+        lider_id=sup.empleado_id,
         fecha_fin_contrato=fin_contrato,
     )
     await make_empleado(
@@ -70,7 +70,7 @@ async def test_list_directorio_filtro_estatus_permiso_supervisor(client: AsyncCl
         empleado_id=92002,
         no_empleado="SUB-P-01",
         estado_id=3,
-        lider_id=sup.id,
+        lider_id=sup.empleado_id,
     )
     await make_empleado(
         db,
@@ -79,7 +79,7 @@ async def test_list_directorio_filtro_estatus_permiso_supervisor(client: AsyncCl
         empleado_id=92003,
         no_empleado="SUB-P-A",
         estado_id=1,
-        lider_id=sup.id,
+        lider_id=sup.empleado_id,
     )
 
     headers = await auth_headers(client, sup)

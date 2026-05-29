@@ -147,7 +147,7 @@ async def test_list_empleados_rh_solo_sin_lider_coincide_con_resumen(
         estado_id=1,
         empleado_id=88032,
         no_empleado="RH-SL-2",
-        lider_id=con_lider.id,
+        lider_id=con_lider.empleado_id,
     )
     inactivo_sin_lider = await make_empleado(
         db,
