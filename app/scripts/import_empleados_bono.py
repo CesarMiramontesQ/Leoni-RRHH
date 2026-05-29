@@ -22,7 +22,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import String, select, text
+from sqlalchemy import Boolean, String, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.database import AsyncSessionLocal, engine as main_engine
@@ -72,6 +72,38 @@ def _columnas_string_locales() -> frozenset[str]:
     )
 
 
+def _columnas_boolean_locales() -> frozenset[str]:
+    return frozenset(
+        col.name
+        for col in Empleado.__table__.columns
+        if isinstance(col.type, Boolean)
+    )
+
+
+_TRUE_BOOLEANOS = frozenset({"1", "s", "si", "sí", "y", "yes", "true", "t"})
+_FALSE_BOOLEANOS = frozenset({"0", "n", "no", "false", "f"})
+
+
+def _normalizar_booleano(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if value == 1:
+            return True
+        if value == 0:
+            return False
+    raw = str(value).strip().lower()
+    if not raw:
+        return None
+    if raw in _TRUE_BOOLEANOS:
+        return True
+    if raw in _FALSE_BOOLEANOS:
+        return False
+    return None
+
+
 def _texto(value: Any) -> str | None:
     if value is None:
         return None
@@ -102,6 +134,8 @@ def _normalizar_valor_campo(campo: str, valor: Any) -> Any:
         return _normalizar_no_empleado(valor)
     if campo == "email":
         return _normalizar_email(valor)
+    if campo in _columnas_boolean_locales():
+        return _normalizar_booleano(valor)
     if campo in _columnas_string_locales():
         return _texto(valor)
     return valor
