@@ -22,7 +22,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import String, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.database import AsyncSessionLocal, engine as main_engine
@@ -62,6 +62,40 @@ class ImportStats:
 
 def _columnas_locales() -> set[str]:
     return {col.name for col in Empleado.__table__.columns}
+
+
+def _columnas_string_locales() -> frozenset[str]:
+    return frozenset(
+        col.name
+        for col in Empleado.__table__.columns
+        if isinstance(col.type, String)
+    )
+
+
+def _texto(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text if text else None
+
+
+def _normalizar_no_empleado(value: Any) -> str | None:
+    raw = _texto(value)
+    if not raw:
+        return None
+    if raw.endswith(".0") and raw[:-2].isdigit():
+        return raw[:-2]
+    return raw
+
+
+def _normalizar_valor_campo(campo: str, valor: Any) -> Any:
+    if valor is None:
+        return None
+    if campo == "no_empleado":
+        return _normalizar_no_empleado(valor)
+    if campo in _columnas_string_locales():
+        return _texto(valor)
+    return valor
 
 
 def resolver_columnas_importables(
@@ -104,12 +138,23 @@ def _normalizar_empleado_id(row: dict[str, Any]) -> int | None:
 
 
 def _payload_desde_bono(row: dict[str, Any], columnas: list[str]) -> dict[str, Any]:
-    return {col: row.get(col) for col in columnas}
+    return {
+        col: _normalizar_valor_campo(col, row.get(col))
+        for col in columnas
+    }
 
 
 def _validar_fila(empleado_id: int | None) -> tuple[bool, str | None]:
     if empleado_id is None:
         return False, "empleado_id inválido o ausente"
+    return True, None
+
+
+def _validar_payload(payload: dict[str, Any]) -> tuple[bool, str | None]:
+    if "no_empleado" in payload and not payload.get("no_empleado"):
+        return False, "no_empleado ausente o inválido"
+    if "nombre" in payload and not payload.get("nombre"):
+        return False, "nombre ausente"
     return True, None
 
 
@@ -213,6 +258,12 @@ async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportSta
                 continue
 
             payload = _payload_desde_bono(row, columnas_importables)
+            ok_payload, motivo_payload = _validar_payload(payload)
+            if not ok_payload:
+                stats.omitidos += 1
+                stats.registrar_error(f"empleado_id={empleado_id}: {motivo_payload}")
+                continue
+
             existente = by_empleado_id.get(empleado_id)  # type: ignore[arg-type]
 
             if existente is None:
