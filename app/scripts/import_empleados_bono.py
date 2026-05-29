@@ -3,6 +3,7 @@ Sincroniza empleados desde bono_productividad.empleados hacia la tabla local emp
 
 Solo lectura en bono; upsert en la BD principal (DATABASE_URL).
 Copia todas las columnas presentes en ambas tablas (excepto ``id``, PK local).
+``password`` en bono se mapea a ``password_hash`` local.
 ``lider_id`` se copia tal cual (``empleado_id`` del jefe en bono).
 
 Clave de identificación: ``empleado_id``.
@@ -34,6 +35,8 @@ from app.models.roles import Rol
 logger = logging.getLogger(__name__)
 
 _COLUMNA_PK_LOCAL = "id"
+_COLUMNA_PASSWORD_BONO = "password"
+_COLUMNA_PASSWORD_LOCAL = "password_hash"
 
 _SQL_COLUMNAS_BONO = """
 SELECT column_name
@@ -141,12 +144,45 @@ def _normalizar_valor_campo(campo: str, valor: Any) -> Any:
     return valor
 
 
+def _mapea_password_bono_a_local(columnas_bono: set[str], columnas_locales: set[str]) -> bool:
+    return (
+        _COLUMNA_PASSWORD_BONO in columnas_bono
+        and _COLUMNA_PASSWORD_LOCAL in columnas_locales
+        and _COLUMNA_PASSWORD_BONO not in columnas_locales
+    )
+
+
 def resolver_columnas_importables(
     columnas_bono: set[str],
     columnas_locales: set[str] | None = None,
 ) -> list[str]:
     locales = columnas_locales if columnas_locales is not None else _columnas_locales()
-    return sorted((columnas_bono & locales) - {_COLUMNA_PK_LOCAL})
+    importables = sorted((columnas_bono & locales) - {_COLUMNA_PK_LOCAL})
+    if (
+        _mapea_password_bono_a_local(columnas_bono, locales)
+        and _COLUMNA_PASSWORD_LOCAL not in importables
+    ):
+        importables.append(_COLUMNA_PASSWORD_LOCAL)
+        importables.sort()
+    return importables
+
+
+def resolver_columnas_lectura_bono(
+    columnas_importables: list[str],
+    columnas_bono: set[str],
+) -> list[str]:
+    """Nombres de columnas a leer en bono (p. ej. ``password`` → ``password_hash``)."""
+    lectura: list[str] = []
+    for col in columnas_importables:
+        if (
+            col == _COLUMNA_PASSWORD_LOCAL
+            and _COLUMNA_PASSWORD_BONO in columnas_bono
+            and _COLUMNA_PASSWORD_BONO not in columnas_importables
+        ):
+            lectura.append(_COLUMNA_PASSWORD_BONO)
+        else:
+            lectura.append(col)
+    return lectura
 
 
 async def _obtener_columnas_bono(engine: AsyncEngine) -> set[str]:
@@ -180,9 +216,17 @@ def _normalizar_empleado_id(row: dict[str, Any]) -> int | None:
         return None
 
 
+def _valor_bono_para_columna_local(row: dict[str, Any], col: str) -> Any:
+    if col == _COLUMNA_PASSWORD_LOCAL:
+        if _COLUMNA_PASSWORD_BONO in row:
+            return row.get(_COLUMNA_PASSWORD_BONO)
+        return row.get(_COLUMNA_PASSWORD_LOCAL)
+    return row.get(col)
+
+
 def _payload_desde_bono(row: dict[str, Any], columnas: list[str]) -> dict[str, Any]:
     return {
-        col: _normalizar_valor_campo(col, row.get(col))
+        col: _normalizar_valor_campo(col, _valor_bono_para_columna_local(row, col))
         for col in columnas
     }
 
@@ -262,6 +306,7 @@ async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportSta
             ) from exc
 
         columnas_importables = resolver_columnas_importables(columnas_bono, columnas_locales)
+        columnas_lectura = resolver_columnas_lectura_bono(columnas_importables, columnas_bono)
         stats.columnas_importadas = list(columnas_importables)
 
         if not columnas_importables:
@@ -273,7 +318,7 @@ async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportSta
         try:
             rows = await _leer_empleados_bono(
                 bono_engine,
-                columnas_importables,
+                columnas_lectura,
                 limit=limit,
             )
         except Exception as exc:

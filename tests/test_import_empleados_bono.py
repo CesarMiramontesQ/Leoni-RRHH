@@ -6,6 +6,7 @@ from app.scripts.import_empleados_bono import (
     _payload_desde_bono,
     _validar_fila,
     resolver_columnas_importables,
+    resolver_columnas_lectura_bono,
 )
 from app.models.empleados import Empleado
 
@@ -52,6 +53,44 @@ def test_resolver_columnas_importables_copia_todas_las_compartidas():
     assert "id" not in cols
     assert "fecha_fin_contrato" not in cols
     assert "columna_solo_bono" not in cols
+
+
+def test_resolver_columnas_importables_mapea_password_bono_a_password_hash():
+    bono = {"empleado_id", "no_empleado", "nombre", "password", "email"}
+    locales = {"empleado_id", "no_empleado", "nombre", "password_hash", "email"}
+    cols = resolver_columnas_importables(bono, locales)
+    assert "password_hash" in cols
+    assert "password" not in cols
+    lectura = resolver_columnas_lectura_bono(cols, bono)
+    assert "password" in lectura
+    assert "password_hash" not in lectura
+
+
+def test_payload_desde_bono_mapea_password_a_password_hash():
+    row = {
+        "empleado_id": 1,
+        "no_empleado": "100",
+        "nombre": "Ana",
+        "password": "$2b$12$hashdesdebono",
+    }
+    payload = _payload_desde_bono(
+        row,
+        ["empleado_id", "no_empleado", "nombre", "password_hash"],
+    )
+    assert payload["password_hash"] == "$2b$12$hashdesdebono"
+
+
+def test_aplicar_payload_actualiza_password_hash_desde_bono():
+    empleado = Empleado(
+        empleado_id=1,
+        no_empleado="100",
+        nombre="Ana",
+        password_hash="viejo-hash",
+        rol_id=1,
+    )
+    payload = {"password_hash": "$2b$12$nuevo"}
+    assert _aplicar_payload(empleado, payload) is True
+    assert empleado.password_hash == "$2b$12$nuevo"
 
 
 def test_validar_fila_ok():
