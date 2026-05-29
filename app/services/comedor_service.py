@@ -19,6 +19,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -30,6 +31,7 @@ from app.core.exceptions import (
 )
 from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
+from app.models.roles import Rol
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
@@ -102,8 +104,11 @@ class ComedorService:
         self.externo_corr_repo = ComedorExternoCorrelativoRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
 
-    def _get_rol(self, user: Empleado) -> str:
-        return user.rol.nombre if user.rol else ""
+    async def _get_rol(self, user: Empleado) -> str:
+        """Fuente de verdad: rol_id en BD (evita relación ORM cacheada o no cargada)."""
+        rol_result = await self.db.execute(select(Rol).where(Rol.id == user.rol_id))
+        rol = rol_result.scalar_one_or_none()
+        return rol.nombre if rol else "empleado"
 
     @staticmethod
     def _nombre_corto(nombre_completo: str | None) -> str:
@@ -189,7 +194,7 @@ class ComedorService:
         current_user: Empleado,
         target_user_id: int | None,
     ) -> int:
-        rol = self._get_rol(current_user)
+        rol = await self._get_rol(current_user)
         beneficiario_id = target_user_id or current_user.id
 
         if rol == "empleado":
@@ -225,7 +230,7 @@ class ComedorService:
         self,
         current_user: Empleado,
     ) -> list[ComedorEquipoBeneficiarioItem]:
-        if self._get_rol(current_user) != "supervisor":
+        if await self._get_rol(current_user) != "supervisor":
             raise ForbiddenError(detail="Solo supervisor puede consultar beneficiarios")
         subordinados = await self.empleado_repo.get_subordinados(
             current_user.empleado_id,
@@ -254,7 +259,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorResponse:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede registrar comedores")
 
         ubic = (data.ubicacion or "").strip() or None
@@ -285,7 +290,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorResponse:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede editar comedores")
 
         comedor = await self.comedor_repo.get(comedor_id)
@@ -340,7 +345,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalResponse:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede publicar menus")
 
         menu = await self.menu_repo.create({
@@ -448,7 +453,7 @@ class ComedorService:
         current_user: Empleado,
         limite: int = 50,
     ) -> list[ComedorEquipoReservaItem]:
-        if self._get_rol(current_user) not in ("supervisor", "gerente"):
+        if await self._get_rol(current_user) not in ("supervisor", "gerente"):
             raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar reservas de equipo")
         equipo_ids = await self.empleado_repo.get_ids_subarbol(
             current_user.empleado_id,
@@ -481,7 +486,7 @@ class ComedorService:
         anio: int,
         mes: int,
     ) -> list[ComedorEquipoReservaItem]:
-        if self._get_rol(current_user) not in ("supervisor", "gerente"):
+        if await self._get_rol(current_user) not in ("supervisor", "gerente"):
             raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar reservas de equipo")
         desde = date(anio, mes, 1)
         ultimo = calendar.monthrange(anio, mes)[1]
@@ -515,7 +520,7 @@ class ComedorService:
         self,
         current_user: Empleado,
     ) -> dict[str, int]:
-        if self._get_rol(current_user) not in ("supervisor", "gerente"):
+        if await self._get_rol(current_user) not in ("supervisor", "gerente"):
             raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar métricas de equipo")
         hoy = business_today()
         inicio_semana_actual = hoy - timedelta(days=hoy.weekday())
@@ -563,7 +568,7 @@ class ComedorService:
         desde: date,
         hasta: date,
     ) -> list[ComedorResumenDiarioItem]:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar resumen diario global")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -643,7 +648,7 @@ class ComedorService:
         *,
         semanas: int = 8,
     ) -> list[ComedorRhSemanaRegistrosFuturosItem]:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar registros futuros por semana")
         hoy = date.today()
         limite = max(1, min(semanas, 16))
@@ -691,7 +696,7 @@ class ComedorService:
         buscar: str | None = None,
         filtro_estado: Literal["todos", "confirmado", "cancelado"] = "todos",
     ) -> ComedorRhProximosRegistrosPage:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar próximos registros de comedor")
         if page_size not in (5, 10, 50):
             raise ConflictError(detail="page_size debe ser 5, 10 o 50")
@@ -754,7 +759,7 @@ class ComedorService:
         buscar: str | None = None,
         filtro_estado: Literal["todos", "confirmado", "cancelado"] = "todos",
     ) -> ComedorRhProximosRegistrosPage:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar registros de reporte de comedor")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -919,7 +924,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorRhRegistroResponse:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede crear registros de este tipo")
         comedor = await self.comedor_repo.get(data.comedor_id)
         if not comedor:
@@ -1013,7 +1018,7 @@ class ComedorService:
         hasta: date | None = None,
         estatus: str | None = None,
     ) -> list[ComedorCodigoExternoItem]:
-        if self._get_rol(current_user) != "rh":
+        if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede consultar códigos externos")
         if desde and hasta and hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -1059,7 +1064,7 @@ class ComedorService:
                 semana=inicio_semana,
             )
             if not registro:
-                if self._get_rol(current_user) in ("supervisor", "gerente"):
+                if await self._get_rol(current_user) in ("supervisor", "gerente"):
                     registro = await self.registro_repo.create({
                         "empleado_id": beneficiario_id,
                         "comedor_id": data.comedor_id,
@@ -1356,7 +1361,7 @@ class ComedorService:
         current_user: Empleado,
         semana: date | None = None,
     ) -> dict:
-        if self._get_rol(current_user) not in ("rh", "gerente", "director"):
+        if await self._get_rol(current_user) not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver estadisticas de comedor")
 
         semana_ref = semana or date.today()
@@ -1405,7 +1410,7 @@ class ComedorService:
         self,
         current_user: Empleado,
     ) -> dict:
-        if self._get_rol(current_user) not in ("rh", "gerente", "director"):
+        if await self._get_rol(current_user) not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver proyecciones")
 
         registros = await self.registro_repo.get_registros_semanas_recientes(n=4)

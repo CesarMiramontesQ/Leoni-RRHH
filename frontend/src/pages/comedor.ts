@@ -935,6 +935,8 @@ async function resolveEmpleadoOptionForComedor(
     area: "Sin área",
     avatarUrl: null,
   };
+  // El directorio GET /empleados no está disponible para rol empleado; usar datos del JWT.
+  if (canAccessEmpleadoPersonalDashboard()) return base;
   const q = (noEmpleadoJwt || empleadoId || empleadoNombre).trim();
   if (!q) return base;
   try {
