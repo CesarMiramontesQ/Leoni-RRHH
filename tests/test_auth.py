@@ -335,6 +335,74 @@ async def test_refresh_token_valido_retorna_nuevo_access_token(client: AsyncClie
     assert body["access_token"] != original_access
 
 
+@pytest.mark.asyncio
+async def test_refresh_sincroniza_rol_desde_bd(client: AsyncClient, db):
+    from app.core.security import decode_token
+
+    empleado = await make_empleado(db, rol="empleado", email="rolsync@leoni.test")
+
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "rolsync@leoni.test", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_resp.status_code == 200
+    refresh_token = login_resp.json()["refresh_token"]
+
+    sup = await make_empleado(db, rol="supervisor", email="rolsync-sup2@leoni.test")
+    empleado.rol_id = sup.rol_id
+    await db.flush()
+
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+    assert response.status_code == 200
+    payload = decode_token(response.json()["access_token"])
+    assert payload.get("rol") == "supervisor"
+
+
+@pytest.mark.asyncio
+async def test_refresh_tras_cambio_rol_permite_mis_reservas_si_vuelve_a_empleado(
+    client: AsyncClient, db, monkeypatch,
+):
+    from datetime import date
+
+    from app.core.security import decode_token
+
+    empleado = await make_empleado(db, rol="supervisor", email="rolback@leoni.test")
+
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "rolback@leoni.test", "password": "Passw0rd!Seguro"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_resp.status_code == 200
+    refresh_token = login_resp.json()["refresh_token"]
+    assert decode_token(login_resp.json()["access_token"]).get("rol") == "supervisor"
+
+    emp = await make_empleado(db, rol="empleado", email="rolback-emp@leoni.test")
+    empleado.rol_id = emp.rol_id
+    await db.flush()
+
+    refresh_resp = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+    assert refresh_resp.status_code == 200
+    headers = {"Authorization": f"Bearer {refresh_resp.json()['access_token']}"}
+
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(cs, "business_today", lambda: date(2026, 4, 23))
+
+    r = await client.get(
+        "/api/v1/comedor/accesos/mis-reservas?anio=2026&mes=4",
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+
+
 # ---------------------------------------------------------------------------
 # TC-AUTH-010: Refresh con access token (tipo incorrecto) retorna 401
 # ---------------------------------------------------------------------------

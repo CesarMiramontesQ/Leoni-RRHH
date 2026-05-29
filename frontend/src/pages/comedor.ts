@@ -9,6 +9,7 @@ import {
   getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
+import { refreshAccessTokenSession } from "../api/http.ts";
 import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
 import { mountComedorEditarComedorModal } from "../components/comedor/comedorEditarComedorModal.ts";
 import { renderComedorGestionAdmin } from "../components/comedor/comedorGestionAdmin.ts";
@@ -2563,6 +2564,20 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   })();
 }
 
+/** Ante 403 por rol desactualizado en JWT: refresca sesión y remonta vista si cambió el rol. */
+async function recoverComedorEmpleadoSessionAfter403(
+  container: HTMLElement,
+  signal: AbortSignal,
+): Promise<"retry" | "remounted" | "none"> {
+  const refreshed = await refreshAccessTokenSession();
+  if (!refreshed) return "none";
+  if (getRolFromAccessToken() !== "empleado") {
+    mountComedor(container, signal);
+    return "remounted";
+  }
+  return "retry";
+}
+
 function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
   const comedorIdResolver = createComedorIdResolver();
@@ -2589,7 +2604,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     root.innerHTML = renderComedorDashboardEmpleado(toEmpleadoViewState(state));
   }
 
-  async function loadCalendar(): Promise<void> {
+  async function loadCalendar(allowSessionRecovery = true): Promise<void> {
     const requestVersion = ++calendarRequestVersion;
     state.calendarState = "loading";
     state.calendarError = null;
@@ -2613,6 +2628,17 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
       state.calendarState = "ready";
     } catch (error) {
       if (signal.aborted || requestVersion !== calendarRequestVersion) return;
+      if (
+        allowSessionRecovery &&
+        isComedorApiError(error) &&
+        error.status === 403
+      ) {
+        const recovery = await recoverComedorEmpleadoSessionAfter403(container, signal);
+        if (recovery === "retry") {
+          return loadCalendar(false);
+        }
+        if (recovery === "remounted") return;
+      }
       state.calendar = null;
       state.calendarState = "error";
       state.calendarError = isComedorApiError(error)
@@ -2624,7 +2650,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     paint();
   }
 
-  async function loadProximas(): Promise<void> {
+  async function loadProximas(allowSessionRecovery = true): Promise<void> {
     state.proximasState = "loading";
     state.proximasError = null;
     paint();
@@ -2644,6 +2670,17 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
       state.proximasState = "ready";
     } catch (error) {
       if (signal.aborted) return;
+      if (
+        allowSessionRecovery &&
+        isComedorApiError(error) &&
+        error.status === 403
+      ) {
+        const recovery = await recoverComedorEmpleadoSessionAfter403(container, signal);
+        if (recovery === "retry") {
+          return loadProximas(false);
+        }
+        if (recovery === "remounted") return;
+      }
       state.proximas = [];
       state.proximasState = "error";
       state.proximasError = isComedorApiError(error)
