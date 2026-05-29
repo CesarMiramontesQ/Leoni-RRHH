@@ -114,6 +114,44 @@ async def test_supervisor_puede_reservar_pero_no_listar_mis_reservas(client: Asy
 
 
 @pytest.mark.asyncio
+async def test_empleado_puede_reservar_sin_relacion_rol_cargada(client: AsyncClient, db, monkeypatch):
+    """Simula sesión donde rol_id es válido pero la relación ORM `empleado.rol` no está cargada."""
+    from app.models.comedor import Comedor, ComedorRegistro
+    from app.services import comedor_service as cs
+
+    monkeypatch.setattr(cs, "business_today", lambda: date(2026, 4, 23))
+
+    comedor = Comedor(nombre="C sin rol rel", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    emp = await make_empleado(db, email="res_sin_rol_rel@test.leoni", password="Secret1!")
+    reg = ComedorRegistro(
+        empleado_id=emp.id,
+        comedor_id=comedor.id,
+        semana=date(2026, 4, 27),
+        tipo_platillo="normal",
+        acceso_concedido=False,
+    )
+    db.add(reg)
+    await db.flush()
+
+    db.expire(emp, ["rol"])
+
+    hdrs = await auth_headers(client, emp, password="Secret1!")
+    r = await client.post(
+        RESERVAR_URL,
+        json={
+            "comedor_id": comedor.id,
+            "fecha_servicio": "2026-04-28",
+            "tipo_comida": "casera",
+        },
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.asyncio
 async def test_reservar_rechaza_semana_actual_permite_siguiente(client: AsyncClient, db, monkeypatch):
     from app.models.comedor import Comedor, ComedorRegistro
     from app.services import comedor_service as cs
