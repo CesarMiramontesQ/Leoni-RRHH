@@ -26,8 +26,6 @@ class OrganigramaService:
     def _correo_preferente(empleado: Empleado) -> str | None:
         if empleado.email and empleado.email.strip():
             return empleado.email.strip()
-        if empleado.email_alterno and empleado.email_alterno.email.strip():
-            return empleado.email_alterno.email.strip()
         return None
 
     @staticmethod

@@ -341,7 +341,7 @@ components:
           type: integer
         sin_email_administrativo:
           type: integer
-          description: Administrativos activos sin correo en empleado ni tabla emails
+          description: Administrativos activos sin correo en empleado.email
         practicantes:
           type: integer
         porcentaje_operatividad:

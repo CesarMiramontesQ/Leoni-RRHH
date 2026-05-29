@@ -7,7 +7,6 @@ from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.emails import Email
 from app.models.empleados import Empleado
 from app.models.catalogos import Area, ClasificacionEmpleado, Puesto
 from app.repositories.base import BaseRepository
@@ -25,10 +24,8 @@ class UsuarioRepository(BaseRepository[Empleado]):
 
     @staticmethod
     def _sin_email_condition():
-        """Sin correo en empleado.email ni en tabla emails (misma lógica que UsuarioResponse)."""
-        tiene_empleado = and_(Empleado.email.isnot(None), func.trim(Empleado.email) != "")
-        tiene_alterno = and_(Email.email.isnot(None), func.trim(Email.email) != "")
-        return ~or_(tiene_empleado, tiene_alterno)
+        """Sin correo registrado en empleado.email."""
+        return or_(Empleado.email.is_(None), func.trim(Empleado.email) == "")
 
     @staticmethod
     def _normalized_sql(expr):
@@ -54,7 +51,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 selectinload(Empleado.subarea),
                 selectinload(Empleado.categoria),
                 selectinload(Empleado.clasificacion),
-                selectinload(Empleado.email_alterno),
             )
             .where(Empleado.id == id)
         )
@@ -123,7 +119,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
                     UsuarioRepository._normalized_sql(Empleado.nombre).ilike(term),
                     UsuarioRepository._normalized_sql(Empleado.no_empleado).ilike(term),
                     UsuarioRepository._normalized_sql(Empleado.email).ilike(term),
-                    UsuarioRepository._normalized_sql(Email.email).ilike(term),
                     cast(Empleado.id, String).ilike(term),
                     cast(Empleado.empleado_id, String).ilike(term),
                     and_(
@@ -199,9 +194,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
             selectinload(Empleado.subarea),
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
-            selectinload(Empleado.email_alterno),
         )
-        query = query.outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
         for cond in conditions:
             query = query.where(cond)
         query = query.order_by(Empleado.id).offset(offset).limit(limit)
@@ -242,7 +235,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = (
             select(func.count())
             .select_from(Empleado)
-            .outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
         )
         for cond in conditions:
             query = query.where(cond)
@@ -254,7 +246,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
-                selectinload(Empleado.email_alterno),
             )
             .where(
                 Empleado.lider_id == lider_id,
@@ -308,7 +299,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = (
             select(func.count())
             .select_from(Empleado)
-            .outerjoin(Email, Email.no_empleado == Empleado.no_empleado)
             .where(
                 Empleado.clasificacion_id.in_(clasificacion_admin_ids),
                 Empleado.estado_id.in_(estados_activos),
