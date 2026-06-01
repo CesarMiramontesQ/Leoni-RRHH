@@ -43,9 +43,9 @@ const SUBCATEGORIA_COLORS: Record<string, string> = {
 
 const NIVEL_LABELS: Record<number, string> = {
   0: "0 — N/A",
-  1: "1 — Básico",
-  2: "2 — Intermedio",
-  3: "3 — Avanzado",
+  1: "1 — Planeado",
+  2: "2 — En entrenamiento",
+  3: "3 — Certificado",
   4: "4 — Experto",
 };
 

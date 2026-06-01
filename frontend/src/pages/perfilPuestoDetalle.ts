@@ -339,11 +339,17 @@ export function mountPerfilPuestoDetalle(container: HTMLElement, id: number): vo
     activeNav: "puestos",
     mainHtml: `
       <div id="perfil-detalle-root" class="flex min-h-0 flex-1 flex-col gap-4 py-5 sm:gap-5 sm:py-6">
-        <nav class="flex items-center gap-1.5 text-xs text-slate-500" aria-label="Breadcrumb">
-          <a href="#/puestos" class="hover:text-leoni-blue transition">Perfiles de Puesto</a>
-          <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-          <span class="font-medium text-text-primary" id="breadcrumb-label">Cargando...</span>
-        </nav>
+        <div class="flex items-center gap-3">
+          <a href="#/puestos" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:text-leoni-blue transition" aria-label="Volver a Perfiles de Puesto">
+            <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Volver
+          </a>
+          <nav class="flex items-center gap-1.5 text-xs text-slate-500" aria-label="Breadcrumb">
+            <a href="#/puestos" class="hover:text-leoni-blue transition">Perfiles de Puesto</a>
+            <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            <span class="font-medium text-text-primary" id="breadcrumb-label">Cargando...</span>
+          </nav>
+        </div>
         <div id="perfil-detalle-content">
           <p class="text-sm text-text-muted">Cargando perfil...</p>
         </div>
