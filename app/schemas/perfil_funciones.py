@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.catalogos_cualificacion import ESCOLARIDAD_KEYS
+from app.core.catalogos_cualificacion import ESCOLARIDAD_KEYS, TIPOS_ESCOLARIDAD
 
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
@@ -115,9 +115,9 @@ class PerfilCualificacionCreate(BaseModel):
 
     @model_validator(mode="after")
     def _validar_campos(self) -> "PerfilCualificacionCreate":
-        if self.tipo == "estudios_finalizados" and self.situacion_deseada not in ESCOLARIDAD_KEYS:
+        if self.tipo in TIPOS_ESCOLARIDAD and self.situacion_deseada not in ESCOLARIDAD_KEYS:
             raise ValueError(
-                f"Para tipo 'estudios_finalizados', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
+                f"Para tipo '{self.tipo}', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
             )
         if self.anios_minimos is not None and self.tipo not in TIPOS_CON_ANIOS:
             raise ValueError("anios_minimos solo aplica para experiencia_profesional o experiencia_direccion")
@@ -134,10 +134,10 @@ class PerfilCualificacionUpdate(BaseModel):
 
     @model_validator(mode="after")
     def _validar_campos(self) -> "PerfilCualificacionUpdate":
-        if self.tipo == "estudios_finalizados" and self.situacion_deseada is not None:
+        if self.tipo in TIPOS_ESCOLARIDAD and self.situacion_deseada is not None:
             if self.situacion_deseada not in ESCOLARIDAD_KEYS:
                 raise ValueError(
-                    f"Para tipo 'estudios_finalizados', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
+                    f"Para tipo '{self.tipo}', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
                 )
         if self.anios_minimos is not None and self.tipo is not None and self.tipo not in TIPOS_CON_ANIOS:
             raise ValueError("anios_minimos solo aplica para experiencia_profesional o experiencia_direccion")

@@ -5822,7 +5822,7 @@ paths:
     get:
       tags: [Talento - Perfil Funciones]
       summary: Catálogo de niveles de escolaridad
-      description: Retorna los niveles jerárquicos de escolaridad usados para compliance automático en cualificaciones tipo estudios_finalizados.
+      description: Retorna los niveles jerárquicos de escolaridad usados para compliance automático en cualificaciones tipo estudios_finalizados y estudios_universitarios.
       operationId: catalogo_escolaridad
       security:
         - BearerAuth: []

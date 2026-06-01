@@ -15,7 +15,11 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.catalogos_cualificacion import calcular_cumplimiento, es_clave_escolaridad_valida
+from app.core.catalogos_cualificacion import (
+    TIPOS_ESCOLARIDAD,
+    calcular_cumplimiento,
+    es_clave_escolaridad_valida,
+)
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil, TareaCatalogo
@@ -216,11 +220,11 @@ class PerfilFuncionesService:
 
         await self._get_perfil_or_404(perfil_id)
 
-        if data.tipo == "estudios_finalizados":
+        if data.tipo in TIPOS_ESCOLARIDAD:
             existentes = await self.cualificacion_repo.list_by_perfil(perfil_id)
-            if any(c.tipo == "estudios_finalizados" for c in existentes):
+            if any(c.tipo == data.tipo for c in existentes):
                 raise DomainValidationError(
-                    "Solo puede existir una cualificación de tipo 'estudios_finalizados' por perfil"
+                    f"Solo puede existir una cualificación de tipo '{data.tipo}' por perfil"
                 )
 
         create_data: dict = {
@@ -537,7 +541,7 @@ class PerfilFuncionesService:
             evaluacion = eval_cual_map.get(cual.id)
             cumple: bool | None = None
             if evaluacion is not None:
-                if cual.tipo == "estudios_finalizados":
+                if cual.tipo in TIPOS_ESCOLARIDAD:
                     cumple = calcular_cumplimiento(cual.situacion_deseada, evaluacion.situacion_actual)
                 elif cual.situacion_deseada == "N/A":
                     cumple = True
@@ -637,10 +641,10 @@ class PerfilFuncionesService:
                 )
             for eval_data in evaluaciones_cualificacion:
                 cual = cuales_by_id[eval_data.cualificacion_id]
-                if cual.tipo == "estudios_finalizados" and es_clave_escolaridad_valida(cual.situacion_deseada):
+                if cual.tipo in TIPOS_ESCOLARIDAD and es_clave_escolaridad_valida(cual.situacion_deseada):
                     if not es_clave_escolaridad_valida(eval_data.situacion_actual):
                         raise DomainValidationError(
-                            f"Para cualificación tipo 'estudios_finalizados' (id={eval_data.cualificacion_id}), "
+                            f"Para cualificación tipo '{cual.tipo}' (id={eval_data.cualificacion_id}), "
                             f"situacion_actual debe ser una clave válida del catálogo de escolaridad"
                         )
 

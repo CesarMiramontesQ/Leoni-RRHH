@@ -9,7 +9,7 @@ import {
   type GapCualificacion,
   type EvaluacionCualificacionPayload,
 } from "../../api/puestos.ts";
-import { CATALOGO_ESCOLARIDAD, escolaridadLabel } from "../../ui/catalogoEscolaridad.ts";
+import { CATALOGO_ESCOLARIDAD, escolaridadLabel, esTipoEscolaridad } from "../../ui/catalogoEscolaridad.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON, badgeApproved, badgeRejected, badgePending, badgeCancelled } from "../../ui/uiTokens.ts";
 
@@ -26,13 +26,13 @@ export type EvaluarCualificacionesModalOptions = {
 };
 
 const TIPO_LABELS: Record<string, string> = {
-  estudios_finalizados: "Estudios finalizados",
-  formacion_profesional: "Formación profesional",
-  ampliacion_formacion: "Ampliación de formación",
-  estudios_universitarios: "Estudios universitarios",
+  estudios_finalizados: "Nivel de estudios finalizados",
+  formacion_profesional: "Formación profesional/ especialización (académica)/ diplomas",
+  ampliacion_formacion: "Ampliación de la formación profesional/especialización (académica)/diplomas",
+  estudios_universitarios: "Estudios universitarios / especialización (académica)/ diplomas",
   experiencia_profesional: "Experiencia profesional",
-  experiencia_direccion: "Experiencia en dirección",
-  complementos: "Complementos",
+  experiencia_direccion: "Experiencia de dirección/ gerencia",
+  complementos: "Complementos individuales",
 };
 
 const TIPOS_CON_ANIOS = new Set(["experiencia_profesional", "experiencia_direccion"]);
@@ -44,7 +44,7 @@ function complianceBadge(cumple: boolean | null): string {
 }
 
 function renderGapItem(g: GapCualificacion, idx: number): string {
-  const isEscolaridad = g.tipo === "estudios_finalizados";
+  const isEscolaridad = esTipoEscolaridad(g.tipo);
   const isNA = g.situacion_deseada === "N/A";
   const hasAnios = TIPOS_CON_ANIOS.has(g.tipo) && g.anios_minimos != null;
   const deseadaDisplay = isEscolaridad ? escolaridadLabel(g.situacion_deseada) : g.situacion_deseada;

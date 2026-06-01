@@ -21,3 +21,9 @@ export const ESCOLARIDAD_MAP: Record<string, NivelEscolaridad> = Object.fromEntr
 export function escolaridadLabel(key: string): string {
   return ESCOLARIDAD_MAP[key]?.label ?? key;
 }
+
+export const TIPOS_ESCOLARIDAD = new Set(["estudios_finalizados", "estudios_universitarios"]);
+
+export function esTipoEscolaridad(tipo: string): boolean {
+  return TIPOS_ESCOLARIDAD.has(tipo);
+}

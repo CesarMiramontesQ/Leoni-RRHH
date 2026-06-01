@@ -5,7 +5,8 @@ import { BTN_GHOST, BTN_PRIMARY, FIELD_FOCUS, badgeCancelled } from "../ui/uiTok
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
-import { escolaridadLabel } from "../ui/catalogoEscolaridad.ts";
+import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.ts";
+import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import { updatePerfil } from "../api/puestos.ts";
 
@@ -53,22 +54,17 @@ interface AsignacionResumen {
 }
 
 const TIPO_LABELS: Record<string, string> = {
-  estudios_finalizados: "Estudios finalizados",
-  formacion_profesional: "Formación profesional",
-  ampliacion_formacion: "Ampliación de formación",
-  estudios_universitarios: "Estudios universitarios",
+  estudios_finalizados: "Nivel de estudios finalizados",
+  formacion_profesional: "Formación profesional/ especialización (académica)/ diplomas",
+  ampliacion_formacion: "Ampliación de la formación profesional/especialización (académica)/diplomas",
+  estudios_universitarios: "Estudios universitarios / especialización (académica)/ diplomas",
   experiencia_profesional: "Experiencia profesional",
-  experiencia_direccion: "Experiencia en dirección",
-  complementos: "Complementos",
+  experiencia_direccion: "Experiencia de dirección/ gerencia",
+  complementos: "Complementos individuales",
 };
 
 const CATEGORIA_LABELS: Record<string, string> = {
-  informatica: "Informática",
-  idiomas: "Idiomas",
-  profesional: "Profesional",
-  social: "Social",
-  personal: "Personal",
-  metodos: "Métodos",
+  ...TIPO_COMPETENCIA_LABELS,
   complementos: "Complementos",
 };
 
@@ -214,7 +210,7 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
         let valor: string;
         if (isNA) {
           valor = badgeCancelled("No aplica");
-        } else if (c.tipo === "estudios_finalizados") {
+        } else if (esTipoEscolaridad(c.tipo)) {
           valor = escapeHtml(escolaridadLabel(c.situacion_deseada));
         } else if (c.tipo === "complementos") {
           valor = `<span class="whitespace-pre-line">${escapeHtml(c.situacion_deseada)}</span>`;

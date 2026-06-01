@@ -17,6 +17,12 @@ import {
   FIELD_FOCUS,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
+import {
+  TIPO_COMPETENCIA_OPTIONS,
+  TIPO_COMPETENCIA_LABELS,
+  esTipoCompetenciaValido,
+  grupoFromTipo,
+} from "../ui/catalogoCompetenciaTipo.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -43,8 +49,8 @@ function renderCatalogoTab(items: Competencia[], filterText: string, grupoFilter
   }
 
   const subcatLabels: Record<string, string> = {
-    informatica: "Informática", idiomas: "Idiomas", profesional: "Profesional",
-    social: "Social", personal: "Personal", metodos: "Métodos", complementos: "Complementos",
+    ...TIPO_COMPETENCIA_LABELS,
+    complementos: "Complementos",
   };
 
   const rows = filtered.length === 0
@@ -153,25 +159,20 @@ function renderCompetenciaModal(comp: Competencia | null): string {
   const title = isEdit ? "Editar Competencia" : "Nueva Competencia";
   const nombre = comp?.nombre ?? "";
   const descripcion = comp?.descripcion ?? "";
-  const grupo = comp?.grupo ?? "tecnica";
-  const subcategoria = comp?.subcategoria ?? "";
+  const tipo = comp?.subcategoria && esTipoCompetenciaValido(comp.subcategoria)
+    ? comp.subcategoria
+    : "informatica";
 
-  const subcatOptions = [
-    { value: "", label: "Sin subcategoría" },
-    { value: "informatica", label: "Informatica" },
-    { value: "idiomas", label: "Idiomas" },
-    { value: "profesional", label: "Profesional" },
-    { value: "social", label: "Social" },
-    { value: "personal", label: "Personal" },
-    { value: "metodos", label: "Metodos" },
-    { value: "complementos", label: "Complementos" },
-  ];
+  const tipoOpts = TIPO_COMPETENCIA_OPTIONS.map(o =>
+    `<option value="${o.value}" ${tipo === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+  ).join("");
 
   return `
     <div id="comp-modal-backdrop" data-action="close-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl" data-modal-inner>
         <h2 class="text-lg font-semibold text-slate-900">${title}</h2>
-        <form id="comp-modal-form" class="mt-4 flex flex-col gap-4">
+        <form id="comp-modal-form" novalidate class="mt-4 flex flex-col gap-4">
+          <div id="comp-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
           ${isEdit ? `<input type="hidden" name="id" value="${comp.id}" />` : ""}
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
@@ -184,20 +185,10 @@ function renderCompetenciaModal(comp: Competencia | null): string {
               class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm ${FIELD_FOCUS}">${escapeHtml(descripcion)}</textarea>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Grupo</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
             <div class="grid grid-cols-1">
-              <select name="grupo" class="col-start-1 row-start-1 h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pr-8 pl-2.5 text-sm text-slate-900 ${FIELD_FOCUS}">
-                <option value="tecnica" ${grupo === "tecnica" ? "selected" : ""}>Tecnica</option>
-                <option value="habilidad_blanda" ${grupo === "habilidad_blanda" ? "selected" : ""}>Habilidad blanda</option>
-              </select>
-              ${SELECT_CHEVRON}
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Subcategoría</label>
-            <div class="grid grid-cols-1">
-              <select name="subcategoria" class="col-start-1 row-start-1 h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pr-8 pl-2.5 text-sm text-slate-900 ${FIELD_FOCUS}">
-                ${subcatOptions.map((o) => `<option value="${o.value}" ${subcategoria === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
+              <select name="tipo" required class="col-start-1 row-start-1 h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pr-8 pl-2.5 text-sm text-slate-900 ${FIELD_FOCUS}">
+                ${tipoOpts}
               </select>
               ${SELECT_CHEVRON}
             </div>
@@ -491,11 +482,34 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     const fd = new FormData(form as HTMLFormElement);
     const nombre = (fd.get("nombre") as string)?.trim();
     const descripcion = (fd.get("descripcion") as string)?.trim();
-    const grupo = fd.get("grupo") as "tecnica" | "habilidad_blanda";
-    const subcategoria = (fd.get("subcategoria") as string) || undefined;
+    const tipo = fd.get("tipo") as string;
+    const subcategoria = tipo || undefined;
+    const grupo = grupoFromTipo(tipo);
     const idRaw = fd.get("id") as string | null;
+    const errorEl = (form as HTMLFormElement).querySelector("#comp-modal-error") as HTMLElement | null;
 
-    if (!nombre || !descripcion) return;
+    const showError = (message: string) => {
+      if (!errorEl) return;
+      errorEl.textContent = message;
+      errorEl.classList.remove("hidden");
+    };
+    if (errorEl) {
+      errorEl.textContent = "";
+      errorEl.classList.add("hidden");
+    }
+
+    if (!nombre) {
+      showError("Indica el nombre de la competencia.");
+      return;
+    }
+    if (!descripcion) {
+      showError("Indica la descripcion de la competencia.");
+      return;
+    }
+    if (!tipo) {
+      showError("Selecciona un tipo.");
+      return;
+    }
 
     void (async () => {
       try {

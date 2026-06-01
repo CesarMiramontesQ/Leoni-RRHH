@@ -163,14 +163,14 @@ async function testCreateCompetencia(page) {
   const descripcionInput = await page.$('#comp-modal-form textarea[name="descripcion"]');
   assert(descripcionInput !== null, "Campo 'descripcion' existe en el modal");
 
-  const grupoSelect = await page.$('#comp-modal-form select[name="grupo"]');
-  assert(grupoSelect !== null, "Campo 'grupo' existe en el modal");
+  const tipoSelect = await page.$('#comp-modal-form select[name="tipo"]');
+  assert(tipoSelect !== null, "Campo 'tipo' existe en el modal");
 
   const testName = `E2E_Test_Competencia_${Date.now()}`;
 
   if (nombreInput) await nombreInput.fill(testName);
   if (descripcionInput) await descripcionInput.fill("Competencia creada por test E2E automatizado");
-  if (grupoSelect) await grupoSelect.selectOption("tecnica");
+  if (tipoSelect) await tipoSelect.selectOption("informatica");
 
   // Submit form
   const submitBtn = await page.$('#comp-modal-form button[type="submit"]');
