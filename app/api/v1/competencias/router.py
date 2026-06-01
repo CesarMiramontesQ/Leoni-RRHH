@@ -123,7 +123,7 @@ async def obtener_brechas(
 @router.get("", response_model=CompetenciaListResponse)
 async def listar_competencias(
     page: int = Query(1, ge=1, description="Numero de pagina"),
-    page_size: int = Query(10, ge=1, le=100, description="Items por pagina"),
+    page_size: int = Query(10, ge=1, le=200, description="Items por pagina"),
     categoria: str | None = Query(None, description="Filtrar por categoria: tecnica|blanda"),
     area_id: int | None = Query(None, description="Filtrar por area"),
     busqueda: str | None = Query(None, description="Buscar por nombre"),
