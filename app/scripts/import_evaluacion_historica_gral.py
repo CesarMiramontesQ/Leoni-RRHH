@@ -11,6 +11,7 @@ Mapeo:
 - ``categoria``: id de ponderación (texto)
 - ``detalle``: ``comentarios``; si viene vacío, usa la descripción de ponderación
 - ``area`` / ``subarea``: catálogos de bono
+- ``fecha``: ``evaluacion_historica_gral.fecha_registro`` (si es válida)
 
 Uso:
     docker-compose exec backend python -m app.scripts.import_evaluacion_historica_gral
@@ -23,7 +24,7 @@ import argparse
 import asyncio
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select, text
@@ -46,6 +47,7 @@ SELECT
     e.area_empleado,
     e.subarea_empleado,
     e.comentarios,
+    e.fecha_registro,
     pg.descripcion AS ponderacion_descripcion,
     a.descripcion AS area_nombre,
     s.descripcion AS subarea_nombre,
@@ -97,6 +99,31 @@ def _truncar(s: str, max_len: int) -> str:
     return s[: max_len - 1] + "…"
 
 
+def _safe_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        value = value.date()
+    if isinstance(value, date):
+        return value if 1900 <= value.year <= 2100 else None
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        base = s.replace("Z", "").split("+", 1)[0].split("T", 1)[0].strip()[:10]
+        parts = base.split("-")
+        if len(parts) != 3:
+            return None
+        try:
+            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+            if not (1900 <= y <= 2100):
+                return None
+            return date(y, m, d)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def validar_fila_evaluacion_historica_gral(
     row: dict[str, Any],
 ) -> tuple[bool, str | None, dict[str, Any] | None]:
@@ -144,6 +171,7 @@ def validar_fila_evaluacion_historica_gral(
         "subarea": _texto(row.get("subarea_nombre")),
         "no_empleado": no_empleado,
         "nombre": _texto(row.get("bono_nombre_empleado")),
+        "fecha": _safe_date(row.get("fecha_registro")),
     }
     return True, None, payload
 
@@ -355,7 +383,7 @@ async def ejecutar_importacion(
                     empleado_id=local_empleado_id,
                     no_empleado=payload["no_empleado"],
                     nombre=payload["nombre"],
-                    fecha=None,
+                    fecha=payload["fecha"],
                     categoria=payload["categoria"],
                     detalle=payload["detalle"],
                     area=payload["area"],
