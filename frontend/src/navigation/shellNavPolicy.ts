@@ -37,7 +37,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 /**
  * Menú lateral para rol `rh` en versión 1.0 de producción.
- * Solo afecta visualización; rutas y permisos backend permanecen intactos.
+ * Incluye gestión de puestos, competencias y catálogo de tareas (bloque Talento).
  */
 const RH_V1_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
@@ -47,6 +47,9 @@ const RH_V1_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "comedor",
   "reportes",
   "empleados",
+  "puestos",
+  "competencias",
+  "tareas-catalogo",
 ]);
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
