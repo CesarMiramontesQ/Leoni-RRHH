@@ -2,52 +2,51 @@
 
 from __future__ import annotations
 
-import logging
-
+from app.integrations.bono_historico_import_log import (
+    OrigenEjecucion,
+    _ImportStatsLike,
+    ejecutar_import_con_historial,
+)
 from app.scripts.import_empleados_bono import ImportStats, ejecutar_importacion
 
-logger = logging.getLogger(__name__)
+
+def _empleados_stats_to_log_like(stats: ImportStats) -> _ImportStatsLike:
+    mensajes = list(stats.mensajes_error)
+    if stats.actualizados and not any(m.startswith("actualizados=") for m in mensajes):
+        mensajes.insert(0, f"actualizados={stats.actualizados}")
+    if stats.creados and not any(m.startswith("creados=") for m in mensajes):
+        mensajes.insert(0, f"creados={stats.creados}")
+    return _ImportStatsLike(
+        leidos=stats.leidos,
+        insertados=stats.creados,
+        omitidos=stats.omitidos,
+        errores=stats.errores,
+        mensajes_error=mensajes,
+    )
 
 
-async def importar_empleados_bono_job() -> ImportStats | None:
+async def importar_empleados_bono_job(
+    *,
+    origen_ejecucion: OrigenEjecucion = "scheduler",
+    corrida_id: str | None = None,
+) -> ImportStats | None:
     """
-    Ejecuta la sincronización con persistencia (equivalente a ``--execute`` del script CLI).
+    Ejecuta la sincronización con persistencia y registro en bono_historico_import_log.
 
     Returns:
-        Estadísticas del corrido, o None si bono no está configurado (solo warning en log).
+        Estadísticas del corrido, o None si bono no está configurado.
     """
-    try:
-        stats = await ejecutar_importacion(execute=True, limit=None)
-    except ConnectionError as exc:
-        logger.warning(
-            "Import empleados bono omitido (bono no disponible): %s",
-            exc,
-        )
-        return None
-    except Exception as exc:
-        logger.error(
-            "Error en import empleados bono: %s",
-            exc,
-            exc_info=True,
-        )
-        raise
+    raw_stats: ImportStats | None = None
 
-    logger.info(
-        "Import empleados bono completado | leidos=%s creados=%s actualizados=%s "
-        "omitidos=%s errores=%s columnas=%s",
-        stats.leidos,
-        stats.creados,
-        stats.actualizados,
-        stats.omitidos,
-        stats.errores,
-        stats.columnas_importadas,
+    async def _ejecutar() -> _ImportStatsLike:
+        nonlocal raw_stats
+        raw_stats = await ejecutar_importacion(execute=True, limit=None)
+        return _empleados_stats_to_log_like(raw_stats)
+
+    await ejecutar_import_con_historial(
+        "empleados",
+        _ejecutar,
+        origen_ejecucion=origen_ejecucion,
+        corrida_id=corrida_id,
     )
-    if stats.mensajes_error:
-        for msg in stats.mensajes_error[:20]:
-            logger.warning("Import empleados bono detalle: %s", msg)
-        if len(stats.mensajes_error) > 20:
-            logger.warning(
-                "Import empleados bono: %s errores adicionales no listados",
-                len(stats.mensajes_error) - 20,
-            )
-    return stats
+    return raw_stats

@@ -25,6 +25,7 @@ from app.models.comedor import (
 from app.models.notificaciones import Notificacion
 from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
+from app.models.bono_historico_import_log import BonoHistoricoImportLog
 from app.models.tress import TressRobotQueue
 from app.models.talento import (
     PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
@@ -78,6 +79,7 @@ __all__ = [
     "AuditLog",
     "ItSyncLog",
     "TokenBlacklist",
+    "BonoHistoricoImportLog",
     "TressRobotQueue",
     "PuestoPerfil",
     "Competencia",
