@@ -80,6 +80,7 @@ __all__ = [
     "ItSyncLog",
     "BonoHistoricoImportLog",
     "TokenBlacklist",
+    "BonoHistoricoImportLog",
     "TressRobotQueue",
     "PuestoPerfil",
     "Competencia",

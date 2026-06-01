@@ -1,5 +1,7 @@
 """Tests unitarios de validación para import_evaluacion_historica_gral."""
 
+from datetime import date
+
 from app.scripts.import_evaluacion_historica_gral import validar_fila_evaluacion_historica_gral
 
 
@@ -38,6 +40,36 @@ def test_validar_fila_ok_sin_comentarios_usa_descripcion():
     assert ok is True
     assert payload is not None
     assert payload["detalle"] == "Orden y limpieza"
+
+
+def test_validar_fila_mapea_fecha_registro():
+    ok, _, payload = validar_fila_evaluacion_historica_gral(
+        {
+            "bono_id": 4,
+            "bono_empleado_id": 100,
+            "id_ponderacion": 10,
+            "ponderacion_descripcion": "Orden y limpieza",
+            "fecha_registro": "2024-06-15",
+        }
+    )
+    assert ok is True
+    assert payload is not None
+    assert payload["fecha"] == date(2024, 6, 15)
+
+
+def test_validar_fila_fecha_registro_invalida_queda_none():
+    ok, _, payload = validar_fila_evaluacion_historica_gral(
+        {
+            "bono_id": 5,
+            "bono_empleado_id": 100,
+            "id_ponderacion": 10,
+            "ponderacion_descripcion": "Orden y limpieza",
+            "fecha_registro": "no-es-fecha",
+        }
+    )
+    assert ok is True
+    assert payload is not None
+    assert payload["fecha"] is None
 
 
 def test_validar_fila_rechaza_ponderacion_inexistente():

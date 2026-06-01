@@ -9,8 +9,10 @@ from app.integrations.bono_historico_import_log import (
     ejecutar_import_con_historial,
     registrar_corrida_importacion,
 )
+from app.integrations.bono_empleados_import import _empleados_stats_to_log_like
 from app.models.bono_historico_import_log import BonoHistoricoImportLog
 from app.scripts.import_calidad_historico import ImportStats
+from app.scripts.import_empleados_bono import ImportStats as EmpleadosImportStats
 from tests.conftest import auth_headers, make_empleado
 
 
@@ -63,6 +65,54 @@ async def test_ejecutar_import_con_historial_skipped(db):
     ).scalar_one()
     assert row.status == "skipped"
     assert row.error_msg == "bono no configurado"
+
+
+def test_empleados_stats_to_log_like_mapea_creados_y_actualizados():
+    stats = EmpleadosImportStats(
+        leidos=100,
+        creados=5,
+        actualizados=12,
+        omitidos=2,
+        errores=1,
+        mensajes_error=["detalle error"],
+    )
+    log_like = _empleados_stats_to_log_like(stats)
+    assert log_like.leidos == 100
+    assert log_like.insertados == 5
+    assert log_like.omitidos == 2
+    assert log_like.errores == 1
+    assert log_like.mensajes_error is not None
+    assert "actualizados=12" in log_like.mensajes_error
+    assert "creados=5" in log_like.mensajes_error
+    assert "detalle error" in log_like.mensajes_error
+
+
+@pytest.mark.asyncio
+async def test_registrar_corrida_empleados(db):
+    started = datetime.now(timezone.utc)
+    stats = _empleados_stats_to_log_like(
+        EmpleadosImportStats(leidos=50, creados=3, actualizados=7, omitidos=1, errores=0)
+    )
+    await registrar_corrida_importacion(
+        "empleados",
+        status="ok",
+        started_at=started,
+        finished_at=started,
+        stats=stats,
+        origen_ejecucion="scheduler",
+        db=db,
+    )
+
+    row = (
+        await db.execute(
+            select(BonoHistoricoImportLog).where(BonoHistoricoImportLog.fuente == "empleados")
+        )
+    ).scalar_one()
+    assert row.status == "ok"
+    assert row.fuente == "empleados"
+    assert row.leidos == 50
+    assert row.insertados == 3
+    assert row.origen_ejecucion == "scheduler"
 
 
 @pytest.mark.asyncio
