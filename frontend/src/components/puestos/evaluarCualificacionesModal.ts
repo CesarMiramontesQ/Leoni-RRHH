@@ -77,26 +77,35 @@ function renderGapItem(g: GapCualificacion, idx: number): string {
         </select>
         ${SELECT_CHEVRON}
       </div>`;
-  } else {
+  } else if (hasAnios) {
+    // Cualificaciones con años: solo Cumple / No cumple
     inputHtml = `
-      <input name="eval-${idx}" data-cual-id="${g.cualificacion_id}" type="text"
-        value="${escapeHtml(g.situacion_actual ?? "")}"
-        class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-        placeholder="Situación actual del empleado" />`;
-  }
-
-  // Años numéricos para experiencia
-  let aniosHtml = "";
-  if (hasAnios) {
-    aniosHtml = `
-      <div class="mt-2">
-        <label class="mb-1 block text-xs font-medium text-slate-600">Años de experiencia del empleado (requeridos: ${g.anios_minimos})</label>
-        <input name="anios-${idx}" data-anios-cual-id="${g.cualificacion_id}" type="number" min="0" step="1"
-          value="${g.anios_actuales ?? ""}"
-          class="block w-32 rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-          placeholder="0" />
+      <div class="grid grid-cols-1">
+        <select name="eval-${idx}" data-cual-id="${g.cualificacion_id}"
+          class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+          <option value="">— Seleccionar —</option>
+          <option value="cumple" ${(g.situacion_actual ?? "").toLowerCase() === "cumple" ? "selected" : ""}>Cumple</option>
+          <option value="no cumple" ${(g.situacion_actual ?? "").toLowerCase() === "no cumple" ? "selected" : ""}>No cumple</option>
+        </select>
+        ${SELECT_CHEVRON}
+      </div>`;
+  } else {
+    // Cualificaciones genéricas: escala 1-3
+    const currentNivel = parseInt(g.situacion_actual ?? "0", 10);
+    inputHtml = `
+      <div class="grid grid-cols-1">
+        <select name="eval-${idx}" data-cual-id="${g.cualificacion_id}"
+          class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+          <option value="">— Seleccionar —</option>
+          <option value="1" ${currentNivel === 1 ? "selected" : ""}>1 — Básico</option>
+          <option value="2" ${currentNivel === 2 ? "selected" : ""}>2 — Medio</option>
+          <option value="3" ${currentNivel === 3 ? "selected" : ""}>3 — Experto</option>
+        </select>
+        ${SELECT_CHEVRON}
       </div>`;
   }
+
+  const aniosHtml = "";
 
   return `
     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
@@ -218,10 +227,6 @@ export function mountEvaluarCualificacionesModal(
             cualificacion_id: cualId,
             situacion_actual: val,
           };
-          const aniosEl = form.querySelector<HTMLInputElement>(`[data-anios-cual-id="${cualId}"]`);
-          if (aniosEl && aniosEl.value.trim()) {
-            payload.anios_actuales = Number(aniosEl.value.trim());
-          }
           evaluaciones.push(payload);
         }
       });

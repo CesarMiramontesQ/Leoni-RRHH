@@ -4,10 +4,11 @@ import { getRolFromAccessToken } from "../auth/jwt.ts";
 
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_GHOST, BTN_PRIMARY, BTN_DANGER } from "../ui/uiTokens.ts";
-import { deletePerfilAsignacion } from "../api/puestos.ts";
+import { deletePerfilAsignacion, getAsignacionGap, getAsignacionTareasExtra } from "../api/puestos.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts";
 import { mountEvaluarCualificacionesModal } from "../components/puestos/evaluarCualificacionesModal.ts";
+import { mountEvaluarCompetenciasModal } from "../components/puestos/evaluarCompetenciasModal.ts";
 
 interface AsignacionItem {
   id: number;
@@ -43,6 +44,8 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         <div id="modal-host-asignar"></div>
         <div id="modal-host-tareas-extra"></div>
         <div id="modal-host-evaluar-cual"></div>
+        <div id="modal-host-evaluar-comp"></div>
+        <div id="modal-host-detalle"></div>
       </div>`,
   });
 
@@ -142,12 +145,10 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
           <span class="font-medium">${escapeHtml(a.nombre_empleado ?? `Empleado #${a.empleado_id}`)}</span>
           ${a.no_empleado ? `<span class="ml-2 text-xs text-slate-400 tabular-nums">${escapeHtml(String(parseInt(a.no_empleado, 10) || a.no_empleado))}</span>` : ""}
         </td>
-        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(a.departamento ?? "—")}</td>
-        <td class="px-4 py-3 text-sm">${a.activo ? '<span class="text-emerald-600 font-medium">Activo</span>' : '<span class="text-slate-400">Inactivo</span>'}</td>
-        <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_superior ?? "Pendiente"}</td>
-        <td class="px-4 py-3 text-sm text-slate-500">${a.fecha_firma_empleado ?? "Pendiente"}</td>
-        <td class="px-4 py-3 text-right space-x-2">
-          ${showActions && a.activo ? `<button type="button" data-evaluar-cual="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Evaluar</button>` : ""}
+        <td class="px-4 py-3 text-right space-x-1">
+          <button type="button" data-ver-detalle="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Ver detalle</button>
+          ${showActions && a.activo ? `<button type="button" data-evaluar-cual="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Evaluar cual.</button>` : ""}
+          ${showActions && a.activo ? `<button type="button" data-evaluar-comp="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Evaluar comp.</button>` : ""}
           ${showActions && a.activo ? `<button type="button" data-tareas-extra="${a.id}" data-nombre="${escapeHtml(a.nombre_empleado ?? "")}" class="${BTN_GHOST} !px-2 !py-1 text-xs">Tareas extra</button>` : ""}
           ${showActions && a.activo ? `<button type="button" data-desasignar="${a.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs">Desasignar</button>` : ""}
         </td>
@@ -162,10 +163,6 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
             <thead class="border-b border-leoni-blue-light">
               <tr class="text-white">
                 <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Empleado</th>
-                <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Departamento</th>
-                <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Estado</th>
-                <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Firma Superior</th>
-                <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold">Firma Empleado</th>
                 <th class="bg-leoni-blue px-4 py-3 text-sm font-semibold text-right">Acciones</th>
               </tr>
             </thead>
@@ -224,8 +221,117 @@ async function loadEmpleados(container: HTMLElement, perfilId: number): Promise<
           modal.open();
         });
       });
+
+      // Bind evaluar competencias buttons
+      const evalCompHost = container.querySelector("#modal-host-evaluar-comp") as HTMLElement;
+      contentEl.querySelectorAll<HTMLButtonElement>("[data-evaluar-comp]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const asignacionId = Number(btn.dataset.evaluarComp);
+          const nombreEmpleado = btn.dataset.nombre ?? "";
+          const modal = mountEvaluarCompetenciasModal(evalCompHost, {
+            perfilId,
+            asignacionId,
+            nombreEmpleado,
+          });
+          modal.open();
+        });
+      });
     }
+
+    // Bind "Ver detalle" buttons (available to all roles)
+    const detalleHost = container.querySelector("#modal-host-detalle") as HTMLElement;
+    contentEl.querySelectorAll<HTMLButtonElement>("[data-ver-detalle]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const asignacionId = Number(btn.dataset.verDetalle);
+        const nombreEmpleado = btn.dataset.nombre ?? "";
+        openDetalleModal(detalleHost, perfilId, asignacionId, nombreEmpleado);
+      });
+    });
   } catch {
     contentEl.innerHTML = `<p class="text-sm text-red-600">Error de conexión</p>`;
+  }
+}
+
+async function openDetalleModal(
+  host: HTMLElement,
+  perfilId: number,
+  asignacionId: number,
+  nombreEmpleado: string,
+): Promise<void> {
+  host.innerHTML = `
+    <div id="detalle-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
+      <div class="w-full max-w-2xl rounded-xl border border-border bg-white shadow-xl max-h-[90vh] flex flex-col" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 shrink-0">
+          <div>
+            <h2 class="text-lg font-semibold text-text-primary">Detalle del empleado</h2>
+            <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(nombreEmpleado)}</p>
+          </div>
+          <button type="button" id="detalle-close" class="${BTN_GHOST} !p-1.5" aria-label="Cerrar">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div id="detalle-body" class="flex-1 overflow-y-auto px-5 py-4">
+          <p class="text-sm text-text-muted">Cargando...</p>
+        </div>
+      </div>
+    </div>`;
+
+  const overlay = host.querySelector("#detalle-overlay") as HTMLElement;
+  const body = host.querySelector("#detalle-body") as HTMLElement;
+
+  function close(): void {
+    host.innerHTML = "";
+  }
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  host.querySelector("#detalle-close")!.addEventListener("click", close);
+  document.addEventListener("keydown", function esc(e) {
+    if (e.key === "Escape") { e.preventDefault(); close(); document.removeEventListener("keydown", esc); }
+  });
+
+  try {
+    const [gap, tareasExtra] = await Promise.all([
+      getAsignacionGap(perfilId, asignacionId),
+      getAsignacionTareasExtra(perfilId, asignacionId),
+    ]);
+
+    const r = gap.resumen;
+    const cualRows = gap.gap_cualificaciones.map(g => {
+      let badge: string;
+      if (g.cumple === true) badge = `<span class="text-emerald-600 text-xs font-medium">Cumple</span>`;
+      else if (g.cumple === false) badge = `<span class="text-red-600 text-xs font-medium">No cumple</span>`;
+      else badge = `<span class="text-amber-600 text-xs font-medium">Pendiente</span>`;
+      return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.situacion_deseada)}</td><td class="py-1.5 text-right">${badge}</td></tr>`;
+    }).join("");
+
+    const compRows = gap.gap_competencias.map(g => {
+      const nivel = g.evaluado && g.situacion_actual ? parseInt(g.situacion_actual, 10) : 0;
+      const nivelDisplay = isNaN(nivel) ? (g.situacion_actual === "cumple" ? "4" : "0") : String(nivel);
+      return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.competencia_nombre)}</td><td class="py-1.5 text-right text-xs font-medium text-slate-600">${g.evaluado ? nivelDisplay + "/4" : '<span class="text-amber-600">Pendiente</span>'}</td></tr>`;
+    }).join("");
+
+    const tareasRows = tareasExtra.map(t =>
+      `<li class="text-sm text-text-primary">${escapeHtml(t.tarea_catalogo_nombre)}</li>`
+    ).join("");
+
+    body.innerHTML = `
+      <div class="space-y-5">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary mb-2">Cualificaciones</h3>
+          <p class="text-xs text-slate-500 mb-2">${r.evaluadas_cualificaciones}/${r.total_cualificaciones} evaluadas</p>
+          ${cualRows ? `<table class="w-full">${cualRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin cualificaciones</p>`}
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary mb-2">Competencias</h3>
+          <p class="text-xs text-slate-500 mb-2">${r.evaluadas_competencias}/${r.total_competencias} evaluadas</p>
+          ${compRows ? `<table class="w-full">${compRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin competencias</p>`}
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary mb-2">Tareas extra</h3>
+          ${tareasRows ? `<ul class="list-disc pl-4 space-y-1">${tareasRows}</ul>` : `<p class="text-xs text-slate-400 italic">Sin tareas extra asignadas</p>`}
+        </div>
+      </div>`;
+  } catch {
+    body.innerHTML = `<p class="text-sm text-red-600">Error al cargar detalle</p>`;
   }
 }

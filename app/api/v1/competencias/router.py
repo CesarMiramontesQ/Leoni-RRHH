@@ -29,6 +29,8 @@ from app.schemas.talento import (
     FilterOptionsResponse,
     MatrizBulkUpdate,
     MatrizResponse,
+    MultihabilidadesPuestoOption,
+    MultihabilidadesResponse,
     ResumenAreaResponse,
 )
 from app.services.competencia_service import CompetenciaService
@@ -117,13 +119,41 @@ async def obtener_brechas(
     return await service.obtener_brechas(area_id=area_id)
 
 
+# ── Multihabilidades (Matriz por Puesto) ─────────────────────────────────────
+
+
+@router.get("/multihabilidades/puestos", response_model=list[MultihabilidadesPuestoOption])
+async def listar_puestos_multihabilidades(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista puestos disponibles para la matriz de multihabilidades."""
+    service = CompetenciaService(db)
+    return await service.listar_puestos_multihabilidades()
+
+
+@router.get("/multihabilidades", response_model=MultihabilidadesResponse)
+async def obtener_multihabilidades(
+    puesto_perfil_id: int = Query(..., description="ID del puesto perfil"),
+    nombre: str | None = Query(None, description="Filtro parcial por nombre del empleado"),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Matriz multihabilidades: empleados x competencias para un puesto."""
+    service = CompetenciaService(db)
+    return await service.obtener_multihabilidades(
+        puesto_perfil_id=puesto_perfil_id,
+        nombre_filtro=nombre,
+    )
+
+
 # ── CRUD basico ──────────────────────────────────────────────────────────────
 
 
 @router.get("", response_model=CompetenciaListResponse)
 async def listar_competencias(
     page: int = Query(1, ge=1, description="Numero de pagina"),
-    page_size: int = Query(10, ge=1, le=100, description="Items por pagina"),
+    page_size: int = Query(10, ge=1, le=200, description="Items por pagina"),
     categoria: str | None = Query(None, description="Filtrar por categoria: tecnica|blanda"),
     area_id: int | None = Query(None, description="Filtrar por area"),
     busqueda: str | None = Query(None, description="Buscar por nombre"),

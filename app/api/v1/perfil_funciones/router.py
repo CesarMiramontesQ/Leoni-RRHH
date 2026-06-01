@@ -43,8 +43,10 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.perfil_funciones import (
+    EvaluacionCompetenciaSyncBody,
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
+    PerfilCompetenciaSyncBody,
     PerfilCualificacionCreate,
     PerfilCualificacionResponse,
     PerfilCualificacionUpdate,
@@ -274,6 +276,41 @@ async def crear_competencia(
     )
 
 
+@router.put("/{perfil_id}/competencias/sync", response_model=list[PerfilCompetenciaResponse])
+async def sincronizar_competencias(
+    perfil_id: int,
+    body: PerfilCompetenciaSyncBody,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sync completo de competencias requeridas por subcategoría (multi-select)."""
+    service = PerfilFuncionesService(db)
+    return await service.sincronizar_competencias(
+        perfil_id=perfil_id,
+        subcategoria=body.subcategoria,
+        competencia_ids=body.competencia_ids,
+        current_user=current_user,
+    )
+
+
+@router.put("/{perfil_id}/asignaciones/{asignacion_id}/competencias-eval")
+async def sincronizar_evaluacion_competencias(
+    perfil_id: int,
+    asignacion_id: int,
+    body: EvaluacionCompetenciaSyncBody,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sync evaluación de competencias del empleado (nivel 0-4)."""
+    service = PerfilFuncionesService(db)
+    return await service.sincronizar_evaluacion_competencias(
+        perfil_id=perfil_id,
+        asignacion_id=asignacion_id,
+        evaluaciones=[(e.competencia_requisito_id, e.nivel) for e in body.evaluaciones],
+        current_user=current_user,
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ASIGNACIONES
 # ══════════════════════════════════════════════════════════════════════════════
@@ -433,4 +470,36 @@ async def eliminar_tarea_extra(
     await service.eliminar_tarea_extra(
         perfil_id=perfil_id, asignacion_id=asignacion_id,
         tarea_extra_id=tarea_extra_id, current_user=current_user
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EVALUACIÓN DE TAREAS
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class EvaluacionTareaItem(BaseModel):
+    tarea_extra_id: int
+    nivel: int
+
+
+class EvaluacionTareasSyncBody(BaseModel):
+    evaluaciones: list[EvaluacionTareaItem]
+
+
+@router.put("/{perfil_id}/asignaciones/{asignacion_id}/tareas-eval")
+async def evaluar_tareas(
+    perfil_id: int,
+    asignacion_id: int,
+    body: EvaluacionTareasSyncBody,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Evalúa tareas de un empleado con escala 1-3."""
+    service = PerfilFuncionesService(db)
+    return await service.evaluar_tareas(
+        perfil_id=perfil_id,
+        asignacion_id=asignacion_id,
+        evaluaciones=[(e.tarea_extra_id, e.nivel) for e in body.evaluaciones],
+        current_user=current_user,
     )

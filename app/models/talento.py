@@ -161,7 +161,7 @@ class CompetenciaRequisito(Base):
     )
     nivel_requerido: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
-        comment="0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto",
+        comment="0=N/A, 1=Planeado, 2=En entrenamiento, 3=Certificado, 4=Experto",
     )
     orden: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -207,7 +207,7 @@ class EvaluacionCompetencia(Base):
     )
     nivel_actual: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
-        comment="0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto",
+        comment="0=N/A, 1=Planeado, 2=En entrenamiento, 3=Certificado, 4=Experto",
     )
     evaluador_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("empleados.id"), nullable=True
@@ -570,6 +570,10 @@ class PerfilFuncionesTarea(Base):
             "perfil_funciones_id", "tarea_catalogo_id",
             name="uq_perfil_funciones_tarea_pair",
         ),
+        CheckConstraint(
+            "nivel IS NULL OR (nivel >= 1 AND nivel <= 3)",
+            name="ck_perfil_funciones_tarea_nivel",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -578,6 +582,10 @@ class PerfilFuncionesTarea(Base):
     )
     tarea_catalogo_id: Mapped[int] = mapped_column(
         ForeignKey("tareas_catalogo.id", ondelete="CASCADE"), nullable=False
+    )
+    nivel: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True,
+        comment="1=Basico, 2=Medio, 3=Experto",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

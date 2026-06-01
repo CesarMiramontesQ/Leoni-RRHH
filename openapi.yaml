@@ -2693,6 +2693,52 @@ components:
         page_size:
           type: integer
 
+    # ── Competencias Multi-Select Sync ───────────────────
+
+    PerfilCompetenciaResponse:
+      type: object
+      required: [id, competencia_id, competencia_nombre, nivel_requerido]
+      properties:
+        id:
+          type: integer
+        competencia_id:
+          type: integer
+        competencia_nombre:
+          type: string
+        subcategoria:
+          type: string
+          nullable: true
+          enum: [informatica, idiomas, profesional, social, personal, metodos]
+        nivel_requerido:
+          type: integer
+        orden:
+          type: integer
+          nullable: true
+
+    PerfilCompetenciaSyncBody:
+      type: object
+      required: [subcategoria, competencia_ids]
+      properties:
+        subcategoria:
+          type: string
+          enum: [informatica, idiomas, profesional, social, personal, metodos]
+          description: Subcategoría de competencias a sincronizar
+        competencia_ids:
+          type: array
+          items:
+            type: integer
+          description: IDs de competencias seleccionadas para esta categoría
+
+    EvaluacionCompetenciaSyncBody:
+      type: object
+      required: [competencia_requisito_ids]
+      properties:
+        competencia_requisito_ids:
+          type: array
+          items:
+            type: integer
+          description: IDs de CompetenciaRequisito que el empleado cumple
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -5978,3 +6024,82 @@ paths:
                 items:
                   type: string
                 example: ["Ing. Mecánica", "Ing. Electrónica", "Lic. Administración"]
+
+  /api/v1/perfiles/{perfil_id}/competencias/sync:
+    put:
+      tags: [Talento - Perfil Funciones]
+      summary: Sync competencias requeridas por subcategoría (multi-select)
+      description: |
+        Recibe el set completo de competencia_ids para una subcategoría.
+        Agrega las faltantes y elimina las deseleccionadas. Solo RH o supervisor.
+      operationId: sync_perfil_competencias
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCompetenciaSyncBody"
+      responses:
+        "200":
+          description: Lista actualizada de competencias del perfil
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerfilCompetenciaResponse"
+        "403":
+          description: Sin permisos (no es RH ni supervisor)
+        "404":
+          description: Perfil no encontrado
+        "422":
+          description: competencia_ids inválidos para la subcategoría
+
+  /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/competencias-eval:
+    put:
+      tags: [Talento - Perfil Funciones]
+      summary: Sync evaluación de competencias del empleado
+      description: |
+        Recibe el set completo de competencia_requisito_ids que el empleado cumple.
+        Crea registros para los presentes, elimina los ausentes. Solo RH o supervisor.
+      operationId: sync_evaluacion_competencias
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asignacion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluacionCompetenciaSyncBody"
+      responses:
+        "200":
+          description: Gap analysis actualizado de la asignación
+          content:
+            application/json:
+              schema:
+                type: object
+        "403":
+          description: Sin permisos
+        "404":
+          description: Perfil o asignación no encontrados
+        "422":
+          description: competencia_requisito_ids inválidos

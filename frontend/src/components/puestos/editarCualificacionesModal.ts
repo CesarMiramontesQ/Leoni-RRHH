@@ -46,6 +46,7 @@ const TIPOS_CON_AUTOCOMPLETE = new Set([
   "formacion_profesional", "ampliacion_formacion", "estudios_universitarios",
   "experiencia_profesional", "experiencia_direccion",
 ]);
+const TIPOS_SIN_SPLIT = new Set(["estudios_finalizados", "complementos"]);
 
 function overlayHtml(): string {
   return `
@@ -151,6 +152,10 @@ function renderForm(): string {
           <div id="cual-sugerencias" class="absolute z-10 mt-1 hidden max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg"></div>
         </div>
       </div>
+      <div id="cual-chips-preview" class="hidden">
+        <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Se crear&aacute;n:</p>
+        <div id="cual-chips-list" class="flex flex-wrap gap-1.5"></div>
+      </div>
       <div>
         <label for="cual-comentarios" class="mb-1 block text-xs font-medium text-slate-600">Comentarios (opcional)</label>
         <textarea id="cual-comentarios" name="comentarios" rows="2"
@@ -174,12 +179,17 @@ export function mountEditarCualificacionesModal(
 
   let loading = false;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let dirty = false;
 
   function close(): void {
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
     document.removeEventListener("keydown", escHandler);
+    if (dirty) {
+      dirty = false;
+      options.onSuccess();
+    }
   }
 
   async function refreshList(): Promise<void> {
@@ -202,7 +212,7 @@ export function mountEditarCualificacionesModal(
         btn.disabled = true;
         try {
           await deletePerfilCualificacion(options.perfilId, id);
-          options.onSuccess();
+          dirty = true;
           await refreshList();
         } catch {
           // silently fail
@@ -274,10 +284,11 @@ export function mountEditarCualificacionesModal(
         wrap.innerHTML = `
           <input id="cual-situacion" name="situacion_deseada" type="text" required autocomplete="off"
             class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-            placeholder="Descripcion de la situacion deseada" />
+            placeholder="Separar con comas para agregar varias" />
           <div id="cual-sugerencias" class="absolute z-10 mt-1 hidden max-h-40 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg"></div>`;
         if (TIPOS_CON_AUTOCOMPLETE.has(tipo)) bindAutocomplete(tipo);
       }
+      bindInputChips();
     }
 
     function bindAutocomplete(tipo: string): void {
@@ -311,12 +322,50 @@ export function mountEditarCualificacionesModal(
       });
     }
 
-    naToggle.addEventListener("change", updateFormFields);
+    function splitValues(raw: string): string[] {
+      return raw.split(",").map(s => s.trim()).filter(Boolean);
+    }
+
+    function updateChipsPreview(): void {
+      const chipsWrap = form!.querySelector("#cual-chips-preview") as HTMLElement;
+      const chipsList = form!.querySelector("#cual-chips-list") as HTMLElement;
+      if (!chipsWrap || !chipsList) return;
+
+      const tipo = tipoSelect.value;
+      if (TIPOS_SIN_SPLIT.has(tipo) || naToggle.checked) {
+        chipsWrap.classList.add("hidden");
+        return;
+      }
+
+      const input = wrap.querySelector("#cual-situacion") as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!input) { chipsWrap.classList.add("hidden"); return; }
+
+      const parts = splitValues(input.value);
+      if (parts.length <= 1) {
+        chipsWrap.classList.add("hidden");
+        return;
+      }
+
+      chipsList.innerHTML = parts.map(p =>
+        `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-800">${escapeHtml(p)}</span>`
+      ).join("");
+      chipsWrap.classList.remove("hidden");
+    }
+
+    function bindInputChips(): void {
+      const input = wrap.querySelector("#cual-situacion") as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!input) return;
+      input.addEventListener("input", updateChipsPreview);
+    }
+
+    naToggle.addEventListener("change", () => { updateFormFields(); updateChipsPreview(); });
     tipoSelect.addEventListener("change", () => {
       naToggle.checked = false;
       updateFormFields();
+      updateChipsPreview();
     });
     updateFormFields();
+    bindInputChips();
 
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -324,21 +373,27 @@ export function mountEditarCualificacionesModal(
       loading = true;
 
       const tipo = tipoSelect.value;
-      let situacion_deseada: string;
+      let values: string[];
       let anios_minimos: number | undefined;
 
       if (naToggle.checked) {
-        situacion_deseada = "N/A";
+        values = ["N/A"];
       } else {
         const fd = new FormData(form);
-        situacion_deseada = String(fd.get("situacion_deseada") ?? "").trim();
-        if (!situacion_deseada) { loading = false; return; }
+        const raw = String(fd.get("situacion_deseada") ?? "").trim();
+        if (!raw) { loading = false; return; }
+        if (TIPOS_SIN_SPLIT.has(tipo)) {
+          values = [raw];
+        } else {
+          values = splitValues(raw);
+          if (values.length === 0) { loading = false; return; }
+        }
       }
 
       if (TIPOS_CON_ANIOS.has(tipo)) {
         const aniosInput = form.querySelector("#cual-anios") as HTMLInputElement | null;
-        const raw = aniosInput?.value?.trim();
-        if (raw) anios_minimos = Number(raw);
+        const rawAnios = aniosInput?.value?.trim();
+        if (rawAnios) anios_minimos = Number(rawAnios);
       }
 
       const fd2 = new FormData(form);
@@ -348,8 +403,10 @@ export function mountEditarCualificacionesModal(
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Agregando..."; }
 
       try {
-        await createPerfilCualificacion(options.perfilId, { tipo, situacion_deseada, comentarios, anios_minimos });
-        options.onSuccess();
+        for (const situacion_deseada of values) {
+          await createPerfilCualificacion(options.perfilId, { tipo, situacion_deseada, comentarios, anios_minimos });
+        }
+        dirty = true;
         await refreshList();
       } catch {
         // keep form

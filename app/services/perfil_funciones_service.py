@@ -341,6 +341,124 @@ class PerfilFuncionesService:
             orden=requisito.orden,
         )
 
+    async def sincronizar_competencias(
+        self,
+        perfil_id: int,
+        subcategoria: str,
+        competencia_ids: list[int],
+        current_user: Empleado,
+    ) -> list[PerfilCompetenciaResponse]:
+        """Sync competencias del catálogo por subcategoría. No afecta competencias custom."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        # Obtener IDs válidos del catálogo para esta subcategoría
+        result = await self.db.execute(
+            select(Competencia.id).where(
+                Competencia.subcategoria == subcategoria,
+                Competencia.activo.is_(True),
+            )
+        )
+        catalogo_ids = {row[0] for row in result.all()}
+
+        if competencia_ids:
+            requested_ids = set(competencia_ids)
+            invalid = requested_ids - catalogo_ids
+            if invalid:
+                raise DomainValidationError(
+                    f"competencia_ids inválidos para subcategoría '{subcategoria}': {sorted(invalid)}"
+                )
+        else:
+            requested_ids = set()
+
+        # Requisitos actuales de esta subcategoría para el perfil
+        current = await self.competencia_repo.list_by_puesto_and_subcategoria(perfil_id, subcategoria)
+        # Solo operar sobre las que pertenecen al catálogo (no tocar custom)
+        current_catalogo = {r.competencia_id: r for r in current if r.competencia_id in catalogo_ids}
+        current_catalogo_ids = set(current_catalogo.keys())
+
+        to_remove = current_catalogo_ids - requested_ids
+        to_add = requested_ids - current_catalogo_ids
+
+        if to_remove:
+            ids_to_delete = [current_catalogo[cid].id for cid in to_remove]
+            await self.competencia_repo.delete_by_ids(ids_to_delete)
+
+        if to_add:
+            orden_base = (await self.competencia_repo.max_orden(perfil_id)) + 1
+            for i, comp_id in enumerate(sorted(to_add)):
+                await self.competencia_repo.create({
+                    "puesto_perfil_id": perfil_id,
+                    "competencia_id": comp_id,
+                    "nivel_requerido": 1,
+                    "orden": orden_base + i,
+                })
+
+        return await self.listar_competencias(perfil_id)
+
+    SUBCATEGORIAS_DEMOSTRADAS = {"informatica", "idiomas", "profesional", "social", "personal", "metodos"}
+
+    async def sincronizar_evaluacion_competencias(
+        self,
+        perfil_id: int,
+        asignacion_id: int,
+        evaluaciones: list[tuple[int, int]],
+        current_user: Empleado,
+    ) -> dict:
+        """Sync evaluación de competencias demostradas (nivel 0-4). No afecta competencias de Matriz."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        all_requisitos = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
+        demostradas_ids = {
+            c.id for c in all_requisitos
+            if c.competencia and c.competencia.subcategoria in self.SUBCATEGORIAS_DEMOSTRADAS
+        }
+
+        eval_req_ids = [req_id for req_id, _ in evaluaciones]
+        if eval_req_ids:
+            invalid = [cid for cid in eval_req_ids if cid not in demostradas_ids]
+            if invalid:
+                raise DomainValidationError(
+                    f"competencia_requisito_id inválido para competencias demostradas: {invalid}"
+                )
+
+        # Preservar evaluaciones de competencias de Matriz (no-demostradas)
+        matriz_ids = [c.id for c in all_requisitos if c.id not in demostradas_ids]
+        preserve_ids = eval_req_ids + matriz_ids
+
+        await self.eval_competencia_repo.delete_by_asignacion_excluding(
+            asignacion_id, preserve_ids
+        )
+
+        for req_id, nivel in evaluaciones:
+            existing = await self.eval_competencia_repo.get_by_pair(
+                perfil_funciones_id=asignacion_id,
+                competencia_requisito_id=req_id,
+            )
+            situacion = str(nivel)
+            if existing:
+                existing.situacion_actual = situacion
+            else:
+                await self.eval_competencia_repo.create({
+                    "perfil_funciones_id": asignacion_id,
+                    "competencia_requisito_id": req_id,
+                    "situacion_actual": situacion,
+                })
+
+        await self.db.flush()
+        return await self.obtener_asignacion_con_gap(perfil_id, asignacion_id)
+
     # ══════════════════════════════════════════════════════════════════════════
     # ASIGNACIONES
     # ══════════════════════════════════════════════════════════════════════════
@@ -424,8 +542,22 @@ class PerfilFuncionesService:
                 elif cual.situacion_deseada == "N/A":
                     cumple = True
                 elif cual.tipo in ("experiencia_profesional", "experiencia_direccion"):
-                    if cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
+                    val = (evaluacion.situacion_actual or "").strip().lower()
+                    if val == "cumple":
+                        cumple = True
+                    elif val == "no cumple":
+                        cumple = False
+                    elif cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
                         cumple = evaluacion.anios_actuales >= cual.anios_minimos
+                else:
+                    # Cualificaciones genéricas: evaluadas con escala 1-3
+                    val = (evaluacion.situacion_actual or "").strip()
+                    if val in ("1", "2", "3"):
+                        cumple = True
+                    elif val.lower() == "cumple":
+                        cumple = True
+                    elif val.lower() == "no cumple":
+                        cumple = False
             gap_cualificaciones.append({
                 "cualificacion_id": cual.id,
                 "tipo": cual.tipo,
@@ -703,3 +835,32 @@ class PerfilFuncionesService:
 
         await self.tarea_extra_repo.hard_delete(tarea_extra_id)
         await self.db.commit()
+
+    async def evaluar_tareas(
+        self,
+        perfil_id: int,
+        asignacion_id: int,
+        evaluaciones: list[tuple[int, int]],
+        current_user: Empleado,
+    ) -> dict:
+        """Evalúa tareas de un empleado con escala 1-3."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        for tarea_extra_id, nivel in evaluaciones:
+            if nivel < 1 or nivel > 3:
+                raise DomainValidationError(f"Nivel inválido: {nivel}. Debe ser 1, 2 o 3.")
+            tarea = await self.tarea_extra_repo.get(tarea_extra_id)
+            if not tarea or tarea.perfil_funciones_id != asignacion_id:
+                raise NotFoundError(entidad="PerfilFuncionesTarea", id=tarea_extra_id)
+            await self.tarea_extra_repo.update(tarea_extra_id, {"nivel": nivel})
+
+        await self.db.flush()
+        return await self.obtener_asignacion_con_gap(perfil_id, asignacion_id)

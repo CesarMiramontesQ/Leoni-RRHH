@@ -187,6 +187,34 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         )
         return result.scalar_one() or 0
 
+    async def list_by_puesto_and_subcategoria(
+        self, puesto_perfil_id: int, subcategoria: str
+    ) -> list[CompetenciaRequisito]:
+        """Lista requisitos de un puesto filtrados por subcategoría de la competencia."""
+        result = await self.db.execute(
+            select(CompetenciaRequisito)
+            .join(Competencia, CompetenciaRequisito.competencia_id == Competencia.id)
+            .options(selectinload(CompetenciaRequisito.competencia))
+            .where(
+                CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
+                Competencia.subcategoria == subcategoria,
+            )
+            .order_by(CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id)
+        )
+        return list(result.scalars().all())
+
+    async def delete_by_ids(self, ids: list[int]) -> int:
+        """Elimina requisitos por lista de IDs."""
+        if not ids:
+            return 0
+        from sqlalchemy import delete
+
+        result = await self.db.execute(
+            delete(CompetenciaRequisito).where(CompetenciaRequisito.id.in_(ids))
+        )
+        await self.db.flush()
+        return result.rowcount
+
     async def bulk_delete_by_puesto(self, puesto_perfil_id: int) -> int:
         """Elimina todos los requisitos de un puesto."""
         from sqlalchemy import delete

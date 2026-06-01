@@ -162,6 +162,23 @@ class PerfilFuncionesCompetenciaRepository(BaseRepository[PerfilFuncionesCompete
         )
         return result.scalar_one_or_none()
 
+    async def delete_by_asignacion_excluding(
+        self, perfil_funciones_id: int, keep_requisito_ids: list[int]
+    ) -> int:
+        """Elimina evaluaciones de una asignación excepto las indicadas."""
+        from sqlalchemy import delete
+
+        stmt = delete(PerfilFuncionesCompetencia).where(
+            PerfilFuncionesCompetencia.perfil_funciones_id == perfil_funciones_id,
+        )
+        if keep_requisito_ids:
+            stmt = stmt.where(
+                PerfilFuncionesCompetencia.competencia_requisito_id.notin_(keep_requisito_ids)
+            )
+        result = await self.db.execute(stmt)
+        await self.db.flush()
+        return result.rowcount
+
 
 class PerfilFuncionesTareaRepository(BaseRepository[PerfilFuncionesTarea]):
     def __init__(self, db: AsyncSession):

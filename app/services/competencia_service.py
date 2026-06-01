@@ -24,10 +24,20 @@ from app.core.exceptions import (
 )
 from app.models.catalogos import Area
 from app.models.empleados import Empleado
-from app.models.talento import Competencia, CompetenciaRequisito, EvaluacionCompetencia, PuestoPerfil
+from app.models.talento import (
+    Competencia,
+    CompetenciaRequisito,
+    EvaluacionCompetencia,
+    PerfilFunciones,
+    PuestoPerfil,
+)
 from app.repositories.competencia_repository import (
     CompetenciaRepository,
     CompetenciaRequisitoRepository,
+)
+from app.repositories.perfil_funciones_repository import (
+    PerfilFuncionesCompetenciaRepository,
+    PerfilFuncionesRepository,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.talento import (
@@ -42,6 +52,10 @@ from app.schemas.talento import (
     MatrizBulkUpdate,
     MatrizResponse,
     MatrizRow,
+    MultihabilidadesCompetenciaItem,
+    MultihabilidadesEmpleadoItem,
+    MultihabilidadesPuestoOption,
+    MultihabilidadesResponse,
     PuestoPerfilResponse,
     ResumenAreaResponse,
 )
@@ -55,6 +69,8 @@ class CompetenciaService:
         self.repo = CompetenciaRepository(db)
         self.requisito_repo = CompetenciaRequisitoRepository(db)
         self.puesto_repo = PuestoPerfilRepository(db)
+        self.pf_repo = PerfilFuncionesRepository(db)
+        self.pf_comp_repo = PerfilFuncionesCompetenciaRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -566,4 +582,114 @@ class CompetenciaService:
             area_id=area_id,
             area_nombre=area.descripcion,
             brechas=brechas,
+        )
+
+    # ── Multihabilidades ────────────────────────────────────────────────────
+
+    async def listar_puestos_multihabilidades(self) -> list[MultihabilidadesPuestoOption]:
+        """Lista puestos que tienen al menos 1 competencia requisito asignada."""
+        result = await self.db.execute(
+            select(
+                PuestoPerfil.id,
+                PuestoPerfil.codigo,
+                PuestoPerfil.nombre,
+                func.count(CompetenciaRequisito.id.distinct()).label("num_competencias"),
+                func.count(PerfilFunciones.id.distinct()).label("num_empleados"),
+            )
+            .join(
+                CompetenciaRequisito,
+                CompetenciaRequisito.puesto_perfil_id == PuestoPerfil.id,
+            )
+            .outerjoin(
+                PerfilFunciones,
+                (PerfilFunciones.puesto_perfil_id == PuestoPerfil.id)
+                & (PerfilFunciones.activo.is_(True)),
+            )
+            .where(PuestoPerfil.activo.is_(True))
+            .group_by(PuestoPerfil.id, PuestoPerfil.codigo, PuestoPerfil.nombre)
+            .order_by(PuestoPerfil.nombre)
+        )
+        rows = result.all()
+        return [
+            MultihabilidadesPuestoOption(
+                id=r.id,
+                codigo=r.codigo,
+                nombre=r.nombre,
+                num_competencias=r.num_competencias,
+                num_empleados=r.num_empleados,
+            )
+            for r in rows
+        ]
+
+    async def obtener_multihabilidades(
+        self, puesto_perfil_id: int, nombre_filtro: str | None = None
+    ) -> MultihabilidadesResponse:
+        """Matriz multihabilidades: empleados x competencias para un puesto."""
+        puesto = await self.puesto_repo.get_with_relations(puesto_perfil_id)
+        if not puesto:
+            raise NotFoundError(entidad="PuestoPerfil", id=puesto_perfil_id)
+
+        requisitos = await self.requisito_repo.list_by_puesto_with_competencia(
+            puesto_perfil_id
+        )
+
+        if not requisitos:
+            return MultihabilidadesResponse(
+                puesto_perfil_id=puesto.id,
+                puesto_nombre=puesto.nombre,
+                competencias=[],
+                empleados=[],
+            )
+
+        asignaciones = await self.pf_repo.list_by_perfil(puesto_perfil_id)
+
+        if nombre_filtro:
+            filtro = nombre_filtro.lower()
+            asignaciones = [
+                a for a in asignaciones
+                if filtro in a.empleado.nombre.lower()
+            ]
+
+        # Map competencia_requisito.id → competencia_id for result mapping
+        req_id_to_comp_id = {r.id: r.competencia_id for r in requisitos}
+
+        # Read evaluations from perfil_funciones_competencia (where the modal saves)
+        eval_map: dict[int, dict[int, int]] = {}
+        for asig in asignaciones:
+            evals = await self.pf_comp_repo.list_by_asignacion(asig.id)
+            niveles: dict[int, int] = {}
+            for ev in evals:
+                comp_id = req_id_to_comp_id.get(ev.competencia_requisito_id)
+                if comp_id is not None:
+                    try:
+                        niveles[comp_id] = int(ev.situacion_actual)
+                    except (ValueError, TypeError):
+                        pass
+            eval_map[asig.empleado_id] = niveles
+
+        competencias_out = [
+            MultihabilidadesCompetenciaItem(
+                competencia_id=r.competencia_id,
+                competencia_nombre=r.competencia.nombre,
+                subcategoria=r.competencia.subcategoria,
+                nivel_requerido=r.nivel_requerido,
+            )
+            for r in requisitos
+        ]
+
+        empleados_out = [
+            MultihabilidadesEmpleadoItem(
+                empleado_id=a.empleado_id,
+                nombre=a.empleado.nombre,
+                no_empleado=a.empleado.no_empleado,
+                niveles=eval_map.get(a.empleado_id, {}),
+            )
+            for a in asignaciones
+        ]
+
+        return MultihabilidadesResponse(
+            puesto_perfil_id=puesto.id,
+            puesto_nombre=puesto.nombre,
+            competencias=competencias_out,
+            empleados=empleados_out,
         )
