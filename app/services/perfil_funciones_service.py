@@ -542,13 +542,21 @@ class PerfilFuncionesService:
                 elif cual.situacion_deseada == "N/A":
                     cumple = True
                 elif cual.tipo in ("experiencia_profesional", "experiencia_direccion"):
-                    if cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
-                        cumple = evaluacion.anios_actuales >= cual.anios_minimos
-                else:
-                    val = (evaluacion.comentarios or "").strip().lower()
+                    val = (evaluacion.situacion_actual or "").strip().lower()
                     if val == "cumple":
                         cumple = True
                     elif val == "no cumple":
+                        cumple = False
+                    elif cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
+                        cumple = evaluacion.anios_actuales >= cual.anios_minimos
+                else:
+                    # Cualificaciones genéricas: evaluadas con escala 1-3
+                    val = (evaluacion.situacion_actual or "").strip()
+                    if val in ("1", "2", "3"):
+                        cumple = True
+                    elif val.lower() == "cumple":
+                        cumple = True
+                    elif val.lower() == "no cumple":
                         cumple = False
             gap_cualificaciones.append({
                 "cualificacion_id": cual.id,
@@ -827,3 +835,32 @@ class PerfilFuncionesService:
 
         await self.tarea_extra_repo.hard_delete(tarea_extra_id)
         await self.db.commit()
+
+    async def evaluar_tareas(
+        self,
+        perfil_id: int,
+        asignacion_id: int,
+        evaluaciones: list[tuple[int, int]],
+        current_user: Empleado,
+    ) -> dict:
+        """Evalúa tareas de un empleado con escala 1-3."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        for tarea_extra_id, nivel in evaluaciones:
+            if nivel < 1 or nivel > 3:
+                raise DomainValidationError(f"Nivel inválido: {nivel}. Debe ser 1, 2 o 3.")
+            tarea = await self.tarea_extra_repo.get(tarea_extra_id)
+            if not tarea or tarea.perfil_funciones_id != asignacion_id:
+                raise NotFoundError(entidad="PerfilFuncionesTarea", id=tarea_extra_id)
+            await self.tarea_extra_repo.update(tarea_extra_id, {"nivel": nivel})
+
+        await self.db.flush()
+        return await self.obtener_asignacion_con_gap(perfil_id, asignacion_id)

@@ -471,3 +471,35 @@ async def eliminar_tarea_extra(
         perfil_id=perfil_id, asignacion_id=asignacion_id,
         tarea_extra_id=tarea_extra_id, current_user=current_user
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EVALUACIÓN DE TAREAS
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class EvaluacionTareaItem(BaseModel):
+    tarea_extra_id: int
+    nivel: int
+
+
+class EvaluacionTareasSyncBody(BaseModel):
+    evaluaciones: list[EvaluacionTareaItem]
+
+
+@router.put("/{perfil_id}/asignaciones/{asignacion_id}/tareas-eval")
+async def evaluar_tareas(
+    perfil_id: int,
+    asignacion_id: int,
+    body: EvaluacionTareasSyncBody,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Evalúa tareas de un empleado con escala 1-3."""
+    service = PerfilFuncionesService(db)
+    return await service.evaluar_tareas(
+        perfil_id=perfil_id,
+        asignacion_id=asignacion_id,
+        evaluaciones=[(e.tarea_extra_id, e.nivel) for e in body.evaluaciones],
+        current_user=current_user,
+    )

@@ -35,8 +35,10 @@ from app.repositories.competencia_repository import (
     CompetenciaRepository,
     CompetenciaRequisitoRepository,
 )
-from app.repositories.evaluacion_repository import EvaluacionRepository
-from app.repositories.perfil_funciones_repository import PerfilFuncionesRepository
+from app.repositories.perfil_funciones_repository import (
+    PerfilFuncionesCompetenciaRepository,
+    PerfilFuncionesRepository,
+)
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.talento import (
     BrechaItem,
@@ -67,8 +69,8 @@ class CompetenciaService:
         self.repo = CompetenciaRepository(db)
         self.requisito_repo = CompetenciaRequisitoRepository(db)
         self.puesto_repo = PuestoPerfilRepository(db)
-        self.eval_repo = EvaluacionRepository(db)
         self.pf_repo = PerfilFuncionesRepository(db)
+        self.pf_comp_repo = PerfilFuncionesCompetenciaRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -648,16 +650,22 @@ class CompetenciaService:
                 if filtro in a.empleado.nombre.lower()
             ]
 
-        competencia_ids = [r.competencia_id for r in requisitos]
-        empleado_ids = [a.empleado_id for a in asignaciones]
+        # Map competencia_requisito.id → competencia_id for result mapping
+        req_id_to_comp_id = {r.id: r.competencia_id for r in requisitos}
 
-        evaluaciones = await self.eval_repo.list_by_empleados_and_competencias(
-            empleado_ids, competencia_ids
-        )
-
+        # Read evaluations from perfil_funciones_competencia (where the modal saves)
         eval_map: dict[int, dict[int, int]] = {}
-        for ev in evaluaciones:
-            eval_map.setdefault(ev.empleado_id, {})[ev.competencia_id] = ev.nivel_actual
+        for asig in asignaciones:
+            evals = await self.pf_comp_repo.list_by_asignacion(asig.id)
+            niveles: dict[int, int] = {}
+            for ev in evals:
+                comp_id = req_id_to_comp_id.get(ev.competencia_requisito_id)
+                if comp_id is not None:
+                    try:
+                        niveles[comp_id] = int(ev.situacion_actual)
+                    except (ValueError, TypeError):
+                        pass
+            eval_map[asig.empleado_id] = niveles
 
         competencias_out = [
             MultihabilidadesCompetenciaItem(

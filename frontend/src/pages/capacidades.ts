@@ -132,9 +132,9 @@ function renderLegend(): string {
   return `
   <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-slate-50 px-4 py-2.5 text-[11px]">
     <span class="font-semibold text-slate-600">Nivel de dominio</span>
-    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-red-100" aria-hidden="true"></span>1 &ndash; B&aacute;sico</span>
-    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-orange-100" aria-hidden="true"></span>2 &ndash; Intermedio</span>
-    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-amber-100" aria-hidden="true"></span>3 &ndash; Avanzado</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-red-100" aria-hidden="true"></span>1 &ndash; Planeado</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-orange-100" aria-hidden="true"></span>2 &ndash; En entrenamiento</span>
+    <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-amber-100" aria-hidden="true"></span>3 &ndash; Certificado</span>
     <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-emerald-100" aria-hidden="true"></span>4 &ndash; Experto</span>
     <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-slate-50 ring-1 ring-inset ring-slate-200" aria-hidden="true"></span>0 &ndash; Sin evaluar</span>
     <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-5 rounded bg-white ring-1 ring-inset ring-red-300" aria-hidden="true"></span>Debajo del requerido</span>
@@ -152,7 +152,7 @@ function renderHeatmap(
     </div>`;
   }
 
-  const nivelNames = ["—", "Básico", "Intermedio", "Avanzado", "Experto"];
+  const nivelNames = ["—", "Planeado", "En entrenamiento", "Certificado", "Experto"];
   const colHeaders = competencias.map(c => {
     const reqLabel = nivelNames[c.nivel_requerido] ?? "—";
     const catLabel = c.subcategoria ? c.subcategoria.charAt(0).toUpperCase() + c.subcategoria.slice(1) : "General";
@@ -298,6 +298,12 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
     try {
       puestoOptions = await getMultihabilidadesPuestos();
       status = "ready";
+      if (puestoOptions.length > 0 && !selectedPuestoId) {
+        selectedPuestoId = puestoOptions[0].id;
+        paint();
+        await loadMatriz();
+        return;
+      }
     } catch (err: unknown) {
       status = "error";
       errorMessage = (err as { detail?: string })?.detail ?? "Error al cargar puestos";

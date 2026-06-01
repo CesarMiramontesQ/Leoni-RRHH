@@ -124,9 +124,9 @@ export async function getEmpleadoResumen(empleadoId: number): Promise<EmpleadoRe
 
 export const NIVEL_LABELS: Record<number, string> = {
   0: "N/A",
-  1: "Básico",
-  2: "Intermedio",
-  3: "Avanzado",
+  1: "Planeado",
+  2: "En entrenamiento",
+  3: "Certificado",
   4: "Experto",
 };
 
