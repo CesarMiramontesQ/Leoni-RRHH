@@ -70,7 +70,7 @@ const TALENTO_SECTION_HIDDEN_ROLES: ReadonlySet<string> = new Set(["supervisor",
 
 /** Ítems del bloque visual «Formación» en el sidebar. */
 const FORMACION_SECTION_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
-  "capacidades", "habilidades", "cursos", "opls",
+  "capacidades", "cursos", "opls",
 ]);
 
 /** Ítems del bloque visual «Cumplimiento» en el sidebar. */
