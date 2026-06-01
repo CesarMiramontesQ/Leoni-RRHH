@@ -48,6 +48,7 @@ const RH_V1_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "empleados",
   "puestos",
   "competencias",
+  "capacidades",
   "tareas-catalogo",
 ]);
 
@@ -63,14 +64,14 @@ const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 /** Ítems del bloque visual «Talento» en el sidebar (encabezado + hijos). */
 const TALENTO_SECTION_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
-  "puestos", "competencias", "evaluaciones", "capacitaciones",
+  "puestos", "competencias", "capacidades", "evaluaciones", "capacitaciones",
 ]);
 
 const TALENTO_SECTION_HIDDEN_ROLES: ReadonlySet<string> = new Set(["supervisor", "gerente"]);
 
 /** Ítems del bloque visual «Formación» en el sidebar. */
 const FORMACION_SECTION_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
-  "capacidades", "cursos", "opls",
+  "cursos", "opls",
 ]);
 
 /** Ítems del bloque visual «Cumplimiento» en el sidebar. */
