@@ -22,13 +22,13 @@ import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 import {
   mountLevelUpDashboard,
-  mountCapacidades,
   mountCursos,
   mountOPLs,
   mountEvidencias,
   mountSugerencias,
   mountEncuestas,
 } from "./pages/levelUp.ts";
+import { mountCapacidades } from "./pages/capacidades.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -99,7 +99,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/capacidades")) {
-      mountCapacidades(container);
+      mountCapacidades(container, signal);
       return;
     }
     if (h.startsWith("#/cursos")) {

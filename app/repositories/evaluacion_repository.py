@@ -142,6 +142,19 @@ class EvaluacionRepository:
         await self.db.refresh(evaluacion)
         return evaluacion
 
+    async def list_by_empleados_and_competencias(
+        self, empleado_ids: list[int], competencia_ids: list[int]
+    ) -> list[EvaluacionCompetencia]:
+        if not empleado_ids or not competencia_ids:
+            return []
+        result = await self.db.execute(
+            select(EvaluacionCompetencia).where(
+                EvaluacionCompetencia.empleado_id.in_(empleado_ids),
+                EvaluacionCompetencia.competencia_id.in_(competencia_ids),
+            )
+        )
+        return list(result.scalars().all())
+
     async def delete(self, id: int) -> bool:
         evaluacion = await self.get(id)
         if not evaluacion:

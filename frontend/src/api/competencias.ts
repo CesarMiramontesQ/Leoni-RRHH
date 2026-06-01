@@ -303,3 +303,60 @@ export async function getBrechas(area_id?: string): Promise<BrechaItem[]> {
     severidad: ((b.gap_porcentaje as number) >= 80 ? "critica" : (b.gap_porcentaje as number) >= 60 ? "alta" : (b.gap_porcentaje as number) >= 40 ? "media" : "baja") as BrechaItem["severidad"],
   }));
 }
+
+
+// ── Multihabilidades (Matriz por Puesto) ─────────────────────────────
+
+export type MultihabilidadesPuestoOption = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  num_competencias: number;
+  num_empleados: number;
+};
+
+export type MultihabilidadesCompetencia = {
+  competencia_id: number;
+  competencia_nombre: string;
+  subcategoria: string | null;
+  nivel_requerido: number;
+};
+
+export type MultihabilidadesEmpleado = {
+  empleado_id: number;
+  nombre: string;
+  no_empleado: string;
+  niveles: Record<number, number>;
+};
+
+export type MultihabilidadesResponse = {
+  puesto_perfil_id: number;
+  puesto_nombre: string;
+  competencias: MultihabilidadesCompetencia[];
+  empleados: MultihabilidadesEmpleado[];
+};
+
+/** GET /api/v1/competencias/multihabilidades/puestos */
+export async function getMultihabilidadesPuestos(): Promise<MultihabilidadesPuestoOption[]> {
+  const res = await fetchWithAuth("/api/v1/competencias/multihabilidades/puestos");
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as CompetenciasFetchError;
+  }
+  return await res.json();
+}
+
+/** GET /api/v1/competencias/multihabilidades?puesto_perfil_id=X&nombre=Y */
+export async function getMultihabilidadesData(
+  puestoPerfilId: number,
+  nombre?: string,
+): Promise<MultihabilidadesResponse> {
+  let qs = `?puesto_perfil_id=${puestoPerfilId}`;
+  if (nombre) qs += `&nombre=${encodeURIComponent(nombre)}`;
+  const res = await fetchWithAuth(`/api/v1/competencias/multihabilidades${qs}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as CompetenciasFetchError;
+  }
+  return await res.json();
+}

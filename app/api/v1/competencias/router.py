@@ -29,6 +29,8 @@ from app.schemas.talento import (
     FilterOptionsResponse,
     MatrizBulkUpdate,
     MatrizResponse,
+    MultihabilidadesPuestoOption,
+    MultihabilidadesResponse,
     ResumenAreaResponse,
 )
 from app.services.competencia_service import CompetenciaService
@@ -115,6 +117,34 @@ async def obtener_brechas(
         return BrechasResponse(area_id=0, area_nombre=None, brechas=[])
     service = CompetenciaService(db)
     return await service.obtener_brechas(area_id=area_id)
+
+
+# ── Multihabilidades (Matriz por Puesto) ─────────────────────────────────────
+
+
+@router.get("/multihabilidades/puestos", response_model=list[MultihabilidadesPuestoOption])
+async def listar_puestos_multihabilidades(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista puestos disponibles para la matriz de multihabilidades."""
+    service = CompetenciaService(db)
+    return await service.listar_puestos_multihabilidades()
+
+
+@router.get("/multihabilidades", response_model=MultihabilidadesResponse)
+async def obtener_multihabilidades(
+    puesto_perfil_id: int = Query(..., description="ID del puesto perfil"),
+    nombre: str | None = Query(None, description="Filtro parcial por nombre del empleado"),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Matriz multihabilidades: empleados x competencias para un puesto."""
+    service = CompetenciaService(db)
+    return await service.obtener_multihabilidades(
+        puesto_perfil_id=puesto_perfil_id,
+        nombre_filtro=nombre,
+    )
 
 
 # ── CRUD basico ──────────────────────────────────────────────────────────────
