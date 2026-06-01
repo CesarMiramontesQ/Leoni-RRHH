@@ -41,7 +41,10 @@ WHERE version_num IN (
 SELECT version_num FROM alembic_version ORDER BY 1;
 SQL
 
-echo "=== Alembic heads (debe ser un solo head: e9f0a1b2c3d4) ==="
+echo "=== Validar un solo head de Alembic ==="
+python3 scripts/check_alembic_heads.py
+
+echo "=== Alembic heads ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic heads
 
 echo "=== Aplicar migraciones ==="

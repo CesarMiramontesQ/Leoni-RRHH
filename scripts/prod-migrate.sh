@@ -16,7 +16,10 @@ ENV_FILE="${ENV_FILE:-.env}"
 echo "=== Build backend (obligatorio tras pull con migraciones nuevas) ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
 
-echo "=== Alembic heads (debe mostrar un solo head) ==="
+echo "=== Validar un solo head de Alembic ==="
+python3 scripts/check_alembic_heads.py
+
+echo "=== Alembic heads ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic heads
 
 echo "=== Aplicar migraciones ==="
