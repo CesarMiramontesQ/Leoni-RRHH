@@ -2095,3 +2095,183 @@ body {
     transition: none;
   }
 }
+
+/* ── Matriz de Competencias (#competencias-root) ───────────────────────── */
+#competencias-root .comp-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  margin-top: 0.25rem;
+}
+
+#competencias-root .comp-page-tab {
+  position: relative;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  padding: 0.625rem 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+#competencias-root .comp-page-tab:hover {
+  color: #1e40af;
+  background: rgba(239, 246, 255, 0.65);
+}
+
+#competencias-root .comp-page-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+#competencias-root .comp-page-tab--active {
+  z-index: 2;
+  color: #1e40af;
+  border-color: rgba(226, 232, 240, 0.95);
+  border-bottom-color: #fff;
+  background: #fff;
+  box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.04);
+}
+
+#competencias-root .comp-tab-panel {
+  padding-top: 1rem;
+}
+
+#competencias-root .comp-catalogo-scroll {
+  max-height: min(62vh, 640px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+#competencias-root .comp-catalogo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+#competencias-root .comp-catalogo-row {
+  transition: background-color 140ms ease;
+}
+
+#competencias-root .comp-catalogo-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+#competencias-root .comp-catalogo-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+  outline: none;
+}
+
+#competencias-root .comp-col-nombre {
+  min-width: 10rem;
+}
+
+#competencias-root .comp-search-input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+#competencias-root .comp-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: #64748b;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+#competencias-root .comp-row-action:hover {
+  color: #1e40af;
+  background: rgba(239, 246, 255, 0.9);
+  border-color: rgba(191, 219, 254, 0.8);
+}
+
+#competencias-root .comp-row-action--danger:hover {
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.95);
+  border-color: rgba(254, 202, 202, 0.9);
+}
+
+#competencias-root .comp-row-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+#competencias-root .comp-row-action--danger:focus-visible {
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.35);
+}
+
+#competencias-root .comp-btn-nueva:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+#competencias-root .comp-grupo-badge--blanda {
+  letter-spacing: 0.01em;
+}
+
+#competencias-root .comp-desc-cell {
+  word-break: break-word;
+}
+
+#competencias-root .comp-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+#competencias-root ~ #comp-modal-host .comp-modal-backdrop,
+#competencias-page-root #comp-modal-host .comp-modal-backdrop,
+#competencias-page-root #comp-delete-modal-host .comp-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+#competencias-page-root .comp-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@keyframes comp-modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes comp-modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #competencias-root .comp-page-tab,
+  #competencias-root .comp-catalogo-row,
+  #competencias-root .comp-row-action,
+  #competencias-page-root .comp-modal-backdrop,
+  #competencias-page-root .comp-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
