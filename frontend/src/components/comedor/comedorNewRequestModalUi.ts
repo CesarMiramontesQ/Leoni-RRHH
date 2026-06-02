@@ -3,6 +3,9 @@ import type {
   ComedorMenuOption,
   ComedorPersonType,
 } from "../../comedor/rh/types.ts";
+import type { ComedorMenuDelDia } from "../../comedor/rh/resolveMenuDiaFromSemana.ts";
+import type { MenuDelDiaPanelState } from "../comedor/comedorMenuPreview.ts";
+import { renderComedorMenuDelDiaPanel } from "./comedorMenuPreview.ts";
 import { BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 
@@ -48,6 +51,10 @@ export type BuildComedorNewRequestFormParams = {
   /** Beneficiario propio (supervisor en sesión); si está definido, se muestra el selector de destinatario. */
   supervisorSelfOption?: ComedorEmployeeOption | null;
   teamEmployeeOptions?: readonly ComedorEmployeeOption[];
+  menuDelDiaState?: MenuDelDiaPanelState;
+  menuDelDia?: ComedorMenuDelDia | null;
+  menuDelDiaError?: string | null;
+  menuDelDiaFechaIso?: string | null;
 };
 
 /** Etiquetas de sección: jerarquía suave para no competir con el contenido. */
@@ -230,6 +237,10 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     selectedEmployee,
     showObservacionesField = true,
     allowEmployeeSelection = true,
+    menuDelDiaState = "idle",
+    menuDelDia = null,
+    menuDelDiaError = null,
+    menuDelDiaFechaIso = null,
   } = params;
   const fieldClass =
     "h-11 w-full rounded-lg border border-slate-200 bg-[var(--color-surface-container-lowest,#FFFFFF)] px-3.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25 focus:shadow-[0_1px_3px_rgba(37,99,235,0.12)]";
@@ -391,6 +402,13 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
             </section>`
           : ""
       }
+
+      ${renderComedorMenuDelDiaPanel({
+        state: menuDelDiaState,
+        menu: menuDelDia,
+        errorMessage: menuDelDiaError,
+        fechaConsultaIso: menuDelDiaFechaIso,
+      })}
 
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
         <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] sm:p-5">

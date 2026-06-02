@@ -23,6 +23,18 @@ export type MenuSemanalApiItem = {
   foto_path: string | null;
   created_by: number;
   created_at: string;
+  /** Complementos del día (guarniciones, salsas, etc.) cuando el backend los expone. */
+  detalle?: ComedorMenuDiaDetalleApi | null;
+};
+
+export type ComedorMenuDiaDetalleApi = {
+  sopa_o_crema?: string[];
+  guarniciones?: string[];
+  complementos?: string[];
+  tortillas?: string[];
+  postres?: string[];
+  salsas?: string[];
+  aguas?: string[];
 };
 
 export type ComedorEstadisticasApi = {
@@ -167,6 +179,7 @@ export async function publicarComedorMenu(payload: {
   dia: string;
   tipo: string;
   descripcion: string;
+  detalle?: ComedorMenuDiaDetalleApi | null;
 }): Promise<void> {
   const res = await fetchWithAuth("/api/v1/comedor/menu", {
     method: "POST",
@@ -177,6 +190,7 @@ export async function publicarComedorMenu(payload: {
       dia: payload.dia,
       tipo: payload.tipo,
       descripcion: payload.descripcion || null,
+      ...(payload.detalle ? { detalle: payload.detalle } : {}),
     }),
   });
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));

@@ -61,7 +61,11 @@ import type {
   ComedorWeekPlannerDay,
   ComedorWeekPlannerDayKey,
 } from "../comedor/rh/types.ts";
-import { cloneMenuDiaDetalle, createEmptyMenuDiaDetalle } from "../comedor/rh/menuDayDetalle.ts";
+import { cloneMenuDiaDetalle, createEmptyMenuDiaDetalle, parseMenuDiaDetalleFromApi } from "../comedor/rh/menuDayDetalle.ts";
+import {
+  buildPublicarMenuPayloadsForDay,
+  createComedorMenuDelDiaLoader,
+} from "../comedor/rh/loadMenuDelDia.ts";
 import type { PlaneacionMenuTemplateDay } from "../comedor/rh/parsePlaneacionMenuTemplate.ts";
 import {
   countIncompletePlannerDays,
@@ -1068,6 +1072,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
   const comedorIdResolver = createComedorIdResolver();
   const resolveComedorId = () => comedorIdResolver.resolve();
+  const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: RhComedorState = {
     statsState: "loading",
     stats: null,
@@ -1214,6 +1219,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
             { id: "saludable", label: "Opción B" },
           ];
         },
+        loadMenuDelDia,
         searchEmployees: searchComedorEmployeesFromDb,
         onSubmit: async (payload) => {
           const comedorId = await resolveComedorId();
@@ -1873,6 +1879,9 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
             ...day,
             menuNormal: normal?.descripcion ?? "",
             menuDieta: dieta?.descripcion ?? "",
+            detalle: normal?.detalle
+              ? cloneMenuDiaDetalle(parseMenuDiaDetalleFromApi(normal.detalle))
+              : createEmptyMenuDiaDetalle(),
           };
         }),
       };
@@ -1984,16 +1993,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
       if (comedorId == null) {
         throw new Error("No hay comedor activo configurado.");
       }
-      const payloads = state.week.dias.flatMap((day) => {
-        const rows: { dia: string; tipo: string; descripcion: string }[] = [];
-        if (day.menuNormal.trim()) {
-          rows.push({ dia: day.key, tipo: "normal", descripcion: day.menuNormal.trim() });
-        }
-        if (day.menuDieta.trim()) {
-          rows.push({ dia: day.key, tipo: "dieta", descripcion: day.menuDieta.trim() });
-        }
-        return rows;
-      });
+      const payloads = state.week.dias.flatMap((day) => buildPublicarMenuPayloadsForDay(day));
       await Promise.all(
         payloads.map((entry) =>
           publicarComedorMenu({
@@ -2002,6 +2002,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
             dia: entry.dia,
             tipo: entry.tipo,
             descripcion: entry.descripcion,
+            detalle: entry.detalle,
           }),
         ),
       );
@@ -2221,6 +2222,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const comedorIdResolver = createComedorIdResolver();
   const resolveComedorId = () => comedorIdResolver.resolve();
+  const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: LiderComedorState = {
     statsState: "loading",
     stats: null,
@@ -2365,6 +2367,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           { id: "casera", label: "Opción A" },
           { id: "saludable", label: "Opción B" },
         ],
+        loadMenuDelDia,
         ...(supervisorSelfForModal ?
           {
             supervisorBeneficiaryConfig: {
@@ -2574,6 +2577,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
   const now = new Date();
   const comedorIdResolver = createComedorIdResolver();
   const resolveComedorId = () => comedorIdResolver.resolve();
+  const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: EmpleadoComedorState = {
     calendarState: "loading",
     calendar: null,
@@ -2733,6 +2737,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
             { id: "casera", label: "Opción A" },
             { id: "saludable", label: "Opción B" },
           ],
+          loadMenuDelDia,
           searchEmployees: async () => [],
           onSubmit: async (payload) => {
             const firstDate = payload.fechas[0];

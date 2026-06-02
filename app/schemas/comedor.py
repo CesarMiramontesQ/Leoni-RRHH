@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field, model_validator
 ComedorTipoComidaLiteral = Literal["casera", "saludable"]
 
 
+class MenuDiaDetalleSchema(BaseModel):
+    sopa_o_crema: list[str] = Field(default_factory=list)
+    guarniciones: list[str] = Field(default_factory=list)
+    complementos: list[str] = Field(default_factory=list)
+    tortillas: list[str] = Field(default_factory=list)
+    postres: list[str] = Field(default_factory=list)
+    salsas: list[str] = Field(default_factory=list)
+    aguas: list[str] = Field(default_factory=list)
+
+
 class ComedorResponse(BaseModel):
     id: int
     nombre: str
@@ -36,6 +46,7 @@ class MenuSemanalCreate(BaseModel):
     dia: str
     tipo: str
     descripcion: Optional[str] = None
+    detalle: Optional[MenuDiaDetalleSchema] = None
 
 
 class MenuSemanalResponse(MenuSemanalCreate):

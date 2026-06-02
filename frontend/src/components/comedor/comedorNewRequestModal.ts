@@ -12,6 +12,9 @@ import {
   type ComedorNewRequestFormErrors,
   type ComedorNewRequestFormState,
 } from "./comedorNewRequestModalUi.ts";
+import type { ComedorMenuDelDia } from "../../comedor/rh/resolveMenuDiaFromSemana.ts";
+import type { ComedorMenuDelDiaLoader } from "../../comedor/rh/loadMenuDelDia.ts";
+import type { MenuDelDiaPanelState } from "./comedorMenuPreview.ts";
 
 type Catalog = {
   menus: readonly ComedorMenuOption[];
@@ -43,6 +46,8 @@ export type ComedorNewRequestModalOptions = {
   menuFieldLabel?: string;
   showObservacionesField?: boolean;
   loadMenuOptions: () => Promise<readonly ComedorMenuOption[]>;
+  /** Consulta el menú planeado para la fecha seleccionada (sin acción extra del usuario). */
+  loadMenuDelDia?: ComedorMenuDelDiaLoader;
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
   onSubmit: (payload: ComedorCreateRequestPayload) => Promise<unknown> | unknown;
   onSuccess?: (result: unknown, payload: ComedorCreateRequestPayload) => void;
@@ -219,12 +224,18 @@ export function mountComedorNewRequestModal(
   const fechaMinReservaIso = options.fechaMinReservaIso ?? null;
   const menuFieldLabel = options.menuFieldLabel;
   const loadFechasBloqueadas = options.loadFechasBloqueadas;
+  const loadMenuDelDia = options.loadMenuDelDia;
   const supervisorBeneficiaryConfig = options.supervisorBeneficiaryConfig;
   let fechasBloqueadasSet: ReadonlySet<string> | null = null;
   let catalog: Catalog | null = null;
   let formState = initialState(defaultEmployeeId, supervisorBeneficiaryConfig);
   let errors: ComedorNewRequestFormErrors = {};
   let isSubmitting = false;
+  let menuDelDiaState: MenuDelDiaPanelState = "idle";
+  let menuDelDia: ComedorMenuDelDia | null = null;
+  let menuDelDiaError: string | null = null;
+  let menuDelDiaFechaIso: string | null = null;
+  let menuDelDiaRequestToken = 0;
   let searchResults: readonly ComedorEmployeeOption[] = [];
   let isSearchingEmployees = false;
   let searchEmployeesError: string | null = null;
@@ -278,8 +289,43 @@ export function mountComedorNewRequestModal(
       showObservacionesField: options.showObservacionesField ?? true,
       supervisorSelfOption: supervisorBeneficiaryConfig?.self ?? null,
       teamEmployeeOptions: supervisorBeneficiaryConfig ? teamOnlyEmployeeOptions : undefined,
+      menuDelDiaState,
+      menuDelDia,
+      menuDelDiaError,
+      menuDelDiaFechaIso,
     });
     bindInteractions();
+  }
+
+  async function refreshMenuDelDia(fechaIso: string): Promise<void> {
+    const trimmed = fechaIso.trim();
+    menuDelDiaFechaIso = trimmed || null;
+    if (!loadMenuDelDia || !trimmed) {
+      menuDelDiaState = "idle";
+      menuDelDia = null;
+      menuDelDiaError = null;
+      renderForm();
+      return;
+    }
+
+    const requestToken = ++menuDelDiaRequestToken;
+    menuDelDiaState = "loading";
+    menuDelDia = null;
+    menuDelDiaError = null;
+    renderForm();
+
+    try {
+      const menu = await loadMenuDelDia(trimmed);
+      if (requestToken !== menuDelDiaRequestToken) return;
+      menuDelDia = menu;
+      menuDelDiaState = menu ? "ready" : "empty";
+    } catch {
+      if (requestToken !== menuDelDiaRequestToken) return;
+      menuDelDia = null;
+      menuDelDiaState = "error";
+      menuDelDiaError = "No fue posible consultar el menú planeado.";
+    }
+    renderForm();
   }
 
   function close(): void {
@@ -299,6 +345,11 @@ export function mountComedorNewRequestModal(
       searchDebounceTimer = null;
     }
     fechasBloqueadasSet = null;
+    menuDelDiaState = "idle";
+    menuDelDia = null;
+    menuDelDiaError = null;
+    menuDelDiaFechaIso = null;
+    menuDelDiaRequestToken += 1;
     bodyEl.innerHTML = "";
   }
 
@@ -359,6 +410,9 @@ export function mountComedorNewRequestModal(
     isSearchingEmployees = false;
     searchEmployeesError = null;
     renderForm();
+    if (formState.fechaInicio.trim()) {
+      void refreshMenuDelDia(formState.fechaInicio);
+    }
     window.requestAnimationFrame(() => {
       const focusSupervisor =
         bodyEl.querySelector<HTMLElement>("[data-comedor-modal-supervisor-scope='personal']");
@@ -511,7 +565,7 @@ export function mountComedorNewRequestModal(
       formState.fechaInicio = dateInputStart.value;
       errors.fechaInicio = undefined;
       errors.fechaFin = undefined;
-      renderForm();
+      void refreshMenuDelDia(formState.fechaInicio);
     });
 
     const dateInputEnd = form.querySelector<HTMLInputElement>("[data-comedor-modal-date-end]");

@@ -1269,6 +1269,42 @@ components:
           type: string
         descripcion:
           type: [string, "null"]
+        detalle:
+          oneOf:
+            - $ref: "#/components/schemas/MenuDiaDetalle"
+            - type: "null"
+
+    MenuDiaDetalle:
+      type: object
+      properties:
+        sopa_o_crema:
+          type: array
+          items:
+            type: string
+        guarniciones:
+          type: array
+          items:
+            type: string
+        complementos:
+          type: array
+          items:
+            type: string
+        tortillas:
+          type: array
+          items:
+            type: string
+        postres:
+          type: array
+          items:
+            type: string
+        salsas:
+          type: array
+          items:
+            type: string
+        aguas:
+          type: array
+          items:
+            type: string
 
     MenuSemanalResponse:
       type: object
@@ -1287,6 +1323,10 @@ components:
           type: string
         descripcion:
           type: [string, "null"]
+        detalle:
+          oneOf:
+            - $ref: "#/components/schemas/MenuDiaDetalle"
+            - type: "null"
         foto_path:
           type: [string, "null"]
         created_by:
