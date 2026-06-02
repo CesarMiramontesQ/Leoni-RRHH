@@ -7,9 +7,20 @@ import {
   getCompetenciaPuestos,
   type CompetenciasFetchError,
 } from "../api/competencias.ts";
-import type { Competencia } from "../dashboard/competencias/types.ts";
+import type { Competencia, CompetenciasTab, NivelMatriz } from "../dashboard/competencias/types.ts";
 import { clearAuth } from "../auth/session.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import {
+  applyPuestoNivelChange,
+  createMatrizRequisitosModel,
+  loadCompetenciasPuesto,
+  loadMatrizFilterOptions,
+  loadPuestosList,
+  renderMatrizRequisitosTab,
+  savePuestoNivelesPending,
+  type MatrizRequisitosModel,
+} from "../components/competencias/matrizRequisitosTab.ts";
 import {
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -202,11 +213,21 @@ function renderCompetenciaModal(comp: Competencia | null): string {
     </div>`;
 }
 
+function renderTabButton(tab: CompetenciasTab, active: CompetenciasTab, label: string): string {
+  const isActive = tab === active;
+  return `<button type="button" data-action="comp-tab" data-tab="${tab}" class="rounded-t-lg border px-4 py-2.5 text-sm font-semibold transition ${
+    isActive
+      ? "border-slate-200 border-b-white bg-white text-leoni-blue -mb-px relative z-10"
+      : "border-transparent bg-transparent text-slate-600 hover:text-leoni-blue"
+  }">${escapeHtml(label)}</button>`;
+}
+
 // ── Page mount ────────────────────────────────────────────────────────
 
 export function mountCompetencias(container: HTMLElement, signal: AbortSignal): void {
   // State
   let status: "loading" | "ready" | "error" = "loading";
+  let activeTab: CompetenciasTab = "catalogo";
   let catalogoItems: Competencia[] = [];
   let catalogoFilter = "";
   let catalogoGrupo = "";
@@ -214,6 +235,9 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
   let errorMessage: string | null = null;
   let editingCompetencia: Competencia | null = null;
   let showModal = false;
+  const matrizModel: MatrizRequisitosModel = createMatrizRequisitosModel(
+    getRolFromAccessToken() === "rh",
+  );
 
   mountAppShell(container, {
     pageTitle: "Matriz de Competencias",
@@ -251,13 +275,32 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
 
       <!-- Header -->
       <div class="flex flex-col gap-1">
-        <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Cat&aacute;logo de Competencias</h1>
-        <p class="text-sm text-slate-500">Administra el cat&aacute;logo de competencias disponibles.</p>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Competencias</h1>
+        <p class="text-sm text-slate-500">Cat&aacute;logo de competencias y niveles requeridos por puesto.</p>
       </div>
 
+      <nav class="flex flex-wrap gap-1 border-b border-slate-200" aria-label="Secciones de competencias">
+        ${renderTabButton("catalogo", activeTab, "Catálogo")}
+        ${renderTabButton("matriz", activeTab, "Niveles por puesto")}
+      </nav>
+
       <!-- Content -->
-      <div class="mt-1">${renderCatalogoTab(catalogoItems, catalogoFilter, catalogoGrupo, catalogoSubcategoria)}</div>
+      <div class="mt-1">${
+        activeTab === "catalogo"
+          ? renderCatalogoTab(catalogoItems, catalogoFilter, catalogoGrupo, catalogoSubcategoria)
+          : renderMatrizRequisitosTab(matrizModel)
+      }</div>
     `;
+  }
+
+  async function paintMatrizTab(): Promise<void> {
+    if (activeTab !== "matriz") return;
+    const inner = container.querySelector("#competencias-inner");
+    if (!inner) return;
+    const content = inner.querySelector(".mt-1");
+    if (content) {
+      content.innerHTML = renderMatrizRequisitosTab(matrizModel);
+    }
   }
 
   function paintModal(): void {
@@ -323,6 +366,12 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     paint();
     try {
       await loadCatalogo();
+      await loadMatrizFilterOptions(matrizModel);
+      try {
+        await loadPuestosList(matrizModel);
+      } catch {
+        /* La pestaña Niveles por puesto recargará puestos al abrirla */
+      }
       status = "ready";
     } catch (e: unknown) {
       const err = e as CompetenciasFetchError;
@@ -331,6 +380,27 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       errorMessage = (e as CompetenciasFetchError)?.detail || "Error de conexion.";
     }
     paint();
+    if (activeTab === "matriz") await paintMatrizTab();
+  }
+
+  async function switchToMatrizTab(): Promise<void> {
+    activeTab = "matriz";
+    paint();
+    try {
+      if (matrizModel.areaOptions.length === 0) {
+        await loadMatrizFilterOptions(matrizModel);
+      }
+      if (matrizModel.puestos.length === 0) {
+        await loadPuestosList(matrizModel);
+      }
+    } catch (e: unknown) {
+      const err = e as CompetenciasFetchError;
+      if (err?.status === 401) { handleSessionExpired(); return; }
+    }
+    if (matrizModel.puestoId) {
+      await loadCompetenciasPuesto(matrizModel);
+    }
+    await paintMatrizTab();
   }
 
   // ── Event delegation ────────────────────────────────────────────────
@@ -431,6 +501,26 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       void init();
       return;
     }
+
+    const tabBtn = t.closest<HTMLElement>("[data-action='comp-tab']");
+    if (tabBtn) {
+      const tab = tabBtn.getAttribute("data-tab") as CompetenciasTab | null;
+      if (tab === "catalogo") {
+        activeTab = "catalogo";
+        paint();
+      } else if (tab === "matriz") {
+        void switchToMatrizTab();
+      }
+      return;
+    }
+
+    if (t.closest("[data-action='puesto-niveles-guardar']")) {
+      void (async () => {
+        await savePuestoNivelesPending(matrizModel);
+        await paintMatrizTab();
+      })();
+      return;
+    }
   }, { signal });
 
   // Input / change events
@@ -460,6 +550,39 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     if (t.id === "comp-catalogo-subcategoria") {
       catalogoSubcategoria = (t as HTMLSelectElement).value;
       paint();
+      return;
+    }
+
+    if (t.matches("[data-action='puesto-niveles-area']")) {
+      matrizModel.areaId = (t as HTMLSelectElement).value;
+      matrizModel.puestoId = "";
+      matrizModel.competencias = [];
+      matrizModel.pending.clear();
+      void (async () => {
+        await loadPuestosList(matrizModel);
+        await paintMatrizTab();
+      })();
+      return;
+    }
+
+    if (t.matches("[data-action='puesto-niveles-puesto']")) {
+      matrizModel.puestoId = (t as HTMLSelectElement).value;
+      matrizModel.pending.clear();
+      void (async () => {
+        await loadCompetenciasPuesto(matrizModel);
+        await paintMatrizTab();
+      })();
+      return;
+    }
+
+    const nivelSel = t.closest<HTMLElement>("[data-action='puesto-nivel-req']");
+    if (nivelSel) {
+      const compId = Number.parseInt(nivelSel.getAttribute("data-competencia-id") ?? "", 10);
+      const nivel = Number.parseInt((nivelSel as HTMLSelectElement).value, 10) as NivelMatriz;
+      if (Number.isFinite(compId) && nivel >= 0 && nivel <= 4) {
+        applyPuestoNivelChange(matrizModel, compId, nivel);
+        void paintMatrizTab();
+      }
       return;
     }
 

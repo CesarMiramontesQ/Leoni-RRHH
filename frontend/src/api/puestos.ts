@@ -85,8 +85,20 @@ export async function getResumenTarjetas(): Promise<PerfilTarjetaItem[]> {
 }
 
 /** GET /api/v1/puestos-perfil — listado para tabla */
-export async function getPerfilesList(): Promise<PerfilPuestoListItem[]> {
-  const res = await fetchWithAuth("/api/v1/puestos-perfil");
+export async function getPerfilesList(opts?: {
+  area_id?: number;
+  page_size?: number;
+  page?: number;
+  busqueda?: string;
+}): Promise<PerfilPuestoListItem[]> {
+  const pageSize = Math.min(opts?.page_size ?? 100, 100);
+  const qs = new URLSearchParams({
+    page: String(opts?.page ?? 1),
+    page_size: String(pageSize),
+  });
+  if (opts?.area_id) qs.set("area_id", String(opts.area_id));
+  if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
+  const res = await fetchWithAuth(`/api/v1/puestos-perfil?${qs}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   const data = await res.json();
   const items = data.items ?? data;

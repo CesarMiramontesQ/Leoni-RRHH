@@ -2037,3 +2037,61 @@ body {
 #rh-comedor-page .rh-comedor-data-row:hover {
   background: linear-gradient(90deg, rgba(239, 246, 255, 0.65) 0%, rgba(255, 255, 255, 0.9) 100%);
 }
+
+/* ── Matriz de multihabilidades (#capacidades-root) ───────────────────── */
+#capacidades-root .cap-matriz-scroll {
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+#capacidades-root .cap-matriz-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+#capacidades-root .cap-matriz-table .cap-matriz-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 25;
+  background: #fff;
+  box-shadow: 1px 0 0 rgba(226, 232, 240, 0.9);
+}
+
+#capacidades-root .cap-matriz-table thead .cap-matriz-sticky-col {
+  z-index: 35;
+  background: var(--color-grid-header-bg, #f8fafc);
+}
+
+#capacidades-root .cap-matriz-table tbody tr:hover .cap-matriz-sticky-col {
+  background: #f8fafc;
+}
+
+#capacidades-root .cap-matriz-table tbody tr.cap-matriz-row--focus .cap-matriz-sticky-col,
+#capacidades-root .cap-matriz-table tbody tr:focus-within .cap-matriz-sticky-col {
+  background: #eff6ff;
+}
+
+#capacidades-root .cap-matriz-comp-label {
+  display: inline-block;
+  max-height: 5.5rem;
+  overflow: hidden;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  color: #334155;
+  text-align: left;
+  padding: 0.25rem 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #capacidades-root .cap-matriz-table tbody tr {
+    transition: none;
+  }
+}

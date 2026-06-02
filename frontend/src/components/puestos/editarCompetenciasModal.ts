@@ -96,7 +96,7 @@ function renderList(competencias: PerfilCompetencia[]): string {
       </div>`;
   }
   html += `</div>`;
-  html += `<p class="text-xs text-slate-400 italic mb-4">Para editar nivel o eliminar, ir a Matriz de Competencias.</p>`;
+  html += `<p class="text-xs text-slate-400 italic mb-4">Para definir el nivel requerido (1–4) de cada competencia, ir a <a href="#/competencias" class="font-semibold text-leoni-blue hover:underline">Competencias</a> → «Niveles por puesto», elegir este perfil y guardar.</p>`;
   return html;
 }
 
