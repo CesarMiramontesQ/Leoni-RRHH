@@ -2639,19 +2639,57 @@ components:
           type: integer
           nullable: true
 
+    PerfilCompetenciaCreate:
+      type: object
+      required: [competencia_id, nivel_requerido]
+      properties:
+        competencia_id:
+          type: integer
+        nivel_requerido:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: Nivel mínimo requerido para este puesto (1-4)
+
+    PerfilCompetenciaUpdate:
+      type: object
+      required: [nivel_requerido]
+      properties:
+        nivel_requerido:
+          type: integer
+          minimum: 1
+          maximum: 4
+
+    PerfilCompetenciaSyncItem:
+      type: object
+      required: [competencia_id, nivel_requerido]
+      properties:
+        competencia_id:
+          type: integer
+        nivel_requerido:
+          type: integer
+          minimum: 1
+          maximum: 4
+
     PerfilCompetenciaSyncBody:
       type: object
-      required: [subcategoria, competencia_ids]
+      required: [subcategoria]
       properties:
         subcategoria:
           type: string
           enum: [informatica, idiomas, profesional, social, personal, metodos]
           description: Subcategoría de competencias a sincronizar
+        competencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerfilCompetenciaSyncItem"
+          description: Competencias de la categoría con nivel mínimo por puesto
         competencia_ids:
           type: array
           items:
             type: integer
-          description: IDs de competencias seleccionadas para esta categoría
+          deprecated: true
+          description: Legado; usar competencias con nivel_requerido
 
     EvaluacionCompetenciaSyncBody:
       type: object
@@ -5888,13 +5926,86 @@ paths:
                   type: string
                 example: ["Ing. Mecánica", "Ing. Electrónica", "Lic. Administración"]
 
+  /api/v1/perfiles/{perfil_id}/competencias:
+    post:
+      tags: [Talento - Perfil Funciones]
+      summary: Agregar competencia del catálogo al perfil
+      description: Crea la relación puesto-competencia con nivel mínimo requerido (1-4). Solo RH o supervisor.
+      operationId: crear_perfil_competencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCompetenciaCreate"
+      responses:
+        "201":
+          description: Competencia asociada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerfilCompetenciaResponse"
+        "403":
+          description: Sin permisos
+        "404":
+          description: Perfil o competencia no encontrado
+        "409":
+          description: Competencia ya asignada al perfil
+        "422":
+          description: Validación (nivel_requerido obligatorio 1-4)
+
+  /api/v1/perfiles/{perfil_id}/competencias/{requisito_id}:
+    patch:
+      tags: [Talento - Perfil Funciones]
+      summary: Actualizar nivel mínimo requerido de una competencia del perfil
+      operationId: actualizar_nivel_perfil_competencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requisito_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCompetenciaUpdate"
+      responses:
+        "200":
+          description: Requisito actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerfilCompetenciaResponse"
+        "403":
+          description: Sin permisos
+        "404":
+          description: Perfil o requisito no encontrado
+
   /api/v1/perfiles/{perfil_id}/competencias/sync:
     put:
       tags: [Talento - Perfil Funciones]
       summary: Sync competencias requeridas por subcategoría (multi-select)
       description: |
-        Recibe el set completo de competencia_ids para una subcategoría.
-        Agrega las faltantes y elimina las deseleccionadas. Solo RH o supervisor.
+        Recibe el set completo de competencias para una subcategoría con nivel mínimo requerido (1-4) por puesto.
+        Agrega las faltantes, actualiza niveles y elimina las deseleccionadas. Solo RH o supervisor.
+        El campo legado competencia_ids asigna nivel 1 en altas nuevas.
       operationId: sync_perfil_competencias
       security:
         - BearerAuth: []

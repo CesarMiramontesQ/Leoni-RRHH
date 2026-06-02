@@ -284,10 +284,10 @@ export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCom
   return (await res.json()) as PerfilCompetencia[];
 }
 
-/** POST /api/v1/perfiles/:id/competencias — agrega competencia del catalogo */
+/** POST /api/v1/perfiles/:id/competencias — agrega competencia del catálogo */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id: number },
+  body: { competencia_id: number; nivel_requerido: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",
@@ -298,10 +298,15 @@ export async function createPerfilCompetencia(
   return (await res.json()) as PerfilCompetencia;
 }
 
+export type PerfilCompetenciaSyncItem = {
+  competencia_id: number;
+  nivel_requerido: number;
+};
+
 /** PUT /api/v1/perfiles/:id/competencias/sync — sync multi-select por categoría */
 export async function syncPerfilCompetencias(
   perfilId: number,
-  body: { subcategoria: string; competencia_ids: number[] },
+  body: { subcategoria: string; competencias: PerfilCompetenciaSyncItem[] },
 ): Promise<PerfilCompetencia[]> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/sync`, {
     method: "PUT",
@@ -310,6 +315,21 @@ export async function syncPerfilCompetencias(
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilCompetencia[];
+}
+
+/** PATCH /api/v1/perfiles/:id/competencias/:requisitoId — actualiza nivel requerido */
+export async function updatePerfilCompetenciaNivel(
+  perfilId: number,
+  requisitoId: number,
+  nivel_requerido: number,
+): Promise<PerfilCompetencia> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/${requisitoId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nivel_requerido }),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCompetencia;
 }
 
 /** PUT /api/v1/perfiles/:id/asignaciones/:asigId/competencias-eval */

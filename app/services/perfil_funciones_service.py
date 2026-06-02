@@ -22,7 +22,13 @@ from app.core.catalogos_cualificacion import (
 )
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
-from app.models.talento import Competencia, PerfilFunciones, PuestoPerfil, TareaCatalogo
+from app.models.talento import (
+    Competencia,
+    CompetenciaRequisito,
+    PerfilFunciones,
+    PuestoPerfil,
+    TareaCatalogo,
+)
 from app.repositories.competencia_repository import CompetenciaRequisitoRepository
 from app.repositories.perfil_funciones_repository import (
     PerfilCualificacionRepository,
@@ -36,6 +42,8 @@ from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.perfil_funciones import (
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
+    PerfilCompetenciaSyncItem,
+    PerfilCompetenciaUpdate,
     PerfilCualificacionCreate,
     PerfilCualificacionResponse,
     PerfilCualificacionUpdate,
@@ -332,7 +340,7 @@ class PerfilFuncionesService:
         requisito = await self.competencia_repo.create({
             "puesto_perfil_id": perfil_id,
             "competencia_id": data.competencia_id,
-            "nivel_requerido": 0,
+            "nivel_requerido": data.nivel_requerido,
             "orden": orden,
         })
 
@@ -349,17 +357,16 @@ class PerfilFuncionesService:
         self,
         perfil_id: int,
         subcategoria: str,
-        competencia_ids: list[int],
+        competencias: list[PerfilCompetenciaSyncItem],
         current_user: Empleado,
     ) -> list[PerfilCompetenciaResponse]:
-        """Sync competencias del catálogo por subcategoría. No afecta competencias custom."""
+        """Sync competencias del catálogo por subcategoría (incluye nivel requerido por puesto)."""
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
         await self._get_perfil_or_404(perfil_id)
 
-        # Obtener IDs válidos del catálogo para esta subcategoría
         result = await self.db.execute(
             select(Competencia.id).where(
                 Competencia.subcategoria == subcategoria,
@@ -368,24 +375,23 @@ class PerfilFuncionesService:
         )
         catalogo_ids = {row[0] for row in result.all()}
 
-        if competencia_ids:
-            requested_ids = set(competencia_ids)
+        requested_map = {c.competencia_id: c.nivel_requerido for c in competencias}
+        requested_ids = set(requested_map.keys())
+
+        if requested_ids:
             invalid = requested_ids - catalogo_ids
             if invalid:
                 raise DomainValidationError(
                     f"competencia_ids inválidos para subcategoría '{subcategoria}': {sorted(invalid)}"
                 )
-        else:
-            requested_ids = set()
 
-        # Requisitos actuales de esta subcategoría para el perfil
         current = await self.competencia_repo.list_by_puesto_and_subcategoria(perfil_id, subcategoria)
-        # Solo operar sobre las que pertenecen al catálogo (no tocar custom)
         current_catalogo = {r.competencia_id: r for r in current if r.competencia_id in catalogo_ids}
         current_catalogo_ids = set(current_catalogo.keys())
 
         to_remove = current_catalogo_ids - requested_ids
         to_add = requested_ids - current_catalogo_ids
+        to_update = requested_ids & current_catalogo_ids
 
         if to_remove:
             ids_to_delete = [current_catalogo[cid].id for cid in to_remove]
@@ -397,11 +403,60 @@ class PerfilFuncionesService:
                 await self.competencia_repo.create({
                     "puesto_perfil_id": perfil_id,
                     "competencia_id": comp_id,
-                    "nivel_requerido": 1,
+                    "nivel_requerido": requested_map[comp_id],
                     "orden": orden_base + i,
                 })
 
+        for comp_id in sorted(to_update):
+            requisito = current_catalogo[comp_id]
+            nuevo_nivel = requested_map[comp_id]
+            if requisito.nivel_requerido != nuevo_nivel:
+                requisito.nivel_requerido = nuevo_nivel
+                await self.db.flush()
+
         return await self.listar_competencias(perfil_id)
+
+    async def actualizar_nivel_competencia(
+        self,
+        perfil_id: int,
+        requisito_id: int,
+        data: PerfilCompetenciaUpdate,
+        current_user: Empleado,
+    ) -> PerfilCompetenciaResponse:
+        """Actualiza el nivel mínimo requerido de una competencia ya asociada al perfil."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        from sqlalchemy.orm import selectinload
+
+        result = await self.db.execute(
+            select(CompetenciaRequisito)
+            .options(selectinload(CompetenciaRequisito.competencia))
+            .where(
+                CompetenciaRequisito.id == requisito_id,
+                CompetenciaRequisito.puesto_perfil_id == perfil_id,
+            )
+        )
+        requisito = result.scalar_one_or_none()
+        if not requisito:
+            raise NotFoundError(entidad="CompetenciaRequisito", id=requisito_id)
+
+        requisito.nivel_requerido = data.nivel_requerido
+        await self.db.flush()
+        await self.db.refresh(requisito)
+
+        catalogo = requisito.competencia
+        return PerfilCompetenciaResponse(
+            id=requisito.id,
+            competencia_id=requisito.competencia_id,
+            competencia_nombre=catalogo.nombre if catalogo else "",
+            subcategoria=catalogo.subcategoria if catalogo else None,
+            nivel_requerido=requisito.nivel_requerido,
+            orden=requisito.orden,
+        )
 
     SUBCATEGORIAS_DEMOSTRADAS = {"informatica", "idiomas", "profesional", "social", "personal", "metodos"}
 

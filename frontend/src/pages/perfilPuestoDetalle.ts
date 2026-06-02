@@ -7,6 +7,7 @@ import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
 import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.ts";
 import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
+import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import { updatePerfil } from "../api/puestos.ts";
 
@@ -275,7 +276,17 @@ function renderCompetencias(competencias: Competencia[]): string {
           <span class="text-[10px] text-slate-400">${items.length} competencia${items.length !== 1 ? "s" : ""}</span>
         </div>
         <div class="flex flex-wrap gap-1.5">
-          ${items.map(c => `<span class="inline-block rounded-md border ${colorClass} px-2 py-0.5 text-xs font-medium">${escapeHtml(c.competencia_nombre)}</span>`).join("")}
+          ${items.map((c) => {
+            const nivel = c.nivel_requerido ?? 0;
+            const nivelCls =
+              nivel > 0
+                ? "bg-slate-100/90 text-slate-700 border-slate-200/80"
+                : "bg-amber-50 text-amber-900 border-amber-200/80";
+            return `<span class="inline-flex items-center gap-1.5 rounded-md border ${colorClass} px-2 py-0.5 text-xs font-medium">
+              ${escapeHtml(c.competencia_nombre)}
+              <span class="rounded border px-1 py-px text-[10px] font-semibold ${nivelCls}">${escapeHtml(nivelRequeridoLabel(nivel))}</span>
+            </span>`;
+          }).join("")}
         </div>
       </div>
     `;
