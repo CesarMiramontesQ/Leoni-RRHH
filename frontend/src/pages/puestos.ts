@@ -109,30 +109,6 @@ function hasActiveFilters(filters: PuestosFilterState): boolean {
 
 // ── Métricas derivadas (mismos datos, sin nuevas consultas) ─────────────
 
-type TarjetaInsights = {
-  areaTop: { nombre: string; count: number } | null;
-  perfilMasPersonas: PerfilTarjetaItem | null;
-  perfilMasBrechas: PerfilTarjetaItem | null;
-};
-
-function computeTarjetaInsights(tarjetas: PerfilTarjetaItem[]): TarjetaInsights {
-  if (tarjetas.length === 0) {
-    return { areaTop: null, perfilMasPersonas: null, perfilMasBrechas: null };
-  }
-  const byArea = new Map<string, number>();
-  for (const t of tarjetas) {
-    const area = t.area_nombre?.trim() || "Sin área";
-    byArea.set(area, (byArea.get(area) ?? 0) + 1);
-  }
-  let areaTop: { nombre: string; count: number } | null = null;
-  for (const [nombre, count] of byArea) {
-    if (!areaTop || count > areaTop.count) areaTop = { nombre, count };
-  }
-  const perfilMasPersonas = tarjetas.reduce((a, b) => (b.personas > a.personas ? b : a));
-  const perfilMasBrechas = tarjetas.reduce((a, b) => (b.brechas > a.brechas ? b : a));
-  return { areaTop, perfilMasPersonas, perfilMasBrechas };
-}
-
 type CardBenchmarks = {
   maxBrechas: number;
   minCumplimiento: number;
@@ -274,60 +250,21 @@ function renderKpiDashboard(tarjetas: PerfilTarjetaItem[]): string {
     },
   ];
 
-  const insights = computeTarjetaInsights(tarjetas);
-  const insightItems: { label: string; value: string }[] = [];
-  if (insights.areaTop) {
-    insightItems.push({
-      label: "Área con más perfiles",
-      value: `${insights.areaTop.nombre} (${insights.areaTop.count})`,
-    });
-  }
-  if (insights.perfilMasPersonas && insights.perfilMasPersonas.personas > 0) {
-    insightItems.push({
-      label: "Mayor headcount",
-      value: `${insights.perfilMasPersonas.nombre} (${insights.perfilMasPersonas.personas})`,
-    });
-  }
-  if (insights.perfilMasBrechas && insights.perfilMasBrechas.brechas > 0) {
-    insightItems.push({
-      label: "Más brechas",
-      value: `${insights.perfilMasBrechas.nombre} (${insights.perfilMasBrechas.brechas})`,
-    });
-  }
-
-  const insightsHtml =
-    insightItems.length === 0
-      ? ""
-      : `<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-      ${insightItems
-        .map(
-          (i) => `
-        <div class="rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-sm">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(i.label)}</p>
-          <p class="mt-1 truncate text-sm font-semibold text-text-primary" title="${escapeHtml(i.value)}">${escapeHtml(i.value)}</p>
-        </div>`,
-        )
-        .join("")}
-    </div>`;
-
   return `
-  <div class="flex flex-col gap-3">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Indicadores de perfiles">
-      ${mainKpis
-        .map(
-          (k) => `
-        <article class="rh-dash-kpi-card rounded-[18px] p-5 ${k.cardClass ?? ""}">
-          <div class="flex items-start justify-between gap-3">
-            <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
-            <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
-          </div>
-          <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary ${k.valueClass ?? ""}">${k.value}</p>
-          <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
-        </article>`,
-        )
-        .join("")}
-    </div>
-    ${insightsHtml}
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Indicadores de perfiles">
+    ${mainKpis
+      .map(
+        (k) => `
+      <article class="rh-dash-kpi-card rounded-[18px] p-5 ${k.cardClass ?? ""}">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
+          <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
+        </div>
+        <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary ${k.valueClass ?? ""}">${k.value}</p>
+        <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
+      </article>`,
+      )
+      .join("")}
   </div>`;
 }
 
@@ -523,7 +460,7 @@ function renderCardGrid(tarjetas: PerfilTarjetaItem[], totalSource: number): str
     })
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${cards}</div>`;
+  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">${cards}</div>`;
 }
 
 function renderTable(items: PerfilPuestoListItem[], totalSource: number): string {
