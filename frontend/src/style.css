@@ -2658,3 +2658,165 @@ body {
     animation: none;
   }
 }
+
+/* ── Empleados del Puesto (.ppe-page) ─────────────────────────────────── */
+.ppe-page .ppe-content-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .ppe-page .ppe-content-stack {
+    gap: 1.5rem;
+  }
+}
+
+.ppe-page .ppe-back-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.ppe-page .ppe-btn-asignar:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+.ppe-page .ppe-table-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ppe-page .ppe-table-scroll {
+  overflow-x: auto;
+}
+
+.ppe-page .ppe-page-btn {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.ppe-page .ppe-page-btn:hover:not(.ppe-page-btn--active) {
+  color: #1e40af;
+  background: #f1f5f9;
+}
+
+.ppe-page .ppe-page-btn--active {
+  background: #1e40af;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.ppe-page .ppe-page-btn:focus-visible,
+.ppe-page .ppe-page-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.ppe-page .ppe-page-nav {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.ppe-page .ppe-page-nav:hover:not(:disabled) {
+  color: #1e40af;
+  background: #f8fafc;
+  border-color: rgba(191, 219, 254, 0.9);
+}
+
+.ppe-page .ppe-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.ppe-page .ppe-table-row {
+  transition: background-color 140ms ease;
+}
+
+.ppe-page .ppe-table-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.ppe-page .ppe-table-row:focus-within {
+  background: rgba(239, 246, 255, 0.35);
+}
+
+.ppe-page .ppe-actions-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 13.5rem;
+  padding: 0.35rem;
+  border-radius: 10px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+.ppe-page .ppe-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.ppe-page .ppe-menu-item:hover {
+  color: #1e40af;
+  background: rgba(239, 246, 255, 0.9);
+}
+
+.ppe-page .ppe-menu-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.ppe-page .ppe-menu-item--danger {
+  color: #b91c1c;
+}
+
+.ppe-page .ppe-menu-item--danger:hover {
+  color: #991b1b;
+  background: rgba(254, 242, 242, 0.95);
+}
+
+.ppe-page .ppe-actions-trigger[aria-expanded="true"] {
+  border-color: rgba(191, 219, 254, 0.9);
+  background: rgba(239, 246, 255, 0.95);
+  color: #1e40af;
+}
+
+.ppe-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+.ppe-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppe-page .ppe-table-row,
+  .ppe-page .ppe-menu-item,
+  .ppe-modal-backdrop,
+  .ppe-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
