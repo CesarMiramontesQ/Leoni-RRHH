@@ -20,6 +20,14 @@ export type TareaCatalogoFetchError = {
   detail: string;
 };
 
+export const MSG_TAREA_DUPLICADA =
+  "La tarea que intentas crear ya existe. Verifica el nombre e intenta nuevamente.";
+
+export function isTareaCatalogoDuplicada(err: unknown): boolean {
+  const fe = err as TareaCatalogoFetchError;
+  return fe?.status === 409;
+}
+
 async function readErrorDetail(res: Response): Promise<string> {
   const raw = await res.text();
   try {
