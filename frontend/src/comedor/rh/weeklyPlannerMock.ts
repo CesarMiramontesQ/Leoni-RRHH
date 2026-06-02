@@ -1,24 +1,10 @@
-import type {
-  ComedorWeekPlanner,
-  ComedorWeekPlannerDay,
-  ComedorWeekPlannerDayKey,
-} from "./types.ts";
+import type { ComedorWeekPlanner, ComedorWeekPlannerDay } from "./types.ts";
 
-const DAY_KEYS: readonly ComedorWeekPlannerDayKey[] = [
-  "lunes",
-  "martes",
-  "miercoles",
-  "jueves",
-  "viernes",
-];
-
-const DAY_LABELS: Record<ComedorWeekPlannerDayKey, string> = {
-  lunes: "Lunes",
-  martes: "Martes",
-  miercoles: "Miércoles",
-  jueves: "Jueves",
-  viernes: "Viernes",
-};
+import { createEmptyMenuDiaDetalle } from "./menuDayDetalle.ts";
+import {
+  WEEK_PLANNER_DAY_KEYS,
+  WEEK_PLANNER_DAY_LABELS,
+} from "./weekPlannerDays.ts";
 
 const WEEK_STORE = new Map<string, ComedorWeekPlanner>();
 
@@ -86,19 +72,18 @@ function cloneWeek(week: ComedorWeekPlanner): ComedorWeekPlanner {
 
 function buildBlankWeek(weekStartIso: string): ComedorWeekPlanner {
   const start = fromIso(weekStartIso);
-  const end = addDays(start, 4);
-  const dias: ComedorWeekPlannerDay[] = DAY_KEYS.map((key, index) => {
+  const end = addDays(start, 6);
+  const dias: ComedorWeekPlannerDay[] = WEEK_PLANNER_DAY_KEYS.map((key, index) => {
     const dt = addDays(start, index);
     return {
       key,
-      label: DAY_LABELS[key],
+      label: WEEK_PLANNER_DAY_LABELS[key],
       fechaIso: toIso(dt),
       fechaCorta: formatShort(dt),
       menuNormal: "",
       menuDieta: "",
+      detalle: createEmptyMenuDiaDetalle(),
       visibleEmpleados: false,
-      fotoMenuDataUrl: null,
-      fotoMenuNombre: null,
     };
   });
   return {

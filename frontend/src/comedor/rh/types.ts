@@ -179,7 +179,16 @@ export type ComedorCreateRequestPayload = {
 };
 
 export type ComedorWeekPlannerStatus = "borrador" | "publicado";
-export type ComedorWeekPlannerDayKey = "lunes" | "martes" | "miercoles" | "jueves" | "viernes";
+import type { ComedorMenuDiaDetalle } from "./menuDayDetalle.ts";
+
+export type ComedorWeekPlannerDayKey =
+  | "lunes"
+  | "martes"
+  | "miercoles"
+  | "jueves"
+  | "viernes"
+  | "sabado"
+  | "domingo";
 
 export type ComedorWeekPlannerDay = {
   key: ComedorWeekPlannerDayKey;
@@ -188,9 +197,9 @@ export type ComedorWeekPlannerDay = {
   fechaCorta: string;
   menuNormal: string;
   menuDieta: string;
+  /** Complementos importados o capturados; no se persisten aún en API de publicación. */
+  detalle: ComedorMenuDiaDetalle;
   visibleEmpleados: boolean;
-  fotoMenuDataUrl: string | null;
-  fotoMenuNombre: string | null;
 };
 
 export type ComedorWeekPlanner = {
