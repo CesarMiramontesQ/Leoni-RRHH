@@ -2820,3 +2820,167 @@ body {
     animation: none;
   }
 }
+
+/* ── Catálogo de Tareas (#tareas-catalogo-root .tc-page) ───────────────── */
+#tareas-catalogo-root .tc-page-header {
+  padding-bottom: 0.25rem;
+}
+
+#tareas-catalogo-root .tc-search-input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+#tareas-catalogo-root .tc-btn-nueva:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+#tareas-catalogo-root .tc-catalogo-scroll {
+  max-height: min(62vh, 640px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+#tareas-catalogo-root .tc-catalogo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+#tareas-catalogo-root .tc-catalogo-row {
+  transition: background-color 140ms ease;
+}
+
+#tareas-catalogo-root .tc-catalogo-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+#tareas-catalogo-root .tc-catalogo-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+#tareas-catalogo-root .tc-col-nombre {
+  min-width: 12rem;
+}
+
+#tareas-catalogo-root .tc-cat-chip--blue {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+#tareas-catalogo-root .tc-cat-chip--teal {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+#tareas-catalogo-root .tc-cat-chip--violet {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+#tareas-catalogo-root .tc-cat-chip--amber {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+#tareas-catalogo-root .tc-cat-chip--slate {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+}
+
+#tareas-catalogo-root .tc-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: #64748b;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+#tareas-catalogo-root .tc-row-action:hover {
+  color: #1e40af;
+  background: rgba(239, 246, 255, 0.9);
+  border-color: rgba(191, 219, 254, 0.8);
+}
+
+#tareas-catalogo-root .tc-row-action--danger:hover {
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.95);
+  border-color: rgba(254, 202, 202, 0.9);
+}
+
+#tareas-catalogo-root .tc-row-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+#tareas-catalogo-root .tc-row-action--danger:focus-visible {
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.35);
+}
+
+#tareas-catalogo-root .tc-page-btn {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+#tareas-catalogo-root .tc-page-btn:hover:not(.tc-page-btn--active) {
+  color: #1e40af;
+  background: #f1f5f9;
+}
+
+#tareas-catalogo-root .tc-page-btn--active {
+  background: #1e40af;
+  color: #fff;
+}
+
+#tareas-catalogo-root .tc-page-btn:focus-visible,
+#tareas-catalogo-root .tc-page-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+#tareas-catalogo-root .tc-page-nav {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+#tareas-catalogo-root .tc-page-nav:hover:not(:disabled) {
+  color: #1e40af;
+  background: #f8fafc;
+}
+
+#tareas-catalogo-root .tc-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+#tareas-catalogo-root .tc-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #tareas-catalogo-root .tc-catalogo-row,
+  #tareas-catalogo-root .tc-row-action,
+  #tareas-catalogo-root .tc-page-btn,
+  #tareas-catalogo-root .tc-modal-backdrop,
+  #tareas-catalogo-root .tc-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
