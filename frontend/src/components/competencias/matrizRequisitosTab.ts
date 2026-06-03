@@ -10,7 +10,6 @@ import type { PerfilPuestoListItem } from "../../dashboard/puestos/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   BTN_PRIMARY,
-  BTN_SECONDARY,
   FIELD_FOCUS,
   RH_LISTADO_SURFACE,
   RH_LISTADO_FOCUS_RING,

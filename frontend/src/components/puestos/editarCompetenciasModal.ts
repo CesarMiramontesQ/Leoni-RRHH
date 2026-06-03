@@ -292,6 +292,7 @@ export function mountEditarCompetenciasModal(
       try {
         await createPerfilCompetencia(options.perfilId, {
           competencia_id: selectedCatalogo.id,
+          nivel_requerido: 1,
         });
         options.onSuccess();
         await refreshList();
@@ -363,6 +364,7 @@ export function mountEditarCompetenciasModal(
 
         await createPerfilCompetencia(options.perfilId, {
           competencia_id: created.id,
+          nivel_requerido: 1,
         });
 
         showCreateNew = false;

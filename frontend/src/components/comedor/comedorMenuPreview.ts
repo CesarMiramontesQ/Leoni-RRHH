@@ -14,8 +14,6 @@ const MENU_PREVIEW_CARD_TITLE = "text-[13px] font-semibold leading-none text-sla
 
 const MENU_PREVIEW_CARD_BODY = "text-lg font-semibold leading-snug text-[#0A1628]";
 
-const MENU_PREVIEW_CARD_BODY_EMPTY = "text-base font-medium text-slate-400";
-
 /** Texto compacto para los ítems de categorías secundarias (más pequeño que el cuerpo principal). */
 const MENU_PREVIEW_LISTA_BODY = "text-sm font-medium leading-snug text-[#334155]";
 
