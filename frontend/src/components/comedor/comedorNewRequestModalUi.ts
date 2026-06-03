@@ -19,13 +19,11 @@ export type ComedorNewRequestFormState = {
   supervisorRecipientScope: SupervisorRecipientScope | null;
   externalPeopleCount: string;
   menuId: string;
-  fechaInicio: string;
-  fechaFin: string;
-  observaciones: string;
+  fechaServicio: string;
 };
 
 export type ComedorNewRequestFormErrors = Partial<
-  Record<"personType" | "employee" | "externalPeopleCount" | "menuId" | "fechaInicio" | "fechaFin", string>
+  Record<"personType" | "employee" | "externalPeopleCount" | "menuId" | "fechaServicio", string>
 >;
 
 export type BuildComedorNewRequestFormParams = {
@@ -46,7 +44,6 @@ export type BuildComedorNewRequestFormParams = {
   isSearchingEmployees: boolean;
   searchEmployeesError: string | null;
   selectedEmployee: ComedorEmployeeOption | null;
-  showObservacionesField?: boolean;
   allowEmployeeSelection?: boolean;
   /** Beneficiario propio (supervisor en sesión); si está definido, se muestra el selector de destinatario. */
   supervisorSelfOption?: ComedorEmployeeOption | null;
@@ -235,7 +232,6 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     isSearchingEmployees,
     searchEmployeesError,
     selectedEmployee,
-    showObservacionesField = true,
     allowEmployeeSelection = true,
     menuDelDiaState = "idle",
     menuDelDia = null,
@@ -244,12 +240,9 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
   } = params;
   const fieldClass =
     "h-11 w-full rounded-lg border border-slate-200 bg-[var(--color-surface-container-lowest,#FFFFFF)] px-3.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25 focus:shadow-[0_1px_3px_rgba(37,99,235,0.12)]";
-  const textareaClass =
-    "min-h-[7.5rem] w-full resize-y rounded-lg border border-slate-200 bg-[var(--color-surface-container-lowest,#FFFFFF)] px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25 focus:shadow-[0_1px_3px_rgba(37,99,235,0.12)]";
   const errorClass = "border-red-300 focus:border-red-500 focus:ring-red-500/20";
   const menuClass = `${fieldClass} ${errors.menuId ? errorClass : ""}`;
-  const dateClassStart = `${fieldClass} ${errors.fechaInicio ? errorClass : ""}`;
-  const dateClassEnd = `${fieldClass} ${errors.fechaFin ? errorClass : ""}`;
+  const dateClass = `${fieldClass} ${errors.fechaServicio ? errorClass : ""}`;
   const employeeClass = `${fieldClass} ${errors.employee ? errorClass : ""}`;
   const externalPeopleClass = `${fieldClass} ${errors.externalPeopleCount ? errorClass : ""}`;
   const submitText = isSubmitting ? "Guardando..." : "Confirmar registro";
@@ -403,13 +396,6 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
           : ""
       }
 
-      ${renderComedorMenuDelDiaPanel({
-        state: menuDelDiaState,
-        menu: menuDelDia,
-        errorMessage: menuDelDiaError,
-        fechaConsultaIso: menuDelDiaFechaIso,
-      })}
-
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
         <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] sm:p-5">
           <label for="comedor-modal-menu" class="${formSectionLabelClass()}">${escapeHtml(menuFieldLabel)}</label>
@@ -425,29 +411,17 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
         </div>
 
         <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] sm:p-5">
-          <label for="comedor-modal-date-start" class="${formSectionLabelClass()}">Rango de fechas</label>
-          <div class="grid grid-cols-1 gap-2.5">
-            <input
-              id="comedor-modal-date-start"
-              type="date"
-              data-comedor-modal-date-start
-              value="${escapeHtml(state.fechaInicio)}"
-              ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
-              class="${dateClassStart}"
-              aria-invalid="${errors.fechaInicio ? "true" : "false"}"
-            />
-            ${fieldError(errors.fechaInicio)}
-            <input
-              id="comedor-modal-date-end"
-              type="date"
-              data-comedor-modal-date-end
-              value="${escapeHtml(state.fechaFin)}"
-              ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
-              class="${dateClassEnd}"
-              aria-invalid="${errors.fechaFin ? "true" : "false"}"
-            />
-            ${fieldError(errors.fechaFin)}
-          </div>
+          <label for="comedor-modal-date" class="${formSectionLabelClass()}">Fecha del servicio</label>
+          <input
+            id="comedor-modal-date"
+            type="date"
+            data-comedor-modal-date
+            value="${escapeHtml(state.fechaServicio)}"
+            ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
+            class="${dateClass}"
+            aria-invalid="${errors.fechaServicio ? "true" : "false"}"
+          />
+          ${fieldError(errors.fechaServicio)}
           ${
             fechaMinIso
               ? `<p class="${formHintClass()}" id="comedor-modal-date-window-hint">Ventana vigente hasta el jueves previo al servicio. Fechas seleccionables desde <span class="font-medium text-slate-600">${escapeHtml(fechaMinIso)}</span>.</p>`
@@ -457,25 +431,18 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
             fechasBloqueadasCount > 0
               ? `<p class="${formHintClass()} mt-1.5 text-slate-500/95" id="comedor-modal-date-hint">Ya tienes reservas en ${fechasBloqueadasCount} día${
                   fechasBloqueadasCount === 1 ? "" : "s"
-                } de este rango. Si repites fechas ocupadas la operación será rechazada.</p>`
+                }. Si eliges una fecha ocupada la operación será rechazada.</p>`
               : ""
           }
         </div>
       </section>
 
-      ${
-        showObservacionesField ?
-          `<section>
-            <label for="comedor-modal-observaciones" class="${formSectionLabelClass()}">Observaciones o comentarios</label>
-            <textarea
-              id="comedor-modal-observaciones"
-              data-comedor-modal-observaciones
-              class="${textareaClass}"
-              placeholder="Ej: Sin cebolla, entrega en área de carga..."
-            >${escapeHtml(state.observaciones)}</textarea>
-          </section>`
-        : ""
-      }
+      ${renderComedorMenuDelDiaPanel({
+        state: menuDelDiaState,
+        menu: menuDelDia,
+        errorMessage: menuDelDiaError,
+        fechaConsultaIso: menuDelDiaFechaIso,
+      })}
 
       <footer class="sticky bottom-0 z-10 -mx-1 flex flex-col-reverse gap-3 border-t border-slate-100/95 bg-[var(--color-surface-container-lowest,#FFFFFF)]/95 px-1 pt-5 pb-1 backdrop-blur-[2px] sm:flex-row sm:justify-end sm:gap-4">
         <button

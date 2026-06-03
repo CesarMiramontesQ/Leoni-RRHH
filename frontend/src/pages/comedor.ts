@@ -2222,7 +2222,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           }
         : {}),
         searchEmployees: searchComedorEmployeesFromDb,
-        showObservacionesField: !isSupervisor,
         onBeneficiaryUserIdChange: (userId) => {
           beneficiaryTargetRef.id = userId;
           comedorIdResolver.invalidate();
@@ -2556,7 +2555,6 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           toastContainer: container,
           allowExternalPeople: false,
           allowEmployeeSearch: false,
-          showObservacionesField: false,
           fechaMinReservaIso,
           loadFechasBloqueadas: async () => {
             const desde = fechaMinReservaIso;
