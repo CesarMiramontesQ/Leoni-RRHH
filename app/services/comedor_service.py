@@ -216,6 +216,14 @@ class ComedorService:
                 )
             return current_user.id
 
+        if rol in ("rh", "director"):
+            if not target_user_id:
+                return current_user.id
+            empleado = await self.empleado_repo.get(target_user_id)
+            if not empleado:
+                raise NotFoundError(entidad="Empleado", id=target_user_id)
+            return target_user_id
+
         if rol != "supervisor":
             raise ForbiddenError(detail="No tienes permiso para registrar reservas")
 

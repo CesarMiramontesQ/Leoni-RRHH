@@ -4,7 +4,7 @@
  *
  * Operaciones disponibles:
  *   - fetchUsuariosRoles()       GET /api/v1/usuarios/roles
- *   - patchUsuarioAsignacion()   PATCH /api/v1/usuarios/{id}  (solo lider_id y rol_id)
+ *   - patchUsuarioAsignacion()   PATCH /api/v1/usuarios/{id}  (rol_id, comedor_id; lider_id legacy)
  */
 
 import { fetchWithAuth } from "./http.ts";
@@ -15,6 +15,7 @@ export type { UsuariosFetchError };
 export type UsuarioAsignacionPayload = {
   lider_id?: number | null;
   rol_id?: number | null;
+  comedor_id?: number;
 };
 
 function throwIfNotOk(res: Response, detail: string): never {

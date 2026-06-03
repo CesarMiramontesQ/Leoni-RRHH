@@ -276,6 +276,10 @@ components:
           description: empleado_id del líder inmediato
         rol_id:
           type: [integer, "null"]
+        comedor_id:
+          type: integer
+          minimum: 1
+          description: ID del comedor en catálogo; persiste en turnos_empleados
 
     UsuarioPageResponse:
       type: object

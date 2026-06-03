@@ -19,11 +19,12 @@ from app.schemas.empleados import (
 
 
 class UsuarioAsignacionUpdate(BaseModel):
-    """Solo RH puede usar este schema. Permite cambiar únicamente lider_id y rol_id."""
+    """Solo RH puede usar este schema. Permite cambiar lider_id, rol_id y comedor en turnos."""
 
     model_config = {"str_strip_whitespace": True}
     lider_id: Optional[int] = None
     rol_id: Optional[int] = None
+    comedor_id: Optional[int] = None
 
 
 class RolBrief(BaseModel):
