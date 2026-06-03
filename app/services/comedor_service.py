@@ -61,6 +61,10 @@ from app.schemas.comedor import (
     ComedorRhProximosRegistrosPage,
     ComedorRhCredencialTemporal,
     ComedorRhPaseExternoItem,
+    ComedorRhAsignarComedorTurnosRequest,
+    ComedorRhAsignarComedorTurnosResponse,
+    ComedorRhEmpleadoSinComedorItem,
+    ComedorRhEmpleadosSinComedorList,
     ComedorRhRegistroCreate,
     ComedorRhRegistroResponse,
     ComedorCodigoExternoItem,
@@ -1479,6 +1483,69 @@ class ComedorService:
             logger.error("Error en validacion de huella — FAIL OPEN: %s", str(exc))
             return HuellaValidarResponse(acceso=True, empleado=None, tipo_platillo="normal")
 
+    async def _empleado_aun_sin_comedor_asignado(self, empleado_id: int) -> bool:
+        empleado = await self.empleado_repo.get(empleado_id)
+        if not empleado or empleado.estado_id not in settings.ESTADOS_ACTIVOS_IDS:
+            return False
+        result = await self.db.execute(
+            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+        )
+        turno = result.scalar_one_or_none()
+        return turno is None or turno.comedor is None
+
+    async def list_empleados_sin_comedor_asignado_rh(
+        self,
+        current_user: Empleado,
+    ) -> ComedorRhEmpleadosSinComedorList:
+        if await self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede consultar empleados sin comedor asignado")
+        empleados = await self.empleado_repo.list_activos_sin_comedor_asignado()
+        items = [
+            ComedorRhEmpleadoSinComedorItem(
+                empleado_id=emp.id,
+                no_empleado=emp.no_empleado,
+                nombre=emp.nombre,
+            )
+            for emp in empleados
+        ]
+        return ComedorRhEmpleadosSinComedorList(total=len(items), items=items)
+
+    async def asignar_comedor_turnos_rh(
+        self,
+        current_user: Empleado,
+        data: ComedorRhAsignarComedorTurnosRequest,
+    ) -> ComedorRhAsignarComedorTurnosResponse:
+        if await self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede asignar comedor en turnos")
+        actualizados = 0
+        vistos: set[int] = set()
+        for item in data.asignaciones:
+            if item.empleado_id in vistos:
+                continue
+            vistos.add(item.empleado_id)
+            if not await self._empleado_aun_sin_comedor_asignado(item.empleado_id):
+                raise ConflictError(
+                    detail=(
+                        f"El empleado {item.empleado_id} ya tiene comedor asignado o no está activo."
+                    ),
+                )
+            comedor = await self.comedor_repo.get(item.comedor_id)
+            if not comedor:
+                raise NotFoundError(entidad="Comedor", id=item.comedor_id)
+            if not comedor.activo:
+                raise ConflictError(detail="El comedor seleccionado no está activo.")
+            empleado = await self.empleado_repo.get(item.empleado_id)
+            if not empleado:
+                raise NotFoundError(entidad="Empleado", id=item.empleado_id)
+            await self.empleado_repo.asignar_comedor_en_turno(
+                no_empleado=empleado.no_empleado,
+                nombre=empleado.nombre,
+                comedor_id=item.comedor_id,
+                clasificacion=None,
+            )
+            actualizados += 1
+        return ComedorRhAsignarComedorTurnosResponse(actualizados=actualizados)
+
     # ── Estadísticas ───────────────────────────────────────────
 
     async def get_estadisticas(
@@ -1551,7 +1618,10 @@ class ComedorService:
         else:
             promedio = 0
 
+        empleados_sin_comedor = await self.empleado_repo.count_activos_sin_comedor_asignado()
+
         return {
             "ultimas_4_semanas": dict(semanas),
             "promedio_semanal": round(promedio, 1),
+            "empleados_sin_comedor_asignado": empleados_sin_comedor,
         }

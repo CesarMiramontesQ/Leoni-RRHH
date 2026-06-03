@@ -11,6 +11,7 @@ import {
 } from "../auth/jwt.ts";
 import { getAuthMe } from "../api/auth.ts";
 import { refreshAccessTokenSession } from "../api/http.ts";
+import { mountComedorAsignarComedorModal } from "../components/comedor/comedorAsignarComedorModal.ts";
 import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
 import { mountComedorEditarComedorModal } from "../components/comedor/comedorEditarComedorModal.ts";
 import { renderComedorGestionAdmin } from "../components/comedor/comedorGestionAdmin.ts";
@@ -1179,12 +1180,13 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     pageTitle: "Comedor",
     activeNav: "comedor",
     mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
-    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div>`,
+    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div><div id="comedor-rh-asignar-comedor-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-rh-root");
   const modalHost = container.querySelector<HTMLElement>("#comedor-new-request-modal-host");
   const crearComedorHost = container.querySelector<HTMLElement>("#comedor-rh-crear-comedor-host");
+  const asignarComedorHost = container.querySelector<HTMLElement>("#comedor-rh-asignar-comedor-host");
   const crearComedorModal =
     crearComedorHost ?
       mountComedorCrearComedorModal(crearComedorHost, {
@@ -1192,6 +1194,15 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         onCreated: async () => {
           comedorIdResolver.invalidate();
           await Promise.all([loadKpis(), loadCalendar(), loadSidebar()]);
+        },
+      })
+    : null;
+  const asignarComedorModal =
+    asignarComedorHost ?
+      mountComedorAsignarComedorModal(asignarComedorHost, {
+        toastContainer: container,
+        onSaved: async () => {
+          await loadSidebar();
         },
       })
     : null;
@@ -1284,6 +1295,15 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       }
       if (target.closest("[data-comedor-retry-sidebar]")) {
         void loadSidebar();
+        return;
+      }
+
+      const alertBtn = target.closest<HTMLButtonElement>("[data-comedor-alert-id]");
+      if (alertBtn) {
+        const alertId = alertBtn.getAttribute("data-comedor-alert-id");
+        if (alertId === "empleados-sin-comedor-asignado") {
+          void asignarComedorModal?.open();
+        }
         return;
       }
 

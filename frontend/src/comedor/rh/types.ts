@@ -44,6 +44,8 @@ export type ComedorAlert = {
   titulo: string;
   detalle: string;
   level: ComedorAlertLevel;
+  /** Si true, la alerta abre un flujo al hacer clic (p. ej. asignar comedor). */
+  actionable?: boolean;
 };
 
 export type ComedorWeekOccupancyPoint = {

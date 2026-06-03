@@ -55,6 +55,8 @@ export type ComedorEstadisticasApi = {
 export type ComedorProyeccionesApi = {
   ultimas_4_semanas: Record<string, { normal: number; dieta: number }>;
   promedio_semanal: number;
+  /** Empleados activos sin comedor en `turnos_empleados` (alertas operativas RH). */
+  empleados_sin_comedor_asignado: number;
 };
 
 async function readErrorDetail(res: Response): Promise<string> {
@@ -240,6 +242,40 @@ export async function getComedorProyecciones(): Promise<ComedorProyeccionesApi> 
   const res = await fetchWithAuth("/api/v1/comedor/proyecciones");
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorProyeccionesApi;
+}
+
+export type ComedorRhEmpleadoSinComedorApi = {
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
+};
+
+export type ComedorRhEmpleadosSinComedorListApi = {
+  total: number;
+  items: ComedorRhEmpleadoSinComedorApi[];
+};
+
+export async function getComedorRhEmpleadosSinComedorAsignado(): Promise<ComedorRhEmpleadosSinComedorListApi> {
+  const res = await fetchWithAuth("/api/v1/comedor/rh/empleados-sin-comedor-asignado");
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorRhEmpleadosSinComedorListApi;
+}
+
+export async function asignarComedorRhTurnos(
+  asignaciones: readonly { empleadoId: number; comedorId: number }[],
+): Promise<{ actualizados: number }> {
+  const res = await fetchWithAuth("/api/v1/comedor/rh/asignar-comedor-turnos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      asignaciones: asignaciones.map((row) => ({
+        empleado_id: row.empleadoId,
+        comedor_id: row.comedorId,
+      })),
+    }),
+  });
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as { actualizados: number };
 }
 
 export type ComedorMisReservaApiItem = {

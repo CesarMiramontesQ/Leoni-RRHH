@@ -1,8 +1,10 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.empleados import Empleado
+from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
 
 
@@ -231,3 +233,58 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             parent = await self.get_by_empleado_id(emp.lider_id)
             current_id = parent.id if parent else None
         return False
+
+    async def count_activos_sin_comedor_asignado(self) -> int:
+        """Empleados activos sin fila en turnos o con `turnos_empleados.comedor` nulo."""
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(Empleado)
+            .outerjoin(TurnoEmpleado, TurnoEmpleado.no_empleado == Empleado.no_empleado)
+            .where(
+                Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+                or_(TurnoEmpleado.id.is_(None), TurnoEmpleado.comedor.is_(None)),
+            )
+        )
+        return int(result.scalar_one() or 0)
+
+    async def list_activos_sin_comedor_asignado(self) -> list[Empleado]:
+        """Empleados activos sin comedor en turnos (sin fila o `comedor` nulo)."""
+        result = await self.db.execute(
+            select(Empleado)
+            .outerjoin(TurnoEmpleado, TurnoEmpleado.no_empleado == Empleado.no_empleado)
+            .where(
+                Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+                or_(TurnoEmpleado.id.is_(None), TurnoEmpleado.comedor.is_(None)),
+            )
+            .order_by(Empleado.nombre.asc())
+        )
+        return list(result.scalars().unique().all())
+
+    async def asignar_comedor_en_turno(
+        self,
+        *,
+        no_empleado: str,
+        nombre: str,
+        comedor_id: int,
+        clasificacion: str | None = None,
+    ) -> None:
+        """Crea o actualiza `turnos_empleados` con el comedor indicado."""
+        result = await self.db.execute(
+            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == no_empleado)
+        )
+        turno = result.scalar_one_or_none()
+        if turno is None:
+            self.db.add(
+                TurnoEmpleado(
+                    no_empleado=no_empleado,
+                    nombre=nombre,
+                    clasificacion=clasificacion,
+                    comedor=comedor_id,
+                    turno="G1",
+                )
+            )
+        else:
+            turno.comedor = comedor_id
+            if nombre.strip():
+                turno.nombre = nombre.strip()
+        await self.db.flush()

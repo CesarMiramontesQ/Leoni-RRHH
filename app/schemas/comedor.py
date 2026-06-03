@@ -310,3 +310,27 @@ class ComedorTerminalConsumirRequest(BaseModel):
 class ComedorTerminalConsumirResponse(BaseModel):
     ok: bool
     hora_entrada: Optional[datetime] = None
+
+
+class ComedorRhEmpleadoSinComedorItem(BaseModel):
+    empleado_id: int
+    no_empleado: str
+    nombre: str
+
+
+class ComedorRhEmpleadosSinComedorList(BaseModel):
+    total: int
+    items: list[ComedorRhEmpleadoSinComedorItem]
+
+
+class ComedorRhAsignacionComedorTurnoItem(BaseModel):
+    empleado_id: int = Field(..., ge=1)
+    comedor_id: int = Field(..., ge=1)
+
+
+class ComedorRhAsignarComedorTurnosRequest(BaseModel):
+    asignaciones: list[ComedorRhAsignacionComedorTurnoItem] = Field(..., min_length=1)
+
+
+class ComedorRhAsignarComedorTurnosResponse(BaseModel):
+    actualizados: int
