@@ -12,6 +12,9 @@ import {
   type ComedorNewRequestFormErrors,
   type ComedorNewRequestFormState,
 } from "./comedorNewRequestModalUi.ts";
+import type { ComedorMenuDelDia } from "../../comedor/rh/resolveMenuDiaFromSemana.ts";
+import type { ComedorMenuDelDiaLoader } from "../../comedor/rh/loadMenuDelDia.ts";
+import type { MenuDelDiaPanelState } from "./comedorMenuPreview.ts";
 
 type Catalog = {
   menus: readonly ComedorMenuOption[];
@@ -41,11 +44,14 @@ export type ComedorNewRequestModalOptions = {
    */
   loadFechasBloqueadas?: () => Promise<readonly string[]>;
   menuFieldLabel?: string;
-  showObservacionesField?: boolean;
   loadMenuOptions: () => Promise<readonly ComedorMenuOption[]>;
+  /** Consulta el menú planeado para la fecha seleccionada (sin acción extra del usuario). */
+  loadMenuDelDia?: ComedorMenuDelDiaLoader;
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
   onSubmit: (payload: ComedorCreateRequestPayload) => Promise<unknown> | unknown;
   onSuccess?: (result: unknown, payload: ComedorCreateRequestPayload) => void;
+  /** Notifica el beneficiario interno (id numérico) para resolver comedor/menú asignado. */
+  onBeneficiaryUserIdChange?: (userId: number | undefined) => void;
 };
 
 export type ComedorNewRequestModalHandle = {
@@ -74,28 +80,8 @@ function initialState(
     supervisorRecipientScope: supervisorBeneficiaryConfig ? "personal" : null,
     externalPeopleCount: "1",
     menuId: "",
-    fechaInicio: "",
-    fechaFin: "",
-    observaciones: "",
+    fechaServicio: "",
   };
-}
-
-/** Todas las fechas del rango [inicio, fin] en ISO yyyy-mm-dd (incluye sábados y domingos). */
-function buildDatesInRangeInclusive(startIso: string, endIso: string): string[] {
-  const [startY, startM, startD] = startIso.split("-").map((part) => Number.parseInt(part, 10));
-  const [endY, endM, endD] = endIso.split("-").map((part) => Number.parseInt(part, 10));
-  const start = new Date(startY, (startM ?? 1) - 1, startD ?? 1);
-  const end = new Date(endY, (endM ?? 1) - 1, endD ?? 1);
-  const dates: string[] = [];
-  const cursor = new Date(start);
-  while (cursor <= end) {
-    const y = String(cursor.getFullYear()).padStart(4, "0");
-    const m = String(cursor.getMonth() + 1).padStart(2, "0");
-    const d = String(cursor.getDate()).padStart(2, "0");
-    dates.push(`${y}-${m}-${d}`);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dates;
 }
 
 function validateForm(
@@ -148,25 +134,13 @@ function validateForm(
   if (!state.menuId.trim()) {
     errors.menuId = "Selecciona un menú.";
   }
-  if (!state.fechaInicio.trim()) {
-    errors.fechaInicio = "Selecciona una fecha inicial.";
-  } else if (fechaMinReservaIso && state.fechaInicio < fechaMinReservaIso) {
-    errors.fechaInicio = "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
-  }
-  if (!state.fechaFin.trim()) {
-    errors.fechaFin = "Selecciona una fecha final.";
-  } else if (fechaMinReservaIso && state.fechaFin < fechaMinReservaIso) {
-    errors.fechaFin = "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
-  }
-  if (!errors.fechaInicio && !errors.fechaFin && state.fechaFin < state.fechaInicio) {
-    errors.fechaFin = "La fecha final debe ser mayor o igual a la fecha inicial.";
-  }
-  if (!errors.fechaInicio && !errors.fechaFin) {
-    const fechas = buildDatesInRangeInclusive(state.fechaInicio, state.fechaFin);
-    const bloqueada = fechas.find((iso) => fechasBloqueadas?.has(iso));
-    if (bloqueada) {
-      errors.fechaFin = "Ya tienes un registro para uno o más días del rango.";
-    }
+  if (!state.fechaServicio.trim()) {
+    errors.fechaServicio = "Selecciona la fecha del servicio.";
+  } else if (fechaMinReservaIso && state.fechaServicio < fechaMinReservaIso) {
+    errors.fechaServicio =
+      "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
+  } else if (fechasBloqueadas?.has(state.fechaServicio)) {
+    errors.fechaServicio = "Ya tienes un registro para este día.";
   }
   return errors;
 }
@@ -185,8 +159,7 @@ function firstInvalidSelector(
   }
   if (allowExternalPeople && errors.externalPeopleCount) return "#comedor-modal-external-count";
   if (errors.menuId) return "#comedor-modal-menu";
-  if (errors.fechaInicio) return "#comedor-modal-date-start";
-  if (errors.fechaFin) return "#comedor-modal-date-end";
+  if (errors.fechaServicio) return "#comedor-modal-date";
   return null;
 }
 
@@ -219,12 +192,18 @@ export function mountComedorNewRequestModal(
   const fechaMinReservaIso = options.fechaMinReservaIso ?? null;
   const menuFieldLabel = options.menuFieldLabel;
   const loadFechasBloqueadas = options.loadFechasBloqueadas;
+  const loadMenuDelDia = options.loadMenuDelDia;
   const supervisorBeneficiaryConfig = options.supervisorBeneficiaryConfig;
   let fechasBloqueadasSet: ReadonlySet<string> | null = null;
   let catalog: Catalog | null = null;
   let formState = initialState(defaultEmployeeId, supervisorBeneficiaryConfig);
   let errors: ComedorNewRequestFormErrors = {};
   let isSubmitting = false;
+  let menuDelDiaState: MenuDelDiaPanelState = "idle";
+  let menuDelDia: ComedorMenuDelDia | null = null;
+  let menuDelDiaError: string | null = null;
+  let menuDelDiaFechaIso: string | null = null;
+  let menuDelDiaRequestToken = 0;
   let searchResults: readonly ComedorEmployeeOption[] = [];
   let isSearchingEmployees = false;
   let searchEmployeesError: string | null = null;
@@ -236,6 +215,18 @@ export function mountComedorNewRequestModal(
 
   function isOpen(): boolean {
     return !overlayEl.classList.contains("hidden");
+  }
+
+  function notifyBeneficiaryUserIdChange(): void {
+    const cb = options.onBeneficiaryUserIdChange;
+    if (!cb) return;
+    const emp = selectedEmployee();
+    if (!emp) {
+      cb(undefined);
+      return;
+    }
+    const uid = Number.parseInt(emp.id, 10);
+    cb(Number.isFinite(uid) ? uid : undefined);
   }
 
   function selectedEmployee(): ComedorEmployeeOption | null {
@@ -275,11 +266,45 @@ export function mountComedorNewRequestModal(
       isSearchingEmployees,
       searchEmployeesError,
       selectedEmployee: selectedEmployee(),
-      showObservacionesField: options.showObservacionesField ?? true,
       supervisorSelfOption: supervisorBeneficiaryConfig?.self ?? null,
       teamEmployeeOptions: supervisorBeneficiaryConfig ? teamOnlyEmployeeOptions : undefined,
+      menuDelDiaState,
+      menuDelDia,
+      menuDelDiaError,
+      menuDelDiaFechaIso,
     });
     bindInteractions();
+  }
+
+  async function refreshMenuDelDia(fechaIso: string): Promise<void> {
+    const trimmed = fechaIso.trim();
+    menuDelDiaFechaIso = trimmed || null;
+    if (!loadMenuDelDia || !trimmed) {
+      menuDelDiaState = "idle";
+      menuDelDia = null;
+      menuDelDiaError = null;
+      renderForm();
+      return;
+    }
+
+    const requestToken = ++menuDelDiaRequestToken;
+    menuDelDiaState = "loading";
+    menuDelDia = null;
+    menuDelDiaError = null;
+    renderForm();
+
+    try {
+      const menu = await loadMenuDelDia(trimmed);
+      if (requestToken !== menuDelDiaRequestToken) return;
+      menuDelDia = menu;
+      menuDelDiaState = menu ? "ready" : "empty";
+    } catch {
+      if (requestToken !== menuDelDiaRequestToken) return;
+      menuDelDia = null;
+      menuDelDiaState = "error";
+      menuDelDiaError = "No fue posible consultar el menú planeado.";
+    }
+    renderForm();
   }
 
   function close(): void {
@@ -299,6 +324,11 @@ export function mountComedorNewRequestModal(
       searchDebounceTimer = null;
     }
     fechasBloqueadasSet = null;
+    menuDelDiaState = "idle";
+    menuDelDia = null;
+    menuDelDiaError = null;
+    menuDelDiaFechaIso = null;
+    menuDelDiaRequestToken += 1;
     bodyEl.innerHTML = "";
   }
 
@@ -359,6 +389,10 @@ export function mountComedorNewRequestModal(
     isSearchingEmployees = false;
     searchEmployeesError = null;
     renderForm();
+    notifyBeneficiaryUserIdChange();
+    if (formState.fechaServicio.trim()) {
+      void refreshMenuDelDia(formState.fechaServicio);
+    }
     window.requestAnimationFrame(() => {
       const focusSupervisor =
         bodyEl.querySelector<HTMLElement>("[data-comedor-modal-supervisor-scope='personal']");
@@ -412,6 +446,7 @@ export function mountComedorNewRequestModal(
           searchDebounceTimer = null;
         }
         errors.employee = undefined;
+        notifyBeneficiaryUserIdChange();
         renderForm();
       });
     });
@@ -489,6 +524,7 @@ export function mountComedorNewRequestModal(
         const selected = searchResults.find((employee) => employee.id === employeeId);
         if (selected) employeeSelectionCache.set(employeeId, selected);
         errors.employee = undefined;
+        notifyBeneficiaryUserIdChange();
         renderForm();
       });
     });
@@ -497,6 +533,7 @@ export function mountComedorNewRequestModal(
     employeeSelect?.addEventListener("change", () => {
       formState.selectedEmployeeId = employeeSelect.value || null;
       errors.employee = undefined;
+      notifyBeneficiaryUserIdChange();
       renderForm();
     });
 
@@ -506,31 +543,17 @@ export function mountComedorNewRequestModal(
       errors.menuId = undefined;
     });
 
-    const dateInputStart = form.querySelector<HTMLInputElement>("[data-comedor-modal-date-start]");
-    dateInputStart?.addEventListener("change", () => {
-      formState.fechaInicio = dateInputStart.value;
-      errors.fechaInicio = undefined;
-      errors.fechaFin = undefined;
-      renderForm();
+    const dateInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-date]");
+    dateInput?.addEventListener("change", () => {
+      formState.fechaServicio = dateInput.value;
+      errors.fechaServicio = undefined;
+      void refreshMenuDelDia(formState.fechaServicio);
     });
 
-    const dateInputEnd = form.querySelector<HTMLInputElement>("[data-comedor-modal-date-end]");
-    dateInputEnd?.addEventListener("change", () => {
-      formState.fechaFin = dateInputEnd.value;
-      errors.fechaInicio = undefined;
-      errors.fechaFin = undefined;
-      renderForm();
-    });
-
-    const notesInput = form.querySelector<HTMLTextAreaElement>("[data-comedor-modal-observaciones]");
     const externalCountInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-external-count]");
     externalCountInput?.addEventListener("input", () => {
       formState.externalPeopleCount = externalCountInput.value;
       errors.externalPeopleCount = undefined;
-    });
-
-    notesInput?.addEventListener("input", () => {
-      formState.observaciones = notesInput.value;
     });
 
     form.querySelector("[data-comedor-modal-cancel]")?.addEventListener("click", () => {
@@ -587,8 +610,8 @@ export function mountComedorNewRequestModal(
               ? Math.max(1, Number.parseInt(formState.externalPeopleCount, 10))
               : null,
           menuId: formState.menuId,
-          fechas: buildDatesInRangeInclusive(formState.fechaInicio, formState.fechaFin),
-          observaciones: formState.observaciones.trim(),
+          fechas: [formState.fechaServicio],
+          observaciones: "",
           ...(esRegistroPersonalSupervisor ? { supervisorSelfRegistration: true } : {}),
         };
         const result = await options.onSubmit(payload);

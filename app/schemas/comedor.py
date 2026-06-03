@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field, model_validator
 ComedorTipoComidaLiteral = Literal["casera", "saludable"]
 
 
+class MenuDiaDetalleSchema(BaseModel):
+    sopa_o_crema: list[str] = Field(default_factory=list)
+    guarniciones: list[str] = Field(default_factory=list)
+    complementos: list[str] = Field(default_factory=list)
+    tortillas: list[str] = Field(default_factory=list)
+    postres: list[str] = Field(default_factory=list)
+    salsas: list[str] = Field(default_factory=list)
+    aguas: list[str] = Field(default_factory=list)
+
+
 class ComedorResponse(BaseModel):
     id: int
     nombre: str
@@ -36,6 +46,7 @@ class MenuSemanalCreate(BaseModel):
     dia: str
     tipo: str
     descripcion: Optional[str] = None
+    detalle: Optional[MenuDiaDetalleSchema] = None
 
 
 class MenuSemanalResponse(MenuSemanalCreate):
@@ -47,8 +58,24 @@ class MenuSemanalResponse(MenuSemanalCreate):
     model_config = {"from_attributes": True}
 
 
-class ComedorRegistroCreate(BaseModel):
+class MenuSemanalDeleteResponse(BaseModel):
     comedor_id: int
+    semana: date
+    deleted_count: int
+
+
+class ComedorAsignadoResponse(BaseModel):
+    """Comedor del empleado según `turnos_empleados` y catálogo `comedores`."""
+
+    comedor_id: int
+    comedor_nombre: str
+
+
+class ComedorRegistroCreate(BaseModel):
+    comedor_id: int | None = Field(
+        default=None,
+        description="Opcional; si se envía debe coincidir con el comedor asignado al empleado.",
+    )
     semana: date
     tipo_platillo: str
 
@@ -79,7 +106,10 @@ class HuellaValidarResponse(BaseModel):
 
 
 class ComedorAccesoReservaCreate(BaseModel):
-    comedor_id: int
+    comedor_id: int | None = Field(
+        default=None,
+        description="Opcional; si se envía debe coincidir con el comedor asignado al beneficiario.",
+    )
     fecha_servicio: date | None = Field(
         default=None,
         description="Compatibilidad: fecha única de servicio.",
@@ -280,3 +310,27 @@ class ComedorTerminalConsumirRequest(BaseModel):
 class ComedorTerminalConsumirResponse(BaseModel):
     ok: bool
     hora_entrada: Optional[datetime] = None
+
+
+class ComedorRhEmpleadoSinComedorItem(BaseModel):
+    empleado_id: int
+    no_empleado: str
+    nombre: str
+
+
+class ComedorRhEmpleadosSinComedorList(BaseModel):
+    total: int
+    items: list[ComedorRhEmpleadoSinComedorItem]
+
+
+class ComedorRhAsignacionComedorTurnoItem(BaseModel):
+    empleado_id: int = Field(..., ge=1)
+    comedor_id: int = Field(..., ge=1)
+
+
+class ComedorRhAsignarComedorTurnosRequest(BaseModel):
+    asignaciones: list[ComedorRhAsignacionComedorTurnoItem] = Field(..., min_length=1)
+
+
+class ComedorRhAsignarComedorTurnosResponse(BaseModel):
+    actualizados: int

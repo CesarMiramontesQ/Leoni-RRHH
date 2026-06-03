@@ -28,6 +28,7 @@ export type ActaBrief = {
 
 /** Datos de `turnos_empleados`; la API solo lo incluye para solicitantes con rol RH. */
 export type Vista360TurnoEmpleado = {
+  /** Nombre del comedor asignado (no ID). */
   comedor: string | null;
   turno: string | null;
 };

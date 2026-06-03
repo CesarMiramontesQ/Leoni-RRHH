@@ -9,6 +9,7 @@ CRUD de cuentas: /api/v1/usuarios (solo RH).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -24,6 +25,7 @@ from app.schemas.usuarios import (
 )
 from app.schemas.vacaciones import VacacionesResponse, VacacionesUpdate
 from app.services.acta_service import ActaService
+from app.services.empleado_foto_service import EmpleadoFotoService
 from app.services.usuario_service import UsuarioService
 from app.services.vacaciones_service import VacacionesService
 
@@ -38,6 +40,10 @@ def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
 
 def _vac_svc(db: AsyncSession = Depends(get_db)) -> VacacionesService:
     return VacacionesService(db)
+
+
+def _foto_svc(db: AsyncSession = Depends(get_db)) -> EmpleadoFotoService:
+    return EmpleadoFotoService(db)
 
 
 def _rol_nombre(u: Empleado) -> str:
@@ -153,6 +159,24 @@ async def actualizar_vacaciones_empleado(
         empleado_id=empleado_id,
         data=body,
         current_user=current_user,
+    )
+
+
+@router.get("/{empleado_id}/foto")
+async def get_empleado_foto(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: EmpleadoFotoService = Depends(_foto_svc),
+):
+    """Fotografía del empleado desde el directorio RH/Images (requiere JWT)."""
+    data, media_type = await svc.get_foto_for_empleado(
+        empleado_id=empleado_id,
+        current_user=current_user,
+    )
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=300"},
     )
 
 

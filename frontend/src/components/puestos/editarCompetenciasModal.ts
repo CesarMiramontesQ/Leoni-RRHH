@@ -6,6 +6,7 @@ import {
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { TIPO_COMPETENCIA_OPTIONS, TIPO_COMPETENCIA_LABELS, grupoFromTipo } from "../../ui/catalogoCompetenciaTipo.ts";
 
 export type EditarCompetenciasModalHandle = {
   open: () => void;
@@ -17,19 +18,10 @@ export type EditarCompetenciasModalOptions = {
   onSuccess: () => void;
 };
 
-const SUBCATEGORIA_OPTIONS: { value: string; label: string }[] = [
-  { value: "informatica", label: "Informatica" },
-  { value: "idiomas", label: "Idiomas" },
-  { value: "profesional", label: "Profesional" },
-  { value: "social", label: "Social" },
-  { value: "personal", label: "Personal" },
-  { value: "metodos", label: "Metodos" },
-  { value: "complementos", label: "Complementos" },
-];
-
-const SUBCATEGORIA_LABELS: Record<string, string> = Object.fromEntries(
-  SUBCATEGORIA_OPTIONS.map(o => [o.value, o.label]),
-);
+const SUBCATEGORIA_LABELS: Record<string, string> = {
+  ...TIPO_COMPETENCIA_LABELS,
+  complementos: "Complementos",
+};
 
 const SUBCATEGORIA_COLORS: Record<string, string> = {
   informatica: "bg-blue-50 text-blue-700",
@@ -104,7 +96,7 @@ function renderList(competencias: PerfilCompetencia[]): string {
       </div>`;
   }
   html += `</div>`;
-  html += `<p class="text-xs text-slate-400 italic mb-4">Para editar nivel o eliminar, ir a Matriz de Competencias.</p>`;
+  html += `<p class="text-xs text-slate-400 italic mb-4">Para definir el nivel requerido (1–4) de cada competencia, ir a <a href="#/competencias" class="font-semibold text-leoni-blue hover:underline">Competencias</a> → «Niveles por puesto», elegir este perfil y guardar.</p>`;
   return html;
 }
 
@@ -139,6 +131,7 @@ function renderAddForm(showCreateNew: boolean): string {
       ${showCreateNew ? `
       <div id="comp-create-form" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
         <p class="text-xs font-semibold text-slate-600">Nueva competencia en catalogo</p>
+        <div id="comp-create-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
           <input id="comp-new-nombre" type="text" required
@@ -147,25 +140,15 @@ function renderAddForm(showCreateNew: boolean): string {
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Descripcion</label>
-          <textarea id="comp-new-desc" rows="2"
+          <textarea id="comp-new-desc" rows="2" required
             class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
             placeholder="Descripcion breve..."></textarea>
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Grupo</label>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Tipo</label>
           <div class="grid grid-cols-1">
-            <select id="comp-new-grupo" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-              <option value="tecnica">Tecnica</option>
-              <option value="habilidad_blanda">Habilidad blanda</option>
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Subcategoria</label>
-          <div class="grid grid-cols-1">
-            <select id="comp-new-subcategoria" class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-              ${SUBCATEGORIA_OPTIONS.map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("")}
+            <select id="comp-new-tipo" required class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+              ${TIPO_COMPETENCIA_OPTIONS.map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
           </div>
@@ -336,12 +319,39 @@ export function mountEditarCompetenciasModal(
     if (!btn) return;
     btn.addEventListener("click", async () => {
       if (loading) return;
+
+      const errorEl = body.querySelector("#comp-create-error") as HTMLElement | null;
+      const showError = (message: string) => {
+        if (!errorEl) return;
+        errorEl.textContent = message;
+        errorEl.classList.remove("hidden");
+      };
+      const clearError = () => {
+        if (!errorEl) return;
+        errorEl.textContent = "";
+        errorEl.classList.add("hidden");
+      };
+
+      clearError();
+
       const nombre = (body.querySelector("#comp-new-nombre") as HTMLInputElement)?.value.trim();
       const descripcion = (body.querySelector("#comp-new-desc") as HTMLTextAreaElement)?.value.trim();
-      const grupo = (body.querySelector("#comp-new-grupo") as HTMLSelectElement)?.value as "tecnica" | "habilidad_blanda";
-      const subcategoria = (body.querySelector("#comp-new-subcategoria") as HTMLSelectElement)?.value;
+      const tipo = (body.querySelector("#comp-new-tipo") as HTMLSelectElement)?.value;
+      const grupo = grupoFromTipo(tipo);
+      const subcategoria = tipo;
 
-      if (!nombre || !descripcion) return;
+      if (!nombre) {
+        showError("Indica el nombre de la competencia.");
+        return;
+      }
+      if (!descripcion) {
+        showError("Indica la descripcion de la competencia.");
+        return;
+      }
+      if (!tipo) {
+        showError("Selecciona un tipo.");
+        return;
+      }
 
       loading = true;
       btn.disabled = true;
@@ -358,8 +368,9 @@ export function mountEditarCompetenciasModal(
         showCreateNew = false;
         options.onSuccess();
         await refreshList();
-      } catch {
-        // keep form
+      } catch (err: unknown) {
+        const detail = (err as { detail?: string })?.detail ?? "No se pudo crear la competencia.";
+        showError(detail);
       } finally {
         loading = false;
         btn.disabled = false;

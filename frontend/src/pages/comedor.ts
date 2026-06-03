@@ -11,6 +11,7 @@ import {
 } from "../auth/jwt.ts";
 import { getAuthMe } from "../api/auth.ts";
 import { refreshAccessTokenSession } from "../api/http.ts";
+import { mountComedorAsignarComedorModal } from "../components/comedor/comedorAsignarComedorModal.ts";
 import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
 import { mountComedorEditarComedorModal } from "../components/comedor/comedorEditarComedorModal.ts";
 import { renderComedorGestionAdmin } from "../components/comedor/comedorGestionAdmin.ts";
@@ -29,6 +30,7 @@ import {
   type ComedorCodigoExternoApiItem,
   getComedorEstadisticas,
   getComedorMenuSemana,
+  eliminarComedorMenuSemana,
   getComedorMisFechasOcupadas,
   getComedorMisProximasReservas,
   getComedorMisReservasMes,
@@ -40,7 +42,7 @@ import {
   getComedorPrimeraFechaReserva,
   getComedorProyecciones,
   getComedoresActivos,
-  publicarComedorMenu,
+  getComedorAsignado,
   registrarComedorSeleccion,
   reservarComedorAcceso,
   isComedorApiError,
@@ -61,6 +63,17 @@ import type {
   ComedorWeekPlannerDay,
   ComedorWeekPlannerDayKey,
 } from "../comedor/rh/types.ts";
+import { cloneMenuDiaDetalle, createEmptyMenuDiaDetalle, parseMenuDiaDetalleFromApi } from "../comedor/rh/menuDayDetalle.ts";
+import {
+  createComedorMenuDelDiaLoader,
+  persistComedorWeekMenu,
+} from "../comedor/rh/loadMenuDelDia.ts";
+import type { PlaneacionMenuTemplateDay } from "../comedor/rh/parsePlaneacionMenuTemplate.ts";
+import {
+  isComedorWeekPlannerDayKey,
+  WEEK_PLANNER_DAY_KEYS,
+  WEEK_PLANNER_DAY_LABELS,
+} from "../comedor/rh/weekPlannerDays.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
@@ -76,12 +89,15 @@ import {
   renderComedorWeeklyPlanner,
   type ComedorWeeklyPlannerViewState,
 } from "../components/comedor/comedorWeeklyPlanner.ts";
+import { mountComedorWeeklyPlanningImportModal } from "../components/comedor/comedorWeeklyPlanningImportModal.ts";
+import { mountComedorClearWeekModal } from "../components/comedor/comedorClearWeekModal.ts";
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
 import {
   buildRhPlatillosPorSemana,
   getCurrentWeekStartIso,
   mapProyeccionesToSidebar,
 } from "../comedor/rh/buildRhComedorSidebar.ts";
+import { isoFromWeekInput, weekInputFromIso } from "../comedor/rh/weekRange.ts";
 import { reporteDetalleRowsSorted } from "../components/comedor/comedorReporteAnalytics.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { downloadReporteComedorExcel } from "../comedor/reportes/exportReporteComedorExcel.ts";
@@ -267,22 +283,6 @@ function emptyTeamReservationsPage(page: number, pageSize: number): ComedorTeamR
   };
 }
 
-const WEEK_DAY_KEYS: readonly ComedorWeekPlannerDayKey[] = [
-  "lunes",
-  "martes",
-  "miercoles",
-  "jueves",
-  "viernes",
-];
-
-const WEEK_DAY_LABELS: Record<ComedorWeekPlannerDayKey, string> = {
-  lunes: "Lunes",
-  martes: "Martes",
-  miercoles: "Miercoles",
-  jueves: "Jueves",
-  viernes: "Viernes",
-};
-
 function dateToIso(value: Date): string {
   const y = String(value.getFullYear()).padStart(4, "0");
   const m = String(value.getMonth() + 1).padStart(2, "0");
@@ -336,19 +336,17 @@ function shiftWeekStartIso(weekStartIso: string, deltaWeeks: number): string {
 
 function createBlankWeekByStartIso(weekStartIso: string): ComedorWeekPlanner {
   const start = isoToDate(weekStartIso);
-  const end = addDays(start, 4);
-  const dias: ComedorWeekPlannerDay[] = WEEK_DAY_KEYS.map((dayKey, index) => {
+  const end = addDays(start, 6);
+  const dias: ComedorWeekPlannerDay[] = WEEK_PLANNER_DAY_KEYS.map((dayKey, index) => {
     const dayDate = addDays(start, index);
     return {
       key: dayKey,
-      label: WEEK_DAY_LABELS[dayKey],
+      label: WEEK_PLANNER_DAY_LABELS[dayKey],
       fechaIso: dateToIso(dayDate),
       fechaCorta: formatWeekShortDate(dayDate),
       menuNormal: "",
       menuDieta: "",
-      visibleEmpleados: false,
-      fotoMenuDataUrl: null,
-      fotoMenuNombre: null,
+      detalle: createEmptyMenuDiaDetalle(),
     };
   });
   return {
@@ -357,6 +355,28 @@ function createBlankWeekByStartIso(weekStartIso: string): ComedorWeekPlanner {
     weekLabel: formatWeekLabel(start, end),
     status: "borrador",
     dias,
+  };
+}
+
+function mergeImportedDaysIntoWeek(
+  weekStartIso: string,
+  days: PlaneacionMenuTemplateDay[],
+): ComedorWeekPlanner {
+  const byKey = new Map(days.map((day) => [day.key, day]));
+  const baseWeek = createBlankWeekByStartIso(weekStartIso);
+  return {
+    ...baseWeek,
+    status: "borrador",
+    dias: baseWeek.dias.map((day) => {
+      const imported = byKey.get(day.key);
+      if (!imported) return day;
+      return {
+        ...day,
+        menuNormal: imported.menuNormal,
+        menuDieta: imported.menuDieta,
+        detalle: cloneMenuDiaDetalle(imported.detalle),
+      };
+    }),
   };
 }
 
@@ -481,19 +501,40 @@ function formatTipoComidaLabel(tipoComida: string): string {
   return tipoComida;
 }
 
-function createComedorIdResolver(): {
+function createComedorIdResolver(options?: {
+  getTargetUserId?: () => number | undefined;
+  /** RH: primer comedor activo del catálogo (publicar menú, externos). */
+  rhAdmin?: boolean;
+}): {
   resolve: () => Promise<number | null>;
   invalidate: () => void;
 } {
+  let cacheKey: string | undefined;
   let cached: number | null | undefined;
   return {
     resolve: async () => {
-      if (cached !== undefined) return cached;
-      const comedores = await getComedoresActivos();
-      cached = comedores[0]?.id ?? null;
-      return cached;
+      if (options?.rhAdmin) {
+        if (cached !== undefined) return cached;
+        const comedores = await getComedoresActivos();
+        cached = comedores[0]?.id ?? null;
+        return cached;
+      }
+      const target = options?.getTargetUserId?.();
+      const key = target != null ? `t:${target}` : "self";
+      if (cached !== undefined && cacheKey === key) return cached;
+      try {
+        const { comedor_id } = await getComedorAsignado(target);
+        cacheKey = key;
+        cached = comedor_id;
+        return cached;
+      } catch {
+        cacheKey = key;
+        cached = null;
+        return null;
+      }
     },
     invalidate: () => {
+      cacheKey = undefined;
       cached = undefined;
     },
   };
@@ -841,57 +882,8 @@ type RhPlannerState = {
   week: ComedorWeekPlanner;
   weekPickerValue: string;
   selectedDayKey: ComedorWeekPlannerDayKey;
-  incompleteDaysCount: number;
-  isSavingDraft: boolean;
-  isPublishing: boolean;
   isDuplicating: boolean;
-  lastSavedAt: number | null;
-  menuEditor: {
-    open: boolean;
-    dayKey: ComedorWeekPlannerDayKey | null;
-    field: "menuNormal" | "menuDieta";
-    draftText: string;
-  };
 };
-
-function weekInputFromIso(weekStartIso: string): string {
-  const dt = new Date(`${weekStartIso}T00:00:00`);
-  const day = (dt.getDay() + 6) % 7;
-  dt.setDate(dt.getDate() - day + 4);
-  const firstThursday = new Date(dt.getFullYear(), 0, 4);
-  const firstDay = (firstThursday.getDay() + 6) % 7;
-  firstThursday.setDate(firstThursday.getDate() - firstDay + 4);
-  const week = 1 + Math.round((dt.getTime() - firstThursday.getTime()) / 604800000);
-  return `${dt.getFullYear()}-W${String(week).padStart(2, "0")}`;
-}
-
-function isoFromWeekInput(value: string): string | null {
-  const match = /^(\d{4})-W(\d{2})$/.exec(value);
-  if (!match) return null;
-  const year = Number.parseInt(match[1] ?? "", 10);
-  const week = Number.parseInt(match[2] ?? "", 10);
-  if (!Number.isFinite(year) || !Number.isFinite(week) || week < 1 || week > 53) return null;
-  const jan4 = new Date(year, 0, 4);
-  const jan4Day = (jan4.getDay() + 6) % 7;
-  const mondayWeek1 = new Date(year, 0, 4 - jan4Day);
-  mondayWeek1.setDate(mondayWeek1.getDate() + (week - 1) * 7);
-  const y = String(mondayWeek1.getFullYear()).padStart(4, "0");
-  const m = String(mondayWeek1.getMonth() + 1).padStart(2, "0");
-  const d = String(mondayWeek1.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function plannerIncompleteDays(week: ComedorWeekPlanner): number {
-  return week.dias.filter((day) => !day.menuNormal.trim() || !day.menuDieta.trim()).length;
-}
-
-function formatRelativeSavedLabel(lastSavedAt: number | null): string | null {
-  if (lastSavedAt == null) return null;
-  const deltaSec = Math.max(1, Math.floor((Date.now() - lastSavedAt) / 1000));
-  if (deltaSec < 60) return `${deltaSec}s`;
-  const min = Math.floor(deltaSec / 60);
-  return `${min} min`;
-}
 
 function toPlannerViewState(state: RhPlannerState): ComedorWeeklyPlannerViewState {
   return {
@@ -900,12 +892,7 @@ function toPlannerViewState(state: RhPlannerState): ComedorWeeklyPlannerViewStat
     week: state.week,
     weekPickerValue: state.weekPickerValue,
     selectedDayKey: state.selectedDayKey,
-    incompleteDaysCount: state.incompleteDaysCount,
-    isSavingDraft: state.isSavingDraft,
-    isPublishing: state.isPublishing,
     isDuplicating: state.isDuplicating,
-    lastSavedAtLabel: formatRelativeSavedLabel(state.lastSavedAt),
-    menuEditor: state.menuEditor,
   };
 }
 
@@ -1073,8 +1060,9 @@ function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): 
 
 function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
-  const comedorIdResolver = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
+  const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: RhComedorState = {
     statsState: "loading",
     stats: null,
@@ -1192,12 +1180,13 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     pageTitle: "Comedor",
     activeNav: "comedor",
     mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
-    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div>`,
+    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div><div id="comedor-rh-asignar-comedor-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-rh-root");
   const modalHost = container.querySelector<HTMLElement>("#comedor-new-request-modal-host");
   const crearComedorHost = container.querySelector<HTMLElement>("#comedor-rh-crear-comedor-host");
+  const asignarComedorHost = container.querySelector<HTMLElement>("#comedor-rh-asignar-comedor-host");
   const crearComedorModal =
     crearComedorHost ?
       mountComedorCrearComedorModal(crearComedorHost, {
@@ -1205,6 +1194,15 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         onCreated: async () => {
           comedorIdResolver.invalidate();
           await Promise.all([loadKpis(), loadCalendar(), loadSidebar()]);
+        },
+      })
+    : null;
+  const asignarComedorModal =
+    asignarComedorHost ?
+      mountComedorAsignarComedorModal(asignarComedorHost, {
+        toastContainer: container,
+        onSaved: async () => {
+          await loadSidebar();
         },
       })
     : null;
@@ -1221,6 +1219,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
             { id: "saludable", label: "Opción B" },
           ];
         },
+        loadMenuDelDia,
         searchEmployees: searchComedorEmployeesFromDb,
         onSubmit: async (payload) => {
           const comedorId = await resolveComedorId();
@@ -1296,6 +1295,15 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       }
       if (target.closest("[data-comedor-retry-sidebar]")) {
         void loadSidebar();
+        return;
+      }
+
+      const alertBtn = target.closest<HTMLButtonElement>("[data-comedor-alert-id]");
+      if (alertBtn) {
+        const alertId = alertBtn.getAttribute("data-comedor-alert-id");
+        if (alertId === "empleados-sin-comedor-asignado") {
+          void asignarComedorModal?.open();
+        }
         return;
       }
 
@@ -1814,7 +1822,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
 
 function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): void {
   const initialWeek = createBlankWeekByStartIso(getCurrentWeekStartIso());
-  const comedorIdResolver = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
   const state: RhPlannerState = {
     panelState: "loading",
@@ -1822,17 +1830,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     week: initialWeek,
     weekPickerValue: weekInputFromIso(initialWeek.weekStartIso),
     selectedDayKey: "lunes",
-    incompleteDaysCount: plannerIncompleteDays(initialWeek),
-    isSavingDraft: false,
-    isPublishing: false,
     isDuplicating: false,
-    lastSavedAt: null,
-    menuEditor: {
-      open: false,
-      dayKey: null,
-      field: "menuNormal",
-      draftText: "",
-    },
   };
 
   function paint(): void {
@@ -1847,8 +1845,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     state.week = createBlankWeekByStartIso(weekStartIso);
     state.weekPickerValue = weekInputFromIso(weekStartIso);
     state.selectedDayKey = "lunes";
-    state.incompleteDaysCount = plannerIncompleteDays(state.week);
-    state.menuEditor.open = false;
     paint();
     try {
       const comedorId = await resolveComedorId();
@@ -1856,7 +1852,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
         state.week = createBlankWeekByStartIso(weekStartIso);
         state.panelState = "empty";
         state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-        state.incompleteDaysCount = plannerIncompleteDays(state.week);
         paint();
         return;
       }
@@ -1880,13 +1875,15 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
             ...day,
             menuNormal: normal?.descripcion ?? "",
             menuDieta: dieta?.descripcion ?? "",
+            detalle: normal?.detalle
+              ? cloneMenuDiaDetalle(parseMenuDiaDetalleFromApi(normal.detalle))
+              : createEmptyMenuDiaDetalle(),
           };
         }),
       };
       if (signal.aborted) return;
       state.panelState = menus.length > 0 ? "ready" : "empty";
       state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-      state.incompleteDaysCount = plannerIncompleteDays(state.week);
     } catch (error) {
       if (signal.aborted) return;
       state.panelState = "error";
@@ -1895,145 +1892,26 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     paint();
   }
 
-  function updateDay(
-    dayKey: ComedorWeekPlannerDayKey,
-    field: "menuNormal" | "menuDieta" | "visibleEmpleados",
-    value: string | boolean,
-  ): void {
-    state.week = {
-      ...state.week,
-      status: "borrador",
-      dias: state.week.dias.map((day) => {
-        if (day.key !== dayKey) return day;
-        if (field === "visibleEmpleados") {
-          return { ...day, visibleEmpleados: Boolean(value) };
-        }
-        return { ...day, [field]: String(value) };
-      }),
-    };
-    if (state.panelState === "ready") state.panelState = "ready";
-    if (state.panelState === "empty") state.panelState = "empty";
-    state.incompleteDaysCount = plannerIncompleteDays(state.week);
-    paint();
-  }
-
-  function updateDayPhoto(dayKey: ComedorWeekPlannerDayKey, dataUrl: string | null, fileName: string | null): void {
-    state.week = {
-      ...state.week,
-      status: "borrador",
-      dias: state.week.dias.map((day) =>
-        day.key === dayKey ? { ...day, fotoMenuDataUrl: dataUrl, fotoMenuNombre: fileName } : day
-      ),
-    };
-    state.incompleteDaysCount = plannerIncompleteDays(state.week);
-    paint();
-  }
-
-  function openMenuEditor(dayKey: ComedorWeekPlannerDayKey, field: "menuNormal" | "menuDieta"): void {
-    const day = state.week.dias.find((item) => item.key === dayKey);
-    state.menuEditor = {
-      open: true,
-      dayKey,
-      field,
-      draftText: field === "menuNormal" ? (day?.menuNormal ?? "") : (day?.menuDieta ?? ""),
-    };
+  function selectPreviewDay(dayKey: ComedorWeekPlannerDayKey): void {
     state.selectedDayKey = dayKey;
     paint();
   }
 
-  function closeMenuEditor(): void {
-    state.menuEditor = { ...state.menuEditor, open: false, dayKey: null, draftText: "" };
-    paint();
-  }
-
-  function saveMenuEditor(): void {
-    if (!state.menuEditor.open || !state.menuEditor.dayKey) return;
-    updateDay(state.menuEditor.dayKey, state.menuEditor.field, state.menuEditor.draftText.trim());
-    state.menuEditor = { ...state.menuEditor, open: false, dayKey: null, draftText: "" };
-    paint();
-  }
-
-  function copySelectedDayToWeek(): void {
-    const source = state.week.dias.find((day) => day.key === state.selectedDayKey);
-    if (!source) return;
-    state.week = {
-      ...state.week,
-      status: "borrador",
-      dias: state.week.dias.map((day) => ({
-        ...day,
-        menuNormal: source.menuNormal,
-        menuDieta: source.menuDieta,
-        fotoMenuDataUrl: source.fotoMenuDataUrl,
-        fotoMenuNombre: source.fotoMenuNombre,
-      })),
-    };
-    state.incompleteDaysCount = plannerIncompleteDays(state.week);
-    showEmpleadosToast(container, "Se copió el día seleccionado a toda la semana.", "success");
-    paint();
-  }
-
-  async function saveDraft(): Promise<void> {
-    state.isSavingDraft = true;
-    paint();
-    try {
-      if (signal.aborted) return;
-      showEmpleadosToast(container, "Guardado de borrador en integracion con backend.", "error");
-    } catch {
-      if (signal.aborted) return;
-      showEmpleadosToast(container, "No se pudo guardar el borrador.", "error");
-    } finally {
-      state.isSavingDraft = false;
-      paint();
+  async function persistCurrentWeekMenu(): Promise<number> {
+    const comedorId = await resolveComedorId();
+    if (comedorId == null) {
+      throw new Error("No hay comedor activo configurado.");
     }
-  }
-
-  async function publishWeek(): Promise<void> {
-    const confirmed = window.confirm("¿Publicar la semana actual para que esté disponible a empleados?");
-    if (!confirmed) return;
-    state.isPublishing = true;
-    paint();
-    try {
-      const comedorId = await resolveComedorId();
-      if (comedorId == null) {
-        throw new Error("No hay comedor activo configurado.");
-      }
-      const payloads = state.week.dias.flatMap((day) => {
-        const rows: { dia: string; tipo: string; descripcion: string }[] = [];
-        if (day.menuNormal.trim()) {
-          rows.push({ dia: day.key, tipo: "normal", descripcion: day.menuNormal.trim() });
-        }
-        if (day.menuDieta.trim()) {
-          rows.push({ dia: day.key, tipo: "dieta", descripcion: day.menuDieta.trim() });
-        }
-        return rows;
-      });
-      await Promise.all(
-        payloads.map((entry) =>
-          publicarComedorMenu({
-            comedorId,
-            semanaIso: state.week.weekStartIso,
-            dia: entry.dia,
-            tipo: entry.tipo,
-            descripcion: entry.descripcion,
-          }),
-        ),
-      );
-      if (signal.aborted) return;
-      state.week = { ...state.week, status: "publicado" };
-      state.panelState = state.week.dias.length > 0 ? "ready" : "empty";
-      state.lastSavedAt = Date.now();
-      showEmpleadosToast(container, "Semana publicada correctamente.", "success");
-    } catch (error) {
-      if (signal.aborted) return;
-      showEmpleadosToast(
-        container,
-        error instanceof Error ? error.message : "No se pudo publicar la semana.",
-        "error",
-      );
-    } finally {
-      state.isPublishing = false;
-      paint();
+    const savedCount = await persistComedorWeekMenu({
+      comedorId,
+      weekStartIso: state.week.weekStartIso,
+      dias: state.week.dias,
+      debug: import.meta.env.DEV,
+    });
+    if (import.meta.env.DEV) {
+      console.debug("[planeacion-import] Registros insertados/actualizados:", savedCount);
     }
+    return savedCount;
   }
 
   async function duplicatePreviousWeek(): Promise<void> {
@@ -2051,37 +1929,84 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     }
   }
 
-  async function clearWeek(): Promise<void> {
-    const confirmed = window.confirm("Se limpiarán los campos de la semana en edición. ¿Deseas continuar?");
-    if (!confirmed) return;
-    try {
-      if (signal.aborted) return;
-      state.week = createBlankWeekByStartIso(state.week.weekStartIso);
-      state.panelState = "empty";
-      state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-      state.selectedDayKey = "lunes";
-      state.incompleteDaysCount = plannerIncompleteDays(state.week);
-      state.lastSavedAt = Date.now();
-      showEmpleadosToast(container, "Semana limpiada.", "success");
-      paint();
-    } catch {
-      if (signal.aborted) return;
-      showEmpleadosToast(container, "No se pudo limpiar la semana.", "error");
+  async function deleteWeekFromDatabase(weekStartIso: string): Promise<void> {
+    const comedorId = await resolveComedorId();
+    if (comedorId == null) {
+      throw new Error("No hay comedor activo configurado.");
     }
+    await eliminarComedorMenuSemana(comedorId, weekStartIso);
+    if (signal.aborted) return;
+    await loadWeek(weekStartIso);
+    if (signal.aborted) return;
+    showEmpleadosToast(container, "Planeación de la semana eliminada.", "success");
+  }
+
+  async function checkWeekHasPlanning(weekStartIso: string): Promise<boolean> {
+    const comedorId = await resolveComedorId();
+    if (comedorId == null) {
+      throw new Error("No hay comedor activo configurado.");
+    }
+    const menus = await getComedorMenuSemana(comedorId, weekStartIso);
+    return menus.length > 0;
+  }
+
+  async function applyWeeklyPlanningImport(payload: {
+    weekStartIso: string;
+    days: PlaneacionMenuTemplateDay[];
+    isUpdate: boolean;
+  }): Promise<void> {
+    state.week = mergeImportedDaysIntoWeek(payload.weekStartIso, payload.days);
+    state.weekPickerValue = weekInputFromIso(payload.weekStartIso);
+    state.panelState = "ready";
+    state.selectedDayKey = "lunes";
+    paint();
+
+    await persistCurrentWeekMenu();
+    if (signal.aborted) return;
+
+    await loadWeek(payload.weekStartIso);
+    if (signal.aborted) return;
+
+    state.panelState = "ready";
+    paint();
+    showEmpleadosToast(
+      container,
+      payload.isUpdate ? "Planeación actualizada correctamente." : "Planeación registrada correctamente.",
+      "success",
+    );
   }
 
   mountAppShell(container, {
-    pageTitle: "Comedor",
+    pageTitle: "Planeación de Menú",
     activeNav: "comedor",
     mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div>`,
+    mainHtml: `<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div><div id="comedor-plan-clear-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-plan-root");
+  const importModalHost = container.querySelector<HTMLElement>("#comedor-plan-import-host");
+  const clearModalHost = container.querySelector<HTMLElement>("#comedor-plan-clear-host");
+  const importModal =
+    importModalHost ?
+      mountComedorWeeklyPlanningImportModal(importModalHost, {
+        checkWeekHasPlanning: (weekStartIso) => checkWeekHasPlanning(weekStartIso),
+        onImport: (payload) => applyWeeklyPlanningImport(payload),
+      })
+    : { open: () => {}, close: () => {}, destroy: () => {} };
+  const clearModal =
+    clearModalHost ?
+      mountComedorClearWeekModal(clearModalHost, {
+        onConfirm: async ({ weekStartIso }) => deleteWeekFromDatabase(weekStartIso),
+      })
+    : { open: () => {}, close: () => {}, destroy: () => {} };
   root?.addEventListener(
     "click",
     (event) => {
       const target = event.target as HTMLElement;
+      if (target.closest("[data-comedor-plan-import-open]")) {
+        importModal.open();
+        return;
+      }
       if (target.closest("[data-comedor-plan-retry]")) {
         void loadWeek(state.week.weekStartIso);
         return;
@@ -2098,73 +2023,18 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
         void duplicatePreviousWeek();
         return;
       }
-      if (target.closest("[data-comedor-plan-save-draft]")) {
-        void saveDraft();
+      if (target.closest("[data-comedor-plan-clear-open]")) {
+        if (state.panelState !== "ready") return;
+        clearModal.open({
+          weekStartIso: state.week.weekStartIso,
+          weekLabel: state.week.weekLabel,
+        });
         return;
       }
-      if (target.closest("[data-comedor-plan-publish]")) {
-        void publishWeek();
-        return;
-      }
-      if (target.closest("[data-comedor-plan-clear]")) {
-        void clearWeek();
-        return;
-      }
-      if (target.closest("[data-comedor-plan-copy-selected-day]")) {
-        copySelectedDayToWeek();
-        return;
-      }
-      const openMenuBtn = target.closest<HTMLElement>("[data-comedor-plan-menu-open]");
-      if (openMenuBtn) {
-        const raw = openMenuBtn.getAttribute("data-comedor-plan-menu-open") ?? "";
-        const [day, field] = raw.split(":");
-        if (
-          (day === "lunes" ||
-            day === "martes" ||
-            day === "miercoles" ||
-            day === "jueves" ||
-            day === "viernes") &&
-          (field === "menuNormal" || field === "menuDieta")
-        ) {
-          openMenuEditor(day, field);
-        }
-        return;
-      }
-      if (target.closest("[data-comedor-plan-menu-cancel]")) {
-        closeMenuEditor();
-        return;
-      }
-      if (target.closest("[data-comedor-plan-menu-save]")) {
-        saveMenuEditor();
-        return;
-      }
-      const removePhotoBtn = target.closest<HTMLElement>("[data-comedor-plan-remove-photo-day]");
-      if (removePhotoBtn) {
-        const day = removePhotoBtn.getAttribute("data-comedor-plan-remove-photo-day");
-        if (
-          day === "lunes" ||
-          day === "martes" ||
-          day === "miercoles" ||
-          day === "jueves" ||
-          day === "viernes"
-        ) {
-          updateDayPhoto(day, null, null);
-        }
-        return;
-      }
-      const daySelect = target.closest<HTMLElement>("[data-comedor-plan-select-day]");
-      if (daySelect) {
-        const key = daySelect.getAttribute("data-comedor-plan-select-day");
-        if (
-          key === "lunes" ||
-          key === "martes" ||
-          key === "miercoles" ||
-          key === "jueves" ||
-          key === "viernes"
-        ) {
-          state.selectedDayKey = key;
-          paint();
-        }
+      const previewDayBtn = target.closest<HTMLElement>("[data-comedor-plan-preview-day]");
+      if (previewDayBtn) {
+        const key = previewDayBtn.getAttribute("data-comedor-plan-preview-day");
+        if (isComedorWeekPlannerDayKey(key)) selectPreviewDay(key);
       }
     },
     { signal },
@@ -2182,58 +2052,14 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
         }
         return;
       }
-      const visibility = target.closest<HTMLInputElement>("[data-comedor-plan-visible-day]");
-      if (visibility) {
-        const day = visibility.getAttribute("data-comedor-plan-visible-day");
-        if (
-          day === "lunes" ||
-          day === "martes" ||
-          day === "miercoles" ||
-          day === "jueves" ||
-          day === "viernes"
-        ) {
-          updateDay(day, "visibleEmpleados", visibility.checked);
-        }
-        return;
-      }
-      const fileInput = target.closest<HTMLInputElement>("[data-comedor-plan-photo-day]");
-      if (fileInput) {
-        const day = fileInput.getAttribute("data-comedor-plan-photo-day");
-        const file = fileInput.files?.[0] ?? null;
-        if (
-          !file ||
-          !(
-            day === "lunes" ||
-            day === "martes" ||
-            day === "miercoles" ||
-            day === "jueves" ||
-            day === "viernes"
-          )
-        ) {
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-          const data = typeof reader.result === "string" ? reader.result : null;
-          if (!data) return;
-          updateDayPhoto(day, data, file.name);
-        };
-        reader.readAsDataURL(file);
-      }
     },
     { signal },
   );
 
-  root?.addEventListener(
-    "input",
-    (event) => {
-      const target = event.target as HTMLElement;
-      const menuDraft = target.closest<HTMLTextAreaElement>("[data-comedor-plan-menu-draft]");
-      if (!menuDraft) return;
-      state.menuEditor = { ...state.menuEditor, draftText: menuDraft.value };
-    },
-    { signal },
-  );
+  signal.addEventListener("abort", () => {
+    importModal.destroy();
+    clearModal.destroy();
+  }, { once: true });
 
   void loadWeek(state.week.weekStartIso);
 }
@@ -2243,8 +2069,12 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   const isSupervisor = rol === "supervisor";
   const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(rol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
-  const comedorIdResolver = createComedorIdResolver();
+  const beneficiaryTargetRef = { id: undefined as number | undefined };
+  const comedorIdResolver = createComedorIdResolver({
+    getTargetUserId: () => beneficiaryTargetRef.id,
+  });
   const resolveComedorId = () => comedorIdResolver.resolve();
+  const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: LiderComedorState = {
     statsState: "loading",
     stats: null,
@@ -2389,6 +2219,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           { id: "casera", label: "Opción A" },
           { id: "saludable", label: "Opción B" },
         ],
+        loadMenuDelDia,
         ...(supervisorSelfForModal ?
           {
             supervisorBeneficiaryConfig: {
@@ -2411,10 +2242,11 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
           }
         : {}),
         searchEmployees: searchComedorEmployeesFromDb,
-        showObservacionesField: !isSupervisor,
+        onBeneficiaryUserIdChange: (userId) => {
+          beneficiaryTargetRef.id = userId;
+          comedorIdResolver.invalidate();
+        },
         onSubmit: async (payload) => {
-          const comedorId = await resolveComedorId();
-          if (comedorId == null) throw new Error("No hay comedor activo configurado.");
           const targetUserId =
             isSupervisor &&
             payload.personType === "interno" &&
@@ -2426,7 +2258,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
             throw new Error("Selecciona un beneficiario válido.");
           }
           await reservarComedorAcceso({
-            comedorId,
             fechasIso: payload.fechas,
             tipoComida: payload.menuId,
             targetUserId,
@@ -2598,6 +2429,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
   const now = new Date();
   const comedorIdResolver = createComedorIdResolver();
   const resolveComedorId = () => comedorIdResolver.resolve();
+  const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: EmpleadoComedorState = {
     calendarState: "loading",
     calendar: null,
@@ -2743,7 +2575,6 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           toastContainer: container,
           allowExternalPeople: false,
           allowEmployeeSearch: false,
-          showObservacionesField: false,
           fechaMinReservaIso,
           loadFechasBloqueadas: async () => {
             const desde = fechaMinReservaIso;
@@ -2757,16 +2588,14 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
             { id: "casera", label: "Opción A" },
             { id: "saludable", label: "Opción B" },
           ],
+          loadMenuDelDia,
           searchEmployees: async () => [],
           onSubmit: async (payload) => {
             const firstDate = payload.fechas[0];
             if (!firstDate) throw new Error("Selecciona al menos una fecha.");
-            const comedorId = await resolveComedorId();
-            if (comedorId == null) throw new Error("No hay comedor activo configurado.");
             const semanaIso = startOfWeekIsoFromDateIso(firstDate);
             const intentarReserva = async () => {
               await reservarComedorAcceso({
-                comedorId,
                 fechasIso: payload.fechas,
                 tipoComida: payload.menuId,
               });
@@ -2780,7 +2609,6 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
                 error.detail.toLowerCase().includes("selecci")
               ) {
                 await registrarComedorSeleccion({
-                  comedorId,
                   semanaIso,
                   tipoPlatillo: "normal",
                 });
@@ -2979,7 +2807,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
 
 function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void {
   const initialRange = dateRangeFromPreset("this_month");
-  const comedorIdResolver = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
   const esRhReporte = getRolFromAccessToken() === "rh";
   const state: ReporteComedorState = {

@@ -10,7 +10,7 @@ import {
   getSugerenciasCualificacion,
   type PerfilCualificacion,
 } from "../../api/puestos.ts";
-import { CATALOGO_ESCOLARIDAD, escolaridadLabel } from "../../ui/catalogoEscolaridad.ts";
+import { CATALOGO_ESCOLARIDAD, escolaridadLabel, esTipoEscolaridad } from "../../ui/catalogoEscolaridad.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON, badgeCancelled } from "../../ui/uiTokens.ts";
 
@@ -25,13 +25,13 @@ export type EditarCualificacionesModalOptions = {
 };
 
 const TIPO_OPTIONS: { value: string; label: string }[] = [
-  { value: "estudios_finalizados", label: "Estudios finalizados" },
-  { value: "formacion_profesional", label: "Formacion profesional" },
-  { value: "ampliacion_formacion", label: "Ampliacion de formacion" },
-  { value: "estudios_universitarios", label: "Estudios universitarios" },
+  { value: "estudios_finalizados", label: "Nivel de estudios finalizados" },
+  { value: "formacion_profesional", label: "Formación profesional/ especialización (académica)/ diplomas" },
+  { value: "ampliacion_formacion", label: "Ampliación de la formación profesional/especialización (académica)/diplomas" },
+  { value: "estudios_universitarios", label: "Estudios universitarios / especialización (académica)/ diplomas" },
   { value: "experiencia_profesional", label: "Experiencia profesional" },
-  { value: "experiencia_direccion", label: "Experiencia en direccion" },
-  { value: "complementos", label: "Complementos" },
+  { value: "experiencia_direccion", label: "Experiencia de dirección/ gerencia" },
+  { value: "complementos", label: "Complementos individuales" },
 ];
 
 const TIPO_LABELS: Record<string, string> = Object.fromEntries(
@@ -39,14 +39,14 @@ const TIPO_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 const TIPOS_CON_NA = new Set([
-  "formacion_profesional", "ampliacion_formacion", "estudios_universitarios", "experiencia_direccion",
+  "formacion_profesional", "ampliacion_formacion", "experiencia_direccion",
 ]);
 const TIPOS_CON_ANIOS = new Set(["experiencia_profesional", "experiencia_direccion"]);
 const TIPOS_CON_AUTOCOMPLETE = new Set([
-  "formacion_profesional", "ampliacion_formacion", "estudios_universitarios",
+  "formacion_profesional", "ampliacion_formacion",
   "experiencia_profesional", "experiencia_direccion",
 ]);
-const TIPOS_SIN_SPLIT = new Set(["estudios_finalizados", "complementos"]);
+const TIPOS_SIN_SPLIT = new Set(["estudios_finalizados", "estudios_universitarios", "complementos"]);
 
 function overlayHtml(): string {
   return `
@@ -92,7 +92,7 @@ function renderList(cualificaciones: PerfilCualificacion[]): string {
         let valor: string;
         if (isNA) {
           valor = badgeCancelled("No aplica");
-        } else if (c.tipo === "estudios_finalizados") {
+        } else if (esTipoEscolaridad(c.tipo)) {
           valor = escapeHtml(escolaridadLabel(c.situacion_deseada));
         } else {
           valor = escapeHtml(c.situacion_deseada);
@@ -119,8 +119,9 @@ function renderForm(): string {
   ).join("");
 
   return `
-    <form id="form-agregar-cualificacion" class="border-t border-slate-200 pt-4 space-y-3">
+    <form id="form-agregar-cualificacion" novalidate class="border-t border-slate-200 pt-4 space-y-3">
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar cualificacion</p>
+      <div id="cual-form-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
       <div>
         <label for="cual-tipo" class="mb-1 block text-xs font-medium text-slate-600">Tipo</label>
         <div class="grid grid-cols-1">
@@ -233,13 +234,28 @@ export function mountEditarCualificacionesModal(
     const aniosWrap = form.querySelector("#cual-anios-wrap") as HTMLElement;
     const situacionContainer = form.querySelector("#cual-situacion-container") as HTMLElement;
     const wrap = form.querySelector("#cual-situacion-wrap") as HTMLElement;
+    const errorEl = form.querySelector("#cual-form-error") as HTMLElement;
+
+    function showFormError(message: string): void {
+      if (!errorEl) return;
+      errorEl.textContent = message;
+      errorEl.classList.remove("hidden");
+    }
+
+    function clearFormError(): void {
+      if (!errorEl) return;
+      errorEl.textContent = "";
+      errorEl.classList.add("hidden");
+    }
 
     function updateFormFields(): void {
       const tipo = tipoSelect.value;
       const showNA = TIPOS_CON_NA.has(tipo);
       const showAnios = TIPOS_CON_ANIOS.has(tipo);
-      const isEscolaridad = tipo === "estudios_finalizados";
+      const isEscolaridad = esTipoEscolaridad(tipo);
       const isComplementos = tipo === "complementos";
+
+      clearFormError();
 
       // Toggle N/A
       naWrap.classList.toggle("hidden", !showNA);
@@ -251,6 +267,7 @@ export function mountEditarCualificacionesModal(
       // Situacion field
       if (naToggle.checked) {
         situacionContainer.classList.add("hidden");
+        wrap.innerHTML = `<input type="hidden" name="situacion_deseada" value="N/A" />`;
       } else if (isEscolaridad) {
         situacionContainer.classList.remove("hidden");
         const opts = CATALOGO_ESCOLARIDAD.map(n =>
@@ -370,7 +387,7 @@ export function mountEditarCualificacionesModal(
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (loading) return;
-      loading = true;
+      clearFormError();
 
       const tipo = tipoSelect.value;
       let values: string[];
@@ -381,12 +398,18 @@ export function mountEditarCualificacionesModal(
       } else {
         const fd = new FormData(form);
         const raw = String(fd.get("situacion_deseada") ?? "").trim();
-        if (!raw) { loading = false; return; }
+        if (!raw) {
+          showFormError("Indica la situacion deseada.");
+          return;
+        }
         if (TIPOS_SIN_SPLIT.has(tipo)) {
           values = [raw];
         } else {
           values = splitValues(raw);
-          if (values.length === 0) { loading = false; return; }
+          if (values.length === 0) {
+            showFormError("Indica la situacion deseada.");
+            return;
+          }
         }
       }
 
@@ -402,14 +425,16 @@ export function mountEditarCualificacionesModal(
       const submitBtn = form.querySelector<HTMLButtonElement>("button[type=submit]");
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Agregando..."; }
 
+      loading = true;
       try {
         for (const situacion_deseada of values) {
           await createPerfilCualificacion(options.perfilId, { tipo, situacion_deseada, comentarios, anios_minimos });
         }
         dirty = true;
         await refreshList();
-      } catch {
-        // keep form
+      } catch (err: unknown) {
+        const detail = (err as { detail?: string })?.detail ?? "No se pudo agregar la cualificacion.";
+        showFormError(detail);
       } finally {
         loading = false;
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Agregar"; }

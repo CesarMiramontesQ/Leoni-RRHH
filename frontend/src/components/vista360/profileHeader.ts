@@ -6,6 +6,7 @@ export type ProfileHeaderProps = {
   nombre: string;
   apellido: string;
   numEmpleado: string;
+  empleadoId: number;
   /** Textos para una sola línea de metadatos (puesto, área, etc.), ya filtrados. */
   metaPartes: string[];
   activo: boolean;
@@ -46,11 +47,25 @@ export function vista360ProfileHeaderHtml(p: ProfileHeaderProps): string {
     <div class="overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-white to-slate-50/70 p-5 shadow-sm ring-1 ring-slate-900/5 sm:p-7">
       <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
         <div class="flex min-w-0 flex-1 flex-col items-center gap-5 text-center sm:flex-row sm:items-center sm:gap-8 sm:text-left">
-          <div class="shrink-0">
+          <div
+            class="relative shrink-0"
+            data-v360-profile-avatar
+            data-empleado-id="${p.empleadoId}"
+          >
             <div
+              data-v360-profile-avatar-fallback
               class="flex size-24 items-center justify-center rounded-3xl border border-blue-100 bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1d4ed8] text-2xl font-bold tracking-tight text-white shadow-md shadow-blue-900/20 sm:size-28 sm:text-[1.65rem]"
               aria-hidden="true"
             >${escapeHtml(ini)}</div>
+            <img
+              data-v360-profile-avatar-img
+              alt=""
+              width="112"
+              height="112"
+              decoding="async"
+              hidden
+              class="hidden size-24 rounded-3xl border border-blue-100 object-cover shadow-md shadow-blue-900/20 opacity-0 transition-opacity duration-300 ease-out sm:size-28"
+            />
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-start">

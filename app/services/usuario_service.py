@@ -17,12 +17,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.repositories.comedor_repository import ComedorRepository
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.solicitudes import Solicitud
 from app.models.incidencias import Incidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
+from app.models.comedor import Comedor
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.usuario_repository import ModoEstadoListado, UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -94,6 +96,7 @@ class UsuarioService:
     def __init__(self, db: AsyncSession):
         self.repo = UsuarioRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
+        self.comedor_repo = ComedorRepository(db)
         self.db = db
 
     def _get_rol(self, current_user: Empleado) -> str:
@@ -451,12 +454,35 @@ class UsuarioService:
         cambios = data.model_dump(exclude_unset=True)
         if "rol_id" in cambios and cambios["rol_id"] is None:
             del cambios["rol_id"]
-        if not cambios:
+        comedor_id = cambios.pop("comedor_id", None)
+        tiene_comedor = "comedor_id" in data.model_fields_set
+
+        if not cambios and not tiene_comedor:
             return UsuarioResponse.model_validate(usuario)
 
         datos_antes = {k: getattr(usuario, k) for k in cambios}
 
-        await self.repo.update(id, cambios)
+        if tiene_comedor:
+            if comedor_id is None:
+                raise ConflictError(detail="Selecciona un comedor.")
+            comedor = await self.comedor_repo.get(comedor_id)
+            if not comedor:
+                raise NotFoundError(entidad="Comedor", id=comedor_id)
+            if not comedor.activo:
+                raise ConflictError(detail="El comedor seleccionado no está activo.")
+            await self.empleado_repo.asignar_comedor_en_turno(
+                no_empleado=usuario.no_empleado,
+                nombre=usuario.nombre,
+                comedor_id=comedor_id,
+                clasificacion=None,
+            )
+
+        if cambios:
+            await self.repo.update(id, cambios)
+
+        datos_despues = dict(cambios)
+        if tiene_comedor:
+            datos_despues["comedor_id"] = comedor_id
 
         audit_background(
             background_tasks=background_tasks,
@@ -466,7 +492,7 @@ class UsuarioService:
             usuario_id=current_user.id,
             entidad_id=id,
             datos_antes=datos_antes,
-            datos_despues=cambios,
+            datos_despues=datos_despues,
         )
 
         usuario = await self.repo.get_with_rol(id)
@@ -519,7 +545,13 @@ class UsuarioService:
             turno_txt: str | None = None
             if te is not None:
                 if te.comedor is not None:
-                    comedor_txt = str(te.comedor)
+                    r_com = await self.db.execute(
+                        select(Comedor).where(Comedor.id == te.comedor)
+                    )
+                    comedor_row = r_com.scalar_one_or_none()
+                    if comedor_row is not None:
+                        nombre = (comedor_row.nombre or "").strip()
+                        comedor_txt = nombre or None
                 if te.turno and str(te.turno).strip():
                     turno_txt = str(te.turno).strip()
             turno_empleado = Vista360TurnoEmpleado(comedor=comedor_txt, turno=turno_txt)

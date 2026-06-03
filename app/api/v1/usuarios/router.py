@@ -5,7 +5,7 @@ Directorio administrativo de usuarios — solo RH.
 Operaciones disponibles:
   - GET /roles           — catálogo de roles
   - GET /{id}            — detalle de un empleado
-  - PATCH /{id}          — editar solo lider_id y rol_id
+  - PATCH /{id}          — editar rol_id, comedor_id (y lider_id legacy)
 
 Creación/desactivación de empleados: no disponible — los empleados
 se sincronizan desde IT Mirror (BD del cliente, solo lectura).
@@ -59,7 +59,7 @@ async def asignar_lider_y_rol(
     current_user: Empleado = Depends(role_checker(_RH)),
     svc: UsuarioService = Depends(_svc),
 ):
-    """Edición restringida: solo lider_id y rol_id."""
+    """Edición restringida: rol_id, comedor en turnos (lider_id legacy)."""
     return await svc.asignar_supervisor_y_rol(
         id=id,
         data=body,

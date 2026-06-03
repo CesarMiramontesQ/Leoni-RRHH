@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, link_turno_comedor_empleado, make_empleado
 
 PROXIMAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/mis-proximas-reservas"
 RESERVAS_EQUIPO_MES_URL = "/api/v1/comedor/accesos/equipo/mis-reservas"
@@ -50,6 +50,7 @@ async def test_supervisor_ve_solo_reservas_de_subordinados(client: AsyncClient, 
         email="sup_equipo@test.leoni",
         password="Sup3rPass!",
     )
+    await link_turno_comedor_empleado(db, supervisor, comedor.id)
     sub = await make_empleado(
         db,
         rol="empleado",
@@ -58,6 +59,7 @@ async def test_supervisor_ve_solo_reservas_de_subordinados(client: AsyncClient, 
         email="sub_equipo@test.leoni",
         password="SubPass1!",
     )
+    await link_turno_comedor_empleado(db, sub, comedor.id)
     externo = await make_empleado(
         db,
         rol="empleado",
@@ -138,6 +140,7 @@ async def test_supervisor_reservas_mes_equipo(client: AsyncClient, db, monkeypat
         email="sup_mes@test.leoni",
         password="SupMes1!",
     )
+    await link_turno_comedor_empleado(db, supervisor, comedor.id)
     sub = await make_empleado(
         db,
         rol="empleado",
@@ -146,6 +149,7 @@ async def test_supervisor_reservas_mes_equipo(client: AsyncClient, db, monkeypat
         email="sub_mes@test.leoni",
         password="SubMes1!",
     )
+    await link_turno_comedor_empleado(db, sub, comedor.id)
     reg_sub = ComedorRegistro(
         empleado_id=sub.id,
         comedor_id=comedor.id,
@@ -216,9 +220,11 @@ async def test_supervisor_reserva_para_subordinado_refleja_en_empleado(client: A
     supervisor = await make_empleado(
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_reserva@test.leoni", password="SupReserva1!"
     )
+    await link_turno_comedor_empleado(db, supervisor, comedor.id)
     sub = await make_empleado(
         db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_reserva@test.leoni", password="SubReserva1!"
     )
+    await link_turno_comedor_empleado(db, sub, comedor.id)
 
     headers_sup = await auth_headers(client, supervisor, password="SupReserva1!")
     r_self = await client.post(
@@ -279,9 +285,11 @@ async def test_gerente_no_puede_consultar_beneficiarios_ni_reservar_para_tercero
     gerente = await make_empleado(
         db, rol="gerente", nombre="GERENTE, ANA", email="gerente_reserva@test.leoni", password="Gerente1!"
     )
+    await link_turno_comedor_empleado(db, gerente, comedor.id)
     sub = await make_empleado(
         db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=gerente.empleado_id, email="sub_gerente@test.leoni", password="SubGerente1!"
     )
+    await link_turno_comedor_empleado(db, sub, comedor.id)
 
     headers = await auth_headers(client, gerente, password="Gerente1!")
     r_benef = await client.get(BENEFICIARIOS_EQUIPO_URL, headers=headers)
@@ -320,9 +328,11 @@ async def test_supervisor_ve_sus_reservas_y_puede_editar_solo_las_propias(client
     supervisor = await make_empleado(
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_perm@test.leoni", password="SupPerm1!"
     )
+    await link_turno_comedor_empleado(db, supervisor, comedor.id)
     sub = await make_empleado(
         db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_perm@test.leoni", password="SubPerm1!"
     )
+    await link_turno_comedor_empleado(db, sub, comedor.id)
     reg_sup = ComedorRegistro(
         empleado_id=supervisor.id,
         comedor_id=comedor.id,
@@ -402,9 +412,11 @@ async def test_supervisor_metricas_dashboard(client: AsyncClient, db, monkeypatc
     supervisor = await make_empleado(
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_metricas@test.leoni", password="SupMetricas1!"
     )
+    await link_turno_comedor_empleado(db, supervisor, comedor.id)
     sub = await make_empleado(
         db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_metricas@test.leoni", password="SubMetricas1!"
     )
+    await link_turno_comedor_empleado(db, sub, comedor.id)
     externo = await make_empleado(
         db, rol="empleado", nombre="FUERA, SCOPE", email="ext_metricas@test.leoni", password="ExtMetricas1!"
     )
@@ -516,6 +528,7 @@ async def test_rh_resumen_diario_global_excluye_expirados(client: AsyncClient, d
         email="emp_resumen@test.leoni",
         password="EmpResumen1!",
     )
+    await link_turno_comedor_empleado(db, empleado, comedor.id)
     empleado_2 = await make_empleado(
         db,
         rol="empleado",
@@ -523,6 +536,7 @@ async def test_rh_resumen_diario_global_excluye_expirados(client: AsyncClient, d
         email="emp2_resumen@test.leoni",
         password="Emp2Resumen1!",
     )
+    await link_turno_comedor_empleado(db, empleado_2, comedor.id)
     registro = ComedorRegistro(
         empleado_id=empleado.id,
         comedor_id=comedor.id,
@@ -686,6 +700,7 @@ async def test_rh_puede_crear_registro_interno_fin_de_semana(client: AsyncClient
         email="colab_finde@test.leoni",
         password="ColabFinde1!",
     )
+    await link_turno_comedor_empleado(db, empleado, comedor.id)
     headers_rh = await auth_headers(client, rh, password="RhFinde1!")
     response = await client.post(
         REGISTRO_RH_URL,

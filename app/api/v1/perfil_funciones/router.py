@@ -47,6 +47,7 @@ from app.schemas.perfil_funciones import (
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
     PerfilCompetenciaSyncBody,
+    PerfilCompetenciaUpdate,
     PerfilCualificacionCreate,
     PerfilCualificacionResponse,
     PerfilCualificacionUpdate,
@@ -269,10 +270,31 @@ async def crear_competencia(
     current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agrega competencia del catalogo al perfil (nivel_requerido=0). Solo RH o supervisor."""
+    """Agrega competencia del catálogo al perfil con nivel mínimo requerido (1-4). Solo RH o supervisor."""
     service = PerfilFuncionesService(db)
     return await service.crear_competencia(
         perfil_id=perfil_id, data=body, current_user=current_user
+    )
+
+
+@router.patch(
+    "/{perfil_id}/competencias/{requisito_id}",
+    response_model=PerfilCompetenciaResponse,
+)
+async def actualizar_nivel_competencia(
+    perfil_id: int,
+    requisito_id: int,
+    body: PerfilCompetenciaUpdate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza el nivel mínimo requerido de una competencia del perfil."""
+    service = PerfilFuncionesService(db)
+    return await service.actualizar_nivel_competencia(
+        perfil_id=perfil_id,
+        requisito_id=requisito_id,
+        data=body,
+        current_user=current_user,
     )
 
 
@@ -288,7 +310,7 @@ async def sincronizar_competencias(
     return await service.sincronizar_competencias(
         perfil_id=perfil_id,
         subcategoria=body.subcategoria,
-        competencia_ids=body.competencia_ids,
+        competencias=body.competencias,
         current_user=current_user,
     )
 

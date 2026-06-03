@@ -39,6 +39,16 @@ class MenuSemanalRepository(BaseRepository[MenuSemanal]):
     def __init__(self, db: AsyncSession):
         super().__init__(MenuSemanal, db)
 
+    @staticmethod
+    def _normalize_menu_dia(dia: str) -> str:
+        import unicodedata
+
+        normalized = unicodedata.normalize("NFD", dia.strip())
+        without_accents = "".join(
+            char for char in normalized if unicodedata.category(char) != "Mn"
+        )
+        return without_accents.lower()
+
     async def get_menu_semana(
         self,
         comedor_id: int,
@@ -53,6 +63,60 @@ class MenuSemanalRepository(BaseRepository[MenuSemanal]):
             .order_by(MenuSemanal.dia)
         )
         return list(result.scalars().all())
+
+    async def list_menu_items(
+        self,
+        comedor_id: int,
+        semana: date,
+        dia: str,
+        tipo: str,
+    ) -> list[MenuSemanal]:
+        dia_key = self._normalize_menu_dia(dia)
+        result = await self.db.execute(
+            select(MenuSemanal)
+            .where(
+                MenuSemanal.comedor_id == comedor_id,
+                MenuSemanal.semana == semana,
+                MenuSemanal.tipo == tipo,
+                func.lower(MenuSemanal.dia) == dia_key,
+            )
+            .order_by(MenuSemanal.id.desc())
+        )
+        return list(result.scalars().all())
+
+    async def upsert_menu(self, data: dict) -> MenuSemanal:
+        """Crea o actualiza un registro por comedor + semana + día + tipo."""
+        payload = {
+            **data,
+            "dia": self._normalize_menu_dia(str(data["dia"])),
+        }
+        existing_rows = await self.list_menu_items(
+            comedor_id=payload["comedor_id"],
+            semana=payload["semana"],
+            dia=payload["dia"],
+            tipo=payload["tipo"],
+        )
+        if existing_rows:
+            primary = existing_rows[0]
+            for field in ("descripcion", "detalle", "created_by", "dia"):
+                if field in payload:
+                    setattr(primary, field, payload[field])
+            for duplicate in existing_rows[1:]:
+                await self.db.delete(duplicate)
+            await self.db.flush()
+            await self.db.refresh(primary)
+            return primary
+        return await self.create(payload)
+
+    async def delete_menu_semana(self, comedor_id: int, semana: date) -> int:
+        result = await self.db.execute(
+            delete(MenuSemanal).where(
+                MenuSemanal.comedor_id == comedor_id,
+                MenuSemanal.semana == semana,
+            )
+        )
+        await self.db.flush()
+        return int(result.rowcount or 0)
 
     async def get_menu_semana_todos(self, semana: date) -> list[MenuSemanal]:
         """Retorna todos los menus de todos los comedores para una semana."""

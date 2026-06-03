@@ -44,6 +44,8 @@ export type ComedorAlert = {
   titulo: string;
   detalle: string;
   level: ComedorAlertLevel;
+  /** Si true, la alerta abre un flujo al hacer clic (p. ej. asignar comedor). */
+  actionable?: boolean;
 };
 
 export type ComedorWeekOccupancyPoint = {
@@ -179,7 +181,16 @@ export type ComedorCreateRequestPayload = {
 };
 
 export type ComedorWeekPlannerStatus = "borrador" | "publicado";
-export type ComedorWeekPlannerDayKey = "lunes" | "martes" | "miercoles" | "jueves" | "viernes";
+import type { ComedorMenuDiaDetalle } from "./menuDayDetalle.ts";
+
+export type ComedorWeekPlannerDayKey =
+  | "lunes"
+  | "martes"
+  | "miercoles"
+  | "jueves"
+  | "viernes"
+  | "sabado"
+  | "domingo";
 
 export type ComedorWeekPlannerDay = {
   key: ComedorWeekPlannerDayKey;
@@ -188,9 +199,8 @@ export type ComedorWeekPlannerDay = {
   fechaCorta: string;
   menuNormal: string;
   menuDieta: string;
-  visibleEmpleados: boolean;
-  fotoMenuDataUrl: string | null;
-  fotoMenuNombre: string | null;
+  /** Complementos importados o capturados; persistidos en fila `normal` al publicar. */
+  detalle: ComedorMenuDiaDetalle;
 };
 
 export type ComedorWeekPlanner = {
