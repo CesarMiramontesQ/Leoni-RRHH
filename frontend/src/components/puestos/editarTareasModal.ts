@@ -14,7 +14,10 @@ import {
 import {
   getTareasCatalogo,
   createTareaCatalogo,
+  isTareaCatalogoDuplicada,
+  MSG_TAREA_DUPLICADA,
   type TareaCatalogo,
+  type TareaCatalogoFetchError,
 } from "../../api/tareasCatalogo.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_GHOST, BTN_DANGER, FIELD_FOCUS } from "../../ui/uiTokens.ts";
@@ -118,6 +121,7 @@ function renderAddForm(showCreateNew: boolean): string {
       ${showCreateNew ? `
       <div id="tarea-create-form" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
         <p class="text-xs font-semibold text-slate-600">Nueva tarea en catalogo</p>
+        <div id="tarea-create-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert"></div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
           <input id="tarea-new-nombre" type="text" required
@@ -384,11 +388,29 @@ export function mountEditarTareasModal(
     if (!btn) return;
     btn.addEventListener("click", async () => {
       if (loading) return;
+
+      const errorEl = body.querySelector("#tarea-create-error") as HTMLElement | null;
+      const showError = (message: string) => {
+        if (!errorEl) return;
+        errorEl.textContent = message;
+        errorEl.classList.remove("hidden");
+      };
+      const clearError = () => {
+        if (!errorEl) return;
+        errorEl.textContent = "";
+        errorEl.classList.add("hidden");
+      };
+
+      clearError();
+
       const nombre = (body.querySelector("#tarea-new-nombre") as HTMLInputElement)?.value.trim();
       const categoria = (body.querySelector("#tarea-new-categoria") as HTMLInputElement)?.value.trim() || undefined;
       const es_complemento = (body.querySelector("#tarea-new-complemento") as HTMLInputElement)?.checked ?? false;
 
-      if (!nombre) return;
+      if (!nombre) {
+        showError("Indica el nombre de la tarea.");
+        return;
+      }
 
       loading = true;
       btn.disabled = true;
@@ -407,8 +429,13 @@ export function mountEditarTareasModal(
         showCreateNew = false;
         options.onSuccess();
         await refreshList();
-      } catch {
-        // keep form
+      } catch (err: unknown) {
+        if (isTareaCatalogoDuplicada(err)) {
+          showError(MSG_TAREA_DUPLICADA);
+        } else {
+          const detail = (err as TareaCatalogoFetchError)?.detail ?? "No se pudo crear la tarea.";
+          showError(detail);
+        }
       } finally {
         loading = false;
         btn.disabled = false;

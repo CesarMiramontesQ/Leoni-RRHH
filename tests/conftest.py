@@ -50,6 +50,7 @@ import app.models.emails  # noqa: F401
 import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
 import app.models.vacaciones  # noqa: F401
+import app.models.turnos_empleados  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password
@@ -228,6 +229,29 @@ async def make_empleado(
         await db.flush()
 
     return empleado
+
+
+async def link_turno_comedor_empleado(
+    db: AsyncSession,
+    empleado,
+    comedor_id: int,
+    *,
+    turno: str = "G1",
+    clasificacion: str | None = "A",
+) -> None:
+    """Vincula empleado con código de comedor en `turnos_empleados` (reservas automáticas)."""
+    from app.models.turnos_empleados import TurnoEmpleado
+
+    db.add(
+        TurnoEmpleado(
+            no_empleado=empleado.no_empleado,
+            nombre=empleado.nombre,
+            clasificacion=clasificacion,
+            comedor=comedor_id,
+            turno=turno,
+        )
+    )
+    await db.flush()
 
 
 async def make_clasificacion_administrativo(db: AsyncSession):

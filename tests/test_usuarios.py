@@ -87,6 +87,34 @@ async def test_patch_asignacion_rol_rh_retorna_200(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_patch_asignacion_comedor_rh_persiste_turnos(client: AsyncClient, db):
+    from app.models.comedor import Comedor
+    from app.models.turnos_empleados import TurnoEmpleado
+    from sqlalchemy import select
+
+    rh = await make_empleado(db, rol="rh", email="rh_comedor@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="emp_comedor@leoni.test")
+    comedor = Comedor(nombre="Comedor RH Test", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/usuarios/{empleado.id}",
+        json={"comedor_id": comedor.id},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+
+    result = await db.execute(
+        select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+    )
+    turno = result.scalar_one_or_none()
+    assert turno is not None
+    assert turno.comedor == comedor.id
+
+
+@pytest.mark.asyncio
 async def test_patch_asignacion_gerente_retorna_403(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", email="gerente_patch@leoni.test")
     empleado = await make_empleado(db, rol="empleado", email="emp_403@leoni.test")

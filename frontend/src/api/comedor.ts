@@ -13,6 +13,11 @@ export type ComedorApiItem = {
   activo: boolean;
 };
 
+export type ComedorAsignadoApi = {
+  comedor_id: number;
+  comedor_nombre: string;
+};
+
 export type MenuSemanalApiItem = {
   id: number;
   comedor_id: number;
@@ -23,6 +28,18 @@ export type MenuSemanalApiItem = {
   foto_path: string | null;
   created_by: number;
   created_at: string;
+  /** Complementos del día (guarniciones, salsas, etc.) cuando el backend los expone. */
+  detalle?: ComedorMenuDiaDetalleApi | null;
+};
+
+export type ComedorMenuDiaDetalleApi = {
+  sopa_o_crema?: string[];
+  guarniciones?: string[];
+  complementos?: string[];
+  tortillas?: string[];
+  postres?: string[];
+  salsas?: string[];
+  aguas?: string[];
 };
 
 export type ComedorEstadisticasApi = {
@@ -38,6 +55,8 @@ export type ComedorEstadisticasApi = {
 export type ComedorProyeccionesApi = {
   ultimas_4_semanas: Record<string, { normal: number; dieta: number }>;
   promedio_semanal: number;
+  /** Empleados activos sin comedor en `turnos_empleados` (alertas operativas RH). */
+  empleados_sin_comedor_asignado: number;
 };
 
 async function readErrorDetail(res: Response): Promise<string> {
@@ -144,19 +163,45 @@ export async function getComedorMenuSemana(
   return (await res.json()) as MenuSemanalApiItem[];
 }
 
+export async function eliminarComedorMenuSemana(
+  comedorId: number,
+  semanaIso: string,
+): Promise<{ comedor_id: number; semana: string; deleted_count: number }> {
+  const params = new URLSearchParams();
+  params.set("comedor_id", String(comedorId));
+  params.set("semana", semanaIso);
+  const res = await fetchWithAuth(`/api/v1/comedor/menu?${params.toString()}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as { comedor_id: number; semana: string; deleted_count: number };
+}
+
+export async function getComedorAsignado(targetUserId?: number): Promise<ComedorAsignadoApi> {
+  const params = new URLSearchParams();
+  if (targetUserId != null) params.set("target_user_id", String(targetUserId));
+  const qs = params.toString();
+  const res = await fetchWithAuth(
+    `/api/v1/comedor/mi-comedor-asignado${qs ? `?${qs}` : ""}`,
+  );
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorAsignadoApi;
+}
+
 export async function registrarComedorSeleccion(payload: {
-  comedorId: number;
+  comedorId?: number;
   semanaIso: string;
   tipoPlatillo: string;
 }): Promise<void> {
+  const body: Record<string, unknown> = {
+    semana: payload.semanaIso,
+    tipo_platillo: payload.tipoPlatillo,
+  };
+  if (payload.comedorId != null) body.comedor_id = payload.comedorId;
   const res = await fetchWithAuth("/api/v1/comedor/registro", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      comedor_id: payload.comedorId,
-      semana: payload.semanaIso,
-      tipo_platillo: payload.tipoPlatillo,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
 }
@@ -167,6 +212,7 @@ export async function publicarComedorMenu(payload: {
   dia: string;
   tipo: string;
   descripcion: string;
+  detalle?: ComedorMenuDiaDetalleApi | null;
 }): Promise<void> {
   const res = await fetchWithAuth("/api/v1/comedor/menu", {
     method: "POST",
@@ -177,6 +223,7 @@ export async function publicarComedorMenu(payload: {
       dia: payload.dia,
       tipo: payload.tipo,
       descripcion: payload.descripcion || null,
+      ...(payload.detalle ? { detalle: payload.detalle } : {}),
     }),
   });
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
@@ -195,6 +242,40 @@ export async function getComedorProyecciones(): Promise<ComedorProyeccionesApi> 
   const res = await fetchWithAuth("/api/v1/comedor/proyecciones");
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorProyeccionesApi;
+}
+
+export type ComedorRhEmpleadoSinComedorApi = {
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
+};
+
+export type ComedorRhEmpleadosSinComedorListApi = {
+  total: number;
+  items: ComedorRhEmpleadoSinComedorApi[];
+};
+
+export async function getComedorRhEmpleadosSinComedorAsignado(): Promise<ComedorRhEmpleadosSinComedorListApi> {
+  const res = await fetchWithAuth("/api/v1/comedor/rh/empleados-sin-comedor-asignado");
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorRhEmpleadosSinComedorListApi;
+}
+
+export async function asignarComedorRhTurnos(
+  asignaciones: readonly { empleadoId: number; comedorId: number }[],
+): Promise<{ actualizados: number }> {
+  const res = await fetchWithAuth("/api/v1/comedor/rh/asignar-comedor-turnos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      asignaciones: asignaciones.map((row) => ({
+        empleado_id: row.empleadoId,
+        comedor_id: row.comedorId,
+      })),
+    }),
+  });
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as { actualizados: number };
 }
 
 export type ComedorMisReservaApiItem = {
@@ -493,20 +574,21 @@ export async function getComedorRhCodigosExternos(params: {
 }
 
 export async function reservarComedorAcceso(payload: {
-  comedorId: number;
+  comedorId?: number;
   fechasIso: string[];
   tipoComida: string;
   targetUserId?: number;
 }): Promise<void> {
+  const body: Record<string, unknown> = {
+    fechas_servicio: payload.fechasIso,
+    tipo_comida: payload.tipoComida,
+    target_user_id: payload.targetUserId ?? null,
+  };
+  if (payload.comedorId != null) body.comedor_id = payload.comedorId;
   const res = await fetchWithAuth("/api/v1/comedor/accesos/reservar", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      comedor_id: payload.comedorId,
-      fechas_servicio: payload.fechasIso,
-      tipo_comida: payload.tipoComida,
-      target_user_id: payload.targetUserId ?? null,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
 }

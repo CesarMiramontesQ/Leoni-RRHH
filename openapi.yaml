@@ -251,6 +251,8 @@ components:
         lider_id:
           type: [integer, "null"]
           description: empleado_id del líder inmediato
+        centrocosto_id:
+          type: [integer, "null"]
         foto:
           type: [string, "null"]
         registro:
@@ -276,6 +278,10 @@ components:
           description: empleado_id del líder inmediato
         rol_id:
           type: [integer, "null"]
+        comedor_id:
+          type: integer
+          minimum: 1
+          description: ID del comedor en catálogo; persiste en turnos_empleados
 
     UsuarioPageResponse:
       type: object
@@ -422,7 +428,7 @@ components:
         comedor:
           type: string
           nullable: true
-          description: Valor de la columna comedor (entero en BD, serializado como texto).
+          description: Nombre del comedor asignado (resuelto desde catálogo comedores).
         turno:
           type: string
           nullable: true
@@ -1269,6 +1275,42 @@ components:
           type: string
         descripcion:
           type: [string, "null"]
+        detalle:
+          oneOf:
+            - $ref: "#/components/schemas/MenuDiaDetalle"
+            - type: "null"
+
+    MenuDiaDetalle:
+      type: object
+      properties:
+        sopa_o_crema:
+          type: array
+          items:
+            type: string
+        guarniciones:
+          type: array
+          items:
+            type: string
+        complementos:
+          type: array
+          items:
+            type: string
+        tortillas:
+          type: array
+          items:
+            type: string
+        postres:
+          type: array
+          items:
+            type: string
+        salsas:
+          type: array
+          items:
+            type: string
+        aguas:
+          type: array
+          items:
+            type: string
 
     MenuSemanalResponse:
       type: object
@@ -1287,6 +1329,10 @@ components:
           type: string
         descripcion:
           type: [string, "null"]
+        detalle:
+          oneOf:
+            - $ref: "#/components/schemas/MenuDiaDetalle"
+            - type: "null"
         foto_path:
           type: [string, "null"]
         created_by:
@@ -1295,12 +1341,34 @@ components:
           type: string
           format: date-time
 
-    ComedorRegistroCreate:
+    MenuSemanalDeleteResponse:
       type: object
-      required: [comedor_id, semana, tipo_platillo]
+      required: [comedor_id, semana, deleted_count]
       properties:
         comedor_id:
           type: integer
+        semana:
+          type: string
+          format: date
+        deleted_count:
+          type: integer
+
+    ComedorAsignadoResponse:
+      type: object
+      required: [comedor_id, comedor_nombre]
+      properties:
+        comedor_id:
+          type: integer
+        comedor_nombre:
+          type: string
+
+    ComedorRegistroCreate:
+      type: object
+      required: [semana, tipo_platillo]
+      properties:
+        comedor_id:
+          type: [integer, "null"]
+          description: Opcional; si se envía debe coincidir con el comedor asignado al empleado en turnos.
         semana:
           type: string
           format: date
@@ -1356,10 +1424,11 @@ components:
 
     ComedorAccesoReservaCreate:
       type: object
-      required: [comedor_id, tipo_comida]
+      required: [tipo_comida]
       properties:
         comedor_id:
-          type: integer
+          type: [integer, "null"]
+          description: Opcional; si se envía debe coincidir con el comedor asignado al beneficiario en turnos.
         fecha_servicio:
           type: [string, "null"]
           format: date
@@ -2639,19 +2708,57 @@ components:
           type: integer
           nullable: true
 
+    PerfilCompetenciaCreate:
+      type: object
+      required: [competencia_id, nivel_requerido]
+      properties:
+        competencia_id:
+          type: integer
+        nivel_requerido:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: Nivel mínimo requerido para este puesto (1-4)
+
+    PerfilCompetenciaUpdate:
+      type: object
+      required: [nivel_requerido]
+      properties:
+        nivel_requerido:
+          type: integer
+          minimum: 1
+          maximum: 4
+
+    PerfilCompetenciaSyncItem:
+      type: object
+      required: [competencia_id, nivel_requerido]
+      properties:
+        competencia_id:
+          type: integer
+        nivel_requerido:
+          type: integer
+          minimum: 1
+          maximum: 4
+
     PerfilCompetenciaSyncBody:
       type: object
-      required: [subcategoria, competencia_ids]
+      required: [subcategoria]
       properties:
         subcategoria:
           type: string
           enum: [informatica, idiomas, profesional, social, personal, metodos]
           description: Subcategoría de competencias a sincronizar
+        competencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerfilCompetenciaSyncItem"
+          description: Competencias de la categoría con nivel mínimo por puesto
         competencia_ids:
           type: array
           items:
             type: integer
-          description: IDs de competencias seleccionadas para esta categoría
+          deprecated: true
+          description: Legado; usar competencias con nivel_requerido
 
     EvaluacionCompetenciaSyncBody:
       type: object
@@ -3126,6 +3233,34 @@ paths:
           description: Empleado no encontrado
         "422":
           description: Validación de días disponibles
+
+  /api/v1/empleados/{empleado_id}/foto:
+    get:
+      tags: [Empleados]
+      summary: Fotografía del empleado (directorio RH/Images)
+      operationId: empleados_foto
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Imagen del empleado
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Empleado o fotografía no encontrados
 
   /api/v1/empleados/{empleado_id}/vista360:
     get:
@@ -4212,6 +4347,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuSemanalResponse"
+    delete:
+      tags: [Comedor]
+      summary: Eliminar menu semanal del comedor
+      operationId: comedor_menu_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: comedor_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: semana
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Menu semanal eliminado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuSemanalDeleteResponse"
+
+  /api/v1/comedor/mi-comedor-asignado:
+    get:
+      tags: [Comedor]
+      summary: Comedor asignado al empleado (turnos_empleados)
+      operationId: comedor_mi_comedor_asignado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: target_user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Beneficiario (supervisor registrando para su equipo).
+      responses:
+        "200":
+          description: Comedor asignado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorAsignadoResponse"
 
   /api/v1/comedor/registro:
     post:
@@ -4780,6 +4962,72 @@ paths:
               schema:
                 type: object
 
+  /api/v1/comedor/rh/empleados-sin-comedor-asignado:
+    get:
+      tags: [Comedor]
+      summary: Empleados activos sin comedor en turnos (RH)
+      operationId: comedor_rh_empleados_sin_comedor_asignado
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Listado para alertas operativas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        empleado_id:
+                          type: integer
+                        no_empleado:
+                          type: string
+                        nombre:
+                          type: string
+
+  /api/v1/comedor/rh/asignar-comedor-turnos:
+    post:
+      tags: [Comedor]
+      summary: Asignar comedor en turnos_empleados (RH)
+      operationId: comedor_rh_asignar_comedor_turnos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asignaciones]
+              properties:
+                asignaciones:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [empleado_id, comedor_id]
+                    properties:
+                      empleado_id:
+                        type: integer
+                      comedor_id:
+                        type: integer
+      responses:
+        "200":
+          description: Asignaciones guardadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actualizados:
+                    type: integer
+
   /api/v1/comedor/proyecciones:
     get:
       tags: [Comedor]
@@ -4794,6 +5042,21 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  ultimas_4_semanas:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        normal:
+                          type: integer
+                        dieta:
+                          type: integer
+                  promedio_semanal:
+                    type: number
+                  empleados_sin_comedor_asignado:
+                    type: integer
+                    description: Empleados activos sin comedor en turnos_empleados (alertas operativas)
 
   # ── Reportes ────────────────────────────────────────
   /api/v1/reportes/dashboard/kpis:
@@ -5822,7 +6085,7 @@ paths:
     get:
       tags: [Talento - Perfil Funciones]
       summary: Catálogo de niveles de escolaridad
-      description: Retorna los niveles jerárquicos de escolaridad usados para compliance automático en cualificaciones tipo estudios_finalizados.
+      description: Retorna los niveles jerárquicos de escolaridad usados para compliance automático en cualificaciones tipo estudios_finalizados y estudios_universitarios.
       operationId: catalogo_escolaridad
       security:
         - BearerAuth: []
@@ -5888,13 +6151,86 @@ paths:
                   type: string
                 example: ["Ing. Mecánica", "Ing. Electrónica", "Lic. Administración"]
 
+  /api/v1/perfiles/{perfil_id}/competencias:
+    post:
+      tags: [Talento - Perfil Funciones]
+      summary: Agregar competencia del catálogo al perfil
+      description: Crea la relación puesto-competencia con nivel mínimo requerido (1-4). Solo RH o supervisor.
+      operationId: crear_perfil_competencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCompetenciaCreate"
+      responses:
+        "201":
+          description: Competencia asociada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerfilCompetenciaResponse"
+        "403":
+          description: Sin permisos
+        "404":
+          description: Perfil o competencia no encontrado
+        "409":
+          description: Competencia ya asignada al perfil
+        "422":
+          description: Validación (nivel_requerido obligatorio 1-4)
+
+  /api/v1/perfiles/{perfil_id}/competencias/{requisito_id}:
+    patch:
+      tags: [Talento - Perfil Funciones]
+      summary: Actualizar nivel mínimo requerido de una competencia del perfil
+      operationId: actualizar_nivel_perfil_competencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requisito_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCompetenciaUpdate"
+      responses:
+        "200":
+          description: Requisito actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerfilCompetenciaResponse"
+        "403":
+          description: Sin permisos
+        "404":
+          description: Perfil o requisito no encontrado
+
   /api/v1/perfiles/{perfil_id}/competencias/sync:
     put:
       tags: [Talento - Perfil Funciones]
       summary: Sync competencias requeridas por subcategoría (multi-select)
       description: |
-        Recibe el set completo de competencia_ids para una subcategoría.
-        Agrega las faltantes y elimina las deseleccionadas. Solo RH o supervisor.
+        Recibe el set completo de competencias para una subcategoría con nivel mínimo requerido (1-4) por puesto.
+        Agrega las faltantes, actualiza niveles y elimina las deseleccionadas. Solo RH o supervisor.
+        El campo legado competencia_ids asigna nivel 1 en altas nuevas.
       operationId: sync_perfil_competencias
       security:
         - BearerAuth: []

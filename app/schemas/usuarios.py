@@ -19,11 +19,12 @@ from app.schemas.empleados import (
 
 
 class UsuarioAsignacionUpdate(BaseModel):
-    """Solo RH puede usar este schema. Permite cambiar únicamente lider_id y rol_id."""
+    """Solo RH puede usar este schema. Permite cambiar lider_id, rol_id y comedor en turnos."""
 
     model_config = {"str_strip_whitespace": True}
     lider_id: Optional[int] = None
     rol_id: Optional[int] = None
+    comedor_id: Optional[int] = None
 
 
 class RolBrief(BaseModel):
@@ -49,6 +50,7 @@ class UsuarioResponse(BaseModel):
     categoria: Optional[CategoriaResponse] = None
     clasificacion: Optional[ClasificacionEmpleadoResponse] = None
     lider_id: Optional[int] = None
+    centrocosto_id: Optional[int] = None
     foto: Optional[str] = None
     registro: Optional[date] = None
     created_at: datetime
@@ -127,7 +129,7 @@ class ActaBrief(BaseModel):
 
 
 class Vista360TurnoEmpleado(BaseModel):
-    """Filas de `turnos_empleados` (comedor numérico + turno). Solo se envía cuando el solicitante es RH."""
+    """Filas de `turnos_empleados` (nombre de comedor + turno). Solo se envía cuando el solicitante es RH."""
 
     comedor: Optional[str] = None
     turno: Optional[str] = None

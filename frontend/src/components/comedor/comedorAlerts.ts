@@ -9,10 +9,26 @@ function alertLevelClasses(level: "critica" | "media" | "info"): string {
 }
 
 function renderAlertItem(alert: ComedorAlert): string {
-  return `
-    <li class="rounded-xl border px-3 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] ${alertLevelClasses(alert.level)}">
+  const levelClass = alertLevelClasses(alert.level);
+  const inner = `
       <p class="text-xs font-semibold">${escapeComedorHtml(alert.titulo)}</p>
-      <p class="mt-0.5 text-[11px] leading-snug opacity-95">${escapeComedorHtml(alert.detalle)}</p>
+      <p class="mt-0.5 text-[11px] leading-snug opacity-95">${escapeComedorHtml(alert.detalle)}</p>`;
+  if (alert.actionable) {
+    return `
+    <li>
+      <button
+        type="button"
+        data-comedor-alert-id="${escapeComedorHtml(alert.id)}"
+        class="w-full rounded-xl border px-3 py-2.5 text-left shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[box-shadow,transform] duration-150 hover:shadow-[0_4px_12px_rgba(15,23,42,0.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2 active:scale-[0.99] motion-reduce:active:scale-100 ${levelClass}"
+      >
+        ${inner}
+        <span class="mt-1.5 inline-flex text-[10px] font-semibold uppercase tracking-wide opacity-80">Ver y asignar</span>
+      </button>
+    </li>`;
+  }
+  return `
+    <li class="rounded-xl border px-3 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] ${levelClass}">
+      ${inner}
     </li>`;
 }
 

@@ -71,6 +71,7 @@ export type UsuarioListItem = {
   categoria: CategoriaResponse | null;
   clasificacion: ClasificacionEmpleadoResponse | null;
   lider_id: number | null;
+  centrocosto_id?: number | null;
   /** URL o ruta de foto de perfil (listado directorio). */
   foto?: string | null;
   /** Solo en GET /empleados (listado). */

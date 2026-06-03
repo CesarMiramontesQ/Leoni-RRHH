@@ -89,6 +89,7 @@ class MenuSemanal(Base):
         default="normal",
     )
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    detalle: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     foto_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

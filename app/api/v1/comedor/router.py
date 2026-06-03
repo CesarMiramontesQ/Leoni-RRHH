@@ -18,6 +18,7 @@ from app.schemas.comedor import (
     ComedorAccesoReservaCreate,
     ComedorAccesoReservaResponse,
     ComedorAccesoReservaUpdate,
+    ComedorAsignadoResponse,
     ComedorCreate,
     ComedorUpdate,
     ComedorMisFechasOcupadasResponse,
@@ -27,6 +28,9 @@ from app.schemas.comedor import (
     ComedorResumenDiarioItem,
     ComedorRhSemanaRegistrosFuturosItem,
     ComedorRhProximosRegistrosPage,
+    ComedorRhAsignarComedorTurnosRequest,
+    ComedorRhAsignarComedorTurnosResponse,
+    ComedorRhEmpleadosSinComedorList,
     ComedorRhRegistroCreate,
     ComedorRhRegistroResponse,
     ComedorCodigoExternoItem,
@@ -41,6 +45,7 @@ from app.schemas.comedor import (
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
+    MenuSemanalDeleteResponse,
     MenuSemanalResponse,
 )
 from app.services.comedor_service import ComedorService
@@ -114,6 +119,42 @@ async def publicar_menu(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
+    )
+
+
+@router.delete("/menu", response_model=MenuSemanalDeleteResponse)
+async def eliminar_menu_semana(
+    background_tasks: BackgroundTasks,
+    comedor_id: int = Query(...),
+    semana: date = Query(...),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.eliminar_menu_semana(
+        comedor_id=comedor_id,
+        semana=semana,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.get("/mi-comedor-asignado", response_model=ComedorAsignadoResponse)
+async def mi_comedor_asignado(
+    target_user_id: int | None = Query(
+        default=None,
+        description="Beneficiario (solo supervisor al registrar para su equipo).",
+    ),
+    current_user: Empleado = Depends(
+        role_checker(["empleado", "supervisor", "gerente", "director", "rh"])
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Comedor asignado al empleado según `turnos_empleados` y catálogo `comedores`."""
+    service = ComedorService(db)
+    return await service.get_comedor_asignado(
+        current_user=current_user,
+        target_user_id=target_user_id,
     )
 
 
@@ -461,6 +502,33 @@ async def get_estadisticas(
 ):
     service = ComedorService(db)
     return await service.get_estadisticas(current_user=current_user, semana=semana)
+
+
+@router.get(
+    "/rh/empleados-sin-comedor-asignado",
+    response_model=ComedorRhEmpleadosSinComedorList,
+)
+async def rh_empleados_sin_comedor_asignado(
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Empleados activos sin comedor en `turnos_empleados` (alertas operativas)."""
+    service = ComedorService(db)
+    return await service.list_empleados_sin_comedor_asignado_rh(current_user)
+
+
+@router.post(
+    "/rh/asignar-comedor-turnos",
+    response_model=ComedorRhAsignarComedorTurnosResponse,
+)
+async def rh_asignar_comedor_turnos(
+    data: ComedorRhAsignarComedorTurnosRequest,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna comedor en turnos a empleados que aún no lo tienen."""
+    service = ComedorService(db)
+    return await service.asignar_comedor_turnos_rh(current_user, data)
 
 
 @router.get("/proyecciones")

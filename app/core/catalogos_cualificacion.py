@@ -1,4 +1,4 @@
-"""Catálogo de niveles de escolaridad para cualificaciones tipo 'estudios_finalizados'."""
+"""Catálogo de niveles de escolaridad para cualificaciones con compliance automático."""
 
 from typing import TypedDict
 
@@ -19,6 +19,8 @@ CATALOGO_ESCOLARIDAD: dict[str, NivelEscolaridad] = {
 }
 
 ESCOLARIDAD_KEYS = set(CATALOGO_ESCOLARIDAD.keys())
+
+TIPOS_ESCOLARIDAD = frozenset({"estudios_finalizados", "estudios_universitarios"})
 
 
 def es_clave_escolaridad_valida(key: str) -> bool:

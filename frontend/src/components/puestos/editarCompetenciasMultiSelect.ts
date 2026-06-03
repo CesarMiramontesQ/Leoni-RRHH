@@ -5,7 +5,8 @@ import {
 } from "../../api/puestos.ts";
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { NIVEL_REQUERIDO_OPTIONS } from "../../ui/nivelCompetencia.ts";
+import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
 export type EditarCompetenciasModalHandle = {
   open: () => void;
@@ -36,7 +37,24 @@ const SUBCATEGORIA_COLORS: Record<string, string> = {
 };
 
 type CatalogoItem = { id: number; nombre: string; subcategoria?: string };
-type AssignedItem = { requisito_id: number; competencia_id: number; nombre: string; subcategoria: string | null };
+type AssignedItem = {
+  requisito_id: number;
+  competencia_id: number;
+  nombre: string;
+  subcategoria: string | null;
+  nivel_requerido: number;
+};
+
+function compactNivelSelect(selected: number, attrs: string): string {
+  const opts = NIVEL_REQUERIDO_OPTIONS.map(
+    (o) =>
+      `<option value="${o.value}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
+  ).join("");
+  return `<div class="grid grid-cols-1 shrink-0">
+    <select ${attrs} class="col-start-1 row-start-1 min-w-[8.5rem] appearance-none rounded border border-slate-200 bg-white py-0.5 pl-1.5 pr-6 text-[10px] font-semibold text-slate-800 ${FIELD_FOCUS}">${opts}</select>
+    ${SELECT_CHEVRON.replace('class="', 'class="!size-3 !mr-0.5 ')}
+  </div>`;
+}
 
 export function mountEditarCompetenciasModal(
   host: HTMLElement,
@@ -48,13 +66,16 @@ export function mountEditarCompetenciasModal(
 
   let catalogo: CatalogoItem[] = [];
   let assigned: AssignedItem[] = [];
-  let pendingRemovals: Set<number> = new Set(); // requisito_ids to remove
-  let pendingAdds: Set<number> = new Set(); // competencia_ids to add
+  let pendingRemovals: Set<number> = new Set();
+  let pendingAdds: Map<number, number> = new Map();
+  let pendingNivelUpdates: Map<number, number> = new Map();
   let saving = false;
   let searchQuery = "";
   let searchSubcategoria = "";
   let showSearch = false;
   let showCreate = false;
+  let pickNivelCompId: number | null = null;
+  let saveError = "";
 
   function close(): void {
     overlay.classList.add("hidden");
@@ -67,7 +88,7 @@ export function mountEditarCompetenciasModal(
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
       const [catalogoItems, perfilComps] = await Promise.all([
-        getCompetencias({ page_size: 200 }),
+        getCompetencias({ page_size: 100 }),
         getPerfilCompetencias(options.perfilId),
       ]);
 
@@ -82,10 +103,14 @@ export function mountEditarCompetenciasModal(
           competencia_id: c.competencia_id,
           nombre: c.competencia_nombre,
           subcategoria: c.subcategoria,
+          nivel_requerido: c.nivel_requerido ?? 0,
         }));
 
       pendingRemovals = new Set();
-      pendingAdds = new Set();
+      pendingAdds = new Map();
+      pendingNivelUpdates = new Map();
+      pickNivelCompId = null;
+      saveError = "";
       showSearch = false;
       showCreate = false;
       searchQuery = "";
@@ -101,8 +126,19 @@ export function mountEditarCompetenciasModal(
   }
 
   function getVisiblePendingAdds(): CatalogoItem[] {
-    const assignedIds = new Set(assigned.map(a => a.competencia_id));
-    return catalogo.filter(c => pendingAdds.has(c.id) && !assignedIds.has(c.id));
+    const assignedIds = new Set(assigned.map((a) => a.competencia_id));
+    return catalogo.filter((c) => pendingAdds.has(c.id) && !assignedIds.has(c.id));
+  }
+
+  function effectiveNivel(a: AssignedItem): number {
+    if (pendingNivelUpdates.has(a.requisito_id)) {
+      return pendingNivelUpdates.get(a.requisito_id)!;
+    }
+    return a.nivel_requerido;
+  }
+
+  function effectiveNivelAdd(compId: number): number {
+    return pendingAdds.get(compId) ?? 0;
   }
 
   function render(): void {
@@ -122,7 +158,8 @@ export function mountEditarCompetenciasModal(
       if (g) g.adding.push(a);
     }
 
-    const hasChanges = pendingRemovals.size > 0 || pendingAdds.size > 0;
+    const hasChanges =
+      pendingRemovals.size > 0 || pendingAdds.size > 0 || pendingNivelUpdates.size > 0;
     const totalCount = visible.length + adding.length;
 
     const sections = SUBCATEGORIAS.map(sub => {
@@ -132,16 +169,24 @@ export function mountEditarCompetenciasModal(
       if (count === 0) return "";
 
       const chips = [
-        ...g.assigned.map(a => `
-          <span class="inline-flex items-center gap-1 rounded-md border ${colors} px-2 py-0.5 text-xs font-medium">
-            ${escapeHtml(a.nombre)}
-            <button type="button" data-remove-req="${a.requisito_id}" class="ml-0.5 text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
-          </span>`),
-        ...g.adding.map(a => `
-          <span class="inline-flex items-center gap-1 rounded-md border border-dashed ${colors} px-2 py-0.5 text-xs font-medium opacity-75">
-            ${escapeHtml(a.nombre)}
-            <button type="button" data-undo-add="${a.id}" class="ml-0.5 text-current opacity-50 hover:opacity-100" aria-label="Deshacer">×</button>
-          </span>`),
+        ...g.assigned.map((a) => {
+          const nivel = effectiveNivel(a);
+          return `
+          <span class="inline-flex flex-wrap items-center gap-1 rounded-md border ${colors} px-2 py-1 text-xs font-medium">
+            <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
+            ${compactNivelSelect(nivel >= 1 && nivel <= 4 ? nivel : 1, `data-nivel-assigned="${a.requisito_id}"`)}
+            <button type="button" data-remove-req="${a.requisito_id}" class="text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
+          </span>`;
+        }),
+        ...g.adding.map((a) => {
+          const nivel = effectiveNivelAdd(a.id);
+          return `
+          <span class="inline-flex flex-wrap items-center gap-1 rounded-md border border-dashed ${colors} px-2 py-1 text-xs font-medium opacity-90">
+            <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
+            ${compactNivelSelect(nivel >= 1 && nivel <= 4 ? nivel : 1, `data-nivel-pending-add="${a.id}"`)}
+            <button type="button" data-undo-add="${a.id}" class="text-current opacity-50 hover:opacity-100" aria-label="Deshacer">×</button>
+          </span>`;
+        }),
       ].join("");
 
       return `
@@ -168,6 +213,7 @@ export function mountEditarCompetenciasModal(
 
       ${searchPanel}
       ${createPanel}
+      ${saveError ? `<p class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2">${escapeHtml(saveError)}</p>` : ""}
 
       ${hasChanges ? `
         <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
@@ -186,8 +232,8 @@ export function mountEditarCompetenciasModal(
 
   function renderSearchPanel(): string {
     const assignedIds = new Set([
-      ...assigned.map(a => a.competencia_id),
-      ...pendingAdds,
+      ...assigned.map((a) => a.competencia_id),
+      ...pendingAdds.keys(),
     ]);
     const removedIds = new Set(
       [...pendingRemovals].map(rid => assigned.find(a => a.requisito_id === rid)?.competencia_id).filter(Boolean),
@@ -207,8 +253,32 @@ export function mountEditarCompetenciasModal(
       `<option value="${s.key}" ${searchSubcategoria === s.key ? "selected" : ""}>${escapeHtml(s.label)}</option>`
     ).join("");
 
+    const pickPanel =
+      pickNivelCompId !== null
+        ? (() => {
+            const comp = catalogo.find((c) => c.id === pickNivelCompId);
+            if (!comp) return "";
+            const nivelOpts = NIVEL_REQUERIDO_OPTIONS.map(
+              (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
+            ).join("");
+            return `
+        <div class="mb-3 rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
+          <p class="text-xs font-semibold text-slate-700 mb-2">Nivel mínimo para <span class="text-leoni-blue">${escapeHtml(comp.nombre)}</span></p>
+          <div class="flex flex-wrap items-end gap-2">
+            <div class="grid grid-cols-1 flex-1 min-w-[12rem]">
+              <select data-pick-nivel-select class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOpts}</select>
+              ${SELECT_CHEVRON}
+            </div>
+            <button type="button" data-confirm-pick-nivel class="${BTN_PRIMARY} !py-1.5 text-xs">Agregar</button>
+            <button type="button" data-cancel-pick-nivel class="${BTN_GHOST} !py-1.5 text-xs">Cancelar</button>
+          </div>
+        </div>`;
+          })()
+        : "";
+
     return `
       <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        ${pickPanel}
         <div class="flex items-center gap-2 mb-2">
           <input type="text" data-search-input placeholder="Buscar competencia..." value="${escapeHtml(searchQuery)}"
             class="flex-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-sm ${FIELD_FOCUS}" />
@@ -239,19 +309,34 @@ export function mountEditarCompetenciasModal(
       `<option value="${s.key}">${escapeHtml(s.label)}</option>`
     ).join("");
 
+    const nivelOpts = NIVEL_REQUERIDO_OPTIONS.map(
+      (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
+    ).join("");
+
     return `
       <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs font-medium text-slate-600 mb-2">Crear nueva competencia</p>
-        <div class="flex items-end gap-2">
-          <div class="flex-1">
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+          <div class="flex-1 min-w-[10rem]">
+            <label class="mb-1 block text-[10px] font-semibold text-slate-500">Nombre</label>
             <input type="text" data-create-nombre placeholder="Nombre de la competencia"
               class="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-sm ${FIELD_FOCUS}" />
           </div>
-          <select data-create-subcat class="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs ${FIELD_FOCUS}">
-            ${subcatOptions}
-          </select>
+          <div>
+            <label class="mb-1 block text-[10px] font-semibold text-slate-500">Tipo</label>
+            <select data-create-subcat class="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs ${FIELD_FOCUS}">
+              ${subcatOptions}
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-[10px] font-semibold text-slate-500">Nivel mínimo requerido</label>
+            <div class="grid grid-cols-1">
+              <select data-create-nivel required class="col-start-1 row-start-1 w-full min-w-[11rem] appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOpts}</select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
           <button type="button" data-do-create class="${BTN_PRIMARY} !px-3 !py-1.5 text-xs">Crear y agregar</button>
-          <button type="button" data-close-create class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+          <button type="button" data-close-create class="text-slate-400 hover:text-slate-600 text-lg leading-none self-center">&times;</button>
         </div>
       </div>`;
   }
@@ -270,6 +355,35 @@ export function mountEditarCompetenciasModal(
     const undoAddBtn = target.closest<HTMLElement>("[data-undo-add]");
     if (undoAddBtn && !saving) {
       pendingAdds.delete(Number(undoAddBtn.dataset.undoAdd));
+      render();
+      return;
+    }
+
+    const confirmPick = target.closest<HTMLElement>("[data-confirm-pick-nivel]");
+    if (confirmPick && pickNivelCompId !== null && !saving) {
+      const sel = body.querySelector("[data-pick-nivel-select]") as HTMLSelectElement | null;
+      const nivel = Number.parseInt(sel?.value ?? "", 10);
+      if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) {
+        saveError = "Selecciona un nivel mínimo entre 1 y 4.";
+        render();
+        return;
+      }
+      const alreadyAssigned = assigned.find((a) => a.competencia_id === pickNivelCompId);
+      if (alreadyAssigned && pendingRemovals.has(alreadyAssigned.requisito_id)) {
+        pendingRemovals.delete(alreadyAssigned.requisito_id);
+        pendingNivelUpdates.set(alreadyAssigned.requisito_id, nivel);
+      } else {
+        pendingAdds.set(pickNivelCompId, nivel);
+      }
+      pickNivelCompId = null;
+      saveError = "";
+      render();
+      return;
+    }
+
+    const cancelPick = target.closest<HTMLElement>("[data-cancel-pick-nivel]");
+    if (cancelPick) {
+      pickNivelCompId = null;
       render();
       return;
     }
@@ -306,13 +420,8 @@ export function mountEditarCompetenciasModal(
 
     const addComp = target.closest<HTMLElement>("[data-add-comp]");
     if (addComp && !saving) {
-      const compId = Number(addComp.dataset.addComp);
-      const alreadyAssigned = assigned.find(a => a.competencia_id === compId);
-      if (alreadyAssigned && pendingRemovals.has(alreadyAssigned.requisito_id)) {
-        pendingRemovals.delete(alreadyAssigned.requisito_id);
-      } else {
-        pendingAdds.add(compId);
-      }
+      pickNivelCompId = Number(addComp.dataset.addComp);
+      saveError = "";
       render();
       return;
     }
@@ -326,7 +435,10 @@ export function mountEditarCompetenciasModal(
     const discardBtn = target.closest<HTMLElement>("[data-discard]");
     if (discardBtn && !saving) {
       pendingRemovals = new Set();
-      pendingAdds = new Set();
+      pendingAdds = new Map();
+      pendingNivelUpdates = new Map();
+      pickNivelCompId = null;
+      saveError = "";
       render();
       return;
     }
@@ -355,6 +467,28 @@ export function mountEditarCompetenciasModal(
     if (target.matches("[data-search-subcat]")) {
       searchSubcategoria = (target as HTMLSelectElement).value;
       render();
+      return;
+    }
+    if (target.matches("[data-nivel-assigned]")) {
+      const reqId = Number.parseInt((target as HTMLElement).getAttribute("data-nivel-assigned") ?? "", 10);
+      const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
+      if (Number.isFinite(reqId) && nivel >= 1 && nivel <= 4) {
+        const orig = assigned.find((a) => a.requisito_id === reqId)?.nivel_requerido ?? 0;
+        if (nivel === orig) pendingNivelUpdates.delete(reqId);
+        else pendingNivelUpdates.set(reqId, nivel);
+        saveError = "";
+        render();
+      }
+      return;
+    }
+    if (target.matches("[data-nivel-pending-add]")) {
+      const compId = Number.parseInt((target as HTMLElement).getAttribute("data-nivel-pending-add") ?? "", 10);
+      const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
+      if (Number.isFinite(compId) && nivel >= 1 && nivel <= 4) {
+        pendingAdds.set(compId, nivel);
+        saveError = "";
+        render();
+      }
     }
   });
 
@@ -365,18 +499,32 @@ export function mountEditarCompetenciasModal(
 
     const nombre = nombreInput.value.trim();
     const subcategoria = subcatSelect.value;
-    if (!nombre) { nombreInput.focus(); return; }
+    const nivelSelect = body.querySelector("[data-create-nivel]") as HTMLSelectElement | null;
+    const nivel = Number.parseInt(nivelSelect?.value ?? "", 10);
+    if (!nombre) {
+      nombreInput.focus();
+      return;
+    }
+    if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) {
+      saveError = "Selecciona el nivel mínimo requerido (1–4).";
+      render();
+      return;
+    }
 
     saving = true;
+    saveError = "";
     render();
     try {
       const newComp = await createCompetencia({
         nombre,
-        descripcion: "",
+        descripcion: nombre,
         grupo: "tecnica",
         subcategoria,
       });
-      await createPerfilCompetencia(options.perfilId, { competencia_id: newComp.id });
+      await createPerfilCompetencia(options.perfilId, {
+        competencia_id: newComp.id,
+        nivel_requerido: nivel,
+      });
       // Reload fresh data
       await load();
       options.onSuccess();
@@ -388,33 +536,57 @@ export function mountEditarCompetenciasModal(
 
   async function saveAll(): Promise<void> {
     saving = true;
+    saveError = "";
     render();
     try {
-      // Group changes by subcategoria and sync each
       for (const sub of SUBCATEGORIAS) {
-        const currentInSub = assigned.filter(a => a.subcategoria === sub.key);
-        const hasRemovals = currentInSub.some(a => pendingRemovals.has(a.requisito_id));
-        const addsInSub = [...pendingAdds].filter(id => {
-          const c = catalogo.find(cat => cat.id === id);
+        const currentInSub = assigned.filter((a) => a.subcategoria === sub.key);
+        const hasRemovals = currentInSub.some((a) => pendingRemovals.has(a.requisito_id));
+        const addsInSub = [...pendingAdds.keys()].filter((id) => {
+          const c = catalogo.find((cat) => cat.id === id);
           return c?.subcategoria === sub.key;
         });
-        if (!hasRemovals && addsInSub.length === 0) continue;
+        const hasNivelEdits = currentInSub.some((a) => pendingNivelUpdates.has(a.requisito_id));
+        if (!hasRemovals && addsInSub.length === 0 && !hasNivelEdits) continue;
 
-        const keepIds = currentInSub
-          .filter(a => !pendingRemovals.has(a.requisito_id))
-          .map(a => a.competencia_id);
-        const finalIds = [...new Set([...keepIds, ...addsInSub])];
+        const competencias: { competencia_id: number; nivel_requerido: number }[] = [];
+
+        for (const a of currentInSub) {
+          if (pendingRemovals.has(a.requisito_id)) continue;
+          const nivel = effectiveNivel(a);
+          if (nivel < 1 || nivel > 4) {
+            saveError = `Define el nivel mínimo (1–4) para «${a.nombre}».`;
+            saving = false;
+            render();
+            return;
+          }
+          competencias.push({ competencia_id: a.competencia_id, nivel_requerido: nivel });
+        }
+
+        for (const compId of addsInSub) {
+          const nivel = pendingAdds.get(compId);
+          if (!nivel || nivel < 1 || nivel > 4) {
+            const c = catalogo.find((cat) => cat.id === compId);
+            saveError = `Define el nivel mínimo (1–4) para «${c?.nombre ?? "competencia"}».`;
+            saving = false;
+            render();
+            return;
+          }
+          if (!competencias.some((x) => x.competencia_id === compId)) {
+            competencias.push({ competencia_id: compId, nivel_requerido: nivel });
+          }
+        }
 
         await syncPerfilCompetencias(options.perfilId, {
           subcategoria: sub.key,
-          competencia_ids: finalIds,
+          competencias,
         });
       }
 
       options.onSuccess();
       close();
     } catch {
-      // keep state
+      saveError = "No se pudieron guardar los cambios. Intenta de nuevo.";
     } finally {
       saving = false;
       render();
@@ -464,7 +636,7 @@ function overlayHtml(): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Gestiona las competencias requeridas para este puesto</p>
+            <p class="text-xs text-slate-500 mt-0.5">Asigna competencias y define el nivel mínimo requerido (1–4) para este puesto</p>
           </div>
           <button
             type="button"

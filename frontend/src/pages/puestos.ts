@@ -21,124 +21,35 @@ import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   BTN_DANGER,
-  BTN_GHOST,
   FIELD_FOCUS,
   SELECT_CHEVRON,
-  FILTER_FIELD_WRAP,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_FOCUS_RING,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
+  RH_LISTADO_SURFACE,
 } from "../ui/uiTokens.ts";
 
-// ── Card view helpers ────────────────────────────────────────────────────
+// ── Iconos ──────────────────────────────────────────────────────────────
 
-function cumplimientoBadge(pct: number): string {
-  if (pct >= 90) {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold tabular-nums text-emerald-800"><span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>${pct}%</span>`;
-  }
-  if (pct >= 80) {
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold tabular-nums text-amber-800"><span class="size-1.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>${pct}%</span>`;
-  }
-  return `<span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-bold tabular-nums text-red-800"><span class="size-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true"></span>${pct}%</span>`;
-}
+const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>`;
+const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
+const ICON_GRID = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>`;
+const ICON_USERS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`;
+const ICON_USERS_SM = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`;
+const ICON_CHART = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>`;
+const ICON_ALERT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008z"/></svg>`;
+const ICON_BUILDING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-2.25-18v18m-7.5-15v15m-7.5-12v12"/></svg>`;
+const ICON_BOOK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path stroke-linecap="round" stroke-linejoin="round" d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>`;
+const ICON_DOC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`;
+const ICON_EDIT = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z"/><path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z"/></svg>`;
+const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 1 .7.8l-.5 6a.75.75 0 1 1-1.497-.124l.5-6a.75.75 0 0 1 .797-.676Zm3.64.8a.75.75 0 1 0-1.497-.124l-.5 6a.75.75 0 1 0 1.497.124l.5-6Z" clip-rule="evenodd"/></svg>`;
 
-function brechasBar(brechas: number): string {
-  const max = 15;
-  const pct = Math.min(100, Math.round((brechas / max) * 100));
-  const tone = brechas > 8 ? "bg-red-500" : brechas > 4 ? "bg-amber-400" : "bg-emerald-500";
-  return `<div class="h-1.5 w-full rounded-full bg-slate-100"><div class="${tone} h-1.5 rounded-full" style="width:${pct}%"></div></div>`;
-}
+const BRECHAS_REF_MAX = 15;
 
-function renderKpiStrip(tarjetas: PerfilTarjetaItem[]): string {
-  const totalPersonas = tarjetas.reduce((s, p) => s + p.personas, 0);
-  const totalBrechas = tarjetas.reduce((s, p) => s + p.brechas, 0);
-  const avgCumplimiento = tarjetas.length > 0
-    ? Math.round(tarjetas.reduce((s, p) => s + p.cumplimiento_pct, 0) / tarjetas.length)
-    : 0;
-  const areas = new Set(tarjetas.map(p => p.area_nombre).filter(Boolean));
-
-  const kpis = [
-    { label: "Perfiles activos", value: String(tarjetas.length), sub: `En ${areas.size} areas` },
-    { label: "Personas vinculadas", value: String(totalPersonas), sub: `${areas.size} areas operativas` },
-    { label: "Cumplimiento promedio", value: `${avgCumplimiento}%`, sub: "Evaluaciones completadas" },
-    { label: "Brechas totales", value: String(totalBrechas), sub: "Evaluaciones pendientes" },
-  ];
-
-  return `
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    ${kpis.map(k => `
-      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <p class="text-xs font-medium text-text-muted">${k.label}</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${k.value}</p>
-        <p class="mt-0.5 text-[11px] text-slate-500">${k.sub}</p>
-      </div>
-    `).join("")}
-  </div>`;
-}
-
-function renderCardGrid(tarjetas: PerfilTarjetaItem[]): string {
-  if (tarjetas.length === 0) {
-    return `
-    <div class="rounded-xl border border-dashed border-border/90 bg-slate-50/40 py-12 text-center">
-      <p class="text-sm font-semibold text-text-primary">Sin perfiles de puesto</p>
-      <p class="mt-1.5 text-xs text-text-muted">Crea un nuevo perfil para comenzar a gestionar competencias.</p>
-    </div>`;
-  }
-
-  const cards = tarjetas.map(p => `
-    <div class="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm transition hover:shadow-md">
-      <div class="flex items-center justify-between">
-        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">${escapeHtml(p.codigo)}</span>
-        ${cumplimientoBadge(p.cumplimiento_pct)}
-      </div>
-      <div>
-        <p class="text-sm font-semibold text-text-primary leading-tight">${escapeHtml(p.nombre)}</p>
-        <p class="mt-0.5 text-xs text-text-muted">${escapeHtml(p.area_nombre ?? "")}</p>
-      </div>
-      <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px]">
-        <div class="flex items-center gap-1.5">
-          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <span><b class="font-semibold tabular-nums">${p.personas}</b> <span class="text-slate-500">personas</span></span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          <span><b class="font-semibold tabular-nums">${p.cursos}</b> <span class="text-slate-500">cursos</span></span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span><b class="font-semibold tabular-nums">${p.evidencias}</b> <span class="text-slate-500">evidencias</span></span>
-        </div>
-      </div>
-      <div>
-        <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] text-slate-500">Brechas activas</span>
-          <span class="font-mono text-xs font-semibold ${p.brechas > 5 ? "text-red-600" : "text-slate-700"}">${p.brechas}</span>
-        </div>
-        ${brechasBar(p.brechas)}
-      </div>
-      <div class="mt-auto flex items-stretch gap-2 border-t border-slate-100 pt-3">
-        <a href="#/puestos/${p.id}" class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-leoni-blue/20 bg-leoni-blue/5 px-3 py-1.5 text-center text-xs font-semibold text-leoni-blue hover:bg-leoni-blue/10 transition">Ver puesto</a>
-        <a href="#/puestos/${p.id}/empleados" class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Ver empleados</a>
-      </div>
-    </div>
-  `).join("");
-
-  return `
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-    ${cards}
-  </div>`;
-}
-
-function renderViewToggle(active: "tabla" | "tarjetas"): string {
-  const tabCls = (isActive: boolean) =>
-    isActive
-      ? "rounded-lg bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
-      : "rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition";
-  return `
-  <div class="inline-flex items-center gap-0.5 rounded-lg border border-border bg-slate-50 p-0.5" role="group" aria-label="Vista">
-    <button type="button" data-action="view-tarjetas" aria-pressed="${active === "tarjetas"}" class="${tabCls(active === "tarjetas")}">Tarjetas</button>
-    <button type="button" data-action="view-tabla" aria-pressed="${active === "tabla"}" class="${tabCls(active === "tabla")}">Tabla</button>
-  </div>`;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────
+// ── Helpers de negocio (sin cambios) ────────────────────────────────────
 
 function nivelLabel(nivel: string): string {
   const map: Record<string, string> = {
@@ -150,12 +61,8 @@ function nivelLabel(nivel: string): string {
   return map[nivel] ?? nivel;
 }
 
-function filterItems(
-  items: PerfilPuestoListItem[],
-  filters: PuestosFilterState,
-): PerfilPuestoListItem[] {
+function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState): PerfilPuestoListItem[] {
   let result = items;
-
   if (filters.q.trim()) {
     const q = filters.q.trim().toLowerCase();
     result = result.filter(
@@ -165,30 +72,17 @@ function filterItems(
         p.area.toLowerCase().includes(q),
     );
   }
-
-  if (filters.area) {
-    result = result.filter((p) => p.area === filters.area);
-  }
-
-  if (filters.nivel) {
-    result = result.filter((p) => p.nivel === filters.nivel);
-  }
-
+  if (filters.area) result = result.filter((p) => p.area === filters.area);
+  if (filters.nivel) result = result.filter((p) => p.nivel === filters.nivel);
   return result;
 }
 
 function uniqueNiveles(items: PerfilPuestoListItem[]): string[] {
-  return [...new Set(items.map((p) => p.nivel).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, "es"),
-  );
+  return [...new Set(items.map((p) => p.nivel).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
 }
 
-function filterTarjetas(
-  items: PerfilTarjetaItem[],
-  filters: PuestosFilterState,
-): PerfilTarjetaItem[] {
+function filterTarjetas(items: PerfilTarjetaItem[], filters: PuestosFilterState): PerfilTarjetaItem[] {
   let result = items;
-
   if (filters.q.trim()) {
     const q = filters.q.trim().toLowerCase();
     result = result.filter(
@@ -198,15 +92,8 @@ function filterTarjetas(
         (p.area_nombre ?? "").toLowerCase().includes(q),
     );
   }
-
-  if (filters.area) {
-    result = result.filter((p) => p.area_nombre === filters.area);
-  }
-
-  if (filters.nivel) {
-    result = result.filter((p) => p.nivel === filters.nivel);
-  }
-
+  if (filters.area) result = result.filter((p) => p.area_nombre === filters.area);
+  if (filters.nivel) result = result.filter((p) => p.nivel === filters.nivel);
   return result;
 }
 
@@ -216,9 +103,213 @@ function uniqueNivelesTarjetas(items: PerfilTarjetaItem[]): string[] {
   );
 }
 
-// ── Render functions ─────────────────────────────────────────────────────
+function hasActiveFilters(filters: PuestosFilterState): boolean {
+  return Boolean(filters.q.trim() || filters.area || filters.nivel);
+}
 
-function renderFilterBar(filters: PuestosFilterState, areas: AreaOption[], niveles: string[]): string {
+// ── Métricas derivadas (mismos datos, sin nuevas consultas) ─────────────
+
+type CardBenchmarks = {
+  maxBrechas: number;
+  minCumplimiento: number;
+  maxPersonas: number;
+};
+
+function computeCardBenchmarks(tarjetas: PerfilTarjetaItem[]): CardBenchmarks {
+  if (tarjetas.length === 0) return { maxBrechas: 0, minCumplimiento: 100, maxPersonas: 0 };
+  return {
+    maxBrechas: Math.max(...tarjetas.map((t) => t.brechas)),
+    minCumplimiento: Math.min(...tarjetas.map((t) => t.cumplimiento_pct)),
+    maxPersonas: Math.max(...tarjetas.map((t) => t.personas)),
+  };
+}
+
+function cardPriorityClasses(p: PerfilTarjetaItem, bench: CardBenchmarks): string {
+  const classes: string[] = [];
+  if (bench.maxBrechas > 0 && p.brechas === bench.maxBrechas && p.brechas > 4) {
+    classes.push("puestos-perfil-card--critico-brechas");
+  }
+  if (p.cumplimiento_pct === bench.minCumplimiento && p.cumplimiento_pct < 80) {
+    classes.push("puestos-perfil-card--bajo-cumplimiento");
+  }
+  if (bench.maxPersonas > 0 && p.personas === bench.maxPersonas && p.personas >= 5) {
+    classes.push("puestos-perfil-card--alto-headcount");
+  }
+  return classes.join(" ");
+}
+
+// ── Componentes visuales ───────────────────────────────────────────────
+
+function cumplimientoBadge(pct: number, large = false): string {
+  const size = large ? "px-2.5 py-1 text-sm" : "px-2 py-0.5 text-xs";
+  if (pct >= 90) {
+    return `<span class="puestos-cumpl-badge puestos-cumpl-badge--alto inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 ${size} font-bold tabular-nums text-emerald-800"><span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>${pct}%</span>`;
+  }
+  if (pct >= 80) {
+    return `<span class="puestos-cumpl-badge puestos-cumpl-badge--medio inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 ${size} font-bold tabular-nums text-amber-800"><span class="size-1.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>${pct}%</span>`;
+  }
+  return `<span class="puestos-cumpl-badge puestos-cumpl-badge--bajo inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 ${size} font-bold tabular-nums text-red-800"><span class="size-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true"></span>${pct}%</span>`;
+}
+
+function brechasSeverity(brechas: number): { tone: string; label: string; bar: string } {
+  if (brechas > 8) {
+    return {
+      tone: "puestos-brechas--critico",
+      label: "Crítico",
+      bar: "bg-red-500",
+    };
+  }
+  if (brechas > 4) {
+    return {
+      tone: "puestos-brechas--alerta",
+      label: "Atención",
+      bar: "bg-amber-400",
+    };
+  }
+  return {
+    tone: "puestos-brechas--ok",
+    label: "Controlado",
+    bar: "bg-emerald-500",
+  };
+}
+
+function renderBrechasBlock(brechas: number): string {
+  const sev = brechasSeverity(brechas);
+  const pct = Math.min(100, Math.round((brechas / BRECHAS_REF_MAX) * 100));
+  return `
+  <div class="puestos-brechas-block rounded-xl border border-slate-200/90 bg-slate-50/60 p-3 ${sev.tone}">
+    <div class="flex items-start justify-between gap-2">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Brechas activas</p>
+        <p class="mt-0.5 text-2xl font-bold tabular-nums leading-none text-text-primary">${brechas}</p>
+      </div>
+      <span class="rounded-full border border-current/20 bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">${sev.label}</span>
+    </div>
+    <div class="mt-3">
+      <div class="mb-1 flex justify-between text-[10px] text-text-muted">
+        <span>Intensidad vs. referencia (${BRECHAS_REF_MAX})</span>
+        <span class="tabular-nums font-medium">${pct}%</span>
+      </div>
+      <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80" role="presentation">
+        <div class="${sev.bar} h-2 rounded-full transition-[width] duration-300" style="width:${pct}%"></div>
+      </div>
+      <p class="mt-1.5 text-[10px] leading-snug text-text-muted">Indicador orientativo de evaluaciones pendientes por cerrar.</p>
+    </div>
+  </div>`;
+}
+
+function kpiSkeletonCard(): string {
+  return `<article class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
+    <div class="flex items-start justify-between gap-3">
+      <div class="h-3.5 w-28 rounded-md bg-slate-200/90"></div>
+      <div class="h-11 w-11 rounded-xl bg-slate-200/80"></div>
+    </div>
+    <div class="mt-4 h-10 w-16 rounded-md bg-slate-100/90"></div>
+  </article>`;
+}
+
+function renderKpiDashboard(tarjetas: PerfilTarjetaItem[]): string {
+  const totalPersonas = tarjetas.reduce((s, p) => s + p.personas, 0);
+  const totalBrechas = tarjetas.reduce((s, p) => s + p.brechas, 0);
+  const avgCumplimiento =
+    tarjetas.length > 0 ? Math.round(tarjetas.reduce((s, p) => s + p.cumplimiento_pct, 0) / tarjetas.length) : 0;
+  const areas = new Set(tarjetas.map((p) => p.area_nombre).filter(Boolean));
+  const brechasCritico = totalBrechas > 20;
+
+  const mainKpis = [
+    {
+      label: "Perfiles activos",
+      value: String(tarjetas.length),
+      sub: `En ${areas.size} área${areas.size !== 1 ? "s" : ""}`,
+      icon: ICON_GRID,
+      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
+    },
+    {
+      label: "Personas vinculadas",
+      value: String(totalPersonas),
+      sub: "Colaboradores asignados",
+      icon: ICON_USERS,
+      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
+    },
+    {
+      label: "Cumplimiento promedio",
+      value: `${avgCumplimiento}%`,
+      sub: "Evaluaciones completadas",
+      icon: ICON_CHART,
+      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
+      valueClass: avgCumplimiento < 80 ? "text-red-700" : avgCumplimiento < 90 ? "text-amber-800" : "",
+    },
+    {
+      label: "Brechas totales",
+      value: String(totalBrechas),
+      sub: "Evaluaciones pendientes",
+      icon: ICON_ALERT,
+      iconWrap: brechasCritico ? "rh-dash-kpi-icon rh-dash-kpi-icon--red" : "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
+      valueClass: brechasCritico ? "text-red-700" : "",
+      cardClass: brechasCritico ? "border-red-200/80 bg-gradient-to-br from-red-50/40 via-white to-white" : "",
+    },
+  ];
+
+  return `
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Indicadores de perfiles">
+    ${mainKpis
+      .map(
+        (k) => `
+      <article class="rh-dash-kpi-card rounded-[18px] p-5 ${k.cardClass ?? ""}">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
+          <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
+        </div>
+        <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary ${k.valueClass ?? ""}">${k.value}</p>
+        <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
+      </article>`,
+      )
+      .join("")}
+  </div>`;
+}
+
+function renderViewToggle(active: "tabla" | "tarjetas"): string {
+  const btn = (mode: "tarjetas" | "tabla", label: string, action: string) => {
+    const isActive = active === mode;
+    return `<button
+      type="button"
+      data-action="${action}"
+      aria-pressed="${isActive}"
+      class="puestos-view-toggle__btn ${isActive ? "puestos-view-toggle__btn--active" : ""}"
+    >${label}</button>`;
+  };
+  return `
+  <div class="puestos-view-toggle" role="group" aria-label="Modo de vista">
+    ${btn("tarjetas", "Tarjetas", "view-tarjetas")}
+    ${btn("tabla", "Tabla", "view-tabla")}
+  </div>`;
+}
+
+function renderFilterActiveChips(filters: PuestosFilterState): string {
+  const chips: string[] = [];
+  if (filters.q.trim()) chips.push(`Búsqueda: “${escapeHtml(filters.q.trim())}”`);
+  if (filters.area) chips.push(`Área: ${escapeHtml(filters.area)}`);
+  if (filters.nivel) chips.push(`Nivel: ${escapeHtml(nivelLabel(filters.nivel))}`);
+  if (chips.length === 0) return "";
+  return `<div class="puestos-filter-chips flex flex-wrap items-center gap-2 border-t border-slate-100/90 pt-3">
+    <span class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Filtros activos</span>
+    ${chips
+      .map(
+        (c) =>
+          `<span class="inline-flex items-center rounded-full border border-blue-200/80 bg-blue-50/80 px-2.5 py-1 text-xs font-medium text-blue-900">${c}</span>`,
+      )
+      .join("")}
+    <button type="button" data-action="puestos-clear-filters" class="${RH_LISTADO_BTN_GHOST} ml-auto text-xs">Limpiar filtros</button>
+  </div>`;
+}
+
+function renderFilterBar(
+  filters: PuestosFilterState,
+  areas: AreaOption[],
+  niveles: string[],
+  visibleCount: number,
+  totalCount: number,
+): string {
   const areaOpts = areas
     .map(
       (a) =>
@@ -231,104 +322,164 @@ function renderFilterBar(filters: PuestosFilterState, areas: AreaOption[], nivel
         `<option value="${escapeHtml(n)}" ${filters.nivel === n ? "selected" : ""}>${escapeHtml(nivelLabel(n))}</option>`,
     )
     .join("");
+  const hasActive = hasActiveFilters(filters);
+  const resultsLine = hasActive
+    ? `Mostrando <strong class="font-semibold text-text-primary tabular-nums">${visibleCount}</strong> de <strong class="tabular-nums">${totalCount}</strong> perfiles`
+    : `${totalCount} perfil${totalCount !== 1 ? "es" : ""} en catálogo`;
 
   return `
-  <section class="rounded-xl border border-border bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4" aria-label="Filtros de perfiles">
-    <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap">
-
-      <!-- Busqueda -->
-      <div class="${FILTER_FIELD_WRAP}">
-        <label for="puestos-search" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Buscar</label>
-        <input
-          id="puestos-search"
-          data-action="search"
-          type="text"
-          autocomplete="off"
-          placeholder="Codigo, nombre o area..."
-          value="${escapeHtml(filters.q)}"
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}"
-        />
+  <section class="${RH_LISTADO_SURFACE} puestos-filters p-4 sm:p-5" aria-label="Filtros de perfiles">
+    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-text-primary">Buscar y filtrar</h2>
+        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o nivel organizacional.</p>
       </div>
-
-      <!-- Area -->
-      <div class="${FILTER_FIELD_WRAP}">
-        <label for="puestos-filter-area" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Area</label>
-        <div class="relative grid grid-cols-1">
-          <select
-            id="puestos-filter-area"
-            data-action="filter-area"
-            class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-border bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">
-            <option value="" ${filters.area === "" ? "selected" : ""}>Todas las areas</option>
+      <p class="text-xs text-text-muted" aria-live="polite">${resultsLine}</p>
+    </div>
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(10rem,1fr)_minmax(10rem,1fr)] lg:items-end">
+      <div class="min-w-0">
+        <label for="puestos-search" class="${RH_LISTADO_LABEL}">Buscar</label>
+        <div class="relative">
+          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">${ICON_SEARCH}</span>
+          <input
+            id="puestos-search"
+            data-action="search"
+            type="search"
+            autocomplete="off"
+            placeholder="Código, nombre o área…"
+            value="${escapeHtml(filters.q)}"
+            class="block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-text-primary shadow-sm placeholder:text-text-muted ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
+          />
+        </div>
+      </div>
+      <div class="min-w-0">
+        <label for="puestos-filter-area" class="${RH_LISTADO_LABEL}">Área</label>
+        <div class="grid grid-cols-1">
+          <select id="puestos-filter-area" data-action="filter-area" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+            <option value="" ${filters.area === "" ? "selected" : ""}>Todas las áreas</option>
             ${areaOpts}
           </select>
           ${SELECT_CHEVRON}
         </div>
       </div>
-
-      <!-- Nivel -->
-      <div class="${FILTER_FIELD_WRAP}">
-        <label for="puestos-filter-nivel" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Nivel</label>
-        <div class="relative grid grid-cols-1">
-          <select
-            id="puestos-filter-nivel"
-            data-action="filter-nivel"
-            class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-border bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">
+      <div class="min-w-0">
+        <label for="puestos-filter-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
+        <div class="grid grid-cols-1">
+          <select id="puestos-filter-nivel" data-action="filter-nivel" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
             <option value="" ${filters.nivel === "" ? "selected" : ""}>Todos los niveles</option>
             ${nivelOpts}
           </select>
           ${SELECT_CHEVRON}
         </div>
       </div>
-
     </div>
+    ${hasActive ? `<span class="mt-3 inline-flex size-2 rounded-full bg-leoni-blue" aria-hidden="true" title="Hay filtros activos"></span>` : ""}
+    ${renderFilterActiveChips(filters)}
   </section>`;
 }
 
-function renderTable(items: PerfilPuestoListItem[]): string {
-  if (items.length === 0) {
-    return `
-    <div class="rounded-xl border border-dashed border-border/90 bg-slate-50/40 py-8 text-center">
-      <p class="text-sm font-semibold text-text-primary">Sin perfiles encontrados</p>
-      <p class="mt-1.5 text-xs text-text-muted">Ajusta los filtros o crea un nuevo perfil de puesto.</p>
-    </div>`;
-  }
+function renderEmptyCatalogo(showCreate: boolean): string {
+  return `
+  <div class="puestos-empty-state flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50/90 via-white to-blue-50/20 px-6 py-14 text-center">
+    <span class="flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">${ICON_GRID}</span>
+    <p class="mt-4 text-sm font-semibold text-text-primary">Sin perfiles de puesto</p>
+    <p class="mt-2 max-w-md text-sm leading-relaxed text-text-muted">
+      Crea el primer perfil para estructurar competencias, cursos y evidencias por posición organizacional.
+    </p>
+    ${
+      showCreate
+        ? `<button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} mt-6">${ICON_PLUS} Nuevo perfil</button>`
+        : ""
+    }
+  </div>`;
+}
+
+function renderNoResults(): string {
+  return `
+  <div class="puestos-empty-state flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-slate-200/90 bg-slate-50/50 px-6 py-12 text-center">
+    <span class="flex size-12 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200/80">${ICON_SEARCH}</span>
+    <p class="mt-4 text-sm font-semibold text-text-primary">Sin coincidencias</p>
+    <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-text-muted">No hay perfiles que coincidan con los filtros actuales. Prueba otro criterio o limpia los filtros.</p>
+    <button type="button" data-action="puestos-clear-filters" class="${RH_LISTADO_BTN_GHOST} mt-5">Limpiar filtros</button>
+  </div>`;
+}
+
+function renderCardGrid(tarjetas: PerfilTarjetaItem[], totalSource: number): string {
+  if (totalSource === 0) return renderEmptyCatalogo(true);
+  if (tarjetas.length === 0) return renderNoResults();
+
+  const bench = computeCardBenchmarks(tarjetas);
+
+  const cards = tarjetas
+    .map((p) => {
+      const priority = cardPriorityClasses(p, bench);
+      const cumplLabel = p.cumplimiento_pct >= 90 ? "Alto" : p.cumplimiento_pct >= 80 ? "Aceptable" : "Bajo";
+      return `
+    <article class="puestos-perfil-card flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition hover:shadow-[0_12px_32px_rgba(15,23,42,0.08)] ${priority}">
+      <header class="flex items-start justify-between gap-3 border-b border-slate-100/90 pb-3">
+        <div class="min-w-0 flex-1">
+          <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">${escapeHtml(p.codigo)}</span>
+          <h3 class="mt-2 text-base font-semibold leading-snug text-text-primary">${escapeHtml(p.nombre)}</h3>
+          <p class="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
+            <span class="text-slate-400">${ICON_BUILDING}</span>
+            <span class="truncate">${escapeHtml(p.area_nombre ?? "Sin área")}</span>
+          </p>
+        </div>
+        <div class="flex shrink-0 flex-col items-end gap-1">
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Cumplimiento</span>
+          ${cumplimientoBadge(p.cumplimiento_pct, true)}
+          <span class="text-[10px] text-text-muted">${cumplLabel}</span>
+        </div>
+      </header>
+
+      <div class="grid grid-cols-3 gap-2">
+        <div class="puestos-metric-pill rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-2 text-center">
+          <span class="mx-auto flex justify-center text-slate-400">${ICON_USERS_SM}</span>
+          <p class="mt-1 text-lg font-bold tabular-nums text-text-primary">${p.personas}</p>
+          <p class="text-[10px] font-medium text-text-muted">Personas</p>
+        </div>
+        <div class="puestos-metric-pill rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-2 text-center">
+          <span class="mx-auto flex justify-center text-slate-400">${ICON_BOOK}</span>
+          <p class="mt-1 text-lg font-bold tabular-nums text-text-primary">${p.cursos}</p>
+          <p class="text-[10px] font-medium text-text-muted">Cursos</p>
+        </div>
+        <div class="puestos-metric-pill rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-2 text-center">
+          <span class="mx-auto flex justify-center text-slate-400">${ICON_DOC}</span>
+          <p class="mt-1 text-lg font-bold tabular-nums text-text-primary">${p.evidencias}</p>
+          <p class="text-[10px] font-medium text-text-muted">Evidencias</p>
+        </div>
+      </div>
+
+      ${renderBrechasBlock(p.brechas)}
+
+      <footer class="mt-auto flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row">
+        <a href="#/puestos/${p.id}" class="puestos-card-btn puestos-card-btn--primary flex-1">Ver puesto</a>
+        <a href="#/puestos/${p.id}/empleados" class="puestos-card-btn puestos-card-btn--secondary flex-1">Ver empleados</a>
+      </footer>
+    </article>`;
+    })
+    .join("");
+
+  return `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">${cards}</div>`;
+}
+
+function renderTable(items: PerfilPuestoListItem[], totalSource: number): string {
+  if (totalSource === 0) return renderEmptyCatalogo(true);
+  if (items.length === 0) return renderNoResults();
 
   const rows = items
     .map(
       (p) => `
-    <tr class="border-b border-slate-100/80 transition-colors hover:bg-slate-50/90">
-      <td class="whitespace-nowrap px-4 py-3 text-sm font-medium tabular-nums text-text-primary">${escapeHtml(p.codigo)}</td>
-      <td class="px-4 py-3 text-sm text-text-primary">${escapeHtml(p.nombre_puesto)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(p.area)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(nivelLabel(p.nivel))}</td>
-      <td class="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-500">${escapeHtml(p.version)}</td>
-      <td class="px-4 py-3 text-right align-middle">
+    <tr class="puestos-table-row">
+      <td class="whitespace-nowrap px-4 py-3.5 text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(p.codigo)}</td>
+      <td class="px-4 py-3.5 text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.area)}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(nivelLabel(p.nivel))}</td>
+      <td class="whitespace-nowrap px-4 py-3.5 text-sm tabular-nums text-text-muted">${escapeHtml(p.version)}</td>
+      <td class="px-3 py-3 align-middle">
         <div class="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            data-action="edit"
-            data-id="${p.id}"
-            title="Editar perfil"
-            class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-leoni-blue/10 hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue"
-            aria-label="Editar ${escapeHtml(p.nombre_puesto)}"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true">
-              <path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
-              <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="delete"
-            data-id="${p.id}"
-            title="Eliminar perfil"
-            class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-            aria-label="Eliminar ${escapeHtml(p.nombre_puesto)}"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true">
-              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 1 .7.8l-.5 6a.75.75 0 1 1-1.497-.124l.5-6a.75.75 0 0 1 .797-.676Zm3.64.8a.75.75 0 1 0-1.497-.124l-.5 6a.75.75 0 1 0 1.497.124l.5-6Z" clip-rule="evenodd" />
-            </svg>
-          </button>
+          <button type="button" data-action="edit" data-id="${p.id}" class="puestos-row-action" title="Editar perfil" aria-label="Editar ${escapeHtml(p.nombre_puesto)}">${ICON_EDIT}</button>
+          <button type="button" data-action="delete" data-id="${p.id}" class="puestos-row-action puestos-row-action--danger" title="Eliminar perfil" aria-label="Eliminar ${escapeHtml(p.nombre_puesto)}">${ICON_TRASH}</button>
         </div>
       </td>
     </tr>`,
@@ -336,17 +487,17 @@ function renderTable(items: PerfilPuestoListItem[]): string {
     .join("");
 
   return `
-  <section class="overflow-hidden rounded-xl border border-border bg-white shadow-sm ring-1 ring-slate-900/5" aria-label="Tabla de perfiles de puesto">
-    <div class="overflow-x-auto">
-      <table class="min-w-[700px] w-full text-left">
-        <thead class="border-b border-leoni-blue-light shadow-sm">
-          <tr class="text-white">
-            <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Codigo</th>
-            <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Nombre</th>
-            <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Area</th>
-            <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Nivel</th>
-            <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-left text-sm font-semibold">Version</th>
-            <th scope="col" class="sticky top-0 z-20 bg-leoni-blue px-4 py-3 text-right text-sm font-semibold">Acciones</th>
+  <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Tabla de perfiles de puesto">
+    <div class="puestos-table-scroll overflow-x-auto overflow-y-auto">
+      <table class="puestos-table min-w-[700px] w-full border-collapse text-left">
+        <thead>
+          <tr>
+            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Código</th>
+            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre</th>
+            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Área</th>
+            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nivel</th>
+            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Versión</th>
+            <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -361,68 +512,45 @@ function renderModal(
   saving: boolean,
   areas: AreaOption[] = [],
 ): string {
-  const title = mode === "create" ? "Nuevo Perfil de Puesto" : "Editar Perfil de Puesto";
-  const submitLabel = saving ? "Guardando..." : mode === "create" ? "Crear Perfil" : "Guardar Cambios";
+  const title = mode === "create" ? "Nuevo perfil de puesto" : "Editar perfil de puesto";
+  const subtitle =
+    mode === "create"
+      ? "Define la posición organizacional base para competencias y evaluaciones."
+      : "Los cambios se reflejan en el catálogo y en las vistas de detalle.";
+  const submitLabel = saving ? "Guardando…" : mode === "create" ? "Crear perfil" : "Guardar cambios";
 
   return `
-  <div data-action="modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-    <div class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="puestos-modal-title">
-      <h2 id="puestos-modal-title" class="text-lg font-semibold text-text-primary">${title}</h2>
-
-      <form data-action="modal-form" class="mt-4 flex flex-col gap-4">
-        <!-- Codigo -->
+  <div data-action="modal-backdrop" class="puestos-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+    <div class="puestos-modal-panel w-full max-w-lg rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="puestos-modal-title">
+      <div class="border-b border-slate-100 px-6 py-5">
+        <h2 id="puestos-modal-title" class="text-lg font-semibold text-text-primary">${title}</h2>
+        <p class="mt-1 text-sm text-text-muted">${subtitle}</p>
+      </div>
+      <form data-action="modal-form" class="flex flex-col gap-4 px-6 py-5">
         <div>
-          <label for="puestos-modal-codigo" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Codigo</label>
-          <input
-            id="puestos-modal-codigo"
-            name="codigo"
-            type="text"
-            placeholder="Se genera automaticamente"
-            value="${escapeHtml(values.codigo)}"
-            readonly
-            class="block w-full rounded-lg border border-border bg-gray-50 px-3 py-2 text-sm text-text-muted placeholder:text-text-muted ${FIELD_FOCUS}"
-          />
+          <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código</label>
+          <input id="puestos-modal-codigo" name="codigo" type="text" placeholder="Se genera automáticamente" value="${escapeHtml(values.codigo)}" readonly
+            class="block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-text-muted ${FIELD_FOCUS}" />
         </div>
-
-        <!-- Nombre del puesto -->
         <div>
-          <label for="puestos-modal-nombre" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre del Puesto</label>
-          <input
-            id="puestos-modal-nombre"
-            name="nombre_puesto"
-            type="text"
-            required
-            placeholder="Operador de Produccion N1"
-            value="${escapeHtml(values.nombre_puesto)}"
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}"
-          />
+          <label for="puestos-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
+          <input id="puestos-modal-nombre" name="nombre_puesto" type="text" required placeholder="Operador de Producción N1" value="${escapeHtml(values.nombre_puesto)}"
+            class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
         </div>
-
-        <!-- Area -->
         <div>
-          <label for="puestos-modal-area" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Area</label>
-          <div class="relative grid grid-cols-1">
-            <select
-              id="puestos-modal-area"
-              name="area"
-              required
-              class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-border bg-white py-2 pl-3 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-              <option value="">Seleccionar area...</option>
+          <label for="puestos-modal-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
+          <div class="grid grid-cols-1">
+            <select id="puestos-modal-area" name="area" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <option value="">Seleccionar área…</option>
               ${areas.map((a) => `<option value="${a.id}" ${values.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
           </div>
         </div>
-
-        <!-- Nivel -->
         <div>
-          <label for="puestos-modal-nivel" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Nivel</label>
-          <div class="relative grid grid-cols-1">
-            <select
-              id="puestos-modal-nivel"
-              name="nivel"
-              required
-              class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-border bg-white py-2 pl-3 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
+          <label for="puestos-modal-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
+          <div class="grid grid-cols-1">
+            <select id="puestos-modal-nivel" name="nivel" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
               <option value="operativo" ${values.nivel === "operativo" ? "selected" : ""}>Operativo</option>
               <option value="mando_medio" ${values.nivel === "mando_medio" ? "selected" : ""}>Mando Medio</option>
               <option value="gerencial" ${values.nivel === "gerencial" ? "selected" : ""}>Gerencial</option>
@@ -431,11 +559,9 @@ function renderModal(
             ${SELECT_CHEVRON}
           </div>
         </div>
-
-        <!-- Botones -->
-        <div class="mt-2 flex items-center justify-end gap-2">
-          <button type="button" data-action="modal-cancel" class="${BTN_SECONDARY}">Cancelar</button>
-          <button type="submit" class="${BTN_PRIMARY}" ${saving ? "disabled" : ""}>${submitLabel}</button>
+        <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+          <button type="button" data-action="modal-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+          <button type="submit" class="${BTN_PRIMARY} w-full sm:w-auto" ${saving ? "disabled" : ""}>${submitLabel}</button>
         </div>
       </form>
     </div>
@@ -444,16 +570,20 @@ function renderModal(
 
 function renderDeleteConfirm(nombre: string, saving: boolean): string {
   return `
-  <div data-action="modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-    <div class="w-full max-w-sm rounded-xl border border-border bg-white p-6 shadow-xl" role="alertdialog" aria-modal="true" aria-labelledby="puestos-delete-title">
-      <h2 id="puestos-delete-title" class="text-lg font-semibold text-text-primary">Eliminar Perfil</h2>
-      <p class="mt-2 text-sm text-text-secondary">
-        Esta accion eliminara permanentemente el perfil <strong class="text-text-primary">${escapeHtml(nombre)}</strong>. No se puede deshacer.
-      </p>
-      <div class="mt-5 flex items-center justify-end gap-2">
-        <button type="button" data-action="modal-cancel" class="${BTN_SECONDARY}">Cancelar</button>
-        <button type="button" data-action="confirm-delete" class="${BTN_DANGER}" ${saving ? "disabled" : ""}>
-          ${saving ? "Eliminando..." : "Eliminar"}
+  <div data-action="modal-backdrop" class="puestos-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+    <div class="puestos-modal-panel w-full max-w-sm rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-modal="true" aria-labelledby="puestos-delete-title">
+      <div class="border-b border-slate-100 px-6 py-5">
+        <h2 id="puestos-delete-title" class="text-lg font-semibold text-text-primary">Eliminar perfil</h2>
+      </div>
+      <div class="px-6 py-4">
+        <p class="text-sm leading-relaxed text-text-secondary">
+          Esta acción eliminará permanentemente el perfil <strong class="text-text-primary">${escapeHtml(nombre)}</strong>. No se puede deshacer.
+        </p>
+      </div>
+      <div class="flex flex-col-reverse gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end">
+        <button type="button" data-action="modal-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+        <button type="button" data-action="confirm-delete" class="${BTN_DANGER} w-full sm:w-auto" ${saving ? "disabled" : ""}>
+          ${saving ? "Eliminando…" : "Eliminar"}
         </button>
       </div>
     </div>
@@ -462,25 +592,53 @@ function renderDeleteConfirm(nombre: string, saving: boolean): string {
 
 function renderLoading(): string {
   return `
-  <div class="flex flex-col gap-4">
-    <div class="h-12 w-full animate-pulse rounded-xl bg-slate-100"></div>
-    <div class="h-64 w-full animate-pulse rounded-xl bg-slate-100"></div>
+  <div class="${RH_LISTADO_PAGE_OUTER}" aria-busy="true">
+    <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
+    <div class="h-32 animate-pulse rounded-2xl bg-white"></div>
+    <div class="h-64 animate-pulse rounded-2xl bg-white"></div>
   </div>`;
 }
 
 function renderError(message: string): string {
   return `
-  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
-    <p class="font-semibold">Error al cargar perfiles</p>
-    <p class="mt-1">${escapeHtml(message)}</p>
-    <button data-action="retry" type="button" class="${BTN_GHOST} mt-3">Reintentar</button>
+  <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="flex min-h-[280px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-14 text-center" role="alert">
+      <div class="max-w-md">
+        <p class="text-base font-semibold text-text-primary">Error al cargar perfiles</p>
+        <p class="mt-2 text-sm text-text-secondary">${escapeHtml(message)}</p>
+        <button data-action="retry" type="button" class="${BTN_SECONDARY} mt-4">Reintentar</button>
+      </div>
+    </div>
   </div>`;
+}
+
+function renderPageHeader(): string {
+  return `
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div class="min-w-0">
+      <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
+        <ol class="flex flex-wrap items-center gap-1">
+          <li><a href="#/" class="font-medium transition hover:text-leoni-blue">Inicio</a></li>
+          <li class="text-slate-300" aria-hidden="true">/</li>
+          <li class="font-semibold text-text-primary" aria-current="page">Perfiles de Puesto</li>
+        </ol>
+      </nav>
+      <h1 class="mt-2 text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Perfiles de Puesto</h1>
+      <p class="mt-1 max-w-2xl text-sm leading-relaxed text-text-secondary">
+        Vista ejecutiva del catálogo de posiciones: cumplimiento, brechas y colaboradores vinculados por perfil.
+      </p>
+    </div>
+    <button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} puestos-btn-nuevo shrink-0 w-full sm:w-auto sm:self-center">
+      ${ICON_PLUS}
+      Nuevo perfil
+    </button>
+  </header>`;
 }
 
 // ── Page mount ───────────────────────────────────────────────────────────
 
 export function mountPuestos(container: HTMLElement, signal: AbortSignal): void {
-  // State
   let allItems: PerfilPuestoListItem[] = [];
   let tarjetasData: PerfilTarjetaItem[] = [];
   let areasOptions: AreaOption[] = [];
@@ -489,7 +647,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   const filters: PuestosFilterState = { q: "", area: "", nivel: "" };
   let viewMode: "tabla" | "tarjetas" = "tarjetas";
 
-  // Modal state
   let modalMode: "create" | "edit" | "delete" | null = null;
   let modalSaving = false;
   let editingId: number | null = null;
@@ -498,84 +655,72 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // Mount shell
   mountAppShell(container, {
     pageTitle: "Perfiles de Puesto",
     activeNav: "puestos",
+    mainClass: "py-5 sm:py-6",
     mainHtml: `
-      <div id="puestos-page-root" class="flex min-h-0 flex-1 flex-col gap-4 py-5 sm:gap-5 sm:py-6">
-        <!-- Header -->
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 class="text-xl font-semibold tracking-tight text-text-primary sm:text-2xl">Perfiles de Puesto</h1>
-            <p class="mt-0.5 text-sm text-text-muted">Catalogo de perfiles y competencias por posicion</p>
-          </div>
-          <button type="button" data-action="create" class="${BTN_PRIMARY}">
-            <span aria-hidden="true">+</span> Nuevo Perfil
-          </button>
-        </div>
-        <!-- Content area -->
-        <div id="puestos-content">${renderLoading()}</div>
-        <!-- Modal host -->
+      <div id="puestos-page-root" class="flex min-h-0 flex-1 flex-col">
+        <div id="puestos-inner"></div>
         <div id="puestos-modal-host"></div>
       </div>`,
   });
 
   const pageRoot = container.querySelector("#puestos-page-root") as HTMLElement | null;
-  const contentEl = (): HTMLElement | null => container.querySelector("#puestos-content");
+  const innerEl = (): HTMLElement | null => container.querySelector("#puestos-inner");
   const modalHost = (): HTMLElement | null => container.querySelector("#puestos-modal-host");
 
-  // ── Paint ──────────────────────────────────────────────────────────────
+  function clearFilters(): void {
+    filters.q = "";
+    filters.area = "";
+    filters.nivel = "";
+    paint();
+  }
 
   function paint(): void {
-    const content = contentEl();
-    if (!content) return;
+    const inner = innerEl();
+    if (!inner) return;
 
     if (status === "loading") {
-      content.innerHTML = renderLoading();
+      inner.innerHTML = renderLoading();
       return;
     }
     if (status === "error") {
-      content.innerHTML = renderError(errorMessage);
+      inner.innerHTML = renderError(errorMessage);
       return;
     }
 
-    if (viewMode === "tarjetas") {
-      const niveles = uniqueNivelesTarjetas(tarjetasData);
-      const filtered = filterTarjetas(tarjetasData, filters);
+    const isTarjetas = viewMode === "tarjetas";
+    const sourceTotal = isTarjetas ? tarjetasData.length : allItems.length;
+    const filteredTarjetas = filterTarjetas(tarjetasData, filters);
+    const filteredItems = filterItems(allItems, filters);
+    const filtered = isTarjetas ? filteredTarjetas : filteredItems;
+    const niveles = isTarjetas ? uniqueNivelesTarjetas(tarjetasData) : uniqueNiveles(allItems);
 
-      const viewToggleHtml = `
-        <div class="flex items-center justify-between">
+    const mainContent = isTarjetas
+      ? `
+        ${renderKpiDashboard(filteredTarjetas)}
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           ${renderViewToggle(viewMode)}
-          <span class="text-xs text-slate-500">${filtered.length} perfiles</span>
-        </div>`;
-
-      content.innerHTML = `
-        ${renderFilterBar(filters, areasOptions, niveles)}
-        <div class="mt-4">${renderKpiStrip(filtered)}</div>
-        <div class="mt-4">${viewToggleHtml}</div>
-        <div class="mt-4">${renderCardGrid(filtered)}</div>`;
-    } else {
-      const niveles = uniqueNiveles(allItems);
-      const filtered = filterItems(allItems, filters);
-
-      const viewToggleHtml = `
-        <div class="flex items-center justify-between">
+        </div>
+        ${renderCardGrid(filteredTarjetas, sourceTotal)}`
+      : `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           ${renderViewToggle(viewMode)}
-          <span class="text-xs text-slate-500">${filtered.length} perfiles</span>
-        </div>`;
+        </div>
+        ${renderTable(filteredItems, sourceTotal)}`;
 
-      content.innerHTML = `
-        ${renderFilterBar(filters, areasOptions, niveles)}
-        <div class="mt-4">${viewToggleHtml}</div>
-        <div class="mt-4">${renderTable(filtered)}</div>`;
-    }
+    inner.innerHTML = `
+      <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER}">
+        ${renderPageHeader()}
+        ${renderFilterBar(filters, areasOptions, niveles, filtered.length, sourceTotal)}
+        <div class="flex flex-col gap-4 sm:gap-5">${mainContent}</div>
+      </div>`;
   }
 
   function paintModal(): void {
     const host = modalHost();
     if (!host) return;
-
     if (modalMode === "create" || modalMode === "edit") {
       host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions);
     } else if (modalMode === "delete" && deletingItem) {
@@ -593,8 +738,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     editingValues = { codigo: "", nombre_puesto: "", area: "", nivel: "operativo" };
     paintModal();
   }
-
-  // ── Data loading ───────────────────────────────────────────────────────
 
   async function loadData(): Promise<void> {
     status = "loading";
@@ -626,10 +769,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     }
   }
 
-  // ── Event delegation ───────────────────────────────────────────────────
-
   if (pageRoot) {
-    // Click events
     pageRoot.addEventListener(
       "click",
       (e) => {
@@ -645,7 +785,9 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             editingValues = { codigo: "", nombre_puesto: "", area: "", nivel: "operativo" };
             paintModal();
             break;
-
+          case "puestos-clear-filters":
+            clearFilters();
+            break;
           case "edit": {
             const id = Number.parseInt(actionEl.getAttribute("data-id") ?? "", 10);
             if (Number.isNaN(id)) return;
@@ -662,7 +804,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             paintModal();
             break;
           }
-
           case "delete": {
             const id = Number.parseInt(actionEl.getAttribute("data-id") ?? "", 10);
             if (Number.isNaN(id)) return;
@@ -673,30 +814,24 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             paintModal();
             break;
           }
-
           case "modal-cancel":
             closeModal();
             break;
-
           case "modal-backdrop":
             if (t === actionEl) closeModal();
             break;
-
           case "confirm-delete":
             if (!deletingItem || modalSaving) return;
             void handleDelete();
             break;
-
           case "view-tarjetas":
             viewMode = "tarjetas";
             paint();
             break;
-
           case "view-tabla":
             viewMode = "tabla";
             paint();
             break;
-
           case "retry":
             void loadData();
             break;
@@ -705,7 +840,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       { signal },
     );
 
-    // Form submit
     pageRoot.addEventListener(
       "submit",
       (e) => {
@@ -718,7 +852,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       { signal },
     );
 
-    // Input events for search (debounced)
     pageRoot.addEventListener(
       "input",
       (e) => {
@@ -733,7 +866,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       { signal },
     );
 
-    // Change events for select filters
     pageRoot.addEventListener(
       "change",
       (e) => {
@@ -750,19 +882,14 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       { signal },
     );
 
-    // Keyboard: Escape to close modal
     pageRoot.addEventListener(
       "keydown",
       (e) => {
-        if ((e as KeyboardEvent).key === "Escape" && modalMode) {
-          closeModal();
-        }
+        if ((e as KeyboardEvent).key === "Escape" && modalMode) closeModal();
       },
       { signal },
     );
   }
-
-  // ── Handlers ───────────────────────────────────────────────────────────
 
   async function handleSave(form: HTMLFormElement): Promise<void> {
     const data = new FormData(form);
@@ -776,7 +903,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       area_id: areaId,
       nivel: (data.get("nivel") as string).trim(),
     };
-
     if (!payload.nombre_puesto) return;
 
     modalSaving = true;
@@ -794,14 +920,12 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       const err = e as PuestosFetchError;
       modalSaving = false;
       paintModal();
-      // Simple inline error — could enhance with toast in the future
       const titleEl = container.querySelector("#puestos-modal-title");
       if (titleEl) {
-        const existing = titleEl.parentElement?.querySelector("[data-modal-error]");
-        if (existing) existing.remove();
-        titleEl.insertAdjacentHTML(
+        titleEl.closest(".puestos-modal-panel")?.querySelector("[data-modal-error]")?.remove();
+        titleEl.parentElement?.insertAdjacentHTML(
           "afterend",
-          `<p data-modal-error class="mt-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">${escapeHtml(err.detail || "Error al guardar")}</p>`,
+          `<p data-modal-error class="mx-6 -mt-2 mb-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">${escapeHtml(err.detail || "Error al guardar")}</p>`,
         );
       }
     }
@@ -811,7 +935,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     if (!deletingItem) return;
     modalSaving = true;
     paintModal();
-
     try {
       await deletePerfil(deletingItem.id);
       closeModal();
@@ -822,23 +945,18 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       paintModal();
       const titleEl = container.querySelector("#puestos-delete-title");
       if (titleEl) {
-        const existing = titleEl.parentElement?.querySelector("[data-modal-error]");
-        if (existing) existing.remove();
-        titleEl.insertAdjacentHTML(
+        titleEl.closest(".puestos-modal-panel")?.querySelector("[data-modal-error]")?.remove();
+        titleEl.parentElement?.insertAdjacentHTML(
           "afterend",
-          `<p data-modal-error class="mt-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">${escapeHtml(err.detail || "Error al eliminar")}</p>`,
+          `<p data-modal-error class="mx-6 -mt-2 mb-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">${escapeHtml(err.detail || "Error al eliminar")}</p>`,
         );
       }
     }
   }
 
-  // ── Cleanup ────────────────────────────────────────────────────────────
-
   signal.addEventListener("abort", () => {
     clearTimeout(searchTimer);
   });
-
-  // ── Init ───────────────────────────────────────────────────────────────
 
   void loadData();
 }

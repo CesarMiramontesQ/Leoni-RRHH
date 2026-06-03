@@ -3,7 +3,11 @@ import type {
   ComedorProyeccionesApi,
   ComedorResumenDiarioApiItem,
 } from "../../api/comedor.ts";
-import type { ComedorRhSemanaPlatilloPorSemana, ComedorSidebarDataset } from "./types.ts";
+import type {
+  ComedorAlert,
+  ComedorRhSemanaPlatilloPorSemana,
+  ComedorSidebarDataset,
+} from "./types.ts";
 
 function dateToIso(value: Date): string {
   const y = String(value.getFullYear()).padStart(4, "0");
@@ -84,6 +88,21 @@ export function buildRhPlatillosPorSemana(
   });
 }
 
+function buildOperationalAlerts(empleadosSinComedorAsignado: number): ComedorAlert[] {
+  const total = Math.max(0, empleadosSinComedorAsignado);
+  if (total <= 0) return [];
+  const etiquetaEmpleado = total === 1 ? "empleado activo" : "empleados activos";
+  return [
+    {
+      id: "empleados-sin-comedor-asignado",
+      titulo: "Empleados sin comedor asignado",
+      detalle: `${total} ${etiquetaEmpleado} sin comedor en turnos.`,
+      level: "media",
+      actionable: true,
+    },
+  ];
+}
+
 export function mapProyeccionesToSidebar(
   proyecciones: ComedorProyeccionesApi,
   estadisticas: ComedorEstadisticasApi,
@@ -102,7 +121,7 @@ export function mapProyeccionesToSidebar(
   const regularPercent = Math.max(0, 100 - saludablePercent);
 
   return {
-    alerts: [],
+    alerts: buildOperationalAlerts(proyecciones.empleados_sin_comedor_asignado ?? 0),
     weeklyOccupancy,
     dietDistribution: { saludablePercent, regularPercent },
     externalCodesCard: {

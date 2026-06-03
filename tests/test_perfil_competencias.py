@@ -58,7 +58,7 @@ async def test_listar_competencias_perfil_vacio(client: AsyncClient, db: AsyncSe
 
 @pytest.mark.asyncio
 async def test_agregar_competencia_a_perfil(client: AsyncClient, db: AsyncSession):
-    """POST con competencia_id valido crea requisito con nivel_requerido=0."""
+    """POST con competencia_id valido crea requisito con nivel_requerido indicado."""
     rh = await make_empleado(db, rol="rh", email="pc_rh2@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -67,14 +67,14 @@ async def test_agregar_competencia_a_perfil(client: AsyncClient, db: AsyncSessio
 
     resp = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp.id},
+        json={"competencia_id": comp.id, "nivel_requerido": 3},
         headers=headers,
     )
     assert resp.status_code == 201
     data = resp.json()
     assert data["competencia_id"] == comp.id
     assert data["competencia_nombre"] == "Excel Avanzado"
-    assert data["nivel_requerido"] == 0
+    assert data["nivel_requerido"] == 3
     assert data["orden"] == 1
     assert "id" in data
 
@@ -91,7 +91,7 @@ async def test_agregar_competencia_duplicada(client: AsyncClient, db: AsyncSessi
     # Primera vez: OK
     resp1 = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp.id},
+        json={"competencia_id": comp.id, "nivel_requerido": 2},
         headers=headers,
     )
     assert resp1.status_code == 201
@@ -99,7 +99,7 @@ async def test_agregar_competencia_duplicada(client: AsyncClient, db: AsyncSessi
     # Segunda vez: Conflict
     resp2 = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp.id},
+        json={"competencia_id": comp.id, "nivel_requerido": 2},
         headers=headers,
     )
     assert resp2.status_code == 409
@@ -115,10 +115,25 @@ async def test_agregar_competencia_inexistente(client: AsyncClient, db: AsyncSes
 
     resp = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": 999999},
+        json={"competencia_id": 999999, "nivel_requerido": 2},
         headers=headers,
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_agregar_competencia_sin_nivel(client: AsyncClient, db: AsyncSession):
+    """POST sin nivel_requerido retorna 422."""
+    rh = await make_empleado(db, rol="rh", email="pc_rh4b@leoni.test")
+    headers = await auth_headers(client, rh)
+    perfil = await make_puesto_perfil(db, nombre="Puesto Sin Nivel")
+    comp = await make_competencia(db, nombre="Test", categoria="tecnica")
+    resp = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/competencias",
+        json={"competencia_id": comp.id},
+        headers=headers,
+    )
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -131,7 +146,7 @@ async def test_agregar_competencia_perfil_inexistente(client: AsyncClient, db: A
 
     resp = await client.post(
         "/api/v1/perfiles/999999/competencias",
-        json={"competencia_id": comp.id},
+        json={"competencia_id": comp.id, "nivel_requerido": 2},
         headers=headers,
     )
     assert resp.status_code == 404
@@ -148,7 +163,7 @@ async def test_agregar_competencia_sin_permiso(client: AsyncClient, db: AsyncSes
 
     resp = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp.id},
+        json={"competencia_id": comp.id, "nivel_requerido": 2},
         headers=headers,
     )
     assert resp.status_code == 403
@@ -171,11 +186,12 @@ async def test_listar_competencias_con_subcategoria(client: AsyncClient, db: Asy
     # Agregar competencia al perfil
     resp_post = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp.id},
+        json={"competencia_id": comp.id, "nivel_requerido": 2},
         headers=headers,
     )
     assert resp_post.status_code == 201
     assert resp_post.json()["subcategoria"] == "social"
+    assert resp_post.json()["nivel_requerido"] == 2
 
     # Verificar en listado GET
     resp_get = await client.get(
@@ -200,12 +216,12 @@ async def test_auto_orden_incrementa(client: AsyncClient, db: AsyncSession):
 
     resp1 = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp1.id},
+        json={"competencia_id": comp1.id, "nivel_requerido": 1},
         headers=headers,
     )
     resp2 = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp2.id},
+        json={"competencia_id": comp2.id, "nivel_requerido": 4},
         headers=headers,
     )
 
