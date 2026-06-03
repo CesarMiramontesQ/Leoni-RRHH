@@ -251,6 +251,8 @@ components:
         lider_id:
           type: [integer, "null"]
           description: empleado_id del líder inmediato
+        centrocosto_id:
+          type: [integer, "null"]
         foto:
           type: [string, "null"]
         registro:
@@ -426,7 +428,7 @@ components:
         comedor:
           type: string
           nullable: true
-          description: Valor de la columna comedor (entero en BD, serializado como texto).
+          description: Nombre del comedor asignado (resuelto desde catálogo comedores).
         turno:
           type: string
           nullable: true

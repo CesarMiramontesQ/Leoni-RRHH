@@ -58,7 +58,6 @@ export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
 
 const iconUser = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const iconBriefcase = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.184 2.675-.394.633-1.086 1.185-2.066 1.185H7c-.98 0-1.672-.552-2.066-1.185-.397-.639-1.184-1.581-1.184-2.675v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.182-2.649a2.18 2.18 0 0 0-.908-.91 2.18 2.18 0 0 0-1.661-.75H7.5a2.18 2.18 0 0 0-1.661.75 2.18 2.18 0 0 0-.908.91C4.517 5.691 3.75 6.625 3.75 7.706v3.784a2.18 2.18 0 0 0 .75 1.661m16.5 0A2.25 2.25 0 0 1 18 16.5h-12a2.25 2.25 0 0 1-2.25-2.25V8.25A2.25 2.25 0 0 1 6 6h12a2.25 2.25 0 0 1 2.25 2.25v5.25Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
-const iconId = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm3.75 6.75h-9v-.75a3.375 3.375 0 0 1 3.375-3.375h2.25a3.375 3.375 0 0 1 3.375 3.375v.75Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const iconCalendar = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const vista360PageShellClass =
   "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
@@ -88,8 +87,8 @@ function skeletonHtml(showRhMetricas: boolean): string {
       </div>
       <div class="min-h-[12rem] rounded-2xl bg-slate-100"></div>`;
   const gridSkeleton = `
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        ${Array.from({ length: 4 }, () => '<div class="min-h-40 rounded-2xl bg-slate-100"></div>').join("")}
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        ${Array.from({ length: 3 }, () => '<div class="min-h-40 rounded-2xl bg-slate-100"></div>').join("")}
       </div>`;
   const bodyBlock = `${gridSkeleton}${estadisticasBlock}${quickActionsSkeleton}${tabsSkeleton}`;
   return `
@@ -118,6 +117,11 @@ function esEstadoVisualActivo(estado: EstadoEmpleadoResponse | null): boolean {
   const d = estado.descripcion.trim().toLowerCase();
   if (d.includes("inactiv")) return false;
   return d.includes("activ");
+}
+
+function formatCentroCostos(centrocostoId: number | null | undefined): string | null {
+  if (centrocostoId == null) return null;
+  return String(centrocostoId);
 }
 
 function antiguedadFechaIngresoRow(fechaIngreso: string | null): string {
@@ -300,12 +304,6 @@ function renderVista360Content(
   });
 
   const te = data.turno_empleado;
-  const personalesPrimeraFila = showRh
-    ? vista360FieldRowText("Comedor", te?.comedor ?? null)
-    : vista360FieldRowText("Fecha de nacimiento", null);
-  const laboralesTurnoOHorario = showRh
-    ? vista360FieldRowText("Turno", te?.turno ?? null)
-    : vista360FieldRowText("Horario", null);
 
   const quickActions = `
     <div class="rounded-2xl border border-border/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
@@ -337,9 +335,9 @@ function renderVista360Content(
     iconSvg: iconUser,
     iconTone: "blue",
     bodyHtml:
-      personalesPrimeraFila +
-      vista360FieldRowText("CURP", null) +
-      vista360FieldRowText("NSS", null),
+      vista360FieldRowText("Comedor", showRh ? (te?.comedor ?? null) : null) +
+      vista360FieldRowText("Centro de costos", formatCentroCostos(u.centrocosto_id)) +
+      vista360FieldRowText("Email", u.email),
   });
 
   const cardLaborales = vista360CardHtml({
@@ -348,18 +346,8 @@ function renderVista360Content(
     iconTone: "emerald",
     bodyHtml:
       vista360FieldRowText("Área", u.area?.descripcion ?? null) +
-      laboralesTurnoOHorario +
-      vista360FieldRowText("Centro de costos", null),
-  });
-
-  const cardContacto = vista360CardHtml({
-    title: "Contacto",
-    iconSvg: iconId,
-    iconTone: "indigo",
-    bodyHtml:
-      vista360FieldRowText("Email", u.email) +
-      vista360FieldRowText("Teléfono", null) +
-      vista360FieldRowText("Emergencia", null),
+      vista360FieldRowText("Subárea", u.subarea?.descripcion ?? null) +
+      vista360FieldRowText("Turno", showRh ? (te?.turno ?? null) : null),
   });
 
   const cardAntiguedad = vista360CardHtml({
@@ -370,8 +358,8 @@ function renderVista360Content(
   });
 
   const grid = `
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      ${cardPersonales}${cardLaborales}${cardContacto}${cardAntiguedad}
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      ${cardPersonales}${cardLaborales}${cardAntiguedad}
     </div>`;
 
   const tabs = vista360TabsHtml(activeTab);

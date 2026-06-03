@@ -24,6 +24,7 @@ from app.models.roles import Rol
 from app.models.solicitudes import Solicitud
 from app.models.incidencias import Incidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
+from app.models.comedor import Comedor
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.usuario_repository import ModoEstadoListado, UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -544,7 +545,13 @@ class UsuarioService:
             turno_txt: str | None = None
             if te is not None:
                 if te.comedor is not None:
-                    comedor_txt = str(te.comedor)
+                    r_com = await self.db.execute(
+                        select(Comedor).where(Comedor.id == te.comedor)
+                    )
+                    comedor_row = r_com.scalar_one_or_none()
+                    if comedor_row is not None:
+                        nombre = (comedor_row.nombre or "").strip()
+                        comedor_txt = nombre or None
                 if te.turno and str(te.turno).strip():
                     turno_txt = str(te.turno).strip()
             turno_empleado = Vista360TurnoEmpleado(comedor=comedor_txt, turno=turno_txt)

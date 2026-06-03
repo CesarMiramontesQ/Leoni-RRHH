@@ -50,6 +50,7 @@ class UsuarioResponse(BaseModel):
     categoria: Optional[CategoriaResponse] = None
     clasificacion: Optional[ClasificacionEmpleadoResponse] = None
     lider_id: Optional[int] = None
+    centrocosto_id: Optional[int] = None
     foto: Optional[str] = None
     registro: Optional[date] = None
     created_at: datetime
@@ -128,7 +129,7 @@ class ActaBrief(BaseModel):
 
 
 class Vista360TurnoEmpleado(BaseModel):
-    """Filas de `turnos_empleados` (comedor numérico + turno). Solo se envía cuando el solicitante es RH."""
+    """Filas de `turnos_empleados` (nombre de comedor + turno). Solo se envía cuando el solicitante es RH."""
 
     comedor: Optional[str] = None
     turno: Optional[str] = None
