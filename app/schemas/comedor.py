@@ -58,8 +58,18 @@ class MenuSemanalResponse(MenuSemanalCreate):
     model_config = {"from_attributes": True}
 
 
-class ComedorRegistroCreate(BaseModel):
+class ComedorAsignadoResponse(BaseModel):
+    """Comedor del empleado según `turnos_empleados` y catálogo `comedores`."""
+
     comedor_id: int
+    comedor_nombre: str
+
+
+class ComedorRegistroCreate(BaseModel):
+    comedor_id: int | None = Field(
+        default=None,
+        description="Opcional; si se envía debe coincidir con el comedor asignado al empleado.",
+    )
     semana: date
     tipo_platillo: str
 
@@ -90,7 +100,10 @@ class HuellaValidarResponse(BaseModel):
 
 
 class ComedorAccesoReservaCreate(BaseModel):
-    comedor_id: int
+    comedor_id: int | None = Field(
+        default=None,
+        description="Opcional; si se envía debe coincidir con el comedor asignado al beneficiario.",
+    )
     fecha_servicio: date | None = Field(
         default=None,
         description="Compatibilidad: fecha única de servicio.",

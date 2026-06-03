@@ -8,7 +8,7 @@ from httpx import AsyncClient
 
 from app.core.exceptions import DomainValidationError
 from app.services.comedor_service import ComedorService
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, link_turno_comedor_empleado, make_empleado
 
 RESERVAR_URL = "/api/v1/comedor/accesos/reservar"
 MIS_RESERVAS_URL = "/api/v1/comedor/accesos/mis-reservas"
@@ -96,6 +96,7 @@ async def test_supervisor_puede_reservar_pero_no_listar_mis_reservas(client: Asy
     await db.flush()
 
     sup = await make_empleado(db, rol="supervisor", email="sup_res@test.leoni", password="S3cret!!")
+    await link_turno_comedor_empleado(db, sup, comedor.id)
     hdrs = await auth_headers(client, sup, password="S3cret!!")
 
     r = await client.post(
@@ -126,6 +127,7 @@ async def test_empleado_puede_reservar_sin_relacion_rol_cargada(client: AsyncCli
     await db.flush()
 
     emp = await make_empleado(db, email="res_sin_rol_rel@test.leoni", password="Secret1!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -163,6 +165,7 @@ async def test_reservar_rechaza_semana_actual_permite_siguiente(client: AsyncCli
     await db.flush()
 
     emp = await make_empleado(db, email="res_sem@test.leoni", password="Secret1!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -213,6 +216,7 @@ async def test_no_duplicar_mismo_tipo_misma_fecha(client: AsyncClient, db, monke
     await db.flush()
 
     emp = await make_empleado(db, email="res_dup@test.leoni", password="Secret2!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -248,6 +252,7 @@ async def test_mismo_dia_distinto_tipo_rechaza_conflicto(client: AsyncClient, db
     await db.flush()
 
     emp = await make_empleado(db, email="res_multi@test.leoni", password="Secret3!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -286,6 +291,7 @@ async def test_reserva_batch_crea_un_registro_por_fecha(client: AsyncClient, db,
     await db.flush()
 
     emp = await make_empleado(db, email="res_batch@test.leoni", password="SecretBatch1!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -329,6 +335,7 @@ async def test_reserva_batch_falla_si_alguna_fecha_ya_esta_ocupada(client: Async
     await db.flush()
 
     emp = await make_empleado(db, email="res_batch_dup@test.leoni", password="SecretBatch2!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -376,6 +383,7 @@ async def test_reserva_batch_permite_fin_de_semana(client: AsyncClient, db, monk
     await db.flush()
 
     emp = await make_empleado(db, email="res_weekend@test.leoni", password="SecretWeekend!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -415,6 +423,7 @@ async def test_mis_reservas_mes(client: AsyncClient, db, monkeypatch):
     await db.flush()
 
     emp = await make_empleado(db, email="res_list@test.leoni", password="Secret4!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -457,6 +466,7 @@ async def test_mis_reservas_mes_excluye_expiradas(client: AsyncClient, db, monke
     await db.flush()
 
     emp = await make_empleado(db, email="res_exp@test.leoni", password="SecretExp!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -509,6 +519,7 @@ async def test_mis_fechas_ocupadas_incluye_reserva_activa(client: AsyncClient, d
     await db.flush()
 
     emp = await make_empleado(db, email="res_fechas@test.leoni", password="Secret5!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -564,6 +575,7 @@ async def test_mis_proximas_reservas_top5_ordenadas_y_privadas(client: AsyncClie
     await db.flush()
 
     emp = await make_empleado(db, email="res_top5@test.leoni", password="Secret7!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -650,6 +662,7 @@ async def test_editar_y_cancelar_reserva_futura_ok(client: AsyncClient, db, monk
     await db.flush()
 
     emp = await make_empleado(db, email="res_edit@test.leoni", password="Secret9!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,
@@ -705,6 +718,7 @@ async def test_no_editar_ni_cancelar_semana_actual(client: AsyncClient, db, monk
     await db.flush()
 
     emp = await make_empleado(db, email="res_lock@test.leoni", password="Secret10!")
+    await link_turno_comedor_empleado(db, emp, comedor.id)
     reg = ComedorRegistro(
         empleado_id=emp.id,
         comedor_id=comedor.id,

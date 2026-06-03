@@ -1335,12 +1335,22 @@ components:
           type: string
           format: date-time
 
-    ComedorRegistroCreate:
+    ComedorAsignadoResponse:
       type: object
-      required: [comedor_id, semana, tipo_platillo]
+      required: [comedor_id, comedor_nombre]
       properties:
         comedor_id:
           type: integer
+        comedor_nombre:
+          type: string
+
+    ComedorRegistroCreate:
+      type: object
+      required: [semana, tipo_platillo]
+      properties:
+        comedor_id:
+          type: [integer, "null"]
+          description: Opcional; si se envía debe coincidir con el comedor asignado al empleado en turnos.
         semana:
           type: string
           format: date
@@ -1396,10 +1406,11 @@ components:
 
     ComedorAccesoReservaCreate:
       type: object
-      required: [comedor_id, tipo_comida]
+      required: [tipo_comida]
       properties:
         comedor_id:
-          type: integer
+          type: [integer, "null"]
+          description: Opcional; si se envía debe coincidir con el comedor asignado al beneficiario en turnos.
         fecha_servicio:
           type: [string, "null"]
           format: date
@@ -4290,6 +4301,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuSemanalResponse"
+
+  /api/v1/comedor/mi-comedor-asignado:
+    get:
+      tags: [Comedor]
+      summary: Comedor asignado al empleado (turnos_empleados)
+      operationId: comedor_mi_comedor_asignado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: target_user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Beneficiario (supervisor registrando para su equipo).
+      responses:
+        "200":
+          description: Comedor asignado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorAsignadoResponse"
 
   /api/v1/comedor/registro:
     post:

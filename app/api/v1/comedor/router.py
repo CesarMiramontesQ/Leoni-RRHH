@@ -18,6 +18,7 @@ from app.schemas.comedor import (
     ComedorAccesoReservaCreate,
     ComedorAccesoReservaResponse,
     ComedorAccesoReservaUpdate,
+    ComedorAsignadoResponse,
     ComedorCreate,
     ComedorUpdate,
     ComedorMisFechasOcupadasResponse,
@@ -114,6 +115,25 @@ async def publicar_menu(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
+    )
+
+
+@router.get("/mi-comedor-asignado", response_model=ComedorAsignadoResponse)
+async def mi_comedor_asignado(
+    target_user_id: int | None = Query(
+        default=None,
+        description="Beneficiario (solo supervisor al registrar para su equipo).",
+    ),
+    current_user: Empleado = Depends(
+        role_checker(["empleado", "supervisor", "gerente", "director", "rh"])
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Comedor asignado al empleado según `turnos_empleados` y catálogo `comedores`."""
+    service = ComedorService(db)
+    return await service.get_comedor_asignado(
+        current_user=current_user,
+        target_user_id=target_user_id,
     )
 
 

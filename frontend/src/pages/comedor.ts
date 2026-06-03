@@ -40,6 +40,7 @@ import {
   getComedorPrimeraFechaReserva,
   getComedorProyecciones,
   getComedoresActivos,
+  getComedorAsignado,
   publicarComedorMenu,
   registrarComedorSeleccion,
   reservarComedorAcceso,
@@ -478,19 +479,40 @@ function formatTipoComidaLabel(tipoComida: string): string {
   return tipoComida;
 }
 
-function createComedorIdResolver(): {
+function createComedorIdResolver(options?: {
+  getTargetUserId?: () => number | undefined;
+  /** RH: primer comedor activo del catálogo (publicar menú, externos). */
+  rhAdmin?: boolean;
+}): {
   resolve: () => Promise<number | null>;
   invalidate: () => void;
 } {
+  let cacheKey: string | undefined;
   let cached: number | null | undefined;
   return {
     resolve: async () => {
-      if (cached !== undefined) return cached;
-      const comedores = await getComedoresActivos();
-      cached = comedores[0]?.id ?? null;
-      return cached;
+      if (options?.rhAdmin) {
+        if (cached !== undefined) return cached;
+        const comedores = await getComedoresActivos();
+        cached = comedores[0]?.id ?? null;
+        return cached;
+      }
+      const target = options?.getTargetUserId?.();
+      const key = target != null ? `t:${target}` : "self";
+      if (cached !== undefined && cacheKey === key) return cached;
+      try {
+        const { comedor_id } = await getComedorAsignado(target);
+        cacheKey = key;
+        cached = comedor_id;
+        return cached;
+      } catch {
+        cacheKey = key;
+        cached = null;
+        return null;
+      }
     },
     invalidate: () => {
+      cacheKey = undefined;
       cached = undefined;
     },
   };
@@ -1070,7 +1092,7 @@ function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): 
 
 function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
   const now = new Date();
-  const comedorIdResolver = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
   const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: RhComedorState = {
@@ -1813,7 +1835,7 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
 
 function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): void {
   const initialWeek = createBlankWeekByStartIso(getCurrentWeekStartIso());
-  const comedorIdResolver = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
   const state: RhPlannerState = {
     panelState: "loading",
@@ -2220,7 +2242,10 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   const isSupervisor = rol === "supervisor";
   const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(rol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
-  const comedorIdResolver = createComedorIdResolver();
+  const beneficiaryTargetRef = { id: undefined as number | undefined };
+  const comedorIdResolver = createComedorIdResolver({
+    getTargetUserId: () => beneficiaryTargetRef.id,
+  });
   const resolveComedorId = () => comedorIdResolver.resolve();
   const loadMenuDelDia = createComedorMenuDelDiaLoader(resolveComedorId);
   const state: LiderComedorState = {
@@ -2391,9 +2416,11 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         : {}),
         searchEmployees: searchComedorEmployeesFromDb,
         showObservacionesField: !isSupervisor,
+        onBeneficiaryUserIdChange: (userId) => {
+          beneficiaryTargetRef.id = userId;
+          comedorIdResolver.invalidate();
+        },
         onSubmit: async (payload) => {
-          const comedorId = await resolveComedorId();
-          if (comedorId == null) throw new Error("No hay comedor activo configurado.");
           const targetUserId =
             isSupervisor &&
             payload.personType === "interno" &&
@@ -2405,7 +2432,6 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
             throw new Error("Selecciona un beneficiario válido.");
           }
           await reservarComedorAcceso({
-            comedorId,
             fechasIso: payload.fechas,
             tipoComida: payload.menuId,
             targetUserId,
@@ -2742,12 +2768,9 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
           onSubmit: async (payload) => {
             const firstDate = payload.fechas[0];
             if (!firstDate) throw new Error("Selecciona al menos una fecha.");
-            const comedorId = await resolveComedorId();
-            if (comedorId == null) throw new Error("No hay comedor activo configurado.");
             const semanaIso = startOfWeekIsoFromDateIso(firstDate);
             const intentarReserva = async () => {
               await reservarComedorAcceso({
-                comedorId,
                 fechasIso: payload.fechas,
                 tipoComida: payload.menuId,
               });
@@ -2761,7 +2784,6 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
                 error.detail.toLowerCase().includes("selecci")
               ) {
                 await registrarComedorSeleccion({
-                  comedorId,
                   semanaIso,
                   tipoPlatillo: "normal",
                 });
@@ -2960,7 +2982,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
 
 function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void {
   const initialRange = dateRangeFromPreset("this_month");
-  const comedorIdResolver = createComedorIdResolver();
+  const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
   const esRhReporte = getRolFromAccessToken() === "rh";
   const state: ReporteComedorState = {

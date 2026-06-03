@@ -32,6 +32,7 @@ from app.core.exceptions import (
 from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
 from app.models.roles import Rol
+from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
@@ -47,6 +48,7 @@ from app.schemas.comedor import (
     ComedorAccesoReservaCreate,
     ComedorAccesoReservaResponse,
     ComedorAccesoReservaUpdate,
+    ComedorAsignadoResponse,
     ComedorCreate,
     ComedorUpdate,
     ComedorMisFechasOcupadasResponse,
@@ -226,6 +228,69 @@ class ComedorService:
             )
         return beneficiario_id
 
+    async def _resolver_comedor_id_asignado(self, empleado_id: int) -> int:
+        """ID en `comedores` según `turnos_empleados.comedor` del empleado."""
+        empleado = await self.empleado_repo.get(empleado_id)
+        if not empleado:
+            raise NotFoundError(entidad="Empleado", id=empleado_id)
+
+        result = await self.db.execute(
+            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+        )
+        turno = result.scalar_one_or_none()
+        if turno is None or turno.comedor is None:
+            raise ConflictError(
+                detail=(
+                    "No hay comedor asignado para este empleado en turnos. "
+                    "Contacta a Recursos Humanos."
+                ),
+            )
+
+        comedor = await self.comedor_repo.get(turno.comedor)
+        if not comedor:
+            raise ConflictError(
+                detail=(
+                    f"El comedor asignado en turno ({turno.comedor}) no está registrado "
+                    "en el sistema. Contacta a Recursos Humanos."
+                ),
+            )
+        if not comedor.activo:
+            raise ConflictError(
+                detail=(
+                    "El comedor asignado a este empleado no está activo. "
+                    "Contacta a Recursos Humanos."
+                ),
+            )
+        return comedor.id
+
+    def _validar_comedor_coincide_asignado(
+        self,
+        comedor_id_enviado: int | None,
+        comedor_id_asignado: int,
+    ) -> None:
+        if comedor_id_enviado is not None and comedor_id_enviado != comedor_id_asignado:
+            raise ConflictError(
+                detail="El comedor indicado no coincide con el asignado a este empleado.",
+            )
+
+    async def get_comedor_asignado(
+        self,
+        current_user: Empleado,
+        target_user_id: int | None = None,
+    ) -> ComedorAsignadoResponse:
+        beneficiario_id = await self._resolver_beneficiario_reserva(
+            current_user=current_user,
+            target_user_id=target_user_id,
+        )
+        comedor_id = await self._resolver_comedor_id_asignado(beneficiario_id)
+        comedor = await self.comedor_repo.get(comedor_id)
+        if not comedor:
+            raise NotFoundError(entidad="Comedor", id=comedor_id)
+        return ComedorAsignadoResponse(
+            comedor_id=comedor.id,
+            comedor_nombre=comedor.nombre,
+        )
+
     async def list_equipo_beneficiarios_directos(
         self,
         current_user: Empleado,
@@ -373,6 +438,9 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorRegistroResponse:
+        comedor_id = await self._resolver_comedor_id_asignado(current_user.id)
+        self._validar_comedor_coincide_asignado(data.comedor_id, comedor_id)
+
         # Solo un registro por empleado/semana/comedor
         existente = await self.registro_repo.get_registro_semana(
             empleado_id=current_user.id,
@@ -384,7 +452,9 @@ class ComedorService:
             )
 
         registro = await self.registro_repo.create({
-            **data.model_dump(),
+            "comedor_id": comedor_id,
+            "semana": data.semana,
+            "tipo_platillo": data.tipo_platillo,
             "empleado_id": current_user.id,
             "acceso_concedido": False,
         })
@@ -941,9 +1011,11 @@ class ComedorService:
             empleado = await self.empleado_repo.get_with_rol(data.target_user_id)
             if not empleado:
                 raise NotFoundError(entidad="Empleado", id=data.target_user_id)
+            comedor_id = await self._resolver_comedor_id_asignado(empleado.id)
+            self._validar_comedor_coincide_asignado(data.comedor_id, comedor_id)
             creados = await self._crear_reservas_para_empleados(
                 empleado_ids=[empleado.id],
-                comedor_id=data.comedor_id,
+                comedor_id=comedor_id,
                 fechas=fechas,
                 tipo_enum=tipo_enum,
             )
@@ -1051,23 +1123,26 @@ class ComedorService:
 
         tipo_enum = ComedorTipoComida(data.tipo_comida)
 
-        comedor = await self.comedor_repo.get(data.comedor_id)
+        comedor_id = await self._resolver_comedor_id_asignado(beneficiario_id)
+        self._validar_comedor_coincide_asignado(data.comedor_id, comedor_id)
+
+        comedor = await self.comedor_repo.get(comedor_id)
         if not comedor:
-            raise NotFoundError(entidad="Comedor", id=data.comedor_id)
+            raise NotFoundError(entidad="Comedor", id=comedor_id)
 
         semanas = sorted({f - timedelta(days=f.weekday()) for f in fechas})
         registros_por_semana: dict[date, object] = {}
         for inicio_semana in semanas:
             registro = await self.registro_repo.get_registro_semana_comedor(
                 empleado_id=beneficiario_id,
-                comedor_id=data.comedor_id,
+                comedor_id=comedor_id,
                 semana=inicio_semana,
             )
             if not registro:
                 if await self._get_rol(current_user) in ("supervisor", "gerente"):
                     registro = await self.registro_repo.create({
                         "empleado_id": beneficiario_id,
-                        "comedor_id": data.comedor_id,
+                        "comedor_id": comedor_id,
                         "semana": inicio_semana,
                         "tipo_platillo": "normal",
                         "acceso_concedido": False,
@@ -1115,7 +1190,7 @@ class ComedorService:
                 acc = await self.acceso_repo.update(
                     existente.id,
                     {
-                        "comedor_id": data.comedor_id,
+                        "comedor_id": comedor_id,
                         "comedor_registro_id": registro.id,
                         "tipo_comida": tipo_enum,
                         "estado_acceso": ComedorAccesoEstado.PENDIENTE,
@@ -1143,7 +1218,7 @@ class ComedorService:
 
             acceso = await self.acceso_repo.create({
                 "empleado_id": beneficiario_id,
-                "comedor_id": data.comedor_id,
+                "comedor_id": comedor_id,
                 "comedor_registro_id": registro.id,
                 "fecha_servicio": fecha_servicio,
                 "tipo_comida": tipo_enum,
@@ -1160,7 +1235,7 @@ class ComedorService:
                 entidad_id=acceso.id,
                 datos_despues={
                     "beneficiario_id": beneficiario_id,
-                    "comedor_id": data.comedor_id,
+                    "comedor_id": comedor_id,
                     "fecha_servicio": str(fecha_servicio),
                     "tipo_comida": data.tipo_comida,
                 },

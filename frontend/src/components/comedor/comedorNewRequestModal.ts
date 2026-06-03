@@ -51,6 +51,8 @@ export type ComedorNewRequestModalOptions = {
   searchEmployees: (query: string) => Promise<readonly ComedorEmployeeOption[]>;
   onSubmit: (payload: ComedorCreateRequestPayload) => Promise<unknown> | unknown;
   onSuccess?: (result: unknown, payload: ComedorCreateRequestPayload) => void;
+  /** Notifica el beneficiario interno (id numérico) para resolver comedor/menú asignado. */
+  onBeneficiaryUserIdChange?: (userId: number | undefined) => void;
 };
 
 export type ComedorNewRequestModalHandle = {
@@ -249,6 +251,18 @@ export function mountComedorNewRequestModal(
     return !overlayEl.classList.contains("hidden");
   }
 
+  function notifyBeneficiaryUserIdChange(): void {
+    const cb = options.onBeneficiaryUserIdChange;
+    if (!cb) return;
+    const emp = selectedEmployee();
+    if (!emp) {
+      cb(undefined);
+      return;
+    }
+    const uid = Number.parseInt(emp.id, 10);
+    cb(Number.isFinite(uid) ? uid : undefined);
+  }
+
   function selectedEmployee(): ComedorEmployeeOption | null {
     if (supervisorBeneficiaryConfig && formState.supervisorRecipientScope === "personal") {
       return supervisorBeneficiaryConfig.self;
@@ -410,6 +424,7 @@ export function mountComedorNewRequestModal(
     isSearchingEmployees = false;
     searchEmployeesError = null;
     renderForm();
+    notifyBeneficiaryUserIdChange();
     if (formState.fechaInicio.trim()) {
       void refreshMenuDelDia(formState.fechaInicio);
     }
@@ -466,6 +481,7 @@ export function mountComedorNewRequestModal(
           searchDebounceTimer = null;
         }
         errors.employee = undefined;
+        notifyBeneficiaryUserIdChange();
         renderForm();
       });
     });
@@ -543,6 +559,7 @@ export function mountComedorNewRequestModal(
         const selected = searchResults.find((employee) => employee.id === employeeId);
         if (selected) employeeSelectionCache.set(employeeId, selected);
         errors.employee = undefined;
+        notifyBeneficiaryUserIdChange();
         renderForm();
       });
     });
@@ -551,6 +568,7 @@ export function mountComedorNewRequestModal(
     employeeSelect?.addEventListener("change", () => {
       formState.selectedEmployeeId = employeeSelect.value || null;
       errors.employee = undefined;
+      notifyBeneficiaryUserIdChange();
       renderForm();
     });
 
