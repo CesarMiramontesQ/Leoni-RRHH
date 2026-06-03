@@ -1,3 +1,4 @@
+import { loadVista360ProfileFoto, releaseEmpleadoFotoCache } from "../api/empleadoFoto.ts";
 import { getEmpleadoVista360, type UsuarioVista360 } from "../api/vista360.ts";
 import type { EstadoEmpleadoResponse } from "../api/usuarios.ts";
 import { isUsuariosFetchError } from "../api/usuarios.ts";
@@ -292,6 +293,7 @@ function renderVista360Content(
     nombre: u.nombre,
     apellido: "",
     numEmpleado: u.no_empleado,
+    empleadoId: u.id,
     metaPartes,
     activo: esEstadoVisualActivo(u.estado),
     showEditar: showRh,
@@ -555,6 +557,7 @@ export function mountEmployeeVista360(
 
   function afterVista360Rendered(noEmpleado: string): void {
     if (!v360Root) return;
+    void loadVista360ProfileFoto(v360Root, empleadoId, signal);
     tablasLoader = setupVista360Tablas(v360Root, empleadoId, noEmpleado, initialTab, signal);
     bindVista360TabDelegation(
       v360Root,
@@ -592,8 +595,17 @@ export function mountEmployeeVista360(
     });
   }
 
+  signal.addEventListener(
+    "abort",
+    () => {
+      releaseEmpleadoFotoCache();
+    },
+    { once: true },
+  );
+
   async function load(): Promise<void> {
     if (!contentEl) return;
+    releaseEmpleadoFotoCache(empleadoId);
     contentEl.innerHTML = skeletonHtml(isRh);
     const r = await loadEmpleadoVista360(empleadoId, signal);
     if (!r.ok && r.aborted) return;

@@ -114,6 +114,11 @@ class Settings(BaseSettings):
     BONO_EMPLEADOS_IMPORT_ENABLED: bool = True
     BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES: int = 30
 
+    # Fotografías RH (share de red; en Docker montar el volumen en esta ruta)
+    RH_EMPLEADO_FOTOS_DIR: str = (
+        r"\\leoni.local\dfsroot\MX1\groups\LCMNews\RH\Images"
+    )
+
     # Estados que se consideran "empleado activo" — ajustar en producción
     ESTADOS_ACTIVOS_IDS: List[int] = [1]
     # Estados mostrados como "Permiso" en filtros de líderes (p. ej. Suspendido)

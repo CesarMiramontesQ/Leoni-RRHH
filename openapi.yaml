@@ -3232,6 +3232,34 @@ paths:
         "422":
           description: Validación de días disponibles
 
+  /api/v1/empleados/{empleado_id}/foto:
+    get:
+      tags: [Empleados]
+      summary: Fotografía del empleado (directorio RH/Images)
+      operationId: empleados_foto
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Imagen del empleado
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Empleado o fotografía no encontrados
+
   /api/v1/empleados/{empleado_id}/vista360:
     get:
       tags: [Empleados]
