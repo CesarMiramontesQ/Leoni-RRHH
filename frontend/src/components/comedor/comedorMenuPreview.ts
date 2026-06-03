@@ -6,29 +6,62 @@ import { escapeComedorHtml } from "./comedorUiUtils.ts";
 
 const SIN_INFO = "Sin información registrada";
 
+/** Tarjeta de categoría: fondo blanco, borde sutil, sombra ligera, radius 12px. */
+const MENU_PREVIEW_CATEGORIA_CARD =
+  "flex h-full min-h-[5.5rem] flex-col rounded-xl border border-[#eef2f7] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]";
+
+const MENU_PREVIEW_CARD_TITLE = "text-[13px] font-semibold leading-none text-slate-500";
+
+const MENU_PREVIEW_CARD_BODY = "text-lg font-semibold leading-snug text-[#0A1628]";
+
+const MENU_PREVIEW_CARD_BODY_EMPTY = "text-base font-medium text-slate-400";
+
+const CATEGORIA_ICON: Record<(typeof MENU_DETALLE_CATEGORIAS)[number]["key"], string> = {
+  sopa_o_crema: "🍲",
+  guarniciones: "🥗",
+  complementos: "🍞",
+  tortillas: "🌮",
+  postres: "🍮",
+  salsas: "🌶️",
+  aguas: "🥤",
+};
+
 function renderLista(items: readonly string[]): string {
   if (items.length === 0) {
-    return `<p class="mt-1 text-sm text-slate-500">${SIN_INFO}</p>`;
+    return `<p class="mt-2 ${MENU_PREVIEW_CARD_BODY_EMPTY}">${SIN_INFO}</p>`;
   }
-  return `<ul class="mt-1 list-inside list-disc space-y-0.5 text-sm font-medium text-slate-700">${items
-    .map((item) => `<li>${escapeComedorHtml(item)}</li>`)
+  if (items.length === 1) {
+    return `<p class="mt-2 ${MENU_PREVIEW_CARD_BODY}">${escapeComedorHtml(items[0]!)}</p>`;
+  }
+  return `<ul class="mt-2 space-y-1.5 ${MENU_PREVIEW_CARD_BODY}">${items
+    .map(
+      (item) =>
+        `<li class="flex gap-2"><span class="mt-2.5 size-1 shrink-0 rounded-full bg-slate-300" aria-hidden="true"></span><span>${escapeComedorHtml(item)}</span></li>`,
+    )
     .join("")}</ul>`;
 }
 
-function renderCategoriaBlock(title: string, items: readonly string[], boxClass: string): string {
+function renderCategoriaBlock(
+  key: (typeof MENU_DETALLE_CATEGORIAS)[number]["key"],
+  title: string,
+  items: readonly string[],
+): string {
+  const icon = CATEGORIA_ICON[key];
   return `
-    <div class="flex h-full flex-col rounded-lg border px-3 py-3 ${boxClass}">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">${escapeComedorHtml(title)}</p>
-      <div class="mt-1 flex flex-1 flex-col">${renderLista(items)}</div>
+    <div class="${MENU_PREVIEW_CATEGORIA_CARD}">
+      <p class="${MENU_PREVIEW_CARD_TITLE}">
+        <span class="mr-1.5 text-sm leading-none" aria-hidden="true">${icon}</span>${escapeComedorHtml(title)}
+      </p>
+      <div class="mt-auto flex flex-1 flex-col">${renderLista(items)}</div>
     </div>`;
 }
 
-/** Cuadrícula responsiva para categorías complementarias (4/3/2/1 columnas). */
+/** Cuadrícula: 1 / 2 / 3 columnas; 4 solo en pantallas muy grandes. */
 const MENU_PREVIEW_CATEGORIAS_GRID =
-  "grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
+  "grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
 
 /** Opciones A/B del plato principal en fila (50% c/u desde sm). */
-const MENU_PREVIEW_PLATO_OPCIONES_GRID = "mt-2 grid grid-cols-1 items-stretch gap-2 sm:grid-cols-2";
+const MENU_PREVIEW_PLATO_OPCIONES_GRID = "grid grid-cols-1 sm:grid-cols-2";
 
 export type MenuPreviewDetalleOptions = {
   /** Sábado y domingo: solo Opción A en plantilla y UI. */
@@ -46,38 +79,38 @@ export function renderMenuPreviewDetalleSections(
   const platoNormal = menuNormal.trim();
   const platoDieta = menuDieta.trim();
   const opcionA = `
-        <div class="flex h-full flex-col rounded-lg border border-slate-200 bg-white px-3 py-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Opción A · Tradicional</p>
-          <p class="mt-0.5 flex-1 text-sm font-medium text-slate-700">${escapeComedorHtml(
-            platoNormal || SIN_INFO,
-          )}</p>
+        <div class="flex h-full flex-col p-3 sm:pr-4">
+          <p class="text-xs font-semibold text-slate-500">
+            <span class="mr-1 inline-flex size-5 items-center justify-center rounded bg-slate-200/80 text-[11px] text-slate-700">A</span>
+            Tradicional
+          </p>
+          <p class="mt-2 flex-1 ${MENU_PREVIEW_CARD_BODY}">${escapeComedorHtml(platoNormal || SIN_INFO)}</p>
         </div>`;
   const opcionB = includeOpcionB
-    ? `<div class="flex h-full flex-col rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Opción B</p>
-          <p class="mt-0.5 flex-1 text-sm font-medium text-emerald-800">${escapeComedorHtml(platoDieta || SIN_INFO)}</p>
+    ? `<div class="flex h-full flex-col bg-emerald-50/60 p-3 sm:border-l sm:border-[#eef2f7] sm:pl-4">
+          <p class="text-xs font-semibold text-emerald-700">
+            <span class="mr-1 inline-flex size-5 items-center justify-center rounded bg-emerald-100 text-[11px] text-emerald-800">B</span>
+            Alternativa
+          </p>
+          <p class="mt-2 flex-1 text-lg font-semibold leading-snug text-emerald-950">${escapeComedorHtml(platoDieta || SIN_INFO)}</p>
         </div>`
     : "";
-  const platoOpcionesGridClass = includeOpcionB
-    ? MENU_PREVIEW_PLATO_OPCIONES_GRID
-    : "mt-2 grid grid-cols-1 items-stretch gap-2";
+  const platoOpcionesGridClass = includeOpcionB ? MENU_PREVIEW_PLATO_OPCIONES_GRID : "grid grid-cols-1";
   const platoPrincipal = `
-    <div class="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Plato principal</p>
-      <div class="${platoOpcionesGridClass}">
+    <div class="overflow-hidden rounded-xl border border-[#eef2f7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <p class="border-b border-[#eef2f7] px-3 py-2 text-[13px] font-semibold text-slate-500">Plato principal</p>
+      <div class="${platoOpcionesGridClass} bg-slate-50/50">
         ${opcionA}
         ${opcionB}
       </div>
     </div>`;
 
   const complementarias = `
-    <div class="${MENU_PREVIEW_CATEGORIAS_GRID}">
-      ${MENU_DETALLE_CATEGORIAS.map(({ key, label }) =>
-        renderCategoriaBlock(label, detalle[key], "border-slate-200 bg-slate-50/60"),
-      ).join("")}
+    <div class="${MENU_PREVIEW_CATEGORIAS_GRID} mt-6">
+      ${MENU_DETALLE_CATEGORIAS.map(({ key, label }) => renderCategoriaBlock(key, label, detalle[key])).join("")}
     </div>`;
 
-  return `<div class="flex flex-col gap-3">${platoPrincipal}${complementarias}</div>`;
+  return `${platoPrincipal}${complementarias}`;
 }
 
 export type MenuDelDiaPanelState = "idle" | "loading" | "ready" | "empty" | "error";

@@ -30,7 +30,11 @@ function weekHasRegisteredMenu(panelState: ComedorPanelState): boolean {
 
 function renderPreviewDaySelector(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlannerDayKey): string {
   return `
-    <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Seleccionar día para vista previa">
+    <div
+      class="mb-6 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1"
+      role="tablist"
+      aria-label="Seleccionar día para vista previa"
+    >
       ${week.dias
         .map((day) => {
           const active = day.key === selectedDayKey;
@@ -40,14 +44,19 @@ function renderPreviewDaySelector(week: ComedorWeekPlanner, selectedDayKey: Come
           role="tab"
           aria-selected="${active ? "true" : "false"}"
           data-comedor-plan-preview-day="${day.key}"
-          class="inline-flex min-h-10 flex-col items-start rounded-lg border px-3 py-2 text-left text-xs font-semibold transition sm:min-w-[5.5rem] ${
+          class="relative flex min-w-[3.75rem] flex-1 flex-col items-center rounded-md px-2 py-1.5 text-center transition-all duration-200 ease-out sm:min-w-0 ${
             active
-              ? "border-leoni-blue bg-leoni-blue/10 text-leoni-blue ring-1 ring-leoni-blue/25"
-              : "border-slate-200 bg-white text-slate-700 hover:border-leoni-blue/40 hover:bg-slate-50"
+              ? "bg-white text-leoni-blue shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+              : "bg-transparent text-slate-600 hover:text-slate-800"
           }"
         >
-          <span>${escapeComedorHtml(day.label)}</span>
-          <span class="font-normal text-slate-500">${escapeComedorHtml(day.fechaCorta)}</span>
+          ${
+            active
+              ? '<span class="absolute inset-x-1.5 top-0 h-0.5 rounded-full bg-leoni-blue" aria-hidden="true"></span>'
+              : ""
+          }
+          <span class="text-xs font-semibold leading-tight">${escapeComedorHtml(day.label)}</span>
+          <span class="mt-0.5 text-[10px] font-medium ${active ? "text-leoni-blue/70" : "text-slate-400"}">${escapeComedorHtml(day.fechaCorta)}</span>
         </button>`;
         })
         .join("")}
@@ -56,51 +65,39 @@ function renderPreviewDaySelector(week: ComedorWeekPlanner, selectedDayKey: Come
 
 function renderPreviewEmptyState(): string {
   return `
-    <div
-      class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-12 text-center"
-      role="status"
-    >
-      <p class="text-sm font-medium text-slate-600">No se ha registrado menú para esta semana.</p>
+    <div class="flex flex-col items-center justify-center px-4 py-16 text-center" role="status">
+      <div class="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" class="size-6" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+        </svg>
+      </div>
+      <h3 class="mt-4 text-base font-semibold text-[#0A1628]">No hay menú registrado para esta semana</h3>
+      <p class="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+        Carga una planeación o selecciona otra semana para visualizar la información.
+      </p>
     </div>`;
 }
 
 function renderPreview(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlannerDayKey): string {
   const selected = week.dias.find((day) => day.key === selectedDayKey) ?? week.dias[0]!;
-  const menuTitle = selected.menuNormal.trim() || "Aún no has configurado este menú";
-  return `
-    <article class="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5">
-      <div class="flex items-center justify-between gap-2">
-        <span class="inline-flex rounded-full bg-leoni-blue/10 px-2.5 py-1 text-xs font-semibold text-leoni-blue">${escapeComedorHtml(
-          selected.label,
-        )}</span>
-        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">${escapeComedorHtml(
-          selected.fechaCorta,
-        )}</span>
-      </div>
-      <h3 class="mt-3 text-lg font-semibold text-slate-900">${escapeComedorHtml(menuTitle)}</h3>
-      <p class="mt-1 text-sm text-slate-500">Vista de cómo lo verá el empleado en el portal.</p>
-      <div class="mt-4">
-        ${renderMenuPreviewDetalleSections(selected.menuNormal, selected.menuDieta, selected.detalle, {
-          includeOpcionB: !isWeekendPlannerDay(selected.key),
-        })}
-      </div>
-      <button type="button" disabled class="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-400">
-        Seleccionar menú en portal
-      </button>
-    </article>`;
+  return renderMenuPreviewDetalleSections(selected.menuNormal, selected.menuDieta, selected.detalle, {
+    includeOpcionB: !isWeekendPlannerDay(selected.key),
+  });
 }
 
 function renderPreviewPanel(state: ComedorWeeklyPlannerViewState): string {
   const hasMenu = weekHasRegisteredMenu(state.panelState);
   return `
-    <section id="comedor-plan-preview-panel" class="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6">
-      <p class="text-sm font-semibold text-slate-700">Vista previa del menú</p>
+    <section id="comedor-plan-preview-panel" class="rounded-xl bg-white p-5 sm:p-6">
+      <h2 class="text-base font-semibold text-[#0A1628]">Vista previa del menú</h2>
       ${
         hasMenu
-          ? `<p class="mt-1 text-sm text-slate-500">Selecciona un día para revisar el menú completo (platillos y complementos).</p>
-             ${renderPreviewDaySelector(state.week, state.selectedDayKey)}
-             ${renderPreview(state.week, state.selectedDayKey)}`
-          : renderPreviewEmptyState()
+          ? `<p class="mt-1 text-sm text-slate-500">Consulta el menú completo por día, como lo verá el empleado.</p>
+             <div class="mt-6">
+               ${renderPreviewDaySelector(state.week, state.selectedDayKey)}
+               ${renderPreview(state.week, state.selectedDayKey)}
+             </div>`
+          : `<div class="mt-6">${renderPreviewEmptyState()}</div>`
       }
     </section>`;
 }

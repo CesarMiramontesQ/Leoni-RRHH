@@ -1901,7 +1901,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
   function selectPreviewDay(dayKey: ComedorWeekPlannerDayKey): void {
     state.selectedDayKey = dayKey;
     paint();
-    container.querySelector("#comedor-plan-preview-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function saveDraft(): Promise<void> {
