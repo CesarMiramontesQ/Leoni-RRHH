@@ -1,4 +1,4 @@
-import { getComedorMenuSemana } from "../../api/comedor.ts";
+import { getComedorMenuSemana, publicarComedorMenu } from "../../api/comedor.ts";
 import type { ComedorMenuDiaDetalle } from "./menuDayDetalle.ts";
 import {
   menuDelDiaHasContent,
@@ -54,6 +54,52 @@ export function buildPublicarMenuPayloadsForDay(day: {
     rows.push({ dia: day.key, tipo: "dieta", descripcion: day.menuDieta.trim() });
   }
   return rows;
+}
+
+export type PersistComedorWeekMenuParams = {
+  comedorId: number;
+  weekStartIso: string;
+  dias: ReadonlyArray<{
+    key: string;
+    menuNormal: string;
+    menuDieta: string;
+    detalle: ComedorMenuDiaDetalle;
+  }>;
+  /** Logs temporales de depuración (solo desarrollo). */
+  debug?: boolean;
+};
+
+/** Persiste todos los días/tipos con contenido vía POST /api/v1/comedor/menu (upsert en backend). */
+export async function persistComedorWeekMenu(params: PersistComedorWeekMenuParams): Promise<number> {
+  const payloads = params.dias.flatMap((day) => buildPublicarMenuPayloadsForDay(day));
+  if (params.debug) {
+    console.debug(
+      "[planeacion-import] Días en semana:",
+      params.dias.map((day) => day.key),
+    );
+    console.debug(
+      "[planeacion-import] Payloads a backend:",
+      payloads.map((entry) => ({
+        dia: entry.dia,
+        tipo: entry.tipo,
+        descripcion: entry.descripcion.slice(0, 48),
+        tieneDetalle: Boolean(entry.detalle),
+      })),
+    );
+  }
+  await Promise.all(
+    payloads.map((entry) =>
+      publicarComedorMenu({
+        comedorId: params.comedorId,
+        semanaIso: params.weekStartIso,
+        dia: entry.dia,
+        tipo: entry.tipo,
+        descripcion: entry.descripcion,
+        detalle: entry.detalle,
+      }),
+    ),
+  );
+  return payloads.length;
 }
 
 export function createComedorMenuDelDiaLoader(

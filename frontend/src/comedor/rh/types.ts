@@ -199,7 +199,6 @@ export type ComedorWeekPlannerDay = {
   menuDieta: string;
   /** Complementos importados o capturados; persistidos en fila `normal` al publicar. */
   detalle: ComedorMenuDiaDetalle;
-  visibleEmpleados: boolean;
 };
 
 export type ComedorWeekPlanner = {

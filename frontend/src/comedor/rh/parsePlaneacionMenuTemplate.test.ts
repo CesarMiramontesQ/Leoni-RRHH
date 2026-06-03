@@ -41,6 +41,9 @@ describe("parsePlaneacionMenuTemplateFromArrayBuffer", () => {
     expect(lunes?.detalle.aguas).toEqual(["Jamaica lun"]);
     expect(result.days.find((d) => d.key === "sabado")?.menuDieta).toBe("");
     expect(result.days.find((d) => d.key === "domingo")?.menuDieta).toBe("");
+    const martes = result.days.find((d) => d.key === "martes");
+    expect(martes?.menuNormal).toBe("Plato A mar");
+    expect(martes?.menuDieta).toBe("Plato B mar");
   });
 
   it("rechaza plantilla sin encabezados de día", () => {

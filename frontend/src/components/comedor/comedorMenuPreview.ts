@@ -17,11 +17,18 @@ function renderLista(items: readonly string[]): string {
 
 function renderCategoriaBlock(title: string, items: readonly string[], boxClass: string): string {
   return `
-    <div class="rounded-lg border px-3 py-3 ${boxClass}">
+    <div class="flex h-full flex-col rounded-lg border px-3 py-3 ${boxClass}">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">${escapeComedorHtml(title)}</p>
-      ${renderLista(items)}
+      <div class="mt-1 flex flex-1 flex-col">${renderLista(items)}</div>
     </div>`;
 }
+
+/** Cuadrícula responsiva para categorías complementarias (4/3/2/1 columnas). */
+const MENU_PREVIEW_CATEGORIAS_GRID =
+  "grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
+
+/** Opciones A/B del plato principal en fila (50% c/u desde sm). */
+const MENU_PREVIEW_PLATO_OPCIONES_GRID = "mt-2 grid grid-cols-1 items-stretch gap-2 sm:grid-cols-2";
 
 export type MenuPreviewDetalleOptions = {
   /** Sábado y domingo: solo Opción A en plantilla y UI. */
@@ -38,31 +45,39 @@ export function renderMenuPreviewDetalleSections(
   const includeOpcionB = options.includeOpcionB ?? true;
   const platoNormal = menuNormal.trim();
   const platoDieta = menuDieta.trim();
-  const opcionBBlock = includeOpcionB
-    ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+  const opcionA = `
+        <div class="flex h-full flex-col rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Opción A · Tradicional</p>
+          <p class="mt-0.5 flex-1 text-sm font-medium text-slate-700">${escapeComedorHtml(
+            platoNormal || SIN_INFO,
+          )}</p>
+        </div>`;
+  const opcionB = includeOpcionB
+    ? `<div class="flex h-full flex-col rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
           <p class="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Opción B</p>
-          <p class="mt-0.5 text-sm font-medium text-emerald-800">${escapeComedorHtml(platoDieta || SIN_INFO)}</p>
+          <p class="mt-0.5 flex-1 text-sm font-medium text-emerald-800">${escapeComedorHtml(platoDieta || SIN_INFO)}</p>
         </div>`
     : "";
+  const platoOpcionesGridClass = includeOpcionB
+    ? MENU_PREVIEW_PLATO_OPCIONES_GRID
+    : "mt-2 grid grid-cols-1 items-stretch gap-2";
   const platoPrincipal = `
     <div class="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Plato principal</p>
-      <div class="mt-2 space-y-2">
-        <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Opción A · Tradicional</p>
-          <p class="mt-0.5 text-sm font-medium text-slate-700">${escapeComedorHtml(
-            platoNormal || SIN_INFO,
-          )}</p>
-        </div>
-        ${opcionBBlock}
+      <div class="${platoOpcionesGridClass}">
+        ${opcionA}
+        ${opcionB}
       </div>
     </div>`;
 
-  const complementarias = MENU_DETALLE_CATEGORIAS.map(({ key, label }) =>
-    renderCategoriaBlock(label, detalle[key], "border-slate-200 bg-slate-50/60"),
-  ).join("");
+  const complementarias = `
+    <div class="${MENU_PREVIEW_CATEGORIAS_GRID}">
+      ${MENU_DETALLE_CATEGORIAS.map(({ key, label }) =>
+        renderCategoriaBlock(label, detalle[key], "border-slate-200 bg-slate-50/60"),
+      ).join("")}
+    </div>`;
 
-  return `${platoPrincipal}${complementarias}`;
+  return `<div class="flex flex-col gap-3">${platoPrincipal}${complementarias}</div>`;
 }
 
 export type MenuDelDiaPanelState = "idle" | "loading" | "ready" | "empty" | "error";
@@ -157,7 +172,7 @@ export function renderComedorMenuDelDiaPanel(params: RenderMenuDelDiaPanelParams
           ${escapeComedorHtml(menu.dayLabel)}
         </span>
       </div>
-      <div class="mt-4 space-y-3">
+      <div class="mt-4">
         ${renderMenuPreviewDetalleSections(menu.menuNormal, menu.menuDieta, menu.detalle, {
           includeOpcionB: !isWeekendPlannerDay(menu.dayKey),
         })}

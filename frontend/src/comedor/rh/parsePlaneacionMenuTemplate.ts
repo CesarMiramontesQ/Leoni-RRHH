@@ -107,13 +107,18 @@ function parseDataRows(
   return byDay;
 }
 
+function dayHasImportedContent(entry: ParsedDayRow): boolean {
+  if (entry.menuNormal.trim() || entry.menuDieta.trim()) return true;
+  return Object.values(entry.detalle).some((items) => items.length > 0);
+}
+
 function validateImportedDays(byDay: Map<ComedorWeekPlannerDayKey, ParsedDayRow>): string | null {
   const missingLaboral: ComedorWeekPlannerDayKey[] = [];
   const missingWeekend: ComedorWeekPlannerDayKey[] = [];
 
   for (const key of WEEK_PLANNER_DAY_KEYS) {
     const entry = byDay.get(key);
-    if (!entry) continue;
+    if (!entry || !dayHasImportedContent(entry)) continue;
     const hasNormal = Boolean(entry.menuNormal.trim());
     const hasDieta = Boolean(entry.menuDieta.trim());
     if (isWeekendPlannerDay(key)) {
@@ -180,6 +185,22 @@ export function parsePlaneacionMenuTemplateFromArrayBuffer(
         detalle: cloneMenuDiaDetalle(entry.detalle),
       };
     });
+
+    if (import.meta.env.DEV) {
+      console.debug(
+        "[planeacion-import] Días detectados en Excel:",
+        [...header.columns.keys()],
+      );
+      console.debug(
+        "[planeacion-import] Datos parseados por día:",
+        days.map((day) => ({
+          key: day.key,
+          menuNormal: day.menuNormal.slice(0, 40),
+          menuDieta: day.menuDieta.slice(0, 40),
+          complementos: day.detalle.complementos.length,
+        })),
+      );
+    }
 
     return { ok: true, days };
   } catch {

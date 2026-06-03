@@ -413,11 +413,21 @@ class ComedorService:
         if await self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo RH puede publicar menus")
 
-        menu = await self.menu_repo.create({
+        payload = {
             **data.model_dump(),
             "created_by": current_user.id,
-        })
+        }
+        menu = await self.menu_repo.upsert_menu(payload)
         await self.db.flush()
+
+        logger.debug(
+            "Menú semanal upsert | comedor=%s semana=%s dia=%s tipo=%s id=%s",
+            data.comedor_id,
+            data.semana,
+            data.dia,
+            data.tipo,
+            menu.id,
+        )
 
         audit_background(
             background_tasks,

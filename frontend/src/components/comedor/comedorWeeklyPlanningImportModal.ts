@@ -1,6 +1,7 @@
 /**
  * Modal RH: nueva planeación semanal desde plantilla Excel (Formato Planeación Menú).
  */
+import { comedorErrorMessage } from "../../api/comedor.ts";
 import type { PlaneacionMenuTemplateDay } from "../../comedor/rh/parsePlaneacionMenuTemplate.ts";
 import { parsePlaneacionMenuTemplateFile } from "../../comedor/rh/parsePlaneacionMenuTemplate.ts";
 import { buildWeekRangeFromPickerDate } from "../../comedor/rh/weekRange.ts";
@@ -9,10 +10,14 @@ import { BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
 export type ComedorWeeklyPlanningImportPayload = {
   weekStartIso: string;
   days: PlaneacionMenuTemplateDay[];
+  /** true cuando la semana ya tenía registros y el usuario confirmó actualizar. */
+  isUpdate: boolean;
 };
 
 export type ComedorWeeklyPlanningImportModalOptions = {
   onImport: (payload: ComedorWeeklyPlanningImportPayload) => void | Promise<void>;
+  /** Indica si la semana seleccionada ya tiene menú en backend. */
+  checkWeekHasPlanning?: (weekStartIso: string) => Promise<boolean>;
 };
 
 export type ComedorWeeklyPlanningImportModalHandle = {
@@ -52,7 +57,7 @@ function shellHtml(): string {
     >
       <div
         id="comedor-plan-import-panel"
-        class="scheme-light flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_26px_70px_-22px_rgba(15,23,42,0.35)]"
+        class="scheme-light relative flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_26px_70px_-22px_rgba(15,23,42,0.35)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="comedor-plan-import-titulo"
@@ -104,6 +109,23 @@ function shellHtml(): string {
             <button type="submit" id="comedor-plan-import-submit" class="${BTN_PRIMARY} min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-70">Registrar planeación</button>
           </footer>
         </form>
+        <div
+          id="comedor-plan-import-confirm"
+          class="absolute inset-0 z-10 hidden flex-col justify-end bg-slate-900/35 p-4 backdrop-blur-[1px] sm:justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="comedor-plan-import-confirm-titulo"
+        >
+          <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-lg sm:mx-auto sm:max-w-md">
+            <h3 id="comedor-plan-import-confirm-titulo" class="text-base font-bold text-slate-900">Actualizar planeación existente</h3>
+            <p id="comedor-plan-import-confirm-texto" class="mt-2 text-sm text-slate-600"></p>
+            <p class="mt-2 text-xs text-slate-500">La información anterior de esta semana será reemplazada por la plantilla cargada.</p>
+            <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" data-comedor-plan-import-confirm-volver class="${BTN_SECONDARY} min-h-10 justify-center">Volver</button>
+              <button type="button" data-comedor-plan-import-confirm-aceptar class="${BTN_PRIMARY} min-h-10 justify-center">Actualizar planeación</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -127,8 +149,25 @@ export function mountComedorWeeklyPlanningImportModal(
   const rangoTexto = host.querySelector<HTMLElement>("#comedor-plan-import-rango-texto");
   const feedbackBox = host.querySelector<HTMLElement>("#comedor-plan-import-feedback");
   const btnSubmit = host.querySelector<HTMLButtonElement>("#comedor-plan-import-submit");
+  const confirmOverlay = host.querySelector<HTMLElement>("#comedor-plan-import-confirm");
+  const confirmTexto = host.querySelector<HTMLElement>("#comedor-plan-import-confirm-texto");
+  const confirmVolver = host.querySelector<HTMLButtonElement>("[data-comedor-plan-import-confirm-volver]");
+  const confirmAceptar = host.querySelector<HTMLButtonElement>("[data-comedor-plan-import-confirm-aceptar]");
 
-  if (!overlay || !form || !fechaInput || !archivoInput || !rangoBox || !rangoTexto || !feedbackBox || !btnSubmit) {
+  if (
+    !overlay ||
+    !form ||
+    !fechaInput ||
+    !archivoInput ||
+    !rangoBox ||
+    !rangoTexto ||
+    !feedbackBox ||
+    !btnSubmit ||
+    !confirmOverlay ||
+    !confirmTexto ||
+    !confirmVolver ||
+    !confirmAceptar
+  ) {
     return { open: () => {}, close: () => {}, destroy: () => { host.innerHTML = ""; } };
   }
 
@@ -140,8 +179,26 @@ export function mountComedorWeeklyPlanningImportModal(
   const rangoTextoEl = rangoTexto;
   const feedbackBoxEl = feedbackBox;
   const btnSubmitEl = btnSubmit;
+  const confirmOverlayEl = confirmOverlay;
+  const confirmTextoEl = confirmTexto;
+  const confirmVolverEl = confirmVolver;
+  const confirmAceptarEl = confirmAceptar;
 
   let ui: ModalUiState = initialUiState();
+
+  function showUpdateConfirm(): void {
+    confirmTextoEl.textContent = ui.weekRangeLabel
+      ? `La semana ${ui.weekRangeLabel} ya tiene menú registrado.`
+      : "Esta semana ya tiene menú registrado.";
+    confirmOverlayEl.classList.remove("hidden");
+    confirmOverlayEl.classList.add("flex");
+    confirmAceptarEl.focus();
+  }
+
+  function hideUpdateConfirm(): void {
+    confirmOverlayEl.classList.add("hidden");
+    confirmOverlayEl.classList.remove("flex");
+  }
 
   function setFeedback(tone: "error" | "success" | "info" | null, message: string | null): void {
     if (!tone || !message) {
@@ -179,6 +236,7 @@ export function mountComedorWeeklyPlanningImportModal(
     ui = initialUiState();
     formEl.reset();
     rangoBoxEl.classList.add("hidden");
+    hideUpdateConfirm();
     setFeedback(null, null);
     paintSubmitState();
   }
@@ -223,6 +281,34 @@ export function mountComedorWeeklyPlanningImportModal(
     setFeedback("success", `Plantilla válida (${file.name}). Revisa la semana y confirma el registro.`);
   });
 
+  async function executeImport(isUpdate: boolean): Promise<void> {
+    if (!ui.weekStartIso || !ui.parsedDays?.length) return;
+
+    ui.isSubmitting = true;
+    paintSubmitState();
+    try {
+      await options.onImport({
+        weekStartIso: ui.weekStartIso,
+        days: ui.parsedDays,
+        isUpdate,
+      });
+      setFeedback(
+        "success",
+        isUpdate ? "Planeación actualizada correctamente." : "Planeación semanal registrada correctamente.",
+      );
+      window.setTimeout(() => close(), 900);
+    } catch (error) {
+      setFeedback(
+        "error",
+        comedorErrorMessage(error, "No se pudo registrar la planeación semanal."),
+      );
+    } finally {
+      ui.isSubmitting = false;
+      hideUpdateConfirm();
+      paintSubmitState();
+    }
+  }
+
   formEl.addEventListener("submit", async (event) => {
     event.preventDefault();
     syncWeekFromPicker();
@@ -236,21 +322,34 @@ export function mountComedorWeeklyPlanningImportModal(
       return;
     }
 
-    ui.isSubmitting = true;
-    paintSubmitState();
     try {
-      await options.onImport({ weekStartIso: ui.weekStartIso, days: ui.parsedDays });
-      setFeedback("success", "Planeación semanal registrada correctamente.");
-      window.setTimeout(() => close(), 900);
+      const hasExisting =
+        options.checkWeekHasPlanning != null ?
+          await options.checkWeekHasPlanning(ui.weekStartIso)
+        : false;
+      if (hasExisting) {
+        showUpdateConfirm();
+        return;
+      }
+      await executeImport(false);
     } catch (error) {
       setFeedback(
         "error",
-        error instanceof Error ? error.message : "No se pudo registrar la planeación semanal.",
+        comedorErrorMessage(error, "No se pudo verificar la planeación de la semana."),
       );
-    } finally {
-      ui.isSubmitting = false;
-      paintSubmitState();
     }
+  });
+
+  confirmVolverEl.addEventListener("click", () => {
+    hideUpdateConfirm();
+  });
+
+  confirmAceptarEl.addEventListener("click", () => {
+    void executeImport(true);
+  });
+
+  confirmOverlayEl.addEventListener("click", (event) => {
+    if (event.target === confirmOverlayEl) hideUpdateConfirm();
   });
 
   host.querySelector("[data-comedor-plan-import-cerrar]")?.addEventListener("click", close);

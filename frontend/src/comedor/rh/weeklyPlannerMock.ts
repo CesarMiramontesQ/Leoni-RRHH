@@ -83,7 +83,6 @@ function buildBlankWeek(weekStartIso: string): ComedorWeekPlanner {
       menuNormal: "",
       menuDieta: "",
       detalle: createEmptyMenuDiaDetalle(),
-      visibleEmpleados: false,
     };
   });
   return {
@@ -110,7 +109,6 @@ function seedPreviousWeek(): void {
     menuDieta: ["Ensalada con atún", "Pescado al vapor", "Pollo a la plancha", "Bowl de quinoa", "Wrap integral"][
       idx
     ]!,
-    visibleEmpleados: true,
   }));
   WEEK_STORE.set(key, seeded);
 }
@@ -148,7 +146,6 @@ export async function duplicatePreviousWeekMock(
     ...day,
     menuNormal: prev.dias[index]?.menuNormal ?? "",
     menuDieta: prev.dias[index]?.menuDieta ?? "",
-    visibleEmpleados: prev.dias[index]?.visibleEmpleados ?? false,
   }));
   duplicated.status = "borrador";
   WEEK_STORE.set(weekStartIso, duplicated);

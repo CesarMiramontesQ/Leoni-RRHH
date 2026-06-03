@@ -1,10 +1,8 @@
 import type { ComedorPanelState, ComedorWeekPlanner, ComedorWeekPlannerDayKey } from "../../comedor/rh/types.ts";
-import { isPlannerDayIncomplete, isWeekendPlannerDay } from "../../comedor/rh/weekPlannerDays.ts";
+import { isWeekendPlannerDay } from "../../comedor/rh/weekPlannerDays.ts";
 import { BTN_PRIMARY } from "../../ui/uiTokens.ts";
 import { renderMenuPreviewDetalleSections } from "./comedorMenuPreview.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
-
-type PlannerMenuField = "menuNormal" | "menuDieta";
 
 export type ComedorWeeklyPlannerViewState = {
   panelState: ComedorPanelState;
@@ -17,12 +15,6 @@ export type ComedorWeeklyPlannerViewState = {
   isPublishing: boolean;
   isDuplicating: boolean;
   lastSavedAtLabel: string | null;
-  menuEditor: {
-    open: boolean;
-    dayKey: ComedorWeekPlannerDayKey | null;
-    field: PlannerMenuField;
-    draftText: string;
-  };
 };
 
 function statusBadge(status: ComedorWeekPlanner["status"]): string {
@@ -32,15 +24,8 @@ function statusBadge(status: ComedorWeekPlanner["status"]): string {
   return '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Estado: Borrador</span>';
 }
 
-function dayCardClass(selected: boolean, incomplete: boolean): string {
-  if (selected) {
-    return `rounded-xl border bg-white p-4 shadow-sm ring-1 ${
-      incomplete ? "border-red-300 ring-red-200" : "border-leoni-blue ring-leoni-blue/25"
-    }`;
-  }
-  return `rounded-xl border p-4 ${
-    incomplete ? "border-red-200 bg-red-50/40" : "border-slate-200 bg-slate-100/70"
-  }`;
+function weekHasRegisteredMenu(panelState: ComedorPanelState): boolean {
+  return panelState === "ready";
 }
 
 function renderPreviewDaySelector(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlannerDayKey): string {
@@ -69,6 +54,16 @@ function renderPreviewDaySelector(week: ComedorWeekPlanner, selectedDayKey: Come
     </div>`;
 }
 
+function renderPreviewEmptyState(): string {
+  return `
+    <div
+      class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-12 text-center"
+      role="status"
+    >
+      <p class="text-sm font-medium text-slate-600">No se ha registrado menú para esta semana.</p>
+    </div>`;
+}
+
 function renderPreview(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlannerDayKey): string {
   const selected = week.dias.find((day) => day.key === selectedDayKey) ?? week.dias[0]!;
   const menuTitle = selected.menuNormal.trim() || "Aún no has configurado este menú";
@@ -84,7 +79,7 @@ function renderPreview(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlan
       </div>
       <h3 class="mt-3 text-lg font-semibold text-slate-900">${escapeComedorHtml(menuTitle)}</h3>
       <p class="mt-1 text-sm text-slate-500">Vista de cómo lo verá el empleado en el portal.</p>
-      <div class="mt-4 space-y-3">
+      <div class="mt-4">
         ${renderMenuPreviewDetalleSections(selected.menuNormal, selected.menuDieta, selected.detalle, {
           includeOpcionB: !isWeekendPlannerDay(selected.key),
         })}
@@ -93,6 +88,21 @@ function renderPreview(week: ComedorWeekPlanner, selectedDayKey: ComedorWeekPlan
         Seleccionar menú en portal
       </button>
     </article>`;
+}
+
+function renderPreviewPanel(state: ComedorWeeklyPlannerViewState): string {
+  const hasMenu = weekHasRegisteredMenu(state.panelState);
+  return `
+    <section id="comedor-plan-preview-panel" class="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6">
+      <p class="text-sm font-semibold text-slate-700">Vista previa del menú</p>
+      ${
+        hasMenu
+          ? `<p class="mt-1 text-sm text-slate-500">Selecciona un día para revisar el menú completo (platillos y complementos).</p>
+             ${renderPreviewDaySelector(state.week, state.selectedDayKey)}
+             ${renderPreview(state.week, state.selectedDayKey)}`
+          : renderPreviewEmptyState()
+      }
+    </section>`;
 }
 
 export function renderComedorWeeklyPlanner(state: ComedorWeeklyPlannerViewState): string {
@@ -128,7 +138,7 @@ export function renderComedorWeeklyPlanner(state: ComedorWeeklyPlannerViewState)
           </a>
           <div>
             <h1 class="text-2xl font-bold tracking-tight text-text-primary">Configuración de Menú Semanal</h1>
-            <p class="mt-1 text-sm text-text-muted">Define los platillos disponibles para cada día de la semana.</p>
+            <p class="mt-1 text-sm text-text-muted">Consulta y gestiona la planeación del menú por semana.</p>
           </div>
         </div>
       </section>
@@ -158,102 +168,10 @@ export function renderComedorWeeklyPlanner(state: ComedorWeeklyPlannerViewState)
         </div>
       </section>
 
-      <section>
-        <p class="mb-3 text-sm font-semibold text-slate-700">1. Configura los menús por día</p>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-          ${state.week.dias
-            .map((day) => {
-              const selected = day.key === state.selectedDayKey;
-              const incomplete = isPlannerDayIncomplete(day);
-              const menuEditorOpen =
-                state.menuEditor.open && state.menuEditor.dayKey === day.key;
-              return `
-                <article class="${dayCardClass(selected, incomplete)}" data-comedor-plan-day-card="${day.key}">
-                  <button type="button" data-comedor-plan-select-day="${day.key}" class="w-full text-left">
-                    <h3 class="text-sm font-semibold text-slate-900">${escapeComedorHtml(day.label)}</h3>
-                    <p class="text-xs text-slate-500">${escapeComedorHtml(day.fechaCorta)}</p>
-                  </button>
-
-                  <div class="mt-4 space-y-4">
-                    <section>
-                      <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">🍽 Menú normal</p>
-                      <p class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">${escapeComedorHtml(
-                        day.menuNormal.trim() || "Aún no has configurado este menú",
-                      )}</p>
-                      <button type="button" data-comedor-plan-menu-open="${day.key}:menuNormal" class="mt-2 inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                        Agregar menú
-                      </button>
-                    </section>
-
-                    ${
-                      isWeekendPlannerDay(day.key)
-                        ? ""
-                        : `<section class="border-t border-slate-200 pt-3">
-                      <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">🥗 Menú dieta</p>
-                      <p class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">${escapeComedorHtml(
-                        day.menuDieta.trim() || "Aún no has configurado este menú",
-                      )}</p>
-                      <button type="button" data-comedor-plan-menu-open="${day.key}:menuDieta" class="mt-2 inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                        Agregar menú
-                      </button>
-                    </section>`
-                    }
-
-                    <section class="border-t border-slate-200 pt-3">
-                      <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
-                        <input type="checkbox" data-comedor-plan-visible-day="${day.key}" class="size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue/30" ${
-                          day.visibleEmpleados ? "checked" : ""
-                        } />
-                        Visible para empleados
-                      </label>
-                    </section>
-
-                    ${
-                      selected
-                        ? `<section class="border-t border-slate-200 pt-3">
-                             <button type="button" data-comedor-plan-copy-selected-day class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                               Copiar este día a toda la semana
-                             </button>
-                           </section>`
-                        : ""
-                    }
-
-                    ${
-                      menuEditorOpen
-                        ? `<section class="border-t border-slate-200 pt-3">
-                             <p class="mb-2 text-xs font-semibold text-slate-700">Editar ${
-                               state.menuEditor.field === "menuNormal" ? "menú normal" : "menú dieta"
-                             }</p>
-                             <textarea data-comedor-plan-menu-draft class="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20">${escapeComedorHtml(
-                               state.menuEditor.draftText,
-                             )}</textarea>
-                             <div class="mt-2 flex gap-2">
-                               <button type="button" data-comedor-plan-menu-save class="inline-flex min-h-9 items-center justify-center rounded-lg bg-leoni-blue px-3 text-xs font-semibold text-white hover:bg-leoni-blue-light">
-                                 Guardar
-                               </button>
-                               <button type="button" data-comedor-plan-menu-cancel class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                 Cancelar
-                               </button>
-                             </div>
-                           </section>`
-                        : ""
-                    }
-                  </div>
-                </article>`;
-            })
-            .join("")}
-        </div>
-      </section>
-
-      <section id="comedor-plan-preview-panel" class="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6">
-        <p class="text-sm font-semibold text-slate-700">2. Vista previa del menú</p>
-        <p class="mt-1 text-sm text-slate-500">Selecciona un día para revisar el menú completo (platillos y complementos).</p>
-        ${renderPreviewDaySelector(state.week, state.selectedDayKey)}
-        ${renderPreview(state.week, state.selectedDayKey)}
-      </section>
+      ${renderPreviewPanel(state)}
 
       <section>
-        <p class="mb-3 text-sm font-semibold text-slate-700">3. Guarda o publica</p>
+        <p class="mb-3 text-sm font-semibold text-slate-700">Guarda o publica</p>
         <article class="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 lg:max-w-md">
             <p class="text-sm text-slate-600">Revisa que todos los días tengan contenido antes de publicar.</p>
             <p class="mt-2 text-xs font-medium ${state.incompleteDaysCount > 0 ? "text-red-600" : "text-emerald-700"}">
