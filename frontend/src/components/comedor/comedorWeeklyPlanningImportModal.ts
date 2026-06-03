@@ -4,7 +4,7 @@
 import { comedorErrorMessage } from "../../api/comedor.ts";
 import type { PlaneacionMenuTemplateDay } from "../../comedor/rh/parsePlaneacionMenuTemplate.ts";
 import { parsePlaneacionMenuTemplateFile } from "../../comedor/rh/parsePlaneacionMenuTemplate.ts";
-import { buildWeekRangeFromPickerDate } from "../../comedor/rh/weekRange.ts";
+import { buildWeekRangeFromWeekInput } from "../../comedor/rh/weekRange.ts";
 import { BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
 
 export type ComedorWeeklyPlanningImportPayload = {
@@ -27,7 +27,7 @@ export type ComedorWeeklyPlanningImportModalHandle = {
 };
 
 type ModalUiState = {
-  pickerDateIso: string;
+  weekPickerValue: string;
   weekRangeLabel: string | null;
   weekStartIso: string | null;
   fileName: string | null;
@@ -38,7 +38,7 @@ type ModalUiState = {
 
 function initialUiState(): ModalUiState {
   return {
-    pickerDateIso: "",
+    weekPickerValue: "",
     weekRangeLabel: null,
     weekStartIso: null,
     fileName: null,
@@ -78,15 +78,15 @@ function shellHtml(): string {
         </header>
         <form id="comedor-plan-import-form" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 sm:px-6">
           <div>
-            <label for="comedor-plan-import-fecha" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha de la semana</label>
+            <label for="comedor-plan-import-semana" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Semana de planeación</label>
             <input
-              id="comedor-plan-import-fecha"
-              name="fecha"
-              type="date"
+              id="comedor-plan-import-semana"
+              name="semana"
+              type="week"
               required
               class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
             />
-            <p class="mt-1 text-xs text-slate-500">Elige cualquier día; se calculará el lunes de esa semana como inicio.</p>
+            <p class="mt-1 text-xs text-slate-500">Selecciona la semana completa (lunes a domingo).</p>
           </div>
           <div id="comedor-plan-import-rango" class="hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Semana seleccionada</p>
@@ -143,7 +143,7 @@ export function mountComedorWeeklyPlanningImportModal(
   host.innerHTML = shellHtml();
   const overlay = host.querySelector<HTMLElement>("#comedor-plan-import-overlay");
   const form = host.querySelector<HTMLFormElement>("#comedor-plan-import-form");
-  const fechaInput = host.querySelector<HTMLInputElement>("#comedor-plan-import-fecha");
+  const semanaInput = host.querySelector<HTMLInputElement>("#comedor-plan-import-semana");
   const archivoInput = host.querySelector<HTMLInputElement>("#comedor-plan-import-archivo");
   const rangoBox = host.querySelector<HTMLElement>("#comedor-plan-import-rango");
   const rangoTexto = host.querySelector<HTMLElement>("#comedor-plan-import-rango-texto");
@@ -157,7 +157,7 @@ export function mountComedorWeeklyPlanningImportModal(
   if (
     !overlay ||
     !form ||
-    !fechaInput ||
+    !semanaInput ||
     !archivoInput ||
     !rangoBox ||
     !rangoTexto ||
@@ -173,7 +173,7 @@ export function mountComedorWeeklyPlanningImportModal(
 
   const overlayEl = overlay;
   const formEl = form;
-  const fechaInputEl = fechaInput;
+  const semanaInputEl = semanaInput;
   const archivoInputEl = archivoInput;
   const rangoBoxEl = rangoBox;
   const rangoTextoEl = rangoTexto;
@@ -214,7 +214,7 @@ export function mountComedorWeeklyPlanningImportModal(
   }
 
   function syncWeekFromPicker(): void {
-    const range = buildWeekRangeFromPickerDate(fechaInputEl.value);
+    const range = buildWeekRangeFromWeekInput(semanaInputEl.value);
     if (!range) {
       ui.weekStartIso = null;
       ui.weekRangeLabel = null;
@@ -245,7 +245,7 @@ export function mountComedorWeeklyPlanningImportModal(
     resetForm();
     overlayEl.classList.remove("hidden");
     overlayEl.classList.add("flex");
-    fechaInputEl.focus();
+    semanaInputEl.focus();
   }
 
   function close(): void {
@@ -254,8 +254,8 @@ export function mountComedorWeeklyPlanningImportModal(
     resetForm();
   }
 
-  fechaInputEl.addEventListener("change", () => {
-    ui.pickerDateIso = fechaInputEl.value;
+  semanaInputEl.addEventListener("change", () => {
+    ui.weekPickerValue = semanaInputEl.value;
     syncWeekFromPicker();
     if (!ui.weekStartIso) {
       setFeedback("error", "Selecciona una semana de planeación.");

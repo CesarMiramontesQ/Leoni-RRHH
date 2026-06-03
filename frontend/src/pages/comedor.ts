@@ -95,6 +95,7 @@ import {
   getCurrentWeekStartIso,
   mapProyeccionesToSidebar,
 } from "../comedor/rh/buildRhComedorSidebar.ts";
+import { isoFromWeekInput, weekInputFromIso } from "../comedor/rh/weekRange.ts";
 import { reporteDetalleRowsSorted } from "../components/comedor/comedorReporteAnalytics.ts";
 import { renderComedorReporteDashboard } from "../components/comedor/comedorReporteDashboard.ts";
 import { downloadReporteComedorExcel } from "../comedor/reportes/exportReporteComedorExcel.ts";
@@ -885,33 +886,6 @@ type RhPlannerState = {
   isDuplicating: boolean;
   lastSavedAt: number | null;
 };
-
-function weekInputFromIso(weekStartIso: string): string {
-  const dt = new Date(`${weekStartIso}T00:00:00`);
-  const day = (dt.getDay() + 6) % 7;
-  dt.setDate(dt.getDate() - day + 4);
-  const firstThursday = new Date(dt.getFullYear(), 0, 4);
-  const firstDay = (firstThursday.getDay() + 6) % 7;
-  firstThursday.setDate(firstThursday.getDate() - firstDay + 4);
-  const week = 1 + Math.round((dt.getTime() - firstThursday.getTime()) / 604800000);
-  return `${dt.getFullYear()}-W${String(week).padStart(2, "0")}`;
-}
-
-function isoFromWeekInput(value: string): string | null {
-  const match = /^(\d{4})-W(\d{2})$/.exec(value);
-  if (!match) return null;
-  const year = Number.parseInt(match[1] ?? "", 10);
-  const week = Number.parseInt(match[2] ?? "", 10);
-  if (!Number.isFinite(year) || !Number.isFinite(week) || week < 1 || week > 53) return null;
-  const jan4 = new Date(year, 0, 4);
-  const jan4Day = (jan4.getDay() + 6) % 7;
-  const mondayWeek1 = new Date(year, 0, 4 - jan4Day);
-  mondayWeek1.setDate(mondayWeek1.getDate() + (week - 1) * 7);
-  const y = String(mondayWeek1.getFullYear()).padStart(4, "0");
-  const m = String(mondayWeek1.getMonth() + 1).padStart(2, "0");
-  const d = String(mondayWeek1.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 function plannerIncompleteDays(week: ComedorWeekPlanner): number {
   return countIncompletePlannerDays(week.dias);
@@ -2059,7 +2033,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
   }
 
   mountAppShell(container, {
-    pageTitle: "Comedor",
+    pageTitle: "Planeación de Menú",
     activeNav: "comedor",
     mainClass: "py-5 sm:py-6",
     mainHtml: `<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div>`,

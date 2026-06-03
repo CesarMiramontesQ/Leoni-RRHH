@@ -79,3 +79,36 @@ export function buildWeekRangeFromPickerDate(dateIso: string | null): WeekRange 
   if (!dateIso?.trim()) return null;
   return buildWeekRangeFromStartIso(mondayIsoFromDateIso(dateIso.trim()));
 }
+
+/** Valor para `<input type="week">` a partir del lunes ISO (yyyy-mm-dd). */
+export function weekInputFromIso(weekStartIso: string): string {
+  const dt = new Date(`${weekStartIso}T00:00:00`);
+  const day = (dt.getDay() + 6) % 7;
+  dt.setDate(dt.getDate() - day + 4);
+  const firstThursday = new Date(dt.getFullYear(), 0, 4);
+  const firstDay = (firstThursday.getDay() + 6) % 7;
+  firstThursday.setDate(firstThursday.getDate() - firstDay + 4);
+  const week = 1 + Math.round((dt.getTime() - firstThursday.getTime()) / 604800000);
+  return `${dt.getFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+/** Lunes ISO (yyyy-mm-dd) a partir del valor de `<input type="week">` (yyyy-Www). */
+export function isoFromWeekInput(value: string): string | null {
+  const match = /^(\d{4})-W(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number.parseInt(match[1] ?? "", 10);
+  const week = Number.parseInt(match[2] ?? "", 10);
+  if (!Number.isFinite(year) || !Number.isFinite(week) || week < 1 || week > 53) return null;
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = (jan4.getDay() + 6) % 7;
+  const mondayWeek1 = new Date(year, 0, 4 - jan4Day);
+  mondayWeek1.setDate(mondayWeek1.getDate() + (week - 1) * 7);
+  return dateToIso(mondayWeek1);
+}
+
+export function buildWeekRangeFromWeekInput(weekInput: string | null): WeekRange | null {
+  if (!weekInput?.trim()) return null;
+  const weekStartIso = isoFromWeekInput(weekInput.trim());
+  if (!weekStartIso) return null;
+  return buildWeekRangeFromStartIso(weekStartIso);
+}

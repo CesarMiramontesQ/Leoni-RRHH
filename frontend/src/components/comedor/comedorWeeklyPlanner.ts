@@ -1,6 +1,6 @@
 import type { ComedorPanelState, ComedorWeekPlanner, ComedorWeekPlannerDayKey } from "../../comedor/rh/types.ts";
 import { isWeekendPlannerDay } from "../../comedor/rh/weekPlannerDays.ts";
-import { BTN_PRIMARY } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { renderMenuPreviewDetalleSections } from "./comedorMenuPreview.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 
@@ -130,18 +130,10 @@ export function renderComedorWeeklyPlanner(state: ComedorWeeklyPlannerViewState)
 
   return `
     <div class="flex flex-col gap-7">
-      <section class="rounded-xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
-        <div class="flex flex-col gap-3">
-          <a href="#/comedor" class="inline-flex items-center gap-1 text-sm font-semibold text-leoni-blue hover:underline">
-            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
-            Volver a Comedor
-          </a>
-          <div>
-            <h1 class="text-2xl font-bold tracking-tight text-text-primary">Configuración de Menú Semanal</h1>
-            <p class="mt-1 text-sm text-text-muted">Consulta y gestiona la planeación del menú por semana.</p>
-          </div>
-        </div>
-      </section>
+      <a href="#/comedor" class="${BTN_SECONDARY} min-h-10 w-fit">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+        Gestión Comedor
+      </a>
 
       <section class="rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 sm:p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
