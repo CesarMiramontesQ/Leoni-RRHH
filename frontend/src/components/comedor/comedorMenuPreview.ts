@@ -16,6 +16,11 @@ const MENU_PREVIEW_CARD_BODY = "text-lg font-semibold leading-snug text-[#0A1628
 
 const MENU_PREVIEW_CARD_BODY_EMPTY = "text-base font-medium text-slate-400";
 
+/** Texto compacto para los ítems de categorías secundarias (más pequeño que el cuerpo principal). */
+const MENU_PREVIEW_LISTA_BODY = "text-sm font-medium leading-snug text-[#334155]";
+
+const MENU_PREVIEW_LISTA_EMPTY = "text-[13px] font-medium text-slate-400";
+
 const CATEGORIA_ICON: Record<(typeof MENU_DETALLE_CATEGORIAS)[number]["key"], string> = {
   sopa_o_crema: "🍲",
   guarniciones: "🥗",
@@ -28,12 +33,12 @@ const CATEGORIA_ICON: Record<(typeof MENU_DETALLE_CATEGORIAS)[number]["key"], st
 
 function renderLista(items: readonly string[]): string {
   if (items.length === 0) {
-    return `<p class="mt-2 ${MENU_PREVIEW_CARD_BODY_EMPTY}">${SIN_INFO}</p>`;
+    return `<p class="mt-2 ${MENU_PREVIEW_LISTA_EMPTY}">${SIN_INFO}</p>`;
   }
   if (items.length === 1) {
-    return `<p class="mt-2 ${MENU_PREVIEW_CARD_BODY}">${escapeComedorHtml(items[0]!)}</p>`;
+    return `<p class="mt-2 ${MENU_PREVIEW_LISTA_BODY}">${escapeComedorHtml(items[0]!)}</p>`;
   }
-  return `<ul class="mt-2 space-y-1.5 ${MENU_PREVIEW_CARD_BODY}">${items
+  return `<ul class="mt-2 space-y-1 ${MENU_PREVIEW_LISTA_BODY}">${items
     .map(
       (item) =>
         `<li class="flex gap-2"><span class="mt-2.5 size-1 shrink-0 rounded-full bg-slate-300" aria-hidden="true"></span><span>${escapeComedorHtml(item)}</span></li>`,
@@ -60,13 +65,41 @@ function renderCategoriaBlock(
 const MENU_PREVIEW_CATEGORIAS_GRID =
   "grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
 
-/** Opciones A/B del plato principal en fila (50% c/u desde sm). */
-const MENU_PREVIEW_PLATO_OPCIONES_GRID = "grid grid-cols-1 sm:grid-cols-2";
+/** Opciones A/B como tarjetas separadas (50% c/u desde sm). */
+const MENU_PREVIEW_PLATO_OPCIONES_GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2";
+
+/** Tarjeta Opción A — azul (accent/leoni-blue), sin tonos grises. */
+const MENU_PREVIEW_OPCION_A_CARD =
+  "rounded-xl border border-blue-200/90 bg-gradient-to-br from-blue-50 via-sky-50/80 to-white p-4 shadow-[0_1px_3px_rgba(37,99,235,0.08)] ring-1 ring-blue-200/70";
+
+/** Tarjeta Opción B — variante emerald coherente con gráficas y badges del módulo. */
+const MENU_PREVIEW_OPCION_B_CARD =
+  "rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] ring-1 ring-emerald-200/60";
 
 export type MenuPreviewDetalleOptions = {
   /** Sábado y domingo: solo Opción A en plantilla y UI. */
   includeOpcionB?: boolean;
 };
+
+function renderOpcionPlatoCard(params: {
+  badge: string;
+  badgeClass: string;
+  label: string;
+  labelClass: string;
+  cardClass: string;
+  bodyClass: string;
+  plato: string;
+}): string {
+  const { badge, badgeClass, label, labelClass, cardClass, bodyClass, plato } = params;
+  return `
+    <article class="flex h-full flex-col ${cardClass}">
+      <p class="flex items-center gap-1.5 text-xs font-semibold ${labelClass}">
+        <span class="inline-flex size-5 shrink-0 items-center justify-center rounded text-[11px] font-bold ${badgeClass}">${badge}</span>
+        ${escapeComedorHtml(label)}
+      </p>
+      <p class="mt-3 flex-1 ${bodyClass}">${escapeComedorHtml(plato || SIN_INFO)}</p>
+    </article>`;
+}
 
 /** Bloques HTML de plato principal + categorías complementarias para la vista previa. */
 export function renderMenuPreviewDetalleSections(
@@ -78,28 +111,33 @@ export function renderMenuPreviewDetalleSections(
   const includeOpcionB = options.includeOpcionB ?? true;
   const platoNormal = menuNormal.trim();
   const platoDieta = menuDieta.trim();
-  const opcionA = `
-        <div class="flex h-full flex-col p-3 sm:pr-4">
-          <p class="text-xs font-semibold text-slate-500">
-            <span class="mr-1 inline-flex size-5 items-center justify-center rounded bg-slate-200/80 text-[11px] text-slate-700">A</span>
-            Tradicional
-          </p>
-          <p class="mt-2 flex-1 ${MENU_PREVIEW_CARD_BODY}">${escapeComedorHtml(platoNormal || SIN_INFO)}</p>
-        </div>`;
+
+  const opcionA = renderOpcionPlatoCard({
+    badge: "A",
+    badgeClass: "bg-leoni-blue text-white",
+    label: "Opción A",
+    labelClass: "text-leoni-blue",
+    cardClass: MENU_PREVIEW_OPCION_A_CARD,
+    bodyClass: MENU_PREVIEW_CARD_BODY,
+    plato: platoNormal,
+  });
   const opcionB = includeOpcionB
-    ? `<div class="flex h-full flex-col bg-emerald-50/60 p-3 sm:border-l sm:border-[#eef2f7] sm:pl-4">
-          <p class="text-xs font-semibold text-emerald-700">
-            <span class="mr-1 inline-flex size-5 items-center justify-center rounded bg-emerald-100 text-[11px] text-emerald-800">B</span>
-            Alternativa
-          </p>
-          <p class="mt-2 flex-1 text-lg font-semibold leading-snug text-emerald-950">${escapeComedorHtml(platoDieta || SIN_INFO)}</p>
-        </div>`
+    ? renderOpcionPlatoCard({
+        badge: "B",
+        badgeClass: "bg-emerald-600 text-white",
+        label: "Opción B",
+        labelClass: "text-emerald-700",
+        cardClass: MENU_PREVIEW_OPCION_B_CARD,
+        bodyClass: "text-lg font-semibold leading-snug text-emerald-950",
+        plato: platoDieta,
+      })
     : "";
+
   const platoOpcionesGridClass = includeOpcionB ? MENU_PREVIEW_PLATO_OPCIONES_GRID : "grid grid-cols-1";
   const platoPrincipal = `
-    <div class="overflow-hidden rounded-xl border border-[#eef2f7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-      <p class="border-b border-[#eef2f7] px-3 py-2 text-[13px] font-semibold text-slate-500">Plato principal</p>
-      <div class="${platoOpcionesGridClass} bg-slate-50/50">
+    <div>
+      <p class="mb-3 text-[13px] font-semibold text-slate-500">Plato principal</p>
+      <div class="${platoOpcionesGridClass}">
         ${opcionA}
         ${opcionB}
       </div>

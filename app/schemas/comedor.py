@@ -58,6 +58,12 @@ class MenuSemanalResponse(MenuSemanalCreate):
     model_config = {"from_attributes": True}
 
 
+class MenuSemanalDeleteResponse(BaseModel):
+    comedor_id: int
+    semana: date
+    deleted_count: int
+
+
 class ComedorAsignadoResponse(BaseModel):
     """Comedor del empleado según `turnos_empleados` y catálogo `comedores`."""
 

@@ -29,6 +29,7 @@ import {
   type ComedorCodigoExternoApiItem,
   getComedorEstadisticas,
   getComedorMenuSemana,
+  eliminarComedorMenuSemana,
   getComedorMisFechasOcupadas,
   getComedorMisProximasReservas,
   getComedorMisReservasMes,
@@ -68,7 +69,6 @@ import {
 } from "../comedor/rh/loadMenuDelDia.ts";
 import type { PlaneacionMenuTemplateDay } from "../comedor/rh/parsePlaneacionMenuTemplate.ts";
 import {
-  countIncompletePlannerDays,
   isComedorWeekPlannerDayKey,
   WEEK_PLANNER_DAY_KEYS,
   WEEK_PLANNER_DAY_LABELS,
@@ -89,6 +89,7 @@ import {
   type ComedorWeeklyPlannerViewState,
 } from "../components/comedor/comedorWeeklyPlanner.ts";
 import { mountComedorWeeklyPlanningImportModal } from "../components/comedor/comedorWeeklyPlanningImportModal.ts";
+import { mountComedorClearWeekModal } from "../components/comedor/comedorClearWeekModal.ts";
 import { renderComedorDashboardRh, type ComedorDashboardRhViewState } from "../components/comedor/comedorDashboardRh.ts";
 import {
   buildRhPlatillosPorSemana,
@@ -880,24 +881,8 @@ type RhPlannerState = {
   week: ComedorWeekPlanner;
   weekPickerValue: string;
   selectedDayKey: ComedorWeekPlannerDayKey;
-  incompleteDaysCount: number;
-  isSavingDraft: boolean;
-  isPublishing: boolean;
   isDuplicating: boolean;
-  lastSavedAt: number | null;
 };
-
-function plannerIncompleteDays(week: ComedorWeekPlanner): number {
-  return countIncompletePlannerDays(week.dias);
-}
-
-function formatRelativeSavedLabel(lastSavedAt: number | null): string | null {
-  if (lastSavedAt == null) return null;
-  const deltaSec = Math.max(1, Math.floor((Date.now() - lastSavedAt) / 1000));
-  if (deltaSec < 60) return `${deltaSec}s`;
-  const min = Math.floor(deltaSec / 60);
-  return `${min} min`;
-}
 
 function toPlannerViewState(state: RhPlannerState): ComedorWeeklyPlannerViewState {
   return {
@@ -906,11 +891,7 @@ function toPlannerViewState(state: RhPlannerState): ComedorWeeklyPlannerViewStat
     week: state.week,
     weekPickerValue: state.weekPickerValue,
     selectedDayKey: state.selectedDayKey,
-    incompleteDaysCount: state.incompleteDaysCount,
-    isSavingDraft: state.isSavingDraft,
-    isPublishing: state.isPublishing,
     isDuplicating: state.isDuplicating,
-    lastSavedAtLabel: formatRelativeSavedLabel(state.lastSavedAt),
   };
 }
 
@@ -1829,11 +1810,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     week: initialWeek,
     weekPickerValue: weekInputFromIso(initialWeek.weekStartIso),
     selectedDayKey: "lunes",
-    incompleteDaysCount: plannerIncompleteDays(initialWeek),
-    isSavingDraft: false,
-    isPublishing: false,
     isDuplicating: false,
-    lastSavedAt: null,
   };
 
   function paint(): void {
@@ -1848,7 +1825,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     state.week = createBlankWeekByStartIso(weekStartIso);
     state.weekPickerValue = weekInputFromIso(weekStartIso);
     state.selectedDayKey = "lunes";
-    state.incompleteDaysCount = plannerIncompleteDays(state.week);
     paint();
     try {
       const comedorId = await resolveComedorId();
@@ -1856,7 +1832,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
         state.week = createBlankWeekByStartIso(weekStartIso);
         state.panelState = "empty";
         state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-        state.incompleteDaysCount = plannerIncompleteDays(state.week);
         paint();
         return;
       }
@@ -1889,7 +1864,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
       if (signal.aborted) return;
       state.panelState = menus.length > 0 ? "ready" : "empty";
       state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-      state.incompleteDaysCount = plannerIncompleteDays(state.week);
     } catch (error) {
       if (signal.aborted) return;
       state.panelState = "error";
@@ -1901,21 +1875,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
   function selectPreviewDay(dayKey: ComedorWeekPlannerDayKey): void {
     state.selectedDayKey = dayKey;
     paint();
-  }
-
-  async function saveDraft(): Promise<void> {
-    state.isSavingDraft = true;
-    paint();
-    try {
-      if (signal.aborted) return;
-      showEmpleadosToast(container, "Guardado de borrador en integracion con backend.", "error");
-    } catch {
-      if (signal.aborted) return;
-      showEmpleadosToast(container, "No se pudo guardar el borrador.", "error");
-    } finally {
-      state.isSavingDraft = false;
-      paint();
-    }
   }
 
   async function persistCurrentWeekMenu(): Promise<number> {
@@ -1935,31 +1894,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     return savedCount;
   }
 
-  async function publishWeek(): Promise<void> {
-    const confirmed = window.confirm("¿Publicar la semana actual para que esté disponible a empleados?");
-    if (!confirmed) return;
-    state.isPublishing = true;
-    paint();
-    try {
-      await persistCurrentWeekMenu();
-      if (signal.aborted) return;
-      state.week = { ...state.week, status: "publicado" };
-      state.panelState = state.week.dias.length > 0 ? "ready" : "empty";
-      state.lastSavedAt = Date.now();
-      showEmpleadosToast(container, "Semana publicada correctamente.", "success");
-    } catch (error) {
-      if (signal.aborted) return;
-      showEmpleadosToast(
-        container,
-        error instanceof Error ? error.message : "No se pudo publicar la semana.",
-        "error",
-      );
-    } finally {
-      state.isPublishing = false;
-      paint();
-    }
-  }
-
   async function duplicatePreviousWeek(): Promise<void> {
     state.isDuplicating = true;
     paint();
@@ -1975,23 +1909,16 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     }
   }
 
-  async function clearWeek(): Promise<void> {
-    const confirmed = window.confirm("Se limpiarán los campos de la semana en edición. ¿Deseas continuar?");
-    if (!confirmed) return;
-    try {
-      if (signal.aborted) return;
-      state.week = createBlankWeekByStartIso(state.week.weekStartIso);
-      state.panelState = "empty";
-      state.weekPickerValue = weekInputFromIso(state.week.weekStartIso);
-      state.selectedDayKey = "lunes";
-      state.incompleteDaysCount = plannerIncompleteDays(state.week);
-      state.lastSavedAt = Date.now();
-      showEmpleadosToast(container, "Semana limpiada.", "success");
-      paint();
-    } catch {
-      if (signal.aborted) return;
-      showEmpleadosToast(container, "No se pudo limpiar la semana.", "error");
+  async function deleteWeekFromDatabase(weekStartIso: string): Promise<void> {
+    const comedorId = await resolveComedorId();
+    if (comedorId == null) {
+      throw new Error("No hay comedor activo configurado.");
     }
+    await eliminarComedorMenuSemana(comedorId, weekStartIso);
+    if (signal.aborted) return;
+    await loadWeek(weekStartIso);
+    if (signal.aborted) return;
+    showEmpleadosToast(container, "Planeación de la semana eliminada.", "success");
   }
 
   async function checkWeekHasPlanning(weekStartIso: string): Promise<boolean> {
@@ -2010,7 +1937,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
   }): Promise<void> {
     state.week = mergeImportedDaysIntoWeek(payload.weekStartIso, payload.days);
     state.weekPickerValue = weekInputFromIso(payload.weekStartIso);
-    state.incompleteDaysCount = plannerIncompleteDays(state.week);
     state.panelState = "ready";
     state.selectedDayKey = "lunes";
     paint();
@@ -2022,7 +1948,6 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     if (signal.aborted) return;
 
     state.panelState = "ready";
-    state.lastSavedAt = Date.now();
     paint();
     showEmpleadosToast(
       container,
@@ -2035,16 +1960,23 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     pageTitle: "Planeación de Menú",
     activeNav: "comedor",
     mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div>`,
+    mainHtml: `<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div><div id="comedor-plan-clear-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-plan-root");
   const importModalHost = container.querySelector<HTMLElement>("#comedor-plan-import-host");
+  const clearModalHost = container.querySelector<HTMLElement>("#comedor-plan-clear-host");
   const importModal =
     importModalHost ?
       mountComedorWeeklyPlanningImportModal(importModalHost, {
         checkWeekHasPlanning: (weekStartIso) => checkWeekHasPlanning(weekStartIso),
         onImport: (payload) => applyWeeklyPlanningImport(payload),
+      })
+    : { open: () => {}, close: () => {}, destroy: () => {} };
+  const clearModal =
+    clearModalHost ?
+      mountComedorClearWeekModal(clearModalHost, {
+        onConfirm: async ({ weekStartIso }) => deleteWeekFromDatabase(weekStartIso),
       })
     : { open: () => {}, close: () => {}, destroy: () => {} };
   root?.addEventListener(
@@ -2071,16 +2003,12 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
         void duplicatePreviousWeek();
         return;
       }
-      if (target.closest("[data-comedor-plan-save-draft]")) {
-        void saveDraft();
-        return;
-      }
-      if (target.closest("[data-comedor-plan-publish]")) {
-        void publishWeek();
-        return;
-      }
-      if (target.closest("[data-comedor-plan-clear]")) {
-        void clearWeek();
+      if (target.closest("[data-comedor-plan-clear-open]")) {
+        if (state.panelState !== "ready") return;
+        clearModal.open({
+          weekStartIso: state.week.weekStartIso,
+          weekLabel: state.week.weekLabel,
+        });
         return;
       }
       const previewDayBtn = target.closest<HTMLElement>("[data-comedor-plan-preview-day]");
@@ -2108,7 +2036,10 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     { signal },
   );
 
-  signal.addEventListener("abort", () => importModal.destroy(), { once: true });
+  signal.addEventListener("abort", () => {
+    importModal.destroy();
+    clearModal.destroy();
+  }, { once: true });
 
   void loadWeek(state.week.weekStartIso);
 }

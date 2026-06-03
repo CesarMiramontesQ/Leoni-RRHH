@@ -108,6 +108,16 @@ class MenuSemanalRepository(BaseRepository[MenuSemanal]):
             return primary
         return await self.create(payload)
 
+    async def delete_menu_semana(self, comedor_id: int, semana: date) -> int:
+        result = await self.db.execute(
+            delete(MenuSemanal).where(
+                MenuSemanal.comedor_id == comedor_id,
+                MenuSemanal.semana == semana,
+            )
+        )
+        await self.db.flush()
+        return int(result.rowcount or 0)
+
     async def get_menu_semana_todos(self, semana: date) -> list[MenuSemanal]:
         """Retorna todos los menus de todos los comedores para una semana."""
         result = await self.db.execute(

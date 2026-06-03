@@ -1335,6 +1335,18 @@ components:
           type: string
           format: date-time
 
+    MenuSemanalDeleteResponse:
+      type: object
+      required: [comedor_id, semana, deleted_count]
+      properties:
+        comedor_id:
+          type: integer
+        semana:
+          type: string
+          format: date
+        deleted_count:
+          type: integer
+
     ComedorAsignadoResponse:
       type: object
       required: [comedor_id, comedor_nombre]
@@ -4301,6 +4313,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuSemanalResponse"
+    delete:
+      tags: [Comedor]
+      summary: Eliminar menu semanal del comedor
+      operationId: comedor_menu_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: comedor_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: semana
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Menu semanal eliminado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuSemanalDeleteResponse"
 
   /api/v1/comedor/mi-comedor-asignado:
     get:

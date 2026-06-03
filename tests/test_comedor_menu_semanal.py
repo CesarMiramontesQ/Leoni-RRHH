@@ -150,40 +150,37 @@ async def test_publicar_menu_consolida_duplicados_legacy(client: AsyncClient, db
 
 
 @pytest.mark.asyncio
-async def test_publicar_menu_consolida_duplicados_legacy(client: AsyncClient, db):
-    """Importaciones previas sin upsert pudieron dejar filas duplicadas."""
-    from app.models.comedor import MenuSemanal
-
-    rh = await make_empleado(db, rol="rh", email="rh_menu_dup@test.leoni", password="RhDup3!")
-    hdrs = await auth_headers(client, rh, password="RhDup3!")
+async def test_eliminar_menu_semana(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="rh_menu_delete@test.leoni", password="RhDel3te!")
+    hdrs = await auth_headers(client, rh, password="RhDel3te!")
     comedor_id = await _crear_comedor(client, hdrs)
-    semana = date(2026, 6, 1)
+    semana = date(2026, 4, 6)
 
-    for desc in ("Registro duplicado 1", "Registro duplicado 2"):
-        db.add(
-            MenuSemanal(
-                comedor_id=comedor_id,
-                semana=semana,
-                dia="lunes",
-                tipo="normal",
-                descripcion=desc,
-                created_by=rh.id,
+    for dia in ("lunes", "martes"):
+        for tipo in ("normal", "dieta"):
+            r = await client.post(
+                MENU_URL,
+                json={
+                    "comedor_id": comedor_id,
+                    "semana": semana.isoformat(),
+                    "dia": dia,
+                    "tipo": tipo,
+                    "descripcion": f"{tipo} {dia}",
+                },
+                headers=hdrs,
             )
-        )
-    await db.commit()
+            assert r.status_code == 200, r.text
 
-    r = await client.post(
+    r = await client.delete(
         MENU_URL,
-        json={
-            "comedor_id": comedor_id,
-            "semana": semana.isoformat(),
-            "dia": "lunes",
-            "tipo": "normal",
-            "descripcion": "Menú consolidado",
-        },
+        params={"comedor_id": comedor_id, "semana": semana.isoformat()},
         headers=hdrs,
     )
     assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["deleted_count"] == 4
+    assert body["comedor_id"] == comedor_id
+    assert body["semana"] == semana.isoformat()
 
     listed = await client.get(
         MENU_URL,
@@ -191,10 +188,4 @@ async def test_publicar_menu_consolida_duplicados_legacy(client: AsyncClient, db
         headers=hdrs,
     )
     assert listed.status_code == 200, listed.text
-    lunes_normal = [
-        item
-        for item in listed.json()
-        if item["tipo"] == "normal" and item["dia"].lower() == "lunes"
-    ]
-    assert len(lunes_normal) == 1
-    assert lunes_normal[0]["descripcion"] == "Menú consolidado"
+    assert listed.json() == []

@@ -42,6 +42,7 @@ from app.schemas.comedor import (
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
+    MenuSemanalDeleteResponse,
     MenuSemanalResponse,
 )
 from app.services.comedor_service import ComedorService
@@ -113,6 +114,23 @@ async def publicar_menu(
     service = ComedorService(db)
     return await service.publicar_menu(
         data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.delete("/menu", response_model=MenuSemanalDeleteResponse)
+async def eliminar_menu_semana(
+    background_tasks: BackgroundTasks,
+    comedor_id: int = Query(...),
+    semana: date = Query(...),
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ComedorService(db)
+    return await service.eliminar_menu_semana(
+        comedor_id=comedor_id,
+        semana=semana,
         current_user=current_user,
         background_tasks=background_tasks,
     )

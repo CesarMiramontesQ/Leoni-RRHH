@@ -75,6 +75,7 @@ from app.schemas.comedor import (
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
+    MenuSemanalDeleteResponse,
     MenuSemanalResponse,
 )
 from app.services.auth_service import authenticate_user
@@ -439,6 +440,45 @@ class ComedorService:
             datos_despues={"comedor_id": data.comedor_id, "semana": str(data.semana), "dia": data.dia},
         )
         return MenuSemanalResponse.model_validate(menu)
+
+    async def eliminar_menu_semana(
+        self,
+        comedor_id: int,
+        semana: date,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> MenuSemanalDeleteResponse:
+        if await self._get_rol(current_user) != "rh":
+            raise ForbiddenError(detail="Solo RH puede eliminar menus")
+
+        comedor = await self.comedor_repo.get(comedor_id)
+        if comedor is None:
+            raise NotFoundError(entidad="Comedor", id=comedor_id)
+
+        deleted_count = await self.menu_repo.delete_menu_semana(
+            comedor_id=comedor_id,
+            semana=semana,
+        )
+        await self.db.flush()
+
+        audit_background(
+            background_tasks,
+            self.db,
+            accion="MENU_SEMANA_ELIMINADO",
+            modulo="comedor",
+            usuario_id=current_user.id,
+            entidad_id=comedor_id,
+            datos_despues={
+                "comedor_id": comedor_id,
+                "semana": str(semana),
+                "deleted_count": deleted_count,
+            },
+        )
+        return MenuSemanalDeleteResponse(
+            comedor_id=comedor_id,
+            semana=semana,
+            deleted_count=deleted_count,
+        )
 
     # ── Selección de platillo ──────────────────────────────────
 
