@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable
 
+from app.core.rh_gestor_registry import resolve_rh_gestor_alcance
+
 if TYPE_CHECKING:
     from app.models.empleados import Empleado
 
@@ -369,6 +371,9 @@ def rh_claims_for_token(empleado: "Empleado") -> dict:
     }
     if modulos:
         claims["rh_modulos"] = effective_modules(modulos)
+    alcance = resolve_rh_gestor_alcance(empleado)
+    if alcance:
+        claims["rh_gestor_alcance"] = alcance
     return claims
 
 
@@ -381,11 +386,30 @@ def jwt_module_guard_applies(payload: dict) -> bool:
     return bool(payload.get("rh_enrolled"))
 
 
-def user_has_module_from_claims(payload: dict, module_key: str) -> bool:
+def user_has_module_from_claims(
+    payload: dict,
+    module_key: str,
+    rh_ui_mode: str | None = None,
+) -> bool:
     if payload.get("rh_admin"):
         return True
     rol = payload.get("rol")
     modulos = payload.get("rh_modulos")
+
+    if rol == "rh":
+        from app.core.rh_ui_mode import (
+            RH_UI_MODE_LIDER,
+            RH_UI_MODE_GERENTE,
+            RH_UI_MODE_OPERATIVO,
+            effective_rh_ui_mode,
+        )
+
+        mode = effective_rh_ui_mode(rh_ui_mode)
+        if mode in (RH_UI_MODE_LIDER, RH_UI_MODE_GERENTE):
+            return True
+        if payload.get("rh_gestor_alcance") and mode == RH_UI_MODE_OPERATIVO:
+            return True
+
     if rol == "rh" and modulos is None:
         return True
     if not payload.get("rh_enrolled"):

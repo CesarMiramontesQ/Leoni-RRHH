@@ -65,7 +65,7 @@ class RhModulePermissionMiddleware(BaseHTTPMiddleware):
         if payload.get("rol") == "rh" and is_rh_self_service_api_path(path):
             return await call_next(request)
 
-        if user_has_module_from_claims(payload, module_key):
+        if user_has_module_from_claims(payload, module_key, rh_ui_mode=request.headers.get("X-RH-UI-Mode")):
             return await call_next(request)
 
         return JSONResponse(

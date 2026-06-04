@@ -501,12 +501,12 @@ export function mountDashboardPlaceholder(container: HTMLElement): void {
     mountEmpleadoPersonalDashboardShell(container);
     return;
   }
-  if (canAccessRhOperationalDashboard()) {
-    mountRhOperationalDashboard(container);
-    return;
-  }
   if (canAccessLiderTeamDashboard()) {
     mountLiderTeamDashboardShell(container);
+    return;
+  }
+  if (canAccessRhOperationalDashboard()) {
+    mountRhOperationalDashboard(container);
     return;
   }
   mountStandardDashboard(container);

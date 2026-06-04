@@ -1,5 +1,5 @@
 import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
-import { isRhEmpleadoUiMode } from "./rhUiMode.ts";
+import { isRhEmpleadoUiMode, isRhGestorTeamUiMode, rhHasFullOperativoModules } from "./rhUiMode.ts";
 import { getAccessToken } from "./session.ts";
 
 function getSessionRol(): string | null {
@@ -68,7 +68,7 @@ export function isModulosRhEnrolled(): boolean {
 
 export function canAccessRhPermisosAdmin(): boolean {
   if (getSessionRol() !== "rh") return false;
-  if (isRhEmpleadoUiMode()) return false;
+  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
   return state.canAdminPermisos;
 }
 
@@ -88,6 +88,8 @@ export function hasRhModule(moduleKey: string): boolean {
   if (rol !== "rh") {
     return hasExplicitModuleGrant(moduleKey);
   }
+
+  if (rhHasFullOperativoModules()) return true;
 
   if (!state.enrolled) return true;
   return state.modules[moduleKey] === true;

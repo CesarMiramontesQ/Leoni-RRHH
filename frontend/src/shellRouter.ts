@@ -9,7 +9,7 @@ import {
   supervisorMayAccessHash,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
-import { isRhEmpleadoUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
+import { isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -78,7 +78,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }
     }
     if (rol === "rh" && !rhMayAccessHash(rawHash)) {
-      if (isRhEmpleadoUiMode()) {
+      if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) {
         if (rawHash !== "#/") {
           history.replaceState(null, "", "#/");
         }

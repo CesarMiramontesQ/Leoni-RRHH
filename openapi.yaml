@@ -3588,10 +3588,14 @@ paths:
         - name: X-RH-UI-Mode
           in: header
           required: false
-          description: Modo UI activo para usuarios RH. En `empleado` el listado se limita a solicitudes propias.
+          description: >
+            Modo UI activo para usuarios RH. `operativo`: vista RH (módulos asignados o acceso
+            completo si el puesto tiene capacidad gestor). `empleado`: autoservicio personal.
+            `lider` / `gerente`: vista de equipo (solo si el JWT incluye `rh_gestor_alcance`
+            supervisor o gerente). Afecta alcance de listados, aprobaciones y permisos efectivos.
           schema:
             type: string
-            enum: [operativo, empleado]
+            enum: [operativo, empleado, lider, gerente]
       responses:
         "200":
           description: Pagina de solicitudes

@@ -10,6 +10,12 @@ from app.core.security import decode_token
 from app.models.auditoria import TokenBlacklist
 from app.models.empleados import Empleado
 from app.models.roles import Rol
+from app.core.rh_ui_mode import (
+    is_rh_gestor_team_ui_mode,
+    is_rh_lider_ui_mode,
+    normalized_rh_ui_mode,
+    validate_rh_ui_mode_for_user,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -204,6 +210,50 @@ async def require_torniquete_api_key(request: Request) -> None:
 
 def get_rh_ui_mode(
     x_rh_ui_mode: str | None = Header(None, alias="X-RH-UI-Mode"),
+    current_user: Empleado = Depends(get_current_user),
 ) -> str | None:
-    """Modo de UI activo para usuarios RH (`operativo` | `empleado`)."""
+    """Modo de UI activo para usuarios RH (`operativo` | `empleado` | `lider` | `gerente`)."""
+    mode = normalized_rh_ui_mode(x_rh_ui_mode)
+    if mode is not None:
+        validate_rh_ui_mode_for_user(current_user, mode)
     return x_rh_ui_mode
+
+
+def gestor_team_role_checker(roles_requeridos: list[str]):
+    """Permite supervisor/gerente nativos o RH en modo líder/gerente."""
+
+    async def check(
+        current_user: Empleado = Depends(get_current_user),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    ) -> Empleado:
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol in roles_requeridos:
+            return current_user
+        if rol == "rh" and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+        )
+
+    return check
+
+
+def gestor_supervisor_role_checker():
+    """Supervisor nativo o RH en modo líder."""
+
+    async def check(
+        current_user: Empleado = Depends(get_current_user),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    ) -> Empleado:
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol == "supervisor":
+            return current_user
+        if rol == "rh" and is_rh_lider_ui_mode(current_user, rh_ui_mode):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permisos insuficientes. Se requiere rol supervisor.",
+        )
+
+    return check

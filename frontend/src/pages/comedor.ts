@@ -4,6 +4,7 @@ import {
   canAccessComedorReportePage,
   canAccessComedorRhPage,
   canAccessEmpleadoPersonalDashboard,
+  getEffectiveGestorNavRol,
   getEmpleadoDirectoryNumericIdFromAccessToken,
   getEmpleadoIdFromAccessToken,
   getNoEmpleadoFromAccessToken,
@@ -2066,9 +2067,9 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 }
 
 function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
-  const rol = getRolFromAccessToken();
-  const isSupervisor = rol === "supervisor";
-  const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(rol);
+  const liderRol = getEffectiveGestorNavRol();
+  const isSupervisor = liderRol === "supervisor";
+  const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(liderRol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const beneficiaryTargetRef = { id: undefined as number | undefined };
   const comedorIdResolver = createComedorIdResolver({

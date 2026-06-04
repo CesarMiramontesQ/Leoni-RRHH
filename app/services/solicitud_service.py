@@ -511,7 +511,7 @@ class SolicitudService:
                 raise ForbiddenError(detail="No puedes crear solicitudes para otro empleado")
             return current_user
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
         requested = data.empleado_id
 
         if requested is None or requested == current_user.id:
@@ -521,13 +521,13 @@ class SolicitudService:
         if not target:
             raise NotFoundError(entidad="Empleado", id=requested)
 
-        if rol == "empleado":
+        if scope_rol == "empleado":
             raise ForbiddenError(detail="No puedes crear solicitudes para otro empleado")
 
-        if rol in ("rh", "director"):
+        if scope_rol in ("rh", "director"):
             return target
 
-        if rol in ("gerente", "supervisor"):
+        if scope_rol in ("gerente", "supervisor"):
             subordinados = await self.empleado_repo.get_subordinados(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
@@ -804,11 +804,11 @@ class SolicitudService:
                 detail=f"No se puede aprobar una solicitud en estado '{solicitud.estado}'"
             )
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, scope_rol)
         emp = solicitud.empleado
 
-        if rol == "director" or (rol == "rh" and rh_tiene_alcance_gestor(current_user, rh_ui_mode)):
+        if scope_rol in ("director", "rh"):
             return await self._aprobar_final_con_tress(
                 solicitud_id=solicitud_id,
                 solicitud=solicitud,
@@ -818,7 +818,7 @@ class SolicitudService:
             )
 
         if await self._puede_actuar_jerarquia_solicitud_async(
-            rol=rol,
+            rol=scope_rol,
             emp=emp,
             current_user=current_user,
         ):
@@ -854,13 +854,13 @@ class SolicitudService:
                 detail=f"No se puede rechazar una solicitud en estado '{solicitud.estado}'"
             )
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, scope_rol)
         emp = solicitud.empleado
 
-        if not (rol == "director" or (rol == "rh" and rh_tiene_alcance_gestor(current_user, rh_ui_mode))):
+        if scope_rol not in ("director", "rh"):
             if not await self._puede_actuar_jerarquia_solicitud_async(
-                rol=rol,
+                rol=scope_rol,
                 emp=emp,
                 current_user=current_user,
             ):
@@ -972,13 +972,13 @@ class SolicitudService:
                 )
             )
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, scope_rol)
         emp = solicitud.empleado
 
-        if not (rol == "director" or (rol == "rh" and rh_tiene_alcance_gestor(current_user, rh_ui_mode))):
+        if scope_rol not in ("director", "rh"):
             if not await self._puede_actuar_jerarquia_solicitud_async(
-                rol=rol,
+                rol=scope_rol,
                 emp=emp,
                 current_user=current_user,
             ):
