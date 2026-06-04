@@ -4,6 +4,7 @@ import {
   getUserDisplayNameFromAccessToken,
   getUserInitialsFromAccessToken,
 } from "../auth/jwt.ts";
+import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
 import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
@@ -428,6 +429,9 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     rawRol && !canAccessEmpleadoPersonalDashboard() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
     : "";
+  const permisosRhMenuItem = canAccessRhPermisosAdmin()
+    ? `<a href="#/ajustes/permisos-rh" class="block px-3 py-1 text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Permisos RH</a>`
+    : "";
 
   container.innerHTML = `
 <el-dialog>
@@ -540,7 +544,8 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
               ${userRolLine}
             </span>
           </button>
-          <el-menu anchor="bottom end" popover class="w-40 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
+          <el-menu anchor="bottom end" popover class="w-48 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
+            ${permisosRhMenuItem}
             <button type="button" id="app-shell-sign-out" class="block w-full px-3 py-1 text-left text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Cerrar sesión</button>
           </el-menu>
         </el-dropdown>

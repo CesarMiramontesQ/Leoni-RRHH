@@ -165,6 +165,90 @@ components:
         nombre:
           type: string
 
+    RhModuloCatalogItem:
+      type: object
+      required: [key, label, group, nav_item_ids]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        group:
+          type: string
+        nav_item_ids:
+          type: array
+          items:
+            type: string
+
+    RhPermisosMeResponse:
+      type: object
+      required: [rol, puede_administrar_permisos_rh, modulos, inscrito]
+      properties:
+        rol:
+          type: string
+        puede_administrar_permisos_rh:
+          type: boolean
+        modulos:
+          type: object
+          additionalProperties:
+            type: boolean
+        inscrito:
+          type: boolean
+
+    RhUsuarioPermisosItem:
+      type: object
+      required:
+        - empleado_id
+        - no_empleado
+        - nombre
+        - rol_nombre
+        - puede_administrar_permisos_rh
+        - modulos
+        - editable
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: [string, "null"]
+        rol_nombre:
+          type: string
+        puede_administrar_permisos_rh:
+          type: boolean
+        modulos:
+          type: object
+          additionalProperties:
+            type: boolean
+        editable:
+          type: boolean
+
+    RhEmpleadoBusquedaItem:
+      type: object
+      required: [empleado_id, no_empleado, nombre, rol_nombre]
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: [string, "null"]
+        rol_nombre:
+          type: string
+
+    RhPermisosUpdate:
+      type: object
+      required: [modulos]
+      properties:
+        modulos:
+          type: object
+          additionalProperties:
+            type: boolean
+
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
       type: object
@@ -3011,6 +3095,142 @@ paths:
                     example: pending
                   nota:
                     type: string
+
+  # ── RH Permisos ─────────────────────────────────────
+  /api/v1/rh-permisos/me:
+    get:
+      tags: [RH Permisos]
+      summary: Permisos de módulos del usuario autenticado
+      operationId: rh_permisos_me
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Permisos efectivos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RhPermisosMeResponse"
+
+  /api/v1/rh-permisos/modulos:
+    get:
+      tags: [RH Permisos]
+      summary: Catálogo de módulos configurables
+      operationId: rh_permisos_modulos
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Catálogo de módulos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RhModuloCatalogItem"
+        "403":
+          description: Requiere puede_administrar_permisos_rh
+
+  /api/v1/rh-permisos/usuarios:
+    get:
+      tags: [RH Permisos]
+      summary: Listar empleados con permisos configurados
+      operationId: rh_permisos_usuarios_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de usuarios RH
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RhUsuarioPermisosItem"
+        "403":
+          description: Requiere puede_administrar_permisos_rh
+
+          description: Lista de empleados inscritos
+
+  /api/v1/rh-permisos/empleados-buscar:
+    get:
+      tags: [RH Permisos]
+      summary: Buscar empleados activos para agregar a permisos
+      operationId: rh_permisos_empleados_buscar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: Empleados disponibles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RhEmpleadoBusquedaItem"
+        "403":
+          description: Requiere puede_administrar_permisos_rh
+
+  /api/v1/rh-permisos/usuarios/{empleado_id}:
+    post:
+      tags: [RH Permisos]
+      summary: Agregar empleado al sistema de permisos por módulo
+      operationId: rh_permisos_usuarios_add
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Empleado agregado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RhUsuarioPermisosItem"
+        "403":
+          description: Sin permiso
+        "409":
+          description: Empleado ya inscrito
+    put:
+      tags: [RH Permisos]
+      summary: Actualizar permisos de módulos de un empleado inscrito
+      operationId: rh_permisos_usuarios_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RhPermisosUpdate"
+      responses:
+        "200":
+          description: Permisos actualizados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RhUsuarioPermisosItem"
+        "403":
+          description: Sin permiso o auto-edición prohibida
+        "422":
+          description: Claves de módulo inválidas
 
   # ── Usuarios ────────────────────────────────────────
   /api/v1/usuarios/roles:

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.middleware import SupervisorRestrictedRoutesMiddleware
+from app.middleware import RhModulePermissionMiddleware, SupervisorRestrictedRoutesMiddleware
 from app.core.exceptions import EXCEPTION_STATUS_MAP, LeoniException
 
 logging.basicConfig(
@@ -180,6 +180,7 @@ app.add_middleware(
 
 # Después de CORS: bloquea `supervisor` en actas y reportes de comedor (API) antes del router.
 app.add_middleware(SupervisorRestrictedRoutesMiddleware)
+app.add_middleware(RhModulePermissionMiddleware)
 
 # ── Exception Handlers ────────────────────────────────────────
 def _validation_errors_json_safe(errors: list) -> list:
@@ -250,6 +251,7 @@ from app.api.v1.level_up.router_cursos import router as level_up_cursos_router
 from app.api.v1.level_up.router_curso_sesiones import router as level_up_curso_sesiones_router, all_sesiones_router
 from app.api.v1.tareas_catalogo.router import router as tareas_catalogo_router
 from app.api.v1.perfil_funciones.router import router as perfil_funciones_router
+from app.api.v1.rh_permisos.router import router as rh_permisos_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -272,6 +274,7 @@ app.include_router(level_up_curso_sesiones_router)
 app.include_router(all_sesiones_router)
 app.include_router(tareas_catalogo_router)
 app.include_router(perfil_funciones_router)
+app.include_router(rh_permisos_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

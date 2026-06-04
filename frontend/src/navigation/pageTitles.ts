@@ -28,6 +28,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/sugerencias"), titulo: "Motor de Sugerencias" },
   { match: (h) => h.startsWith("#/encuestas"), titulo: "Encuestas Post Curso" },
   { match: (h) => h.startsWith("#/level-up"), titulo: "Level Up" },
+  { match: (h) => h.startsWith("#/ajustes/permisos-rh"), titulo: "Permisos RH" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];
 

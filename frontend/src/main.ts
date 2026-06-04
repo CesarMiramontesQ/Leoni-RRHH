@@ -1,6 +1,7 @@
 import "@tailwindplus/elements";
 import "./style.css";
 import { refreshAccessTokenSession } from "./api/http.ts";
+import { loadRhModulePermissions } from "./auth/rhModulePermissions.ts";
 import { getAccessToken, getRefreshToken } from "./auth/session.ts";
 import { mountLogin } from "./pages/login.ts";
 import { refreshNotificacionesResumen } from "./notificaciones/notificacionesResumenStore.ts";
@@ -13,6 +14,7 @@ async function bootstrap(): Promise<void> {
   }
   if (getAccessToken()) {
     void refreshNotificacionesResumen();
+    await loadRhModulePermissions();
     mountAuthenticatedShell(app);
     return;
   }

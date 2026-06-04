@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.rh_module_registry import rh_claims_for_token
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -50,6 +51,7 @@ def create_tokens(empleado: Empleado) -> dict:
         "rol": rol_nombre,
         "num": empleado.no_empleado,
         "nombre": empleado.nombre,
+        **rh_claims_for_token(empleado),
     }
     return {
         "access_token": create_access_token(payload),
@@ -117,6 +119,7 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
         "rol": rol_nombre,
         "num": empleado.no_empleado,
         "nombre": empleado.nombre,
+        **rh_claims_for_token(empleado),
     }
     return {
         "access_token": create_access_token(new_payload),

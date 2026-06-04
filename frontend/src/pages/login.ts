@@ -1,4 +1,5 @@
 import { getRememberMePreference, setSession } from "../auth/session.ts";
+import { loadRhModulePermissions, resetRhModulePermissions } from "../auth/rhModulePermissions.ts";
 import {
   refreshNotificacionesResumen,
   resetNotificacionesResumen,
@@ -176,9 +177,11 @@ export function mountLogin(container: HTMLElement): void {
         remember,
       );
       resetNotificacionesResumen();
+      resetRhModulePermissions();
       void refreshNotificacionesResumen();
 
       window.location.hash = "#/";
+      await loadRhModulePermissions();
       mountAuthenticatedShell(container);
     } catch {
       errorEl.textContent = "Error de conexión. Verifica que el servidor esté activo.";

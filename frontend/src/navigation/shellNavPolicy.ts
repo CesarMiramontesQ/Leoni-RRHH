@@ -2,6 +2,14 @@
  * Visibilidad del menú lateral y rutas permitidas por rol (fuente única para app shell + router).
  */
 
+import {
+  canAccessRhPermisosAdmin,
+  hasExplicitModuleGrant,
+  hasRhModule,
+  isModulosRhEnrolled,
+} from "../auth/rhModulePermissions.ts";
+import { navItemIdToModuleKey, resolveModuleFromHash } from "../auth/rhModuleRegistry.ts";
+
 /** Mostrar «Organigrama» en el sidebar. La ruta `#/organigrama` sigue disponible para RH. */
 export const ORGANIGRAMA_MENU_VISIBLE = false;
 
@@ -40,7 +48,6 @@ const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"])
 
 const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
-/** Items visibles solo para rh, director, gerente (Talento + Level Up). */
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "tareas-catalogo", "competencias", "capacidades",
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
@@ -50,10 +57,7 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
 
 const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set();
 
-/**
- * Ítems del sidebar visibles según rol. Para `empleado` solo el subconjunto definido; el resto de roles ven todo.
- */
-export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(rol ?? "");
@@ -64,9 +68,24 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   return true;
 }
 
-/**
- * Hash actual permitido para `empleado` (evita acceso funcional escribiendo URL).
- */
+function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolean {
+  const moduleKey = navItemIdToModuleKey(itemId);
+  if (rol === "rh") return hasRhModule(moduleKey);
+  if (isModulosRhEnrolled()) return hasExplicitModuleGrant(moduleKey);
+  return true;
+}
+
+export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+  const byRole = roleOnlyNavVisible(rol, itemId);
+  if (rol === "rh") {
+    return byRole && moduleNavAllowed(rol, itemId);
+  }
+  if (isModulosRhEnrolled()) {
+    return byRole || hasExplicitModuleGrant(navItemIdToModuleKey(itemId));
+  }
+  return byRole;
+}
+
 export function empleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h === "" || h === "#" || h === "#/") return true;
@@ -78,9 +97,6 @@ export function empleadoMayAccessHash(hash: string): boolean {
   return false;
 }
 
-/**
- * Rutas prohibidas para `supervisor` (hash manual o enlaces profundos).
- */
 export function supervisorMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h.startsWith("#/actas")) return false;
@@ -90,4 +106,32 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/evaluaciones")) return true;
   if (h.startsWith("#/capacitaciones")) return true;
   return true;
+}
+
+function hashAllowedByRole(rol: string | null, hash: string): boolean {
+  if (rol === "empleado") return empleadoMayAccessHash(hash);
+  if (rol === "supervisor") return supervisorMayAccessHash(hash);
+  return true;
+}
+
+export function modulosMayAccessHash(hash: string, rol: string | null): boolean {
+  const h = (hash || "#/").trim();
+  if (h.startsWith("#/notificaciones")) return true;
+  if (h.startsWith("#/ajustes/permisos-rh")) return canAccessRhPermisosAdmin();
+
+  const moduleKey = resolveModuleFromHash(h);
+  if (moduleKey === null) return true;
+
+  if (rol === "rh") {
+    return hasRhModule(moduleKey);
+  }
+  if (isModulosRhEnrolled()) {
+    return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+  }
+  return true;
+}
+
+/** @deprecated Usar modulosMayAccessHash */
+export function rhMayAccessHash(hash: string): boolean {
+  return modulosMayAccessHash(hash, "rh");
 }

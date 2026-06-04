@@ -1,5 +1,6 @@
 import { getRolFromAccessToken } from "./auth/jwt.ts";
-import { empleadoMayAccessHash, supervisorMayAccessHash } from "./navigation/shellNavPolicy.ts";
+import { empleadoMayAccessHash, modulosMayAccessHash, supervisorMayAccessHash } from "./navigation/shellNavPolicy.ts";
+import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -31,6 +32,7 @@ import {
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
+import { mountAjustesPermisosRh, mountRhModuleAccessDenied } from "./pages/ajustesPermisosRh.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -54,10 +56,19 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
+    if (isModulosRhEnrolled() && !modulosMayAccessHash(rawHash, getRolFromAccessToken())) {
+      mountRhModuleAccessDenied(container);
+      return;
+    }
     const h =
       getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
       : getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash) ? "#/"
       : rawHash;
+
+    if (h.startsWith("#/ajustes/permisos-rh")) {
+      mountAjustesPermisosRh(container, signal);
+      return;
+    }
 
     if (h.startsWith("#/reportes")) {
       history.replaceState(null, "", "#/comedor/reporte");

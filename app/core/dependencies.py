@@ -85,21 +85,65 @@ def role_checker(roles_requeridos: list[str]):
     """Factory que retorna una dependency para verificar roles."""
 
     async def check_role(
+        request: Request,
         current_user: Empleado = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> Empleado:
+        from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module
+
         rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))
         rol = rol_result.scalar_one_or_none()
-        # Alinear con auth_service y servicios de dominio: sin rol explícito → empleado.
         rol_nombre = rol.nombre if rol else "empleado"
-        if rol_nombre not in roles_requeridos:
+        if rol_nombre in roles_requeridos:
+            return current_user
+        module_key = resolve_module_from_api_path(request.url.path)
+        if module_key and user_has_module(current_user, module_key):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+        )
+
+    return check_role
+
+
+async def require_rh_permisos_admin(
+    current_user: Empleado = Depends(get_current_user),
+) -> Empleado:
+    """Solo RH con flag puede_administrar_permisos_rh."""
+    rol = current_user.rol.nombre if current_user.rol else "empleado"
+    if rol != "rh":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo usuarios RH pueden administrar permisos de módulos.",
+        )
+    if not current_user.puede_administrar_permisos_rh:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para administrar accesos de usuarios RH.",
+        )
+    return current_user
+
+
+def require_rh_module(module_key: str):
+    """Factory: exige acceso al módulo RH indicado (ignorado para otros roles)."""
+
+    async def check_module(
+        current_user: Empleado = Depends(get_current_user),
+    ) -> Empleado:
+        from app.core.rh_module_registry import user_has_module
+
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol != "rh":
+            return current_user
+        if not user_has_module(current_user, module_key):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+                detail=f"No tienes acceso al módulo '{module_key}'.",
             )
         return current_user
 
-    return check_role
+    return check_module
 
 
 async def require_huella_ip(request: Request) -> None:

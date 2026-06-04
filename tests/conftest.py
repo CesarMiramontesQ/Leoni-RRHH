@@ -186,6 +186,8 @@ async def make_empleado(
     clasificacion_id: int | None = None,
     fecha_fin_contrato: date | None = None,
     dias_vacaciones: int | None = 30,
+    puede_administrar_permisos_rh: bool = False,
+    modulos_rh: dict | None = None,
 ):
     """
     Factory para crear un Empleado con Rol asociado.
@@ -214,6 +216,8 @@ async def make_empleado(
         estado_id=estado_id,
         clasificacion_id=clasificacion_id,
         fecha_fin_contrato=fecha_fin_contrato,
+        puede_administrar_permisos_rh=puede_administrar_permisos_rh,
+        modulos_rh=modulos_rh or {},
     )
     db.add(empleado)
     await db.flush()
