@@ -11,10 +11,12 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import {
   BTN_GHOST,
   BTN_PRIMARY,
+  BTN_SECONDARY,
   FIELD_FOCUS,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
+  badgeRejected,
   htmlAccessDenied,
 } from "../ui/uiTokens.ts";
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
@@ -42,7 +44,7 @@ type PageState = {
   page: number;
   pageSize: number;
   editingEmpleadoId: number | null;
-  drawerExpandedGroups: Set<string>;
+  modalExpandedGroups: Set<string>;
 };
 
 const CHEVRON_SVG = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-text-muted transition-transform duration-200"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>`;
@@ -60,12 +62,24 @@ const FILTER_SELECT =
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
+const ROL_LABELS: Record<string, string> = {
+  empleado: "Empleado",
+  supervisor: "Supervisor",
+  rh: "RH",
+  director: "Director",
+  gerente: "Gerente",
+};
+
+function formatRol(rol: string): string {
+  return ROL_LABELS[rol] ?? rol.charAt(0).toUpperCase() + rol.slice(1);
+}
+
 /** Tabla: primer nombre + primer apellido (título). */
 function formatNombreTablaRh(nombre: string): string {
   return formatNombreEmpleadoUi(nombre, { titulo: true, omitirSegundoApellido: true }) || nombre.trim();
 }
 
-/** Drawer: nombre completo reordenado y capitalizado. */
+/** Modal: nombre completo reordenado y capitalizado. */
 function formatNombreCompletoRh(nombre: string): string {
   return formatNombreEmpleadoUi(nombre, { titulo: true, omitirSegundoApellido: false }) || nombre.trim();
 }
@@ -330,7 +344,6 @@ function renderTableRow(
   saving: boolean,
 ): string {
   const level = getAccessLevel(user, draft);
-  const disabledEdit = !user.editable || saving;
 
   return `
     <tr class="rh-sol-tbody-row hover:bg-[#f8fafc]/80" data-empleado-id="${user.empleado_id}">
@@ -351,19 +364,20 @@ function renderTableRow(
         <div class="flex flex-nowrap gap-1 overflow-x-auto pb-0.5">${renderModuleBadges(user, draft, catalogGroups)}</div>
       </td>
       <td class="${TABLE_TD} text-right whitespace-nowrap">
-        <button
-          type="button"
-          class="rh-permiso-editar ${BTN_GHOST} min-h-9 px-3 py-1.5 text-xs"
-          data-empleado-id="${user.empleado_id}"
-          ${disabledEdit ? "disabled" : ""}
-        >
-          Editar permisos
-        </button>
-        ${
-          !user.editable
-            ? `<p class="mt-1 text-[11px] text-amber-700">No editable</p>`
-            : ""
-        }
+        <div class="flex items-center justify-end gap-2">
+          ${
+            user.editable
+              ? `<button
+                  type="button"
+                  class="rh-permiso-editar ${BTN_GHOST} min-h-9 px-3 py-1.5 text-xs"
+                  data-empleado-id="${user.empleado_id}"
+                  ${saving ? "disabled" : ""}
+                >
+                  Editar permisos
+                </button>`
+              : badgeRejected("No editable")
+          }
+        </div>
       </td>
     </tr>`;
 }
@@ -457,7 +471,7 @@ function renderTable(state: PageState, filtered: RhUsuarioPermisosItem[]): strin
     </section>`;
 }
 
-function renderDrawerGroupCard(
+function renderModalGroupCard(
   group: string,
   items: RhModuloCatalogItem[],
   draft: Record<string, boolean>,
@@ -483,10 +497,10 @@ function renderDrawerGroupCard(
     .join("");
 
   return `
-    <details class="group/rh-drawer-grp rounded-lg border border-border/80 bg-surface/40" ${expanded ? "open" : ""} data-drawer-group="${escapeHtml(group)}">
+    <details class="group/rh-modal-grp rounded-lg border border-border/80 bg-surface/40" ${expanded ? "open" : ""} data-modal-group="${escapeHtml(group)}">
       <summary class="flex cursor-pointer list-none items-center justify-between gap-2 p-3 marker:content-none [&::-webkit-details-marker]:hidden">
         <span class="flex min-w-0 items-center gap-2">
-          <span class="text-text-muted transition-transform duration-200 group-open/rh-drawer-grp:rotate-180">${CHEVRON_SVG}</span>
+          <span class="text-text-muted transition-transform duration-200 group-open/rh-modal-grp:rotate-180">${CHEVRON_SVG}</span>
           <span class="truncate text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(group)}</span>
           <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold ${groupBadgeClass(groupActive, items.length, false)}">${groupActive}/${items.length}</span>
         </span>
@@ -500,7 +514,7 @@ function renderDrawerGroupCard(
     </details>`;
 }
 
-function renderDrawer(state: PageState): string {
+function renderEditModal(state: PageState): string {
   if (state.editingEmpleadoId === null) return "";
   const user = state.usuarios.find((u) => u.empleado_id === state.editingEmpleadoId);
   if (!user) return "";
@@ -513,47 +527,77 @@ function renderDrawer(state: PageState): string {
 
   const groupsHtml = [...catalogGroups.entries()]
     .map(([group, items]) =>
-      renderDrawerGroupCard(group, items, draft, state.drawerExpandedGroups.has(group), disabled),
+      renderModalGroupCard(group, items, draft, state.modalExpandedGroups.has(group), disabled),
     )
     .join("");
 
+  const footerActions = user.editable
+    ? `<div class="flex flex-wrap items-center gap-2">
+        <button type="button" id="rh-perm-modal-select-all" class="${BTN_GHOST} text-xs" ${disabled ? "disabled" : ""}>Seleccionar todo</button>
+        <button type="button" id="rh-perm-modal-deselect-all" class="${BTN_GHOST} text-xs" ${disabled ? "disabled" : ""}>Deseleccionar todo</button>
+      </div>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <button type="button" id="rh-perm-modal-cancel" class="${BTN_SECONDARY} text-xs">Cancelar</button>
+        <button type="button" id="rh-perm-modal-save" class="${BTN_PRIMARY} text-xs" ${disabled ? "disabled" : ""}>
+          ${saving ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </div>`
+    : `<p class="text-sm text-amber-700">No puedes modificar tus propios permisos.</p>
+      <button type="button" id="rh-perm-modal-cancel" class="${BTN_SECONDARY} ml-auto text-xs">Cancelar</button>`;
+
   return `
-    <div id="rh-perm-drawer-root" class="fixed inset-0 z-50 flex justify-end" role="presentation">
-      <button type="button" id="rh-perm-drawer-backdrop" class="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" aria-label="Cerrar panel"></button>
-      <aside
-        id="rh-perm-drawer-panel"
-        class="relative flex h-full w-full max-w-lg flex-col border-l border-slate-200 bg-white shadow-[0_16px_48px_rgba(15,23,42,0.16)]"
+    <div id="rh-perm-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div
+        id="rh-perm-modal-panel"
+        data-rh-perm-modal-inner
+        class="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="rh-perm-drawer-title"
+        aria-labelledby="rh-perm-modal-title"
       >
-        <header class="shrink-0 border-b border-slate-100 px-4 py-4 sm:px-5">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h2 id="rh-perm-drawer-title" class="text-lg font-semibold leading-snug text-[#0f172a]">${escapeHtml(formatNombreCompletoRh(user.nombre))}</h2>
-              <p class="mt-1 text-sm tabular-nums text-[#64748b]">No. ${escapeHtml(formatNoEmpleadoRh(user.no_empleado))}</p>
-              ${user.email ? `<p class="mt-0.5 truncate text-sm text-[#64748b]" title="${escapeHtml(user.email)}">${escapeHtml(user.email)}</p>` : ""}
-              <div class="mt-2">${renderAccessBadge(level)}</div>
+        <header class="shrink-0 border-b border-slate-100 px-6 py-5">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              <h2 id="rh-perm-modal-title" class="text-lg font-semibold text-text-primary">Editar permisos</h2>
+              <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt class="text-xs font-medium text-text-muted">Nombre</dt>
+                  <dd class="mt-0.5 font-medium text-text-primary">${escapeHtml(formatNombreCompletoRh(user.nombre))}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-medium text-text-muted">No. empleado</dt>
+                  <dd class="mt-0.5 tabular-nums text-text-primary">${escapeHtml(formatNoEmpleadoRh(user.no_empleado))}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-medium text-text-muted">Correo</dt>
+                  <dd class="mt-0.5 truncate text-text-primary" title="${escapeHtml(user.email ?? "")}">${escapeHtml(user.email ?? "—")}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-medium text-text-muted">Rol</dt>
+                  <dd class="mt-0.5 text-text-primary">${escapeHtml(formatRol(user.rol_nombre))}</dd>
+                </div>
+              </dl>
+              <div class="mt-3">${renderAccessBadge(level)}</div>
             </div>
-            <button type="button" id="rh-perm-drawer-close" class="${BTN_GHOST} shrink-0 px-2 py-1.5 text-xs" aria-label="Cerrar">Cerrar</button>
+            <button type="button" id="rh-perm-modal-close" class="${BTN_GHOST} shrink-0 px-2 py-1.5 text-xs" aria-label="Cerrar">
+              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
+        </header>
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4" data-empleado-id="${user.empleado_id}">
           ${
             user.editable
-              ? `<div class="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-                  <button type="button" id="rh-perm-drawer-expand-all" class="${BTN_GHOST} text-xs" ${disabled ? "disabled" : ""}>Expandir módulos</button>
-                  <button type="button" id="rh-perm-drawer-select-all" class="${BTN_GHOST} text-xs" ${disabled ? "disabled" : ""}>Seleccionar todo</button>
-                  <button type="button" id="rh-perm-drawer-deselect-all" class="${BTN_GHOST} text-xs" ${disabled ? "disabled" : ""}>Deseleccionar todo</button>
-                  <button type="button" id="rh-perm-drawer-save" class="${BTN_PRIMARY} ml-auto text-xs" ${disabled ? "disabled" : ""}>
-                    ${saving ? "Guardando…" : "Guardar cambios"}
-                  </button>
+              ? `<div class="mb-3 flex justify-end">
+                  <button type="button" id="rh-perm-modal-expand-all" class="${BTN_GHOST} text-xs" ${disabled ? "disabled" : ""}>Expandir módulos</button>
                 </div>`
-              : `<p class="mt-3 text-sm text-amber-700">No puedes modificar tus propios permisos.</p>`
+              : ""
           }
-        </header>
-        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5" data-empleado-id="${user.empleado_id}">
           <div class="grid gap-3">${groupsHtml}</div>
         </div>
-      </aside>
+        <footer class="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          ${footerActions}
+        </footer>
+      </div>
     </div>`;
 }
 
@@ -589,7 +633,7 @@ function renderPage(state: PageState): string {
       ${renderStatsHeader(state)}
       ${renderToolbar(state, filtered.length)}
       ${renderTable(state, filtered)}
-      ${renderDrawer(state)}
+      ${renderEditModal(state)}
     </div>`;
 }
 
@@ -622,18 +666,26 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     page: 1,
     pageSize: 25,
     editingEmpleadoId: null,
-    drawerExpandedGroups: new Set<string>(),
+    modalExpandedGroups: new Set<string>(),
   };
+
+  const setBodyScrollLocked = (locked: boolean): void => {
+    document.body.style.overflow = locked ? "hidden" : "";
+  };
+
+  signal?.addEventListener("abort", () => setBodyScrollLocked(false));
 
   const paint = (opts?: { preserveFilterFocus?: boolean }): void => {
     mountAppShell(container, {
       mainHtml: renderPage(state),
       onSignOut: () => {
+        setBodyScrollLocked(false);
         clearAuth();
         import("../shellRouter.ts").then((m) => m.abortAuthenticatedShell());
         import("./login.ts").then((m) => m.mountLogin(container));
       },
     });
+    setBodyScrollLocked(state.editingEmpleadoId !== null);
     bindEvents();
     if (opts?.preserveFilterFocus) {
       const next = container.querySelector<HTMLInputElement>("#rh-perm-filter-input");
@@ -641,9 +693,9 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     }
   };
 
-  const readDraftFromDrawer = (): Record<string, boolean> | null => {
+  const readDraftFromModal = (): Record<string, boolean> | null => {
     if (state.editingEmpleadoId === null) return null;
-    const body = container.querySelector("#rh-perm-drawer-panel [data-empleado-id]");
+    const body = container.querySelector("#rh-perm-modal-panel [data-empleado-id]");
     if (!body) return state.draftByEmpleadoId.get(state.editingEmpleadoId) ?? null;
     const empleadoId = Number.parseInt(body.getAttribute("data-empleado-id") ?? "", 10);
     if (!Number.isFinite(empleadoId)) return null;
@@ -655,22 +707,22 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     return draft;
   };
 
-  const syncDraftFromDrawer = (): void => {
-    const draft = readDraftFromDrawer();
+  const syncDraftFromModal = (): void => {
+    const draft = readDraftFromModal();
     if (draft && state.editingEmpleadoId !== null) {
       state.draftByEmpleadoId.set(state.editingEmpleadoId, draft);
     }
   };
 
-  const closeDrawer = (): void => {
+  const closeModal = (): void => {
     state.editingEmpleadoId = null;
-    state.drawerExpandedGroups.clear();
+    state.modalExpandedGroups.clear();
     paint();
   };
 
-  const openDrawer = (empleadoId: number): void => {
+  const openModal = (empleadoId: number): void => {
     state.editingEmpleadoId = empleadoId;
-    state.drawerExpandedGroups.clear();
+    state.modalExpandedGroups.clear();
     paint();
   };
 
@@ -754,32 +806,41 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
         () => {
           const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
           if (!Number.isFinite(empleadoId)) return;
-          openDrawer(empleadoId);
+          openModal(empleadoId);
         },
         { signal },
       );
     });
 
-    container.querySelector("#rh-perm-drawer-close")?.addEventListener("click", closeDrawer, { signal });
-    container.querySelector("#rh-perm-drawer-backdrop")?.addEventListener("click", closeDrawer, { signal });
+    const modalBackdrop = container.querySelector("#rh-perm-modal-backdrop");
+    modalBackdrop?.addEventListener(
+      "click",
+      (ev) => {
+        if (ev.target === modalBackdrop) closeModal();
+      },
+      { signal },
+    );
 
-    container.querySelector("#rh-perm-drawer-expand-all")?.addEventListener(
+    container.querySelector("#rh-perm-modal-close")?.addEventListener("click", closeModal, { signal });
+    container.querySelector("#rh-perm-modal-cancel")?.addEventListener("click", closeModal, { signal });
+
+    container.querySelector("#rh-perm-modal-expand-all")?.addEventListener(
       "click",
       () => {
-        syncDraftFromDrawer();
+        syncDraftFromModal();
         for (const item of state.catalog) {
-          state.drawerExpandedGroups.add(item.group);
+          state.modalExpandedGroups.add(item.group);
         }
         paint();
       },
       { signal },
     );
 
-    container.querySelector("#rh-perm-drawer-select-all")?.addEventListener(
+    container.querySelector("#rh-perm-modal-select-all")?.addEventListener(
       "click",
       () => {
         if (state.editingEmpleadoId === null) return;
-        const draft = readDraftFromDrawer() ?? {};
+        const draft = readDraftFromModal() ?? {};
         for (const mod of state.catalog) {
           draft[mod.key] = true;
         }
@@ -789,11 +850,11 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       { signal },
     );
 
-    container.querySelector("#rh-perm-drawer-deselect-all")?.addEventListener(
+    container.querySelector("#rh-perm-modal-deselect-all")?.addEventListener(
       "click",
       () => {
         if (state.editingEmpleadoId === null) return;
-        const draft = readDraftFromDrawer() ?? {};
+        const draft = readDraftFromModal() ?? {};
         for (const mod of state.catalog) {
           draft[mod.key] = false;
         }
@@ -812,12 +873,12 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
           if (state.editingEmpleadoId === null) return;
           const group = btn.dataset.group;
           if (!group) return;
-          const draft = readDraftFromDrawer() ?? {};
+          const draft = readDraftFromModal() ?? {};
           for (const mod of state.catalog.filter((m) => m.group === group)) {
             draft[mod.key] = true;
           }
           state.draftByEmpleadoId.set(state.editingEmpleadoId, draft);
-          state.drawerExpandedGroups.add(group);
+          state.modalExpandedGroups.add(group);
           paint();
         },
         { signal },
@@ -828,31 +889,31 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       input.addEventListener(
         "change",
         () => {
-          syncDraftFromDrawer();
+          syncDraftFromModal();
         },
         { signal },
       );
     });
 
-    container.querySelectorAll<HTMLDetailsElement>("[data-drawer-group]").forEach((details) => {
+    container.querySelectorAll<HTMLDetailsElement>("[data-modal-group]").forEach((details) => {
       details.addEventListener(
         "toggle",
         () => {
-          const group = details.dataset.drawerGroup;
+          const group = details.dataset.modalGroup;
           if (!group) return;
-          if (details.open) state.drawerExpandedGroups.add(group);
-          else state.drawerExpandedGroups.delete(group);
+          if (details.open) state.modalExpandedGroups.add(group);
+          else state.modalExpandedGroups.delete(group);
         },
         { signal },
       );
     });
 
-    container.querySelector("#rh-perm-drawer-save")?.addEventListener(
+    container.querySelector("#rh-perm-modal-save")?.addEventListener(
       "click",
       async () => {
         if (state.editingEmpleadoId === null) return;
         const empleadoId = state.editingEmpleadoId;
-        syncDraftFromDrawer();
+        syncDraftFromModal();
         const modulos = state.draftByEmpleadoId.get(empleadoId) ?? {};
         state.savingId = empleadoId;
         state.error = null;
@@ -879,7 +940,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       (ev) => {
         if (ev.key === "Escape" && state.editingEmpleadoId !== null) {
           ev.preventDefault();
-          closeDrawer();
+          closeModal();
         }
       },
       { signal },
