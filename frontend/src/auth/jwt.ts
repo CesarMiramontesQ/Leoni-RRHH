@@ -1,5 +1,6 @@
 import { formatNombreEmpleadoUi } from "../utils/nombreEmpleadoDisplay.ts";
 import { hasExplicitModuleGrant, hasRhModule } from "./rhModulePermissions.ts";
+import { isRhEmpleadoUiMode } from "./rhUiMode.ts";
 import { getAccessToken } from "./session.ts";
 
 function decodePayloadSegment(segment: string): Record<string, unknown> | null {
@@ -63,6 +64,7 @@ export function canAccessUsuariosAdmin(): boolean {
 
 /** Dashboard principal con tarjetas operativas (métricas mock / futura API dedicada). */
 export function canAccessRhOperationalDashboard(): boolean {
+  if (isRhEmpleadoUiMode()) return false;
   if (hasExplicitModuleGrant("dashboard")) return true;
   const r = getRolFromAccessToken();
   if (r === "rh") return hasRhModule("dashboard");
@@ -79,10 +81,16 @@ export function canAccessOrganigramaPage(): boolean {
 
 /** Vista operativa de comedor (`#/comedor`) exclusiva para RH. */
 export function canAccessComedorRhPage(): boolean {
+  if (isRhEmpleadoUiMode()) return false;
   if (hasExplicitModuleGrant("comedor")) return true;
   const r = getRolFromAccessToken();
   if (r === "rh") return hasRhModule("comedor");
   return false;
+}
+
+/** Comedor personal para RH en modo empleado. */
+export function canAccessComedorPersonalForRh(): boolean {
+  return isRhEmpleadoUiMode();
 }
 
 /** Tablero analítico «Reporte comedor» (`#/comedor/reporte`): alineado con GET estadisticas/proyecciones. */
@@ -101,7 +109,8 @@ export function canAccessComedorLiderPage(): boolean {
 
 /** Dashboard personal (vacaciones, HO, comidas) solo para el propio empleado. */
 export function canAccessEmpleadoPersonalDashboard(): boolean {
-  return getRolFromAccessToken() === "empleado";
+  const r = getRolFromAccessToken();
+  return r === "empleado" || isRhEmpleadoUiMode();
 }
 
 /** Dashboard personal + equipo (tarjetas, aprobaciones, calendario del equipo). */
@@ -137,6 +146,7 @@ export function canAccessEmpleadosKpiGestionEquipo(): boolean {
 
 /** Vista administrativa global de solicitudes (`#/solicitudes`). Solo RH (catálogo completo de filtros). */
 export function canAccessRhSolicitudesAdminPage(): boolean {
+  if (isRhEmpleadoUiMode()) return false;
   if (hasExplicitModuleGrant("solicitudes")) return true;
   const r = getRolFromAccessToken();
   if (r === "rh") return hasRhModule("solicitudes");
@@ -153,6 +163,7 @@ export function canAccessMetricasPage(): boolean {
 
 /** Gestión de solicitudes (`#/solicitudes`): RH, supervisores y gerentes (alcance y filtros según rol). */
 export function canAccessSolicitudesGestorPage(): boolean {
+  if (isRhEmpleadoUiMode()) return false;
   if (hasExplicitModuleGrant("solicitudes")) return true;
   const r = getRolFromAccessToken();
   if (r === "rh") return hasRhModule("solicitudes");
@@ -161,6 +172,7 @@ export function canAccessSolicitudesGestorPage(): boolean {
 
 /** Consulta de solicitudes propias o de equipo (`#/solicitudes`), incluyendo rol `empleado`. */
 export function canAccessSolicitudesPage(): boolean {
+  if (isRhEmpleadoUiMode()) return true;
   return canAccessSolicitudesGestorPage() || getRolFromAccessToken() === "empleado";
 }
 

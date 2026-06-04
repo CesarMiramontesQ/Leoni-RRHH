@@ -190,7 +190,7 @@ async def primera_fecha_reserva_comedor(
 async def list_mis_reservas_comedor(
     anio: int = Query(..., ge=2000, le=2100),
     mes: int = Query(..., ge=1, le=12),
-    current_user: Empleado = Depends(role_checker(["empleado"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Reservas del empleado en un mes (calendario personal)."""
@@ -209,7 +209,7 @@ async def list_mis_reservas_comedor(
 async def mis_fechas_ocupadas_comedor(
     desde: date = Query(..., description="Inicio del rango (inclusive)"),
     hasta: date = Query(..., description="Fin del rango (inclusive)"),
-    current_user: Empleado = Depends(role_checker(["empleado"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -231,7 +231,7 @@ async def mis_fechas_ocupadas_comedor(
 @router.get("/accesos/mis-proximas-reservas", response_model=list[ComedorMisReservaItem])
 async def mis_proximas_reservas_comedor(
     limite: int = Query(5, ge=1, le=200),
-    current_user: Empleado = Depends(role_checker(["empleado"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Top N reservas próximas del empleado desde hoy (por defecto 5, máx. 200)."""

@@ -1,5 +1,6 @@
 import {
   canAccessComedorLiderPage,
+  canAccessComedorPersonalForRh,
   canAccessComedorReportePage,
   canAccessComedorRhPage,
   canAccessEmpleadoPersonalDashboard,
@@ -3233,8 +3234,12 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorGestionAdmin(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/");
-    mountDashboardPlaceholder(container);
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+    } else {
+      mountDashboardPlaceholder(container);
+    }
     return;
   }
 
@@ -3244,7 +3249,11 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorRhPlanner(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/comedor");
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/comedor");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+      return;
+    }
   }
 
   const isReporteRoute = hash.startsWith("#/comedor/reporte");
@@ -3253,7 +3262,11 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorReporte(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/comedor");
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/comedor");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+      return;
+    }
   }
 
   const isCodigosExternosRoute = hash.startsWith("#/comedor/codigos-externos");
@@ -3262,9 +3275,17 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorRhCodigosExternos(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/comedor");
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/comedor");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+      return;
+    }
   }
 
+  if (canAccessComedorPersonalForRh()) {
+    mountComedorEmpleado(container, signal);
+    return;
+  }
   if (canAccessComedorRhPage()) {
     mountComedorRh(container, signal);
     return;

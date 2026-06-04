@@ -5,6 +5,7 @@ import {
   getUserInitialsFromAccessToken,
 } from "../auth/jwt.ts";
 import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
+import { getRhUiMode, isRhEmpleadoUiMode, setRhUiMode } from "../auth/rhUiMode.ts";
 import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
@@ -426,10 +427,28 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
   const rawRol = getRolFromAccessToken();
   const userRolLine =
-    rawRol && !canAccessEmpleadoPersonalDashboard() ?
+    rawRol === "rh" ?
+      `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal text-text-muted xl:block">${escapeHtmlText(isRhEmpleadoUiMode() ? "Modo empleado" : formatRolLabel(rawRol))}</span>`
+    : rawRol && !canAccessEmpleadoPersonalDashboard() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
     : "";
-  const permisosRhMenuItem = canAccessRhPermisosAdmin()
+  const rhModeToggleHtml =
+    rawRol === "rh"
+      ? `<div class="hidden items-center gap-2 sm:flex" id="rh-ui-mode-toggle-wrap">
+          <span class="text-xs font-medium text-text-muted" id="rh-ui-mode-toggle-label">${isRhEmpleadoUiMode() ? "Modo empleado" : "Modo RH"}</span>
+          <button
+            type="button"
+            id="rh-ui-mode-toggle"
+            role="switch"
+            aria-checked="${isRhEmpleadoUiMode() ? "true" : "false"}"
+            aria-labelledby="rh-ui-mode-toggle-label"
+            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-surface transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 ${isRhEmpleadoUiMode() ? "bg-accent" : ""}"
+          >
+            <span class="pointer-events-none inline-block size-5 translate-x-0.5 rounded-full bg-white shadow ring-1 ring-black/5 transition-transform ${isRhEmpleadoUiMode() ? "translate-x-[1.375rem]" : ""}"></span>
+          </button>
+        </div>`
+      : "";
+  const permisosRhMenuItem = canAccessRhPermisosAdmin() && !isRhEmpleadoUiMode()
     ? `<a href="#/ajustes/permisos-rh" class="block px-3 py-1 text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Permisos RH</a>`
     : "";
 
@@ -488,7 +507,8 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       >
         ${tituloNavbar}
       </p>
-      <div class="flex shrink-0 items-center gap-x-6 sm:gap-x-10">
+      <div class="flex shrink-0 items-center gap-x-4 sm:gap-x-6">
+        ${rhModeToggleHtml}
         <div id="app-shell-notifications-wrapper" class="relative flex shrink-0 items-center">
           <button
             type="button"
@@ -560,6 +580,15 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </main>
 </div>
 `;
+  container.querySelector("#rh-ui-mode-toggle")?.addEventListener(
+    "click",
+    () => {
+      const nextMode = getRhUiMode() === "empleado" ? "operativo" : "empleado";
+      setRhUiMode(nextMode);
+    },
+    { signal },
+  );
+
   container.querySelector("#app-shell-sign-out")?.addEventListener("click", () => {
     if (options.onSignOut) {
       options.onSignOut();

@@ -221,7 +221,7 @@ function renderPage(state: PageState): string {
     <div class="mx-auto max-w-6xl space-y-6 py-2">
       <header>
         <h1 class="text-2xl font-bold text-text-primary">Permisos por módulo</h1>
-        <p class="mt-1 text-sm text-text-muted">Todos los usuarios con rol RH aparecen aquí. Expande cada persona para asignar los módulos que necesite.</p>
+        <p class="mt-1 text-sm text-text-muted">Todos los usuarios con rol RH aparecen aquí. Los permisos aplican en <strong class="font-medium">Modo RH</strong>; solicitudes y comedor personales siguen disponibles con el toggle <strong class="font-medium">Modo empleado</strong>.</p>
       </header>
       ${
         state.error

@@ -1,4 +1,5 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { isRhEmpleadoUiMode } from "../auth/rhUiMode.ts";
 
 /** Roles con acceso a `#/solicitudes` (gestores + empleado). */
 export type SolicitudesPageRole = "rh" | "supervisor" | "gerente" | "empleado";
@@ -61,8 +62,14 @@ export function normalizeSolicitudesPageRole(rol: string | null): SolicitudesPag
   return null;
 }
 
+/** Rol efectivo de la página solicitudes (RH en modo empleado → UI empleado). */
 export function getSolicitudesPageRoleFromSession(): SolicitudesPageRole | null {
-  return normalizeSolicitudesPageRole(getRolFromAccessToken());
+  const rol = getRolFromAccessToken();
+  if (rol === "rh") {
+    if (isRhEmpleadoUiMode()) return "empleado";
+    return "rh";
+  }
+  return normalizeSolicitudesPageRole(rol);
 }
 
 export function resolveVisibleFilterKeys(role: SolicitudesPageRole): RequestFilterKey[] {

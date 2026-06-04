@@ -70,6 +70,7 @@ export function clearAuth(): void {
   localStorage.removeItem(KEY_REFRESH);
   sessionStorage.removeItem(KEY_ACCESS);
   sessionStorage.removeItem(KEY_REFRESH);
+  void import("./rhUiMode.ts").then(({ resetRhUiMode }) => resetRhUiMode());
   void import("../notificaciones/notificacionesResumenStore.ts").then(({ resetNotificacionesResumen }) => {
     resetNotificacionesResumen();
   });

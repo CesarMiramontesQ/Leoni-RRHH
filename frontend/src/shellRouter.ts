@@ -1,6 +1,12 @@
 import { getRolFromAccessToken } from "./auth/jwt.ts";
-import { empleadoMayAccessHash, modulosMayAccessHash, supervisorMayAccessHash } from "./navigation/shellNavPolicy.ts";
+import {
+  empleadoMayAccessHash,
+  modulosMayAccessHash,
+  rhMayAccessHash,
+  supervisorMayAccessHash,
+} from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
+import { isRhEmpleadoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -56,14 +62,31 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
-    if (isModulosRhEnrolled() && !modulosMayAccessHash(rawHash, getRolFromAccessToken())) {
+    const rol = getRolFromAccessToken();
+    if (rol === "rh" && !rhMayAccessHash(rawHash)) {
+      if (isRhEmpleadoUiMode()) {
+        if (rawHash !== "#/") {
+          history.replaceState(null, "", "#/");
+        }
+        routeToHash(container, signal, "#/");
+        return;
+      }
+      mountRhModuleAccessDenied(container);
+      return;
+    }
+    if (rol !== "rh" && isModulosRhEnrolled() && !modulosMayAccessHash(rawHash, rol)) {
       mountRhModuleAccessDenied(container);
       return;
     }
     const h =
-      getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
-      : getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash) ? "#/"
+      rol === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
+      : rol === "supervisor" && !supervisorMayAccessHash(rawHash) ? "#/"
       : rawHash;
+
+    routeToHash(container, signal, h);
+  };
+
+  const routeToHash = (container: HTMLElement, signal: AbortSignal, h: string): void => {
 
     if (h.startsWith("#/ajustes/permisos-rh")) {
       mountAjustesPermisosRh(container, signal);
@@ -215,5 +238,6 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   };
 
   window.addEventListener("hashchange", go, { signal });
+  window.addEventListener(RH_UI_MODE_CHANGE_EVENT, go, { signal });
   go();
 }

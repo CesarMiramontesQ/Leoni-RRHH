@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse, Response
 from app.core.config import settings
 from app.core.rh_module_registry import (
     RH_MODULE_EXEMPT_API_PREFIXES,
+    is_rh_self_service_api_path,
     jwt_module_guard_applies,
     resolve_module_from_api_path,
     user_has_module_from_claims,
@@ -59,6 +60,9 @@ class RhModulePermissionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if not jwt_module_guard_applies(payload):
+            return await call_next(request)
+
+        if payload.get("rol") == "rh" and is_rh_self_service_api_path(path):
             return await call_next(request)
 
         if user_has_module_from_claims(payload, module_key):

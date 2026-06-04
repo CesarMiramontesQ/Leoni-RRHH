@@ -1,4 +1,5 @@
 import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
+import { isRhEmpleadoUiMode } from "./rhUiMode.ts";
 import { getAccessToken } from "./session.ts";
 
 function getSessionRol(): string | null {
@@ -67,6 +68,7 @@ export function isModulosRhEnrolled(): boolean {
 
 export function canAccessRhPermisosAdmin(): boolean {
   if (getSessionRol() !== "rh") return false;
+  if (isRhEmpleadoUiMode()) return false;
   return state.canAdminPermisos;
 }
 

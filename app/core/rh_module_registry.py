@@ -59,7 +59,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "solicitudes": RhModuleDef(
         key="solicitudes",
-        label="Solicitudes",
+        label="Solicitudes (gestión RH)",
         group="Laborales",
         nav_item_ids=("solicitudes",),
         hash_prefixes=("#/solicitudes",),
@@ -83,17 +83,15 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "comedor": RhModuleDef(
         key="comedor",
-        label="Gestión Comedor",
+        label="Comedor (gestión RH)",
         group="Comedor",
         nav_item_ids=("comedor",),
-        hash_prefixes=("#/comedor", "#/comedor/gestion", "#/comedor/planear", "#/comedor/codigos-externos"),
+        hash_prefixes=("#/comedor/gestion", "#/comedor/planear", "#/comedor/codigos-externos"),
         api_prefixes=(
             "/api/v1/comedor/rh",
             "/api/v1/comedor/accesos/rh",
             "/api/v1/comedor/comedores",
             "/api/v1/comedor/menus",
-            "/api/v1/comedor/reservas",
-            "/api/v1/comedor/registro",
             "/api/v1/comedor/codigos-externos",
         ),
     ),
@@ -222,6 +220,18 @@ RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/rh-permisos",
 )
 
+# Autoservicio RH: siempre permitido sin módulo de gestión (modo empleado / uso personal)
+RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
+    "/api/v1/solicitudes",
+    "/api/v1/comedor/mi-comedor-asignado",
+    "/api/v1/comedor/accesos/mis-reservas",
+    "/api/v1/comedor/accesos/mis-proximas-reservas",
+    "/api/v1/comedor/accesos/mis-fechas-ocupadas",
+    "/api/v1/comedor/accesos/primera-fecha-permitida",
+    "/api/v1/comedor/registro",
+    "/api/v1/bono-productividad",
+)
+
 
 def all_module_keys() -> list[str]:
     return list(RH_MODULES.keys())
@@ -283,6 +293,11 @@ def _path_matches_prefix(path: str, prefix: str) -> bool:
     if prefix.endswith("/"):
         return path.startswith(prefix)
     return path.startswith(prefix + "/") or path.startswith(prefix)
+
+
+def is_rh_self_service_api_path(path: str) -> bool:
+    """Rutas de uso personal para colaboradores RH (sin permiso de módulo de gestión)."""
+    return any(_path_matches_prefix(path, prefix) for prefix in RH_SELF_SERVICE_API_PREFIXES)
 
 
 def resolve_module_from_api_path(path: str) -> str | None:

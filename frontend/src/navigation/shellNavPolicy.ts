@@ -9,6 +9,7 @@ import {
   isModulosRhEnrolled,
 } from "../auth/rhModulePermissions.ts";
 import { navItemIdToModuleKey, resolveModuleFromHash } from "../auth/rhModuleRegistry.ts";
+import { isRhEmpleadoUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Mostrar «Organigrama» en el sidebar. La ruta `#/organigrama` sigue disponible para RH. */
 export const ORGANIGRAMA_MENU_VISIBLE = false;
@@ -70,7 +71,10 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
 
 function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolean {
   const moduleKey = navItemIdToModuleKey(itemId);
-  if (rol === "rh") return hasRhModule(moduleKey);
+  if (rol === "rh") {
+    if (isRhEmpleadoUiMode()) return true;
+    return hasRhModule(moduleKey);
+  }
   if (isModulosRhEnrolled()) return hasExplicitModuleGrant(moduleKey);
   return true;
 }
@@ -78,6 +82,9 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   const byRole = roleOnlyNavVisible(rol, itemId);
   if (rol === "rh") {
+    if (isRhEmpleadoUiMode()) {
+      return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+    }
     return byRole && moduleNavAllowed(rol, itemId);
   }
   if (isModulosRhEnrolled()) {
@@ -117,12 +124,20 @@ function hashAllowedByRole(rol: string | null, hash: string): boolean {
 export function modulosMayAccessHash(hash: string, rol: string | null): boolean {
   const h = (hash || "#/").trim();
   if (h.startsWith("#/notificaciones")) return true;
-  if (h.startsWith("#/ajustes/permisos-rh")) return canAccessRhPermisosAdmin();
+  if (h.startsWith("#/ajustes/permisos-rh")) {
+    return isRhOperativoUiMode() && canAccessRhPermisosAdmin();
+  }
 
   const moduleKey = resolveModuleFromHash(h);
   if (moduleKey === null) return true;
 
   if (rol === "rh") {
+    if (h.startsWith("#/comedor/reporte") || h.startsWith("#/reportes")) {
+      return hasRhModule("reportes");
+    }
+    if (h.startsWith("#/comedor")) {
+      return hasRhModule("comedor");
+    }
     return hasRhModule(moduleKey);
   }
   if (isModulosRhEnrolled()) {
@@ -131,7 +146,23 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   return true;
 }
 
-/** @deprecated Usar modulosMayAccessHash */
+/** Rutas permitidas para RH en modo empleado (autoservicio). */
+export function rhEmpleadoMayAccessHash(hash: string): boolean {
+  const h = (hash || "#/").trim();
+  if (h.startsWith("#/ajustes/permisos-rh")) return false;
+  if (h.startsWith("#/comedor/gestion")) return false;
+  if (h.startsWith("#/comedor/planear")) return false;
+  if (h.startsWith("#/comedor/codigos-externos")) return false;
+  if (h.startsWith("#/comedor/reporte")) return false;
+  if (h.startsWith("#/reportes")) return false;
+  return empleadoMayAccessHash(hash);
+}
+
+/** Control de hash para usuarios RH según modo UI. */
 export function rhMayAccessHash(hash: string): boolean {
+  if (isRhEmpleadoUiMode()) {
+    return rhEmpleadoMayAccessHash(hash);
+  }
   return modulosMayAccessHash(hash, "rh");
 }
+

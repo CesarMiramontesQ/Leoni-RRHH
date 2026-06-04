@@ -178,6 +178,34 @@ async def test_invalid_module_keys_rejected(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_rh_self_service_comedor_without_gestion_module(client: AsyncClient, db):
+    from app.core.rh_module_registry import all_module_keys
+
+    modulos = {key: False for key in all_module_keys()}
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_self_comedor@test.com",
+        modulos_rh=modulos,
+    )
+    headers = await auth_headers(client, rh)
+
+    res_personal = await client.get(
+        "/api/v1/comedor/accesos/mis-proximas-reservas",
+        headers=headers,
+        params={"limite": 5},
+    )
+    assert res_personal.status_code != 403
+
+    res_gestion = await client.get(
+        "/api/v1/comedor/accesos/rh/proximos-registros",
+        headers=headers,
+        params={"page": 1, "page_size": 10},
+    )
+    assert res_gestion.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_middleware_blocks_rh_without_module(client: AsyncClient, db):
     rh = await make_empleado(
         db,
