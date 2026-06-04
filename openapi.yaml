@@ -3585,6 +3585,13 @@ paths:
             default: 20
             minimum: 1
             maximum: 100
+        - name: X-RH-UI-Mode
+          in: header
+          required: false
+          description: Modo UI activo para usuarios RH. En `empleado` el listado se limita a solicitudes propias.
+          schema:
+            type: string
+            enum: [operativo, empleado]
       responses:
         "200":
           description: Pagina de solicitudes

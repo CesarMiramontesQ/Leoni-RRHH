@@ -1,8 +1,10 @@
 import "@tailwindplus/elements";
 import "./style.css";
 import { refreshAccessTokenSession } from "./api/http.ts";
+import { getRolFromAccessToken } from "./auth/jwt.ts";
 import { loadRhModulePermissions } from "./auth/rhModulePermissions.ts";
 import { getAccessToken, getRefreshToken } from "./auth/session.ts";
+import { resolveRhInitialHash } from "./navigation/shellNavPolicy.ts";
 import { mountLogin } from "./pages/login.ts";
 import { refreshNotificacionesResumen } from "./notificaciones/notificacionesResumenStore.ts";
 import { mountAuthenticatedShell } from "./shellRouter.ts";
@@ -15,6 +17,12 @@ async function bootstrap(): Promise<void> {
   if (getAccessToken()) {
     void refreshNotificacionesResumen();
     await loadRhModulePermissions();
+    if (getRolFromAccessToken() === "rh") {
+      const initialHash = resolveRhInitialHash();
+      if (initialHash !== (window.location.hash || "#/")) {
+        window.location.hash = initialHash;
+      }
+    }
     mountAuthenticatedShell(app);
     return;
   }

@@ -41,6 +41,12 @@ export function isRhOperativoUiMode(): boolean {
   return getRolFromAccessToken() === "rh" && getRhUiMode() === "operativo";
 }
 
+/** Valor del header `X-RH-UI-Mode` para requests autenticados RH. */
+export function getRhUiModeHeaderValue(): string | null {
+  if (getRolFromAccessToken() !== "rh") return null;
+  return getRhUiMode();
+}
+
 export function resetRhUiMode(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEY);

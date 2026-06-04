@@ -155,7 +155,10 @@ function renderUsuarioRow(
       >
         ${
           user.editable
-            ? `<div class="flex justify-end">
+            ? `<div class="flex flex-wrap items-center justify-end gap-2">
+                <button type="button" class="rh-permiso-deseleccionar-todo ${BTN_GHOST}" data-empleado-id="${user.empleado_id}" ${saving ? "disabled" : ""}>
+                  Deseleccionar todo
+                </button>
                 <button type="button" class="rh-permiso-guardar ${BTN_PRIMARY}" data-empleado-id="${user.empleado_id}" ${saving ? "disabled" : ""}>
                   ${saving ? "Guardando…" : "Guardar cambios"}
                 </button>
@@ -383,6 +386,25 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       );
     });
 
+    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-deseleccionar-todo").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        (ev) => {
+          ev.preventDefault();
+          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
+          if (!Number.isFinite(empleadoId)) return;
+          const draft = readDraftFromDom(empleadoId);
+          for (const mod of state.catalog) {
+            draft[mod.key] = false;
+          }
+          state.draftByEmpleadoId.set(empleadoId, draft);
+          state.expandedEmpleadoIds.add(empleadoId);
+          paint();
+        },
+        { signal },
+      );
+    });
+
     container.querySelectorAll<HTMLInputElement>(".rh-permiso-modulo").forEach((input) => {
       input.addEventListener(
         "change",
@@ -454,6 +476,18 @@ export function mountRhModuleAccessDenied(container: HTMLElement): void {
     mainHtml: htmlAccessDenied({
       title: "Acceso no autorizado",
       description: "No tienes permiso para acceder a este módulo. Contacta al administrador de RH si necesitas acceso.",
+      linkHref: "#/",
+      linkLabel: "Volver al inicio",
+    }),
+  });
+}
+
+export function mountRhSinPermisosDisponibles(container: HTMLElement): void {
+  mountAppShell(container, {
+    mainHtml: htmlAccessDenied({
+      title: "Sin permisos disponibles",
+      description:
+        "Tu cuenta RH no tiene módulos asignados. Contacta al administrador de permisos para solicitar acceso.",
       linkHref: "#/",
       linkLabel: "Volver al inicio",
     }),

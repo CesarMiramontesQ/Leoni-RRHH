@@ -9,7 +9,73 @@ import {
   isModulosRhEnrolled,
 } from "../auth/rhModulePermissions.ts";
 import { navItemIdToModuleKey, resolveModuleFromHash } from "../auth/rhModuleRegistry.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { isRhEmpleadoUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+
+/** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
+export const RH_SIN_PERMISOS_HASH = "#/sin-permisos-rh";
+
+type RhNavLandingEntry = {
+  itemId: AppShellNavItemId;
+  hash: string;
+};
+
+/** Orden de aterrizaje alineado con el menú lateral RH (appShell). */
+const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
+  { itemId: "dashboard", hash: "#/" },
+  { itemId: "organigrama", hash: "#/organigrama" },
+  { itemId: "metricas", hash: "#/metricas" },
+  { itemId: "solicitudes", hash: "#/solicitudes" },
+  { itemId: "incidencias", hash: "#/incidencias" },
+  { itemId: "actas", hash: "#/actas" },
+  { itemId: "comedor", hash: "#/comedor" },
+  { itemId: "reportes", hash: "#/comedor/reporte" },
+  { itemId: "puestos", hash: "#/puestos" },
+  { itemId: "competencias", hash: "#/competencias" },
+  { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
+  { itemId: "evaluaciones", hash: "#/evaluaciones" },
+  { itemId: "capacitaciones", hash: "#/capacitaciones" },
+  { itemId: "level-up", hash: "#/level-up" },
+  { itemId: "capacidades", hash: "#/capacidades" },
+  { itemId: "cursos", hash: "#/cursos" },
+  { itemId: "opls", hash: "#/opls" },
+  { itemId: "evidencias", hash: "#/evidencias" },
+  { itemId: "sugerencias", hash: "#/sugerencias" },
+  { itemId: "encuestas", hash: "#/encuestas" },
+  { itemId: "empleados", hash: "#/empleados" },
+];
+
+export function isRhHomeHash(hash: string): boolean {
+  const h = (hash || "#/").trim();
+  return h === "" || h === "#" || h === "#/";
+}
+
+/** Primera página del menú RH a la que el usuario tiene acceso; null si ninguna. */
+export function resolveRhOperativoLandingHash(): string | null {
+  for (const entry of RH_NAV_LANDING_ORDER) {
+    if (isShellNavItemVisibleForRol("rh", entry.itemId)) {
+      return entry.hash;
+    }
+  }
+  if (canAccessRhPermisosAdmin()) {
+    return "#/ajustes/permisos-rh";
+  }
+  return null;
+}
+
+/**
+ * Hash inicial tras login o recarga para usuarios RH con permisos limitados.
+ * Solo ajusta la ruta de inicio (#/); no altera deep links válidos.
+ */
+export function resolveRhInitialHash(currentHash?: string): string {
+  const h = (currentHash ?? (typeof window !== "undefined" ? window.location.hash : "") ?? "#/").trim() || "#/";
+  if (getRolFromAccessToken() !== "rh") return h;
+  if (isRhEmpleadoUiMode()) return isRhHomeHash(h) ? "#/" : h;
+  if (!isRhHomeHash(h)) return h;
+  if (rhMayAccessHash("#/")) return "#/";
+  const landing = resolveRhOperativoLandingHash();
+  return landing ?? RH_SIN_PERMISOS_HASH;
+}
 
 /** Mostrar «Organigrama» en el sidebar. La ruta `#/organigrama` sigue disponible para RH. */
 export const ORGANIGRAMA_MENU_VISIBLE = false;
@@ -124,6 +190,9 @@ function hashAllowedByRole(rol: string | null, hash: string): boolean {
 export function modulosMayAccessHash(hash: string, rol: string | null): boolean {
   const h = (hash || "#/").trim();
   if (h.startsWith("#/notificaciones")) return true;
+  if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
+    return rol === "rh" && isRhOperativoUiMode();
+  }
   if (h.startsWith("#/ajustes/permisos-rh")) {
     return isRhOperativoUiMode() && canAccessRhPermisosAdmin();
   }

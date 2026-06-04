@@ -27,6 +27,11 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.rh_ui_mode import (
+    effective_solicitud_scope_rol,
+    is_rh_empleado_ui_mode,
+    rh_tiene_alcance_gestor,
+)
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.core.exceptions import (
     ConflictError,
@@ -369,21 +374,22 @@ class SolicitudService:
         current_user: Empleado,
         cursor: int | None,
         limit: int,
+        rh_ui_mode: str | None = None,
     ) -> PaginatedResponse[SolicitudResponse]:
         """
         Lista solicitudes filtradas por rol:
-        - empleado: solo las propias
+        - empleado (incl. RH en modo empleado): solo las propias
         - supervisor: propias + subordinados directos
         - gerente: propias + todo el subarbol jerarquico bajo el gerente
         - director/rh: todas
         """
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
 
-        if rol in ("director", "rh"):
+        if scope_rol in ("director", "rh"):
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
             total = await self.repo.count()
 
-        elif rol == "supervisor":
+        elif scope_rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
@@ -395,7 +401,7 @@ class SolicitudService:
                 filters=[Solicitud.empleado_id.in_(ids)]
             )
 
-        elif rol == "gerente":
+        elif scope_rol == "gerente":
             equipo = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
@@ -435,25 +441,26 @@ class SolicitudService:
         self,
         solicitud_id: int,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
             raise NotFoundError(entidad="Solicitud", id=solicitud_id)
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
 
-        if rol in ("director", "rh"):
+        if scope_rol in ("director", "rh"):
             pass
         elif solicitud.empleado_id == current_user.id:
             pass
-        elif rol == "supervisor":
+        elif scope_rol == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = {e.id for e in subordinados}
             if solicitud.empleado_id not in ids:
                 raise ForbiddenError(detail="No tienes acceso a esta solicitud")
-        elif rol == "gerente":
+        elif scope_rol == "gerente":
             equipo = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
@@ -492,11 +499,18 @@ class SolicitudService:
         self,
         data: SolicitudCreate,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> Empleado:
         """
         Determina el colaborador titular de la solicitud (self-service vs alta delegada).
         Misma regla de alcance que `IncidenciaService.crear_incidencia` para equipo/rh/director.
         """
+        if is_rh_empleado_ui_mode(current_user, rh_ui_mode):
+            requested = data.empleado_id
+            if requested is not None and requested != current_user.id:
+                raise ForbiddenError(detail="No puedes crear solicitudes para otro empleado")
+            return current_user
+
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         requested = data.empleado_id
 
@@ -531,6 +545,7 @@ class SolicitudService:
         data: SolicitudCreate,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
         """
         Alta de solicitud para el colaborador titular (por defecto el usuario autenticado).
@@ -546,12 +561,14 @@ class SolicitudService:
         2) Saldo de vacaciones (solo tipo vacaciones, tabla local `vacaciones`).
         3) Persistencia y notificaciones.
         """
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        target = await self._resolver_empleado_objetivo_crear_solicitud(data, current_user)
+        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        target = await self._resolver_empleado_objetivo_crear_solicitud(
+            data, current_user, rh_ui_mode=rh_ui_mode,
+        )
 
         fecha_inicio = data.fecha_inicio
         fecha_fin = data.fecha_fin
-        if rol == "empleado" and data.tipo == "home_office" and fecha_fin != fecha_inicio:
+        if scope_rol == "empleado" and data.tipo == "home_office" and fecha_fin != fecha_inicio:
             raise DomainValidationError(
                 detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
             )
@@ -564,7 +581,7 @@ class SolicitudService:
                         "con clasificación Administrativo."
                     )
                 )
-        if data.tipo == "permiso_sin_goce_sueldo" and rol not in (
+        if data.tipo == "permiso_sin_goce_sueldo" and scope_rol not in (
             "supervisor",
             "gerente",
             "rh",
@@ -574,7 +591,7 @@ class SolicitudService:
                 detail="Solo supervisor, gerente, RH o director pueden crear permisos sin goce de sueldo"
             )
         if data.tipo in _TIPOS_GOCE_SUELDO_RH:
-            if rol != "rh":
+            if scope_rol != "rh":
                 raise ForbiddenError(
                     detail="Solo RH puede crear solicitudes con goce de sueldo"
                 )
@@ -776,6 +793,7 @@ class SolicitudService:
         aprobacion: SolicitudAprobacionCreate,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
@@ -790,7 +808,7 @@ class SolicitudService:
         _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
         emp = solicitud.empleado
 
-        if rol in ("director", "rh"):
+        if rol == "director" or (rol == "rh" and rh_tiene_alcance_gestor(current_user, rh_ui_mode)):
             return await self._aprobar_final_con_tress(
                 solicitud_id=solicitud_id,
                 solicitud=solicitud,
@@ -825,6 +843,7 @@ class SolicitudService:
         aprobacion: SolicitudAprobacionCreate,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
@@ -839,7 +858,7 @@ class SolicitudService:
         _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
         emp = solicitud.empleado
 
-        if rol not in ("director", "rh"):
+        if not (rol == "director" or (rol == "rh" and rh_tiene_alcance_gestor(current_user, rh_ui_mode))):
             if not await self._puede_actuar_jerarquia_solicitud_async(
                 rol=rol,
                 emp=emp,
@@ -890,7 +909,12 @@ class SolicitudService:
         aprobacion: SolicitudAprobacionCreate,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol == "rh" and not rh_tiene_alcance_gestor(current_user, rh_ui_mode):
+            raise ForbiddenError(detail="No tienes permiso para override en modo empleado")
+
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
             raise NotFoundError(entidad="Solicitud", id=solicitud_id)
@@ -934,6 +958,7 @@ class SolicitudService:
         body: SolicitudSolicitarCambiosBody,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
@@ -951,7 +976,7 @@ class SolicitudService:
         _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, rol)
         emp = solicitud.empleado
 
-        if rol not in ("director", "rh"):
+        if not (rol == "director" or (rol == "rh" and rh_tiene_alcance_gestor(current_user, rh_ui_mode))):
             if not await self._puede_actuar_jerarquia_solicitud_async(
                 rol=rol,
                 emp=emp,
@@ -1021,6 +1046,7 @@ class SolicitudService:
         data: SolicitudRequisitorRevision,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
@@ -1188,9 +1214,14 @@ class SolicitudService:
         self,
         solicitud_id: int,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> list[SolicitudAprobacionResponse]:
         # Verificar acceso a la solicitud
-        await self.get_solicitud(solicitud_id=solicitud_id, current_user=current_user)
+        await self.get_solicitud(
+            solicitud_id=solicitud_id,
+            current_user=current_user,
+            rh_ui_mode=rh_ui_mode,
+        )
 
         aprobaciones = await self.aprobacion_repo.list_by_solicitud(solicitud_id)
         out: list[SolicitudAprobacionResponse] = []

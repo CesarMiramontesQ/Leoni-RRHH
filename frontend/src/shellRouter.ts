@@ -1,12 +1,15 @@
 import { getRolFromAccessToken } from "./auth/jwt.ts";
 import {
   empleadoMayAccessHash,
+  isRhHomeHash,
   modulosMayAccessHash,
+  resolveRhOperativoLandingHash,
+  RH_SIN_PERMISOS_HASH,
   rhMayAccessHash,
   supervisorMayAccessHash,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
-import { isRhEmpleadoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
+import { isRhEmpleadoUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -38,7 +41,11 @@ import {
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
-import { mountAjustesPermisosRh, mountRhModuleAccessDenied } from "./pages/ajustesPermisosRh.ts";
+import {
+  mountAjustesPermisosRh,
+  mountRhModuleAccessDenied,
+  mountRhSinPermisosDisponibles,
+} from "./pages/ajustesPermisosRh.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -55,7 +62,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   const { signal } = routeAbort;
 
   const go = (): void => {
-    const rawHash = window.location.hash || "#/";
+    let rawHash = window.location.hash || "#/";
     if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
@@ -63,6 +70,13 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       history.replaceState(null, "", "#/");
     }
     const rol = getRolFromAccessToken();
+    if (rol === "rh" && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
+      const landing = resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+      if (landing !== rawHash) {
+        history.replaceState(null, "", landing);
+        rawHash = landing;
+      }
+    }
     if (rol === "rh" && !rhMayAccessHash(rawHash)) {
       if (isRhEmpleadoUiMode()) {
         if (rawHash !== "#/") {
@@ -87,6 +101,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   };
 
   const routeToHash = (container: HTMLElement, signal: AbortSignal, h: string): void => {
+    if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
+      mountRhSinPermisosDisponibles(container);
+      return;
+    }
 
     if (h.startsWith("#/ajustes/permisos-rh")) {
       mountAjustesPermisosRh(container, signal);

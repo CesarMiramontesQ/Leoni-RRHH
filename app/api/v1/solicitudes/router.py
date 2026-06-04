@@ -18,7 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, role_checker
+from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas import PaginatedResponse
 from app.schemas.solicitudes import (
@@ -39,6 +39,7 @@ async def list_solicitudes(
     cursor: int | None = Query(None, description="ID del ultimo item recibido. Omitir para primera pagina."),
     limit: int = Query(20, ge=1, le=100, description="Items por pagina. Maximo 100."),
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
@@ -46,6 +47,7 @@ async def list_solicitudes(
         current_user=current_user,
         cursor=cursor,
         limit=limit,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -56,6 +58,7 @@ async def create_solicitud(
     current_user: Empleado = Depends(
         role_checker(["empleado", "supervisor", "gerente", "director", "rh"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
@@ -63,6 +66,7 @@ async def create_solicitud(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -70,12 +74,14 @@ async def create_solicitud(
 async def get_solicitud(
     solicitud_id: int,
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
     return await service.get_solicitud(
         solicitud_id=solicitud_id,
         current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -83,12 +89,14 @@ async def get_solicitud(
 async def get_aprobaciones(
     solicitud_id: int,
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
     return await service.get_aprobaciones(
         solicitud_id=solicitud_id,
         current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -100,6 +108,7 @@ async def approve_solicitud(
     current_user: Empleado = Depends(
         role_checker(["supervisor", "gerente", "director", "rh"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
@@ -108,6 +117,7 @@ async def approve_solicitud(
         aprobacion=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -119,6 +129,7 @@ async def reject_solicitud(
     current_user: Empleado = Depends(
         role_checker(["supervisor", "gerente", "director", "rh"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
@@ -127,6 +138,7 @@ async def reject_solicitud(
         aprobacion=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -138,6 +150,7 @@ async def request_changes_solicitud(
     current_user: Empleado = Depends(
         role_checker(["supervisor", "gerente", "director", "rh"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
@@ -146,6 +159,7 @@ async def request_changes_solicitud(
         body=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -155,6 +169,7 @@ async def patch_solicitud_revision(
     body: SolicitudRequisitorRevision,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Solo el creador de la solicitud, solo en `changes_requested`: actualiza fechas/comentarios, auditoría y vuelve a `pending` con notificación al supervisor."""
@@ -164,6 +179,7 @@ async def patch_solicitud_revision(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -173,6 +189,7 @@ async def override_solicitud(
     body: SolicitudAprobacionCreate,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(role_checker(["director", "rh"])),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = SolicitudService(db)
@@ -181,6 +198,7 @@ async def override_solicitud(
         aprobacion=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
 
 

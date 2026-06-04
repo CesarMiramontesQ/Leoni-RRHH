@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -200,3 +200,10 @@ async def require_torniquete_api_key(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Clave de terminal inválida",
         )
+
+
+def get_rh_ui_mode(
+    x_rh_ui_mode: str | None = Header(None, alias="X-RH-UI-Mode"),
+) -> str | None:
+    """Modo de UI activo para usuarios RH (`operativo` | `empleado`)."""
+    return x_rh_ui_mode

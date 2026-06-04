@@ -19,13 +19,17 @@ vi.mock("../auth/jwt.ts", () => ({
 vi.mock("../auth/rhModulePermissions.ts", () => ({
   canAccessRhPermisosAdmin: () => false,
   hasExplicitModuleGrant: () => false,
-  hasRhModule: (key: string) => key === "dashboard",
+  hasRhModule: (key: string) => allowedModules.has(key),
   isModulosRhEnrolled: () => true,
 }));
+
+const allowedModules = new Set<string>(["dashboard"]);
 
 describe("shellNavPolicy rh mode", () => {
   beforeEach(() => {
     storage.clear();
+    allowedModules.clear();
+    allowedModules.add("dashboard");
   });
 
   it("modo empleado permite solicitudes y bloquea empleados", async () => {
@@ -40,5 +44,30 @@ describe("shellNavPolicy rh mode", () => {
     const { rhMayAccessHash } = await import("./shellNavPolicy.ts");
     expect(rhMayAccessHash("#/")).toBe(true);
     expect(rhMayAccessHash("#/empleados")).toBe(false);
+  });
+
+  it("aterrizaje operativo elige la primera página permitida del menú", async () => {
+    allowedModules.clear();
+    allowedModules.add("metricas");
+    allowedModules.add("level-up");
+    const { resolveRhOperativoLandingHash } = await import("./shellNavPolicy.ts");
+    expect(resolveRhOperativoLandingHash()).toBe("#/metricas");
+  });
+
+  it("resolveRhInitialHash redirige desde inicio cuando no hay dashboard", async () => {
+    allowedModules.clear();
+    allowedModules.add("level-up");
+    const { resolveRhInitialHash, RH_SIN_PERMISOS_HASH } = await import("./shellNavPolicy.ts");
+    expect(resolveRhInitialHash("#/")).toBe("#/level-up");
+    expect(resolveRhInitialHash("#/")).not.toBe("#/");
+    allowedModules.clear();
+    expect(resolveRhInitialHash("#/")).toBe(RH_SIN_PERMISOS_HASH);
+  });
+
+  it("resolveRhInitialHash conserva deep links válidos", async () => {
+    allowedModules.clear();
+    allowedModules.add("level-up");
+    const { resolveRhInitialHash } = await import("./shellNavPolicy.ts");
+    expect(resolveRhInitialHash("#/level-up")).toBe("#/level-up");
   });
 });
