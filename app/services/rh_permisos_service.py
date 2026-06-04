@@ -1,10 +1,11 @@
 from fastapi import HTTPException, status
 
+from app.core.config import settings
 from app.core.rh_module_registry import (
     all_module_keys,
     catalog_for_api,
     effective_modules_for_display,
-    empty_modulos_rh_config,
+    has_personalized_modulos_rh,
     is_modulos_rh_enrolled,
     validate_modulos_rh_keys,
 )
@@ -22,6 +23,14 @@ class RhPermisosService:
     def __init__(self, repo: RhPermisosRepository) -> None:
         self.repo = repo
 
+    def _require_rh_target(self, target: Empleado) -> None:
+        rol = target.rol.nombre if target.rol else "empleado"
+        if rol != "rh":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Solo usuarios con rol RH pueden gestionarse en permisos por módulo.",
+            )
+
     def _require_admin_permisos(self, current_user: Empleado) -> None:
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         if rol != "rh":
@@ -37,12 +46,15 @@ class RhPermisosService:
 
     def _to_item(self, emp: Empleado, current_user: Empleado) -> RhUsuarioPermisosItem:
         rol = emp.rol.nombre if emp.rol else "empleado"
+        activo = emp.estado_id in settings.ESTADOS_ACTIVOS_IDS if emp.estado_id is not None else False
         return RhUsuarioPermisosItem(
             empleado_id=emp.empleado_id,
             no_empleado=emp.no_empleado,
             nombre=emp.nombre,
             email=emp.email,
             rol_nombre=rol,
+            activo=activo,
+            permisos_personalizados=has_personalized_modulos_rh(emp),
             puede_administrar_permisos_rh=bool(emp.puede_administrar_permisos_rh),
             modulos=effective_modules_for_display(emp),
             editable=emp.empleado_id != current_user.empleado_id,
@@ -101,20 +113,15 @@ class RhPermisosService:
                 detail="Empleado no encontrado.",
             )
 
+        self._require_rh_target(target)
+
         if is_modulos_rh_enrolled(target):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="El empleado ya está en la lista de permisos.",
             )
 
-        rol = target.rol.nombre if target.rol else "empleado"
-        if rol == "rh":
-            updated = target
-        else:
-            updated = await self.repo.update_modulos_rh(target, empty_modulos_rh_config())
-
-        reloaded = await self.repo.get_by_empleado_id(updated.empleado_id)
-        return self._to_item(reloaded or updated, current_user)
+        return self._to_item(target, current_user)
 
     async def update_usuario_permisos(
         self,
@@ -145,11 +152,7 @@ class RhPermisosService:
                 detail="Empleado no encontrado.",
             )
 
-        if not is_modulos_rh_enrolled(target):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="El empleado no está inscrito en permisos por módulo. Agrégalo primero.",
-            )
+        self._require_rh_target(target)
 
         normalized = {key: bool(body.modulos.get(key, False)) for key in all_module_keys()}
         await self.repo.update_modulos_rh(target, normalized)

@@ -1,10 +1,7 @@
 import {
-  agregarEmpleadoPermisos,
-  buscarEmpleadosParaPermisos,
   fetchRhModulosCatalogo,
   fetchRhUsuariosPermisos,
   updateRhUsuarioPermisos,
-  type RhEmpleadoBusquedaItem,
   type RhModuloCatalogItem,
   type RhUsuarioPermisosItem,
 } from "../api/rhPermisos.ts";
@@ -12,8 +9,8 @@ import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
+  BTN_GHOST,
   BTN_PRIMARY,
-  BTN_SECONDARY,
   FIELD_FOCUS,
   RH_LISTADO_SURFACE,
   htmlAccessDenied,
@@ -35,17 +32,13 @@ function formatRol(rol: string): string {
 type PageState = {
   loading: boolean;
   savingId: number | null;
-  addingId: number | null;
-  searching: boolean;
   error: string | null;
   success: string | null;
   catalog: RhModuloCatalogItem[];
   usuarios: RhUsuarioPermisosItem[];
   draftByEmpleadoId: Map<number, Record<string, boolean>>;
-  searchQuery: string;
-  searchResults: RhEmpleadoBusquedaItem[];
+  filterQuery: string;
   expandedEmpleadoIds: Set<number>;
-  searchSectionExpanded: boolean;
 };
 
 const CHEVRON_SVG = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-text-muted transition-transform duration-200"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>`;
@@ -64,6 +57,14 @@ function groupCatalog(catalog: RhModuloCatalogItem[]): Map<string, RhModuloCatal
   return groups;
 }
 
+function renderPermisosBadge(user: RhUsuarioPermisosItem, draft: Record<string, boolean>): string {
+  if (!user.permisos_personalizados) {
+    return `<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">Acceso completo</span>`;
+  }
+  const activeCount = countActiveModules(draft);
+  return `<span class="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">${activeCount} módulo${activeCount === 1 ? "" : "s"}</span>`;
+}
+
 function renderUsuarioRow(
   user: RhUsuarioPermisosItem,
   catalogGroups: Map<string, RhModuloCatalogItem[]>,
@@ -72,7 +73,6 @@ function renderUsuarioRow(
   expanded: boolean,
 ): string {
   const disabled = !user.editable || saving;
-  const activeCount = countActiveModules(draft);
   const groupsHtml = [...catalogGroups.entries()]
     .map(([group, items]) => {
       const checks = items
@@ -126,7 +126,12 @@ function renderUsuarioRow(
             <span class="min-w-0">
               <span class="flex flex-wrap items-center gap-2">
                 <span class="text-base font-semibold text-text-primary">${escapeHtml(user.nombre)}</span>
-                <span class="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">${activeCount} módulo${activeCount === 1 ? "" : "s"}</span>
+                ${renderPermisosBadge(user, draft)}
+                ${
+                  !user.activo
+                    ? `<span class="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Inactivo</span>`
+                    : ""
+                }
               </span>
               <span class="mt-0.5 block text-sm text-text-muted">${escapeHtml(user.no_empleado)}${user.email ? ` · ${escapeHtml(user.email)}` : ""}</span>
               <span class="mt-1 block text-xs font-medium text-text-muted">Rol: ${escapeHtml(formatRol(user.rol_nombre))}</span>
@@ -162,69 +167,43 @@ function renderUsuarioRow(
     </article>`;
 }
 
-function renderSearchBlock(state: PageState): string {
-  const expanded = state.searchSectionExpanded;
+function matchesFilter(user: RhUsuarioPermisosItem, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    user.nombre.toLowerCase().includes(q) ||
+    user.no_empleado.toLowerCase().includes(q) ||
+    (user.email ?? "").toLowerCase().includes(q)
+  );
+}
+
+function renderFilterBar(state: PageState): string {
+  const total = state.usuarios.length;
+  const visible = state.usuarios.filter((user) => matchesFilter(user, state.filterQuery)).length;
   return `
-    <section class="${RH_LISTADO_SURFACE} overflow-hidden">
-      <button
-        type="button"
-        id="rh-permiso-search-toggle"
-        class="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-surface/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-inset"
-        aria-expanded="${expanded ? "true" : "false"}"
-        aria-controls="rh-permiso-search-body"
-      >
-        <span>
-          <span class="text-sm font-semibold text-text-primary">Agregar empleado</span>
-          <span class="mt-0.5 block text-sm text-text-muted">Busca y agrega colaboradores de cualquier rol.</span>
-        </span>
-        <span class="transition-transform duration-200 ${expanded ? "rotate-180" : ""}">${CHEVRON_SVG}</span>
-      </button>
-      <div id="rh-permiso-search-body" class="${expanded ? "border-t border-border/70 p-4" : "hidden"}">
-        <div class="flex flex-wrap items-end gap-2">
-          <label class="min-w-[16rem] flex-1">
-            <span class="mb-1 block text-xs font-medium text-text-muted">Buscar</span>
-            <input
-              id="rh-permiso-search-input"
-              type="search"
-              class="w-full rounded border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
-              placeholder="Nombre, no. empleado o email"
-              value="${escapeHtml(state.searchQuery)}"
-              autocomplete="off"
-            />
-          </label>
-          <button type="button" id="rh-permiso-search-btn" class="${BTN_SECONDARY}" ${state.searching ? "disabled" : ""}>
-            ${state.searching ? "Buscando…" : "Buscar"}
-          </button>
+    <div class="${RH_LISTADO_SURFACE} space-y-3 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-text-muted">
+          <span class="font-semibold text-text-primary">${total}</span> usuario${total === 1 ? "" : "s"} RH
+          ${state.filterQuery.trim() ? ` · ${visible} visible${visible === 1 ? "" : "s"}` : ""}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" id="rh-permiso-expand-all" class="${BTN_GHOST}">Expandir todos</button>
+          <button type="button" id="rh-permiso-collapse-all" class="${BTN_GHOST}">Colapsar todos</button>
         </div>
-        ${
-          state.searchResults.length > 0
-            ? `<ul class="mt-3 divide-y divide-border/70 rounded-lg border border-border/80">
-                ${state.searchResults
-                  .map(
-                    (emp) => `
-                  <li class="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-                    <div>
-                      <p class="text-sm font-medium text-text-primary">${escapeHtml(emp.nombre)}</p>
-                      <p class="text-xs text-text-muted">${escapeHtml(emp.no_empleado)} · ${escapeHtml(formatRol(emp.rol_nombre))}${emp.email ? ` · ${escapeHtml(emp.email)}` : ""}</p>
-                    </div>
-                    <button
-                      type="button"
-                      class="rh-permiso-agregar ${BTN_PRIMARY}"
-                      data-empleado-id="${emp.empleado_id}"
-                      ${state.addingId === emp.empleado_id ? "disabled" : ""}
-                    >
-                      ${state.addingId === emp.empleado_id ? "Agregando…" : "Agregar"}
-                    </button>
-                  </li>`,
-                  )
-                  .join("")}
-              </ul>`
-            : state.searchQuery.trim().length >= 2 && !state.searching
-              ? `<p class="mt-3 text-sm text-text-muted">Sin resultados disponibles para agregar.</p>`
-              : ""
-        }
       </div>
-    </section>`;
+      <label class="block">
+        <span class="mb-1 block text-xs font-medium text-text-muted">Buscar en la lista</span>
+        <input
+          id="rh-permiso-filter-input"
+          type="search"
+          class="w-full rounded border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          placeholder="Nombre, no. empleado o email"
+          value="${escapeHtml(state.filterQuery)}"
+          autocomplete="off"
+        />
+      </label>
+    </div>`;
 }
 
 function renderPage(state: PageState): string {
@@ -236,12 +215,13 @@ function renderPage(state: PageState): string {
   }
 
   const catalogGroups = groupCatalog(state.catalog);
+  const filteredUsuarios = state.usuarios.filter((user) => matchesFilter(user, state.filterQuery));
 
   return `
     <div class="mx-auto max-w-6xl space-y-6 py-2">
       <header>
         <h1 class="text-2xl font-bold text-text-primary">Permisos por módulo</h1>
-        <p class="mt-1 text-sm text-text-muted">Administra accesos por empleado, independientemente de su rol de plataforma.</p>
+        <p class="mt-1 text-sm text-text-muted">Todos los usuarios con rol RH aparecen aquí. Expande cada persona para asignar los módulos que necesite.</p>
       </header>
       ${
         state.error
@@ -253,19 +233,25 @@ function renderPage(state: PageState): string {
           ? `<p class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">${escapeHtml(state.success)}</p>`
           : ""
       }
-      ${renderSearchBlock(state)}
+      ${renderFilterBar(state)}
       <div class="space-y-4">
-        ${state.usuarios
-          .map((user) =>
-            renderUsuarioRow(
-              user,
-              catalogGroups,
-              state.draftByEmpleadoId.get(user.empleado_id) ?? user.modulos,
-              state.savingId === user.empleado_id,
-              state.expandedEmpleadoIds.has(user.empleado_id),
-            ),
-          )
-          .join("")}
+        ${
+          state.usuarios.length === 0
+            ? `<p class="text-sm text-text-muted">No hay usuarios con rol RH registrados en el sistema.</p>`
+            : filteredUsuarios.length === 0
+              ? `<p class="text-sm text-text-muted">Ningún usuario RH coincide con la búsqueda.</p>`
+              : filteredUsuarios
+                .map((user) =>
+                  renderUsuarioRow(
+                    user,
+                    catalogGroups,
+                    state.draftByEmpleadoId.get(user.empleado_id) ?? user.modulos,
+                    state.savingId === user.empleado_id,
+                    state.expandedEmpleadoIds.has(user.empleado_id),
+                  ),
+                )
+                .join("")
+        }
       </div>
     </div>`;
 }
@@ -286,17 +272,13 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
   const state: PageState = {
     loading: true,
     savingId: null,
-    addingId: null,
-    searching: false,
     error: null,
     success: null,
     catalog: [],
     usuarios: [],
     draftByEmpleadoId: new Map(),
-    searchQuery: "",
-    searchResults: [],
+    filterQuery: "",
     expandedEmpleadoIds: new Set<number>(),
-    searchSectionExpanded: true,
   };
 
   const paint = (): void => {
@@ -323,10 +305,40 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
   };
 
   const bindEvents = (): void => {
-    container.querySelector("#rh-permiso-search-toggle")?.addEventListener(
+    const filterInput = container.querySelector<HTMLInputElement>("#rh-permiso-filter-input");
+    filterInput?.addEventListener(
+      "input",
+      () => {
+        const start = filterInput.selectionStart;
+        const end = filterInput.selectionEnd;
+        state.filterQuery = filterInput.value;
+        paint();
+        const next = container.querySelector<HTMLInputElement>("#rh-permiso-filter-input");
+        if (next) {
+          next.focus();
+          if (start !== null && end !== null) {
+            next.setSelectionRange(start, end);
+          }
+        }
+      },
+      { signal },
+    );
+
+    container.querySelector("#rh-permiso-expand-all")?.addEventListener(
       "click",
       () => {
-        state.searchSectionExpanded = !state.searchSectionExpanded;
+        for (const user of state.usuarios) {
+          state.expandedEmpleadoIds.add(user.empleado_id);
+        }
+        paint();
+      },
+      { signal },
+    );
+
+    container.querySelector("#rh-permiso-collapse-all")?.addEventListener(
+      "click",
+      () => {
+        state.expandedEmpleadoIds.clear();
         paint();
       },
       { signal },
@@ -371,61 +383,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       );
     });
 
-    const searchInput = container.querySelector<HTMLInputElement>("#rh-permiso-search-input");
-    searchInput?.addEventListener(
-      "input",
-      () => {
-        state.searchQuery = searchInput.value;
-      },
-      { signal },
-    );
-    searchInput?.addEventListener(
-      "keydown",
-      (ev) => {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          void runSearch();
-        }
-      },
-      { signal },
-    );
-
-    container.querySelector("#rh-permiso-search-btn")?.addEventListener(
-      "click",
-      () => void runSearch(),
-      { signal },
-    );
-
-    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-agregar").forEach((btn) => {
-      btn.addEventListener(
-        "click",
-        async () => {
-          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
-          if (!Number.isFinite(empleadoId)) return;
-          state.addingId = empleadoId;
-          state.error = null;
-          state.success = null;
-          paint();
-          try {
-            const added = await agregarEmpleadoPermisos(empleadoId);
-            state.usuarios = [...state.usuarios, added].sort((a, b) =>
-              a.nombre.localeCompare(b.nombre, "es"),
-            );
-            state.draftByEmpleadoId.set(added.empleado_id, { ...added.modulos });
-            state.expandedEmpleadoIds.add(added.empleado_id);
-            state.searchResults = state.searchResults.filter((e) => e.empleado_id !== empleadoId);
-            state.success = `${added.nombre} agregado. Asigna los módulos y guarda.`;
-          } catch (err) {
-            state.error = err instanceof Error ? err.message : "No se pudo agregar al empleado.";
-          } finally {
-            state.addingId = null;
-            paint();
-          }
-        },
-        { signal },
-      );
-    });
-
     container.querySelectorAll<HTMLInputElement>(".rh-permiso-modulo").forEach((input) => {
       input.addEventListener(
         "change",
@@ -457,6 +414,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
               u.empleado_id === empleadoId ? updated : u,
             );
             state.draftByEmpleadoId.set(empleadoId, { ...updated.modulos });
+            state.expandedEmpleadoIds.add(empleadoId);
             state.success = `Permisos actualizados para ${updated.nombre}. El usuario debe volver a iniciar sesión para aplicar cambios en API.`;
           } catch (err) {
             state.error = err instanceof Error ? err.message : "No se pudieron guardar los permisos.";
@@ -470,28 +428,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     });
   };
 
-  const runSearch = async (): Promise<void> => {
-    const q = state.searchQuery.trim();
-    if (q.length < 2) {
-      state.error = "Escribe al menos 2 caracteres para buscar.";
-      state.searchResults = [];
-      paint();
-      return;
-    }
-    state.searching = true;
-    state.error = null;
-    paint();
-    try {
-      state.searchResults = await buscarEmpleadosParaPermisos(q);
-    } catch (err) {
-      state.error = err instanceof Error ? err.message : "Error al buscar empleados.";
-      state.searchResults = [];
-    } finally {
-      state.searching = false;
-      paint();
-    }
-  };
-
   void (async () => {
     try {
       const [catalog, usuarios] = await Promise.all([
@@ -502,6 +438,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       state.usuarios = usuarios;
       for (const user of usuarios) {
         state.draftByEmpleadoId.set(user.empleado_id, { ...user.modulos });
+        state.expandedEmpleadoIds.add(user.empleado_id);
       }
     } catch (err) {
       state.error = err instanceof Error ? err.message : "Error al cargar permisos.";

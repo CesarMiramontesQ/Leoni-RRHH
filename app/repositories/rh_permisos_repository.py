@@ -20,17 +20,12 @@ class RhPermisosRepository:
         return result.scalar_one_or_none()
 
     async def list_empleados_gestionados(self) -> list[Empleado]:
-        """RH (todos) + empleados de cualquier rol con permisos explícitos."""
+        """Todos los usuarios con rol RH (activos e inactivos)."""
         result = await self.db.execute(
             select(Empleado)
             .join(Rol, Empleado.rol_id == Rol.id)
             .options(selectinload(Empleado.rol))
-            .where(
-                or_(
-                    Rol.nombre == "rh",
-                    Empleado.modulos_rh != {},
-                )
-            )
+            .where(Rol.nombre == "rh")
             .order_by(Empleado.nombre.asc())
         )
         return list(result.scalars().all())
@@ -46,17 +41,14 @@ class RhPermisosRepository:
             return []
 
         pattern = f"%{term}%"
-        managed = select(Empleado.empleado_id).join(Rol, Empleado.rol_id == Rol.id).where(
-            or_(Rol.nombre == "rh", Empleado.modulos_rh != {})
-        )
 
         result = await self.db.execute(
             select(Empleado)
             .join(Rol, Empleado.rol_id == Rol.id)
             .options(selectinload(Empleado.rol))
             .where(
+                Rol.nombre == "rh",
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
-                Empleado.empleado_id.not_in(managed),
                 or_(
                     Empleado.nombre.ilike(pattern),
                     Empleado.no_empleado.ilike(pattern),

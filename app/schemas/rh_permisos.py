@@ -21,6 +21,8 @@ class RhUsuarioPermisosItem(BaseModel):
     nombre: str
     email: str | None = None
     rol_nombre: str
+    activo: bool
+    permisos_personalizados: bool
     puede_administrar_permisos_rh: bool
     modulos: dict[str, bool]
     editable: bool

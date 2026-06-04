@@ -202,6 +202,8 @@ components:
         - no_empleado
         - nombre
         - rol_nombre
+        - activo
+        - permisos_personalizados
         - puede_administrar_permisos_rh
         - modulos
         - editable
@@ -216,6 +218,10 @@ components:
           type: [string, "null"]
         rol_nombre:
           type: string
+        activo:
+          type: boolean
+        permisos_personalizados:
+          type: boolean
         puede_administrar_permisos_rh:
           type: boolean
         modulos:
@@ -3134,7 +3140,7 @@ paths:
   /api/v1/rh-permisos/usuarios:
     get:
       tags: [RH Permisos]
-      summary: Listar empleados con permisos configurados
+      summary: Listar todos los usuarios con rol RH
       operationId: rh_permisos_usuarios_list
       security:
         - BearerAuth: []
@@ -3150,12 +3156,10 @@ paths:
         "403":
           description: Requiere puede_administrar_permisos_rh
 
-          description: Lista de empleados inscritos
-
   /api/v1/rh-permisos/empleados-buscar:
     get:
       tags: [RH Permisos]
-      summary: Buscar empleados activos para agregar a permisos
+      summary: Buscar usuarios RH activos
       operationId: rh_permisos_empleados_buscar
       security:
         - BearerAuth: []
@@ -3168,7 +3172,7 @@ paths:
             minLength: 2
       responses:
         "200":
-          description: Empleados disponibles
+          description: Usuarios RH activos que coinciden con la búsqueda
           content:
             application/json:
               schema:
@@ -3181,7 +3185,7 @@ paths:
   /api/v1/rh-permisos/usuarios/{empleado_id}:
     post:
       tags: [RH Permisos]
-      summary: Agregar empleado al sistema de permisos por módulo
+      summary: Validar usuario RH en el sistema de permisos por módulo
       operationId: rh_permisos_usuarios_add
       security:
         - BearerAuth: []
@@ -3202,9 +3206,11 @@ paths:
           description: Sin permiso
         "409":
           description: Empleado ya inscrito
+        "422":
+          description: El empleado no tiene rol RH
     put:
       tags: [RH Permisos]
-      summary: Actualizar permisos de módulos de un empleado inscrito
+      summary: Actualizar permisos de módulos de un usuario RH
       operationId: rh_permisos_usuarios_update
       security:
         - BearerAuth: []

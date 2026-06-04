@@ -238,13 +238,16 @@ def effective_modules(modulos_rh: dict | None) -> dict[str, bool]:
     return {key: bool(modulos_rh.get(key, False)) for key in all_module_keys()}
 
 
-def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
-    """Usuario incluido en el sistema de permisos por módulo."""
-    rol = empleado.rol.nombre if empleado.rol else "empleado"
+def has_personalized_modulos_rh(empleado: "Empleado") -> bool:
+    """True si el RH tiene restricciones explícitas guardadas en modulos_rh."""
     modulos = getattr(empleado, "modulos_rh", None) or {}
-    if rol == "rh":
-        return True
     return bool(modulos)
+
+
+def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
+    """Usuario incluido en el sistema de permisos por módulo (solo rol RH)."""
+    rol = empleado.rol.nombre if empleado.rol else "empleado"
+    return rol == "rh"
 
 
 def effective_modules_for_display(empleado: "Empleado") -> dict[str, bool]:
@@ -271,9 +274,7 @@ def user_has_module(empleado: "Empleado", module_key: str) -> bool:
         if not modulos:
             return True
         return bool(modulos.get(module_key, False))
-    if not modulos:
-        return False
-    return bool(modulos.get(module_key, False))
+    return False
 
 
 def _path_matches_prefix(path: str, prefix: str) -> bool:
@@ -341,21 +342,18 @@ def catalog_for_api() -> list[dict]:
 
 
 def rh_claims_for_token(empleado: "Empleado") -> dict:
-    """Claims JWT para permisos por módulo (RH y otros roles inscritos)."""
+    """Claims JWT para permisos por módulo (solo rol RH)."""
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
-    claims: dict = {}
+    if rol != "rh":
+        return {}
 
-    if rol == "rh":
-        claims["rh_admin"] = bool(getattr(empleado, "puede_administrar_permisos_rh", False))
-        claims["rh_enrolled"] = True
-        if modulos:
-            claims["rh_modulos"] = effective_modules(modulos)
-        return claims
-
+    claims: dict = {
+        "rh_admin": bool(getattr(empleado, "puede_administrar_permisos_rh", False)),
+        "rh_enrolled": True,
+    }
     if modulos:
-        claims["rh_enrolled"] = True
-        claims["rh_modulos"] = effective_modules_for_display(empleado)
+        claims["rh_modulos"] = effective_modules(modulos)
     return claims
 
 

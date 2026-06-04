@@ -20,6 +20,8 @@ export type RhUsuarioPermisosItem = {
   nombre: string;
   email: string | null;
   rol_nombre: string;
+  activo: boolean;
+  permisos_personalizados: boolean;
   puede_administrar_permisos_rh: boolean;
   modulos: Record<string, boolean>;
   editable: boolean;

@@ -30,7 +30,7 @@ async def get_mis_permisos_modulos(
     current_user: Empleado = Depends(get_current_user),
     svc: RhPermisosService = Depends(_svc),
 ):
-    """Permisos efectivos del usuario autenticado (cualquier rol inscrito)."""
+    """Permisos efectivos del usuario autenticado (rol RH)."""
     return svc.get_me(current_user)
 
 

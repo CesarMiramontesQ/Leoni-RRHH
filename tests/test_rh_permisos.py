@@ -32,7 +32,7 @@ async def test_rh_permisos_me_non_rh_not_enrolled(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_admin_can_add_gerente_and_assign_modules(client: AsyncClient, db):
+async def test_admin_cannot_add_non_rh_employee(client: AsyncClient, db):
     admin = await make_empleado(
         db,
         rol="rh",
@@ -45,21 +45,59 @@ async def test_admin_can_add_gerente_and_assign_modules(client: AsyncClient, db)
         f"/api/v1/rh-permisos/usuarios/{gerente.empleado_id}",
         headers=await auth_headers(client, admin),
     )
-    assert add_res.status_code == 201
+    assert add_res.status_code == 422
 
-    modulos = {key: False for key in __import__("app.core.rh_module_registry", fromlist=["all_module_keys"]).all_module_keys()}
-    modulos["comedor"] = True
-    modulos["reportes"] = True
 
-    put_res = await client.put(
-        f"/api/v1/rh-permisos/usuarios/{gerente.empleado_id}",
-        headers=await auth_headers(client, admin),
-        json={"modulos": modulos},
+@pytest.mark.asyncio
+async def test_non_rh_with_modulos_not_listed(client: AsyncClient, db):
+    admin = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_admin3@test.com",
+        puede_administrar_permisos_rh=True,
     )
-    assert put_res.status_code == 200
-    updated = put_res.json()
-    assert updated["rol_nombre"] == "gerente"
-    assert updated["modulos"]["comedor"] is True
+    gerente = await make_empleado(
+        db,
+        rol="gerente",
+        email="gerente_modulos@test.com",
+        modulos_rh={"comedor": True},
+    )
+
+    list_res = await client.get(
+        "/api/v1/rh-permisos/usuarios",
+        headers=await auth_headers(client, admin),
+    )
+    assert list_res.status_code == 200
+    ids = {u["empleado_id"] for u in list_res.json()}
+    assert gerente.empleado_id not in ids
+
+
+@pytest.mark.asyncio
+async def test_list_includes_all_rh_with_and_without_custom_modulos(client: AsyncClient, db):
+    admin = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_admin_list@test.com",
+        puede_administrar_permisos_rh=True,
+    )
+    rh_plain = await make_empleado(db, rol="rh", email="rh_plain_list@test.com")
+    rh_custom = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_custom_list@test.com",
+        modulos_rh={"comedor": True},
+    )
+
+    list_res = await client.get(
+        "/api/v1/rh-permisos/usuarios",
+        headers=await auth_headers(client, admin),
+    )
+    assert list_res.status_code == 200
+    by_id = {u["empleado_id"]: u for u in list_res.json()}
+    assert rh_plain.empleado_id in by_id
+    assert rh_custom.empleado_id in by_id
+    assert by_id[rh_plain.empleado_id]["permisos_personalizados"] is False
+    assert by_id[rh_custom.empleado_id]["permisos_personalizados"] is True
 
 
 @pytest.mark.asyncio
