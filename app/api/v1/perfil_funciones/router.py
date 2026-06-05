@@ -66,37 +66,9 @@ from app.schemas.perfil_funciones import (
     PerfilTareaResponse,
     PerfilTareaUpdate,
 )
-from app.core.catalogos_cualificacion import CATALOGO_ESCOLARIDAD
 from app.services.perfil_funciones_service import PerfilFuncionesService
 
 router = APIRouter(prefix="/api/v1/perfiles", tags=["Perfil de Funciones"])
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CATÁLOGOS (rutas estáticas antes de {perfil_id})
-# ══════════════════════════════════════════════════════════════════════════════
-
-
-@router.get("/catalogos/escolaridad")
-async def obtener_catalogo_escolaridad():
-    """Retorna el catálogo de niveles de escolaridad."""
-    return [
-        {"key": k, "label": v["label"], "peso": v["peso"]}
-        for k, v in CATALOGO_ESCOLARIDAD.items()
-    ]
-
-
-@router.get("/catalogos/sugerencias")
-async def obtener_sugerencias_cualificacion(
-    tipo: str,
-    q: str = "",
-    limit: int = 10,
-    current_user: Empleado = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Sugerencias de valores históricos para autocomplete de cualificaciones."""
-    service = PerfilFuncionesService(db)
-    return await service.buscar_sugerencias_cualificacion(tipo=tipo, q=q, limit=min(limit, 20))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -19,7 +19,23 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalogos import Area
-from app.models.talento import Competencia, CompetenciaRequisito, GrupoCompetencia, NivelPuesto, PuestoPerfil, TipoCompetencia
+from app.models.talento import (
+    Competencia,
+    CompetenciaRequisito,
+    CualificacionCatalogo,
+    GrupoCompetencia,
+    MetodoCalificacion,
+    NivelPuesto,
+    OpcionCalificacion,
+    PuestoPerfil,
+    TipoCualificacionCatalogo,
+    TipoCompetencia,
+)
+from app.utils.seed_cualificaciones_catalogo import (
+    LEGACY_TIPOS,
+    LEGACY_TIPO_METODO,
+    METODOS_SEED,
+)
 
 # Sentinel para distinguir "no se paso argumento" de "se paso None explicitamente"
 _UNSET: Any = object()
@@ -220,3 +236,67 @@ async def make_competencia_requisito(
 
 # Alias corto para conveniencia
 make_requisito = make_competencia_requisito
+
+
+async def seed_cualificaciones_catalogo(db: AsyncSession) -> dict[str, int]:
+    """Siembra catálogo de cualificaciones (idempotente por base de datos)."""
+    from sqlalchemy import func, select
+
+    existing = await db.scalar(select(func.count()).select_from(CualificacionCatalogo))
+    if existing and existing > 0:
+        result = await db.execute(
+            select(CualificacionCatalogo).where(CualificacionCatalogo.legacy_tipo.isnot(None))
+        )
+        items = list(result.scalars().all())
+        return {c.legacy_tipo: c.id for c in items if c.legacy_tipo}
+
+    metodo_ids: dict[str, int] = {}
+    for m in METODOS_SEED:
+        metodo = MetodoCalificacion(
+            nombre=m["nombre"],
+            tipo=m["tipo"],
+            descripcion=m.get("descripcion"),
+            config=m["config"],
+            activo=True,
+        )
+        db.add(metodo)
+        await db.flush()
+        metodo_ids[m["slug"]] = metodo.id
+        for op in m.get("opciones", []):
+            db.add(OpcionCalificacion(
+                metodo_calificacion_id=metodo.id,
+                etiqueta=op["etiqueta"],
+                valor=op["valor"],
+                orden=op["orden"],
+                peso=op.get("peso"),
+                activo=True,
+            ))
+        await db.flush()
+
+    tipo_ids: dict[str, int] = {}
+    catalogo_ids: dict[str, int] = {}
+    for item in LEGACY_TIPOS:
+        legacy = item["legacy_tipo"]
+        tipo = TipoCualificacionCatalogo(
+            nombre=item["nombre"],
+            descripcion=item.get("descripcion"),
+            activo=True,
+        )
+        db.add(tipo)
+        await db.flush()
+        tipo_ids[legacy] = tipo.id
+        metodo_slug = LEGACY_TIPO_METODO[legacy]
+        cat = CualificacionCatalogo(
+            tipo_cualificacion_id=tipo.id,
+            metodo_calificacion_id=metodo_ids[metodo_slug],
+            nombre=item["nombre"],
+            descripcion=item.get("descripcion"),
+            obligatorio=True,
+            activo=True,
+            legacy_tipo=legacy,
+        )
+        db.add(cat)
+        await db.flush()
+        catalogo_ids[legacy] = cat.id
+
+    return catalogo_ids

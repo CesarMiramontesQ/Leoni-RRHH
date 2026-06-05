@@ -614,7 +614,12 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
       const cursosHost = pageRoot.querySelector("#modal-host-cursos-extra") as HTMLElement;
       mountCursosExtraModal(cursosHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "evaluar-cual") {
-      mountEvaluarCualificacionesModal(cualHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      mountEvaluarCualificacionesModal(cualHost, {
+        perfilId,
+        asignacionId,
+        empleadoNombre: nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
     } else if (action === "evaluar-comp") {
       mountEvaluarCompetenciasModal(compHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "desasignar") {
@@ -778,7 +783,7 @@ async function openDetalleModal(
         if (g.cumple === true) badge = `<span class="text-emerald-600 text-xs font-medium">Cumple</span>`;
         else if (g.cumple === false) badge = `<span class="text-red-600 text-xs font-medium">No cumple</span>`;
         else badge = `<span class="text-amber-600 text-xs font-medium">Pendiente</span>`;
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.situacion_deseada)}</td><td class="py-1.5 text-right">${badge}</td></tr>`;
+        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.criterio_label || g.cualificacion_nombre)}</td><td class="py-1.5 text-right">${badge}</td></tr>`;
       })
       .join("");
 

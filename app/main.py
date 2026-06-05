@@ -254,6 +254,7 @@ from app.api.v1.niveles_puesto.router import router as niveles_puesto_router
 from app.api.v1.tipos_competencia.router import router as tipos_competencia_router
 from app.api.v1.grupos_competencia.router import router as grupos_competencia_router
 from app.api.v1.perfil_funciones.router import router as perfil_funciones_router
+from app.api.v1.cualificaciones_catalogo.router import router as cualificaciones_catalogo_router
 from app.api.v1.rh_permisos.router import router as rh_permisos_router
 
 app.include_router(auth_router)
@@ -280,6 +281,7 @@ app.include_router(niveles_puesto_router)
 app.include_router(tipos_competencia_router)
 app.include_router(grupos_competencia_router)
 app.include_router(perfil_funciones_router)
+app.include_router(cualificaciones_catalogo_router)
 app.include_router(rh_permisos_router)
 
 

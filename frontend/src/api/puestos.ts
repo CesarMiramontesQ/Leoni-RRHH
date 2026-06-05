@@ -226,10 +226,23 @@ export async function reorderPerfilTareas(perfilId: number, items: { id: number;
 
 export type PerfilCualificacion = {
   id: number;
-  tipo: string;
-  situacion_deseada: string;
+  puesto_perfil_id?: number;
+  cualificacion_catalogo_id: number | null;
+  cualificacion_nombre: string;
+  tipo_nombre: string;
+  metodo_tipo: string;
+  metodo_config: Record<string, unknown>;
+  opciones: Array<{
+    id: number;
+    etiqueta: string;
+    valor: string;
+    orden: number;
+    peso: number | null;
+  }>;
+  criterio_requerido: Record<string, unknown> | null;
   comentarios: string | null;
-  anios_minimos: number | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 /** GET /api/v1/perfiles/:id/cualificaciones */
@@ -242,10 +255,29 @@ export async function getPerfilCualificaciones(perfilId: number): Promise<Perfil
 /** POST /api/v1/perfiles/:id/cualificaciones */
 export async function createPerfilCualificacion(
   perfilId: number,
-  body: { tipo: string; situacion_deseada: string; comentarios?: string; anios_minimos?: number },
+  body: {
+    cualificacion_catalogo_id: number;
+    criterio_requerido: Record<string, unknown>;
+    comentarios?: string;
+  },
 ): Promise<PerfilCualificacion> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCualificacion;
+}
+
+/** PUT /api/v1/perfiles/:id/cualificaciones/:cualificacionId */
+export async function updatePerfilCualificacion(
+  perfilId: number,
+  cualificacionId: number,
+  body: { criterio_requerido?: Record<string, unknown>; comentarios?: string },
+): Promise<PerfilCualificacion> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones/${cualificacionId}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -259,14 +291,6 @@ export async function deletePerfilCualificacion(perfilId: number, cualificacionI
     method: "DELETE",
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
-}
-
-/** GET /api/v1/perfiles/catalogos/sugerencias?tipo=X&q=Y */
-export async function getSugerenciasCualificacion(tipo: string, q: string, limit = 10): Promise<string[]> {
-  const params = new URLSearchParams({ tipo, q, limit: String(limit) });
-  const res = await fetchWithAuth(`/api/v1/perfiles/catalogos/sugerencias?${params}`);
-  if (!res.ok) return [];
-  return (await res.json()) as string[];
 }
 
 // ── Competencias requeridas (tabla unificada) ───────────────────────────────
@@ -358,14 +382,19 @@ export async function syncEvaluacionCompetencias(
 
 export type GapCualificacion = {
   cualificacion_id: number;
-  tipo: string;
-  situacion_deseada: string;
-  situacion_actual: string | null;
+  cualificacion_catalogo_id: number | null;
+  cualificacion_nombre: string;
+  tipo_nombre: string;
+  metodo_tipo: string;
+  metodo_config: Record<string, unknown>;
+  opciones: PerfilCualificacion["opciones"];
+  criterio_requerido: Record<string, unknown> | null;
+  criterio_label: string;
+  valor_capturado: Record<string, unknown> | null;
+  capturado_label: string | null;
   comentarios: string | null;
   evaluado: boolean;
   cumple: boolean | null;
-  anios_minimos: number | null;
-  anios_actuales: number | null;
 };
 
 export type GapCompetencia = {
@@ -402,9 +431,8 @@ export async function getAsignacionGap(perfilId: number, asignacionId: number): 
 
 export type EvaluacionCualificacionPayload = {
   cualificacion_id: number;
-  situacion_actual: string;
+  valor_capturado: Record<string, unknown>;
   comentarios?: string;
-  anios_actuales?: number;
 };
 
 /** PUT /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (upsert evaluaciones) */

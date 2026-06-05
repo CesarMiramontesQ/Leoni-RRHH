@@ -396,6 +396,125 @@ class Inscripcion(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Catálogo de Cualificaciones — Modelos
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TipoCualificacionCatalogo(Base):
+    """Catálogo de tipos de cualificación (configurable por RH)."""
+
+    __tablename__ = "tipos_cualificacion"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    cualificaciones: Mapped[List["CualificacionCatalogo"]] = relationship(
+        "CualificacionCatalogo", back_populates="tipo_cualificacion"
+    )
+
+    def __repr__(self) -> str:
+        return f"<TipoCualificacionCatalogo id={self.id} nombre={self.nombre}>"
+
+
+class MetodoCalificacion(Base):
+    """Método o regla de calificación para evaluar cualificaciones."""
+
+    __tablename__ = "metodos_calificacion"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    opciones: Mapped[List["OpcionCalificacion"]] = relationship(
+        "OpcionCalificacion", back_populates="metodo_calificacion", cascade="all, delete-orphan"
+    )
+    cualificaciones: Mapped[List["CualificacionCatalogo"]] = relationship(
+        "CualificacionCatalogo", back_populates="metodo_calificacion"
+    )
+
+    def __repr__(self) -> str:
+        return f"<MetodoCalificacion id={self.id} nombre={self.nombre} tipo={self.tipo}>"
+
+
+class OpcionCalificacion(Base):
+    """Opción de calificación asociada a un método (cuando aplica)."""
+
+    __tablename__ = "opciones_calificacion"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    metodo_calificacion_id: Mapped[int] = mapped_column(
+        ForeignKey("metodos_calificacion.id", ondelete="CASCADE"), nullable=False
+    )
+    etiqueta: Mapped[str] = mapped_column(String(200), nullable=False)
+    valor: Mapped[str] = mapped_column(String(100), nullable=False)
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    peso: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    metodo_calificacion: Mapped["MetodoCalificacion"] = relationship(
+        "MetodoCalificacion", back_populates="opciones"
+    )
+
+    def __repr__(self) -> str:
+        return f"<OpcionCalificacion id={self.id} valor={self.valor}>"
+
+
+class CualificacionCatalogo(Base):
+    """Catálogo maestro de cualificaciones reutilizables en perfiles."""
+
+    __tablename__ = "cualificaciones_catalogo"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tipo_cualificacion_id: Mapped[int] = mapped_column(
+        ForeignKey("tipos_cualificacion.id"), nullable=False
+    )
+    metodo_calificacion_id: Mapped[int] = mapped_column(
+        ForeignKey("metodos_calificacion.id"), nullable=False
+    )
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    obligatorio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    legacy_tipo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    tipo_cualificacion: Mapped["TipoCualificacionCatalogo"] = relationship(
+        "TipoCualificacionCatalogo", back_populates="cualificaciones"
+    )
+    metodo_calificacion: Mapped["MetodoCalificacion"] = relationship(
+        "MetodoCalificacion", back_populates="cualificaciones"
+    )
+    requisitos_perfil: Mapped[List["PerfilCualificacion"]] = relationship(
+        "PerfilCualificacion", back_populates="cualificacion_catalogo"
+    )
+
+    def __repr__(self) -> str:
+        return f"<CualificacionCatalogo id={self.id} nombre={self.nombre}>"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Perfil de Funciones — Modelos
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -492,10 +611,12 @@ class PerfilCualificacion(Base):
     puesto_perfil_id: Mapped[int] = mapped_column(
         ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
-    tipo: Mapped[str] = mapped_column(
-        String(50), nullable=False
-    )  # estudios_finalizados | formacion_profesional | ampliacion_formacion | estudios_universitarios | experiencia_profesional | experiencia_direccion | complementos
-    situacion_deseada: Mapped[str] = mapped_column(Text, nullable=False)
+    cualificacion_catalogo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cualificaciones_catalogo.id", ondelete="RESTRICT"), nullable=True
+    )
+    criterio_requerido: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    tipo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    situacion_deseada: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     anios_minimos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -509,12 +630,19 @@ class PerfilCualificacion(Base):
     puesto_perfil: Mapped["PuestoPerfil"] = relationship(
         "PuestoPerfil", back_populates="cualificaciones"
     )
+    cualificacion_catalogo: Mapped[Optional["CualificacionCatalogo"]] = relationship(
+        "CualificacionCatalogo", back_populates="requisitos_perfil"
+    )
     evaluaciones: Mapped[List["PerfilFuncionesCualificacion"]] = relationship(
         "PerfilFuncionesCualificacion", back_populates="cualificacion", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
-        return f"<PerfilCualificacion id={self.id} tipo={self.tipo} puesto_perfil_id={self.puesto_perfil_id}>"
+        return (
+            f"<PerfilCualificacion id={self.id} "
+            f"cualificacion_catalogo_id={self.cualificacion_catalogo_id} "
+            f"puesto_perfil_id={self.puesto_perfil_id}>"
+        )
 
 
 class PerfilFunciones(Base):
@@ -583,7 +711,8 @@ class PerfilFuncionesCualificacion(Base):
     cualificacion_id: Mapped[int] = mapped_column(
         ForeignKey("perfil_cualificaciones.id"), nullable=False
     )
-    situacion_actual: Mapped[str] = mapped_column(Text, nullable=False)
+    valor_capturado: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    situacion_actual: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     anios_actuales: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

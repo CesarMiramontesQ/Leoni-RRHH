@@ -3021,6 +3021,474 @@ components:
             type: integer
           description: IDs de CompetenciaRequisito que el empleado cumple
 
+    # ── Cualificaciones Catálogo ───────────────────────
+
+    MetodoCalificacionConfig:
+      type: object
+      properties:
+        comparador:
+          type: string
+          enum: [ordinal_gte, numeric_gte, numeric_range, exact, boolean_yes, set_superset, none]
+          default: none
+        permite_na:
+          type: boolean
+          default: true
+        requiere_opciones:
+          type: boolean
+          default: false
+        captura:
+          type: object
+          additionalProperties: true
+
+    TipoCualificacionCreate:
+      type: object
+      required: [nombre, metodo_calificacion_id]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        descripcion:
+          type: string
+          nullable: true
+        metodo_calificacion_id:
+          type: integer
+          minimum: 1
+          description: Método de evaluación asociado al tipo
+
+    TipoCualificacionUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        descripcion:
+          type: string
+          nullable: true
+        metodo_calificacion_id:
+          type: integer
+          minimum: 1
+        activo:
+          type: boolean
+
+    TipoCualificacionResponse:
+      type: object
+      required: [id, nombre, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+        metodo_calificacion_id:
+          type: integer
+          nullable: true
+        metodo_nombre:
+          type: string
+        metodo_tipo:
+          type: string
+        metodo_config:
+          type: object
+          additionalProperties: true
+        opciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpcionCalificacionResponse"
+        cualificacion_catalogo_id:
+          type: integer
+          nullable: true
+          description: ID interno del catálogo sincronizado (para perfiles)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TipoCualificacionListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TipoCualificacionResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    OpcionCalificacionCreate:
+      type: object
+      required: [etiqueta, valor]
+      properties:
+        etiqueta:
+          type: string
+          minLength: 1
+          maxLength: 200
+        valor:
+          type: string
+          minLength: 1
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 0
+          default: 0
+        peso:
+          type: integer
+          nullable: true
+
+    OpcionCalificacionUpdate:
+      type: object
+      properties:
+        etiqueta:
+          type: string
+          minLength: 1
+          maxLength: 200
+        valor:
+          type: string
+          minLength: 1
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 0
+        peso:
+          type: integer
+          nullable: true
+        activo:
+          type: boolean
+
+    OpcionCalificacionResponse:
+      type: object
+      required: [id, metodo_calificacion_id, etiqueta, valor, orden, activo]
+      properties:
+        id:
+          type: integer
+        metodo_calificacion_id:
+          type: integer
+        etiqueta:
+          type: string
+        valor:
+          type: string
+        orden:
+          type: integer
+        peso:
+          type: integer
+          nullable: true
+        activo:
+          type: boolean
+
+    MetodoCalificacionCreate:
+      type: object
+      required: [nombre, tipo]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        tipo:
+          type: string
+          enum: [lista_ordenada, escala_numerica, si_no, anios_experiencia, nivel_dominio, seleccion_simple, seleccion_multiple, texto_libre]
+        descripcion:
+          type: string
+          nullable: true
+        config:
+          $ref: "#/components/schemas/MetodoCalificacionConfig"
+
+    MetodoCalificacionUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        tipo:
+          type: string
+          enum: [lista_ordenada, escala_numerica, si_no, anios_experiencia, nivel_dominio, seleccion_simple, seleccion_multiple, texto_libre]
+        descripcion:
+          type: string
+          nullable: true
+        config:
+          $ref: "#/components/schemas/MetodoCalificacionConfig"
+        activo:
+          type: boolean
+
+    MetodoCalificacionResponse:
+      type: object
+      required: [id, nombre, tipo, config, activo, created_at, updated_at, opciones]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        tipo:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        config:
+          type: object
+          additionalProperties: true
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        opciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpcionCalificacionResponse"
+
+    MetodoCalificacionListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetodoCalificacionResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    CualificacionCatalogoCreate:
+      type: object
+      required: [tipo_cualificacion_id, metodo_calificacion_id, nombre]
+      properties:
+        tipo_cualificacion_id:
+          type: integer
+        metodo_calificacion_id:
+          type: integer
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 200
+        descripcion:
+          type: string
+          nullable: true
+        obligatorio:
+          type: boolean
+          default: true
+
+    CualificacionCatalogoUpdate:
+      type: object
+      properties:
+        tipo_cualificacion_id:
+          type: integer
+        metodo_calificacion_id:
+          type: integer
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 200
+        descripcion:
+          type: string
+          nullable: true
+        obligatorio:
+          type: boolean
+        activo:
+          type: boolean
+
+    CualificacionCatalogoResponse:
+      type: object
+      required: [id, tipo_cualificacion_id, metodo_calificacion_id, nombre, obligatorio, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        tipo_cualificacion_id:
+          type: integer
+        tipo_nombre:
+          type: string
+        metodo_calificacion_id:
+          type: integer
+        metodo_nombre:
+          type: string
+        metodo_tipo:
+          type: string
+        metodo_config:
+          type: object
+          additionalProperties: true
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        obligatorio:
+          type: boolean
+        activo:
+          type: boolean
+        opciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpcionCalificacionResponse"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CualificacionCatalogoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CualificacionCatalogoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    CatalogoCompletoResponse:
+      type: object
+      required: [tipos, metodos, cualificaciones]
+      properties:
+        tipos:
+          type: array
+          items:
+            $ref: "#/components/schemas/TipoCualificacionResponse"
+        metodos:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetodoCalificacionResponse"
+        cualificaciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/CualificacionCatalogoResponse"
+
+    PerfilCualificacionCreate:
+      type: object
+      required: [cualificacion_catalogo_id, criterio_requerido]
+      properties:
+        cualificacion_catalogo_id:
+          type: integer
+          minimum: 1
+        criterio_requerido:
+          type: object
+          additionalProperties: true
+          description: Criterio mínimo según método (opcion_valor, min_anios, texto, na, etc.)
+        comentarios:
+          type: string
+          nullable: true
+
+    PerfilCualificacionUpdate:
+      type: object
+      properties:
+        criterio_requerido:
+          type: object
+          additionalProperties: true
+        comentarios:
+          type: string
+          nullable: true
+
+    PerfilCualificacionResponse:
+      type: object
+      required: [id, puesto_perfil_id, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        puesto_perfil_id:
+          type: integer
+        cualificacion_catalogo_id:
+          type: integer
+          nullable: true
+        cualificacion_nombre:
+          type: string
+        tipo_nombre:
+          type: string
+        metodo_tipo:
+          type: string
+        metodo_config:
+          type: object
+          additionalProperties: true
+        opciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpcionCalificacionResponse"
+        criterio_requerido:
+          type: object
+          additionalProperties: true
+          nullable: true
+        comentarios:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PerfilFuncionesCualificacionCreate:
+      type: object
+      required: [cualificacion_id, valor_capturado]
+      properties:
+        cualificacion_id:
+          type: integer
+        valor_capturado:
+          type: object
+          additionalProperties: true
+        comentarios:
+          type: string
+          nullable: true
+
+    PerfilFuncionesCualificacionResponse:
+      type: object
+      required: [id, perfil_funciones_id, cualificacion_id, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        perfil_funciones_id:
+          type: integer
+        cualificacion_id:
+          type: integer
+        valor_capturado:
+          type: object
+          additionalProperties: true
+          nullable: true
+        comentarios:
+          type: string
+          nullable: true
+        cumple:
+          type: boolean
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ActualizarEvaluacionesBody:
+      type: object
+      properties:
+        evaluaciones_cualificacion:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerfilFuncionesCualificacionCreate"
+        evaluaciones_competencia:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -5993,6 +6461,443 @@ paths:
         "204":
           description: Nivel eliminado
 
+  # ── Talento — Cualificaciones Catálogo ───────────────
+  /api/v1/cualificaciones-catalogo/tipos:
+    get:
+      tags: [Cualificaciones Catálogo]
+      summary: Listar tipos de cualificación
+      operationId: cualificaciones_catalogo_tipos_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Página de tipos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCualificacionListResponse"
+    post:
+      tags: [Cualificaciones Catálogo]
+      summary: Crear tipo de cualificación
+      operationId: cualificaciones_catalogo_tipos_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TipoCualificacionCreate"
+      responses:
+        "201":
+          description: Tipo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCualificacionResponse"
+
+  /api/v1/cualificaciones-catalogo/tipos/{id}:
+    patch:
+      tags: [Cualificaciones Catálogo]
+      summary: Actualizar tipo de cualificación
+      operationId: cualificaciones_catalogo_tipos_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TipoCualificacionUpdate"
+      responses:
+        "200":
+          description: Tipo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCualificacionResponse"
+    delete:
+      tags: [Cualificaciones Catálogo]
+      summary: Eliminar tipo de cualificación (soft delete)
+      operationId: cualificaciones_catalogo_tipos_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Tipo eliminado
+
+  /api/v1/cualificaciones-catalogo/metodos:
+    get:
+      tags: [Cualificaciones Catálogo]
+      summary: Listar métodos de calificación
+      operationId: cualificaciones_catalogo_metodos_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Página de métodos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionListResponse"
+    post:
+      tags: [Cualificaciones Catálogo]
+      summary: Crear método de calificación
+      operationId: cualificaciones_catalogo_metodos_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetodoCalificacionCreate"
+      responses:
+        "201":
+          description: Método creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionResponse"
+
+  /api/v1/cualificaciones-catalogo/metodos/{id}:
+    patch:
+      tags: [Cualificaciones Catálogo]
+      summary: Actualizar método de calificación
+      operationId: cualificaciones_catalogo_metodos_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetodoCalificacionUpdate"
+      responses:
+        "200":
+          description: Método actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionResponse"
+    delete:
+      tags: [Cualificaciones Catálogo]
+      summary: Eliminar método de calificación (soft delete)
+      operationId: cualificaciones_catalogo_metodos_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Método eliminado
+
+  /api/v1/cualificaciones-catalogo/metodos/{metodo_id}/opciones:
+    get:
+      tags: [Cualificaciones Catálogo]
+      summary: Listar opciones de un método
+      operationId: cualificaciones_catalogo_opciones_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: metodo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Opciones del método
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpcionCalificacionResponse"
+    post:
+      tags: [Cualificaciones Catálogo]
+      summary: Crear opción de calificación
+      operationId: cualificaciones_catalogo_opciones_create
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: metodo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpcionCalificacionCreate"
+      responses:
+        "201":
+          description: Opción creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpcionCalificacionResponse"
+
+  /api/v1/cualificaciones-catalogo/metodos/{metodo_id}/opciones/{opcion_id}:
+    patch:
+      tags: [Cualificaciones Catálogo]
+      summary: Actualizar opción de calificación
+      operationId: cualificaciones_catalogo_opciones_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: metodo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: opcion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpcionCalificacionUpdate"
+      responses:
+        "200":
+          description: Opción actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpcionCalificacionResponse"
+    delete:
+      tags: [Cualificaciones Catálogo]
+      summary: Eliminar opción de calificación (soft delete)
+      operationId: cualificaciones_catalogo_opciones_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: metodo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: opcion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Opción eliminada
+
+  /api/v1/cualificaciones-catalogo/cualificaciones:
+    get:
+      tags: [Cualificaciones Catálogo]
+      summary: Listar cualificaciones del catálogo
+      operationId: cualificaciones_catalogo_cualificaciones_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+        - name: tipo_id
+          in: query
+          schema:
+            type: integer
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Página de cualificaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CualificacionCatalogoListResponse"
+    post:
+      tags: [Cualificaciones Catálogo]
+      summary: Crear cualificación en el catálogo
+      operationId: cualificaciones_catalogo_cualificaciones_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CualificacionCatalogoCreate"
+      responses:
+        "201":
+          description: Cualificación creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CualificacionCatalogoResponse"
+
+  /api/v1/cualificaciones-catalogo/cualificaciones/{id}:
+    get:
+      tags: [Cualificaciones Catálogo]
+      summary: Obtener cualificación del catálogo
+      operationId: cualificaciones_catalogo_cualificaciones_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle de la cualificación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CualificacionCatalogoResponse"
+    patch:
+      tags: [Cualificaciones Catálogo]
+      summary: Actualizar cualificación del catálogo
+      operationId: cualificaciones_catalogo_cualificaciones_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CualificacionCatalogoUpdate"
+      responses:
+        "200":
+          description: Cualificación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CualificacionCatalogoResponse"
+    delete:
+      tags: [Cualificaciones Catálogo]
+      summary: Eliminar cualificación del catálogo (soft delete)
+      operationId: cualificaciones_catalogo_cualificaciones_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cualificación eliminada
+
+  /api/v1/cualificaciones-catalogo/catalogo-completo:
+    get:
+      tags: [Cualificaciones Catálogo]
+      summary: Catálogo completo para UI dinámica
+      description: Retorna tipos, métodos con opciones anidadas y cualificaciones activas.
+      operationId: cualificaciones_catalogo_completo
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Catálogo completo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogoCompletoResponse"
+
   # ── Talento — Grupos Competencia ─────────────────────
   /api/v1/grupos-competencia:
     get:
@@ -6824,76 +7729,136 @@ paths:
         "409":
           description: Ya esta cancelada
 
-  # ── Talento — Perfil de Funciones (catálogos) ─────────────────────
-  /api/v1/perfiles/catalogos/escolaridad:
+  # ── Talento — Perfil de Funciones (cualificaciones) ───────────────
+  /api/v1/perfiles/{perfil_id}/cualificaciones:
     get:
       tags: [Talento - Perfil Funciones]
-      summary: Catálogo de niveles de escolaridad
-      description: Retorna los niveles jerárquicos de escolaridad usados para compliance automático en cualificaciones tipo estudios_finalizados y estudios_universitarios.
-      operationId: catalogo_escolaridad
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Catálogo ordenado por peso ascendente
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    key:
-                      type: string
-                      example: licenciatura
-                    label:
-                      type: string
-                      example: Licenciatura
-                    peso:
-                      type: integer
-                      example: 4
-
-  /api/v1/perfiles/catalogos/sugerencias:
-    get:
-      tags: [Talento - Perfil Funciones]
-      summary: Sugerencias de valores históricos para autocomplete
-      description: Retorna valores DISTINCT de situacion_deseada usados previamente para un tipo de cualificación. Excluye variantes de N/A.
-      operationId: sugerencias_cualificacion
+      summary: Listar cualificaciones requeridas del perfil
+      operationId: listar_perfil_cualificaciones
       security:
         - BearerAuth: []
       parameters:
-        - name: tipo
-          in: query
+        - name: perfil_id
+          in: path
           required: true
           schema:
-            type: string
-            enum: [formacion_profesional, ampliacion_formacion, estudios_universitarios, experiencia_profesional, experiencia_direccion, complementos]
-          description: Tipo de cualificación
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-            default: ""
-          description: Texto de búsqueda (ILIKE)
-        - name: limit
-          in: query
-          required: false
-          schema:
             type: integer
-            default: 10
-            maximum: 20
-          description: Máximo de resultados
       responses:
         "200":
-          description: Lista de valores sugeridos
+          description: Cualificaciones del perfil con metadatos del catálogo
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  type: string
-                example: ["Ing. Mecánica", "Ing. Electrónica", "Lic. Administración"]
+                  $ref: "#/components/schemas/PerfilCualificacionResponse"
+    post:
+      tags: [Talento - Perfil Funciones]
+      summary: Agregar cualificación del catálogo al perfil
+      description: Solo RH o supervisor. Valida criterio_requerido contra el método de la cualificación.
+      operationId: crear_perfil_cualificacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCualificacionCreate"
+      responses:
+        "201":
+          description: Cualificación asociada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerfilCualificacionResponse"
+
+  /api/v1/perfiles/{perfil_id}/cualificaciones/{cualificacion_id}:
+    put:
+      tags: [Talento - Perfil Funciones]
+      summary: Actualizar criterio requerido de una cualificación del perfil
+      operationId: actualizar_perfil_cualificacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cualificacion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PerfilCualificacionUpdate"
+      responses:
+        "200":
+          description: Cualificación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerfilCualificacionResponse"
+    delete:
+      tags: [Talento - Perfil Funciones]
+      summary: Eliminar cualificación del perfil
+      operationId: eliminar_perfil_cualificacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cualificacion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cualificación eliminada
+
+  /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}:
+    put:
+      tags: [Talento - Perfil Funciones]
+      summary: Actualizar evaluaciones de cualificación y competencia
+      description: Actualiza valor_capturado por cualificación; el backend calcula cumple vía comparador genérico.
+      operationId: actualizar_evaluaciones_asignacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asignacion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActualizarEvaluacionesBody"
+      responses:
+        "200":
+          description: Gap analysis actualizado
 
   /api/v1/perfiles/{perfil_id}/competencias:
     post:

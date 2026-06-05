@@ -15,21 +15,18 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.catalogos_cualificacion import (
-    TIPOS_ESCOLARIDAD,
-    calcular_cumplimiento,
-    es_clave_escolaridad_valida,
-)
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.talento import (
     Competencia,
     CompetenciaRequisito,
+    PerfilCualificacion,
     PerfilFunciones,
     PuestoPerfil,
     TareaCatalogo,
 )
 from app.repositories.competencia_repository import CompetenciaRequisitoRepository
+from app.repositories.cualificaciones_catalogo_repository import CualificacionCatalogoRepository
 from app.repositories.perfil_funciones_repository import (
     PerfilCualificacionRepository,
     PerfilFuncionesCualificacionRepository,
@@ -37,6 +34,15 @@ from app.repositories.perfil_funciones_repository import (
     PerfilFuncionesRepository,
     PerfilFuncionesTareaRepository,
     PerfilTareaRepository,
+)
+from app.schemas.cualificaciones_catalogo import (
+    OpcionCalificacionResponse,
+    validar_criterio_requerido,
+    validar_valor_capturado,
+)
+from app.services.calificacion_comparador_service import (
+    evaluar_cumplimiento,
+    resolver_etiqueta_opcion,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.perfil_funciones import (
@@ -68,6 +74,7 @@ class PerfilFuncionesService:
         self.puesto_repo = PuestoPerfilRepository(db)
         self.tarea_repo = PerfilTareaRepository(db)
         self.cualificacion_repo = PerfilCualificacionRepository(db)
+        self.cualificacion_catalogo_repo = CualificacionCatalogoRepository(db)
         self.competencia_repo = CompetenciaRequisitoRepository(db)
         self.asignacion_repo = PerfilFuncionesRepository(db)
         self.eval_cualificacion_repo = PerfilFuncionesCualificacionRepository(db)
@@ -214,10 +221,93 @@ class PerfilFuncionesService:
     # CUALIFICACIONES
     # ══════════════════════════════════════════════════════════════════════════
 
+    @staticmethod
+    def _resolver_criterio_label(cual: PerfilCualificacion, opciones: list) -> str:
+        criterio = cual.criterio_requerido or {}
+        if criterio.get("na"):
+            return "No aplica"
+        if criterio.get("opcion_valor"):
+            label = resolver_etiqueta_opcion(opciones, criterio["opcion_valor"])
+            return label or str(criterio["opcion_valor"])
+        if criterio.get("min_anios") is not None:
+            base = f"{criterio['min_anios']} años mín."
+            if criterio.get("texto"):
+                return f"{base} — {criterio['texto']}"
+            return base
+        if criterio.get("texto"):
+            return str(criterio["texto"])
+        if cual.situacion_deseada:
+            return cual.situacion_deseada
+        return "—"
+
+    @staticmethod
+    def _resolver_capturado_label(evaluacion, opciones: list, metodo) -> str | None:
+        if not evaluacion:
+            return None
+        capturado = evaluacion.valor_capturado or {}
+        if capturado.get("na"):
+            return "No aplica"
+        if capturado.get("opcion_valor"):
+            label = resolver_etiqueta_opcion(opciones, capturado["opcion_valor"])
+            return label or str(capturado["opcion_valor"])
+        if capturado.get("anios") is not None:
+            base = f"{capturado['anios']} años"
+            if capturado.get("texto"):
+                return f"{base} — {capturado['texto']}"
+            return base
+        if capturado.get("texto"):
+            return str(capturado["texto"])
+        if evaluacion.situacion_actual:
+            return evaluacion.situacion_actual
+        return None
+
+    @staticmethod
+    def _opciones_activas(cual: PerfilCualificacion) -> list:
+        cat = cual.cualificacion_catalogo
+        if not cat or not cat.metodo_calificacion:
+            return []
+        return [o for o in cat.metodo_calificacion.opciones if o.activo]
+
+    def _to_cualificacion_response(self, cual: PerfilCualificacion) -> PerfilCualificacionResponse:
+        cat = cual.cualificacion_catalogo
+        metodo = cat.metodo_calificacion if cat else None
+        opciones = [
+            OpcionCalificacionResponse.model_validate(o)
+            for o in sorted(self._opciones_activas(cual), key=lambda x: (x.orden, x.id))
+        ]
+        return PerfilCualificacionResponse(
+            id=cual.id,
+            puesto_perfil_id=cual.puesto_perfil_id,
+            cualificacion_catalogo_id=cual.cualificacion_catalogo_id,
+            cualificacion_nombre=cat.nombre if cat else "",
+            tipo_nombre=cat.tipo_cualificacion.nombre if cat and cat.tipo_cualificacion else "",
+            metodo_tipo=metodo.tipo if metodo else "",
+            metodo_config=metodo.config if metodo else {},
+            opciones=opciones,
+            criterio_requerido=cual.criterio_requerido,
+            comentarios=cual.comentarios,
+            created_at=cual.created_at,
+            updated_at=cual.updated_at,
+        )
+
+    async def _validar_criterio_contra_catalogo(
+        self, catalogo_id: int, criterio: dict
+    ) -> None:
+        cat = await self.cualificacion_catalogo_repo.get_with_relaciones(catalogo_id)
+        if not cat or not cat.activo:
+            raise NotFoundError(entidad="CualificacionCatalogo", id=catalogo_id)
+        metodo = cat.metodo_calificacion
+        if not metodo:
+            raise DomainValidationError("La cualificación no tiene método de calificación asociado")
+        try:
+            validar_criterio_requerido(metodo.config or {}, criterio)
+        except ValueError as exc:
+            raise DomainValidationError(str(exc)) from exc
+
     async def listar_cualificaciones(self, perfil_id: int) -> list[PerfilCualificacionResponse]:
         await self._get_perfil_or_404(perfil_id)
         items = await self.cualificacion_repo.list_by_perfil(perfil_id)
-        return [PerfilCualificacionResponse.model_validate(c) for c in items]
+        return [self._to_cualificacion_response(c) for c in items]
 
     async def crear_cualificacion(
         self, perfil_id: int, data: PerfilCualificacionCreate, current_user: Empleado
@@ -227,24 +317,20 @@ class PerfilFuncionesService:
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar cualificaciones")
 
         await self._get_perfil_or_404(perfil_id)
+        await self._validar_criterio_contra_catalogo(data.cualificacion_catalogo_id, data.criterio_requerido)
 
-        if data.tipo in TIPOS_ESCOLARIDAD:
-            existentes = await self.cualificacion_repo.list_by_perfil(perfil_id)
-            if any(c.tipo == data.tipo for c in existentes):
-                raise DomainValidationError(
-                    f"Solo puede existir una cualificación de tipo '{data.tipo}' por perfil"
-                )
+        existentes = await self.cualificacion_repo.list_by_perfil(perfil_id)
+        if any(c.cualificacion_catalogo_id == data.cualificacion_catalogo_id for c in existentes):
+            raise DomainValidationError("Esta cualificación ya está asignada al perfil")
 
-        create_data: dict = {
+        cualificacion = await self.cualificacion_repo.create({
             "puesto_perfil_id": perfil_id,
-            "tipo": data.tipo,
-            "situacion_deseada": data.situacion_deseada,
+            "cualificacion_catalogo_id": data.cualificacion_catalogo_id,
+            "criterio_requerido": data.criterio_requerido,
             "comentarios": data.comentarios,
-        }
-        if data.anios_minimos is not None:
-            create_data["anios_minimos"] = data.anios_minimos
-        cualificacion = await self.cualificacion_repo.create(create_data)
-        return PerfilCualificacionResponse.model_validate(cualificacion)
+        })
+        cualificacion = await self.cualificacion_repo.get_with_catalogo(cualificacion.id)
+        return self._to_cualificacion_response(cualificacion)  # type: ignore[arg-type]
 
     async def actualizar_cualificacion(
         self, perfil_id: int, cualificacion_id: int, data: PerfilCualificacionUpdate, current_user: Empleado
@@ -255,24 +341,26 @@ class PerfilFuncionesService:
 
         await self._get_perfil_or_404(perfil_id)
 
-        cualificacion = await self.cualificacion_repo.get(cualificacion_id)
+        cualificacion = await self.cualificacion_repo.get_with_catalogo(cualificacion_id)
         if not cualificacion or cualificacion.puesto_perfil_id != perfil_id:
             raise NotFoundError(entidad="PerfilCualificacion", id=cualificacion_id)
 
+        if data.criterio_requerido is not None:
+            cat_id = cualificacion.cualificacion_catalogo_id
+            if cat_id:
+                await self._validar_criterio_contra_catalogo(cat_id, data.criterio_requerido)
+
         update_data: dict = {}
-        if data.tipo is not None:
-            update_data["tipo"] = data.tipo
-        if data.situacion_deseada is not None:
-            update_data["situacion_deseada"] = data.situacion_deseada
+        if data.criterio_requerido is not None:
+            update_data["criterio_requerido"] = data.criterio_requerido
         if data.comentarios is not None:
             update_data["comentarios"] = data.comentarios
-        if data.anios_minimos is not None:
-            update_data["anios_minimos"] = data.anios_minimos
 
         if update_data:
             cualificacion = await self.cualificacion_repo.update(cualificacion_id, update_data)
+            cualificacion = await self.cualificacion_repo.get_with_catalogo(cualificacion_id)
 
-        return PerfilCualificacionResponse.model_validate(cualificacion)
+        return self._to_cualificacion_response(cualificacion)  # type: ignore[arg-type]
 
     async def eliminar_cualificacion(
         self, perfil_id: int, cualificacion_id: int, current_user: Empleado
@@ -288,12 +376,6 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PerfilCualificacion", id=cualificacion_id)
 
         await self.cualificacion_repo.hard_delete(cualificacion_id)
-
-    async def buscar_sugerencias_cualificacion(
-        self, tipo: str, q: str, limit: int = 10
-    ) -> list[str]:
-        """Valores históricos únicos de situacion_deseada para autocomplete."""
-        return await self.cualificacion_repo.buscar_sugerencias(tipo, q, limit)
 
     # ══════════════════════════════════════════════════════════════════════════
     # COMPETENCIAS REQUERIDAS (usa tabla unificada competencia_requisitos)
@@ -618,38 +700,44 @@ class PerfilFuncionesService:
         for cual in cualificaciones_perfil:
             evaluacion = eval_cual_map.get(cual.id)
             cumple: bool | None = None
+            metodo = None
+            opciones = self._opciones_activas(cual)
+            if cual.cualificacion_catalogo and cual.cualificacion_catalogo.metodo_calificacion:
+                metodo = cual.cualificacion_catalogo.metodo_calificacion
             if evaluacion is not None:
-                if cual.tipo in TIPOS_ESCOLARIDAD:
-                    cumple = calcular_cumplimiento(cual.situacion_deseada, evaluacion.situacion_actual)
-                elif cual.situacion_deseada == "N/A":
-                    cumple = True
-                elif cual.tipo in ("experiencia_profesional", "experiencia_direccion"):
-                    val = (evaluacion.situacion_actual or "").strip().lower()
-                    if val == "cumple":
-                        cumple = True
-                    elif val == "no cumple":
-                        cumple = False
-                    elif cual.anios_minimos is not None and evaluacion.anios_actuales is not None:
-                        cumple = evaluacion.anios_actuales >= cual.anios_minimos
-                else:
-                    # Cualificaciones genéricas: evaluadas con escala 1-3
-                    val = (evaluacion.situacion_actual or "").strip()
-                    if val in ("1", "2", "3"):
-                        cumple = True
-                    elif val.lower() == "cumple":
-                        cumple = True
-                    elif val.lower() == "no cumple":
-                        cumple = False
+                cumple = evaluar_cumplimiento(
+                    metodo,
+                    opciones,
+                    cual.criterio_requerido,
+                    evaluacion.valor_capturado,
+                    situacion_deseada=cual.situacion_deseada,
+                    situacion_actual=evaluacion.situacion_actual,
+                    anios_minimos=cual.anios_minimos,
+                    anios_actuales=evaluacion.anios_actuales,
+                )
+            criterio_label = self._resolver_criterio_label(cual, opciones)
+            capturado_label = self._resolver_capturado_label(evaluacion, opciones, metodo)
             gap_cualificaciones.append({
                 "cualificacion_id": cual.id,
-                "tipo": cual.tipo,
-                "situacion_deseada": cual.situacion_deseada,
-                "situacion_actual": evaluacion.situacion_actual if evaluacion else None,
+                "cualificacion_catalogo_id": cual.cualificacion_catalogo_id,
+                "cualificacion_nombre": (
+                    cual.cualificacion_catalogo.nombre if cual.cualificacion_catalogo else ""
+                ),
+                "tipo_nombre": (
+                    cual.cualificacion_catalogo.tipo_cualificacion.nombre
+                    if cual.cualificacion_catalogo and cual.cualificacion_catalogo.tipo_cualificacion
+                    else ""
+                ),
+                "metodo_tipo": metodo.tipo if metodo else "",
+                "metodo_config": metodo.config if metodo else {},
+                "opciones": [OpcionCalificacionResponse.model_validate(o).model_dump() for o in opciones],
+                "criterio_requerido": cual.criterio_requerido,
+                "criterio_label": criterio_label,
+                "valor_capturado": evaluacion.valor_capturado if evaluacion else None,
+                "capturado_label": capturado_label,
                 "comentarios": evaluacion.comentarios if evaluacion else None,
                 "evaluado": evaluacion is not None,
                 "cumple": cumple,
-                "anios_minimos": cual.anios_minimos,
-                "anios_actuales": evaluacion.anios_actuales if evaluacion else None,
             })
 
         # Construir gap analysis de competencias
@@ -726,12 +814,25 @@ class PerfilFuncionesService:
                 )
             for eval_data in evaluaciones_cualificacion:
                 cual = cuales_by_id[eval_data.cualificacion_id]
-                if cual.tipo in TIPOS_ESCOLARIDAD and es_clave_escolaridad_valida(cual.situacion_deseada):
-                    if not es_clave_escolaridad_valida(eval_data.situacion_actual):
+                metodo = (
+                    cual.cualificacion_catalogo.metodo_calificacion
+                    if cual.cualificacion_catalogo else None
+                )
+                if metodo:
+                    try:
+                        validar_valor_capturado(metodo.config or {}, eval_data.valor_capturado)
+                    except ValueError as exc:
                         raise DomainValidationError(
-                            f"Para cualificación tipo '{cual.tipo}' (id={eval_data.cualificacion_id}), "
-                            f"situacion_actual debe ser una clave válida del catálogo de escolaridad"
-                        )
+                            f"Cualificación id={eval_data.cualificacion_id}: {exc}"
+                        ) from exc
+                    opcion_valor = eval_data.valor_capturado.get("opcion_valor")
+                    if opcion_valor:
+                        valid_vals = {o.valor for o in self._opciones_activas(cual)}
+                        if valid_vals and opcion_valor not in valid_vals:
+                            raise DomainValidationError(
+                                f"Cualificación id={eval_data.cualificacion_id}: "
+                                f"opcion_valor '{opcion_valor}' no es válida para el método configurado"
+                            )
 
         if evaluaciones_competencia:
             valid_comp_ids = {
@@ -754,22 +855,17 @@ class PerfilFuncionesService:
                     cualificacion_id=eval_data.cualificacion_id,
                 )
                 if existing:
-                    update_fields: dict = {"situacion_actual": eval_data.situacion_actual}
+                    update_fields: dict = {"valor_capturado": eval_data.valor_capturado}
                     if eval_data.comentarios is not None:
                         update_fields["comentarios"] = eval_data.comentarios
-                    if eval_data.anios_actuales is not None:
-                        update_fields["anios_actuales"] = eval_data.anios_actuales
                     await self.eval_cualificacion_repo.update(existing.id, update_fields)
                 else:
-                    create_fields: dict = {
+                    await self.eval_cualificacion_repo.create({
                         "perfil_funciones_id": asignacion_id,
                         "cualificacion_id": eval_data.cualificacion_id,
-                        "situacion_actual": eval_data.situacion_actual,
+                        "valor_capturado": eval_data.valor_capturado,
                         "comentarios": eval_data.comentarios,
-                    }
-                    if eval_data.anios_actuales is not None:
-                        create_fields["anios_actuales"] = eval_data.anios_actuales
-                    await self.eval_cualificacion_repo.create(create_fields)
+                    })
 
         # Upsert evaluaciones de competencia
         if evaluaciones_competencia:

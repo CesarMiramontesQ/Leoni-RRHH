@@ -1,7 +1,9 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { mountGruposCompetenciaSection } from "../components/puestos/ajustes/gruposCompetenciaSection.ts";
+import { mountMetodosCalificacionSection } from "../components/puestos/ajustes/metodosCalificacionSection.ts";
 import { mountNivelesSection } from "../components/puestos/ajustes/nivelesSection.ts";
 import { mountTiposCompetenciaSection } from "../components/puestos/ajustes/tiposCompetenciaSection.ts";
+import { mountTiposCualificacionSection } from "../components/puestos/ajustes/tiposCualificacionSection.ts";
 import { RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
 
 export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal): void {
@@ -26,6 +28,16 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
             <div id="puestos-ajustes-tipos" class="min-w-0"></div>
           </div>
         </section>
+        <section class="flex flex-col gap-4" aria-labelledby="puestos-ajustes-cualificaciones-title">
+          <div>
+            <h2 id="puestos-ajustes-cualificaciones-title" class="text-lg font-semibold text-text-primary">Cualificaciones</h2>
+            <p class="mt-1 text-sm text-text-muted">Tipos de cualificación y métodos para evaluar cumplimiento.</p>
+          </div>
+          <div class="flex flex-col gap-6">
+            <div id="puestos-ajustes-tipos-cualificacion" class="min-w-0"></div>
+            <div id="puestos-ajustes-metodos-calificacion" class="min-w-0"></div>
+          </div>
+        </section>
       </div>
     </div>`,
   });
@@ -43,5 +55,15 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
   const tiposHost = container.querySelector("#puestos-ajustes-tipos");
   if (tiposHost instanceof HTMLElement) {
     mountTiposCompetenciaSection(tiposHost, signal);
+  }
+
+  const tiposCualHost = container.querySelector("#puestos-ajustes-tipos-cualificacion");
+  if (tiposCualHost instanceof HTMLElement) {
+    mountTiposCualificacionSection(tiposCualHost, signal);
+  }
+
+  const metodosHost = container.querySelector("#puestos-ajustes-metodos-calificacion");
+  if (metodosHost instanceof HTMLElement) {
+    mountMetodosCalificacionSection(metodosHost, signal);
   }
 }

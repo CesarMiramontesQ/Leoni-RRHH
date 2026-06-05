@@ -114,7 +114,13 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Talento",
         nav_item_ids=("puestos",),
         hash_prefixes=("#/puestos",),
-        api_prefixes=("/api/v1/puestos-perfil", "/api/v1/perfiles"),
+        api_prefixes=(
+            "/api/v1/puestos-perfil",
+            "/api/v1/perfiles",
+            "/api/v1/cualificaciones-catalogo",
+            "/api/v1/niveles-puesto",
+            "/api/v1/grupos-competencia",
+        ),
     ),
     "tareas-catalogo": RhModuleDef(
         key="tareas-catalogo",

@@ -19,7 +19,7 @@ import {
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
-import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.ts";
+import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import { updatePerfil } from "../api/puestos.ts";
@@ -52,10 +52,14 @@ interface Tarea {
 
 interface Cualificacion {
   id: number;
-  tipo: string;
-  situacion_deseada: string;
+  cualificacion_catalogo_id: number | null;
+  cualificacion_nombre: string;
+  tipo_nombre: string;
+  metodo_tipo: string;
+  metodo_config: Record<string, unknown>;
+  opciones: Array<{ id: number; etiqueta: string; valor: string; orden: number; peso: number | null }>;
+  criterio_requerido: Record<string, unknown> | null;
   comentarios: string | null;
-  anios_minimos: number | null;
 }
 
 interface Competencia {
@@ -88,27 +92,6 @@ type ExecutiveSummary = {
 
 // ── Constantes de etiquetas ─────────────────────────────────────────────
 
-const TIPO_LABELS: Record<string, string> = {
-  estudios_finalizados: "Nivel de estudios finalizados",
-  formacion_profesional: "Formación profesional/ especialización (académica)/ diplomas",
-  ampliacion_formacion: "Ampliación de la formación profesional/especialización (académica)/diplomas",
-  estudios_universitarios: "Estudios universitarios / especialización (académica)/ diplomas",
-  experiencia_profesional: "Experiencia profesional",
-  experiencia_direccion: "Experiencia de dirección/ gerencia",
-  complementos: "Complementos individuales",
-};
-
-const CUALIF_GROUPS: { key: string; label: string; tipos: string[] }[] = [
-  { key: "educacion", label: "Educación", tipos: ["estudios_finalizados", "estudios_universitarios"] },
-  {
-    key: "formacion",
-    label: "Formación y especialización",
-    tipos: ["formacion_profesional", "ampliacion_formacion"],
-  },
-  { key: "experiencia", label: "Experiencia", tipos: ["experiencia_profesional", "experiencia_direccion"] },
-  { key: "complementos", label: "Complementos", tipos: ["complementos"] },
-];
-
 const CATEGORIA_CHIP_DEFAULT = "ppd-cat-chip ppd-cat-chip--default";
 
 const ICON_BACK = `<svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
@@ -126,6 +109,13 @@ const ICON_PENCIL = `<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke=
 function isRhUser(): boolean {
   return getRolFromAccessToken() === "rh";
 }
+
+function canEditPerfilRequisitos(): boolean {
+  const rol = getRolFromAccessToken();
+  return rol === "rh" || rol === "supervisor";
+}
+
+let perfilDetalleActionsAbort: AbortController | null = null;
 
 function formatFecha(iso: string | undefined): string | null {
   if (!iso) return null;
@@ -172,7 +162,7 @@ function nivelVisual(nivel: number): { cls: string; short: string; title: string
 }
 
 function sectionEditBtn(action: string, label: string): string {
-  if (!isRhUser()) return "";
+  if (!canEditPerfilRequisitos()) return "";
   return `<button type="button" data-action="${action}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
 }
 
@@ -409,13 +399,9 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
 }
 
 function renderCualificacionValor(c: Cualificacion): string {
-  const isNA = c.situacion_deseada === "N/A";
-  if (isNA) return badgeCancelled("No aplica");
-  if (esTipoEscolaridad(c.tipo)) return escapeHtml(escolaridadLabel(c.situacion_deseada));
-  if (c.tipo === "complementos") {
-    return `<span class="whitespace-pre-line text-sm leading-relaxed">${escapeHtml(c.situacion_deseada)}</span>`;
-  }
-  return escapeHtml(c.situacion_deseada);
+  const label = labelCriterio(c.criterio_requerido, c.opciones);
+  if (c.criterio_requerido?.na) return badgeCancelled("No aplica");
+  return escapeHtml(label);
 }
 
 function renderCualificaciones(cualificaciones: Cualificacion[]): string {
@@ -429,83 +415,41 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
       "Editar calificaciones",
       emptyState(
         "Sin calificaciones registradas",
-        isRhUser() ? "Define estudios, experiencia y complementos desde la edición." : undefined,
+        canEditPerfilRequisitos() ? "Selecciona cualificaciones del catálogo y define criterios requeridos." : undefined,
       ),
     );
   }
 
   const byTipo = new Map<string, Cualificacion[]>();
   for (const c of cualificaciones) {
-    const list = byTipo.get(c.tipo) ?? [];
+    const key = c.tipo_nombre || "Sin tipo";
+    const list = byTipo.get(key) ?? [];
     list.push(c);
-    byTipo.set(c.tipo, list);
+    byTipo.set(key, list);
   }
 
-  const assigned = new Set<string>();
-  const groupBlocks = CUALIF_GROUPS.map((group) => {
-    const items: Cualificacion[] = [];
-    for (const tipo of group.tipos) {
-      const list = byTipo.get(tipo);
-      if (list) {
-        items.push(...list);
-        assigned.add(tipo);
-      }
-    }
-    if (items.length === 0) return "";
-    return `
+  const groupBlocks = Array.from(byTipo.entries())
+    .map(([tipoNombre, items]) => `
     <div class="ppd-cualif-group rounded-xl border border-slate-200/90 bg-gradient-to-br from-slate-50/50 to-white p-4">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(group.label)}</h3>
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(tipoNombre)}</h3>
       <div class="mt-3 flex flex-col gap-2">
-        ${items
-          .map((c) => {
-            const aniosInfo =
-              c.anios_minimos != null
-                ? `<span class="ml-1 text-xs font-medium text-text-muted">(${c.anios_minimos} años mín.)</span>`
-                : "";
-            return `
+        ${items.map((c) => `
           <article class="rounded-lg border border-slate-200/80 bg-white p-3 shadow-sm">
-            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</p>
-            <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}${aniosInfo}</div>
-            ${c.comentarios ? `<p class="mt-1.5 text-xs leading-relaxed text-text-muted">${escapeHtml(c.comentarios)}</p>` : ""}
-          </article>`;
-          })
-          .join("")}
-      </div>
-    </div>`;
-  }).join("");
-
-  const otrosTipos = Array.from(byTipo.entries()).filter(([tipo]) => !assigned.has(tipo));
-  const otrosBlock =
-    otrosTipos.length === 0
-      ? ""
-      : `
-    <div class="ppd-cualif-group rounded-xl border border-slate-200/90 bg-slate-50/50 p-4">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Otros requisitos</h3>
-      <div class="mt-3 flex flex-col gap-2">
-        ${otrosTipos
-          .map(([, items]) =>
-            items
-              .map(
-                (c) => `
-          <article class="rounded-lg border border-slate-200/80 bg-white p-3">
-            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</p>
+            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(c.cualificacion_nombre)}</p>
             <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}</div>
-          </article>`,
-              )
-              .join(""),
-          )
-          .join("")}
+            ${c.comentarios ? `<p class="mt-1.5 text-xs leading-relaxed text-text-muted">${escapeHtml(c.comentarios)}</p>` : ""}
+          </article>`).join("")}
       </div>
-    </div>`;
+    </div>`).join("");
 
   return sectionShell(
     "ppd-cualificaciones",
     "Calificaciones requeridas",
-    "Educación, experiencia, formación y complementos",
+    "Criterios configurados desde el catálogo",
     cualificaciones.length,
     "edit-cualificaciones",
     "Editar calificaciones",
-    `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${groupBlocks}${otrosBlock}</div>`,
+    `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${groupBlocks}</div>`,
   );
 }
 
@@ -805,7 +749,11 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
     const contentEl = inner;
 
-    if (isRhUser()) {
+    if (canEditPerfilRequisitos()) {
+      perfilDetalleActionsAbort?.abort();
+      perfilDetalleActionsAbort = new AbortController();
+      const { signal } = perfilDetalleActionsAbort;
+
       const reload = () => loadPerfilDetalle(container, perfilId);
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
@@ -831,6 +779,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             compModal.open();
             break;
           case "edit-base":
+            if (!isRhUser()) return;
             void getNivelesPuesto({ page_size: 200 }).then((nivelesCatalog) => {
               openEditBaseModal(
                 contentEl.querySelector("#modal-host-edit-base") as HTMLElement,
@@ -859,7 +808,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             break;
           }
         }
-      });
+      }, { signal });
     }
   } catch {
     inner.innerHTML = `
