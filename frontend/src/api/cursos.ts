@@ -281,6 +281,41 @@ export async function updateCursoSesion(cursoId: number, sesionId: number, data:
   return res.json();
 }
 
+export interface SesionGlobalItem {
+  id: number;
+  curso_id: number;
+  curso_nombre: string | null;
+  fecha_inicio: string;
+  fecha_fin: string | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  ubicacion: string | null;
+  instructor: string | null;
+  cupo_max: number | null;
+  inscritos_count: number;
+  estado: string;
+  created_at: string;
+}
+
+export interface SesionGlobalListResponse {
+  items: SesionGlobalItem[];
+  total: number;
+}
+
+export async function getAllSesiones(params: { page?: number; page_size?: number; estado?: string; q?: string } = {}): Promise<SesionGlobalListResponse> {
+  const sp = new URLSearchParams();
+  sp.set("page", String(params.page ?? 1));
+  sp.set("page_size", String(params.page_size ?? 50));
+  if (params.estado) sp.set("estado", params.estado);
+  if (params.q?.trim()) sp.set("q", params.q.trim());
+  const res = await fetchWithAuth(`/api/v1/level-up/sesiones?${sp.toString()}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
 export async function deleteCursoSesion(cursoId: number, sesionId: number): Promise<void> {
   const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}`, {
     method: "DELETE",

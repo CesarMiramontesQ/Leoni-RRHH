@@ -16,12 +16,104 @@ from app.schemas.level_up import (
     CursoSesionUpdate,
     EstadoSesionLiteral,
 )
+from app.models.level_up import Curso as CursoModel
 from app.services.level_up_curso_sesiones import CursoSesionService
 
 router = APIRouter(
     prefix="/api/v1/level-up/cursos/{curso_id}/sesiones",
     tags=["Level Up - Curso Sesiones"],
 )
+
+all_sesiones_router = APIRouter(
+    prefix="/api/v1/level-up/sesiones",
+    tags=["Level Up - Todas las Sesiones"],
+)
+
+
+# ── Todas las sesiones (cross-curso) ────────────────────────────────────────
+
+
+class SesionGlobalItem(BaseModel):
+    id: int
+    curso_id: int
+    curso_nombre: str | None = None
+    fecha_inicio: str
+    fecha_fin: str | None = None
+    hora_inicio: str | None = None
+    hora_fin: str | None = None
+    ubicacion: str | None = None
+    instructor: str | None = None
+    cupo_max: int | None = None
+    inscritos_count: int = 0
+    estado: str
+    created_at: str
+
+
+class SesionGlobalListResponse(BaseModel):
+    items: list[SesionGlobalItem]
+    total: int
+
+
+@all_sesiones_router.get("", response_model=SesionGlobalListResponse)
+async def listar_todas_sesiones(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    estado: EstadoSesionLiteral | None = Query(None),
+    q: str = Query("", max_length=200),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import func, case
+
+    count_sub = (
+        select(func.count())
+        .select_from(CursoEmpleado)
+        .where(CursoEmpleado.sesion_id == CursoSesion.id)
+        .correlate(CursoSesion)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(CursoSesion, CursoModel.nombre.label("curso_nombre"), count_sub.label("inscritos"))
+        .join(CursoModel, CursoModel.id == CursoSesion.curso_id)
+    )
+
+    if estado:
+        stmt = stmt.where(CursoSesion.estado == estado)
+    if q.strip():
+        search = f"%{q.strip()}%"
+        stmt = stmt.where(
+            CursoModel.nombre.ilike(search)
+            | CursoSesion.ubicacion.ilike(search)
+            | CursoSesion.instructor.ilike(search)
+        )
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    stmt = stmt.order_by(CursoSesion.fecha_inicio.desc()).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    items = [
+        SesionGlobalItem(
+            id=row.CursoSesion.id,
+            curso_id=row.CursoSesion.curso_id,
+            curso_nombre=row.curso_nombre,
+            fecha_inicio=str(row.CursoSesion.fecha_inicio),
+            fecha_fin=str(row.CursoSesion.fecha_fin) if row.CursoSesion.fecha_fin else None,
+            hora_inicio=str(row.CursoSesion.hora_inicio) if row.CursoSesion.hora_inicio else None,
+            hora_fin=str(row.CursoSesion.hora_fin) if row.CursoSesion.hora_fin else None,
+            ubicacion=row.CursoSesion.ubicacion,
+            instructor=row.CursoSesion.instructor,
+            cupo_max=row.CursoSesion.cupo_max,
+            inscritos_count=row.inscritos or 0,
+            estado=row.CursoSesion.estado.value if hasattr(row.CursoSesion.estado, 'value') else row.CursoSesion.estado,
+            created_at=row.CursoSesion.created_at.isoformat(),
+        )
+        for row in rows
+    ]
+    return SesionGlobalListResponse(items=items, total=total)
 
 
 # ── CRUD Sesiones ────────────────────────────────────────────────────────────

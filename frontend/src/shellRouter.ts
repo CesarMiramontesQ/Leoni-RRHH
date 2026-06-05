@@ -29,6 +29,8 @@ import {
   mountEncuestas,
 } from "./pages/levelUp.ts";
 import { mountCapacidades } from "./pages/capacidades.ts";
+import { mountSesiones } from "./pages/sesiones.ts";
+import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -120,6 +122,19 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/encuestas")) {
       mountEncuestas(container);
+      return;
+    }
+    const sesionDetalleMatch = h.match(/^#\/sesiones\/(\d+)\/(\d+)/);
+    if (sesionDetalleMatch) {
+      const cId = Number.parseInt(sesionDetalleMatch[1] ?? "", 10);
+      const sId = Number.parseInt(sesionDetalleMatch[2] ?? "", 10);
+      if (!Number.isNaN(cId) && !Number.isNaN(sId)) {
+        mountSesionDetalle(container, cId, sId, signal);
+        return;
+      }
+    }
+    if (h.startsWith("#/sesiones")) {
+      mountSesiones(container);
       return;
     }
 

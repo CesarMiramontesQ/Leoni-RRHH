@@ -25,6 +25,7 @@ export type AppShellNavItemId =
   | "opls"
   | "evidencias"
   | "sugerencias"
+  | "sesiones"
   | "encuestas"
   | "level-up";
 
