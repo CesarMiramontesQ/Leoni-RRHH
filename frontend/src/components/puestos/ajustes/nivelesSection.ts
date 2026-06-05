@@ -112,8 +112,8 @@ export function mountNivelesSection(sectionEl: HTMLElement, signal: AbortSignal)
     sectionEl.innerHTML =
       ajustesSectionCard({
         titleId: "niveles-section-title",
-        title: "Niveles en puestos",
-        description: "Catálogo de niveles organizacionales para perfiles de puesto.",
+        title: "Niveles",
+        description: "Lista de niveles disponibles para asignar a perfiles.",
         actionButtonHtml: `<button type="button" data-nivel-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo nivel</span></button>`,
         bodyHtml: renderTable(),
       }) + renderModal();
