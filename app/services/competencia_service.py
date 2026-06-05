@@ -35,6 +35,7 @@ from app.repositories.competencia_repository import (
     CompetenciaRepository,
     CompetenciaRequisitoRepository,
 )
+from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.repositories.perfil_funciones_repository import (
     PerfilFuncionesCompetenciaRepository,
     PerfilFuncionesRepository,
@@ -73,6 +74,7 @@ class CompetenciaService:
         self.puesto_repo = PuestoPerfilRepository(db)
         self.pf_repo = PerfilFuncionesRepository(db)
         self.pf_comp_repo = PerfilFuncionesCompetenciaRepository(db)
+        self.grado_repo = GradoPuestoRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -354,6 +356,10 @@ class CompetenciaService:
         if rol != "rh":
             raise ForbiddenError(detail="Solo RH puede actualizar la matriz de competencias")
 
+        grado_default = await self.grado_repo.get_by_orden(1)
+        if not grado_default:
+            raise NotFoundError(entidad="GradoPuesto", id=0)
+
         actualizados = 0
         errores: list[str] = []
 
@@ -385,6 +391,7 @@ class CompetenciaService:
             await self.requisito_repo.upsert(
                 competencia_id=celda.competencia_id,
                 puesto_perfil_id=celda.puesto_perfil_id,
+                grado_id=grado_default.id,
                 nivel_requerido=celda.nivel_requerido,
             )
             actualizados += 1

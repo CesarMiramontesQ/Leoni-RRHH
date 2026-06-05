@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.talento import (
     CualificacionCatalogo,
+    GradoPuesto,
     MetodoCalificacion,
     PerfilCualificacion,
     PerfilFunciones,
@@ -100,7 +101,10 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
         """Lista asignaciones activas de un puesto perfil con datos del empleado."""
         result = await self.db.execute(
             select(PerfilFunciones)
-            .options(selectinload(PerfilFunciones.empleado))
+            .options(
+                selectinload(PerfilFunciones.empleado),
+                selectinload(PerfilFunciones.grado),
+            )
             .where(
                 PerfilFunciones.puesto_perfil_id == puesto_perfil_id,
                 PerfilFunciones.activo.is_(True),
@@ -114,8 +118,10 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
         result = await self.db.execute(
             select(PerfilFunciones)
             .options(
+                selectinload(PerfilFunciones.empleado),
                 selectinload(PerfilFunciones.evaluaciones_cualificacion),
                 selectinload(PerfilFunciones.evaluaciones_competencia),
+                selectinload(PerfilFunciones.grado),
             )
             .where(PerfilFunciones.id == id, PerfilFunciones.activo.is_(True))
         )

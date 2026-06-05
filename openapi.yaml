@@ -2351,6 +2351,66 @@ components:
         page_size:
           type: integer
 
+    GradoPuestoCreate:
+      type: object
+      required: [nombre, orden]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 1
+          maximum: 99
+
+    GradoPuestoUpdate:
+      type: object
+      required: [nombre, orden]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 1
+          maximum: 99
+
+    GradoPuestoResponse:
+      type: object
+      required: [id, nombre, orden, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        orden:
+          type: integer
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    GradoPuestoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradoPuestoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
     GrupoCompetenciaCreate:
       type: object
       required: [nombre]
@@ -2939,7 +2999,7 @@ components:
 
     PerfilCompetenciaResponse:
       type: object
-      required: [id, competencia_id, competencia_nombre, nivel_requerido]
+      required: [id, competencia_id, competencia_nombre, grado_id, grado_nombre, nivel_requerido]
       properties:
         id:
           type: integer
@@ -2953,6 +3013,10 @@ components:
         tipo_nombre:
           type: string
           nullable: true
+        grado_id:
+          type: integer
+        grado_nombre:
+          type: string
         nivel_requerido:
           type: integer
         orden:
@@ -2961,10 +3025,13 @@ components:
 
     PerfilCompetenciaCreate:
       type: object
-      required: [competencia_id, nivel_requerido]
+      required: [competencia_id, grado_id, nivel_requerido]
       properties:
         competencia_id:
           type: integer
+        grado_id:
+          type: integer
+          minimum: 1
         nivel_requerido:
           type: integer
           minimum: 1
@@ -2993,8 +3060,11 @@ components:
 
     PerfilCompetenciaSyncBody:
       type: object
-      required: [tipo_competencia_id]
+      required: [grado_id, tipo_competencia_id]
       properties:
+        grado_id:
+          type: integer
+          minimum: 1
         tipo_competencia_id:
           type: integer
           minimum: 1
@@ -6461,6 +6531,120 @@ paths:
         "204":
           description: Nivel eliminado
 
+  # ── Talento — Grados Puesto ──────────────────────────
+  /api/v1/grados-puesto:
+    get:
+      tags: [Talento - Grados Puesto]
+      summary: Listar grados de puesto (paginado)
+      operationId: grados_puesto_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pagina de grados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradoPuestoListResponse"
+    post:
+      tags: [Talento - Grados Puesto]
+      summary: Crear grado de puesto
+      operationId: grados_puesto_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GradoPuestoCreate"
+      responses:
+        "201":
+          description: Grado creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradoPuestoResponse"
+
+  /api/v1/grados-puesto/{id}:
+    get:
+      tags: [Talento - Grados Puesto]
+      summary: Obtener grado de puesto
+      operationId: grados_puesto_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del grado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradoPuestoResponse"
+    patch:
+      tags: [Talento - Grados Puesto]
+      summary: Actualizar grado de puesto
+      operationId: grados_puesto_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GradoPuestoUpdate"
+      responses:
+        "200":
+          description: Grado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradoPuestoResponse"
+    delete:
+      tags: [Talento - Grados Puesto]
+      summary: Eliminar grado de puesto (soft delete)
+      operationId: grados_puesto_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Grado eliminado
+
   # ── Talento — Cualificaciones Catálogo ───────────────
   /api/v1/cualificaciones-catalogo/tipos:
     get:
@@ -7832,6 +8016,43 @@ paths:
           description: Cualificación eliminada
 
   /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}:
+    patch:
+      tags: [Talento - Perfil Funciones]
+      summary: Actualizar metadatos de asignación (p. ej. grado)
+      operationId: actualizar_asignacion_perfil
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asignacion_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                grado_id:
+                  type: integer
+                  minimum: 1
+                departamento:
+                  type: string
+                  maxLength: 200
+      responses:
+        "200":
+          description: Asignación actualizada
+        "403":
+          description: Sin permisos
+        "404":
+          description: Asignación no encontrada
     put:
       tags: [Talento - Perfil Funciones]
       summary: Actualizar evaluaciones de cualificación y competencia
@@ -7861,6 +8082,33 @@ paths:
           description: Gap analysis actualizado
 
   /api/v1/perfiles/{perfil_id}/competencias:
+    get:
+      tags: [Talento - Perfil Funciones]
+      summary: Listar competencias requeridas del perfil por grado
+      operationId: listar_perfil_competencias
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: grado_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Lista de competencias del grado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerfilCompetenciaResponse"
     post:
       tags: [Talento - Perfil Funciones]
       summary: Agregar competencia del catálogo al perfil

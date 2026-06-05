@@ -35,7 +35,7 @@ Endpoints:
   DELETE /api/v1/perfiles/{perfil_id}/asignaciones/{asignacion_id}/tareas-extra/{tarea_extra_id}
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -227,12 +227,13 @@ async def eliminar_cualificacion(
 @router.get("/{perfil_id}/competencias", response_model=list[PerfilCompetenciaResponse])
 async def listar_competencias(
     perfil_id: int,
+    grado_id: int = Query(..., gt=0, description="Grado de progresion del puesto"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista competencias requeridas del perfil (desde tabla unificada)."""
+    """Lista competencias requeridas del perfil para el grado indicado."""
     service = PerfilFuncionesService(db)
-    return await service.listar_competencias(perfil_id=perfil_id)
+    return await service.listar_competencias(perfil_id=perfil_id, grado_id=grado_id)
 
 
 @router.post(
@@ -285,6 +286,7 @@ async def sincronizar_competencias(
     service = PerfilFuncionesService(db)
     return await service.sincronizar_competencias(
         perfil_id=perfil_id,
+        grado_id=body.grado_id,
         tipo_competencia_id=body.tipo_competencia_id,
         competencias=body.competencias,
         current_user=current_user,
@@ -353,6 +355,27 @@ async def obtener_asignacion(
     """Obtiene detalle de asignacion con analisis de brechas (gap analysis)."""
     service = PerfilFuncionesService(db)
     return await service.obtener_asignacion_con_gap(perfil_id=perfil_id, asignacion_id=asignacion_id)
+
+
+@router.patch(
+    "/{perfil_id}/asignaciones/{asignacion_id}",
+    response_model=PerfilFuncionesResponse,
+)
+async def actualizar_asignacion(
+    perfil_id: int,
+    asignacion_id: int,
+    body: PerfilFuncionesUpdate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza metadatos de la asignacion (p. ej. grado). Solo RH o supervisor."""
+    service = PerfilFuncionesService(db)
+    return await service.actualizar_asignacion(
+        perfil_id=perfil_id,
+        asignacion_id=asignacion_id,
+        data=body,
+        current_user=current_user,
+    )
 
 
 class ActualizarEvaluacionesBody(BaseModel):

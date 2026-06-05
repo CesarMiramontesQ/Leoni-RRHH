@@ -23,10 +23,12 @@ from app.models.talento import (
     Competencia,
     CompetenciaRequisito,
     CualificacionCatalogo,
+    GradoPuesto,
     GrupoCompetencia,
     MetodoCalificacion,
     NivelPuesto,
     OpcionCalificacion,
+    PerfilFunciones,
     PuestoPerfil,
     TipoCualificacionCatalogo,
     TipoCompetencia,
@@ -81,6 +83,37 @@ async def make_nivel_puesto(
     await db.flush()
     await db.refresh(nivel)
     return nivel
+
+
+async def make_grado_puesto(
+    db: AsyncSession,
+    *,
+    nombre: str | None = None,
+    orden: int | None = None,
+    activo: bool = True,
+) -> GradoPuesto:
+    """Factory para crear un GradoPuesto en el catalogo."""
+    uid = uuid.uuid4().hex[:6]
+    _orden = orden if orden is not None else abs(hash(uid)) % 90 + 10
+    _nombre = nombre or f"Grado Test {uid}"
+    grado = GradoPuesto(nombre=_nombre, orden=_orden, activo=activo)
+    db.add(grado)
+    await db.flush()
+    await db.refresh(grado)
+    return grado
+
+
+async def get_default_grado(db: AsyncSession) -> GradoPuesto:
+    """Obtiene o crea el Grado 1 por defecto para tests."""
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(GradoPuesto).where(GradoPuesto.orden == 1, GradoPuesto.activo.is_(True))
+    )
+    grado = result.scalar_one_or_none()
+    if grado:
+        return grado
+    return await make_grado_puesto(db, nombre="Grado 1", orden=1)
 
 
 async def make_puesto_perfil(
@@ -211,27 +244,58 @@ async def make_competencia_requisito(
     *,
     competencia_id: int,
     puesto_perfil_id: int,
+    grado_id: int | None = None,
     nivel_requerido: int = 3,
 ) -> CompetenciaRequisito:
     """
     Factory para crear un CompetenciaRequisito (vincula competencia a puesto con nivel).
 
     Respeta:
-      - UniqueConstraint(competencia_id, puesto_perfil_id)
+      - UniqueConstraint(competencia_id, puesto_perfil_id, grado_id)
       - CheckConstraint(0 <= nivel_requerido <= 4)
 
     Parametros:
       - nivel_requerido: 0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto
     """
+    if grado_id is None:
+        grado = await get_default_grado(db)
+        grado_id = grado.id
     requisito = CompetenciaRequisito(
         competencia_id=competencia_id,
         puesto_perfil_id=puesto_perfil_id,
+        grado_id=grado_id,
         nivel_requerido=nivel_requerido,
     )
     db.add(requisito)
     await db.flush()
     await db.refresh(requisito)
     return requisito
+
+
+async def make_perfil_funciones(
+    db: AsyncSession,
+    *,
+    puesto_perfil_id: int,
+    empleado_id: int,
+    grado_id: int | None = None,
+    departamento: str | None = None,
+    activo: bool = True,
+) -> PerfilFunciones:
+    """Factory para crear una asignacion PerfilFunciones."""
+    if grado_id is None:
+        grado = await get_default_grado(db)
+        grado_id = grado.id
+    asignacion = PerfilFunciones(
+        puesto_perfil_id=puesto_perfil_id,
+        empleado_id=empleado_id,
+        grado_id=grado_id,
+        departamento=departamento,
+        activo=activo,
+    )
+    db.add(asignacion)
+    await db.flush()
+    await db.refresh(asignacion)
+    return asignacion
 
 
 # Alias corto para conveniencia

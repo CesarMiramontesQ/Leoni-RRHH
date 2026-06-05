@@ -45,6 +45,7 @@ from app.services.calificacion_comparador_service import (
     resolver_etiqueta_opcion,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
+from app.services.grado_puesto_service import GradoPuestoService
 from app.schemas.perfil_funciones import (
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
@@ -80,12 +81,42 @@ class PerfilFuncionesService:
         self.eval_cualificacion_repo = PerfilFuncionesCualificacionRepository(db)
         self.eval_competencia_repo = PerfilFuncionesCompetenciaRepository(db)
         self.tarea_extra_repo = PerfilFuncionesTareaRepository(db)
+        self.grado_service = GradoPuestoService(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     @staticmethod
     def _get_rol(user: Empleado) -> str:
         return user.rol.nombre if user.rol else "empleado"
+
+    @staticmethod
+    def _to_competencia_response(requisito: CompetenciaRequisito) -> PerfilCompetenciaResponse:
+        comp = requisito.competencia
+        return PerfilCompetenciaResponse(
+            id=requisito.id,
+            competencia_id=requisito.competencia_id,
+            competencia_nombre=comp.nombre if comp else "",
+            tipo_competencia_id=comp.tipo_competencia_id if comp else None,
+            tipo_nombre=(
+                comp.tipo_competencia.nombre
+                if comp and comp.tipo_competencia
+                else None
+            ),
+            grado_id=requisito.grado_id,
+            grado_nombre=requisito.grado.nombre if requisito.grado else "",
+            nivel_requerido=requisito.nivel_requerido,
+            orden=requisito.orden,
+        )
+
+    @staticmethod
+    def _to_asignacion_response(asignacion: PerfilFunciones) -> PerfilFuncionesResponse:
+        data = PerfilFuncionesResponse.model_validate(asignacion)
+        if asignacion.grado:
+            data.grado_nombre = asignacion.grado.nombre
+        if asignacion.empleado:
+            data.nombre_empleado = asignacion.empleado.nombre
+            data.no_empleado = asignacion.empleado.no_empleado
+        return data
 
     async def _get_perfil_or_404(self, perfil_id: int) -> PuestoPerfil:
         perfil = await self.puesto_repo.get(perfil_id)
@@ -381,27 +412,15 @@ class PerfilFuncionesService:
     # COMPETENCIAS REQUERIDAS (usa tabla unificada competencia_requisitos)
     # ══════════════════════════════════════════════════════════════════════════
 
-    async def listar_competencias(self, perfil_id: int) -> list[PerfilCompetenciaResponse]:
+    async def listar_competencias(
+        self, perfil_id: int, grado_id: int
+    ) -> list[PerfilCompetenciaResponse]:
         await self._get_perfil_or_404(perfil_id)
-        items = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
-        results = []
-        for c in items:
-            comp = c.competencia
-            resp = PerfilCompetenciaResponse(
-                id=c.id,
-                competencia_id=c.competencia_id,
-                competencia_nombre=comp.nombre if comp else "",
-                tipo_competencia_id=comp.tipo_competencia_id if comp else None,
-                tipo_nombre=(
-                    comp.tipo_competencia.nombre
-                    if comp and comp.tipo_competencia
-                    else None
-                ),
-                nivel_requerido=c.nivel_requerido,
-                orden=c.orden,
-            )
-            results.append(resp)
-        return results
+        await self.grado_service.validar_grado_activo(grado_id)
+        items = await self.competencia_repo.list_by_puesto_with_competencia(
+            perfil_id, grado_id=grado_id
+        )
+        return [self._to_competencia_response(c) for c in items]
 
     async def crear_competencia(
         self, perfil_id: int, data: PerfilCompetenciaCreate, current_user: Empleado
@@ -411,11 +430,13 @@ class PerfilFuncionesService:
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
         await self._get_perfil_or_404(perfil_id)
+        grado = await self.grado_service.validar_grado_activo(data.grado_id)
 
-        if await self.competencia_repo.exists_by_competencia_and_perfil(data.competencia_id, perfil_id):
-            raise ConflictError(detail="Esta competencia ya está asignada al perfil")
+        if await self.competencia_repo.exists_by_competencia_and_perfil(
+            data.competencia_id, perfil_id, data.grado_id
+        ):
+            raise ConflictError(detail="Esta competencia ya está asignada al perfil en este grado")
 
-        from sqlalchemy import select
         from sqlalchemy.orm import selectinload
         result = await self.db.execute(
             select(Competencia)
@@ -426,38 +447,34 @@ class PerfilFuncionesService:
         if not catalogo:
             raise NotFoundError(entidad="Competencia", id=data.competencia_id)
 
-        orden = (await self.competencia_repo.max_orden(perfil_id)) + 1
+        orden = (await self.competencia_repo.max_orden(perfil_id, data.grado_id)) + 1
 
         requisito = await self.competencia_repo.create({
             "puesto_perfil_id": perfil_id,
             "competencia_id": data.competencia_id,
+            "grado_id": grado.id,
             "nivel_requerido": data.nivel_requerido,
             "orden": orden,
         })
-
-        return PerfilCompetenciaResponse(
-            id=requisito.id,
-            competencia_id=requisito.competencia_id,
-            competencia_nombre=catalogo.nombre,
-            tipo_competencia_id=catalogo.tipo_competencia_id,
-            tipo_nombre=catalogo.tipo_competencia.nombre if catalogo.tipo_competencia else None,
-            nivel_requerido=requisito.nivel_requerido,
-            orden=requisito.orden,
-        )
+        requisito.grado = grado
+        requisito.competencia = catalogo
+        return self._to_competencia_response(requisito)
 
     async def sincronizar_competencias(
         self,
         perfil_id: int,
+        grado_id: int,
         tipo_competencia_id: int,
         competencias: list[PerfilCompetenciaSyncItem],
         current_user: Empleado,
     ) -> list[PerfilCompetenciaResponse]:
-        """Sync competencias del catálogo por tipo (incluye nivel requerido por puesto)."""
+        """Sync competencias del catálogo por tipo y grado (incluye nivel requerido por puesto)."""
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
         await self._get_perfil_or_404(perfil_id)
+        await self.grado_service.validar_grado_activo(grado_id)
 
         result = await self.db.execute(
             select(Competencia.id).where(
@@ -477,7 +494,9 @@ class PerfilFuncionesService:
                     f"competencia_ids inválidos para tipo de competencia {tipo_competencia_id}: {sorted(invalid)}"
                 )
 
-        current = await self.competencia_repo.list_by_puesto_and_tipo(perfil_id, tipo_competencia_id)
+        current = await self.competencia_repo.list_by_puesto_and_tipo(
+            perfil_id, tipo_competencia_id, grado_id
+        )
         current_catalogo = {r.competencia_id: r for r in current if r.competencia_id in catalogo_ids}
         current_catalogo_ids = set(current_catalogo.keys())
 
@@ -490,11 +509,12 @@ class PerfilFuncionesService:
             await self.competencia_repo.delete_by_ids(ids_to_delete)
 
         if to_add:
-            orden_base = (await self.competencia_repo.max_orden(perfil_id)) + 1
+            orden_base = (await self.competencia_repo.max_orden(perfil_id, grado_id)) + 1
             for i, comp_id in enumerate(sorted(to_add)):
                 await self.competencia_repo.create({
                     "puesto_perfil_id": perfil_id,
                     "competencia_id": comp_id,
+                    "grado_id": grado_id,
                     "nivel_requerido": requested_map[comp_id],
                     "orden": orden_base + i,
                 })
@@ -506,7 +526,7 @@ class PerfilFuncionesService:
                 requisito.nivel_requerido = nuevo_nivel
                 await self.db.flush()
 
-        return await self.listar_competencias(perfil_id)
+        return await self.listar_competencias(perfil_id, grado_id)
 
     async def actualizar_nivel_competencia(
         self,
@@ -529,7 +549,8 @@ class PerfilFuncionesService:
             .options(
                 selectinload(CompetenciaRequisito.competencia).selectinload(
                     Competencia.tipo_competencia
-                )
+                ),
+                selectinload(CompetenciaRequisito.grado),
             )
             .where(
                 CompetenciaRequisito.id == requisito_id,
@@ -544,20 +565,7 @@ class PerfilFuncionesService:
         await self.db.flush()
         await self.db.refresh(requisito)
 
-        catalogo = requisito.competencia
-        return PerfilCompetenciaResponse(
-            id=requisito.id,
-            competencia_id=requisito.competencia_id,
-            competencia_nombre=catalogo.nombre if catalogo else "",
-            tipo_competencia_id=catalogo.tipo_competencia_id if catalogo else None,
-            tipo_nombre=(
-                catalogo.tipo_competencia.nombre
-                if catalogo and catalogo.tipo_competencia
-                else None
-            ),
-            nivel_requerido=requisito.nivel_requerido,
-            orden=requisito.orden,
-        )
+        return self._to_competencia_response(requisito)
 
     TIPO_COMPLEMENTOS_NOMBRE = "Complementos"
 
@@ -579,7 +587,9 @@ class PerfilFuncionesService:
         if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
 
-        all_requisitos = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
+        all_requisitos = await self.competencia_repo.list_by_puesto_with_competencia(
+            perfil_id, grado_id=asignacion.grado_id
+        )
         demostradas_ids = {
             c.id for c in all_requisitos
             if c.competencia
@@ -630,14 +640,7 @@ class PerfilFuncionesService:
     async def listar_asignaciones(self, perfil_id: int) -> list[PerfilFuncionesResponse]:
         await self._get_perfil_or_404(perfil_id)
         items = await self.asignacion_repo.list_by_perfil(perfil_id)
-        results = []
-        for a in items:
-            data = PerfilFuncionesResponse.model_validate(a)
-            if a.empleado:
-                data.nombre_empleado = a.empleado.nombre
-                data.no_empleado = a.empleado.no_empleado
-            results.append(data)
-        return results
+        return [self._to_asignacion_response(a) for a in items]
 
     async def crear_asignacion(
         self, perfil_id: int, data: PerfilFuncionesCreate, current_user: Empleado
@@ -665,13 +668,62 @@ class PerfilFuncionesService:
                 detail=f"El empleado {data.empleado_id} ya tiene una asignacion activa para este perfil"
             )
 
+        grado = await self.grado_service.validar_grado_activo(data.grado_id)
+
         asignacion = await self.asignacion_repo.create({
             "puesto_perfil_id": perfil_id,
             "empleado_id": data.empleado_id,
+            "grado_id": grado.id,
             "departamento": data.departamento,
             "activo": True,
         })
-        return PerfilFuncionesResponse.model_validate(asignacion)
+        asignacion.grado = grado
+        return self._to_asignacion_response(asignacion)
+
+    async def actualizar_asignacion(
+        self,
+        perfil_id: int,
+        asignacion_id: int,
+        data: PerfilFuncionesUpdate,
+        current_user: Empleado,
+    ) -> PerfilFuncionesResponse:
+        """Actualiza metadatos de una asignacion (p. ej. cambio de grado)."""
+        rol = self._get_rol(current_user)
+        if rol not in ("rh", "supervisor"):
+            raise ForbiddenError(detail="Solo RH o supervisor puede actualizar asignaciones")
+
+        await self._get_perfil_or_404(perfil_id)
+
+        asignacion = await self.asignacion_repo.get_with_evaluaciones(asignacion_id)
+        if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
+            raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
+
+        update_fields: dict = {}
+        if data.departamento is not None:
+            update_fields["departamento"] = data.departamento
+        if data.activo is not None:
+            update_fields["activo"] = data.activo
+
+        grado_cambiado = False
+        if data.grado_id is not None and data.grado_id != asignacion.grado_id:
+            grado = await self.grado_service.validar_grado_activo(data.grado_id)
+            update_fields["grado_id"] = grado.id
+            grado_cambiado = True
+
+        if update_fields:
+            await self.asignacion_repo.update(asignacion_id, update_fields)
+
+        if grado_cambiado:
+            valid_requisitos = await self.competencia_repo.list_by_puesto_with_competencia(
+                perfil_id, grado_id=data.grado_id
+            )
+            keep_ids = [r.id for r in valid_requisitos]
+            await self.eval_competencia_repo.delete_by_asignacion_excluding(
+                asignacion_id, keep_ids
+            )
+
+        asignacion = await self.asignacion_repo.get_with_evaluaciones(asignacion_id)
+        return self._to_asignacion_response(asignacion)
 
     async def obtener_asignacion_con_gap(self, perfil_id: int, asignacion_id: int) -> dict:
         """Retorna la asignacion con analisis de brechas (gap analysis)."""
@@ -681,9 +733,11 @@ class PerfilFuncionesService:
         if not asignacion or asignacion.puesto_perfil_id != perfil_id:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
 
-        # Obtener definiciones del perfil
+        # Obtener definiciones del perfil (competencias filtradas por grado de la asignacion)
         cualificaciones_perfil = await self.cualificacion_repo.list_by_perfil(perfil_id)
-        competencias_perfil = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
+        competencias_perfil = await self.competencia_repo.list_by_puesto_with_competencia(
+            perfil_id, grado_id=asignacion.grado_id
+        )
 
         # Mapear evaluaciones existentes
         eval_cual_map = {
@@ -768,7 +822,7 @@ class PerfilFuncionesService:
         evaluadas_comp = sum(1 for g in gap_competencias if g["evaluado"])
 
         return {
-            "asignacion": PerfilFuncionesResponse.model_validate(asignacion),
+            "asignacion": self._to_asignacion_response(asignacion),
             "gap_cualificaciones": gap_cualificaciones,
             "gap_competencias": gap_competencias,
             "resumen": {
@@ -836,7 +890,10 @@ class PerfilFuncionesService:
 
         if evaluaciones_competencia:
             valid_comp_ids = {
-                c.id for c in await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
+                c.id
+                for c in await self.competencia_repo.list_by_puesto_with_competencia(
+                    perfil_id, grado_id=asignacion.grado_id
+                )
             }
             invalid = [
                 e.competencia_requisito_id for e in evaluaciones_competencia

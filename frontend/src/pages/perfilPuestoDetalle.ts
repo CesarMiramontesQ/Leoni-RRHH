@@ -22,10 +22,12 @@ import { mountEditarCualificacionesModal } from "../components/puestos/editarCua
 import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
-import { updatePerfil } from "../api/puestos.ts";
+import { getPerfilCompetencias, updatePerfil } from "../api/puestos.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
+import { getGradosPuesto } from "../api/gradosPuesto.ts";
 import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
+import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
 import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
 
 // ── Tipos (misma forma de respuesta API) ────────────────────────────────
@@ -77,8 +79,12 @@ interface AsignacionResumen {
   empleado_id: number;
   nombre_empleado: string | null;
   no_empleado: string | null;
+  grado_id?: number;
+  grado_nombre?: string;
   activo: boolean;
 }
+
+let perfilDetalleGradoId: number | null = null;
 
 type ExecutiveSummary = {
   empleados: number;
@@ -453,19 +459,41 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
   );
 }
 
-function renderCompetencias(competencias: Competencia[]): string {
+function renderGradoSelector(grados: GradoPuesto[], selectedId: number): string {
+  if (grados.length === 0) return "";
+  const options = grados
+    .map(
+      (g) =>
+        `<option value="${g.id}" ${g.id === selectedId ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+    )
+    .join("");
+  return `
+    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div class="min-w-0 flex-1 max-w-xs">
+        <label for="ppd-grado-select" class="${RH_LISTADO_LABEL}">Grado de progresión</label>
+        <div class="grid grid-cols-1">
+          <select id="ppd-grado-select" class="col-start-1 row-start-1 ${RH_LISTADO_SELECT} ${FIELD_FOCUS}">${options}</select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>
+      <p class="text-xs text-text-muted sm:pb-2">Las competencias mostradas corresponden al grado seleccionado.</p>
+    </div>`;
+}
+
+function renderCompetencias(competencias: Competencia[], grados: GradoPuesto[], selectedGradoId: number): string {
+  const gradoSelector = renderGradoSelector(grados, selectedGradoId);
   if (competencias.length === 0) {
     return sectionShell(
       "ppd-competencias",
       "Competencias demostradas",
-      "Por categoría y nivel requerido",
+      "Por grado, categoría y nivel requerido",
       0,
       "edit-competencias",
       "Editar competencias",
-      emptyState(
+      `${gradoSelector}${emptyState(
         "Sin competencias registradas",
         isRhUser() ? "Asocia competencias del catálogo y define el nivel mínimo requerido." : undefined,
-      ),
+      )}`,
     );
   }
 
@@ -517,7 +545,7 @@ function renderCompetencias(competencias: Competencia[]): string {
     competencias.length,
     "edit-competencias",
     "Editar competencias",
-    `<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${sections}</div>`,
+    `${gradoSelector}<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${sections}</div>`,
     maxNivel >= 4 ? "ppd-section--highlight" : "",
   );
 }
@@ -673,14 +701,34 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
   }
 
   try {
-    const [puestoRaw, tareas, cualificaciones, competencias, asignaciones, cursosAsignados] = await Promise.all([
+    const [puestoRaw, tareas, cualificaciones, grados, asignaciones, cursosAsignados] = await Promise.all([
       fetchJson<Record<string, unknown>>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
       fetchJson<Cualificacion[]>(`/api/v1/perfiles/${perfilId}/cualificaciones`, token),
-      fetchJson<Competencia[]>(`/api/v1/perfiles/${perfilId}/competencias`, token),
+      getGradosPuesto({ page_size: 200 }).catch(() => [] as GradoPuesto[]),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
       getCursosPuesto(perfilId),
     ]);
+
+    const gradoDefault =
+      grados.find((g) => g.orden === 1) ?? grados[0] ?? null;
+    if (
+      perfilDetalleGradoId == null ||
+      !grados.some((g) => g.id === perfilDetalleGradoId)
+    ) {
+      perfilDetalleGradoId = gradoDefault?.id ?? null;
+    }
+    const selectedGradoId = perfilDetalleGradoId ?? gradoDefault?.id ?? 0;
+    const selectedGrado = grados.find((g) => g.id === selectedGradoId) ?? null;
+
+    let competencias: Competencia[] = [];
+    if (selectedGradoId > 0) {
+      try {
+        competencias = await getPerfilCompetencias(perfilId, selectedGradoId);
+      } catch {
+        competencias = [];
+      }
+    }
 
     const puesto: PuestoPerfilInfo | null = puestoRaw
       ? {
@@ -734,7 +782,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             ${renderCualificaciones(cualifList)}
           </div>
           <div class="flex flex-col gap-4 sm:gap-5">
-            ${renderCompetencias(compList)}
+            ${renderCompetencias(compList, grados, selectedGradoId)}
             ${renderCursosAsignados(cursosList, perfilId)}
             ${renderEmpleadosResumen(asigList, perfilId)}
           </div>
@@ -763,7 +811,25 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       const cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
 
       const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
-      const compModal = mountEditarCompetenciasModal(compHost, { perfilId, onSuccess: reload });
+      const compModal = mountEditarCompetenciasModal(compHost, {
+        perfilId,
+        gradoId: selectedGradoId,
+        gradoNombre: selectedGrado?.nombre,
+        onSuccess: reload,
+      });
+
+      const gradoSelectEl = contentEl.querySelector("#ppd-grado-select") as HTMLSelectElement | null;
+      gradoSelectEl?.addEventListener(
+        "change",
+        () => {
+          const next = Number(gradoSelectEl.value);
+          if (Number.isFinite(next) && next > 0) {
+            perfilDetalleGradoId = next;
+            void reload();
+          }
+        },
+        { signal },
+      );
 
       contentEl.addEventListener("click", async (e) => {
         const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");

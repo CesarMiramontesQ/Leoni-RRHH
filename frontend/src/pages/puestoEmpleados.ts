@@ -17,8 +17,15 @@ import {
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
-import { deletePerfilAsignacion, getAsignacionGap, getAsignacionTareasExtra } from "../api/puestos.ts";
+import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import {
+  deletePerfilAsignacion,
+  getAsignacionGap,
+  getAsignacionTareasExtra,
+  updatePerfilAsignacion,
+} from "../api/puestos.ts";
 import { getCursosPuesto, getCursosExtra } from "../api/cursos.ts";
+import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts";
 import { mountCursosExtraModal } from "../components/puestos/cursosExtraModal.ts";
@@ -32,6 +39,8 @@ interface AsignacionItem {
   empleado_id: number;
   nombre_empleado: string | null;
   no_empleado: string | null;
+  grado_id: number;
+  grado_nombre: string | null;
   departamento: string | null;
   activo: boolean;
   fecha_firma_superior: string | null;
@@ -326,6 +335,9 @@ function renderActionMenu(a: AsignacionItem, showRhActions: boolean): string {
       <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="cursos-extra" data-id="${a.id}" data-nombre="${nombre}">
         Administrar cursos extra
       </button>
+      <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="cambiar-grado" data-id="${a.id}" data-nombre="${nombre}" data-grado-id="${a.grado_id}">
+        Cambiar grado
+      </button>
       <div class="my-1 border-t border-slate-100" role="separator"></div>
       <button type="button" role="menuitem" class="ppe-menu-item ppe-menu-item--danger" data-ppe-action="desasignar" data-id="${a.id}">
         Desasignar empleado
@@ -364,6 +376,11 @@ function renderTableRows(items: AsignacionItem[], showRhActions: boolean): strin
           ${noFmt ? `<p class="mt-0.5 text-xs tabular-nums text-text-muted">No. ${escapeHtml(noFmt)}</p>` : ""}
           ${a.departamento ? `<p class="mt-1 text-xs text-text-secondary">${escapeHtml(a.departamento)}</p>` : ""}
         </div>
+      </td>
+      <td class="hidden px-4 py-4 align-middle sm:table-cell">
+        <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-text-secondary">
+          ${escapeHtml(a.grado_nombre ?? `Grado #${a.grado_id}`)}
+        </span>
       </td>
       <td class="hidden px-4 py-4 align-middle md:table-cell">
         ${acuseBadge(estado)}
@@ -467,6 +484,7 @@ function renderTableSection(
         <thead>
           <tr>
             <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Colaborador</th>
+            <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted sm:table-cell">Grado</th>
             <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted md:table-cell">Estado</th>
             <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
           </tr>
@@ -565,6 +583,39 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
     });
   }
 
+  async function handleCambiarGrado(asignacion: AsignacionItem): Promise<void> {
+    const warn =
+      "Al cambiar el grado se eliminarán evaluaciones de competencias que no correspondan al nuevo grado. ¿Continuar?";
+    if (!confirm(warn)) return;
+    try {
+      const grados = await getGradosPuesto({ page_size: 200 });
+      if (grados.length === 0) {
+        alert("No hay grados configurados.");
+        return;
+      }
+      const options = grados
+        .map((g) => `${g.orden}. ${g.nombre}${g.id === asignacion.grado_id ? " (actual)" : ""}`)
+        .join("\n");
+      const input = prompt(
+        `Selecciona el número de orden del nuevo grado:\n\n${options}`,
+        String(grados.find((g) => g.id !== asignacion.grado_id)?.orden ?? grados[0].orden),
+      );
+      if (input == null) return;
+      const orden = Number(input.trim());
+      const nuevo = grados.find((g) => g.orden === orden);
+      if (!nuevo) {
+        alert("Grado no válido.");
+        return;
+      }
+      if (nuevo.id === asignacion.grado_id) return;
+      await updatePerfilAsignacion(perfilId, asignacion.id, { grado_id: nuevo.id });
+      await loadData();
+    } catch (err: unknown) {
+      const detail = (err as { detail?: string })?.detail ?? "Error al cambiar grado.";
+      alert(detail);
+    }
+  }
+
   async function handleDesasignar(asignacionId: number): Promise<void> {
     const confirmed = confirm("¿Desasignar a este empleado del perfil? La asignación se desactivará.");
     if (!confirmed) return;
@@ -621,7 +672,16 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         onSuccess: () => void loadData(),
       }).open();
     } else if (action === "evaluar-comp") {
-      mountEvaluarCompetenciasModal(compHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      const asig = asignaciones.find((a) => a.id === asignacionId);
+      mountEvaluarCompetenciasModal(compHost, {
+        perfilId,
+        asignacionId,
+        nombreEmpleado,
+        gradoNombre: asig?.grado_nombre ?? undefined,
+      }).open();
+    } else if (action === "cambiar-grado") {
+      const asig = asignaciones.find((a) => a.id === asignacionId);
+      if (asig) void handleCambiarGrado(asig);
     } else if (action === "desasignar") {
       void handleDesasignar(asignacionId);
     }

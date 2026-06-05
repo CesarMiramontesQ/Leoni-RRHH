@@ -1,6 +1,7 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { mountGruposCompetenciaSection } from "../components/puestos/ajustes/gruposCompetenciaSection.ts";
 import { mountMetodosCalificacionSection } from "../components/puestos/ajustes/metodosCalificacionSection.ts";
+import { mountGradosSection } from "../components/puestos/ajustes/gradosSection.ts";
 import { mountNivelesSection } from "../components/puestos/ajustes/nivelesSection.ts";
 import { mountTiposCompetenciaSection } from "../components/puestos/ajustes/tiposCompetenciaSection.ts";
 import { mountTiposCualificacionSection } from "../components/puestos/ajustes/tiposCualificacionSection.ts";
@@ -24,12 +25,20 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
     mainClass: "py-5 sm:py-6",
     mainHtml: `<div id="puestos-ajustes-root" class="${RH_LISTADO_PAGE_OUTER}">
       <div id="puestos-ajustes-sections" class="flex flex-col gap-6 sm:gap-8">
-        ${renderSectionGroup(
-          "Niveles en puestos",
-          "Catálogo de niveles organizacionales para perfiles de puesto.",
-          "puestos-ajustes-niveles-title",
-          `<div id="puestos-ajustes-niveles" class="min-w-0"></div>`,
-        )}
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
+          ${renderSectionGroup(
+            "Grados en puestos",
+            "Catálogo global de grados de progresión (Grado 1–4). Las competencias requeridas se definen por grado.",
+            "puestos-ajustes-grados-title",
+            `<div id="puestos-ajustes-grados" class="min-w-0"></div>`,
+          )}
+          ${renderSectionGroup(
+            "Niveles en puestos",
+            "Catálogo de niveles organizacionales para perfiles de puesto.",
+            "puestos-ajustes-niveles-title",
+            `<div id="puestos-ajustes-niveles" class="min-w-0"></div>`,
+          )}
+        </div>
         ${renderSectionGroup(
           "Competencias",
           "Catálogos de grupos y tipos para clasificar competencias al crearlas.",
@@ -51,6 +60,11 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
       </div>
     </div>`,
   });
+
+  const gradosHost = container.querySelector("#puestos-ajustes-grados");
+  if (gradosHost instanceof HTMLElement) {
+    mountGradosSection(gradosHost, signal);
+  }
 
   const nivelesHost = container.querySelector("#puestos-ajustes-niveles");
   if (nivelesHost instanceof HTMLElement) {

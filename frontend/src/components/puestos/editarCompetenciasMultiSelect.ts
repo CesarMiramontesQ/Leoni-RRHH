@@ -17,6 +17,8 @@ export type EditarCompetenciasModalHandle = {
 
 export type EditarCompetenciasModalOptions = {
   perfilId: number;
+  gradoId: number;
+  gradoNombre?: string;
   onSuccess: () => void;
 };
 
@@ -89,7 +91,7 @@ export function mountEditarCompetenciasModal(
     try {
       const [catalogoItems, perfilComps, tipos] = await Promise.all([
         getCompetencias({ page_size: 200 }),
-        getPerfilCompetencias(options.perfilId),
+        getPerfilCompetencias(options.perfilId, options.gradoId),
         getTiposCompetencia({ page_size: 200 }),
       ]);
 
@@ -540,6 +542,7 @@ export function mountEditarCompetenciasModal(
       });
       await createPerfilCompetencia(options.perfilId, {
         competencia_id: newComp.id,
+        grado_id: options.gradoId,
         nivel_requerido: nivel,
       });
       // Reload fresh data
@@ -595,6 +598,7 @@ export function mountEditarCompetenciasModal(
         }
 
         await syncPerfilCompetencias(options.perfilId, {
+          grado_id: options.gradoId,
           tipo_competencia_id: sub.id,
           competencias,
         });
@@ -653,7 +657,7 @@ function overlayHtml(): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Asigna competencias y define el nivel mínimo requerido (1–4) para este puesto</p>
+            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Asigna competencias y define el nivel mínimo requerido (1–4) para este puesto</p>
           </div>
           <button
             type="button"

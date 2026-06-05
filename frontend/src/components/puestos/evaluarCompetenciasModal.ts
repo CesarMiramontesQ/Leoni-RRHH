@@ -22,6 +22,7 @@ export type EvaluarCompetenciasModalOptions = {
   perfilId: number;
   asignacionId: number;
   nombreEmpleado: string;
+  gradoNombre?: string;
   onSuccess?: () => void;
 };
 
@@ -48,7 +49,7 @@ export function mountEvaluarCompetenciasModal(
   host: HTMLElement,
   options: EvaluarCompetenciasModalOptions,
 ): EvaluarCompetenciasModalHandle {
-  host.innerHTML = overlayHtml(options.nombreEmpleado);
+  host.innerHTML = overlayHtml(options.nombreEmpleado, options.gradoNombre);
   const overlay = host.querySelector("#evaluar-comp-overlay") as HTMLElement;
   const body = host.querySelector("#evaluar-comp-body") as HTMLElement;
 
@@ -211,7 +212,10 @@ export function mountEvaluarCompetenciasModal(
   };
 }
 
-function overlayHtml(nombre: string): string {
+function overlayHtml(nombre: string, gradoNombre?: string): string {
+  const gradoBadge = gradoNombre
+    ? `<span class="mt-1.5 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-800">${escapeHtml(gradoNombre)}</span>`
+    : "";
   return `
     <div
       id="evaluar-comp-overlay"
@@ -228,6 +232,7 @@ function overlayHtml(nombre: string): string {
           <div>
             <h2 id="evaluar-comp-title" class="text-lg font-semibold text-text-primary">Evaluar competencias</h2>
             <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(nombre)}</p>
+            ${gradoBadge}
           </div>
           <button
             type="button"

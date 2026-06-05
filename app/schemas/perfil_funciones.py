@@ -133,6 +133,7 @@ class PerfilCualificacionResponse(BaseModel):
 
 class PerfilCompetenciaCreate(BaseModel):
     competencia_id: int
+    grado_id: int = Field(..., gt=0)
     nivel_requerido: int = Field(..., ge=1, le=4, description="Nivel mínimo requerido (1-4)")
 
 
@@ -148,6 +149,8 @@ class PerfilCompetenciaResponse(BaseModel):
     competencia_nombre: str = ""
     tipo_competencia_id: Optional[int] = None
     tipo_nombre: Optional[str] = None
+    grado_id: int
+    grado_nombre: str = ""
     nivel_requerido: int = 0
     orden: Optional[int] = None
 
@@ -160,6 +163,7 @@ class PerfilFuncionesCreate(BaseModel):
 
     puesto_perfil_id: int
     empleado_id: int
+    grado_id: int = Field(..., gt=0)
     departamento: Optional[str] = Field(None, max_length=200)
     fecha_firma_superior: Optional[date] = None
     fecha_firma_empleado: Optional[date] = None
@@ -170,6 +174,7 @@ class PerfilFuncionesCreate(BaseModel):
 class PerfilFuncionesUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
+    grado_id: Optional[int] = Field(None, gt=0)
     departamento: Optional[str] = Field(None, max_length=200)
     fecha_firma_superior: Optional[date] = None
     fecha_firma_empleado: Optional[date] = None
@@ -184,6 +189,8 @@ class PerfilFuncionesResponse(BaseModel):
     id: int
     puesto_perfil_id: int
     empleado_id: int
+    grado_id: int
+    grado_nombre: str = ""
     nombre_empleado: Optional[str] = None
     no_empleado: Optional[str] = None
     departamento: Optional[str] = None
@@ -273,6 +280,7 @@ class PerfilCompetenciaSyncItem(BaseModel):
 
 
 class PerfilCompetenciaSyncBody(BaseModel):
+    grado_id: int = Field(..., gt=0)
     tipo_competencia_id: int = Field(..., gt=0)
     competencias: list[PerfilCompetenciaSyncItem] = Field(default_factory=list)
     # Legado: si se envía sin `competencias`, se interpreta nivel 1 en altas nuevas.

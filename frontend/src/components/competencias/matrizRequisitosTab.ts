@@ -1,4 +1,5 @@
 import { updateMatrizBulk, type CompetenciasFetchError } from "../../api/competencias.ts";
+import { getGradosPuesto } from "../../api/gradosPuesto.ts";
 import {
   getAreasOptions,
   getPerfilCompetencias,
@@ -247,7 +248,14 @@ export async function loadCompetenciasPuesto(model: MatrizRequisitosModel): Prom
   model.errorMessage = null;
   model.saveMessage = null;
   try {
-    model.competencias = await getPerfilCompetencias(id);
+    const grados = await getGradosPuesto({ page_size: 200 });
+    const gradoId = (grados.find((g) => g.orden === 1) ?? grados[0])?.id;
+    if (!gradoId) {
+      model.competencias = [];
+      model.status = "ready";
+      return;
+    }
+    model.competencias = await getPerfilCompetencias(id, gradoId);
     model.pending.clear();
     model.status = "ready";
   } catch (e: unknown) {

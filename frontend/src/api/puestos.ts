@@ -301,13 +301,18 @@ export type PerfilCompetencia = {
   competencia_nombre: string;
   tipo_competencia_id: number | null;
   tipo_nombre: string | null;
+  grado_id: number;
+  grado_nombre: string;
   nivel_requerido: number;
   orden: number | null;
 };
 
-/** GET /api/v1/perfiles/:id/competencias */
-export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCompetencia[]> {
-  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`);
+/** GET /api/v1/perfiles/:id/competencias?grado_id= */
+export async function getPerfilCompetencias(
+  perfilId: number,
+  gradoId: number,
+): Promise<PerfilCompetencia[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias?grado_id=${gradoId}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilCompetencia[];
 }
@@ -315,7 +320,7 @@ export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCom
 /** POST /api/v1/perfiles/:id/competencias — agrega competencia del catálogo */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id: number; nivel_requerido: number },
+  body: { competencia_id: number; grado_id: number; nivel_requerido: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",
@@ -334,7 +339,11 @@ export type PerfilCompetenciaSyncItem = {
 /** PUT /api/v1/perfiles/:id/competencias/sync — sync multi-select por categoría */
 export async function syncPerfilCompetencias(
   perfilId: number,
-  body: { tipo_competencia_id: number; competencias: PerfilCompetenciaSyncItem[] },
+  body: {
+    grado_id: number;
+    tipo_competencia_id: number;
+    competencias: PerfilCompetenciaSyncItem[];
+  },
 ): Promise<PerfilCompetencia[]> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/sync`, {
     method: "PUT",
@@ -455,10 +464,30 @@ export async function updateEvaluaciones(
 /** POST /api/v1/perfiles/:id/asignaciones */
 export async function createPerfilAsignacion(
   perfilId: number,
-  body: { puesto_perfil_id: number; empleado_id: number; departamento?: string },
+  body: {
+    puesto_perfil_id: number;
+    empleado_id: number;
+    grado_id: number;
+    departamento?: string;
+  },
 ): Promise<unknown> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return await res.json();
+}
+
+/** PATCH /api/v1/perfiles/:id/asignaciones/:asignacionId */
+export async function updatePerfilAsignacion(
+  perfilId: number,
+  asignacionId: number,
+  body: { grado_id?: number; departamento?: string },
+): Promise<unknown> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });

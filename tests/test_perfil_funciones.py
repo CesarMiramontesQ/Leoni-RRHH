@@ -17,7 +17,12 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import auth_headers, make_empleado
-from tests.conftest_talento import make_area, make_puesto_perfil, seed_cualificaciones_catalogo
+from tests.conftest_talento import (
+    get_default_grado,
+    make_area,
+    make_puesto_perfil,
+    seed_cualificaciones_catalogo,
+)
 
 
 async def _add_perfil_cualificacion(
@@ -53,6 +58,7 @@ async def make_perfil_with_empleados(db: AsyncSession, *, count: int = 2):
     area = await make_area(db, descripcion="Calidad Test")
     rh = await make_empleado(db, rol="rh", email="pf_rh@leoni.test", nombre="RH Admin")
     perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    grado = await get_default_grado(db)
 
     empleados = []
     for i in range(count):
@@ -66,6 +72,7 @@ async def make_perfil_with_empleados(db: AsyncSession, *, count: int = 2):
         asignacion = PerfilFunciones(
             puesto_perfil_id=perfil.id,
             empleado_id=emp.id,
+            grado_id=grado.id,
             departamento="Calidad",
             activo=True,
         )
@@ -117,6 +124,7 @@ async def make_perfil_with_competencias(db: AsyncSession):
     area = await make_area(db, descripcion="Logistica Test")
     rh = await make_empleado(db, rol="rh", email="pf_comp_rh@leoni.test")
     perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    grado = await get_default_grado(db)
 
     categorias = ["informatica", "profesional", "social"]
     for i, cat in enumerate(categorias):
@@ -124,6 +132,7 @@ async def make_perfil_with_competencias(db: AsyncSession):
         comp = CompetenciaRequisito(
             competencia_id=competencia.id,
             puesto_perfil_id=perfil.id,
+            grado_id=grado.id,
             nivel_requerido=i + 1,
         )
         db.add(comp)
@@ -342,10 +351,11 @@ async def test_crear_cualificacion_success(client: AsyncClient, db):
 async def test_listar_competencias_success(client: AsyncClient, db):
     """GET /perfiles/{id}/competencias retorna competencias requeridas."""
     perfil, rh = await make_perfil_with_competencias(db)
+    grado_id = (await get_default_grado(db)).id
     headers = await auth_headers(client, rh)
 
     response = await client.get(
-        f"/api/v1/perfiles/{perfil.id}/competencias",
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={grado_id}",
         headers=headers,
     )
 
@@ -364,9 +374,10 @@ async def test_crear_competencia_success(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="pf_ccomp_rh@leoni.test")
     perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
     competencia = await make_competencia(db, nombre="Ingles B2", categoria="tecnica")
+    grado_id = (await get_default_grado(db)).id
     headers = await auth_headers(client, rh)
 
-    payload = {"competencia_id": competencia.id, "nivel_requerido": 2}
+    payload = {"competencia_id": competencia.id, "grado_id": grado_id, "nivel_requerido": 2}
     response = await client.post(
         f"/api/v1/perfiles/{perfil.id}/competencias",
         json=payload,
@@ -391,11 +402,13 @@ async def test_crear_asignacion_success(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="pf_asig_rh@leoni.test")
     emp = await make_empleado(db, rol="empleado", email="pf_asig_emp@leoni.test", nombre="Juan Garcia")
     perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    grado_id = (await get_default_grado(db)).id
     headers = await auth_headers(client, rh)
 
     payload = {
         "puesto_perfil_id": perfil.id,
         "empleado_id": emp.id,
+        "grado_id": grado_id,
         "departamento": "Produccion",
     }
     response = await client.post(
@@ -416,11 +429,13 @@ async def test_crear_asignacion_empleado_inexistente_retorna_404(client: AsyncCl
     area = await make_area(db, descripcion="Asignar 404 Test")
     rh = await make_empleado(db, rol="rh", email="pf_asig404_rh@leoni.test")
     perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    grado_id = (await get_default_grado(db)).id
     headers = await auth_headers(client, rh)
 
     payload = {
         "puesto_perfil_id": perfil.id,
         "empleado_id": 99999,
+        "grado_id": grado_id,
         "departamento": "Fantasma",
     }
     response = await client.post(
@@ -455,6 +470,7 @@ async def _setup_asignacion_con_datos(db: AsyncSession):
     comp = CompetenciaRequisito(
         competencia_id=competencia.id,
         puesto_perfil_id=perfil.id,
+        grado_id=(await get_default_grado(db)).id,
         nivel_requerido=3,
     )
     db.add(comp)
@@ -462,6 +478,7 @@ async def _setup_asignacion_con_datos(db: AsyncSession):
     asignacion = PerfilFunciones(
         puesto_perfil_id=perfil.id,
         empleado_id=emp.id,
+        grado_id=(await get_default_grado(db)).id,
         departamento="Test",
         activo=True,
     )
@@ -487,6 +504,7 @@ async def test_put_evaluaciones_cualificacion_id_invalido_retorna_422(client: As
     asignacion = PerfilFunciones(
         puesto_perfil_id=perfil.id,
         empleado_id=emp.id,
+        grado_id=(await get_default_grado(db)).id,
         departamento="Test",
         activo=True,
     )
@@ -525,6 +543,7 @@ async def test_put_evaluaciones_competencia_id_invalido_retorna_422(client: Asyn
     asignacion = PerfilFunciones(
         puesto_perfil_id=perfil.id,
         empleado_id=emp.id,
+        grado_id=(await get_default_grado(db)).id,
         departamento="Test",
         activo=True,
     )
@@ -632,6 +651,7 @@ async def test_put_evaluaciones_cualificacion_de_otro_perfil_retorna_422(client:
     asignacion_a = PerfilFunciones(
         puesto_perfil_id=perfil_a.id,
         empleado_id=emp.id,
+        grado_id=(await get_default_grado(db)).id,
         departamento="Test",
         activo=True,
     )
@@ -669,6 +689,7 @@ async def test_put_evaluaciones_multiples_ids_invalidos_reporta_todos(client: As
     asignacion = PerfilFunciones(
         puesto_perfil_id=perfil.id,
         empleado_id=emp.id,
+        grado_id=(await get_default_grado(db)).id,
         departamento="Test",
         activo=True,
     )
@@ -757,6 +778,7 @@ async def _setup_escolaridad(db: AsyncSession):
     asignacion = PerfilFunciones(
         puesto_perfil_id=perfil.id,
         empleado_id=emp.id,
+        grado_id=(await get_default_grado(db)).id,
         departamento="Test",
         activo=True,
     )
@@ -1062,7 +1084,7 @@ async def test_gap_cumple_anios(client: AsyncClient, db):
     )
 
     asignacion = PerfilFunciones(
-        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", activo=True,
+        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", grado_id=(await get_default_grado(db)).id, activo=True,
     )
     db.add(asignacion)
     await db.flush()
@@ -1103,7 +1125,7 @@ async def test_gap_no_cumple_anios(client: AsyncClient, db):
     )
 
     asignacion = PerfilFunciones(
-        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", activo=True,
+        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", grado_id=(await get_default_grado(db)).id, activo=True,
     )
     db.add(asignacion)
     await db.flush()
@@ -1142,7 +1164,7 @@ async def test_gap_na_siempre_cumple(client: AsyncClient, db):
     )
 
     asignacion = PerfilFunciones(
-        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", activo=True,
+        puesto_perfil_id=perfil.id, empleado_id=emp.id, departamento="Test", grado_id=(await get_default_grado(db)).id, activo=True,
     )
     db.add(asignacion)
     await db.flush()

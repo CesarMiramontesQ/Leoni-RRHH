@@ -119,6 +119,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/perfiles",
             "/api/v1/cualificaciones-catalogo",
             "/api/v1/niveles-puesto",
+            "/api/v1/grados-puesto",
             "/api/v1/grupos-competencia",
         ),
     ),
