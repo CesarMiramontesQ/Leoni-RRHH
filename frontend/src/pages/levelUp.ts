@@ -1,10 +1,10 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_SECONDARY, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
-import { getCursos, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra } from "../api/cursos.ts";
-import type { CursoPuestoDetail, CursoEmpleadoDetail } from "../api/cursos.ts";
-import type { Curso, CursoListResponse, CursoCreatePayload } from "../dashboard/cursos/types.ts";
-import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS } from "../dashboard/cursos/types.ts";
+import { getCursos, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
+import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible } from "../api/cursos.ts";
+import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
+import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
@@ -339,6 +339,12 @@ export function mountCursos(container: HTMLElement): void {
     detailCurso: Curso | null;
     detailPuestos: CursoPuestoDetail[];
     detailEmpleadosExtra: CursoEmpleadoDetail[];
+    detailSesiones: CursoSesion[];
+    showCreateSesionModal: boolean;
+    viewingSesion: CursoSesion | null;
+    sesionEmpleados: SesionEmpleadoItem[];
+    selectedEmpleados: Set<number>;
+    showAssignSesionPicker: boolean;
   }
 
   const state: CursosState = {
@@ -354,6 +360,12 @@ export function mountCursos(container: HTMLElement): void {
     detailCurso: null,
     detailPuestos: [],
     detailEmpleadosExtra: [],
+    detailSesiones: [],
+    showCreateSesionModal: false,
+    viewingSesion: null,
+    sesionEmpleados: [],
+    selectedEmpleados: new Set(),
+    showAssignSesionPicker: false,
   };
 
   async function loadEmpleados() {
@@ -661,21 +673,30 @@ export function mountCursos(container: HTMLElement): void {
       </div>`;
     }
     const totalEmps = puestos.reduce((s, p) => s + p.empleados_count, 0);
+    const hasSesiones = state.detailSesiones.length > 0;
 
     const puestoBlocks = puestos.map(p => {
+      const puestoEmpIds = p.empleados.map(e => e.empleado_id);
+      const allSelected = puestoEmpIds.length > 0 && puestoEmpIds.every(id => state.selectedEmpleados.has(id));
+
       const empRows = p.empleados.length > 0
-        ? p.empleados.map(e => `
+        ? p.empleados.map(e => {
+          const checked = state.selectedEmpleados.has(e.empleado_id);
+          return `
           <li class="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-0">
+            ${hasSesiones && isRH ? `<input type="checkbox" data-action="toggle-emp" data-emp-id="${e.empleado_id}" ${checked ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
             <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">${escapeHtml((e.nombre ?? "?").slice(0, 2).toUpperCase())}</span>
             <span class="text-sm text-text-primary truncate">${escapeHtml(e.nombre ?? `#${e.empleado_id}`)}</span>
             ${e.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">No. ${escapeHtml(e.no_empleado)}</span>` : ""}
-          </li>`).join("")
+          </li>`;
+        }).join("")
         : `<li class="text-xs text-slate-400 italic py-1">Sin empleados activos</li>`;
 
       return `
       <div class="border-b border-slate-100 last:border-0">
         <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50">
           <div class="flex items-center gap-2">
+            ${hasSesiones && isRH && puestoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(puestoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
             <a href="#/puestos/${p.puesto_perfil_id}" class="text-sm font-semibold text-leoni-blue hover:underline">${escapeHtml(p.puesto_nombre ?? `Puesto #${p.puesto_perfil_id}`)}</a>
             ${p.puesto_codigo ? `<span class="text-xs text-slate-400">${escapeHtml(p.puesto_codigo)}</span>` : ""}
             ${p.obligatorio ? `<span class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
@@ -705,11 +726,19 @@ export function mountCursos(container: HTMLElement): void {
         <p class="text-xs text-slate-400 italic">Sin empleados extra asignados individualmente.</p>
       </div>`;
     }
-    const rows = emps.map(e => `
+    const hasSesiones = state.detailSesiones.length > 0;
+    const allExtraIds = emps.map(e => e.empleado_id);
+    const allSelected = allExtraIds.every(id => state.selectedEmpleados.has(id));
+
+    const rows = emps.map(e => {
+      const checked = state.selectedEmpleados.has(e.empleado_id);
+      return `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60">
+        ${hasSesiones && isRH ? `<td class="px-4 py-2.5"><input type="checkbox" data-action="toggle-emp" data-emp-id="${e.empleado_id}" ${checked ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></td>` : ""}
         <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(e.nombre_empleado ?? `Empleado #${e.empleado_id}`)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-500 tabular-nums">${escapeHtml(e.no_empleado ?? "—")}</td>
-      </tr>`).join("");
+      </tr>`;
+    }).join("");
 
     return `
     <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
@@ -720,6 +749,7 @@ export function mountCursos(container: HTMLElement): void {
       <table class="w-full text-left">
         <thead class="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
+            ${hasSesiones && isRH ? `<th class="px-4 py-2.5 w-10"><input type="checkbox" data-action="toggle-all-extras" data-extra-emps='${JSON.stringify(allExtraIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></th>` : ""}
             <th class="px-4 py-2.5">Empleado</th>
             <th class="px-4 py-2.5">No. Empleado</th>
           </tr>
@@ -800,8 +830,214 @@ export function mountCursos(container: HTMLElement): void {
         </div>
       </div>
 
+      ${renderDetailSesiones()}
       ${renderDetailPuestos()}
       ${renderDetailEmpleadosExtra()}
+      ${renderSelectionBar()}
+      ${state.showAssignSesionPicker ? renderAssignSesionPicker() : ""}
+    </div>`;
+  }
+
+  function renderSelectionBar(): string {
+    const count = state.selectedEmpleados.size;
+    if (count === 0 || state.detailSesiones.length === 0 || !isRH) return "";
+    return `
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 shadow-lg">
+      <span class="text-sm font-medium text-blue-900">${count} empleado${count !== 1 ? "s" : ""} seleccionado${count !== 1 ? "s" : ""}</span>
+      <button data-action="open-assign-sesion-picker" class="${BTN_PRIMARY} text-sm">Asignar a sesión</button>
+      <button data-action="clear-selection" class="text-xs text-slate-600 hover:text-slate-900">Cancelar</button>
+    </div>`;
+  }
+
+  function renderAssignSesionPicker(): string {
+    const sesiones = state.detailSesiones.filter(s => s.estado === "programada" || s.estado === "en_curso");
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="assign-sesion">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+        <h3 class="text-lg font-semibold text-text-primary mb-1">Asignar a sesión</h3>
+        <p class="text-xs text-slate-500 mb-4">${state.selectedEmpleados.size} empleado${state.selectedEmpleados.size !== 1 ? "s" : ""} seleccionado${state.selectedEmpleados.size !== 1 ? "s" : ""}</p>
+        ${sesiones.length === 0 ? `<p class="text-sm text-slate-400 italic">No hay sesiones activas disponibles.</p>` : `
+        <div class="space-y-2 max-h-60 overflow-y-auto">
+          ${sesiones.map(s => {
+            const fecha = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+            const hora = s.hora_inicio ? ` ${s.hora_inicio.slice(0, 5)}` : "";
+            const cupo = s.cupo_max ? ` (${s.inscritos_count}/${s.cupo_max})` : "";
+            return `
+            <button data-action="assign-to-sesion" data-sesion-id="${s.id}" class="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-blue-300 hover:bg-blue-50/50 transition">
+              <div>
+                <span class="text-sm font-medium text-text-primary">${escapeHtml(fecha)}${escapeHtml(hora)}</span>
+                ${s.ubicacion ? `<span class="text-xs text-slate-500 ml-2">${escapeHtml(s.ubicacion)}</span>` : ""}
+              </div>
+              <span class="text-xs text-slate-400 tabular-nums">${escapeHtml(cupo)}</span>
+            </button>`;
+          }).join("")}
+        </div>`}
+        <div class="flex justify-end mt-4">
+          <button data-action="close-assign-sesion-picker" class="${BTN_SECONDARY} text-xs">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderDetailSesiones(): string {
+    const sesiones = state.detailSesiones;
+    const cursoId = state.detailCurso?.id;
+
+    if (sesiones.length === 0 && !isRH) {
+      return `
+      <div class="rounded-2xl border border-border bg-white shadow-sm p-6">
+        <h3 class="text-sm font-semibold text-text-primary mb-2">Sesiones programadas</h3>
+        <p class="text-xs text-slate-400 italic">Sin sesiones programadas para este curso.</p>
+      </div>`;
+    }
+
+    const estadoCls = (e: string) =>
+      e === "completada" ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+      e === "cancelada" ? "border-red-200 bg-red-50 text-red-800" :
+      e === "en_curso" ? "border-blue-200 bg-blue-50 text-blue-800" :
+      "border-slate-200 bg-slate-50 text-slate-700";
+
+    const rows = sesiones.map(s => {
+      const fecha = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" });
+      const horario = s.hora_inicio ? `${s.hora_inicio.slice(0, 5)}${s.hora_fin ? " – " + s.hora_fin.slice(0, 5) : ""}` : "—";
+      const cupo = s.cupo_max ? `${s.inscritos_count}/${s.cupo_max}` : `${s.inscritos_count}`;
+      return `
+      <tr class="border-b border-slate-100 hover:bg-slate-50/60">
+        <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(fecha)}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(horario)}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
+        <td class="px-4 py-2.5">
+          <button data-action="view-sesion-empleados" data-sesion-id="${s.id}" class="text-sm tabular-nums text-blue-600 hover:underline font-medium">${cupo}</button>
+        </td>
+        <td class="px-4 py-2.5">
+          <span class="inline-flex items-center rounded-full border ${estadoCls(s.estado)} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(ESTADO_SESION_LABELS[s.estado] ?? s.estado)}</span>
+        </td>
+        ${isRH ? `<td class="px-4 py-2.5"><button data-action="delete-sesion" data-curso-id="${cursoId}" data-sesion-id="${s.id}" class="text-xs text-red-600 hover:underline">Eliminar</button></td>` : ""}
+      </tr>`;
+    }).join("");
+
+    return `
+    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary">Sesiones programadas</h3>
+          <p class="text-xs text-slate-500 mt-0.5">${sesiones.length} sesión${sesiones.length !== 1 ? "es" : ""}</p>
+        </div>
+        ${isRH ? `<button data-action="open-create-sesion" class="${BTN_PRIMARY} text-xs">+ Crear sesión</button>` : ""}
+      </div>
+      ${sesiones.length === 0 ? `<p class="px-6 py-4 text-xs text-slate-400 italic">Sin sesiones programadas. Crea una para comenzar.</p>` : `
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead class="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-4 py-2.5">Fecha</th>
+              <th class="px-4 py-2.5">Horario</th>
+              <th class="px-4 py-2.5">Ubicación</th>
+              <th class="px-4 py-2.5">Instructor</th>
+              <th class="px-4 py-2.5">Inscritos</th>
+              <th class="px-4 py-2.5">Estado</th>
+              ${isRH ? `<th class="px-4 py-2.5"></th>` : ""}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`}
+    </div>
+    ${state.showCreateSesionModal ? renderCreateSesionModal() : ""}
+    ${state.viewingSesion ? renderSesionEmpleadosModal() : ""}`;
+  }
+
+  function renderSesionEmpleadosModal(): string {
+    const sesion = state.viewingSesion!;
+    const fecha = new Date(sesion.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+    const horario = sesion.hora_inicio ? ` — ${sesion.hora_inicio.slice(0, 5)}${sesion.hora_fin ? " a " + sesion.hora_fin.slice(0, 5) : ""}` : "";
+
+    const empleadoRows = state.sesionEmpleados.length === 0
+      ? `<p class="text-sm text-slate-400 italic py-3">Sin empleados inscritos en esta sesión.</p>`
+      : `<div class="divide-y divide-slate-100 max-h-56 overflow-y-auto border border-slate-200 rounded-lg">
+          ${state.sesionEmpleados.map(emp => `
+            <div class="flex items-center justify-between gap-2 px-3 py-2">
+              <div class="min-w-0">
+                <span class="text-sm text-text-primary truncate block">${escapeHtml(emp.nombre_empleado ?? "—")}</span>
+                <span class="text-xs text-slate-500">${escapeHtml(emp.no_empleado ?? "")}</span>
+              </div>
+              ${isRH ? `<button data-action="quitar-sesion-empleado" data-inscripcion-id="${emp.id}" class="text-xs text-red-600 hover:underline shrink-0">Quitar</button>` : ""}
+            </div>`).join("")}
+        </div>`;
+
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="sesion-empleados">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-lg font-semibold text-text-primary">Empleados inscritos</h3>
+            <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(fecha)}${escapeHtml(horario)}${sesion.ubicacion ? " — " + escapeHtml(sesion.ubicacion) : ""}</p>
+          </div>
+          <button data-action="close-sesion-empleados-modal" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        ${empleadoRows}
+        ${isRH ? `
+        <div class="border-t border-slate-200 pt-4 mt-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Agregar empleado</p>
+          <div class="flex gap-2">
+            <input id="sesion-emp-search" type="text" autocomplete="off" placeholder="Buscar por nombre o número..."
+              class="flex-1 rounded-lg border border-border bg-white px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div id="sesion-emp-results" class="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
+        </div>` : ""}
+      </div>
+    </div>`;
+  }
+
+  function renderCreateSesionModal(): string {
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="create-sesion">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 class="text-lg font-semibold text-text-primary mb-4">Crear sesión</h3>
+        <form data-form="create-sesion" class="flex flex-col gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Fecha inicio *</label>
+            <input type="date" name="fecha_inicio" required class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Fecha fin</label>
+            <input type="date" name="fecha_fin" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Hora inicio</label>
+              <input type="time" name="hora_inicio" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Hora fin</label>
+              <input type="time" name="hora_fin" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
+            <input type="text" name="ubicacion" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>
+            <input type="text" name="instructor" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Cupo máximo</label>
+            <input type="number" name="cupo_max" min="1" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+            <textarea name="notas" rows="2" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}"></textarea>
+          </div>
+          <div class="flex items-center justify-end gap-3 mt-2">
+            <button type="button" data-action="close-sesion-modal" class="${BTN_SECONDARY}">Cancelar</button>
+            <button type="submit" class="${BTN_PRIMARY}">Crear</button>
+          </div>
+        </form>
+      </div>
     </div>`;
   }
 
@@ -899,12 +1135,65 @@ export function mountCursos(container: HTMLElement): void {
   }
 
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let sesionEmpSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function bindSesionEmpleadoSearch(): void {
+    const input = container.querySelector("#sesion-emp-search") as HTMLInputElement | null;
+    if (!input) return;
+    input.addEventListener("input", () => {
+      if (sesionEmpSearchTimeout) clearTimeout(sesionEmpSearchTimeout);
+      sesionEmpSearchTimeout = setTimeout(async () => {
+        const q = input.value.trim();
+        const resultsDiv = container.querySelector("#sesion-emp-results") as HTMLElement | null;
+        if (!resultsDiv || !state.viewingSesion || !state.detailCurso) return;
+        if (q.length < 2) { resultsDiv.classList.add("hidden"); resultsDiv.innerHTML = ""; return; }
+        try {
+          const elegibles: EmpleadoElegible[] = await getSesionEmpleadosElegibles(state.detailCurso.id, state.viewingSesion.id, q);
+          if (elegibles.length === 0) {
+            resultsDiv.innerHTML = `<p class="text-xs text-slate-500 px-2 py-2">Sin empleados elegibles</p>`;
+          } else {
+            resultsDiv.innerHTML = elegibles.map(e => `
+              <button type="button" data-action="inscribir-sesion-empleado" data-empleado-id="${e.id}" class="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm rounded hover:bg-white transition">
+                <span class="truncate flex-1">${escapeHtml(e.nombre ?? "—")}</span>
+                <span class="text-xs text-slate-400">${escapeHtml(e.no_empleado ?? "")}</span>
+              </button>`).join("");
+          }
+          resultsDiv.classList.remove("hidden");
+
+          resultsDiv.querySelectorAll<HTMLButtonElement>("[data-action='inscribir-sesion-empleado']").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const empId = Number(btn.dataset.empleadoId);
+              if (!empId || !state.viewingSesion || !state.detailCurso) return;
+              btn.disabled = true;
+              try {
+                await inscribirEmpleadoSesion(state.detailCurso.id, state.viewingSesion.id, empId);
+                state.sesionEmpleados = await getSesionEmpleados(state.detailCurso.id, state.viewingSesion.id);
+                const resp = await getCursoSesiones(state.detailCurso.id);
+                state.detailSesiones = resp.items;
+                state.viewingSesion = state.detailSesiones.find(s => s.id === state.viewingSesion!.id) ?? state.viewingSesion;
+                render();
+                bindSesionEmpleadoSearch();
+              } catch (err: any) {
+                alert(err?.detail ?? "Error al inscribir empleado.");
+                btn.disabled = false;
+              }
+            });
+          });
+        } catch {
+          resultsDiv.innerHTML = `<p class="text-xs text-red-500 px-2 py-2">Error al buscar</p>`;
+          resultsDiv.classList.remove("hidden");
+        }
+      }, 320);
+    });
+  }
 
   async function handleClick(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
 
     if (t.closest("[data-action='back-to-list']")) {
       state.detailCurso = null;
+      state.selectedEmpleados = new Set();
+      state.showAssignSesionPicker = false;
       render();
       return;
     }
@@ -917,11 +1206,13 @@ export function mountCursos(container: HTMLElement): void {
         state.detailCurso = curso;
         state.detailPuestos = [];
         state.detailEmpleadosExtra = [];
+        state.detailSesiones = [];
         render();
-        Promise.all([getCursoPuestos(id), getCursoEmpleadosExtra(id)])
-          .then(([puestos, empExtra]) => {
+        Promise.all([getCursoPuestos(id), getCursoEmpleadosExtra(id), getCursoSesiones(id)])
+          .then(([puestos, empExtra, sesionesResp]) => {
             state.detailPuestos = puestos;
             state.detailEmpleadosExtra = empExtra;
+            state.detailSesiones = sesionesResp.items;
             render();
           })
           .catch(() => {});
@@ -984,7 +1275,8 @@ export function mountCursos(container: HTMLElement): void {
     const editBtn = t.closest<HTMLElement>("[data-action='edit-curso']");
     if (editBtn) {
       const id = Number(editBtn.dataset.id);
-      const curso = state.cursos.items.find(c => c.id === id);
+      const curso = state.cursos.items.find(c => c.id === id)
+        ?? (state.detailCurso?.id === id ? state.detailCurso : null);
       if (curso) {
         await loadEmpleados();
         state.editingCurso = curso;
@@ -1006,6 +1298,119 @@ export function mountCursos(container: HTMLElement): void {
         } catch (err: any) {
           alert(err?.detail ?? "No se pudo eliminar el curso.");
         }
+      }
+      return;
+    }
+
+    // ── Session handlers ──
+    if (t.closest("[data-action='open-create-sesion']")) {
+      state.showCreateSesionModal = true;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='close-sesion-modal']") || (t as HTMLElement).dataset.backdrop === "create-sesion") {
+      state.showCreateSesionModal = false;
+      render();
+      return;
+    }
+
+    const viewSesionEmpBtn = t.closest<HTMLElement>("[data-action='view-sesion-empleados']");
+    if (viewSesionEmpBtn) {
+      const sesionId = Number(viewSesionEmpBtn.dataset.sesionId);
+      const sesion = state.detailSesiones.find(s => s.id === sesionId);
+      if (!sesion || !state.detailCurso) return;
+      state.viewingSesion = sesion;
+      try {
+        state.sesionEmpleados = await getSesionEmpleados(state.detailCurso.id, sesionId);
+      } catch { state.sesionEmpleados = []; }
+      render();
+      bindSesionEmpleadoSearch();
+      return;
+    }
+
+    if (t.closest("[data-action='close-sesion-empleados-modal']") || (t as HTMLElement).dataset.backdrop === "sesion-empleados") {
+      state.viewingSesion = null;
+      state.sesionEmpleados = [];
+      render();
+      return;
+    }
+
+    const quitarEmpBtn = t.closest<HTMLElement>("[data-action='quitar-sesion-empleado']");
+    if (quitarEmpBtn) {
+      const inscId = Number(quitarEmpBtn.dataset.inscripcionId);
+      if (!inscId || !state.viewingSesion || !state.detailCurso) return;
+      try {
+        await quitarEmpleadoSesion(state.detailCurso.id, state.viewingSesion.id, inscId);
+        state.sesionEmpleados = await getSesionEmpleados(state.detailCurso.id, state.viewingSesion.id);
+        const resp = await getCursoSesiones(state.detailCurso.id);
+        state.detailSesiones = resp.items;
+        state.viewingSesion = state.detailSesiones.find(s => s.id === state.viewingSesion!.id) ?? state.viewingSesion;
+        render();
+        bindSesionEmpleadoSearch();
+      } catch (err: any) {
+        alert(err?.detail ?? "Error al quitar empleado.");
+      }
+      return;
+    }
+
+    const deleteSesionBtn = t.closest<HTMLElement>("[data-action='delete-sesion']");
+    if (deleteSesionBtn) {
+      const cursoId = Number(deleteSesionBtn.dataset.cursoId);
+      const sesionId = Number(deleteSesionBtn.dataset.sesionId);
+      if (cursoId && sesionId && confirm("¿Eliminar esta sesión?")) {
+        try {
+          await deleteCursoSesion(cursoId, sesionId);
+          const resp = await getCursoSesiones(cursoId);
+          state.detailSesiones = resp.items;
+          render();
+        } catch (err: any) {
+          alert(err?.detail ?? "No se pudo eliminar la sesión.");
+        }
+      }
+      return;
+    }
+
+    // ── Selection & assign to session handlers ──
+    if (t.closest("[data-action='open-assign-sesion-picker']")) {
+      state.showAssignSesionPicker = true;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='close-assign-sesion-picker']") || (t as HTMLElement).dataset.backdrop === "assign-sesion") {
+      state.showAssignSesionPicker = false;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='clear-selection']")) {
+      state.selectedEmpleados = new Set();
+      render();
+      return;
+    }
+
+    const assignBtn = t.closest<HTMLElement>("[data-action='assign-to-sesion']");
+    if (assignBtn) {
+      const sesionId = Number(assignBtn.dataset.sesionId);
+      const cursoId = state.detailCurso?.id;
+      if (!sesionId || !cursoId) return;
+      assignBtn.classList.add("opacity-50", "pointer-events-none");
+      let successCount = 0;
+      let errorCount = 0;
+      for (const empId of state.selectedEmpleados) {
+        try {
+          await inscribirEmpleadoSesion(cursoId, sesionId, empId);
+          successCount++;
+        } catch { errorCount++; }
+      }
+      state.selectedEmpleados = new Set();
+      state.showAssignSesionPicker = false;
+      const resp = await getCursoSesiones(cursoId);
+      state.detailSesiones = resp.items;
+      render();
+      if (errorCount > 0) {
+        alert(`${successCount} inscrito${successCount !== 1 ? "s" : ""}, ${errorCount} error${errorCount !== 1 ? "es" : ""} (posiblemente ya inscritos).`);
       }
       return;
     }
@@ -1034,24 +1439,62 @@ export function mountCursos(container: HTMLElement): void {
   }
 
   async function handleChange(e: Event): Promise<void> {
-    const t = e.target as HTMLSelectElement;
-    if (t.matches("[data-action='cursos-filter-tipo']")) {
-      state.filters.tipo = t.value;
+    const t = e.target as HTMLElement;
+
+    // ── Checkbox: toggle individual employee ──
+    if (t.matches("[data-action='toggle-emp']")) {
+      const empId = Number((t as HTMLInputElement).dataset.empId);
+      if ((t as HTMLInputElement).checked) {
+        state.selectedEmpleados.add(empId);
+      } else {
+        state.selectedEmpleados.delete(empId);
+      }
+      render();
+      return;
+    }
+
+    // ── Checkbox: toggle all employees in a puesto ──
+    if (t.matches("[data-action='toggle-puesto']")) {
+      const ids: number[] = JSON.parse((t as HTMLInputElement).dataset.puestoEmps ?? "[]");
+      const checked = (t as HTMLInputElement).checked;
+      for (const id of ids) {
+        if (checked) state.selectedEmpleados.add(id);
+        else state.selectedEmpleados.delete(id);
+      }
+      render();
+      return;
+    }
+
+    // ── Checkbox: toggle all extras ──
+    if (t.matches("[data-action='toggle-all-extras']")) {
+      const ids: number[] = JSON.parse((t as HTMLInputElement).dataset.extraEmps ?? "[]");
+      const checked = (t as HTMLInputElement).checked;
+      for (const id of ids) {
+        if (checked) state.selectedEmpleados.add(id);
+        else state.selectedEmpleados.delete(id);
+      }
+      render();
+      return;
+    }
+
+    const sel = t as HTMLSelectElement;
+    if (sel.matches("[data-action='cursos-filter-tipo']")) {
+      state.filters.tipo = sel.value;
       state.page = 1;
       await loadCursos();
       render();
-    } else if (t.matches("[data-action='cursos-filter-clasificacion']")) {
-      state.filters.clasificacion = t.value;
+    } else if (sel.matches("[data-action='cursos-filter-clasificacion']")) {
+      state.filters.clasificacion = sel.value;
       state.page = 1;
       await loadCursos();
       render();
-    } else if (t.matches("[data-action='cursos-filter-obligatorio']")) {
-      state.filters.obligatorio = t.value;
+    } else if (sel.matches("[data-action='cursos-filter-obligatorio']")) {
+      state.filters.obligatorio = sel.value;
       state.page = 1;
       await loadCursos();
       render();
-    } else if (t.matches("[data-action='cursos-filter-categoria']")) {
-      state.filters.categoria = t.value;
+    } else if (sel.matches("[data-action='cursos-filter-categoria']")) {
+      state.filters.categoria = sel.value;
       state.page = 1;
       await loadCursos();
       render();
@@ -1097,7 +1540,39 @@ export function mountCursos(container: HTMLElement): void {
 
   async function handleSubmit(e: Event): Promise<void> {
     const form = (e.target as HTMLElement).closest("form");
-    if (!form || !form.matches("[data-action='submit-curso']")) return;
+    if (!form) return;
+
+    // ── Create Sesion form ──
+    if (form.matches("[data-form='create-sesion']")) {
+      e.preventDefault();
+      const cursoId = state.detailCurso?.id;
+      if (!cursoId) return;
+      const fd = new FormData(form);
+      const payload: CursoSesionCreatePayload = {
+        fecha_inicio: fd.get("fecha_inicio") as string,
+        fecha_fin: (fd.get("fecha_fin") as string) || undefined,
+        hora_inicio: (fd.get("hora_inicio") as string) || undefined,
+        hora_fin: (fd.get("hora_fin") as string) || undefined,
+        ubicacion: (fd.get("ubicacion") as string) || undefined,
+        instructor: (fd.get("instructor") as string) || undefined,
+        cupo_max: fd.get("cupo_max") ? Number(fd.get("cupo_max")) : undefined,
+        notas: (fd.get("notas") as string) || undefined,
+      };
+      if (!payload.fecha_inicio) return;
+      try {
+        await createCursoSesion(cursoId, payload);
+        state.showCreateSesionModal = false;
+        const resp = await getCursoSesiones(cursoId);
+        state.detailSesiones = resp.items;
+        render();
+      } catch (err: any) {
+        alert(err?.detail ?? "Error al crear la sesión");
+      }
+      return;
+    }
+
+    // ── Create/Edit Curso form ──
+    if (!form.matches("[data-action='submit-curso']")) return;
     e.preventDefault();
 
     const fd = new FormData(form);
@@ -1132,6 +1607,17 @@ export function mountCursos(container: HTMLElement): void {
   }
 
   function handleKeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape" && state.viewingSesion) {
+      state.viewingSesion = null;
+      state.sesionEmpleados = [];
+      render();
+      return;
+    }
+    if (e.key === "Escape" && state.showCreateSesionModal) {
+      state.showCreateSesionModal = false;
+      render();
+      return;
+    }
     if (e.key === "Escape" && (state.showCreateModal || state.editingCurso)) {
       state.showCreateModal = false;
       state.editingCurso = null;

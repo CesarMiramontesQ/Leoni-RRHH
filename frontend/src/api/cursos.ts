@@ -4,6 +4,11 @@ import type {
   CursoListResponse,
   CursoCreatePayload,
   CursoUpdatePayload,
+  CursoSesion,
+  CursoSesionListResponse,
+  CursoSesionCreatePayload,
+  CursoSesionUpdatePayload,
+  SesionEmpleadoItem,
 } from "../dashboard/cursos/types.ts";
 
 async function readErrorDetail(res: Response): Promise<string> {
@@ -99,6 +104,8 @@ export interface CursoPuestoItem {
   puesto_perfil_id: number;
   obligatorio: boolean;
   curso_nombre: string | null;
+  sesion_id: number | null;
+  sesion_fecha: string | null;
 }
 
 export async function getCursosPuesto(perfilId: number): Promise<CursoPuestoItem[]> {
@@ -114,11 +121,14 @@ export async function asignarCursoPuesto(
   perfilId: number,
   cursoId: number,
   obligatorio: boolean = false,
+  sesionId?: number | null,
 ): Promise<CursoPuestoItem> {
+  const payload: Record<string, unknown> = { curso_id: cursoId, obligatorio };
+  if (sesionId) payload.sesion_id = sesionId;
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cursos`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ curso_id: cursoId, obligatorio }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const detail = await readErrorDetail(res);
@@ -144,6 +154,8 @@ export interface CursoEmpleadoItem {
   curso_id: number;
   empleado_id: number;
   curso_nombre: string | null;
+  sesion_id: number | null;
+  sesion_fecha: string | null;
 }
 
 export async function getCursosExtra(perfilId: number, asignacionId: number): Promise<CursoEmpleadoItem[]> {
@@ -155,11 +167,13 @@ export async function getCursosExtra(perfilId: number, asignacionId: number): Pr
   return res.json();
 }
 
-export async function asignarCursoExtra(perfilId: number, asignacionId: number, cursoId: number): Promise<CursoEmpleadoItem> {
+export async function asignarCursoExtra(perfilId: number, asignacionId: number, cursoId: number, sesionId?: number | null): Promise<CursoEmpleadoItem> {
+  const payload: Record<string, unknown> = { curso_id: cursoId };
+  if (sesionId) payload.sesion_id = sesionId;
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/cursos-extra`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ curso_id: cursoId }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const detail = await readErrorDetail(res);
@@ -214,6 +228,109 @@ export async function getCursoPuestos(cursoId: number): Promise<CursoPuestoDetai
 
 export async function getCursoEmpleadosExtra(cursoId: number): Promise<CursoEmpleadoDetail[]> {
   const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/empleados-extra`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+// ── Sesiones de un curso ──────────────────────────────────────────────────────
+
+export async function getCursoSesiones(cursoId: number): Promise<CursoSesionListResponse> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function getCursoSesion(cursoId: number, sesionId: number): Promise<CursoSesion> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function createCursoSesion(cursoId: number, data: CursoSesionCreatePayload): Promise<CursoSesion> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function updateCursoSesion(cursoId: number, sesionId: number, data: CursoSesionUpdatePayload): Promise<CursoSesion> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function deleteCursoSesion(cursoId: number, sesionId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+}
+
+// ── Empleados inscritos en sesión ────────────────────────────────────────────
+
+export async function getSesionEmpleados(cursoId: number, sesionId: number): Promise<SesionEmpleadoItem[]> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}/empleados`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function inscribirEmpleadoSesion(cursoId: number, sesionId: number, empleadoId: number): Promise<SesionEmpleadoItem> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}/empleados`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ empleado_id: empleadoId }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function quitarEmpleadoSesion(cursoId: number, sesionId: number, inscripcionId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}/empleados/${inscripcionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+}
+
+export type EmpleadoElegible = { id: number; nombre: string | null; no_empleado: string | null; origen: string };
+
+export async function getSesionEmpleadosElegibles(cursoId: number, sesionId: number, q: string): Promise<EmpleadoElegible[]> {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set("q", q.trim());
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}/empleados-elegibles?${params.toString()}`);
   if (!res.ok) {
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail };

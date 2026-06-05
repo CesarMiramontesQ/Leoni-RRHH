@@ -22,7 +22,7 @@ import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import { updatePerfil } from "../api/puestos.ts";
-import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos } from "../api/cursos.ts";
+import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
 
 // ── Tipos (misma forma de respuesta API) ────────────────────────────────
@@ -679,7 +679,10 @@ function renderCursosAsignados(cursos: CursoPuestoItem[], _perfilId: number): st
         </span>
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(cp.curso_nombre ?? `Curso #${cp.curso_id}`)}</p>
-          ${cp.obligatorio ? `<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
+          <div class="flex items-center gap-2 flex-wrap">
+            ${cp.obligatorio ? `<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
+            ${cp.sesion_fecha ? `<span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(cp.sesion_fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>` : ""}
+          </div>
         </div>
         ${isRhUser() ? `<button type="button" data-action="remove-curso" data-curso-puesto-id="${cp.id}" class="opacity-0 group-hover:opacity-100 rounded-md p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600" title="Quitar curso" aria-label="Quitar curso"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>` : ""}
       </li>`,
@@ -893,6 +896,12 @@ function openAsignarCursoModal(
           <div id="add-curso-results" class="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50">
             <p class="px-3 py-4 text-center text-xs text-text-muted">Escribe para buscar cursos</p>
           </div>
+          <div id="add-curso-sesiones" class="hidden">
+            <label class="${RH_LISTADO_LABEL}">Sesión</label>
+            <select id="add-curso-sesion-select" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS}">
+              <option value="">Sin sesión (asignar directo)</option>
+            </select>
+          </div>
           <div class="flex items-center gap-2">
             <input id="add-curso-obligatorio" type="checkbox" class="rounded border-slate-300" />
             <label for="add-curso-obligatorio" class="text-sm text-text-secondary">Marcar como obligatorio</label>
@@ -960,7 +969,10 @@ function openAsignarCursoModal(
     }, 300);
   });
 
-  resultsDiv.addEventListener("click", (e) => {
+  const sesionesDiv = host.querySelector("#add-curso-sesiones") as HTMLElement;
+  const sesionSelect = host.querySelector("#add-curso-sesion-select") as HTMLSelectElement;
+
+  resultsDiv.addEventListener("click", async (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-curso-id]");
     if (!btn) return;
     selectedCursoId = Number(btn.dataset.cursoId);
@@ -971,14 +983,36 @@ function openAsignarCursoModal(
     });
     btn.classList.add("bg-blue-50", "font-semibold", "text-blue-800");
     btn.classList.remove("text-text-primary");
+
+    // Fetch sessions for selected curso
+    try {
+      const resp = await getCursoSesiones(selectedCursoId);
+      const activas = resp.items.filter(s => s.estado === "programada" || s.estado === "en_curso");
+      if (activas.length > 0) {
+        sesionSelect.innerHTML = `<option value="">Sin sesión (asignar directo)</option>` +
+          activas.map(s => {
+            const f = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+            const h = s.hora_inicio ? ` ${s.hora_inicio.slice(0, 5)}` : "";
+            const cap = s.cupo_max ? ` (${s.inscritos_count}/${s.cupo_max})` : "";
+            return `<option value="${s.id}">${f}${h}${cap}${s.ubicacion ? " — " + s.ubicacion : ""}</option>`;
+          }).join("");
+        sesionesDiv.classList.remove("hidden");
+      } else {
+        sesionesDiv.classList.add("hidden");
+        sesionSelect.innerHTML = `<option value="">Sin sesión (asignar directo)</option>`;
+      }
+    } catch {
+      sesionesDiv.classList.add("hidden");
+    }
   });
 
   submitBtn.addEventListener("click", async () => {
     if (!selectedCursoId) return;
     submitBtn.disabled = true;
     submitBtn.textContent = "Asignando...";
+    const sesionId = sesionSelect.value ? Number(sesionSelect.value) : null;
     try {
-      await asignarCursoPuesto(perfilId, selectedCursoId, obligatorioCheck.checked);
+      await asignarCursoPuesto(perfilId, selectedCursoId, obligatorioCheck.checked, sesionId);
       close();
       document.removeEventListener("keydown", escHandler);
       onSuccess();

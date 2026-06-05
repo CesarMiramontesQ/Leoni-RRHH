@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -205,6 +205,59 @@ class CursoListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ── CursoSesion ─────────────────────────────────────────────────────────────
+
+EstadoSesionLiteral = Literal["programada", "en_curso", "completada", "cancelada"]
+
+
+class CursoSesionCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    fecha_inicio: date
+    fecha_fin: Optional[date] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    ubicacion: Optional[str] = Field(None, max_length=255)
+    instructor: Optional[str] = Field(None, max_length=255)
+    cupo_max: Optional[int] = Field(None, ge=1)
+    notas: Optional[str] = None
+
+
+class CursoSesionUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    fecha_inicio: Optional[date] = None
+    fecha_fin: Optional[date] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    ubicacion: Optional[str] = Field(None, max_length=255)
+    instructor: Optional[str] = Field(None, max_length=255)
+    cupo_max: Optional[int] = Field(None, ge=1)
+    notas: Optional[str] = None
+    estado: Optional[EstadoSesionLiteral] = None
+
+
+class CursoSesionResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    curso_id: int
+    fecha_inicio: date
+    fecha_fin: Optional[date] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    ubicacion: Optional[str] = None
+    instructor: Optional[str] = None
+    cupo_max: Optional[int] = None
+    notas: Optional[str] = None
+    estado: str
+    inscritos_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class CursoSesionListResponse(BaseModel):
+    items: list[CursoSesionResponse]
+    total: int
 
 
 # ── OPL ──────────────────────────────────────────────────────────────────────

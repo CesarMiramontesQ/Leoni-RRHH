@@ -112,6 +112,8 @@ class CursoPuestoDetail(BaseModel):
     puesto_nombre: str | None = None
     puesto_codigo: str | None = None
     obligatorio: bool
+    sesion_id: int | None = None
+    sesion_fecha: str | None = None
     empleados_count: int = 0
     empleados: list[CursoPuestoEmpleado] = []
 
@@ -121,6 +123,9 @@ class CursoEmpleadoDetail(BaseModel):
     empleado_id: int
     nombre_empleado: str | None = None
     no_empleado: str | None = None
+    sesion_id: int | None = None
+    sesion_fecha: str | None = None
+    asistio: bool | None = None
 
 
 @router.get("/{id}/puestos", response_model=list[CursoPuestoDetail])
@@ -132,7 +137,7 @@ async def listar_puestos_del_curso(
     """Lista los puestos asignados a este curso, con conteo de empleados por puesto."""
     stmt = (
         select(CursoPuesto)
-        .options(selectinload(CursoPuesto.puesto_perfil))
+        .options(selectinload(CursoPuesto.puesto_perfil), selectinload(CursoPuesto.sesion))
         .where(CursoPuesto.curso_id == id)
         .order_by(CursoPuesto.created_at.desc())
     )
@@ -165,6 +170,8 @@ async def listar_puestos_del_curso(
             puesto_nombre=cp.puesto_perfil.nombre if cp.puesto_perfil else None,
             puesto_codigo=cp.puesto_perfil.codigo if cp.puesto_perfil else None,
             obligatorio=cp.obligatorio,
+            sesion_id=cp.sesion_id,
+            sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
             empleados_count=len(empleados_list),
             empleados=empleados_list,
         ))
@@ -180,7 +187,7 @@ async def listar_empleados_extra_del_curso(
     """Lista empleados individuales asignados a este curso (no via puesto)."""
     stmt = (
         select(CursoEmpleado)
-        .options(selectinload(CursoEmpleado.empleado))
+        .options(selectinload(CursoEmpleado.empleado), selectinload(CursoEmpleado.sesion))
         .where(CursoEmpleado.curso_id == id)
         .order_by(CursoEmpleado.created_at.desc())
     )
@@ -192,6 +199,9 @@ async def listar_empleados_extra_del_curso(
             empleado_id=ce.empleado_id,
             nombre_empleado=ce.empleado.nombre if ce.empleado else None,
             no_empleado=ce.empleado.no_empleado if ce.empleado else None,
+            sesion_id=ce.sesion_id,
+            sesion_fecha=str(ce.sesion.fecha_inicio) if ce.sesion else None,
+            asistio=ce.asistio,
         )
         for ce in items
     ]

@@ -811,12 +811,16 @@ async function openDetalleModal(
     const cursosRows = cursosAsignados
       .map((c) => {
         const oblig = c.obligatorio ? `<span class="ml-2 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : "";
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${oblig}</td></tr>`;
+        const sesion = c.sesion_fecha ? `<span class="ml-2 inline-flex rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(c.sesion_fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>` : "";
+        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${oblig}${sesion}</td></tr>`;
       })
       .join("");
 
     const cursosExtraRows = cursosExtra
-      .map((c) => `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}</td></tr>`)
+      .map((c) => {
+        const sesion = c.sesion_fecha ? `<span class="ml-2 inline-flex rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(c.sesion_fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>` : "";
+        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${sesion}</td></tr>`;
+      })
       .join("");
 
     body.innerHTML = `
