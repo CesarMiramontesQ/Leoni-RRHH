@@ -2411,6 +2411,85 @@ components:
         page_size:
           type: integer
 
+    MetodoCalificacionCompetenciaUpdate:
+      type: object
+      required: [nombre, orden]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 1
+          maximum: 4
+
+    MetodoCalificacionCompetenciaResponse:
+      type: object
+      required: [id, valor, nombre, orden, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        valor:
+          type: integer
+          minimum: 1
+          maximum: 4
+        nombre:
+          type: string
+        orden:
+          type: integer
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MetodoCalificacionCompetenciaListResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
+        total:
+          type: integer
+
+    MetodoCalificacionCompetenciaResumen:
+      type: object
+      required: [valor, nombre, orden]
+      properties:
+        valor:
+          type: integer
+        nombre:
+          type: string
+        orden:
+          type: integer
+
+    MultihabilidadesResponse:
+      type: object
+      required: [puesto_perfil_id, puesto_nombre, competencias, empleados]
+      properties:
+        puesto_perfil_id:
+          type: integer
+        puesto_nombre:
+          type: string
+        competencias:
+          type: array
+          items:
+            type: object
+        empleados:
+          type: array
+          items:
+            type: object
+        metodos_calificacion:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetodoCalificacionCompetenciaResumen"
+
     GrupoCompetenciaCreate:
       type: object
       required: [nombre]
@@ -6644,6 +6723,104 @@ paths:
       responses:
         "204":
           description: Grado eliminado
+
+  # ── Talento — Metodos Calificacion Competencia ───────
+  /api/v1/metodos-calificacion-competencia:
+    get:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Listar metodos de calificacion de competencias
+      operationId: metodos_calificacion_competencia_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de metodos (Planeado a Experto)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionCompetenciaListResponse"
+
+  /api/v1/metodos-calificacion-competencia/{id}:
+    get:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Obtener metodo de calificacion de competencias
+      operationId: metodos_calificacion_competencia_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del metodo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
+    patch:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Actualizar metodo de calificacion de competencias
+      operationId: metodos_calificacion_competencia_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetodoCalificacionCompetenciaUpdate"
+      responses:
+        "200":
+          description: Metodo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
+
+  /api/v1/competencias/multihabilidades/puestos:
+    get:
+      tags: [Talento - Competencias]
+      summary: Listar puestos para matriz de multihabilidades
+      operationId: competencias_multihabilidades_puestos
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Puestos con competencias configuradas
+
+  /api/v1/competencias/multihabilidades:
+    get:
+      tags: [Talento - Competencias]
+      summary: Matriz de multihabilidades por puesto
+      operationId: competencias_multihabilidades
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: puesto_perfil_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: nombre
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matriz empleados x competencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultihabilidadesResponse"
 
   # ── Talento — Cualificaciones Catálogo ───────────────
   /api/v1/cualificaciones-catalogo/tipos:

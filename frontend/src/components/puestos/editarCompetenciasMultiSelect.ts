@@ -7,7 +7,7 @@ import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
 import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { NIVEL_REQUERIDO_OPTIONS } from "../../ui/nivelCompetencia.ts";
+import { getNivelRequeridoOptions, ensureMetodosCalificacionCompetenciaLoaded } from "../../ui/nivelCompetencia.ts";
 import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
 export type EditarCompetenciasModalHandle = {
@@ -47,7 +47,7 @@ function tipoChipColors(tipoId: number, tipos: TipoCompetencia[]): string {
 }
 
 function compactNivelSelect(selected: number, attrs: string): string {
-  const opts = NIVEL_REQUERIDO_OPTIONS.map(
+  const opts = getNivelRequeridoOptions().map(
     (o) =>
       `<option value="${o.value}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
   ).join("");
@@ -89,6 +89,7 @@ export function mountEditarCompetenciasModal(
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
+      await ensureMetodosCalificacionCompetenciaLoaded();
       const [catalogoItems, perfilComps, tipos] = await Promise.all([
         getCompetencias({ page_size: 200 }),
         getPerfilCompetencias(options.perfilId, options.gradoId),
@@ -270,7 +271,7 @@ export function mountEditarCompetenciasModal(
         ? (() => {
             const comp = catalogo.find((c) => c.id === pickNivelCompId);
             if (!comp) return "";
-            const nivelOpts = NIVEL_REQUERIDO_OPTIONS.map(
+            const nivelOpts = getNivelRequeridoOptions().map(
               (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
             ).join("");
             return `
@@ -321,7 +322,7 @@ export function mountEditarCompetenciasModal(
       `<option value="${s.id}">${escapeHtml(s.nombre)}</option>`,
     ).join("");
 
-    const nivelOpts = NIVEL_REQUERIDO_OPTIONS.map(
+    const nivelOpts = getNivelRequeridoOptions().map(
       (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
     ).join("");
 

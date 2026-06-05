@@ -227,6 +227,12 @@ class MultihabilidadesCompetenciaItem(BaseModel):
     nivel_requerido: int
 
 
+class MetodoCalificacionCompetenciaResumen(BaseModel):
+    valor: int
+    nombre: str
+    orden: int
+
+
 class MultihabilidadesEmpleadoItem(BaseModel):
     empleado_id: int
     nombre: str
@@ -239,6 +245,7 @@ class MultihabilidadesResponse(BaseModel):
     puesto_nombre: str
     competencias: list[MultihabilidadesCompetenciaItem]
     empleados: list[MultihabilidadesEmpleadoItem]
+    metodos_calificacion: list[MetodoCalificacionCompetenciaResumen] = []
 
 
 class MultihabilidadesPuestoOption(BaseModel):

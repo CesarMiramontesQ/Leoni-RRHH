@@ -1,5 +1,6 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { mountGruposCompetenciaSection } from "../components/puestos/ajustes/gruposCompetenciaSection.ts";
+import { mountMetodosCalificacionCompetenciaSection } from "../components/puestos/ajustes/metodosCalificacionCompetenciaSection.ts";
 import { mountMetodosCalificacionSection } from "../components/puestos/ajustes/metodosCalificacionSection.ts";
 import { mountGradosSection } from "../components/puestos/ajustes/gradosSection.ts";
 import { mountNivelesSection } from "../components/puestos/ajustes/nivelesSection.ts";
@@ -41,11 +42,14 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
         </div>
         ${renderSectionGroup(
           "Competencias",
-          "Catálogos de grupos y tipos para clasificar competencias al crearlas.",
+          "Catálogos de grupos, tipos y métodos de calificación para la matriz de multihabilidad.",
           "puestos-ajustes-competencias-title",
-          `<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div id="puestos-ajustes-grupos" class="min-w-0"></div>
-            <div id="puestos-ajustes-tipos" class="min-w-0"></div>
+          `<div class="flex flex-col gap-6">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div id="puestos-ajustes-grupos" class="min-w-0"></div>
+              <div id="puestos-ajustes-tipos" class="min-w-0"></div>
+            </div>
+            <div id="puestos-ajustes-metodos-calificacion-competencia" class="min-w-0"></div>
           </div>`,
         )}
         ${renderSectionGroup(
@@ -79,6 +83,11 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
   const tiposHost = container.querySelector("#puestos-ajustes-tipos");
   if (tiposHost instanceof HTMLElement) {
     mountTiposCompetenciaSection(tiposHost, signal);
+  }
+
+  const metodosCompHost = container.querySelector("#puestos-ajustes-metodos-calificacion-competencia");
+  if (metodosCompHost instanceof HTMLElement) {
+    mountMetodosCalificacionCompetenciaSection(metodosCompHost, signal);
   }
 
   const tiposCualHost = container.querySelector("#puestos-ajustes-tipos-cualificacion");

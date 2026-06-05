@@ -1,11 +1,12 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
   getEmpleadoResumen,
-  NIVEL_LABELS,
+  getNivelLabels,
   NIVEL_COLORS,
   type EmpleadoResumen,
   type CompetenciaResumenItem,
 } from "../api/evaluaciones.ts";
+import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
 
 export function mountEvaluacionEmpleado(
   container: HTMLElement,
@@ -36,7 +37,7 @@ export function mountEvaluacionEmpleado(
   }
 
   function renderNivelBadge(nivel: number): string {
-    const label = NIVEL_LABELS[nivel] ?? `${nivel}`;
+    const label = getNivelLabels()[nivel] ?? `${nivel}`;
     const color = NIVEL_COLORS[nivel] ?? "bg-gray-100 text-gray-600";
     return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}">${label}</span>`;
   }
@@ -139,6 +140,7 @@ export function mountEvaluacionEmpleado(
 
   async function load() {
     root.innerHTML = renderLoading();
+    await ensureMetodosCalificacionCompetenciaLoaded();
     const data = await getEmpleadoResumen(empleadoId);
     if (!data) {
       root.innerHTML = renderError();

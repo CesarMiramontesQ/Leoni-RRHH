@@ -252,6 +252,9 @@ from app.api.v1.level_up.router_curso_sesiones import router as level_up_curso_s
 from app.api.v1.tareas_catalogo.router import router as tareas_catalogo_router
 from app.api.v1.niveles_puesto.router import router as niveles_puesto_router
 from app.api.v1.grados_puesto.router import router as grados_puesto_router
+from app.api.v1.metodos_calificacion_competencia.router import (
+    router as metodos_calificacion_competencia_router,
+)
 from app.api.v1.tipos_competencia.router import router as tipos_competencia_router
 from app.api.v1.grupos_competencia.router import router as grupos_competencia_router
 from app.api.v1.perfil_funciones.router import router as perfil_funciones_router
@@ -280,6 +283,7 @@ app.include_router(all_sesiones_router)
 app.include_router(tareas_catalogo_router)
 app.include_router(niveles_puesto_router)
 app.include_router(grados_puesto_router)
+app.include_router(metodos_calificacion_competencia_router)
 app.include_router(tipos_competencia_router)
 app.include_router(grupos_competencia_router)
 app.include_router(perfil_funciones_router)

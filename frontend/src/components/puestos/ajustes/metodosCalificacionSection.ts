@@ -323,8 +323,8 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
     sectionEl.innerHTML =
       ajustesSectionCard({
         titleId: "metodos-section-title",
-        title: "Métodos de calificación",
-        description: "Reglas de evaluación y comparación para cualificaciones.",
+        title: "Métodos de evaluación",
+        description: "Reglas de evaluación y comparación para cualificaciones del perfil.",
         actionButtonHtml: `<button type="button" data-metodo-create class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo método</span></button>`,
         bodyHtml: renderMetodoTable(),
       }) +

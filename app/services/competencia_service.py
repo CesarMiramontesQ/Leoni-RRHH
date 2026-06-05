@@ -41,6 +41,9 @@ from app.repositories.perfil_funciones_repository import (
     PerfilFuncionesRepository,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
+from app.services.metodo_calificacion_competencia_service import (
+    MetodoCalificacionCompetenciaService,
+)
 from app.services.tipo_competencia_service import TipoCompetenciaService
 from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 from app.schemas.talento import (
@@ -57,6 +60,7 @@ from app.schemas.talento import (
     MatrizRow,
     MultihabilidadesCompetenciaItem,
     MultihabilidadesEmpleadoItem,
+    MetodoCalificacionCompetenciaResumen,
     MultihabilidadesPuestoOption,
     MultihabilidadesResponse,
     PuestoPerfilResponse,
@@ -659,11 +663,18 @@ class CompetenciaService:
         )
 
         if not requisitos:
+            metodos = await MetodoCalificacionCompetenciaService(self.db).listar_resumen()
             return MultihabilidadesResponse(
                 puesto_perfil_id=puesto.id,
                 puesto_nombre=puesto.nombre,
                 competencias=[],
                 empleados=[],
+                metodos_calificacion=[
+                    MetodoCalificacionCompetenciaResumen(
+                        valor=m.valor, nombre=m.nombre, orden=m.orden
+                    )
+                    for m in metodos
+                ],
             )
 
         asignaciones = await self.pf_repo.list_by_perfil(puesto_perfil_id)
@@ -717,9 +728,17 @@ class CompetenciaService:
             for a in asignaciones
         ]
 
+        metodos = await MetodoCalificacionCompetenciaService(self.db).listar_resumen()
+
         return MultihabilidadesResponse(
             puesto_perfil_id=puesto.id,
             puesto_nombre=puesto.nombre,
             competencias=competencias_out,
             empleados=empleados_out,
+            metodos_calificacion=[
+                MetodoCalificacionCompetenciaResumen(
+                    valor=m.valor, nombre=m.nombre, orden=m.orden
+                )
+                for m in metodos
+            ],
         )

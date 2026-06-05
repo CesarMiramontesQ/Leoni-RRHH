@@ -10,6 +10,10 @@ import {
 } from "../../api/puestos.ts";
 import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
 import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
+import {
+  buildNivelMetodoOptions,
+  ensureMetodosCalificacionCompetenciaLoaded,
+} from "../../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
@@ -37,14 +41,6 @@ const TIPO_CHIP_PALETTE = [
 
 const TIPO_COMPLEMENTOS = "Complementos";
 
-const NIVEL_LABELS: Record<number, string> = {
-  0: "0 — N/A",
-  1: "1 — Planeado",
-  2: "2 — En entrenamiento",
-  3: "3 — Certificado",
-  4: "4 — Experto",
-};
-
 export function mountEvaluarCompetenciasModal(
   host: HTMLElement,
   options: EvaluarCompetenciasModalOptions,
@@ -68,6 +64,7 @@ export function mountEvaluarCompetenciasModal(
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando evaluación...</p>`;
     try {
+      await ensureMetodosCalificacionCompetenciaLoaded();
       const [gap, tipos] = await Promise.all([
         getAsignacionGap(options.perfilId, options.asignacionId),
         getTiposCompetencia({ page_size: 200 }),
@@ -102,9 +99,12 @@ export function mountEvaluarCompetenciasModal(
       const rows = items.map(item => {
         const reqId = item.competencia_requisito_id;
         const currentNivel = niveles.get(reqId) ?? 0;
-        const opts = [0, 1, 2, 3, 4].map(n =>
-          `<option value="${n}" ${currentNivel === n ? "selected" : ""}>${NIVEL_LABELS[n]}</option>`
-        ).join("");
+        const opts = buildNivelMetodoOptions(true)
+          .map(
+            (o) =>
+              `<option value="${o.value}" ${currentNivel === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
+          )
+          .join("");
 
         return `
           <div class="flex items-center gap-3 py-2">

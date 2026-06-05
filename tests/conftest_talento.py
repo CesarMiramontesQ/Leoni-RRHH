@@ -26,6 +26,7 @@ from app.models.talento import (
     GradoPuesto,
     GrupoCompetencia,
     MetodoCalificacion,
+    MetodoCalificacionCompetencia,
     NivelPuesto,
     OpcionCalificacion,
     PerfilFunciones,
@@ -114,6 +115,50 @@ async def get_default_grado(db: AsyncSession) -> GradoPuesto:
     if grado:
         return grado
     return await make_grado_puesto(db, nombre="Grado 1", orden=1)
+
+
+METODOS_CALIFICACION_COMPETENCIA_SEED = [
+    (1, "Planeado", 1),
+    (2, "En entrenamiento", 2),
+    (3, "Certificado", 3),
+    (4, "Experto", 4),
+]
+
+
+async def ensure_metodos_calificacion_competencia(
+    db: AsyncSession,
+) -> list[MetodoCalificacionCompetencia]:
+    """Asegura los 4 metodos de calificacion de competencias en tests."""
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(MetodoCalificacionCompetencia).where(
+            MetodoCalificacionCompetencia.activo.is_(True)
+        )
+    )
+    existing = list(result.scalars().all())
+    if len(existing) >= 4:
+        return sorted(existing, key=lambda m: m.orden)
+
+    for valor, nombre, orden in METODOS_CALIFICACION_COMPETENCIA_SEED:
+        found = next((m for m in existing if m.valor == valor), None)
+        if found:
+            continue
+        db.add(
+            MetodoCalificacionCompetencia(
+                valor=valor,
+                nombre=nombre,
+                orden=orden,
+                activo=True,
+            )
+        )
+    await db.flush()
+    result = await db.execute(
+        select(MetodoCalificacionCompetencia).where(
+            MetodoCalificacionCompetencia.activo.is_(True)
+        )
+    )
+    return sorted(list(result.scalars().all()), key=lambda m: m.orden)
 
 
 async def make_puesto_perfil(

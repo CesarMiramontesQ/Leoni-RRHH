@@ -7,6 +7,13 @@ import {
   type MultihabilidadesEmpleado,
   type MultihabilidadesResponse,
 } from "../api/competencias.ts";
+import {
+  buildNivelMetodoLabelsMap,
+  buildNivelMetodoOptions,
+  nivelMetodoLabel,
+  nivelMetodoLegendTone,
+  setMetodosCalificacionCompetenciaCache,
+} from "../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   FIELD_FOCUS,
@@ -331,15 +338,18 @@ function renderSinNivelRequeridoBanner(competencias: MultihabilidadesCompetencia
 }
 
 function renderLegend(): string {
+  const badges = buildNivelMetodoOptions(false)
+    .map(
+      (o) =>
+        legendBadge(nivelMetodoLegendTone(o.value), o.label),
+    )
+    .join("");
   return `
   <section class="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3.5 sm:px-5" aria-label="Leyenda de niveles de dominio">
     <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
       <span class="text-xs font-semibold uppercase tracking-wide text-text-secondary shrink-0">Nivel de dominio</span>
       <div class="flex flex-wrap items-center gap-2">
-        ${legendBadge("bg-red-100 ring-1 ring-red-200/80", "1 — Planeado")}
-        ${legendBadge("bg-orange-100 ring-1 ring-orange-200/80", "2 — En entrenamiento")}
-        ${legendBadge("bg-amber-100 ring-1 ring-amber-200/80", "3 — Certificado")}
-        ${legendBadge("bg-emerald-100 ring-1 ring-emerald-200/80", "4 — Experto")}
+        ${badges}
         ${legendBadge("bg-slate-50 ring-1 ring-dashed ring-slate-300", "0 — Sin evaluar")}
       </div>
       <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
@@ -359,7 +369,7 @@ function renderLevelCell(nivel: number, required: number): string {
   const cls = capCellClasses(nivel, required);
   const below = required > 0 && nivel < required;
   const display = nivel === 0 ? "—" : String(nivel);
-  const title = nivel === 0 ? "Sin evaluar" : `Nivel ${nivel}`;
+  const title = nivel === 0 ? "Sin evaluar" : nivelMetodoLabel(nivel, false);
   return `<td class="px-1 py-1.5 text-center align-middle">
     <span class="relative inline-flex size-8 items-center justify-center rounded-md text-xs font-bold tabular-nums ${cls}" title="${escapeHtml(title)}">
       ${below ? `<span class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true"></span>` : ""}
@@ -409,7 +419,7 @@ function renderHeatmap(
     </div>`;
   }
 
-  const nivelNames = ["—", "Planeado", "En entrenamiento", "Certificado", "Experto"];
+  const nivelNames = buildNivelMetodoLabelsMap(true);
   const colHeaders = competencias
     .map((c) => {
       const reqLabel = nivelNames[c.nivel_requerido] ?? "—";
@@ -600,6 +610,9 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
     try {
       const data = await getMultihabilidadesData(selectedPuestoId);
       if (version !== loadVersion) return;
+      if (data.metodos_calificacion?.length) {
+        setMetodosCalificacionCompetenciaCache(data.metodos_calificacion);
+      }
       matrizData = data;
       status = "ready";
     } catch (err: unknown) {

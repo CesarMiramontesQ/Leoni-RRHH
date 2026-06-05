@@ -8,30 +8,22 @@ import {
 } from "../../api/puestos.ts";
 import type { NivelMatriz } from "../../dashboard/competencias/types.ts";
 import type { PerfilPuestoListItem } from "../../dashboard/puestos/types.ts";
+import {
+  buildNivelMetodoOptions,
+  ensureMetodosCalificacionCompetenciaLoaded,
+  nivelMetodoSelectTone,
+} from "../../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   BTN_PRIMARY,
-  BTN_SECONDARY,
   FIELD_FOCUS,
   RH_LISTADO_SURFACE,
   RH_LISTADO_FOCUS_RING,
   SELECT_CHEVRON,
 } from "../../ui/uiTokens.ts";
 
-const NIVEL_OPTIONS: { value: NivelMatriz; label: string }[] = [
-  { value: 0, label: "0 — N/A" },
-  { value: 1, label: "1 — Planeado" },
-  { value: 2, label: "2 — En entrenamiento" },
-  { value: 3, label: "3 — Certificado" },
-  { value: 4, label: "4 — Experto" },
-];
-
 function selectTone(nivel: number): string {
-  if (nivel === 0) return "border-dashed border-slate-200 bg-slate-50 text-slate-600";
-  if (nivel === 1) return "border-red-200 bg-red-50 text-red-900";
-  if (nivel === 2) return "border-orange-200 bg-orange-50 text-orange-900";
-  if (nivel === 3) return "border-amber-200 bg-amber-50 text-amber-900";
-  return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  return nivelMetodoSelectTone(nivel);
 }
 
 export type MatrizRequisitosModel = {
@@ -98,11 +90,12 @@ export function renderMatrizRequisitosTab(model: MatrizRequisitosModel): string 
     .join("");
 
   const puesto = puestoSeleccionado(model);
+  const nivelOptions = buildNivelMetodoOptions(true);
 
   const legend = `
     <div class="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
       <span class="font-semibold uppercase tracking-wide">Nivel mínimo requerido</span>
-      ${NIVEL_OPTIONS.map(
+      ${nivelOptions.map(
         (o) =>
           `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${selectTone(o.value)}">${escapeHtml(o.label)}</span>`,
       ).join("")}
@@ -130,7 +123,7 @@ export function renderMatrizRequisitosTab(model: MatrizRequisitosModel): string 
         const sub = comp.tipo_nombre
           ? escapeHtml(comp.tipo_nombre)
           : "—";
-        const opts = NIVEL_OPTIONS.map(
+        const opts = nivelOptions.map(
           (o) =>
             `<option value="${o.value}" ${o.value === nivel ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
         ).join("");
@@ -222,6 +215,7 @@ export function renderMatrizRequisitosTab(model: MatrizRequisitosModel): string 
 }
 
 export async function loadMatrizFilterOptions(model: MatrizRequisitosModel): Promise<void> {
+  await ensureMetodosCalificacionCompetenciaLoaded();
   model.areaOptions = await getAreasOptions();
 }
 
@@ -248,6 +242,7 @@ export async function loadCompetenciasPuesto(model: MatrizRequisitosModel): Prom
   model.errorMessage = null;
   model.saveMessage = null;
   try {
+    await ensureMetodosCalificacionCompetenciaLoaded();
     const grados = await getGradosPuesto({ page_size: 200 });
     const gradoId = (grados.find((g) => g.orden === 1) ?? grados[0])?.id;
     if (!gradoId) {

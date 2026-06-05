@@ -552,6 +552,36 @@ class GradoPuesto(Base):
         return f"<GradoPuesto id={self.id} nombre={self.nombre} orden={self.orden}>"
 
 
+class MetodoCalificacionCompetencia(Base):
+    """Catalogo de metodos de calificacion para competencias (niveles 1-4)."""
+
+    __tablename__ = "metodos_calificacion_competencia"
+    __table_args__ = (
+        CheckConstraint(
+            "valor >= 1 AND valor <= 4",
+            name="ck_metodo_calificacion_competencia_valor",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    valor: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+    orden: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MetodoCalificacionCompetencia id={self.id} valor={self.valor} "
+            f"nombre={self.nombre} orden={self.orden}>"
+        )
+
+
 class NivelPuesto(Base):
     """Catalogo de niveles organizacionales para perfiles de puesto."""
 

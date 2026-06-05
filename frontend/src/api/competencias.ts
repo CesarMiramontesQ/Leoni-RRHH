@@ -1,4 +1,5 @@
 import { fetchWithAuth } from "./http.ts";
+import type { MetodoCalificacionCompetenciaResumen } from "../dashboard/metodosCalificacionCompetencia/types.ts";
 import type {
   CeldaMatriz,
   Competencia,
@@ -337,6 +338,7 @@ export type MultihabilidadesResponse = {
   puesto_nombre: string;
   competencias: MultihabilidadesCompetencia[];
   empleados: MultihabilidadesEmpleado[];
+  metodos_calificacion?: MetodoCalificacionCompetenciaResumen[];
 };
 
 /** GET /api/v1/competencias/multihabilidades/puestos */
