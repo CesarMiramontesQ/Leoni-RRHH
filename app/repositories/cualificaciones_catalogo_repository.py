@@ -135,6 +135,7 @@ class OpcionCalificacionRepository(BaseRepository[OpcionCalificacion]):
     ) -> bool:
         query = select(OpcionCalificacion).where(
             OpcionCalificacion.metodo_calificacion_id == metodo_id,
+            OpcionCalificacion.activo.is_(True),
             func.lower(OpcionCalificacion.valor) == valor.lower(),
         )
         if exclude_id:

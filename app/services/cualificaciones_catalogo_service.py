@@ -328,7 +328,7 @@ class CualificacionesCatalogoService:
         metodo = await self.metodo_repo.get(metodo_id)
         if not metodo:
             raise NotFoundError(entidad="MetodoCalificacion", id=metodo_id)
-        opciones = await self.opcion_repo.list_by_metodo(metodo_id, solo_activos=False)
+        opciones = await self.opcion_repo.list_by_metodo(metodo_id, solo_activos=True)
         return [self._to_opcion_response(o) for o in opciones]
 
     async def crear_opcion(
@@ -381,6 +381,8 @@ class CualificacionesCatalogoService:
         self._require_rh(user)
         opcion = await self.opcion_repo.get(opcion_id)
         if not opcion or opcion.metodo_calificacion_id != metodo_id:
+            raise NotFoundError(entidad="OpcionCalificacion", id=opcion_id)
+        if not opcion.activo:
             raise NotFoundError(entidad="OpcionCalificacion", id=opcion_id)
         await self.opcion_repo.update(opcion_id, {"activo": False})
 
