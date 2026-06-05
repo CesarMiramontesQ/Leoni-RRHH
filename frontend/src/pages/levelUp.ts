@@ -317,7 +317,7 @@ function renderDashboardPage(): string {
 
 export function mountLevelUpDashboard(container: HTMLElement): void {
   mountAppShell(container, {
-    pageTitle: "Level Up",
+    pageTitle: "Resumen operativo Level Up",
     activeNav: "level-up",
     mainHtml: renderDashboardPage(),
   });

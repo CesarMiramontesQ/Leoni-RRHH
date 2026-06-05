@@ -75,7 +75,7 @@ describe("shellNavPolicy rh mode", () => {
     allowedModules.add("metricas");
     allowedModules.add("level-up");
     const { resolveRhOperativoLandingHash } = await import("./shellNavPolicy.ts");
-    expect(resolveRhOperativoLandingHash()).toBe("#/metricas");
+    expect(resolveRhOperativoLandingHash()).toBe("#/laborales");
   });
 
   it("resolveRhInitialHash redirige desde inicio cuando no hay dashboard", async () => {

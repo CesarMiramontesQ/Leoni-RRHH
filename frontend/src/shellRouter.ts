@@ -39,6 +39,9 @@ import {
   mountSugerencias,
   mountEncuestas,
 } from "./pages/levelUp.ts";
+import { mountLevelUpHub } from "./pages/levelUpHub.ts";
+import { mountLaboralesHub } from "./pages/laboralesHub.ts";
+import { mountComedorHub } from "./pages/comedorHub.ts";
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
@@ -118,6 +121,16 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
+    if (h === "#/laborales") {
+      mountLaboralesHub(container);
+      return;
+    }
+
+    if (h === "#/comedor/accesos") {
+      mountComedorHub(container);
+      return;
+    }
+
     if (h.startsWith("#/comedor")) {
       mountComedor(container, signal);
       return;
@@ -149,8 +162,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
-    if (h.startsWith("#/level-up")) {
+    if (h.startsWith("#/level-up/resumen")) {
       mountLevelUpDashboard(container);
+      return;
+    }
+    if (h.startsWith("#/level-up")) {
+      mountLevelUpHub(container);
       return;
     }
     if (h.startsWith("#/capacidades")) {

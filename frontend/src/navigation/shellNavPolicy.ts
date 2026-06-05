@@ -9,6 +9,9 @@ import {
   isModulosRhEnrolled,
 } from "../auth/rhModulePermissions.ts";
 import { navItemIdToModuleKey, resolveModuleFromHash } from "../auth/rhModuleRegistry.ts";
+import { isComedorHubVisibleForRol } from "./comedorNav.ts";
+import { isLaboralesHubVisibleForRol } from "./laboralesNav.ts";
+import { isLevelUpHubVisibleForRol } from "./levelUpNav.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
@@ -24,20 +27,23 @@ type RhNavLandingEntry = {
 const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "dashboard", hash: "#/" },
   { itemId: "organigrama", hash: "#/organigrama" },
+  { itemId: "laborales", hash: "#/laborales" },
   { itemId: "metricas", hash: "#/metricas" },
   { itemId: "solicitudes", hash: "#/solicitudes" },
   { itemId: "incidencias", hash: "#/incidencias" },
   { itemId: "actas", hash: "#/actas" },
+  { itemId: "comedor-menu", hash: "#/comedor/accesos" },
   { itemId: "comedor", hash: "#/comedor" },
   { itemId: "reportes", hash: "#/comedor/reporte" },
+  { itemId: "capacitaciones", hash: "#/capacitaciones" },
+  { itemId: "level-up", hash: "#/level-up" },
   { itemId: "puestos", hash: "#/puestos" },
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
   { itemId: "evaluaciones", hash: "#/evaluaciones" },
-  { itemId: "capacitaciones", hash: "#/capacitaciones" },
-  { itemId: "level-up", hash: "#/level-up" },
   { itemId: "capacidades", hash: "#/capacidades" },
   { itemId: "cursos", hash: "#/cursos" },
+  { itemId: "sesiones", hash: "#/sesiones" },
   { itemId: "opls", hash: "#/opls" },
   { itemId: "evidencias", hash: "#/evidencias" },
   { itemId: "sugerencias", hash: "#/sugerencias" },
@@ -83,11 +89,13 @@ export const ORGANIGRAMA_MENU_VISIBLE = false;
 export type AppShellNavItemId =
   | "dashboard"
   | "organigrama"
+  | "laborales"
   | "metricas"
   | "solicitudes"
   | "incidencias"
   | "actas"
   | "comedor"
+  | "comedor-menu"
   | "empleados"
   | "evaluaciones"
   | "capacitaciones"
@@ -156,6 +164,15 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 }
 
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+  if (itemId === "level-up") {
+    return isLevelUpHubVisibleForRol(rol);
+  }
+  if (itemId === "laborales") {
+    return isLaboralesHubVisibleForRol(rol);
+  }
+  if (itemId === "comedor-menu") {
+    return isComedorHubVisibleForRol(rol);
+  }
   const byRole = roleOnlyNavVisible(rol, itemId);
   if (rol === "rh") {
     if (isRhEmpleadoUiMode()) {
@@ -202,6 +219,15 @@ function hashAllowedByRole(rol: string | null, hash: string): boolean {
 
 export function modulosMayAccessHash(hash: string, rol: string | null): boolean {
   const h = (hash || "#/").trim();
+  if (h === "#/level-up") {
+    return isLevelUpHubVisibleForRol(rol);
+  }
+  if (h === "#/laborales") {
+    return isLaboralesHubVisibleForRol(rol);
+  }
+  if (h === "#/comedor/accesos") {
+    return isComedorHubVisibleForRol(rol);
+  }
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
     return rol === "rh" && isRhOperativoUiMode();
