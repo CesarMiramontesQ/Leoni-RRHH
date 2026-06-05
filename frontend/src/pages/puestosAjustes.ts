@@ -8,12 +8,14 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
   mountAppShell(container, {
     activeNav: "puestos-ajustes",
     mainHtml: `<div id="puestos-ajustes-root" class="${RH_LISTADO_PAGE_OUTER}">
-      <header class="mb-6">
-        <h1 class="text-xl font-semibold text-text-primary sm:text-2xl">Ajustes — Perfil de puesto</h1>
-        <p class="mt-1 text-sm text-text-muted">Configura catálogos y opciones del módulo de perfiles de puesto.</p>
-      </header>
       <div id="puestos-ajustes-sections" class="flex flex-col gap-6">
-        <div id="puestos-ajustes-niveles"></div>
+        <section class="flex flex-col gap-4" aria-labelledby="puestos-ajustes-niveles-title">
+          <div>
+            <h2 id="puestos-ajustes-niveles-title" class="text-lg font-semibold text-text-primary">Niveles en puestos</h2>
+            <p class="mt-1 text-sm text-text-muted">Catálogo de niveles organizacionales para perfiles de puesto.</p>
+          </div>
+          <div id="puestos-ajustes-niveles"></div>
+        </section>
         <section class="flex flex-col gap-4" aria-labelledby="puestos-ajustes-competencias-title">
           <div>
             <h2 id="puestos-ajustes-competencias-title" class="text-lg font-semibold text-text-primary">Competencias</h2>
