@@ -907,13 +907,13 @@ export function mountCursos(container: HTMLElement): void {
       const horario = s.hora_inicio ? `${s.hora_inicio.slice(0, 5)}${s.hora_fin ? " – " + s.hora_fin.slice(0, 5) : ""}` : "—";
       const cupo = s.cupo_max ? `${s.inscritos_count}/${s.cupo_max}` : `${s.inscritos_count}`;
       return `
-      <tr class="border-b border-slate-100 hover:bg-slate-50/60">
+      <tr class="border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
         <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(fecha)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(horario)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
         <td class="px-4 py-2.5">
-          <button data-action="view-sesion-empleados" data-sesion-id="${s.id}" class="text-sm tabular-nums text-blue-600 hover:underline font-medium">${cupo}</button>
+          <span class="text-sm tabular-nums text-blue-600 font-medium">${cupo}</span>
         </td>
         <td class="px-4 py-2.5">
           <span class="inline-flex items-center rounded-full border ${estadoCls(s.estado)} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(ESTADO_SESION_LABELS[s.estado] ?? s.estado)}</span>
@@ -1127,7 +1127,6 @@ export function mountCursos(container: HTMLElement): void {
         ${content}
         ${!state.loading ? `<div class="px-5 pb-4">${renderPagination()}</div>` : ""}
       </div>
-      ${state.showCreateModal || state.editingCurso ? renderCreateEditModal() : ""}
     </div>`;
   }
 
@@ -1135,7 +1134,7 @@ export function mountCursos(container: HTMLElement): void {
     mountAppShell(container, {
       pageTitle: "Manejo de Cursos",
       activeNav: "cursos",
-      mainHtml: state.detailCurso ? renderDetailView() : renderPage(),
+      mainHtml: (state.detailCurso ? renderDetailView() : renderPage()) + (state.showCreateModal || state.editingCurso ? renderCreateEditModal() : ""),
     });
   }
 
@@ -1315,6 +1314,14 @@ export function mountCursos(container: HTMLElement): void {
     }
 
     // ── Session handlers ──
+    const goSesionRow = t.closest<HTMLElement>("[data-action='go-sesion-detail']");
+    if (goSesionRow && !t.closest("[data-action='delete-sesion']")) {
+      const cId = goSesionRow.dataset.cursoId;
+      const sId = goSesionRow.dataset.sesionId;
+      if (cId && sId) window.location.hash = `#/sesiones/${cId}/${sId}`;
+      return;
+    }
+
     if (t.closest("[data-action='open-create-sesion']")) {
       state.showCreateSesionModal = true;
       render();

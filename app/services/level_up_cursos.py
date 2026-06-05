@@ -37,6 +37,8 @@ class CursoService:
             clasificacion=curso.clasificacion.value if curso.clasificacion and hasattr(curso.clasificacion, "value") else curso.clasificacion,
             obligatorio=curso.obligatorio,
             descripcion=curso.descripcion,
+            requisitos=curso.requisitos,
+            centro_costos=curso.centro_costos,
             activo=curso.activo,
             created_at=curso.created_at,
             updated_at=curso.updated_at,
@@ -100,6 +102,8 @@ class CursoService:
             "clasificacion": data.clasificacion,
             "obligatorio": data.obligatorio,
             "descripcion": data.descripcion,
+            "requisitos": data.requisitos,
+            "centro_costos": data.centro_costos,
             "activo": True,
         })
         return self._to_response(curso)

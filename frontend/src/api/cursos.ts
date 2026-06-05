@@ -350,6 +350,19 @@ export async function inscribirEmpleadoSesion(cursoId: number, sesionId: number,
   return res.json();
 }
 
+export async function actualizarAsistencia(cursoId: number, sesionId: number, inscripcionId: number, asistio: boolean | null): Promise<SesionEmpleadoItem> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}/empleados/${inscripcionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ asistio }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
 export async function quitarEmpleadoSesion(cursoId: number, sesionId: number, inscripcionId: number): Promise<void> {
   const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/sesiones/${sesionId}/empleados/${inscripcionId}`, {
     method: "DELETE",
