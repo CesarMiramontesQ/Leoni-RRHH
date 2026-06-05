@@ -3,6 +3,7 @@ import {
   asignarCursoExtra,
   eliminarCursoExtra,
   getCursos,
+  getCursoSesiones,
   type CursoEmpleadoItem,
 } from "../../api/cursos.ts";
 import type { Curso } from "../../dashboard/cursos/types.ts";
@@ -85,6 +86,11 @@ function renderSearchForm(): string {
       <div id="curso-extra-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
       <div id="curso-extra-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="curso-extra-selected-info" class="flex items-center justify-between"></div>
+        <div id="curso-extra-sesion-picker" class="hidden mt-2">
+          <select id="curso-extra-sesion-select" class="block w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm ${FIELD_FOCUS}">
+            <option value="">Sin sesión</option>
+          </select>
+        </div>
         <div class="flex justify-end mt-2">
           <button type="button" id="curso-extra-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar</button>
         </div>
@@ -175,8 +181,10 @@ export function mountCursosExtraModal(
         loading = true;
         submitBtn.disabled = true;
         submitBtn.textContent = "...";
+        const sesionSelect = body.querySelector("#curso-extra-sesion-select") as HTMLSelectElement | null;
+        const sesionId = sesionSelect?.value ? Number(sesionSelect.value) : null;
         try {
-          await asignarCursoExtra(options.perfilId, options.asignacionId, selectedCurso.id);
+          await asignarCursoExtra(options.perfilId, options.asignacionId, selectedCurso.id, sesionId);
           await refreshList();
         } catch {
           alert("Error al agregar curso extra.");
@@ -212,7 +220,7 @@ export function mountCursosExtraModal(
       resultsContainer.classList.remove("hidden");
 
       resultsContainer.querySelectorAll<HTMLButtonElement>("[data-select-curso]").forEach(btn => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
           const data = JSON.parse(btn.dataset.selectCurso!) as { id: number; nombre: string };
           selectedCurso = { id: data.id, nombre: data.nombre } as Curso;
           resultsContainer.classList.add("hidden");
@@ -227,7 +235,30 @@ export function mountCursosExtraModal(
           selectedInfo.querySelector("#curso-extra-deselect")?.addEventListener("click", () => {
             selectedCurso = null;
             selectedRow.classList.add("hidden");
+            const picker = body.querySelector("#curso-extra-sesion-picker") as HTMLElement;
+            if (picker) picker.classList.add("hidden");
           });
+
+          // Fetch sessions for selected curso
+          const sesionPicker = body.querySelector("#curso-extra-sesion-picker") as HTMLElement;
+          const sesionSelect = body.querySelector("#curso-extra-sesion-select") as HTMLSelectElement;
+          try {
+            const resp = await getCursoSesiones(data.id);
+            const activas = resp.items.filter(s => s.estado === "programada" || s.estado === "en_curso");
+            if (activas.length > 0) {
+              sesionSelect.innerHTML = `<option value="">Sin sesión</option>` +
+                activas.map(s => {
+                  const f = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+                  const h = s.hora_inicio ? ` ${s.hora_inicio.slice(0, 5)}` : "";
+                  return `<option value="${s.id}">${f}${h}${s.ubicacion ? " — " + s.ubicacion : ""}</option>`;
+                }).join("");
+              sesionPicker.classList.remove("hidden");
+            } else {
+              sesionPicker.classList.add("hidden");
+            }
+          } catch {
+            sesionPicker.classList.add("hidden");
+          }
         });
       });
     } catch {

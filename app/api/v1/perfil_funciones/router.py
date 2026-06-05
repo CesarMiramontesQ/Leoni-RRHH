@@ -539,6 +539,7 @@ async def evaluar_tareas(
 class CursoPuestoCreate(BaseModel):
     curso_id: int
     obligatorio: bool = False
+    sesion_id: int | None = None
 
 
 class CursoPuestoResponse(BaseModel):
@@ -548,6 +549,8 @@ class CursoPuestoResponse(BaseModel):
     puesto_perfil_id: int
     obligatorio: bool
     curso_nombre: str | None = None
+    sesion_id: int | None = None
+    sesion_fecha: str | None = None
 
 
 @router.get("/{perfil_id}/cursos", response_model=list[CursoPuestoResponse])
@@ -559,7 +562,7 @@ async def listar_cursos_puesto(
     """Lista cursos asignados a un perfil de puesto."""
     stmt = (
         select(CursoPuesto)
-        .options(selectinload(CursoPuesto.curso))
+        .options(selectinload(CursoPuesto.curso), selectinload(CursoPuesto.sesion))
         .where(CursoPuesto.puesto_perfil_id == perfil_id)
         .order_by(CursoPuesto.created_at.desc())
     )
@@ -572,6 +575,8 @@ async def listar_cursos_puesto(
             puesto_perfil_id=cp.puesto_perfil_id,
             obligatorio=cp.obligatorio,
             curso_nombre=cp.curso.nombre if cp.curso else None,
+            sesion_id=cp.sesion_id,
+            sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
         )
         for cp in items
     ]
@@ -589,30 +594,44 @@ async def asignar_curso_puesto(
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna un curso a un perfil de puesto. Solo RH o supervisor."""
-    existing = await db.execute(
-        select(CursoPuesto).where(
-            CursoPuesto.curso_id == body.curso_id,
-            CursoPuesto.puesto_perfil_id == perfil_id,
-        )
+    dup_query = select(CursoPuesto).where(
+        CursoPuesto.curso_id == body.curso_id,
+        CursoPuesto.puesto_perfil_id == perfil_id,
     )
+    if body.sesion_id is not None:
+        dup_query = dup_query.where(CursoPuesto.sesion_id == body.sesion_id)
+    else:
+        dup_query = dup_query.where(CursoPuesto.sesion_id.is_(None))
+
+    existing = await db.execute(dup_query)
     if existing.scalar_one_or_none():
         from app.core.exceptions import ConflictError
         raise ConflictError("Este curso ya está asignado a este puesto.")
+
+    if body.sesion_id is not None:
+        from app.models.level_up import CursoSesion
+        sesion = await db.get(CursoSesion, body.sesion_id)
+        if not sesion or sesion.curso_id != body.curso_id:
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError("Sesión no encontrada o no pertenece al curso.")
 
     cp = CursoPuesto(
         curso_id=body.curso_id,
         puesto_perfil_id=perfil_id,
         obligatorio=body.obligatorio,
+        sesion_id=body.sesion_id,
     )
     db.add(cp)
     await db.commit()
-    await db.refresh(cp, attribute_names=["curso"])
+    await db.refresh(cp, attribute_names=["curso", "sesion"])
     return CursoPuestoResponse(
         id=cp.id,
         curso_id=cp.curso_id,
         puesto_perfil_id=cp.puesto_perfil_id,
         obligatorio=cp.obligatorio,
         curso_nombre=cp.curso.nombre if cp.curso else None,
+        sesion_id=cp.sesion_id,
+        sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
     )
 
 
@@ -648,6 +667,7 @@ async def eliminar_curso_puesto(
 
 class CursoEmpleadoCreate(BaseModel):
     curso_id: int
+    sesion_id: int | None = None
 
 
 class CursoEmpleadoResponse(BaseModel):
@@ -656,6 +676,8 @@ class CursoEmpleadoResponse(BaseModel):
     curso_id: int
     empleado_id: int
     curso_nombre: str | None = None
+    sesion_id: int | None = None
+    sesion_fecha: str | None = None
 
 
 @router.get(
@@ -676,7 +698,7 @@ async def listar_cursos_extra(
 
     stmt = (
         select(CursoEmpleado)
-        .options(selectinload(CursoEmpleado.curso))
+        .options(selectinload(CursoEmpleado.curso), selectinload(CursoEmpleado.sesion))
         .where(CursoEmpleado.empleado_id == asig.empleado_id)
         .order_by(CursoEmpleado.created_at.desc())
     )
@@ -688,6 +710,8 @@ async def listar_cursos_extra(
             curso_id=ce.curso_id,
             empleado_id=ce.empleado_id,
             curso_nombre=ce.curso.nombre if ce.curso else None,
+            sesion_id=ce.sesion_id,
+            sesion_fecha=str(ce.sesion.fecha_inicio) if ce.sesion else None,
         )
         for ce in items
     ]
@@ -711,28 +735,42 @@ async def asignar_curso_extra(
         from app.core.exceptions import NotFoundError
         raise NotFoundError("Asignación no encontrada.")
 
-    existing = await db.execute(
-        select(CursoEmpleado).where(
-            CursoEmpleado.curso_id == body.curso_id,
-            CursoEmpleado.empleado_id == asig.empleado_id,
-        )
+    dup_query = select(CursoEmpleado).where(
+        CursoEmpleado.curso_id == body.curso_id,
+        CursoEmpleado.empleado_id == asig.empleado_id,
     )
+    if body.sesion_id is not None:
+        dup_query = dup_query.where(CursoEmpleado.sesion_id == body.sesion_id)
+    else:
+        dup_query = dup_query.where(CursoEmpleado.sesion_id.is_(None))
+
+    existing = await db.execute(dup_query)
     if existing.scalar_one_or_none():
         from app.core.exceptions import ConflictError
         raise ConflictError("Este curso ya está asignado a este empleado.")
 
+    if body.sesion_id is not None:
+        from app.models.level_up import CursoSesion
+        sesion = await db.get(CursoSesion, body.sesion_id)
+        if not sesion or sesion.curso_id != body.curso_id:
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError("Sesión no encontrada o no pertenece al curso.")
+
     ce = CursoEmpleado(
         curso_id=body.curso_id,
         empleado_id=asig.empleado_id,
+        sesion_id=body.sesion_id,
     )
     db.add(ce)
     await db.commit()
-    await db.refresh(ce, attribute_names=["curso"])
+    await db.refresh(ce, attribute_names=["curso", "sesion"])
     return CursoEmpleadoResponse(
         id=ce.id,
         curso_id=ce.curso_id,
         empleado_id=ce.empleado_id,
         curso_nombre=ce.curso.nombre if ce.curso else None,
+        sesion_id=ce.sesion_id,
+        sesion_fecha=str(ce.sesion.fecha_inicio) if ce.sesion else None,
     )
 
 
