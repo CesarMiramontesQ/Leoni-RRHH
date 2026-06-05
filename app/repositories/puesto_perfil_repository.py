@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.level_up import CursoPuesto
 from app.models.talento import (
     CompetenciaRequisito,
     PerfilCualificacion,
@@ -163,6 +164,16 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             .subquery()
         )
 
+        # Subquery: cursos asignados por perfil
+        cursos_sq = (
+            select(
+                CursoPuesto.puesto_perfil_id,
+                func.count(CursoPuesto.id).label("cursos"),
+            )
+            .group_by(CursoPuesto.puesto_perfil_id)
+            .subquery()
+        )
+
         # Main query
         query = (
             select(
@@ -175,12 +186,14 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 func.coalesce(comp_count_sq.c.total_comp, 0).label("total_comp"),
                 func.coalesce(eval_cualif_sq.c.eval_cualif, 0).label("eval_cualif"),
                 func.coalesce(eval_comp_sq.c.eval_comp, 0).label("eval_comp"),
+                func.coalesce(cursos_sq.c.cursos, 0).label("cursos"),
             )
             .outerjoin(personas_sq, personas_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(cualif_count_sq, cualif_count_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(comp_count_sq, comp_count_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(eval_cualif_sq, eval_cualif_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(eval_comp_sq, eval_comp_sq.c.puesto_perfil_id == PuestoPerfil.id)
+            .outerjoin(cursos_sq, cursos_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .where(PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )
@@ -216,6 +229,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 "personas": personas,
                 "cumplimiento_pct": cumplimiento_pct,
                 "brechas": brechas,
+                "cursos": row.cursos,
             })
 
         # Cargar area_nombre en segunda pasada (selectinload no funciona con

@@ -1,10 +1,11 @@
 import enum
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -49,6 +50,16 @@ class CategoriaCurso(str, enum.Enum):
     seguridad = "seguridad"
     operativo = "operativo"
     blanda = "blanda"
+
+
+class TipoCurso(str, enum.Enum):
+    interno = "interno"
+    externo = "externo"
+
+
+class ClasificacionCurso(str, enum.Enum):
+    adicional = "adicional"
+    contemplado = "contemplado"
 
 
 class EstadoAprobacionOPL(str, enum.Enum):
@@ -246,18 +257,28 @@ class EvaluacionHabilidad(Base):
 
 class Curso(Base):
     __tablename__ = "cursos"
+    __table_args__ = (UniqueConstraint("nombre", name="uq_cursos_nombre"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    nombre: Mapped[str] = mapped_column(String(300), nullable=False)
     proveedor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    duracion_horas: Mapped[int] = mapped_column(Integer, nullable=False)
+    duracion_horas: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    categoria: Mapped[CategoriaCurso] = mapped_column(
-        Enum(CategoriaCurso, name="categoria_curso_enum"), nullable=False
+    categoria: Mapped[Optional[CategoriaCurso]] = mapped_column(
+        Enum(CategoriaCurso, name="categoria_curso_enum"), nullable=True
     )
-    modalidad: Mapped[str] = mapped_column(String(50), nullable=False)
+    modalidad: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     sesiones_anio: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tipo: Mapped[Optional[TipoCurso]] = mapped_column(
+        Enum(TipoCurso, name="tipo_curso_enum"), nullable=True
+    )
+    clasificacion: Mapped[Optional[ClasificacionCurso]] = mapped_column(
+        Enum(ClasificacionCurso, name="clasificacion_curso_enum"), nullable=True
+    )
+    obligatorio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    requisitos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -269,6 +290,63 @@ class Curso(Base):
     capacitaciones: Mapped[List["Capacitacion"]] = relationship(
         "Capacitacion", back_populates="curso"
     )
+    puestos: Mapped[List["CursoPuesto"]] = relationship(
+        "CursoPuesto", back_populates="curso", cascade="all, delete-orphan"
+    )
+    empleados: Mapped[List["CursoEmpleado"]] = relationship(
+        "CursoEmpleado", back_populates="curso", cascade="all, delete-orphan"
+    )
+
+
+class CursoPuesto(Base):
+    __tablename__ = "curso_puesto"
+    __table_args__ = (
+        UniqueConstraint("curso_id", "puesto_perfil_id", name="uq_curso_puesto"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    curso_id: Mapped[int] = mapped_column(
+        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+    )
+    puesto_perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+    )
+    obligatorio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    curso: Mapped["Curso"] = relationship("Curso", back_populates="puestos")
+    puesto_perfil: Mapped["PuestoPerfil"] = relationship("PuestoPerfil")
+
+
+class CursoEmpleado(Base):
+    __tablename__ = "curso_empleado"
+    __table_args__ = (
+        Index("ix_curso_empleado_empleado_id", "empleado_id"),
+        Index("ix_curso_empleado_curso_id", "curso_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    curso_id: Mapped[int] = mapped_column(
+        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+    )
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.id", ondelete="CASCADE"), nullable=False
+    )
+    fecha: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    horas: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    centro_costo: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tipo: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    clasificacion: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    obligatorio: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    puesto_al_momento: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    curso: Mapped["Curso"] = relationship("Curso", back_populates="empleados")
+    empleado: Mapped["Empleado"] = relationship("Empleado")
 
 
 class OPL(Base):

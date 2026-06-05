@@ -37,11 +37,15 @@ Endpoints:
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
+from app.models.level_up import Curso, CursoEmpleado, CursoPuesto
+from app.models.talento import PerfilFunciones
 from app.schemas.perfil_funciones import (
     EvaluacionCompetenciaSyncBody,
     PerfilCompetenciaCreate,
@@ -525,3 +529,239 @@ async def evaluar_tareas(
         evaluaciones=[(e.tarea_extra_id, e.nivel) for e in body.evaluaciones],
         current_user=current_user,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CURSOS ASIGNADOS AL PUESTO
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class CursoPuestoCreate(BaseModel):
+    curso_id: int
+    obligatorio: bool = False
+
+
+class CursoPuestoResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    curso_id: int
+    puesto_perfil_id: int
+    obligatorio: bool
+    curso_nombre: str | None = None
+
+
+@router.get("/{perfil_id}/cursos", response_model=list[CursoPuestoResponse])
+async def listar_cursos_puesto(
+    perfil_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista cursos asignados a un perfil de puesto."""
+    stmt = (
+        select(CursoPuesto)
+        .options(selectinload(CursoPuesto.curso))
+        .where(CursoPuesto.puesto_perfil_id == perfil_id)
+        .order_by(CursoPuesto.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return [
+        CursoPuestoResponse(
+            id=cp.id,
+            curso_id=cp.curso_id,
+            puesto_perfil_id=cp.puesto_perfil_id,
+            obligatorio=cp.obligatorio,
+            curso_nombre=cp.curso.nombre if cp.curso else None,
+        )
+        for cp in items
+    ]
+
+
+@router.post(
+    "/{perfil_id}/cursos",
+    response_model=CursoPuestoResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def asignar_curso_puesto(
+    perfil_id: int,
+    body: CursoPuestoCreate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna un curso a un perfil de puesto. Solo RH o supervisor."""
+    existing = await db.execute(
+        select(CursoPuesto).where(
+            CursoPuesto.curso_id == body.curso_id,
+            CursoPuesto.puesto_perfil_id == perfil_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        from app.core.exceptions import ConflictError
+        raise ConflictError("Este curso ya está asignado a este puesto.")
+
+    cp = CursoPuesto(
+        curso_id=body.curso_id,
+        puesto_perfil_id=perfil_id,
+        obligatorio=body.obligatorio,
+    )
+    db.add(cp)
+    await db.commit()
+    await db.refresh(cp, attribute_names=["curso"])
+    return CursoPuestoResponse(
+        id=cp.id,
+        curso_id=cp.curso_id,
+        puesto_perfil_id=cp.puesto_perfil_id,
+        obligatorio=cp.obligatorio,
+        curso_nombre=cp.curso.nombre if cp.curso else None,
+    )
+
+
+@router.delete(
+    "/{perfil_id}/cursos/{curso_puesto_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def eliminar_curso_puesto(
+    perfil_id: int,
+    curso_puesto_id: int,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elimina la asignación de un curso a un puesto. Solo RH o supervisor."""
+    result = await db.execute(
+        select(CursoPuesto).where(
+            CursoPuesto.id == curso_puesto_id,
+            CursoPuesto.puesto_perfil_id == perfil_id,
+        )
+    )
+    cp = result.scalar_one_or_none()
+    if not cp:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Asignación de curso no encontrada.")
+    await db.delete(cp)
+    await db.commit()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CURSOS EXTRA POR EMPLEADO (individuales, via asignación)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class CursoEmpleadoCreate(BaseModel):
+    curso_id: int
+
+
+class CursoEmpleadoResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    curso_id: int
+    empleado_id: int
+    curso_nombre: str | None = None
+
+
+@router.get(
+    "/{perfil_id}/asignaciones/{asignacion_id}/cursos-extra",
+    response_model=list[CursoEmpleadoResponse],
+)
+async def listar_cursos_extra(
+    perfil_id: int,
+    asignacion_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista cursos extra asignados individualmente a un empleado."""
+    asig = await db.get(PerfilFunciones, asignacion_id)
+    if not asig or asig.puesto_perfil_id != perfil_id:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Asignación no encontrada.")
+
+    stmt = (
+        select(CursoEmpleado)
+        .options(selectinload(CursoEmpleado.curso))
+        .where(CursoEmpleado.empleado_id == asig.empleado_id)
+        .order_by(CursoEmpleado.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return [
+        CursoEmpleadoResponse(
+            id=ce.id,
+            curso_id=ce.curso_id,
+            empleado_id=ce.empleado_id,
+            curso_nombre=ce.curso.nombre if ce.curso else None,
+        )
+        for ce in items
+    ]
+
+
+@router.post(
+    "/{perfil_id}/asignaciones/{asignacion_id}/cursos-extra",
+    response_model=CursoEmpleadoResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def asignar_curso_extra(
+    perfil_id: int,
+    asignacion_id: int,
+    body: CursoEmpleadoCreate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna un curso extra individual a un empleado. Solo RH o supervisor."""
+    asig = await db.get(PerfilFunciones, asignacion_id)
+    if not asig or asig.puesto_perfil_id != perfil_id:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Asignación no encontrada.")
+
+    existing = await db.execute(
+        select(CursoEmpleado).where(
+            CursoEmpleado.curso_id == body.curso_id,
+            CursoEmpleado.empleado_id == asig.empleado_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        from app.core.exceptions import ConflictError
+        raise ConflictError("Este curso ya está asignado a este empleado.")
+
+    ce = CursoEmpleado(
+        curso_id=body.curso_id,
+        empleado_id=asig.empleado_id,
+    )
+    db.add(ce)
+    await db.commit()
+    await db.refresh(ce, attribute_names=["curso"])
+    return CursoEmpleadoResponse(
+        id=ce.id,
+        curso_id=ce.curso_id,
+        empleado_id=ce.empleado_id,
+        curso_nombre=ce.curso.nombre if ce.curso else None,
+    )
+
+
+@router.delete(
+    "/{perfil_id}/asignaciones/{asignacion_id}/cursos-extra/{curso_empleado_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def eliminar_curso_extra(
+    perfil_id: int,
+    asignacion_id: int,
+    curso_empleado_id: int,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elimina un curso extra de un empleado. Solo RH o supervisor."""
+    asig = await db.get(PerfilFunciones, asignacion_id)
+    if not asig or asig.puesto_perfil_id != perfil_id:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Asignación no encontrada.")
+
+    result = await db.execute(
+        select(CursoEmpleado).where(
+            CursoEmpleado.id == curso_empleado_id,
+            CursoEmpleado.empleado_id == asig.empleado_id,
+        )
+    )
+    ce = result.scalar_one_or_none()
+    if not ce:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Curso extra no encontrado.")
+    await db.delete(ce)
+    await db.commit()

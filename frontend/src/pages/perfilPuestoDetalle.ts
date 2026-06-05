@@ -22,6 +22,8 @@ import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import { updatePerfil } from "../api/puestos.ts";
+import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos } from "../api/cursos.ts";
+import type { CursoPuestoItem } from "../api/cursos.ts";
 
 // ── Tipos (misma forma de respuesta API) ────────────────────────────────
 
@@ -650,6 +652,53 @@ function renderEmpleadosResumen(asignaciones: AsignacionResumen[], perfilId: num
   );
 }
 
+// ── Cursos asignados al puesto ─────────────────────────────────────────
+
+function renderCursosAsignados(cursos: CursoPuestoItem[], _perfilId: number): string {
+  if (cursos.length === 0) {
+    return sectionShell(
+      "ppd-cursos",
+      "Cursos asignados",
+      "Capacitaciones requeridas para este puesto",
+      0,
+      "add-curso",
+      "Asignar curso",
+      emptyState(
+        "Sin cursos asignados",
+        isRhUser() ? "Asigna cursos del catálogo a este perfil de puesto." : undefined,
+      ),
+    );
+  }
+
+  const rows = cursos
+    .map(
+      (cp) => `
+      <li class="ppd-curso-row flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2.5 group">
+        <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-200/60" aria-hidden="true">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(cp.curso_nombre ?? `Curso #${cp.curso_id}`)}</p>
+          ${cp.obligatorio ? `<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
+        </div>
+        ${isRhUser() ? `<button type="button" data-action="remove-curso" data-curso-puesto-id="${cp.id}" class="opacity-0 group-hover:opacity-100 rounded-md p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600" title="Quitar curso" aria-label="Quitar curso"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>` : ""}
+      </li>`,
+    )
+    .join("");
+
+  const body = `<ul class="flex flex-col gap-1.5">${rows}</ul>`;
+
+  return sectionShell(
+    "ppd-cursos",
+    "Cursos asignados",
+    `${cursos.length} curso${cursos.length !== 1 ? "s" : ""} vinculado${cursos.length !== 1 ? "s" : ""}`,
+    cursos.length,
+    "add-curso",
+    "Asignar curso",
+    body,
+  );
+}
+
 // ── Mount y carga ───────────────────────────────────────────────────────
 
 export function mountPerfilPuestoDetalle(container: HTMLElement, id: number): void {
@@ -685,12 +734,13 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
   }
 
   try {
-    const [puesto, tareas, cualificaciones, competencias, asignaciones] = await Promise.all([
+    const [puesto, tareas, cualificaciones, competencias, asignaciones, cursosAsignados] = await Promise.all([
       fetchJson<PuestoPerfilInfo>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
       fetchJson<Cualificacion[]>(`/api/v1/perfiles/${perfilId}/cualificaciones`, token),
       fetchJson<Competencia[]>(`/api/v1/perfiles/${perfilId}/competencias`, token),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
+      getCursosPuesto(perfilId),
     ]);
 
     if (!puesto) {
@@ -702,6 +752,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
     const cualifList = cualificaciones ?? [];
     const compList = competencias ?? [];
     const asigList = asignaciones ?? [];
+    const cursosList = cursosAsignados ?? [];
     const empleadosCount = asigList.length;
     const fechaActualizacion = formatFecha(puesto.updated_at);
     const summary = computeExecutiveSummary(tareasList, cualifList, compList, empleadosCount);
@@ -730,6 +781,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
           </div>
           <div class="flex flex-col gap-4 sm:gap-5">
             ${renderCompetencias(compList)}
+            ${renderCursosAsignados(cursosList, perfilId)}
             ${renderEmpleadosResumen(asigList, perfilId)}
           </div>
         </div>
@@ -738,6 +790,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
         <div id="modal-host-cualificaciones"></div>
         <div id="modal-host-competencias"></div>
         <div id="modal-host-edit-base"></div>
+        <div id="modal-host-cursos"></div>
       </div>`;
 
     const contentEl = inner;
@@ -754,7 +807,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
       const compModal = mountEditarCompetenciasModal(compHost, { perfilId, onSuccess: reload });
 
-      contentEl.addEventListener("click", (e) => {
+      contentEl.addEventListener("click", async (e) => {
         const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
         if (!btn) return;
         switch (btn.dataset.action) {
@@ -775,6 +828,23 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
               reload,
             );
             break;
+          case "add-curso":
+            openAsignarCursoModal(
+              contentEl.querySelector("#modal-host-cursos") as HTMLElement,
+              perfilId,
+              cursosList,
+              reload,
+            );
+            break;
+          case "remove-curso": {
+            const cpId = Number(btn.dataset.cursoPuestoId);
+            if (!cpId || !confirm("¿Quitar este curso del puesto?")) break;
+            try {
+              await eliminarCursoPuesto(perfilId, cpId);
+              reload();
+            } catch { /* noop */ }
+            break;
+          }
         }
       });
     }
@@ -786,6 +856,142 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
         </div>
       </div>`;
   }
+}
+
+// ── Modal asignar curso al puesto ─────────────────────────────────────────
+
+function openAsignarCursoModal(
+  host: HTMLElement,
+  perfilId: number,
+  existingCursos: CursoPuestoItem[],
+  onSuccess: () => void,
+): void {
+  const overlayId = "add-curso-overlay";
+  const assignedIds = new Set(existingCursos.map((c) => c.curso_id));
+
+  host.innerHTML = `
+    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="add-curso-title">
+        <div class="border-b border-slate-100 px-6 py-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 id="add-curso-title" class="text-lg font-semibold text-text-primary">Asignar curso</h2>
+              <p class="mt-1 text-sm text-text-muted">Busca y selecciona un curso del catálogo.</p>
+            </div>
+            <button type="button" id="add-curso-close" class="rounded-lg p-1.5 text-text-muted transition hover:bg-slate-100 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-leoni-blue/40" aria-label="Cerrar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <p id="add-curso-error" class="mx-6 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
+        <div class="px-6 py-5 space-y-4">
+          <div>
+            <label class="${RH_LISTADO_LABEL}">Buscar curso</label>
+            <input id="add-curso-search" type="text" placeholder="Escribe para buscar..."
+              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
+          </div>
+          <div id="add-curso-results" class="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50">
+            <p class="px-3 py-4 text-center text-xs text-text-muted">Escribe para buscar cursos</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="add-curso-obligatorio" type="checkbox" class="rounded border-slate-300" />
+            <label for="add-curso-obligatorio" class="text-sm text-text-secondary">Marcar como obligatorio</label>
+          </div>
+          <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+            <button type="button" id="add-curso-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="button" id="add-curso-submit" disabled class="${BTN_PRIMARY} w-full sm:w-auto disabled:opacity-50">Asignar</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const overlay = host.querySelector(`#${overlayId}`) as HTMLElement;
+  const searchInput = host.querySelector("#add-curso-search") as HTMLInputElement;
+  const resultsDiv = host.querySelector("#add-curso-results") as HTMLElement;
+  const submitBtn = host.querySelector("#add-curso-submit") as HTMLButtonElement;
+  const obligatorioCheck = host.querySelector("#add-curso-obligatorio") as HTMLInputElement;
+  const errorEl = host.querySelector("#add-curso-error") as HTMLElement;
+
+  let selectedCursoId: number | null = null;
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function close() {
+    host.innerHTML = "";
+    document.body.style.overflow = "";
+  }
+
+  document.body.style.overflow = "hidden";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  host.querySelector("#add-curso-close")!.addEventListener("click", close);
+  host.querySelector("#add-curso-cancel")!.addEventListener("click", close);
+
+  const escHandler = (e: KeyboardEvent) => {
+    if (e.key === "Escape") { close(); document.removeEventListener("keydown", escHandler); }
+  };
+  document.addEventListener("keydown", escHandler);
+
+  searchInput.addEventListener("input", () => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    const q = searchInput.value.trim();
+    if (q.length < 2) {
+      resultsDiv.innerHTML = `<p class="px-3 py-4 text-center text-xs text-text-muted">Escribe al menos 2 caracteres</p>`;
+      return;
+    }
+    searchTimeout = setTimeout(async () => {
+      try {
+        const resp = await getCursos({ busqueda: q, page_size: 20 });
+        const available = resp.items.filter((c) => c.activo && !assignedIds.has(c.id));
+        if (available.length === 0) {
+          resultsDiv.innerHTML = `<p class="px-3 py-4 text-center text-xs text-text-muted">Sin resultados</p>`;
+          return;
+        }
+        resultsDiv.innerHTML = available
+          .map(
+            (c) => `
+            <button type="button" data-curso-id="${c.id}" class="add-curso-option flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition hover:bg-blue-50 ${selectedCursoId === c.id ? "bg-blue-50 font-semibold text-blue-800" : "text-text-primary"}">
+              <span class="truncate flex-1">${escapeHtml(c.nombre)}</span>
+              ${c.obligatorio ? `<span class="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200/70">Oblig.</span>` : ""}
+            </button>`,
+          )
+          .join("");
+      } catch {
+        resultsDiv.innerHTML = `<p class="px-3 py-4 text-center text-xs text-red-600">Error al buscar</p>`;
+      }
+    }, 300);
+  });
+
+  resultsDiv.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-curso-id]");
+    if (!btn) return;
+    selectedCursoId = Number(btn.dataset.cursoId);
+    submitBtn.disabled = false;
+    resultsDiv.querySelectorAll(".add-curso-option").forEach((el) => {
+      el.classList.remove("bg-blue-50", "font-semibold", "text-blue-800");
+      el.classList.add("text-text-primary");
+    });
+    btn.classList.add("bg-blue-50", "font-semibold", "text-blue-800");
+    btn.classList.remove("text-text-primary");
+  });
+
+  submitBtn.addEventListener("click", async () => {
+    if (!selectedCursoId) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Asignando...";
+    try {
+      await asignarCursoPuesto(perfilId, selectedCursoId, obligatorioCheck.checked);
+      close();
+      document.removeEventListener("keydown", escHandler);
+      onSuccess();
+    } catch (err: unknown) {
+      const detail = (err as { detail?: string })?.detail ?? "Error al asignar.";
+      errorEl.textContent = detail;
+      errorEl.classList.remove("hidden");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Asignar";
+    }
+  });
+
+  searchInput.focus();
 }
 
 // ── Modal editar datos base (misma lógica) ────────────────────────────────
