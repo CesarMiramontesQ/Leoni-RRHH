@@ -4,11 +4,7 @@ import {
   getGruposCompetencia,
   updateGrupoCompetencia,
 } from "../../../api/gruposCompetencia.ts";
-import type {
-  CategoriaGrupoCompetencia,
-  GrupoCompetencia,
-  GrupoCompetenciaFetchError,
-} from "../../../dashboard/gruposCompetencia/types.ts";
+import type { GrupoCompetencia, GrupoCompetenciaFetchError } from "../../../dashboard/gruposCompetencia/types.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
@@ -17,19 +13,12 @@ import {
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
-  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
-  SELECT_CHEVRON,
 } from "../../../ui/uiTokens.ts";
 
 const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>`;
 const ICON_EDIT = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z"/></svg>`;
 const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd"/></svg>`;
-
-const CATEGORIA_LABELS: Record<CategoriaGrupoCompetencia, string> = {
-  tecnica: "Técnica",
-  blanda: "Habilidad blanda",
-};
 
 type ModalMode = "create" | "edit" | "delete" | null;
 
@@ -41,18 +30,8 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
   let modalSaving = false;
   let editingId: number | null = null;
   let editingNombre = "";
-  let editingCategoria: CategoriaGrupoCompetencia = "blanda";
   let deletingItem: GrupoCompetencia | null = null;
   let modalError = "";
-
-  function categoriaBadge(categoria: CategoriaGrupoCompetencia): string {
-    const label = CATEGORIA_LABELS[categoria] ?? categoria;
-    const cls =
-      categoria === "tecnica"
-        ? "border-blue-200 bg-blue-50 text-blue-800"
-        : "border-violet-200 bg-violet-50 text-violet-900";
-    return `<span class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}">${escapeHtml(label)}</span>`;
-  }
 
   function renderTable(): string {
     if (loading) {
@@ -69,7 +48,6 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
         (g) => `
       <tr class="border-b border-slate-100/90">
         <td class="px-4 py-3 text-sm font-medium text-text-primary">${escapeHtml(g.nombre)}</td>
-        <td class="px-4 py-3">${categoriaBadge(g.categoria)}</td>
         <td class="px-3 py-3 text-right">
           <div class="flex items-center justify-end gap-1">
             <button type="button" data-grupo-action="edit" data-id="${g.id}" class="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-text-primary" title="Editar">${ICON_EDIT}</button>
@@ -85,26 +63,11 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
           <thead>
             <tr class="border-b border-slate-100">
               <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre</th>
-              <th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Categoría</th>
               <th scope="col" class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
-      </div>`;
-  }
-
-  function renderCategoriaSelect(selected: CategoriaGrupoCompetencia): string {
-    const opts = (["tecnica", "blanda"] as const)
-      .map(
-        (c) =>
-          `<option value="${c}" ${selected === c ? "selected" : ""}>${escapeHtml(CATEGORIA_LABELS[c])}</option>`,
-      )
-      .join("");
-    return `
-      <div class="grid grid-cols-1">
-        <select id="grupo-categoria" name="categoria" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">${opts}</select>
-        ${SELECT_CHEVRON}
       </div>`;
   }
 
@@ -136,11 +99,6 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
                 value="${escapeHtml(editingNombre)}"
                 class="block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
             </div>
-            <div>
-              <label for="grupo-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-red-600">*</span></label>
-              ${renderCategoriaSelect(editingCategoria)}
-              <p class="mt-1.5 text-xs text-text-muted">Define si las competencias de este grupo se consideran técnicas o habilidades blandas en la matriz.</p>
-            </div>
             ${modalError ? `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">${escapeHtml(modalError)}</p>` : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" data-grupo-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
@@ -157,7 +115,7 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
         <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div>
             <h2 id="grupos-section-title" class="text-base font-semibold text-text-primary">Grupos de competencia</h2>
-            <p class="mt-0.5 text-sm text-text-muted">Catálogo de grupos para clasificar tipos y competencias.</p>
+            <p class="mt-0.5 text-sm text-text-muted">Catálogo de grupos para organizar tipos de competencia.</p>
           </div>
           <button type="button" data-grupo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${ICON_PLUS}<span>Nuevo grupo</span></button>
         </div>
@@ -185,7 +143,6 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
     modalMode = null;
     editingId = null;
     editingNombre = "";
-    editingCategoria = "blanda";
     deletingItem = null;
     modalError = "";
     modalSaving = false;
@@ -208,7 +165,6 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
       if (action === "create") {
         modalMode = "create";
         editingNombre = "";
-        editingCategoria = "blanda";
         modalError = "";
         paint();
         sectionEl.querySelector<HTMLInputElement>("#grupo-nombre")?.focus();
@@ -218,7 +174,6 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
         modalMode = "edit";
         editingId = id;
         editingNombre = item.nombre;
-        editingCategoria = item.categoria;
         modalError = "";
         paint();
       } else if (action === "delete" && !Number.isNaN(id)) {
@@ -246,14 +201,8 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
   async function submitForm(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
     const nombre = String(fd.get("nombre") ?? "").trim();
-    const categoria = String(fd.get("categoria") ?? "") as CategoriaGrupoCompetencia;
     if (nombre.length < 2) {
       modalError = "El nombre debe tener al menos 2 caracteres.";
-      paint();
-      return;
-    }
-    if (categoria !== "tecnica" && categoria !== "blanda") {
-      modalError = "Selecciona una categoría válida.";
       paint();
       return;
     }
@@ -262,9 +211,9 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
     paint();
     try {
       if (modalMode === "create") {
-        await createGrupoCompetencia({ nombre, categoria });
+        await createGrupoCompetencia({ nombre });
       } else if (modalMode === "edit" && editingId != null) {
-        await updateGrupoCompetencia(editingId, { nombre, categoria });
+        await updateGrupoCompetencia(editingId, { nombre });
       }
       closeModal();
       await load();

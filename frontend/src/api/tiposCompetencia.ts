@@ -26,7 +26,6 @@ function mapTipo(raw: Record<string, unknown>): TipoCompetencia {
     nombre: (raw.nombre ?? "") as string,
     grupo_competencia_id: raw.grupo_competencia_id as number,
     grupo_nombre: (raw.grupo_nombre ?? "") as string,
-    grupo_categoria: (raw.grupo_categoria ?? "") as TipoCompetencia["grupo_categoria"],
     activo: (raw.activo ?? true) as boolean,
     created_at: (raw.created_at ?? "") as string,
     updated_at: (raw.updated_at ?? "") as string,

@@ -119,9 +119,6 @@ class GrupoCompetencia(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    categoria: Mapped[str] = mapped_column(
-        String(20), nullable=False
-    )  # 'tecnica' | 'blanda' — clasificacion para matriz y competencias
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -135,7 +132,7 @@ class GrupoCompetencia(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<GrupoCompetencia id={self.id} nombre={self.nombre} categoria={self.categoria}>"
+        return f"<GrupoCompetencia id={self.id} nombre={self.nombre}>"
 
 
 class TipoCompetencia(Base):

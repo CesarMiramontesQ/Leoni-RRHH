@@ -2353,39 +2353,30 @@ components:
 
     GrupoCompetenciaCreate:
       type: object
-      required: [nombre, categoria]
+      required: [nombre]
       properties:
         nombre:
           type: string
           minLength: 2
           maxLength: 100
-        categoria:
-          type: string
-          enum: [tecnica, blanda]
 
     GrupoCompetenciaUpdate:
       type: object
-      required: [nombre, categoria]
+      required: [nombre]
       properties:
         nombre:
           type: string
           minLength: 2
           maxLength: 100
-        categoria:
-          type: string
-          enum: [tecnica, blanda]
 
     GrupoCompetenciaResponse:
       type: object
-      required: [id, nombre, categoria, activo, created_at, updated_at]
+      required: [id, nombre, activo, created_at, updated_at]
       properties:
         id:
           type: integer
         nombre:
           type: string
-        categoria:
-          type: string
-          enum: [tecnica, blanda]
         activo:
           type: boolean
         created_at:
@@ -2434,7 +2425,7 @@ components:
 
     TipoCompetenciaResponse:
       type: object
-      required: [id, nombre, grupo_competencia_id, grupo_nombre, grupo_categoria, activo, created_at, updated_at]
+      required: [id, nombre, grupo_competencia_id, grupo_nombre, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -2444,9 +2435,6 @@ components:
           type: integer
         grupo_nombre:
           type: string
-        grupo_categoria:
-          type: string
-          enum: [tecnica, blanda, ""]
         activo:
           type: boolean
         created_at:

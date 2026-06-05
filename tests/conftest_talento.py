@@ -117,13 +117,12 @@ async def make_grupo_competencia(
     db: AsyncSession,
     *,
     nombre: str | None = None,
-    categoria: str = "blanda",
     activo: bool = True,
 ) -> GrupoCompetencia:
     """Factory para crear un GrupoCompetencia en el catalogo."""
     uid = uuid.uuid4().hex[:6]
     _nombre = nombre or f"Grupo Test {uid}"
-    grupo = GrupoCompetencia(nombre=_nombre, categoria=categoria, activo=activo)
+    grupo = GrupoCompetencia(nombre=_nombre, activo=activo)
     db.add(grupo)
     await db.flush()
     await db.refresh(grupo)
@@ -142,7 +141,7 @@ async def make_tipo_competencia(
     uid = uuid.uuid4().hex[:6]
     _nombre = nombre or f"Tipo Test {uid}"
     if grupo_competencia_id is None:
-        grupo = await make_grupo_competencia(db, categoria=categoria)
+        grupo = await make_grupo_competencia(db)
         grupo_competencia_id = grupo.id
     tipo = TipoCompetencia(
         nombre=_nombre,

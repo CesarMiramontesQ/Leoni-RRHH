@@ -7,6 +7,10 @@ import {
 } from "../../../api/tiposCompetencia.ts";
 import type { GrupoCompetencia } from "../../../dashboard/gruposCompetencia/types.ts";
 import type { TipoCompetencia, TipoCompetenciaFetchError } from "../../../dashboard/tiposCompetencia/types.ts";
+import {
+  categoriaDesdeGrupoNombre,
+  grupoCompetenciaBadgeClasses,
+} from "../../../ui/competenciaCategoria.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
@@ -41,10 +45,7 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
 
   function grupoBadge(t: TipoCompetencia): string {
     const label = t.grupo_nombre || "—";
-    const cls =
-      t.grupo_categoria === "tecnica"
-        ? "border-blue-200 bg-blue-50 text-blue-800"
-        : "border-violet-200 bg-violet-50 text-violet-900";
+    const cls = grupoCompetenciaBadgeClasses(categoriaDesdeGrupoNombre(label));
     return `<span class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}">${escapeHtml(label)}</span>`;
   }
 
@@ -136,7 +137,7 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
             <div>
               <label for="tipo-grupo" class="${RH_LISTADO_LABEL}">Grupo <span class="text-red-600">*</span></label>
               ${renderGrupoSelect(editingGrupoId)}
-              <p class="mt-1.5 text-xs text-text-muted">Administra los grupos en la sección anterior.</p>
+              <p class="mt-1.5 text-xs text-text-muted">El grupo define si las competencias son técnicas o habilidades blandas.</p>
             </div>
             ${modalError ? `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">${escapeHtml(modalError)}</p>` : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

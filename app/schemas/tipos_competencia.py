@@ -27,7 +27,6 @@ class TipoCompetenciaResponse(BaseModel):
     nombre: str
     grupo_competencia_id: int
     grupo_nombre: str = ""
-    grupo_categoria: str = ""
     activo: bool
     created_at: datetime
     updated_at: datetime

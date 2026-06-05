@@ -10,7 +10,7 @@ from tests.conftest_talento import make_competencia, make_grupo_competencia, mak
 @pytest.mark.asyncio
 async def test_crear_tipo_competencia_success(client, db):
     rh = await make_empleado(db, rol="rh", email="tc_crear@leoni.test")
-    grupo = await make_grupo_competencia(db, nombre="Grupo Cert", categoria="tecnica")
+    grupo = await make_grupo_competencia(db, nombre="Técnica")
     headers = await auth_headers(client, rh)
 
     response = await client.post(
@@ -23,14 +23,14 @@ async def test_crear_tipo_competencia_success(client, db):
     data = response.json()
     assert data["nombre"] == "Certificaciones"
     assert data["grupo_competencia_id"] == grupo.id
-    assert data["grupo_categoria"] == "tecnica"
+    assert data["grupo_nombre"] == "Técnica"
 
 
 @pytest.mark.asyncio
 async def test_crear_tipo_competencia_duplicado(client, db):
     rh = await make_empleado(db, rol="rh", email="tc_dup@leoni.test")
     await make_tipo_competencia(db, nombre="Tipo Duplicado")
-    grupo = await make_grupo_competencia(db, categoria="blanda")
+    grupo = await make_grupo_competencia(db)
     headers = await auth_headers(client, rh)
 
     response = await client.post(

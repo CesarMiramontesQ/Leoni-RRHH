@@ -41,6 +41,7 @@ from app.repositories.perfil_funciones_repository import (
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.services.tipo_competencia_service import TipoCompetenciaService
+from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 from app.schemas.talento import (
     BrechaItem,
     BrechasResponse,
@@ -81,9 +82,11 @@ class CompetenciaService:
         if comp.area:
             area_nombre = comp.area.descripcion
         tipo_nombre = comp.tipo_competencia.nombre if comp.tipo_competencia else ""
-        tipo_grupo = comp.tipo_competencia.grupo_competencia.categoria if (
-            comp.tipo_competencia and comp.tipo_competencia.grupo_competencia
-        ) else ""
+        tipo_grupo = ""
+        if comp.tipo_competencia and comp.tipo_competencia.grupo_competencia:
+            tipo_grupo = categoria_desde_grupo_nombre(
+                comp.tipo_competencia.grupo_competencia.nombre
+            )
         return CompetenciaResponse(
             id=comp.id,
             nombre=comp.nombre,
@@ -171,7 +174,7 @@ class CompetenciaService:
 
         tipo_service = TipoCompetenciaService(self.db)
         tipo = await tipo_service.validar_tipo_activo(data.tipo_competencia_id)
-        categoria = tipo.grupo_competencia.categoria
+        categoria = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
 
         if await self.repo.exists_by_nombre_categoria(data.nombre, categoria):
             raise ConflictError(
@@ -206,7 +209,7 @@ class CompetenciaService:
         tipo_service = TipoCompetenciaService(self.db)
         nuevo_tipo_id = data.tipo_competencia_id or comp.tipo_competencia_id
         tipo = await tipo_service.validar_tipo_activo(nuevo_tipo_id)
-        categoria_check = tipo.grupo_competencia.categoria
+        categoria_check = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
 
         nombre_check = data.nombre or comp.nombre
         if nombre_check != comp.nombre or categoria_check != comp.categoria:
@@ -224,7 +227,9 @@ class CompetenciaService:
             update_data["descripcion"] = data.descripcion
         if data.tipo_competencia_id is not None:
             update_data["tipo_competencia_id"] = tipo.id
-            update_data["categoria"] = tipo.grupo_competencia.categoria
+            update_data["categoria"] = categoria_desde_grupo_nombre(
+                tipo.grupo_competencia.nombre
+            )
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
 

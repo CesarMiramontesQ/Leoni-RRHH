@@ -28,16 +28,13 @@ class TipoCompetenciaService:
     @staticmethod
     def _to_response(tipo: TipoCompetencia) -> TipoCompetenciaResponse:
         grupo_nombre = ""
-        grupo_categoria = ""
         if tipo.grupo_competencia:
             grupo_nombre = tipo.grupo_competencia.nombre
-            grupo_categoria = tipo.grupo_competencia.categoria
         return TipoCompetenciaResponse(
             id=tipo.id,
             nombre=tipo.nombre,
             grupo_competencia_id=tipo.grupo_competencia_id,
             grupo_nombre=grupo_nombre,
-            grupo_categoria=grupo_categoria,
             activo=tipo.activo,
             created_at=tipo.created_at,
             updated_at=tipo.updated_at,

@@ -14,8 +14,16 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
       </header>
       <div id="puestos-ajustes-sections" class="flex flex-col gap-6">
         <div id="puestos-ajustes-niveles"></div>
-        <div id="puestos-ajustes-grupos"></div>
-        <div id="puestos-ajustes-tipos"></div>
+        <section class="flex flex-col gap-4" aria-labelledby="puestos-ajustes-competencias-title">
+          <div>
+            <h2 id="puestos-ajustes-competencias-title" class="text-lg font-semibold text-text-primary">Competencias</h2>
+            <p class="mt-1 text-sm text-text-muted">Catálogos de grupos y tipos para clasificar competencias.</p>
+          </div>
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div id="puestos-ajustes-grupos" class="min-w-0"></div>
+            <div id="puestos-ajustes-tipos" class="min-w-0"></div>
+          </div>
+        </section>
       </div>
     </div>`,
   });

@@ -24,7 +24,6 @@ function mapGrupo(raw: Record<string, unknown>): GrupoCompetencia {
   return {
     id: raw.id as number,
     nombre: (raw.nombre ?? "") as string,
-    categoria: (raw.categoria ?? "blanda") as GrupoCompetencia["categoria"],
     activo: (raw.activo ?? true) as boolean,
     created_at: (raw.created_at ?? "") as string,
     updated_at: (raw.updated_at ?? "") as string,

@@ -29,7 +29,6 @@ class GrupoCompetenciaService:
         return GrupoCompetenciaResponse(
             id=grupo.id,
             nombre=grupo.nombre,
-            categoria=grupo.categoria,
             activo=grupo.activo,
             created_at=grupo.created_at,
             updated_at=grupo.updated_at,
@@ -77,7 +76,6 @@ class GrupoCompetenciaService:
         grupo = await self.repo.create(
             {
                 "nombre": data.nombre,
-                "categoria": data.categoria,
                 "activo": True,
             }
         )
@@ -100,9 +98,7 @@ class GrupoCompetenciaService:
                     detail=f"Ya existe un grupo '{data.nombre}' en el catalogo"
                 )
 
-        await self.repo.update(
-            id, {"nombre": data.nombre, "categoria": data.categoria}
-        )
+        await self.repo.update(id, {"nombre": data.nombre})
         grupo = await self.repo.get(id)
         return self._to_response(grupo)
 

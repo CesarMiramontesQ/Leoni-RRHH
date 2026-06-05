@@ -14,14 +14,13 @@ async def test_crear_grupo_competencia_success(client, db):
 
     response = await client.post(
         "/api/v1/grupos-competencia",
-        json={"nombre": "Liderazgo", "categoria": "blanda"},
+        json={"nombre": "Liderazgo"},
         headers=headers,
     )
 
     assert response.status_code == 201
     data = response.json()
     assert data["nombre"] == "Liderazgo"
-    assert data["categoria"] == "blanda"
 
 
 @pytest.mark.asyncio
@@ -32,7 +31,7 @@ async def test_crear_grupo_competencia_duplicado(client, db):
 
     response = await client.post(
         "/api/v1/grupos-competencia",
-        json={"nombre": "Grupo Duplicado", "categoria": "tecnica"},
+        json={"nombre": "Grupo Duplicado"},
         headers=headers,
     )
 
