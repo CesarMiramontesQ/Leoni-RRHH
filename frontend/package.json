@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.2",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",

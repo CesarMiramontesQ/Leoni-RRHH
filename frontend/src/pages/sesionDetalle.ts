@@ -1,10 +1,10 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_SECONDARY, BTN_DANGER, FIELD_FOCUS } from "../ui/uiTokens.ts";
-import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
+import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, updateCursoSesion, actualizarAsistencia } from "../api/cursos.ts";
 import type { EmpleadoElegible } from "../api/cursos.ts";
 import { ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
-import type { Curso, CursoSesion, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
+import type { Curso, CursoSesion, EstadoSesion, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 
 export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesionId: number, signal: AbortSignal): void {
   interface State {
@@ -111,7 +111,14 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       <div class="rounded-2xl border border-border bg-white p-5">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-base font-semibold text-text-primary">Datos de la Sesión</h2>
-          <span class="inline-flex items-center rounded-full border ${estadoCls} px-2.5 py-0.5 text-xs font-semibold">${escapeHtml(ESTADO_SESION_LABELS[s.estado])}</span>
+          <div class="flex items-center gap-2">
+            <label for="sesion-estado" class="text-xs text-slate-500">Estado:</label>
+            <select id="sesion-estado" data-action="change-estado" class="rounded-lg border ${estadoCls} px-3 py-1.5 text-xs font-semibold ${FIELD_FOCUS} cursor-pointer">
+              ${(["programada", "en_curso", "completada", "cancelada"] as const).map(e =>
+                `<option value="${e}" ${s.estado === e ? "selected" : ""}>${escapeHtml(ESTADO_SESION_LABELS[e])}</option>`
+              ).join("")}
+            </select>
+          </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
           <div>
@@ -168,7 +175,14 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
                 <tr class="border-b border-slate-100 hover:bg-slate-50/60">
                   <td class="px-4 py-2.5 text-sm text-slate-600 tabular-nums">${escapeHtml(emp.no_empleado ?? "—")}</td>
                   <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(emp.nombre_empleado ?? "—")}</td>
-                  <td class="px-4 py-2.5 text-sm">${emp.asistio === true ? `<span class="text-emerald-600 font-medium">✓ Asistió</span>` : emp.asistio === false ? `<span class="text-red-600 font-medium">✗ No asistió</span>` : `<span class="text-slate-400">Pendiente</span>`}</td>
+                  <td class="px-4 py-2.5">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" data-action="toggle-asistencia" data-id="${emp.id}"
+                        ${emp.asistio === true ? "checked" : ""}
+                        class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm ${emp.asistio === true ? "text-emerald-600 font-medium" : emp.asistio === false ? "text-red-600 font-medium" : "text-slate-400"}">${emp.asistio === true ? "Asistió" : emp.asistio === false ? "No asistió" : "Pendiente"}</span>
+                    </label>
+                  </td>
                   <td class="px-4 py-2.5 text-right">
                     <button data-action="quitar-empleado" data-id="${emp.id}" class="${BTN_DANGER} text-xs">Quitar</button>
                   </td>
@@ -213,6 +227,37 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   function bindEvents(): void {
     container.addEventListener("click", handleClick, { signal });
     container.addEventListener("input", handleInput, { signal });
+    container.addEventListener("change", handleChange, { signal });
+  }
+
+  async function handleChange(e: Event): Promise<void> {
+    const t = e.target as HTMLElement;
+    if ((t as HTMLSelectElement).matches("[data-action='change-estado']")) {
+      const newEstado = (t as HTMLSelectElement).value as EstadoSesion;
+      if (!state.sesion || newEstado === state.sesion.estado) return;
+      try {
+        const updated = await updateCursoSesion(cursoId, sesionId, { estado: newEstado });
+        state.sesion = updated;
+        render();
+      } catch {
+        render();
+      }
+      return;
+    }
+
+    if ((t as HTMLInputElement).matches("[data-action='toggle-asistencia']")) {
+      const id = Number((t as HTMLInputElement).dataset.id);
+      const checked = (t as HTMLInputElement).checked;
+      if (!id) return;
+      try {
+        await actualizarAsistencia(cursoId, sesionId, id, checked);
+        const emp = state.empleados.find(e => e.id === id);
+        if (emp) emp.asistio = checked;
+        render();
+      } catch {
+        render();
+      }
+    }
   }
 
   async function handleClick(e: Event): Promise<void> {

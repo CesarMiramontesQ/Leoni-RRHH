@@ -91,7 +91,7 @@ async def listar_todas_sesiones(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    stmt = stmt.order_by(CursoSesion.fecha_inicio.desc()).offset((page - 1) * page_size).limit(page_size)
+    stmt = stmt.order_by(CursoSesion.fecha_inicio.desc(), CursoSesion.id.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     rows = result.all()
 
@@ -450,10 +450,19 @@ async def inscribir_empleado_sesion(
     current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import func as sa_func
+    from app.core.exceptions import NotFoundError, ConflictError
+
     sesion = await db.get(CursoSesion, sesion_id)
     if not sesion or sesion.curso_id != curso_id:
-        from app.core.exceptions import NotFoundError
         raise NotFoundError(entidad="Sesión", id=sesion_id)
+
+    if sesion.estado.value in ("cancelada", "completada"):
+        raise ConflictError(detail=f"No se puede inscribir en una sesión {sesion.estado.value}")
+
+    emp = await db.get(Empleado, body.empleado_id)
+    if not emp:
+        raise NotFoundError(entidad="Empleado", id=body.empleado_id)
 
     existing = await db.execute(
         select(CursoEmpleado).where(
@@ -463,8 +472,17 @@ async def inscribir_empleado_sesion(
         )
     )
     if existing.scalar_one_or_none():
-        from app.core.exceptions import ConflictError
         raise ConflictError(detail="Este empleado ya está inscrito en esta sesión")
+
+    if sesion.cupo_max:
+        count_result = await db.execute(
+            select(sa_func.count()).where(
+                CursoEmpleado.sesion_id == sesion_id
+            )
+        )
+        current_count = count_result.scalar() or 0
+        if current_count >= sesion.cupo_max:
+            raise ConflictError(detail=f"Cupo máximo alcanzado ({sesion.cupo_max})")
 
     ce = CursoEmpleado(
         curso_id=curso_id,
@@ -475,6 +493,35 @@ async def inscribir_empleado_sesion(
     await db.flush()
     await db.refresh(ce, attribute_names=["empleado"])
 
+    return SesionEmpleadoResponse(
+        id=ce.id,
+        empleado_id=ce.empleado_id,
+        nombre_empleado=ce.empleado.nombre if ce.empleado else None,
+        no_empleado=ce.empleado.no_empleado if ce.empleado else None,
+        asistio=ce.asistio,
+    )
+
+
+class SesionEmpleadoUpdate(BaseModel):
+    asistio: bool | None = None
+
+
+@router.patch("/{sesion_id}/empleados/{id}", response_model=SesionEmpleadoResponse)
+async def actualizar_asistencia_empleado(
+    curso_id: int,
+    sesion_id: int,
+    id: int,
+    body: SesionEmpleadoUpdate,
+    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    ce = await db.get(CursoEmpleado, id)
+    if not ce or ce.sesion_id != sesion_id:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError(entidad="Inscripción empleado", id=id)
+    ce.asistio = body.asistio
+    await db.flush()
+    await db.refresh(ce, attribute_names=["empleado"])
     return SesionEmpleadoResponse(
         id=ce.id,
         empleado_id=ce.empleado_id,
