@@ -1,7 +1,7 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_SECONDARY, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
-import { getCursos, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
 import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
@@ -643,6 +643,10 @@ export function mountCursos(container: HTMLElement): void {
             </div>
           </div>
           <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Centro de costos</label>
+            <input type="number" name="centro_costos" value="${c?.centro_costos ?? ""}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          </div>
+          <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
             <textarea name="descripcion" rows="3" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}">${escapeHtml(c?.descripcion ?? "")}</textarea>
           </div>
@@ -801,6 +805,7 @@ export function mountCursos(container: HTMLElement): void {
             ${field("Cupo máximo", c.cupo_max ? String(c.cupo_max) : null)}
             ${field("Modalidad", c.modalidad)}
             ${field("Sesiones / año", c.sesiones_anio ? String(c.sesiones_anio) : null)}
+            ${field("Centro de costos", c.centro_costos ? String(c.centro_costos) : null)}
             ${field("Obligatorio", c.obligatorio ? "Sí" : "No")}
             ${field("Activo", c.activo ? "Sí" : "No")}
           </dl>
@@ -1134,6 +1139,24 @@ export function mountCursos(container: HTMLElement): void {
     });
   }
 
+  function navigateToDetail(curso: Curso): void {
+    state.detailCurso = curso;
+    state.detailPuestos = [];
+    state.detailEmpleadosExtra = [];
+    state.detailSesiones = [];
+    state.selectedEmpleados = new Set();
+    history.replaceState(null, "", `#/cursos/${curso.id}`);
+    render();
+    Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id)])
+      .then(([puestos, empExtra, sesionesResp]) => {
+        state.detailPuestos = puestos;
+        state.detailEmpleadosExtra = empExtra;
+        state.detailSesiones = sesionesResp.items;
+        render();
+      })
+      .catch(() => {});
+  }
+
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let sesionEmpSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -1194,6 +1217,7 @@ export function mountCursos(container: HTMLElement): void {
       state.detailCurso = null;
       state.selectedEmpleados = new Set();
       state.showAssignSesionPicker = false;
+      history.replaceState(null, "", "#/cursos");
       render();
       return;
     }
@@ -1203,19 +1227,7 @@ export function mountCursos(container: HTMLElement): void {
       const id = Number(viewBtn.dataset.id);
       const curso = state.cursos.items.find(c => c.id === id);
       if (curso) {
-        state.detailCurso = curso;
-        state.detailPuestos = [];
-        state.detailEmpleadosExtra = [];
-        state.detailSesiones = [];
-        render();
-        Promise.all([getCursoPuestos(id), getCursoEmpleadosExtra(id), getCursoSesiones(id)])
-          .then(([puestos, empExtra, sesionesResp]) => {
-            state.detailPuestos = puestos;
-            state.detailEmpleadosExtra = empExtra;
-            state.detailSesiones = sesionesResp.items;
-            render();
-          })
-          .catch(() => {});
+        navigateToDetail(curso);
       }
       return;
     }
@@ -1587,6 +1599,7 @@ export function mountCursos(container: HTMLElement): void {
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
       descripcion: (fd.get("descripcion") as string) || undefined,
       requisitos: (fd.get("requisitos") as string) || undefined,
+      centro_costos: fd.get("centro_costos") ? Number(fd.get("centro_costos")) : undefined,
     };
 
     if (!payload.nombre) return;
@@ -1636,6 +1649,15 @@ export function mountCursos(container: HTMLElement): void {
     await loadCursos();
     state.loading = false;
     render();
+
+    const hashMatch = location.hash.match(/^#\/cursos\/(\d+)$/);
+    if (hashMatch) {
+      const cursoId = Number(hashMatch[1]);
+      try {
+        const curso = await getCursoById(cursoId);
+        navigateToDetail(curso);
+      } catch {}
+    }
   })();
 }
 

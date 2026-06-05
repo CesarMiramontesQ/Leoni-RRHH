@@ -184,17 +184,30 @@ async def listar_empleados_extra_del_curso(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista empleados individuales asignados a este curso (no via puesto)."""
+    """Lista empleados asignados directamente (no via puesto), deduplicados."""
+    # Empleados cubiertos por un puesto que tiene este curso
+    covered_by_puesto = (
+        select(PerfilFunciones.empleado_id)
+        .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
+        .where(CursoPuesto.curso_id == id, PerfilFunciones.activo.is_(True))
+    ).scalar_subquery()
+
     stmt = (
         select(CursoEmpleado)
         .options(selectinload(CursoEmpleado.empleado), selectinload(CursoEmpleado.sesion))
-        .where(CursoEmpleado.curso_id == id)
+        .where(CursoEmpleado.curso_id == id, CursoEmpleado.empleado_id.notin_(covered_by_puesto))
         .order_by(CursoEmpleado.created_at.desc())
     )
     result = await db.execute(stmt)
     items = result.scalars().all()
-    return [
-        CursoEmpleadoDetail(
+
+    seen: set[int] = set()
+    response = []
+    for ce in items:
+        if ce.empleado_id in seen:
+            continue
+        seen.add(ce.empleado_id)
+        response.append(CursoEmpleadoDetail(
             id=ce.id,
             empleado_id=ce.empleado_id,
             nombre_empleado=ce.empleado.nombre if ce.empleado else None,
@@ -202,6 +215,5 @@ async def listar_empleados_extra_del_curso(
             sesion_id=ce.sesion_id,
             sesion_fecha=str(ce.sesion.fecha_inicio) if ce.sesion else None,
             asistio=ce.asistio,
-        )
-        for ce in items
-    ]
+        ))
+    return response
