@@ -159,6 +159,7 @@ class CursoCreate(BaseModel):
     obligatorio: bool = False
     descripcion: Optional[str] = None
     requisitos: Optional[str] = None
+    centro_costos: Optional[int] = None
 
 
 class CursoUpdate(BaseModel):
@@ -176,6 +177,7 @@ class CursoUpdate(BaseModel):
     obligatorio: Optional[bool] = None
     descripcion: Optional[str] = None
     requisitos: Optional[str] = None
+    centro_costos: Optional[int] = None
     activo: Optional[bool] = None
 
 
@@ -195,6 +197,7 @@ class CursoResponse(BaseModel):
     obligatorio: bool
     descripcion: Optional[str] = None
     requisitos: Optional[str] = None
+    centro_costos: Optional[int] = None
     activo: bool
     created_at: datetime
     updated_at: datetime

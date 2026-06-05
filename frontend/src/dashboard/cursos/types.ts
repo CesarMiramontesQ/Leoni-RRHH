@@ -17,6 +17,7 @@ export interface Curso {
   obligatorio: boolean;
   descripcion: string | null;
   requisitos: string | null;
+  centro_costos: number | null;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -43,6 +44,7 @@ export interface CursoCreatePayload {
   obligatorio?: boolean;
   descripcion?: string;
   requisitos?: string;
+  centro_costos?: number;
 }
 
 export interface CursoUpdatePayload {
@@ -59,6 +61,7 @@ export interface CursoUpdatePayload {
   obligatorio?: boolean;
   descripcion?: string;
   requisitos?: string;
+  centro_costos?: number;
   activo?: boolean;
 }
 
