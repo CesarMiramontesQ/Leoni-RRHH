@@ -2039,7 +2039,7 @@ components:
 
     CompetenciaCreate:
       type: object
-      required: [nombre, categoria]
+      required: [nombre, tipo_competencia_id]
       properties:
         nombre:
           type: string
@@ -2047,12 +2047,9 @@ components:
           maxLength: 255
         descripcion:
           type: [string, "null"]
-        categoria:
-          type: string
-          enum: [tecnica, blanda]
-        subcategoria:
-          type: [string, "null"]
-          enum: [informatica, idiomas, profesional, social, personal, metodos, complementos, null]
+        tipo_competencia_id:
+          type: integer
+          minimum: 1
         area_id:
           type: [integer, "null"]
 
@@ -2065,18 +2062,15 @@ components:
           maxLength: 255
         descripcion:
           type: [string, "null"]
-        categoria:
-          type: string
-          enum: [tecnica, blanda]
-        subcategoria:
-          type: [string, "null"]
-          enum: [informatica, idiomas, profesional, social, personal, metodos, complementos, null]
+        tipo_competencia_id:
+          type: integer
+          minimum: 1
         area_id:
           type: [integer, "null"]
 
     CompetenciaResponse:
       type: object
-      required: [id, nombre, categoria, activo, created_at, updated_at]
+      required: [id, nombre, categoria, tipo_competencia_id, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -2087,8 +2081,13 @@ components:
         categoria:
           type: string
           enum: [tecnica, blanda]
-        subcategoria:
-          type: [string, "null"]
+        tipo_competencia_id:
+          type: integer
+        tipo_nombre:
+          type: string
+        tipo_grupo:
+          type: string
+          enum: [tecnica, blanda]
         area_id:
           type: [integer, "null"]
         area_nombre:
@@ -2227,7 +2226,7 @@ components:
     # ── Talento — Puestos Perfil ──────────────────────
     PuestoPerfilCreate:
       type: object
-      required: [nombre]
+      required: [nombre, nivel_id]
       properties:
         nombre:
           type: string
@@ -2235,9 +2234,8 @@ components:
           maxLength: 255
         area_id:
           type: [integer, "null"]
-        nivel:
-          type: [string, "null"]
-          maxLength: 50
+        nivel_id:
+          type: integer
         descripcion:
           type: [string, "null"]
         competencias_tecnicas:
@@ -2256,9 +2254,8 @@ components:
           maxLength: 255
         area_id:
           type: [integer, "null"]
-        nivel:
-          type: [string, "null"]
-          maxLength: 50
+        nivel_id:
+          type: integer
         descripcion:
           type: [string, "null"]
         competencias_tecnicas:
@@ -2280,8 +2277,10 @@ components:
           type: string
         area_nombre:
           type: [string, "null"]
-        nivel:
-          type: [string, "null"]
+        nivel_id:
+          type: integer
+        nivel_nombre:
+          type: string
         personas:
           type: integer
         cumplimiento_pct:
@@ -2302,9 +2301,179 @@ components:
           items:
             $ref: "#/components/schemas/PerfilTarjetaItem"
 
+    NivelPuestoCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+
+    NivelPuestoUpdate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+
+    NivelPuestoResponse:
+      type: object
+      required: [id, nombre, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NivelPuestoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NivelPuestoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    GrupoCompetenciaCreate:
+      type: object
+      required: [nombre, categoria]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+
+    GrupoCompetenciaUpdate:
+      type: object
+      required: [nombre, categoria]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+
+    GrupoCompetenciaResponse:
+      type: object
+      required: [id, nombre, categoria, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        categoria:
+          type: string
+          enum: [tecnica, blanda]
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    GrupoCompetenciaListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrupoCompetenciaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    TipoCompetenciaCreate:
+      type: object
+      required: [nombre, grupo_competencia_id]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        grupo_competencia_id:
+          type: integer
+
+    TipoCompetenciaUpdate:
+      type: object
+      required: [nombre, grupo_competencia_id]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        grupo_competencia_id:
+          type: integer
+
+    TipoCompetenciaResponse:
+      type: object
+      required: [id, nombre, grupo_competencia_id, grupo_nombre, grupo_categoria, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        grupo_competencia_id:
+          type: integer
+        grupo_nombre:
+          type: string
+        grupo_categoria:
+          type: string
+          enum: [tecnica, blanda, ""]
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TipoCompetenciaListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TipoCompetenciaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
     PuestoPerfilResponse:
       type: object
-      required: [id, codigo, nombre, version, activo, created_at, updated_at]
+      required: [id, codigo, nombre, nivel_id, nivel_nombre, version, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -2316,8 +2485,10 @@ components:
           type: [integer, "null"]
         area_nombre:
           type: [string, "null"]
-        nivel:
-          type: [string, "null"]
+        nivel_id:
+          type: integer
+        nivel_nombre:
+          type: string
         descripcion:
           type: [string, "null"]
         competencias_tecnicas:
@@ -2788,10 +2959,12 @@ components:
           type: integer
         competencia_nombre:
           type: string
-        subcategoria:
+        tipo_competencia_id:
+          type: integer
+          nullable: true
+        tipo_nombre:
           type: string
           nullable: true
-          enum: [informatica, idiomas, profesional, social, personal, metodos]
         nivel_requerido:
           type: integer
         orden:
@@ -2832,17 +3005,17 @@ components:
 
     PerfilCompetenciaSyncBody:
       type: object
-      required: [subcategoria]
+      required: [tipo_competencia_id]
       properties:
-        subcategoria:
-          type: string
-          enum: [informatica, idiomas, profesional, social, personal, metodos]
-          description: Subcategoría de competencias a sincronizar
+        tipo_competencia_id:
+          type: integer
+          minimum: 1
+          description: Tipo de competencia a sincronizar
         competencias:
           type: array
           items:
             $ref: "#/components/schemas/PerfilCompetenciaSyncItem"
-          description: Competencias de la categoría con nivel mínimo por puesto
+          description: Competencias del tipo con nivel mínimo por puesto
         competencia_ids:
           type: array
           items:
@@ -5718,6 +5891,348 @@ paths:
         "204":
           description: Competencia eliminada
 
+  # ── Talento — Niveles Puesto ─────────────────────────
+  /api/v1/niveles-puesto:
+    get:
+      tags: [Talento - Niveles Puesto]
+      summary: Listar niveles de puesto (paginado)
+      operationId: niveles_puesto_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pagina de niveles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NivelPuestoListResponse"
+    post:
+      tags: [Talento - Niveles Puesto]
+      summary: Crear nivel de puesto
+      operationId: niveles_puesto_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NivelPuestoCreate"
+      responses:
+        "201":
+          description: Nivel creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NivelPuestoResponse"
+
+  /api/v1/niveles-puesto/{id}:
+    get:
+      tags: [Talento - Niveles Puesto]
+      summary: Obtener nivel de puesto
+      operationId: niveles_puesto_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del nivel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NivelPuestoResponse"
+    patch:
+      tags: [Talento - Niveles Puesto]
+      summary: Actualizar nivel de puesto
+      operationId: niveles_puesto_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NivelPuestoUpdate"
+      responses:
+        "200":
+          description: Nivel actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NivelPuestoResponse"
+    delete:
+      tags: [Talento - Niveles Puesto]
+      summary: Eliminar nivel de puesto (soft delete)
+      operationId: niveles_puesto_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Nivel eliminado
+
+  # ── Talento — Grupos Competencia ─────────────────────
+  /api/v1/grupos-competencia:
+    get:
+      tags: [Talento - Grupos Competencia]
+      summary: Listar grupos de competencia (paginado)
+      operationId: grupos_competencia_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pagina de grupos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoCompetenciaListResponse"
+    post:
+      tags: [Talento - Grupos Competencia]
+      summary: Crear grupo de competencia
+      operationId: grupos_competencia_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrupoCompetenciaCreate"
+      responses:
+        "201":
+          description: Grupo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoCompetenciaResponse"
+
+  /api/v1/grupos-competencia/{id}:
+    get:
+      tags: [Talento - Grupos Competencia]
+      summary: Obtener grupo de competencia
+      operationId: grupos_competencia_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del grupo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoCompetenciaResponse"
+    patch:
+      tags: [Talento - Grupos Competencia]
+      summary: Actualizar grupo de competencia
+      operationId: grupos_competencia_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrupoCompetenciaUpdate"
+      responses:
+        "200":
+          description: Grupo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrupoCompetenciaResponse"
+    delete:
+      tags: [Talento - Grupos Competencia]
+      summary: Eliminar grupo de competencia (soft delete)
+      operationId: grupos_competencia_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Grupo eliminado
+
+  # ── Talento — Tipos Competencia ──────────────────────
+  /api/v1/tipos-competencia:
+    get:
+      tags: [Talento - Tipos Competencia]
+      summary: Listar tipos de competencia (paginado)
+      operationId: tipos_competencia_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pagina de tipos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCompetenciaListResponse"
+    post:
+      tags: [Talento - Tipos Competencia]
+      summary: Crear tipo de competencia
+      operationId: tipos_competencia_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TipoCompetenciaCreate"
+      responses:
+        "201":
+          description: Tipo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCompetenciaResponse"
+
+  /api/v1/tipos-competencia/{id}:
+    get:
+      tags: [Talento - Tipos Competencia]
+      summary: Obtener tipo de competencia
+      operationId: tipos_competencia_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del tipo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCompetenciaResponse"
+    patch:
+      tags: [Talento - Tipos Competencia]
+      summary: Actualizar tipo de competencia
+      operationId: tipos_competencia_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TipoCompetenciaUpdate"
+      responses:
+        "200":
+          description: Tipo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoCompetenciaResponse"
+    delete:
+      tags: [Talento - Tipos Competencia]
+      summary: Eliminar tipo de competencia (soft delete)
+      operationId: tipos_competencia_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Tipo eliminado
+
   # ── Talento — Puestos Perfil ─────────────────────────
   /api/v1/puestos-perfil:
     get:
@@ -5741,6 +6256,10 @@ paths:
             minimum: 1
             maximum: 100
         - name: area_id
+          in: query
+          schema:
+            type: integer
+        - name: nivel_id
           in: query
           schema:
             type: integer

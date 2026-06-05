@@ -12,35 +12,42 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import auth_headers, make_empleado
-from tests.conftest_talento import make_competencia, make_puesto_perfil
+from tests.conftest_talento import make_competencia, make_puesto_perfil, make_tipo_competencia
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_listar_competencias_con_tipo(client: AsyncClient, db: AsyncSession):
+    """Despues de agregar, GET incluye tipo de competencia en la respuesta."""
+    rh = await make_empleado(db, rol="rh", email="pc_rh6@leoni.test")
+    headers = await auth_headers(client, rh)
 
-
-async def _make_competencia_con_subcategoria(
-    db: AsyncSession,
-    *,
-    nombre: str = "Liderazgo",
-    categoria: str = "blanda",
-    subcategoria: str | None = None,
-) -> "Competencia":
-    """Crea competencia con subcategoria (campo no expuesto en conftest_talento)."""
-    from app.models.talento import Competencia
-
-    comp = Competencia(
-        nombre=nombre,
-        categoria=categoria,
-        subcategoria=subcategoria,
-        activo=True,
+    perfil = await make_puesto_perfil(db, nombre="Puesto Tipo")
+    tipo = await make_tipo_competencia(db, nombre="Competencia social", grupo="blanda")
+    comp = await make_competencia(
+        db,
+        nombre="Negociacion",
+        categoria="blanda",
+        tipo_competencia_id=tipo.id,
     )
-    db.add(comp)
-    await db.flush()
-    await db.refresh(comp)
-    return comp
 
+    resp_post = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/competencias",
+        json={"competencia_id": comp.id, "nivel_requerido": 2},
+        headers=headers,
+    )
+    assert resp_post.status_code == 201
+    assert resp_post.json()["tipo_competencia_id"] == tipo.id
+    assert resp_post.json()["tipo_nombre"] == "Competencia social"
+    assert resp_post.json()["nivel_requerido"] == 2
 
-# ── Tests ────────────────────────────────────────────────────────────────────
+    resp_get = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias", headers=headers
+    )
+    assert resp_get.status_code == 200
+    items = resp_get.json()
+    assert len(items) == 1
+    assert items[0]["tipo_competencia_id"] == tipo.id
+    assert items[0]["competencia_nombre"] == "Negociacion"
 
 
 @pytest.mark.asyncio
@@ -167,41 +174,6 @@ async def test_agregar_competencia_sin_permiso(client: AsyncClient, db: AsyncSes
         headers=headers,
     )
     assert resp.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_listar_competencias_con_subcategoria(client: AsyncClient, db: AsyncSession):
-    """Despues de agregar, GET incluye subcategoria en la respuesta."""
-    rh = await make_empleado(db, rol="rh", email="pc_rh6@leoni.test")
-    headers = await auth_headers(client, rh)
-
-    perfil = await make_puesto_perfil(db, nombre="Puesto SubCat")
-    comp = await _make_competencia_con_subcategoria(
-        db,
-        nombre="Negociacion",
-        categoria="blanda",
-        subcategoria="social",
-    )
-
-    # Agregar competencia al perfil
-    resp_post = await client.post(
-        f"/api/v1/perfiles/{perfil.id}/competencias",
-        json={"competencia_id": comp.id, "nivel_requerido": 2},
-        headers=headers,
-    )
-    assert resp_post.status_code == 201
-    assert resp_post.json()["subcategoria"] == "social"
-    assert resp_post.json()["nivel_requerido"] == 2
-
-    # Verificar en listado GET
-    resp_get = await client.get(
-        f"/api/v1/perfiles/{perfil.id}/competencias", headers=headers
-    )
-    assert resp_get.status_code == 200
-    items = resp_get.json()
-    assert len(items) == 1
-    assert items[0]["subcategoria"] == "social"
-    assert items[0]["competencia_nombre"] == "Negociacion"
 
 
 @pytest.mark.asyncio

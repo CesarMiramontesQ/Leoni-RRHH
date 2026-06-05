@@ -126,8 +126,8 @@ export function renderMatrizRequisitosTab(model: MatrizRequisitosModel): string 
       .map((comp) => {
         const nivel = getEffectiveNivel(model, comp);
         const dirty = model.pending.has(comp.competencia_id);
-        const sub = comp.subcategoria
-          ? escapeHtml(comp.subcategoria.charAt(0).toUpperCase() + comp.subcategoria.slice(1))
+        const sub = comp.tipo_nombre
+          ? escapeHtml(comp.tipo_nombre)
           : "—";
         const opts = NIVEL_OPTIONS.map(
           (o) =>

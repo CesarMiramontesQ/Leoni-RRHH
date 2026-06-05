@@ -304,11 +304,17 @@ class PerfilFuncionesService:
         items = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
         results = []
         for c in items:
+            comp = c.competencia
             resp = PerfilCompetenciaResponse(
                 id=c.id,
                 competencia_id=c.competencia_id,
-                competencia_nombre=c.competencia.nombre if c.competencia else "",
-                subcategoria=c.competencia.subcategoria if c.competencia else None,
+                competencia_nombre=comp.nombre if comp else "",
+                tipo_competencia_id=comp.tipo_competencia_id if comp else None,
+                tipo_nombre=(
+                    comp.tipo_competencia.nombre
+                    if comp and comp.tipo_competencia
+                    else None
+                ),
                 nivel_requerido=c.nivel_requerido,
                 orden=c.orden,
             )
@@ -328,8 +334,11 @@ class PerfilFuncionesService:
             raise ConflictError(detail="Esta competencia ya está asignada al perfil")
 
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         result = await self.db.execute(
-            select(Competencia).where(Competencia.id == data.competencia_id)
+            select(Competencia)
+            .options(selectinload(Competencia.tipo_competencia))
+            .where(Competencia.id == data.competencia_id)
         )
         catalogo = result.scalar_one_or_none()
         if not catalogo:
@@ -348,7 +357,8 @@ class PerfilFuncionesService:
             id=requisito.id,
             competencia_id=requisito.competencia_id,
             competencia_nombre=catalogo.nombre,
-            subcategoria=catalogo.subcategoria,
+            tipo_competencia_id=catalogo.tipo_competencia_id,
+            tipo_nombre=catalogo.tipo_competencia.nombre if catalogo.tipo_competencia else None,
             nivel_requerido=requisito.nivel_requerido,
             orden=requisito.orden,
         )
@@ -356,11 +366,11 @@ class PerfilFuncionesService:
     async def sincronizar_competencias(
         self,
         perfil_id: int,
-        subcategoria: str,
+        tipo_competencia_id: int,
         competencias: list[PerfilCompetenciaSyncItem],
         current_user: Empleado,
     ) -> list[PerfilCompetenciaResponse]:
-        """Sync competencias del catálogo por subcategoría (incluye nivel requerido por puesto)."""
+        """Sync competencias del catálogo por tipo (incluye nivel requerido por puesto)."""
         rol = self._get_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
@@ -369,7 +379,7 @@ class PerfilFuncionesService:
 
         result = await self.db.execute(
             select(Competencia.id).where(
-                Competencia.subcategoria == subcategoria,
+                Competencia.tipo_competencia_id == tipo_competencia_id,
                 Competencia.activo.is_(True),
             )
         )
@@ -382,10 +392,10 @@ class PerfilFuncionesService:
             invalid = requested_ids - catalogo_ids
             if invalid:
                 raise DomainValidationError(
-                    f"competencia_ids inválidos para subcategoría '{subcategoria}': {sorted(invalid)}"
+                    f"competencia_ids inválidos para tipo de competencia {tipo_competencia_id}: {sorted(invalid)}"
                 )
 
-        current = await self.competencia_repo.list_by_puesto_and_subcategoria(perfil_id, subcategoria)
+        current = await self.competencia_repo.list_by_puesto_and_tipo(perfil_id, tipo_competencia_id)
         current_catalogo = {r.competencia_id: r for r in current if r.competencia_id in catalogo_ids}
         current_catalogo_ids = set(current_catalogo.keys())
 
@@ -434,7 +444,11 @@ class PerfilFuncionesService:
 
         result = await self.db.execute(
             select(CompetenciaRequisito)
-            .options(selectinload(CompetenciaRequisito.competencia))
+            .options(
+                selectinload(CompetenciaRequisito.competencia).selectinload(
+                    Competencia.tipo_competencia
+                )
+            )
             .where(
                 CompetenciaRequisito.id == requisito_id,
                 CompetenciaRequisito.puesto_perfil_id == perfil_id,
@@ -453,12 +467,17 @@ class PerfilFuncionesService:
             id=requisito.id,
             competencia_id=requisito.competencia_id,
             competencia_nombre=catalogo.nombre if catalogo else "",
-            subcategoria=catalogo.subcategoria if catalogo else None,
+            tipo_competencia_id=catalogo.tipo_competencia_id if catalogo else None,
+            tipo_nombre=(
+                catalogo.tipo_competencia.nombre
+                if catalogo and catalogo.tipo_competencia
+                else None
+            ),
             nivel_requerido=requisito.nivel_requerido,
             orden=requisito.orden,
         )
 
-    SUBCATEGORIAS_DEMOSTRADAS = {"informatica", "idiomas", "profesional", "social", "personal", "metodos"}
+    TIPO_COMPLEMENTOS_NOMBRE = "Complementos"
 
     async def sincronizar_evaluacion_competencias(
         self,
@@ -481,7 +500,11 @@ class PerfilFuncionesService:
         all_requisitos = await self.competencia_repo.list_by_puesto_with_competencia(perfil_id)
         demostradas_ids = {
             c.id for c in all_requisitos
-            if c.competencia and c.competencia.subcategoria in self.SUBCATEGORIAS_DEMOSTRADAS
+            if c.competencia
+            and (
+                not c.competencia.tipo_competencia
+                or c.competencia.tipo_competencia.nombre != self.TIPO_COMPLEMENTOS_NOMBRE
+            )
         }
 
         eval_req_ids = [req_id for req_id, _ in evaluaciones]
@@ -636,7 +659,14 @@ class PerfilFuncionesService:
             gap_competencias.append({
                 "competencia_requisito_id": comp.id,
                 "competencia_nombre": comp.competencia.nombre if comp.competencia else "",
-                "subcategoria": comp.competencia.subcategoria if comp.competencia else None,
+                "tipo_competencia_id": (
+                    comp.competencia.tipo_competencia_id if comp.competencia else None
+                ),
+                "tipo_nombre": (
+                    comp.competencia.tipo_competencia.nombre
+                    if comp.competencia and comp.competencia.tipo_competencia
+                    else None
+                ),
                 "nivel_requerido": comp.nivel_requerido,
                 "situacion_actual": evaluacion.situacion_actual if evaluacion else None,
                 "comentarios": evaluacion.comentarios if evaluacion else None,

@@ -4,6 +4,8 @@ import {
   createPerfilCompetencia,
 } from "../../api/puestos.ts";
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
+import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
+import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { NIVEL_REQUERIDO_OPTIONS } from "../../ui/nivelCompetencia.ts";
 import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
@@ -18,32 +20,29 @@ export type EditarCompetenciasModalOptions = {
   onSuccess: () => void;
 };
 
-const SUBCATEGORIAS: { key: string; label: string }[] = [
-  { key: "informatica", label: "Informática" },
-  { key: "idiomas", label: "Idiomas" },
-  { key: "profesional", label: "Profesional" },
-  { key: "social", label: "Social" },
-  { key: "personal", label: "Personal" },
-  { key: "metodos", label: "Métodos" },
+const TIPO_CHIP_PALETTE = [
+  "bg-blue-50 text-blue-700 border-blue-200",
+  "bg-violet-50 text-violet-700 border-violet-200",
+  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "bg-amber-50 text-amber-700 border-amber-200",
+  "bg-rose-50 text-rose-700 border-rose-200",
+  "bg-cyan-50 text-cyan-700 border-cyan-200",
 ];
 
-const SUBCATEGORIA_COLORS: Record<string, string> = {
-  informatica: "bg-blue-50 text-blue-700 border-blue-200",
-  idiomas: "bg-violet-50 text-violet-700 border-violet-200",
-  profesional: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  social: "bg-amber-50 text-amber-700 border-amber-200",
-  personal: "bg-rose-50 text-rose-700 border-rose-200",
-  metodos: "bg-cyan-50 text-cyan-700 border-cyan-200",
-};
-
-type CatalogoItem = { id: number; nombre: string; subcategoria?: string };
+type CatalogoItem = { id: number; nombre: string; tipo_competencia_id: number };
 type AssignedItem = {
   requisito_id: number;
   competencia_id: number;
   nombre: string;
-  subcategoria: string | null;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
   nivel_requerido: number;
 };
+
+function tipoChipColors(tipoId: number, tipos: TipoCompetencia[]): string {
+  const idx = tipos.findIndex((t) => t.id === tipoId);
+  return TIPO_CHIP_PALETTE[idx >= 0 ? idx % TIPO_CHIP_PALETTE.length : 0] ?? "bg-slate-100 text-slate-600 border-slate-200";
+}
 
 function compactNivelSelect(selected: number, attrs: string): string {
   const opts = NIVEL_REQUERIDO_OPTIONS.map(
@@ -65,6 +64,7 @@ export function mountEditarCompetenciasModal(
   const body = host.querySelector("#editar-competencias-body") as HTMLElement;
 
   let catalogo: CatalogoItem[] = [];
+  let tiposCatalogo: TipoCompetencia[] = [];
   let assigned: AssignedItem[] = [];
   let pendingRemovals: Set<number> = new Set();
   let pendingAdds: Map<number, number> = new Map();
@@ -87,22 +87,27 @@ export function mountEditarCompetenciasModal(
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
-      const [catalogoItems, perfilComps] = await Promise.all([
-        getCompetencias({ page_size: 100 }),
+      const [catalogoItems, perfilComps, tipos] = await Promise.all([
+        getCompetencias({ page_size: 200 }),
         getPerfilCompetencias(options.perfilId),
+        getTiposCompetencia({ page_size: 200 }),
       ]);
 
+      tiposCatalogo = tipos;
+      const tipoIds = new Set(tipos.map((t) => t.id));
+
       catalogo = catalogoItems
-        .filter(c => c.subcategoria && SUBCATEGORIAS.some(s => s.key === c.subcategoria))
-        .map(c => ({ id: c.id, nombre: c.nombre, subcategoria: c.subcategoria }));
+        .filter((c) => tipoIds.has(c.tipo_competencia_id))
+        .map((c) => ({ id: c.id, nombre: c.nombre, tipo_competencia_id: c.tipo_competencia_id }));
 
       assigned = perfilComps
-        .filter(c => c.subcategoria && SUBCATEGORIAS.some(s => s.key === c.subcategoria))
-        .map(c => ({
+        .filter((c) => c.tipo_competencia_id && tipoIds.has(c.tipo_competencia_id))
+        .map((c) => ({
           requisito_id: c.id,
           competencia_id: c.competencia_id,
           nombre: c.competencia_nombre,
-          subcategoria: c.subcategoria,
+          tipo_competencia_id: c.tipo_competencia_id,
+          tipo_nombre: c.tipo_nombre,
           nivel_requerido: c.nivel_requerido ?? 0,
         }));
 
@@ -145,16 +150,18 @@ export function mountEditarCompetenciasModal(
     const visible = getVisibleAssigned();
     const adding = getVisiblePendingAdds();
 
-    const grouped = new Map<string, { assigned: AssignedItem[]; adding: CatalogoItem[] }>();
-    for (const sub of SUBCATEGORIAS) {
-      grouped.set(sub.key, { assigned: [], adding: [] });
+    const grouped = new Map<number, { assigned: AssignedItem[]; adding: CatalogoItem[] }>();
+    for (const sub of tiposCatalogo) {
+      grouped.set(sub.id, { assigned: [], adding: [] });
     }
     for (const a of visible) {
-      const g = grouped.get(a.subcategoria ?? "");
-      if (g) g.assigned.push(a);
+      if (a.tipo_competencia_id != null) {
+        const g = grouped.get(a.tipo_competencia_id);
+        if (g) g.assigned.push(a);
+      }
     }
     for (const a of adding) {
-      const g = grouped.get(a.subcategoria ?? "");
+      const g = grouped.get(a.tipo_competencia_id);
       if (g) g.adding.push(a);
     }
 
@@ -162,9 +169,9 @@ export function mountEditarCompetenciasModal(
       pendingRemovals.size > 0 || pendingAdds.size > 0 || pendingNivelUpdates.size > 0;
     const totalCount = visible.length + adding.length;
 
-    const sections = SUBCATEGORIAS.map(sub => {
-      const g = grouped.get(sub.key)!;
-      const colors = SUBCATEGORIA_COLORS[sub.key] ?? "bg-slate-100 text-slate-600 border-slate-300";
+    const sections = tiposCatalogo.map((sub) => {
+      const g = grouped.get(sub.id)!;
+      const colors = tipoChipColors(sub.id, tiposCatalogo);
       const count = g.assigned.length + g.adding.length;
       if (count === 0) return "";
 
@@ -192,7 +199,7 @@ export function mountEditarCompetenciasModal(
       return `
         <div class="mb-3 last:mb-0">
           <div class="mb-1.5 flex items-center gap-2">
-            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub.label)}</span>
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub.nombre)}</span>
             <span class="text-[10px] text-slate-400">${count}</span>
           </div>
           <div class="flex flex-wrap gap-1.5">${chips}</div>
@@ -241,7 +248,10 @@ export function mountEditarCompetenciasModal(
 
     let results = catalogo.filter(c => !assignedIds.has(c.id) || removedIds.has(c.id));
     if (searchSubcategoria) {
-      results = results.filter(c => c.subcategoria === searchSubcategoria);
+      const tipoId = Number.parseInt(searchSubcategoria, 10);
+      if (!Number.isNaN(tipoId)) {
+        results = results.filter((c) => c.tipo_competencia_id === tipoId);
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -249,8 +259,8 @@ export function mountEditarCompetenciasModal(
     }
     results = results.slice(0, 20);
 
-    const subcatOptions = SUBCATEGORIAS.map(s =>
-      `<option value="${s.key}" ${searchSubcategoria === s.key ? "selected" : ""}>${escapeHtml(s.label)}</option>`
+    const subcatOptions = tiposCatalogo.map((s) =>
+      `<option value="${s.id}" ${searchSubcategoria === String(s.id) ? "selected" : ""}>${escapeHtml(s.nombre)}</option>`,
     ).join("");
 
     const pickPanel =
@@ -291,11 +301,11 @@ export function mountEditarCompetenciasModal(
         ${results.length > 0 ? `
           <div class="max-h-40 overflow-y-auto space-y-0.5">
             ${results.map(c => {
-              const sub = SUBCATEGORIAS.find(s => s.key === c.subcategoria);
-              const colors = SUBCATEGORIA_COLORS[c.subcategoria ?? ""] ?? "bg-slate-100 text-slate-600";
+              const tipo = tiposCatalogo.find((t) => t.id === c.tipo_competencia_id);
+              const colors = tipoChipColors(c.tipo_competencia_id, tiposCatalogo);
               return `
                 <button type="button" data-add-comp="${c.id}" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-white transition-colors">
-                  <span class="rounded px-1 py-0.5 text-[9px] font-medium ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub?.label ?? "")}</span>
+                  <span class="rounded px-1 py-0.5 text-[9px] font-medium ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(tipo?.nombre ?? "")}</span>
                   <span class="text-slate-700">${escapeHtml(c.nombre)}</span>
                 </button>`;
             }).join("")}
@@ -305,8 +315,8 @@ export function mountEditarCompetenciasModal(
   }
 
   function renderCreatePanel(): string {
-    const subcatOptions = SUBCATEGORIAS.map(s =>
-      `<option value="${s.key}">${escapeHtml(s.label)}</option>`
+    const subcatOptions = tiposCatalogo.map((s) =>
+      `<option value="${s.id}">${escapeHtml(s.nombre)}</option>`,
     ).join("");
 
     const nivelOpts = NIVEL_REQUERIDO_OPTIONS.map(
@@ -499,6 +509,7 @@ export function mountEditarCompetenciasModal(
 
     const nombre = nombreInput.value.trim();
     const subcategoria = subcatSelect.value;
+    const tipoCompetenciaId = Number.parseInt(subcategoria, 10);
     const nivelSelect = body.querySelector("[data-create-nivel]") as HTMLSelectElement | null;
     const nivel = Number.parseInt(nivelSelect?.value ?? "", 10);
     if (!nombre) {
@@ -511,6 +522,13 @@ export function mountEditarCompetenciasModal(
       return;
     }
 
+    if (!Number.isFinite(tipoCompetenciaId) || tipoCompetenciaId <= 0) {
+      saveError = "Selecciona un tipo válido.";
+      saving = false;
+      render();
+      return;
+    }
+
     saving = true;
     saveError = "";
     render();
@@ -518,8 +536,7 @@ export function mountEditarCompetenciasModal(
       const newComp = await createCompetencia({
         nombre,
         descripcion: nombre,
-        grupo: "tecnica",
-        subcategoria,
+        tipo_competencia_id: tipoCompetenciaId,
       });
       await createPerfilCompetencia(options.perfilId, {
         competencia_id: newComp.id,
@@ -539,12 +556,12 @@ export function mountEditarCompetenciasModal(
     saveError = "";
     render();
     try {
-      for (const sub of SUBCATEGORIAS) {
-        const currentInSub = assigned.filter((a) => a.subcategoria === sub.key);
+      for (const sub of tiposCatalogo) {
+        const currentInSub = assigned.filter((a) => a.tipo_competencia_id === sub.id);
         const hasRemovals = currentInSub.some((a) => pendingRemovals.has(a.requisito_id));
         const addsInSub = [...pendingAdds.keys()].filter((id) => {
           const c = catalogo.find((cat) => cat.id === id);
-          return c?.subcategoria === sub.key;
+          return c?.tipo_competencia_id === sub.id;
         });
         const hasNivelEdits = currentInSub.some((a) => pendingNivelUpdates.has(a.requisito_id));
         if (!hasRemovals && addsInSub.length === 0 && !hasNivelEdits) continue;
@@ -578,7 +595,7 @@ export function mountEditarCompetenciasModal(
         }
 
         await syncPerfilCompetencias(options.perfilId, {
-          subcategoria: sub.key,
+          tipo_competencia_id: sub.id,
           competencias,
         });
       }

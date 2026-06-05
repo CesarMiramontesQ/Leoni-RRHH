@@ -18,7 +18,7 @@ class PuestoPerfilCreate(BaseModel):
 
     nombre: str = Field(..., min_length=3, max_length=255)
     area_id: Optional[int] = None
-    nivel: Optional[str] = Field(None, max_length=50)
+    nivel_id: int = Field(..., description="ID del nivel de puesto")
     descripcion: Optional[str] = None
 
 
@@ -27,7 +27,7 @@ class PuestoPerfilUpdate(BaseModel):
 
     nombre: Optional[str] = Field(None, min_length=3, max_length=255)
     area_id: Optional[int] = None
-    nivel: Optional[str] = Field(None, max_length=50)
+    nivel_id: Optional[int] = None
     descripcion: Optional[str] = None
 
 
@@ -39,7 +39,8 @@ class PuestoPerfilResponse(BaseModel):
     nombre: str
     area_id: Optional[int] = None
     area_nombre: Optional[str] = None
-    nivel: Optional[str] = None
+    nivel_id: int
+    nivel_nombre: str
     descripcion: Optional[str] = None
     version: int
     activo: bool
@@ -66,8 +67,7 @@ class CompetenciaCreate(BaseModel):
 
     nombre: str = Field(..., min_length=2, max_length=255)
     descripcion: Optional[str] = None
-    categoria: CategoriaCompetencia
-    subcategoria: Optional[str] = None
+    tipo_competencia_id: int = Field(..., gt=0)
     area_id: Optional[int] = None
 
 
@@ -76,8 +76,7 @@ class CompetenciaUpdate(BaseModel):
 
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     descripcion: Optional[str] = None
-    categoria: Optional[CategoriaCompetencia] = None
-    subcategoria: Optional[str] = None
+    tipo_competencia_id: Optional[int] = Field(None, gt=0)
     area_id: Optional[int] = None
 
 
@@ -88,7 +87,9 @@ class CompetenciaResponse(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
     categoria: str
-    subcategoria: Optional[str] = None
+    tipo_competencia_id: int
+    tipo_nombre: str = ""
+    tipo_grupo: str = ""
     area_id: Optional[int] = None
     area_nombre: Optional[str] = None
     activo: bool
@@ -185,7 +186,8 @@ class PerfilTarjetaItem(BaseModel):
     codigo: str
     nombre: str
     area_nombre: Optional[str] = None
-    nivel: Optional[str] = None
+    nivel_id: int
+    nivel_nombre: str
     personas: int = 0
     cumplimiento_pct: int = 0
     brechas: int = 0
@@ -220,7 +222,8 @@ class GenerarPerfilIAResponse(BaseModel):
 class MultihabilidadesCompetenciaItem(BaseModel):
     competencia_id: int
     competencia_nombre: str
-    subcategoria: Optional[str] = None
+    tipo_competencia_id: int
+    tipo_nombre: str = ""
     nivel_requerido: int
 
 

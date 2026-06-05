@@ -39,7 +39,8 @@ function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
     codigo: (p.codigo ?? "") as string,
     nombre_puesto: (p.nombre ?? "") as string,
     area: (p.area_nombre ?? "") as string,
-    nivel: (p.nivel ?? "") as string,
+    nivel_id: p.nivel_id as number,
+    nivel_nombre: (p.nivel_nombre ?? "") as string,
     recomendaciones_ia: [] as PerfilPuesto["recomendaciones_ia"],
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
@@ -68,7 +69,8 @@ export type PerfilTarjetaItem = {
   codigo: string;
   nombre: string;
   area_nombre: string | null;
-  nivel: string | null;
+  nivel_id: number;
+  nivel_nombre: string;
   personas: number;
   cumplimiento_pct: number;
   brechas: number;
@@ -107,7 +109,8 @@ export async function getPerfilesList(opts?: {
     codigo: p.codigo as string,
     nombre_puesto: (p.nombre ?? "") as string,
     area: (p.area_nombre ?? "") as string,
-    nivel: (p.nivel ?? "") as string,
+    nivel_id: p.nivel_id as number,
+    nivel_nombre: (p.nivel_nombre ?? "") as string,
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
   }));
@@ -125,7 +128,7 @@ export async function getPerfilById(id: number): Promise<PerfilPuesto> {
 export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<PerfilPuesto> {
   const body = {
     nombre: payload.nombre_puesto,
-    nivel: payload.nivel || null,
+    nivel_id: payload.nivel_id,
     area_id: payload.area_id || null,
   };
   const res = await fetchWithAuth("/api/v1/puestos-perfil", {
@@ -141,7 +144,7 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
 export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayload): Promise<PerfilPuesto> {
   const body: Record<string, unknown> = {};
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
-  if (payload.nivel) body.nivel = payload.nivel;
+  if (payload.nivel_id !== undefined) body.nivel_id = payload.nivel_id;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
   const res = await fetchWithAuth(`/api/v1/puestos-perfil/${id}`, {
     method: "PUT",
@@ -272,7 +275,8 @@ export type PerfilCompetencia = {
   id: number;
   competencia_id: number;
   competencia_nombre: string;
-  subcategoria: string | null;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
   nivel_requerido: number;
   orden: number | null;
 };
@@ -306,7 +310,7 @@ export type PerfilCompetenciaSyncItem = {
 /** PUT /api/v1/perfiles/:id/competencias/sync — sync multi-select por categoría */
 export async function syncPerfilCompetencias(
   perfilId: number,
-  body: { subcategoria: string; competencias: PerfilCompetenciaSyncItem[] },
+  body: { tipo_competencia_id: number; competencias: PerfilCompetenciaSyncItem[] },
 ): Promise<PerfilCompetencia[]> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/sync`, {
     method: "PUT",
@@ -367,7 +371,8 @@ export type GapCualificacion = {
 export type GapCompetencia = {
   competencia_requisito_id: number;
   competencia_nombre: string;
-  subcategoria: string | null;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
   nivel_requerido: number;
   situacion_actual: string | null;
   comentarios: string | null;

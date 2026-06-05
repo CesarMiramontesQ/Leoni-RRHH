@@ -20,6 +20,7 @@ import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
 import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
+import { mountPuestosAjustes } from "./pages/puestosAjustes.ts";
 import { mountPerfilPuestoDetalle } from "./pages/perfilPuestoDetalle.ts";
 import { mountPuestoEmpleados } from "./pages/puestoEmpleados.ts";
 import { mountMetricas } from "./pages/metricas.ts";
@@ -187,6 +188,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/sesiones")) {
       mountSesiones(container);
+      return;
+    }
+
+    if (h.startsWith("#/puestos/ajustes")) {
+      mountPuestosAjustes(container, signal);
       return;
     }
 

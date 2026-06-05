@@ -53,7 +53,9 @@ class PuestoPerfil(Base):
     area_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("areas.area_id"), nullable=True
     )
-    nivel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    nivel_id: Mapped[int] = mapped_column(
+        ForeignKey("niveles_puesto.id"), nullable=False
+    )
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -92,6 +94,7 @@ class PuestoPerfil(Base):
 
     # Relationships
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
+    nivel: Mapped["NivelPuesto"] = relationship("NivelPuesto", back_populates="puestos_perfil")
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="puesto_perfil", cascade="all, delete-orphan"
     )
@@ -109,6 +112,61 @@ class PuestoPerfil(Base):
         return f"<PuestoPerfil id={self.id} codigo={self.codigo} nombre={self.nombre}>"
 
 
+class GrupoCompetencia(Base):
+    """Catalogo de grupos para clasificar tipos de competencia (ej. Tecnica, Habilidad blanda)."""
+
+    __tablename__ = "grupos_competencia"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    categoria: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'tecnica' | 'blanda' — clasificacion para matriz y competencias
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    tipos: Mapped[List["TipoCompetencia"]] = relationship(
+        "TipoCompetencia", back_populates="grupo_competencia"
+    )
+
+    def __repr__(self) -> str:
+        return f"<GrupoCompetencia id={self.id} nombre={self.nombre} categoria={self.categoria}>"
+
+
+class TipoCompetencia(Base):
+    """Catalogo de tipos de competencia (ej. Informatica, Idiomas, Profesional)."""
+
+    __tablename__ = "tipos_competencia"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    grupo_competencia_id: Mapped[int] = mapped_column(
+        ForeignKey("grupos_competencia.id"), nullable=False
+    )
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    grupo_competencia: Mapped["GrupoCompetencia"] = relationship(
+        "GrupoCompetencia", back_populates="tipos"
+    )
+    competencias: Mapped[List["Competencia"]] = relationship(
+        "Competencia", back_populates="tipo_competencia"
+    )
+
+    def __repr__(self) -> str:
+        return f"<TipoCompetencia id={self.id} nombre={self.nombre} grupo_id={self.grupo_competencia_id}>"
+
+
 class Competencia(Base):
     __tablename__ = "competencias"
 
@@ -117,8 +175,10 @@ class Competencia(Base):
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     categoria: Mapped[str] = mapped_column(
         String(20), nullable=False
-    )  # 'tecnica' | 'blanda'
-    subcategoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    )  # 'tecnica' | 'blanda' — derivado del tipo
+    tipo_competencia_id: Mapped[int] = mapped_column(
+        ForeignKey("tipos_competencia.id"), nullable=False
+    )
     area_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("areas.area_id"), nullable=True
     )
@@ -131,6 +191,9 @@ class Competencia(Base):
     )
 
     # Relationships
+    tipo_competencia: Mapped["TipoCompetencia"] = relationship(
+        "TipoCompetencia", back_populates="competencias"
+    )
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="competencia", cascade="all, delete-orphan"
@@ -338,6 +401,29 @@ class Inscripcion(Base):
 # ═══════════════════════════════════════════════════════════════════════════════
 # Perfil de Funciones — Modelos
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+class NivelPuesto(Base):
+    """Catalogo de niveles organizacionales para perfiles de puesto."""
+
+    __tablename__ = "niveles_puesto"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    puestos_perfil: Mapped[List["PuestoPerfil"]] = relationship(
+        "PuestoPerfil", back_populates="nivel"
+    )
+
+    def __repr__(self) -> str:
+        return f"<NivelPuesto id={self.id} nombre={self.nombre}>"
 
 
 class TareaCatalogo(Base):

@@ -40,6 +40,7 @@ from app.repositories.perfil_funciones_repository import (
     PerfilFuncionesRepository,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
+from app.services.tipo_competencia_service import TipoCompetenciaService
 from app.schemas.talento import (
     BrechaItem,
     BrechasResponse,
@@ -79,12 +80,18 @@ class CompetenciaService:
         area_nombre = None
         if comp.area:
             area_nombre = comp.area.descripcion
+        tipo_nombre = comp.tipo_competencia.nombre if comp.tipo_competencia else ""
+        tipo_grupo = comp.tipo_competencia.grupo_competencia.categoria if (
+            comp.tipo_competencia and comp.tipo_competencia.grupo_competencia
+        ) else ""
         return CompetenciaResponse(
             id=comp.id,
             nombre=comp.nombre,
             descripcion=comp.descripcion,
             categoria=comp.categoria,
-            subcategoria=comp.subcategoria,
+            tipo_competencia_id=comp.tipo_competencia_id,
+            tipo_nombre=tipo_nombre,
+            tipo_grupo=tipo_grupo,
             area_id=comp.area_id,
             area_nombre=area_nombre,
             activo=comp.activo,
@@ -162,17 +169,20 @@ class CompetenciaService:
         if rol != "rh":
             raise ForbiddenError(detail="Solo RH puede crear competencias")
 
-        # Verificar duplicado
-        if await self.repo.exists_by_nombre_categoria(data.nombre, data.categoria):
+        tipo_service = TipoCompetenciaService(self.db)
+        tipo = await tipo_service.validar_tipo_activo(data.tipo_competencia_id)
+        categoria = tipo.grupo_competencia.categoria
+
+        if await self.repo.exists_by_nombre_categoria(data.nombre, categoria):
             raise ConflictError(
-                detail=f"Ya existe una competencia '{data.nombre}' con categoria '{data.categoria}'"
+                detail=f"Ya existe una competencia '{data.nombre}' con categoria '{categoria}'"
             )
 
         comp = await self.repo.create({
             "nombre": data.nombre,
             "descripcion": data.descripcion,
-            "categoria": data.categoria,
-            "subcategoria": data.subcategoria,
+            "categoria": categoria,
+            "tipo_competencia_id": tipo.id,
             "area_id": data.area_id,
             "activo": True,
         })
@@ -193,9 +203,12 @@ class CompetenciaService:
         if not comp:
             raise NotFoundError(entidad="Competencia", id=id)
 
-        # Verificar duplicado si cambia nombre o categoria
+        tipo_service = TipoCompetenciaService(self.db)
+        nuevo_tipo_id = data.tipo_competencia_id or comp.tipo_competencia_id
+        tipo = await tipo_service.validar_tipo_activo(nuevo_tipo_id)
+        categoria_check = tipo.grupo_competencia.categoria
+
         nombre_check = data.nombre or comp.nombre
-        categoria_check = data.categoria or comp.categoria
         if nombre_check != comp.nombre or categoria_check != comp.categoria:
             if await self.repo.exists_by_nombre_categoria(
                 nombre_check, categoria_check, exclude_id=id
@@ -209,10 +222,9 @@ class CompetenciaService:
             update_data["nombre"] = data.nombre
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
-        if data.categoria is not None:
-            update_data["categoria"] = data.categoria
-        if data.subcategoria is not None:
-            update_data["subcategoria"] = data.subcategoria
+        if data.tipo_competencia_id is not None:
+            update_data["tipo_competencia_id"] = tipo.id
+            update_data["categoria"] = tipo.grupo_competencia.categoria
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
 
@@ -311,7 +323,8 @@ class CompetenciaService:
                 nombre=p.nombre,
                 area_id=p.area_id,
                 area_nombre=area.descripcion,
-                nivel=p.nivel,
+                nivel_id=p.nivel_id,
+                nivel_nombre=p.nivel.nombre if p.nivel else "",
                 descripcion=p.descripcion,
                 version=p.version,
                 activo=p.activo,
@@ -671,7 +684,12 @@ class CompetenciaService:
             MultihabilidadesCompetenciaItem(
                 competencia_id=r.competencia_id,
                 competencia_nombre=r.competencia.nombre,
-                subcategoria=r.competencia.subcategoria,
+                tipo_competencia_id=r.competencia.tipo_competencia_id,
+                tipo_nombre=(
+                    r.competencia.tipo_competencia.nombre
+                    if r.competencia and r.competencia.tipo_competencia
+                    else ""
+                ),
                 nivel_requerido=r.nivel_requerido,
             )
             for r in requisitos

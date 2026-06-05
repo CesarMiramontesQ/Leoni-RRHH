@@ -8,6 +8,8 @@ import {
   syncEvaluacionCompetencias,
   type GapCompetencia,
 } from "../../api/puestos.ts";
+import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
+import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
@@ -23,23 +25,16 @@ export type EvaluarCompetenciasModalOptions = {
   onSuccess?: () => void;
 };
 
-const SUBCATEGORIAS: { key: string; label: string }[] = [
-  { key: "informatica", label: "Informática" },
-  { key: "idiomas", label: "Idiomas" },
-  { key: "profesional", label: "Profesional" },
-  { key: "social", label: "Social" },
-  { key: "personal", label: "Personal" },
-  { key: "metodos", label: "Métodos" },
+const TIPO_CHIP_PALETTE = [
+  "bg-blue-50 text-blue-700 border-blue-200",
+  "bg-violet-50 text-violet-700 border-violet-200",
+  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "bg-amber-50 text-amber-700 border-amber-200",
+  "bg-rose-50 text-rose-700 border-rose-200",
+  "bg-cyan-50 text-cyan-700 border-cyan-200",
 ];
 
-const SUBCATEGORIA_COLORS: Record<string, string> = {
-  informatica: "bg-blue-50 text-blue-700 border-blue-200",
-  idiomas: "bg-violet-50 text-violet-700 border-violet-200",
-  profesional: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  social: "bg-amber-50 text-amber-700 border-amber-200",
-  personal: "bg-rose-50 text-rose-700 border-rose-200",
-  metodos: "bg-cyan-50 text-cyan-700 border-cyan-200",
-};
+const TIPO_COMPLEMENTOS = "Complementos";
 
 const NIVEL_LABELS: Record<number, string> = {
   0: "0 — N/A",
@@ -58,10 +53,9 @@ export function mountEvaluarCompetenciasModal(
   const body = host.querySelector("#evaluar-comp-body") as HTMLElement;
 
   let gapItems: GapCompetencia[] = [];
+  let tiposCatalogo: TipoCompetencia[] = [];
   let niveles: Map<number, number> = new Map(); // competencia_requisito_id → nivel (0-4)
   let saving = false;
-
-  const VALID_SUBCATEGORIAS = new Set(SUBCATEGORIAS.map(s => s.key));
 
   function close(): void {
     overlay.classList.add("hidden");
@@ -73,8 +67,15 @@ export function mountEvaluarCompetenciasModal(
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando evaluación...</p>`;
     try {
-      const gap = await getAsignacionGap(options.perfilId, options.asignacionId);
-      gapItems = gap.gap_competencias.filter(g => g.subcategoria && VALID_SUBCATEGORIAS.has(g.subcategoria));
+      const [gap, tipos] = await Promise.all([
+        getAsignacionGap(options.perfilId, options.asignacionId),
+        getTiposCompetencia({ page_size: 200 }),
+      ]);
+      tiposCatalogo = tipos.filter((t) => t.nombre !== TIPO_COMPLEMENTOS);
+      const validTipoIds = new Set(tiposCatalogo.map((t) => t.id));
+      gapItems = gap.gap_competencias.filter(
+        (g) => g.tipo_competencia_id != null && validTipoIds.has(g.tipo_competencia_id),
+      );
 
       niveles = new Map();
       for (const g of gapItems) {
@@ -90,11 +91,11 @@ export function mountEvaluarCompetenciasModal(
   }
 
   function render(): void {
-    const sections = SUBCATEGORIAS.map(sub => {
-      const items = gapItems.filter(g => g.subcategoria === sub.key);
+    const sections = tiposCatalogo.map((sub, idx) => {
+      const items = gapItems.filter((g) => g.tipo_competencia_id === sub.id);
       if (items.length === 0) return "";
 
-      const colors = SUBCATEGORIA_COLORS[sub.key] ?? "bg-slate-100 text-slate-600 border-slate-300";
+      const colors = TIPO_CHIP_PALETTE[idx % TIPO_CHIP_PALETTE.length] ?? "bg-slate-100 text-slate-600 border-slate-300";
       const evaluated = items.filter(g => (niveles.get(g.competencia_requisito_id) ?? 0) > 0).length;
 
       const rows = items.map(item => {
@@ -121,7 +122,7 @@ export function mountEvaluarCompetenciasModal(
         <div class="mb-5 last:mb-0">
           <div class="mb-2 flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub.label)}</span>
+              <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.split(" ").slice(0, 2).join(" ")}">${escapeHtml(sub.nombre)}</span>
               <span class="text-[10px] text-slate-400">${evaluated} / ${items.length} evaluadas</span>
             </div>
           </div>

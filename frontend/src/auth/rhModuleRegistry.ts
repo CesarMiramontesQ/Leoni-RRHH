@@ -40,5 +40,6 @@ export function resolveModuleFromHash(hashValue: string): string | null {
 }
 
 export function navItemIdToModuleKey(navItemId: string): string {
+  if (navItemId === "puestos-ajustes") return "puestos";
   return navItemId;
 }

@@ -413,9 +413,7 @@ function renderHeatmap(
   const colHeaders = competencias
     .map((c) => {
       const reqLabel = nivelNames[c.nivel_requerido] ?? "—";
-      const catLabel = c.subcategoria
-        ? c.subcategoria.charAt(0).toUpperCase() + c.subcategoria.slice(1)
-        : "General";
+      const catLabel = c.tipo_nombre || "General";
       return `<th scope="col" class="px-1 py-2 text-center align-bottom min-w-[2.75rem] cursor-help bg-[var(--color-grid-header-bg,#f8fafc)]" data-tooltip-name="${escapeHtml(c.competencia_nombre)}" data-tooltip-cat="${escapeHtml(catLabel)}" data-tooltip-req="${escapeHtml(reqLabel)}">
         <span class="cap-matriz-comp-label" title="${escapeHtml(c.competencia_nombre)}">${escapeHtml(c.competencia_nombre)}</span>
       </th>`;

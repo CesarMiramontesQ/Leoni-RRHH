@@ -309,11 +309,11 @@ async def sincronizar_competencias(
     current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sync completo de competencias requeridas por subcategoría (multi-select)."""
+    """Sync completo de competencias requeridas por tipo (multi-select)."""
     service = PerfilFuncionesService(db)
     return await service.sincronizar_competencias(
         perfil_id=perfil_id,
-        subcategoria=body.subcategoria,
+        tipo_competencia_id=body.tipo_competencia_id,
         competencias=body.competencias,
         current_user=current_user,
     )

@@ -43,7 +43,7 @@ interface PerfilHeader {
   codigo: string;
   nombre: string;
   area_nombre: string;
-  nivel: string;
+  nivel_nombre: string;
 }
 
 type AcuseEstado = "completo" | "parcial" | "pendiente";
@@ -82,16 +82,6 @@ const ICON_SEARCH = `<svg class="pointer-events-none absolute left-3 top-1/2 siz
 
 function isRh(): boolean {
   return getRolFromAccessToken() === "rh";
-}
-
-function nivelLabel(nivel: string): string {
-  const map: Record<string, string> = {
-    operativo: "Operativo",
-    mando_medio: "Mando Medio",
-    gerencial: "Gerencial",
-    directivo: "Directivo",
-  };
-  return map[nivel] ?? nivel;
 }
 
 function formatNoEmpleado(no: string | null): string {
@@ -195,7 +185,7 @@ function renderHero(perfil: PerfilHeader, metrics: PageMetrics, showAsignar: boo
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(perfil.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(perfil.area_nombre)}</strong> · ${escapeHtml(nivelLabel(perfil.nivel))}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(perfil.area_nombre)}</strong> · ${escapeHtml(perfil.nivel_nombre)}</span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${metrics.total}</strong> empleado${metrics.total !== 1 ? "s" : ""} asignado${metrics.total !== 1 ? "s" : ""}</span></span>
           </div>
         </div>
@@ -715,7 +705,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         codigo: perfilJson.codigo ?? "",
         nombre: perfilJson.nombre ?? "",
         area_nombre: perfilJson.area_nombre ?? "",
-        nivel: perfilJson.nivel ?? "",
+        nivel_nombre: perfilJson.nivel_nombre ?? "",
       };
 
       asignaciones = await asigRes.json();

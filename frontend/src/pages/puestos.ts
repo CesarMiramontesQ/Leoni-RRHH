@@ -10,6 +10,8 @@ import {
   type AreaOption,
   type PerfilTarjetaItem,
 } from "../api/puestos.ts";
+import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
+import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
 import type {
   PerfilPuestoListItem,
   PerfilPuestoCreatePayload,
@@ -49,17 +51,7 @@ const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" 
 
 const BRECHAS_REF_MAX = 15;
 
-// ── Helpers de negocio (sin cambios) ────────────────────────────────────
-
-function nivelLabel(nivel: string): string {
-  const map: Record<string, string> = {
-    operativo: "Operativo",
-    mando_medio: "Mando Medio",
-    gerencial: "Gerencial",
-    directivo: "Directivo",
-  };
-  return map[nivel] ?? nivel;
-}
+// ── Helpers de negocio ────────────────────────────────────────────────────
 
 function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState): PerfilPuestoListItem[] {
   let result = items;
@@ -73,12 +65,10 @@ function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState)
     );
   }
   if (filters.area) result = result.filter((p) => p.area === filters.area);
-  if (filters.nivel) result = result.filter((p) => p.nivel === filters.nivel);
+  if (filters.nivel_id) {
+    result = result.filter((p) => String(p.nivel_id) === filters.nivel_id);
+  }
   return result;
-}
-
-function uniqueNiveles(items: PerfilPuestoListItem[]): string[] {
-  return [...new Set(items.map((p) => p.nivel).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 function filterTarjetas(items: PerfilTarjetaItem[], filters: PuestosFilterState): PerfilTarjetaItem[] {
@@ -93,18 +83,14 @@ function filterTarjetas(items: PerfilTarjetaItem[], filters: PuestosFilterState)
     );
   }
   if (filters.area) result = result.filter((p) => p.area_nombre === filters.area);
-  if (filters.nivel) result = result.filter((p) => p.nivel === filters.nivel);
+  if (filters.nivel_id) {
+    result = result.filter((p) => String(p.nivel_id) === filters.nivel_id);
+  }
   return result;
 }
 
-function uniqueNivelesTarjetas(items: PerfilTarjetaItem[]): string[] {
-  return [...new Set(items.map((p) => p.nivel).filter((n): n is string => n != null))].sort((a, b) =>
-    a.localeCompare(b, "es"),
-  );
-}
-
 function hasActiveFilters(filters: PuestosFilterState): boolean {
-  return Boolean(filters.q.trim() || filters.area || filters.nivel);
+  return Boolean(filters.q.trim() || filters.area || filters.nivel_id);
 }
 
 // ── Métricas derivadas (mismos datos, sin nuevas consultas) ─────────────
@@ -285,11 +271,14 @@ function renderViewToggle(active: "tabla" | "tarjetas"): string {
   </div>`;
 }
 
-function renderFilterActiveChips(filters: PuestosFilterState): string {
+function renderFilterActiveChips(filters: PuestosFilterState, nivelesCatalog: NivelPuesto[]): string {
   const chips: string[] = [];
   if (filters.q.trim()) chips.push(`Búsqueda: “${escapeHtml(filters.q.trim())}”`);
   if (filters.area) chips.push(`Área: ${escapeHtml(filters.area)}`);
-  if (filters.nivel) chips.push(`Nivel: ${escapeHtml(nivelLabel(filters.nivel))}`);
+  if (filters.nivel_id) {
+    const label = nivelesCatalog.find((n) => String(n.id) === filters.nivel_id)?.nombre ?? filters.nivel_id;
+    chips.push(`Nivel: ${escapeHtml(label)}`);
+  }
   if (chips.length === 0) return "";
   return `<div class="puestos-filter-chips flex flex-wrap items-center gap-2 border-t border-slate-100/90 pt-3">
     <span class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Filtros activos</span>
@@ -306,7 +295,7 @@ function renderFilterActiveChips(filters: PuestosFilterState): string {
 function renderFilterBar(
   filters: PuestosFilterState,
   areas: AreaOption[],
-  niveles: string[],
+  nivelesCatalog: NivelPuesto[],
   visibleCount: number,
   totalCount: number,
 ): string {
@@ -316,10 +305,10 @@ function renderFilterBar(
         `<option value="${escapeHtml(a.label)}" ${filters.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
     )
     .join("");
-  const nivelOpts = niveles
+  const nivelOpts = nivelesCatalog
     .map(
       (n) =>
-        `<option value="${escapeHtml(n)}" ${filters.nivel === n ? "selected" : ""}>${escapeHtml(nivelLabel(n))}</option>`,
+        `<option value="${n.id}" ${filters.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`,
     )
     .join("");
   const hasActive = hasActiveFilters(filters);
@@ -366,7 +355,7 @@ function renderFilterBar(
         <label for="puestos-filter-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
         <div class="grid grid-cols-1">
           <select id="puestos-filter-nivel" data-action="filter-nivel" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-            <option value="" ${filters.nivel === "" ? "selected" : ""}>Todos los niveles</option>
+            <option value="" ${filters.nivel_id === "" ? "selected" : ""}>Todos los niveles</option>
             ${nivelOpts}
           </select>
           ${SELECT_CHEVRON}
@@ -374,7 +363,7 @@ function renderFilterBar(
       </div>
     </div>
     ${hasActive ? `<span class="mt-3 inline-flex size-2 rounded-full bg-leoni-blue" aria-hidden="true" title="Hay filtros activos"></span>` : ""}
-    ${renderFilterActiveChips(filters)}
+    ${renderFilterActiveChips(filters, nivelesCatalog)}
   </section>`;
 }
 
@@ -474,7 +463,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
       <td class="whitespace-nowrap px-4 py-3.5 text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(p.codigo)}</td>
       <td class="px-4 py-3.5 text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</td>
       <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.area)}</td>
-      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(nivelLabel(p.nivel))}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.nivel_nombre)}</td>
       <td class="whitespace-nowrap px-4 py-3.5 text-sm tabular-nums text-text-muted">${escapeHtml(p.version)}</td>
       <td class="px-3 py-3 align-middle">
         <div class="flex items-center justify-end gap-1">
@@ -508,9 +497,10 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
 
 function renderModal(
   mode: "create" | "edit",
-  values: { codigo: string; nombre_puesto: string; area: string; nivel: string },
+  values: { codigo: string; nombre_puesto: string; area: string; nivel_id: string },
   saving: boolean,
   areas: AreaOption[] = [],
+  nivelesCatalog: NivelPuesto[] = [],
 ): string {
   const title = mode === "create" ? "Nuevo perfil de puesto" : "Editar perfil de puesto";
   const subtitle =
@@ -550,11 +540,9 @@ function renderModal(
         <div>
           <label for="puestos-modal-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
           <div class="grid grid-cols-1">
-            <select id="puestos-modal-nivel" name="nivel" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-              <option value="operativo" ${values.nivel === "operativo" ? "selected" : ""}>Operativo</option>
-              <option value="mando_medio" ${values.nivel === "mando_medio" ? "selected" : ""}>Mando Medio</option>
-              <option value="gerencial" ${values.nivel === "gerencial" ? "selected" : ""}>Gerencial</option>
-              <option value="directivo" ${values.nivel === "directivo" ? "selected" : ""}>Directivo</option>
+            <select id="puestos-modal-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <option value="" disabled ${!values.nivel_id ? "selected" : ""}>Selecciona un nivel…</option>
+              ${nivelesCatalog.map((n) => `<option value="${n.id}" ${values.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
           </div>
@@ -629,10 +617,13 @@ function renderPageHeader(): string {
         Vista ejecutiva del catálogo de posiciones: cumplimiento, brechas y colaboradores vinculados por perfil.
       </p>
     </div>
-    <button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} puestos-btn-nuevo shrink-0 w-full sm:w-auto sm:self-center">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:shrink-0">
+      <a href="#/puestos/ajustes" class="${BTN_SECONDARY} w-full sm:w-auto text-center">Ajustes</a>
+      <button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} puestos-btn-nuevo w-full sm:w-auto">
       ${ICON_PLUS}
       Nuevo perfil
     </button>
+    </div>
   </header>`;
 }
 
@@ -642,15 +633,16 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   let allItems: PerfilPuestoListItem[] = [];
   let tarjetasData: PerfilTarjetaItem[] = [];
   let areasOptions: AreaOption[] = [];
+  let nivelesCatalog: NivelPuesto[] = [];
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
-  const filters: PuestosFilterState = { q: "", area: "", nivel: "" };
+  const filters: PuestosFilterState = { q: "", area: "", nivel_id: "" };
   let viewMode: "tabla" | "tarjetas" = "tarjetas";
 
   let modalMode: "create" | "edit" | "delete" | null = null;
   let modalSaving = false;
   let editingId: number | null = null;
-  let editingValues = { codigo: "", nombre_puesto: "", area: "", nivel: "operativo" };
+  let editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "" };
   let deletingItem: PerfilPuestoListItem | null = null;
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -673,7 +665,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   function clearFilters(): void {
     filters.q = "";
     filters.area = "";
-    filters.nivel = "";
+    filters.nivel_id = "";
     paint();
   }
 
@@ -695,7 +687,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const filteredTarjetas = filterTarjetas(tarjetasData, filters);
     const filteredItems = filterItems(allItems, filters);
     const filtered = isTarjetas ? filteredTarjetas : filteredItems;
-    const niveles = isTarjetas ? uniqueNivelesTarjetas(tarjetasData) : uniqueNiveles(allItems);
 
     const mainContent = isTarjetas
       ? `
@@ -713,7 +704,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     inner.innerHTML = `
       <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER}">
         ${renderPageHeader()}
-        ${renderFilterBar(filters, areasOptions, niveles, filtered.length, sourceTotal)}
+        ${renderFilterBar(filters, areasOptions, nivelesCatalog, filtered.length, sourceTotal)}
         <div class="flex flex-col gap-4 sm:gap-5">${mainContent}</div>
       </div>`;
   }
@@ -722,7 +713,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const host = modalHost();
     if (!host) return;
     if (modalMode === "create" || modalMode === "edit") {
-      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions);
+      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions, nivelesCatalog);
     } else if (modalMode === "delete" && deletingItem) {
       host.innerHTML = renderDeleteConfirm(deletingItem.nombre_puesto, modalSaving);
     } else {
@@ -735,7 +726,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     modalSaving = false;
     editingId = null;
     deletingItem = null;
-    editingValues = { codigo: "", nombre_puesto: "", area: "", nivel: "operativo" };
+    editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "" };
     paintModal();
   }
 
@@ -743,14 +734,16 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     status = "loading";
     paint();
     try {
-      const [items, areas, tarjetas] = await Promise.all([
+      const [items, areas, tarjetas, niveles] = await Promise.all([
         getPerfilesList(),
         getAreasOptions(),
         getResumenTarjetas(),
+        getNivelesPuesto({ page_size: 200 }),
       ]);
       allItems = items;
       areasOptions = areas;
       tarjetasData = tarjetas;
+      nivelesCatalog = niveles;
       status = "ready";
       paint();
     } catch (e: unknown) {
@@ -782,7 +775,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
           case "create":
             modalMode = "create";
             editingId = null;
-            editingValues = { codigo: "", nombre_puesto: "", area: "", nivel: "operativo" };
+            editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "" };
             paintModal();
             break;
           case "puestos-clear-filters":
@@ -799,7 +792,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
               codigo: item.codigo,
               nombre_puesto: item.nombre_puesto,
               area: item.area,
-              nivel: item.nivel,
+              nivel_id: String(item.nivel_id),
             };
             paintModal();
             break;
@@ -875,7 +868,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
           filters.area = (t as HTMLSelectElement).value;
           paint();
         } else if (action === "filter-nivel") {
-          filters.nivel = (t as HTMLSelectElement).value;
+          filters.nivel_id = (t as HTMLSelectElement).value;
           paint();
         }
       },
@@ -896,14 +889,16 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const areaValue = (data.get("area") as string).trim();
     const areaId = areaValue ? Number(areaValue) : null;
     const areaLabel = areasOptions.find((a) => a.id === areaId)?.label ?? "";
+    const nivelRaw = (data.get("nivel_id") as string).trim();
+    const nivelId = Number(nivelRaw);
     const payload: PerfilPuestoCreatePayload = {
       codigo: (data.get("codigo") as string).trim(),
       nombre_puesto: (data.get("nombre_puesto") as string).trim(),
       area: areaLabel,
       area_id: areaId,
-      nivel: (data.get("nivel") as string).trim(),
+      nivel_id: nivelId,
     };
-    if (!payload.nombre_puesto) return;
+    if (!payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId)) return;
 
     modalSaving = true;
     paintModal();

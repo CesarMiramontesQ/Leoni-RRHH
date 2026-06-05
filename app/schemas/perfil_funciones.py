@@ -175,7 +175,8 @@ class PerfilCompetenciaResponse(BaseModel):
     id: int
     competencia_id: int
     competencia_nombre: str = ""
-    subcategoria: Optional[str] = None
+    tipo_competencia_id: Optional[int] = None
+    tipo_nombre: Optional[str] = None
     nivel_requerido: int = 0
     orden: Optional[int] = None
 
@@ -303,7 +304,7 @@ class PerfilCompetenciaSyncItem(BaseModel):
 
 
 class PerfilCompetenciaSyncBody(BaseModel):
-    subcategoria: str = Field(..., min_length=1)
+    tipo_competencia_id: int = Field(..., gt=0)
     competencias: list[PerfilCompetenciaSyncItem] = Field(default_factory=list)
     # Legado: si se envía sin `competencias`, se interpreta nivel 1 en altas nuevas.
     competencia_ids: list[int] | None = None

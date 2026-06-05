@@ -36,6 +36,7 @@ from app.schemas.talento import (
     PuestoPerfilUpdate,
     ResumenTarjetasResponse,
 )
+from app.services.nivel_puesto_service import NivelPuestoService
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class PuestoPerfilService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = PuestoPerfilRepository(db)
+        self.nivel_service = NivelPuestoService(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -52,13 +54,15 @@ class PuestoPerfilService:
         area_nombre = None
         if perfil.area:
             area_nombre = perfil.area.descripcion
+        nivel_nombre = perfil.nivel.nombre if perfil.nivel else ""
         return PuestoPerfilResponse(
             id=perfil.id,
             codigo=perfil.codigo,
             nombre=perfil.nombre,
             area_id=perfil.area_id,
             area_nombre=area_nombre,
-            nivel=perfil.nivel,
+            nivel_id=perfil.nivel_id,
+            nivel_nombre=nivel_nombre,
             descripcion=perfil.descripcion,
             version=perfil.version,
             activo=perfil.activo,
@@ -86,7 +90,7 @@ class PuestoPerfilService:
         page: int,
         page_size: int,
         area_id: int | None = None,
-        nivel: str | None = None,
+        nivel_id: int | None = None,
         busqueda: str | None = None,
     ) -> PuestoPerfilListResponse:
         offset = (page - 1) * page_size
@@ -94,7 +98,7 @@ class PuestoPerfilService:
             offset=offset,
             limit=page_size,
             area_id=area_id,
-            nivel=nivel,
+            nivel_id=nivel_id,
             busqueda=busqueda,
         )
         return PuestoPerfilListResponse(
@@ -130,11 +134,13 @@ class PuestoPerfilService:
         # Generar codigo
         codigo = await self.repo.get_next_codigo()
 
+        await self.nivel_service.validar_nivel_activo(data.nivel_id)
+
         perfil = await self.repo.create({
             "codigo": codigo,
             "nombre": data.nombre,
             "area_id": data.area_id,
-            "nivel": data.nivel,
+            "nivel_id": data.nivel_id,
             "descripcion": data.descripcion,
             "version": 1,
             "activo": True,
@@ -173,8 +179,9 @@ class PuestoPerfilService:
             update_data["nombre"] = data.nombre
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
-        if data.nivel is not None:
-            update_data["nivel"] = data.nivel
+        if data.nivel_id is not None:
+            await self.nivel_service.validar_nivel_activo(data.nivel_id)
+            update_data["nivel_id"] = data.nivel_id
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
 

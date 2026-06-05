@@ -36,12 +36,8 @@ import {
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
 } from "../ui/uiTokens.ts";
-import {
-  TIPO_COMPETENCIA_OPTIONS,
-  TIPO_COMPETENCIA_LABELS,
-  esTipoCompetenciaValido,
-  grupoFromTipo,
-} from "../ui/catalogoCompetenciaTipo.ts";
+import { getTiposCompetencia } from "../api/tiposCompetencia.ts";
+import type { TipoCompetencia } from "../dashboard/tiposCompetencia/types.ts";
 
 // ── Iconos (Heroicons outline / solid) ──────────────────────────────────
 
@@ -54,42 +50,30 @@ const ICON_TAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const ICON_EDIT = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z"/></svg>`;
 const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd"/></svg>`;
 
-const SUBCAT_LABELS: Record<string, string> = {
-  ...TIPO_COMPETENCIA_LABELS,
-  complementos: "Complementos",
-};
-
-const GRUPO_FILTER_LABELS: Record<string, string> = {
-  tecnica: "Técnica",
-  habilidad_blanda: "Habilidad blanda",
-};
-
-// ── Helpers visuales ────────────────────────────────────────────────────
-
 type CatalogoStats = {
   total: number;
   tecnicas: number;
   blandas: number;
-  subcategorias: number;
+  tipos: number;
 };
 
 function computeCatalogoStats(items: Competencia[]): CatalogoStats {
-  const subcats = new Set<string>();
+  const tipos = new Set<number>();
   let tecnicas = 0;
   let blandas = 0;
   for (const c of items) {
     if (c.grupo === "tecnica") tecnicas += 1;
     else blandas += 1;
-    if (c.subcategoria) subcats.add(c.subcategoria);
+    if (c.tipo_competencia_id) tipos.add(c.tipo_competencia_id);
   }
-  return { total: items.length, tecnicas, blandas, subcategorias: subcats.size };
+  return { total: items.length, tecnicas, blandas, tipos: tipos.size };
 }
 
 function filterCatalogoItems(
   items: Competencia[],
   filterText: string,
   grupoFilter: string,
-  subcategoriaFilter: string,
+  tipoFilter: string,
 ): Competencia[] {
   let filtered = items;
   if (filterText.trim()) {
@@ -99,13 +83,18 @@ function filterCatalogoItems(
     );
   }
   if (grupoFilter) filtered = filtered.filter((c) => c.grupo === grupoFilter);
-  if (subcategoriaFilter) filtered = filtered.filter((c) => c.subcategoria === subcategoriaFilter);
+  if (tipoFilter) filtered = filtered.filter((c) => String(c.tipo_competencia_id) === tipoFilter);
   return filtered;
 }
 
-function hasActiveCatalogoFilters(filterText: string, grupoFilter: string, subcategoriaFilter: string): boolean {
-  return Boolean(filterText.trim() || grupoFilter || subcategoriaFilter);
+function hasActiveCatalogoFilters(filterText: string, grupoFilter: string, tipoFilter: string): boolean {
+  return Boolean(filterText.trim() || grupoFilter || tipoFilter);
 }
+
+const GRUPO_FILTER_LABELS: Record<string, string> = {
+  tecnica: "Técnica",
+  habilidad_blanda: "Habilidad blanda",
+};
 
 function grupoBadge(grupo: "tecnica" | "habilidad_blanda"): string {
   if (grupo === "tecnica") return badgeOpen("Técnica");
@@ -149,7 +138,7 @@ function renderCatalogoKpis(stats: CatalogoStats): string {
     { label: "Total competencias", value: stats.total, sub: "En el catálogo activo", icon: ICON_GRID, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue" },
     { label: "Técnicas", value: stats.tecnicas, sub: "Conocimientos e idiomas", icon: ICON_WRENCH, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky" },
     { label: "Habilidades blandas", value: stats.blandas, sub: "Competencias conductuales", icon: ICON_HEART, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet" },
-    { label: "Subcategorías", value: stats.subcategorias, sub: "Tipos distintos en uso", icon: ICON_TAG, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--slate" },
+    { label: "Tipos", value: stats.tipos, sub: "Tipos distintos en uso", icon: ICON_TAG, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--slate" },
   ];
   return `
   <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Indicadores del catálogo">
@@ -193,12 +182,18 @@ function renderTabsNav(active: CompetenciasTab): string {
 
 // ── Filtros del catálogo ────────────────────────────────────────────────
 
-function renderFilterActiveChips(filterText: string, grupoFilter: string, subcategoriaFilter: string): string {
+function renderFilterActiveChips(
+  filterText: string,
+  grupoFilter: string,
+  tipoFilter: string,
+  tipos: TipoCompetencia[],
+): string {
   const chips: string[] = [];
   if (filterText.trim()) chips.push(`Búsqueda: “${escapeHtml(filterText.trim())}”`);
   if (grupoFilter) chips.push(`Grupo: ${escapeHtml(GRUPO_FILTER_LABELS[grupoFilter] ?? grupoFilter)}`);
-  if (subcategoriaFilter) {
-    chips.push(`Subcategoría: ${escapeHtml(SUBCAT_LABELS[subcategoriaFilter] ?? subcategoriaFilter)}`);
+  if (tipoFilter) {
+    const tipo = tipos.find((t) => String(t.id) === tipoFilter);
+    chips.push(`Tipo: ${escapeHtml(tipo?.nombre ?? tipoFilter)}`);
   }
   if (chips.length === 0) return "";
   return `<div class="comp-filter-chips flex flex-wrap items-center gap-2 border-t border-slate-100/90 pt-3">
@@ -216,12 +211,13 @@ function renderFilterActiveChips(filterText: string, grupoFilter: string, subcat
 function renderCatalogoFilters(
   filterText: string,
   grupoFilter: string,
-  subcategoriaFilter: string,
+  tipoFilter: string,
   visibleCount: number,
   totalCount: number,
+  tipos: TipoCompetencia[],
 ): string {
-  const hasActive = hasActiveCatalogoFilters(filterText, grupoFilter, subcategoriaFilter);
-  const activeChips = renderFilterActiveChips(filterText, grupoFilter, subcategoriaFilter);
+  const hasActive = hasActiveCatalogoFilters(filterText, grupoFilter, tipoFilter);
+  const activeChips = renderFilterActiveChips(filterText, grupoFilter, tipoFilter, tipos);
   const resultsLine =
     hasActive || filterText.trim()
       ? `<p class="text-xs text-text-muted" id="comp-catalogo-results-count" aria-live="polite">
@@ -235,7 +231,7 @@ function renderCatalogoFilters(
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h2 class="text-sm font-semibold text-text-primary">Buscar y filtrar</h2>
-        <p class="mt-0.5 text-xs text-text-muted">Encuentra competencias por nombre, descripción, grupo o subcategoría.</p>
+        <p class="mt-0.5 text-xs text-text-muted">Encuentra competencias por nombre, descripción, grupo o tipo.</p>
       </div>
       <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
         ${resultsLine}
@@ -273,17 +269,11 @@ function renderCatalogoFilters(
         </div>
       </div>
       <div class="min-w-0">
-        <label for="comp-catalogo-subcategoria" class="${RH_LISTADO_LABEL}">Subcategoría</label>
+        <label for="comp-catalogo-tipo" class="${RH_LISTADO_LABEL}">Tipo</label>
         <div class="grid grid-cols-1">
-          <select id="comp-catalogo-subcategoria" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-            <option value="">Todas las subcategorías</option>
-            <option value="informatica" ${subcategoriaFilter === "informatica" ? "selected" : ""}>Informática</option>
-            <option value="idiomas" ${subcategoriaFilter === "idiomas" ? "selected" : ""}>Idiomas</option>
-            <option value="profesional" ${subcategoriaFilter === "profesional" ? "selected" : ""}>Profesional</option>
-            <option value="social" ${subcategoriaFilter === "social" ? "selected" : ""}>Social</option>
-            <option value="personal" ${subcategoriaFilter === "personal" ? "selected" : ""}>Personal</option>
-            <option value="metodos" ${subcategoriaFilter === "metodos" ? "selected" : ""}>Métodos</option>
-            <option value="complementos" ${subcategoriaFilter === "complementos" ? "selected" : ""}>Complementos</option>
+          <select id="comp-catalogo-tipo" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+            <option value="">Todos los tipos</option>
+            ${tipos.map((t) => `<option value="${t.id}" ${tipoFilter === String(t.id) ? "selected" : ""}>${escapeHtml(t.nombre)}</option>`).join("")}
           </select>
           ${SELECT_CHEVRON}
         </div>
@@ -311,10 +301,10 @@ function renderEmptyCatalogo(): string {
   </div>`;
 }
 
-function renderNoSearchResults(filterText: string, grupoFilter: string, subcategoriaFilter: string): string {
+function renderNoSearchResults(filterText: string, grupoFilter: string, tipoFilter: string): string {
   const hints: string[] = [];
   if (filterText.trim()) hints.push("prueba con otro término de búsqueda");
-  if (grupoFilter || subcategoriaFilter) hints.push("ajusta o limpia los filtros de grupo y subcategoría");
+  if (grupoFilter || tipoFilter) hints.push("ajusta o limpia los filtros de grupo y tipo");
   const hintText = hints.length > 0 ? hints.join(" o ") + "." : "Ajusta los criterios de búsqueda.";
   return `
   <div class="comp-empty-state flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-slate-200/90 bg-slate-50/50 px-6 py-12 text-center">
@@ -337,8 +327,8 @@ function renderCatalogoTableRows(filtered: Competencia[]): string {
         <td class="px-4 py-3.5 align-top whitespace-nowrap">${grupoBadge(c.grupo)}</td>
         <td class="px-4 py-3.5 align-top">
           ${
-            c.subcategoria
-              ? subcategoriaChip(SUBCAT_LABELS[c.subcategoria] ?? c.subcategoria)
+            c.tipo_nombre
+              ? subcategoriaChip(c.tipo_nombre)
               : `<span class="text-sm text-slate-400">—</span>`
           }
         </td>
@@ -352,9 +342,10 @@ function renderCatalogoTab(
   items: Competencia[],
   filterText: string,
   grupoFilter: string,
-  subcategoriaFilter: string,
+  tipoFilter: string,
+  tipos: TipoCompetencia[],
 ): string {
-  const filtered = filterCatalogoItems(items, filterText, grupoFilter, subcategoriaFilter);
+  const filtered = filterCatalogoItems(items, filterText, grupoFilter, tipoFilter);
   const stats = computeCatalogoStats(items);
 
   let tableBody = "";
@@ -370,7 +361,7 @@ function renderCatalogoTab(
     items.length === 0
       ? renderEmptyCatalogo()
       : filtered.length === 0
-        ? renderNoSearchResults(filterText, grupoFilter, subcategoriaFilter)
+        ? renderNoSearchResults(filterText, grupoFilter, tipoFilter)
         : `
       <div class="${RH_LISTADO_SURFACE} comp-catalogo-table-wrap overflow-hidden p-0">
         <div class="comp-catalogo-scroll overflow-x-auto overflow-y-auto">
@@ -380,7 +371,7 @@ function renderCatalogoTab(
                 <th scope="col" class="comp-col-nombre px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre</th>
                 <th scope="col" class="comp-col-desc px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Descripción</th>
                 <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Grupo</th>
-                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Subcategoría</th>
+                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Tipo</th>
                 <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
@@ -392,7 +383,7 @@ function renderCatalogoTab(
   return `
     <div class="flex flex-col gap-4 sm:gap-5" role="tabpanel" id="comp-tab-panel-catalogo" aria-label="Catálogo de competencias">
       ${renderCatalogoKpis(stats)}
-      ${renderCatalogoFilters(filterText, grupoFilter, subcategoriaFilter, filtered.length, items.length)}
+      ${renderCatalogoFilters(filterText, grupoFilter, tipoFilter, filtered.length, items.length, tipos)}
       ${tableSection}
     </div>`;
 }
@@ -444,7 +435,7 @@ function renderPageHeader(): string {
 
 // ── Modales ─────────────────────────────────────────────────────────────
 
-function renderCompetenciaModal(comp: Competencia | null): string {
+function renderCompetenciaModal(comp: Competencia | null, tipos: TipoCompetencia[]): string {
   const isEdit = comp !== null;
   const title = isEdit ? "Editar competencia" : "Nueva competencia";
   const subtitle = isEdit
@@ -452,11 +443,17 @@ function renderCompetenciaModal(comp: Competencia | null): string {
     : "Registra una competencia reutilizable en toda la organización.";
   const nombre = comp?.nombre ?? "";
   const descripcion = comp?.descripcion ?? "";
-  const tipo = comp?.subcategoria && esTipoCompetenciaValido(comp.subcategoria) ? comp.subcategoria : "informatica";
+  const selectedTipoId = comp?.tipo_competencia_id ?? tipos[0]?.id ?? "";
 
-  const tipoOpts = TIPO_COMPETENCIA_OPTIONS.map(
-    (o) => `<option value="${o.value}" ${tipo === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
-  ).join("");
+  const tipoOpts =
+    tipos.length > 0
+      ? tipos
+          .map(
+            (t) =>
+              `<option value="${t.id}" ${selectedTipoId === t.id ? "selected" : ""}>${escapeHtml(t.nombre)}</option>`,
+          )
+          .join("")
+      : `<option value="" disabled selected>No hay tipos registrados</option>`;
 
   return `
     <div id="comp-modal-backdrop" data-action="close-modal" class="comp-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
@@ -487,12 +484,13 @@ function renderCompetenciaModal(comp: Competencia | null): string {
           <div>
             <label for="comp-modal-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
             <div class="grid grid-cols-1">
-              <select id="comp-modal-tipo" name="tipo" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <select id="comp-modal-tipo" name="tipo_competencia_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" ${tipos.length === 0 ? "disabled" : ""}>
+                ${tipos.length === 0 ? "" : `<option value="" disabled ${!selectedTipoId ? "selected" : ""}>Selecciona un tipo</option>`}
                 ${tipoOpts}
               </select>
               ${SELECT_CHEVRON}
             </div>
-            <p class="mt-1.5 text-xs text-text-muted">El tipo determina el grupo (técnica o habilidad blanda) y la subcategoría.</p>
+            <p class="mt-1.5 text-xs text-text-muted">El tipo determina el grupo (técnica o habilidad blanda). Administra tipos en Ajustes → Perfil de puesto.</p>
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
             <button type="button" data-action="close-modal" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
@@ -542,7 +540,8 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
   let catalogoItems: Competencia[] = [];
   let catalogoFilter = "";
   let catalogoGrupo = "";
-  let catalogoSubcategoria = "";
+  let catalogoTipo = "";
+  let tiposCompetencia: TipoCompetencia[] = [];
   let errorMessage: string | null = null;
   let editingCompetencia: Competencia | null = null;
   let showModal = false;
@@ -574,7 +573,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
 
     const tabContent =
       activeTab === "catalogo"
-        ? renderCatalogoTab(catalogoItems, catalogoFilter, catalogoGrupo, catalogoSubcategoria)
+        ? renderCatalogoTab(catalogoItems, catalogoFilter, catalogoGrupo, catalogoTipo, tiposCompetencia)
         : `<div role="tabpanel" id="comp-tab-panel-matriz" aria-label="Niveles por puesto" class="flex flex-col gap-4">${renderMatrizRequisitosTab(matrizModel)}</div>`;
 
     inner.innerHTML = `
@@ -599,7 +598,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       host.innerHTML = "";
       return;
     }
-    host.innerHTML = renderCompetenciaModal(editingCompetencia);
+    host.innerHTML = renderCompetenciaModal(editingCompetencia, tiposCompetencia);
   }
 
   function showDeleteConfirmModal(id: number, nombre: string, puestos: { id: number; codigo: string; nombre: string }[]): void {
@@ -616,7 +615,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
   function clearCatalogoFilters(): void {
     catalogoFilter = "";
     catalogoGrupo = "";
-    catalogoSubcategoria = "";
+    catalogoTipo = "";
     paint();
   }
 
@@ -626,6 +625,14 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       abortAuthenticatedShell();
       void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
     });
+  }
+
+  async function loadTiposCompetencia(): Promise<void> {
+    try {
+      tiposCompetencia = await getTiposCompetencia({ page_size: 200 });
+    } catch {
+      tiposCompetencia = [];
+    }
   }
 
   async function loadCatalogo(): Promise<void> {
@@ -644,7 +651,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
     status = "loading";
     paint();
     try {
-      await loadCatalogo();
+      await Promise.all([loadCatalogo(), loadTiposCompetencia()]);
       await loadMatrizFilterOptions(matrizModel);
       try {
         await loadPuestosList(matrizModel);
@@ -837,8 +844,8 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
         paint();
         return;
       }
-      if (t.id === "comp-catalogo-subcategoria") {
-        catalogoSubcategoria = (t as HTMLSelectElement).value;
+      if (t.id === "comp-catalogo-tipo") {
+        catalogoTipo = (t as HTMLSelectElement).value;
         paint();
         return;
       }
@@ -900,9 +907,8 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       const fd = new FormData(form as HTMLFormElement);
       const nombre = (fd.get("nombre") as string)?.trim();
       const descripcion = (fd.get("descripcion") as string)?.trim();
-      const tipo = fd.get("tipo") as string;
-      const subcategoria = tipo || undefined;
-      const grupo = grupoFromTipo(tipo);
+      const tipoRaw = fd.get("tipo_competencia_id") as string;
+      const tipoCompetenciaId = Number.parseInt(tipoRaw, 10);
       const idRaw = fd.get("id") as string | null;
       const errorEl = (form as HTMLFormElement).querySelector("#comp-modal-error") as HTMLElement | null;
 
@@ -924,8 +930,8 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
         showError("Indica la descripcion de la competencia.");
         return;
       }
-      if (!tipo) {
-        showError("Selecciona un tipo.");
+      if (!tipoRaw || Number.isNaN(tipoCompetenciaId) || tipoCompetenciaId <= 0) {
+        showError("Selecciona un tipo válido.");
         return;
       }
 
@@ -933,9 +939,9 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
         try {
           if (idRaw) {
             const id = Number.parseInt(idRaw, 10);
-            await updateCompetencia(id, { nombre, descripcion, grupo, subcategoria });
+            await updateCompetencia(id, { nombre, descripcion, tipo_competencia_id: tipoCompetenciaId });
           } else {
-            await createCompetencia({ nombre, descripcion, grupo, subcategoria });
+            await createCompetencia({ nombre, descripcion, tipo_competencia_id: tipoCompetenciaId });
           }
           showModal = false;
           paintModal();
