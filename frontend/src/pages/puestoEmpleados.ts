@@ -18,8 +18,10 @@ import {
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { deletePerfilAsignacion, getAsignacionGap, getAsignacionTareasExtra } from "../api/puestos.ts";
+import { getCursosPuesto, getCursosExtra } from "../api/cursos.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts";
+import { mountCursosExtraModal } from "../components/puestos/cursosExtraModal.ts";
 import { mountEvaluarCualificacionesModal } from "../components/puestos/evaluarCualificacionesModal.ts";
 import { mountEvaluarCompetenciasModal } from "../components/puestos/evaluarCompetenciasModal.ts";
 
@@ -331,6 +333,9 @@ function renderActionMenu(a: AsignacionItem, showRhActions: boolean): string {
       <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="tareas-extra" data-id="${a.id}" data-nombre="${nombre}">
         Administrar tareas extra
       </button>
+      <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="cursos-extra" data-id="${a.id}" data-nombre="${nombre}">
+        Administrar cursos extra
+      </button>
       <div class="my-1 border-t border-slate-100" role="separator"></div>
       <button type="button" role="menuitem" class="ppe-menu-item ppe-menu-item--danger" data-ppe-action="desasignar" data-id="${a.id}">
         Desasignar empleado
@@ -503,6 +508,7 @@ function renderPage(
     <div id="ppe-main">${renderTableSection(filtered, asignaciones.length, filters, safePage, showRhActions)}</div>
     <div id="modal-host-asignar"></div>
     <div id="modal-host-tareas-extra"></div>
+    <div id="modal-host-cursos-extra"></div>
     <div id="modal-host-evaluar-cual"></div>
     <div id="modal-host-evaluar-comp"></div>
     <div id="modal-host-detalle"></div>
@@ -614,6 +620,9 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
 
     if (action === "tareas-extra") {
       mountTareasExtraModal(tareasHost, { perfilId, asignacionId, nombreEmpleado }).open();
+    } else if (action === "cursos-extra") {
+      const cursosHost = pageRoot.querySelector("#modal-host-cursos-extra") as HTMLElement;
+      mountCursosExtraModal(cursosHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "evaluar-cual") {
       mountEvaluarCualificacionesModal(cualHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "evaluar-comp") {
@@ -765,9 +774,11 @@ async function openDetalleModal(
   });
 
   try {
-    const [gap, tareasExtra] = await Promise.all([
+    const [gap, tareasExtra, cursosAsignados, cursosExtra] = await Promise.all([
       getAsignacionGap(perfilId, asignacionId),
       getAsignacionTareasExtra(perfilId, asignacionId),
+      getCursosPuesto(perfilId),
+      getCursosExtra(perfilId, asignacionId),
     ]);
 
     const r = gap.resumen;
@@ -797,6 +808,17 @@ async function openDetalleModal(
       .map((t) => `<li class="text-sm text-text-primary">${escapeHtml(t.tarea_catalogo_nombre)}</li>`)
       .join("");
 
+    const cursosRows = cursosAsignados
+      .map((c) => {
+        const oblig = c.obligatorio ? `<span class="ml-2 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : "";
+        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${oblig}</td></tr>`;
+      })
+      .join("");
+
+    const cursosExtraRows = cursosExtra
+      .map((c) => `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}</td></tr>`)
+      .join("");
+
     body.innerHTML = `
       <div class="space-y-5">
         <div>
@@ -808,6 +830,16 @@ async function openDetalleModal(
           <h3 class="text-sm font-semibold text-text-primary mb-2">Competencias</h3>
           <p class="text-xs text-slate-500 mb-2">${r.evaluadas_competencias}/${r.total_competencias} evaluadas</p>
           ${compRows ? `<table class="w-full">${compRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin competencias</p>`}
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary mb-2">Cursos del puesto</h3>
+          <p class="text-xs text-slate-500 mb-2">${cursosAsignados.length} curso${cursosAsignados.length !== 1 ? "s" : ""}</p>
+          ${cursosRows ? `<table class="w-full">${cursosRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin cursos asignados al puesto</p>`}
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary mb-2">Cursos extra (individual)</h3>
+          <p class="text-xs text-slate-500 mb-2">${cursosExtra.length} curso${cursosExtra.length !== 1 ? "s" : ""} extra</p>
+          ${cursosExtraRows ? `<table class="w-full">${cursosExtraRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin cursos extra asignados</p>`}
         </div>
         <div>
           <h3 class="text-sm font-semibold text-text-primary mb-2">Tareas extra</h3>
