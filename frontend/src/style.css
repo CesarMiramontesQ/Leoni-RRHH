@@ -114,12 +114,19 @@ body {
 .notif-dropdown-header {
   display: flex;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.625rem;
   padding: 14px 16px;
   background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.notif-dropdown-header__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .notif-dropdown-header__title {
@@ -141,6 +148,62 @@ body {
   color: #082f5f;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.notif-dropdown-mark-all-btn {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: #ffffff;
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #082f5f;
+  line-height: 1.3;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.notif-dropdown-mark-all-btn:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%);
+  color: #002147;
+}
+
+.notif-dropdown-mark-all-btn:focus {
+  outline: none;
+}
+
+.notif-dropdown-mark-all-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.notif-dropdown-mark-all-btn:disabled {
+  cursor: not-allowed;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.notif-dropdown-mark-all-feedback {
+  margin: 0;
+  border-radius: 8px;
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.notif-dropdown-mark-all-feedback--success {
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  color: #047857;
+}
+
+.notif-dropdown-mark-all-feedback--error {
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: linear-gradient(135deg, #fef2f2 0%, #fff7f7 100%);
+  color: #b91c1c;
 }
 
 .notif-dropdown-list {

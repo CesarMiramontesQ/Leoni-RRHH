@@ -22,8 +22,14 @@ import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNa
 import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
-import { marcarNotificacionLeida, type NotificacionApiItem } from "../api/notificaciones.ts";
 import {
+  marcarNotificacionLeida,
+  marcarTodasLeidas,
+  type NotificacionApiItem,
+  type NotificacionesFetchError,
+} from "../api/notificaciones.ts";
+import {
+  applyMarcarTodasLeidasLocal,
   getNotificacionesResumenSnapshot,
   refreshNotificacionesResumen,
 } from "../notificaciones/notificacionesResumenStore.ts";
@@ -344,8 +350,27 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
             aria-labelledby="notif-dropdown-heading"
           >
             <header class="notif-dropdown-header">
-              <h2 id="notif-dropdown-heading" class="notif-dropdown-header__title">Notificaciones</h2>
-              <span id="app-shell-notifications-count" class="notif-dropdown-header-badge">0 no leídas</span>
+              <div class="notif-dropdown-header__row">
+                <h2 id="notif-dropdown-heading" class="notif-dropdown-header__title">Notificaciones</h2>
+                <span id="app-shell-notifications-count" class="notif-dropdown-header-badge">0 no leídas</span>
+              </div>
+              <button
+                type="button"
+                id="app-shell-notifications-mark-all"
+                class="notif-dropdown-mark-all-btn"
+                disabled
+                aria-busy="false"
+                aria-label="Marcar todas las notificaciones como leídas"
+              >
+                Marcar todas como leídas
+              </button>
+              <p
+                id="app-shell-notifications-mark-all-feedback"
+                class="notif-dropdown-mark-all-feedback"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></p>
             </header>
             <div id="app-shell-notifications-list" class="notif-dropdown-list">
               <p class="notif-dropdown-loading">Cargando...</p>
@@ -419,7 +444,11 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const notifBadgeHost = container.querySelector<HTMLElement>("#app-shell-notifications-badge");
   const notifList = container.querySelector<HTMLElement>("#app-shell-notifications-list");
   const notifCount = container.querySelector<HTMLElement>("#app-shell-notifications-count");
+  const notifMarkAllBtn = container.querySelector<HTMLButtonElement>("#app-shell-notifications-mark-all");
+  const notifMarkAllFeedback = container.querySelector<HTMLElement>("#app-shell-notifications-mark-all-feedback");
   let notifPanelOpen = false;
+  let notifMarkingAll = false;
+  let notifMarkAllFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   let recientes: NotificacionApiItem[] = [];
 
   const mountLoginPage = (): void => {
@@ -446,17 +475,91 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     notifList.innerHTML = items.map((item) => renderNotificacionListItem(item, { compact: true })).join("");
   };
 
+  const clearNotifMarkAllFeedback = (): void => {
+    if (notifMarkAllFeedbackTimer) {
+      clearTimeout(notifMarkAllFeedbackTimer);
+      notifMarkAllFeedbackTimer = null;
+    }
+    if (!notifMarkAllFeedback) return;
+    notifMarkAllFeedback.hidden = true;
+    notifMarkAllFeedback.textContent = "";
+    notifMarkAllFeedback.classList.remove(
+      "notif-dropdown-mark-all-feedback--success",
+      "notif-dropdown-mark-all-feedback--error",
+    );
+  };
+
+  const showNotifMarkAllFeedback = (message: string, kind: "success" | "error"): void => {
+    if (!notifMarkAllFeedback) return;
+    clearNotifMarkAllFeedback();
+    notifMarkAllFeedback.textContent = message;
+    notifMarkAllFeedback.classList.add(
+      kind === "success" ? "notif-dropdown-mark-all-feedback--success" : "notif-dropdown-mark-all-feedback--error",
+    );
+    notifMarkAllFeedback.hidden = false;
+    if (kind === "success") {
+      notifMarkAllFeedbackTimer = setTimeout(() => clearNotifMarkAllFeedback(), 3000);
+    }
+  };
+
+  const updateNotifMarkAllButton = (): void => {
+    if (!notifMarkAllBtn) return;
+    const snap = getNotificacionesResumenSnapshot();
+    const hasUnread = snap.unreadCount > 0;
+    notifMarkAllBtn.disabled = notifMarkingAll || !hasUnread;
+    notifMarkAllBtn.setAttribute("aria-busy", notifMarkingAll ? "true" : "false");
+    notifMarkAllBtn.textContent = notifMarkingAll ? "Marcando..." : "Marcar todas como leídas";
+  };
+
   const applyNotificacionesSnapshot = (): void => {
     if (!notifList || !notifBadgeHost || !notifCount) return;
     const snap = getNotificacionesResumenSnapshot();
     recientes = snap.recientes;
     notifBadgeHost.innerHTML = renderNotificacionBadge(snap.unreadCount);
     notifCount.textContent = `${snap.unreadCount} no leídas`;
+    updateNotifMarkAllButton();
     if (snap.status === "error" && snap.errorMessage) {
       notifList.innerHTML = `<p class="notif-dropdown-error" role="alert">${escapeHtmlText(snap.errorMessage)}</p>`;
       return;
     }
     renderNotifDropdown(snap.recientes);
+  };
+
+  const marcarTodasNotificaciones = async (): Promise<void> => {
+    if (notifMarkingAll) return;
+    const snap = getNotificacionesResumenSnapshot();
+    if (snap.unreadCount <= 0) return;
+
+    notifMarkingAll = true;
+    clearNotifMarkAllFeedback();
+    updateNotifMarkAllButton();
+
+    try {
+      const marcadas = await marcarTodasLeidas();
+      if (marcadas > 0) {
+        applyMarcarTodasLeidasLocal();
+      }
+      notifMarkingAll = false;
+      applyNotificacionesSnapshot();
+      showNotifMarkAllFeedback(
+        marcadas > 0 ?
+          "Todas las notificaciones fueron marcadas como leídas."
+        : "No había notificaciones pendientes.",
+        "success",
+      );
+    } catch (error: unknown) {
+      if (typeof error === "object" && error != null && "status" in error && (error as { status?: unknown }).status === 401) {
+        mountLoginPage();
+        return;
+      }
+      notifMarkingAll = false;
+      updateNotifMarkAllButton();
+      const detail =
+        typeof error === "object" && error != null && "detail" in error ?
+          (error as NotificacionesFetchError).detail
+        : "";
+      showNotifMarkAllFeedback(detail || "No se pudo marcar las notificaciones como leídas.", "error");
+    }
   };
 
   const loadNotificaciones = async (): Promise<void> => {
@@ -482,6 +585,12 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     const open = !notifPanelOpen;
     setNotifPanelState(open);
     if (open) void loadNotificaciones();
+  }, { signal });
+
+  notifMarkAllBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void marcarTodasNotificaciones();
   }, { signal });
 
   notifList?.addEventListener("click", (event) => {
