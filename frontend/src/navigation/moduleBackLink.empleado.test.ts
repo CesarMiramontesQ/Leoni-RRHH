@@ -42,4 +42,32 @@ describe("module back link empleado", () => {
     const { renderLaboralesBackBar } = await import("./laboralesBackLink.ts");
     expect(renderLaboralesBackBar()).toContain("Volver");
   });
+
+  it("oculta Volver en Laborales para rol supervisor", async () => {
+    mockRol = "supervisor";
+    vi.resetModules();
+    const { renderLaboralesBackBar } = await import("./laboralesBackLink.ts");
+    expect(renderLaboralesBackBar()).toBe("");
+  });
+
+  it("oculta Volver en Comedor para rol supervisor", async () => {
+    mockRol = "supervisor";
+    vi.resetModules();
+    const { renderComedorBackBar } = await import("./comedorBackLink.ts");
+    expect(renderComedorBackBar()).toBe("");
+  });
+
+  it("oculta Volver en Solicitudes para rol supervisor", async () => {
+    mockRol = "supervisor";
+    vi.resetModules();
+    const { renderSolicitudesBackBar } = await import("./laboralesBackLink.ts");
+    expect(renderSolicitudesBackBar()).toBe("");
+  });
+
+  it("muestra Volver en Métricas para rol RH", async () => {
+    mockRol = "rh";
+    vi.resetModules();
+    const { renderLaboralesBackBar } = await import("./laboralesBackLink.ts");
+    expect(renderLaboralesBackBar()).toContain("Volver");
+  });
 });
