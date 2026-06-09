@@ -126,6 +126,20 @@ export function isEmpleadoFlatNavRol(rol: string | null): boolean {
   return false;
 }
 
+const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
+  "dashboard",
+  "metricas",
+  "incidencias",
+  "solicitudes",
+  "comedor",
+  "empleados",
+]);
+
+/** Rol con menú lateral estructurado por secciones (Laborales, Comedor). */
+export function isSupervisorStructuredNavRol(rol: string | null): boolean {
+  return rol === "supervisor";
+}
+
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 
 const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
@@ -151,10 +165,11 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   const navRol = effectiveShellNavRol(rol);
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+  if (rol === "supervisor") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (RH_ONLY_NAV_IDS.has(itemId)) return navRol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return navRol === "rh" || navRol === "director" || navRol === "gerente";
-  if (navRol === "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
+  if (navRol === "supervisor" && rol !== "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
   if (navRol === "gerente" && GERENTE_HIDDEN_NAV_IDS.has(itemId)) return false;
   return true;
 }

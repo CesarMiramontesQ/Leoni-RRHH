@@ -18,7 +18,17 @@ import {
 } from "../navigation/levelUpNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
 import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
-import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
+import {
+  SUPERVISOR_DASHBOARD_ITEM,
+  SUPERVISOR_EMPLEADOS_ITEM,
+  SUPERVISOR_NAV_SECTIONS,
+} from "../navigation/supervisorNav.ts";
+import {
+  isEmpleadoFlatNavRol,
+  isShellNavItemVisibleForRol,
+  isSupervisorStructuredNavRol,
+  type AppShellNavItemId,
+} from "../navigation/shellNavPolicy.ts";
 import {
   SHELL_NAV_ICON_ACTIVE,
   SHELL_NAV_ICON_INACTIVE,
@@ -202,16 +212,68 @@ function renderEmpleadoFlatNavSection(activeNav: ShellNavKey | undefined, rol: s
   return renderNavSection({ id: "menu-principal", title: "Menú principal", items }, activeNav, rol);
 }
 
+function toNavItemDef(item: {
+  id: AppShellNavItemId;
+  key: ShellNavKey;
+  href: string;
+  label: string;
+  svgPaths: string;
+}): NavItemDef {
+  return {
+    id: item.id,
+    key: item.key,
+    hrefFor: () => item.href,
+    label: item.label,
+    svgPaths: item.svgPaths,
+  };
+}
+
+function renderSupervisorDashboardItem(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  const li = navItemLi(activeNav, rol, toNavItemDef(SUPERVISOR_DASHBOARD_ITEM));
+  if (!li) return "";
+  return `<section class="shell-sidebar__section" aria-label="Dashboard">
+      <ul role="list" class="${SHELL_NAV_LIST}">${li}</ul>
+    </section>`;
+}
+
+function renderSupervisorEmpleadosFooter(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  const li = navItemLi(activeNav, rol, toNavItemDef(SUPERVISOR_EMPLEADOS_ITEM));
+  if (!li) return "";
+  return `<section class="shell-sidebar__section shell-sidebar__section--secondary mt-auto" aria-label="Empleados">
+      <ul role="list" class="${SHELL_NAV_LIST}">${li}</ul>
+    </section>`;
+}
+
+function renderSupervisorStructuredNav(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  const dashboardSection = renderSupervisorDashboardItem(activeNav, rol);
+  const moduleSections = SUPERVISOR_NAV_SECTIONS.map((section) =>
+    renderNavSection(
+      {
+        id: section.id,
+        title: section.title,
+        items: section.items.map((item) => toNavItemDef(item)),
+      },
+      activeNav,
+      rol,
+    ),
+  ).join("");
+  const empleadosFooter = renderSupervisorEmpleadosFooter(activeNav, rol);
+  return `${dashboardSection}${moduleSections}${empleadosFooter}`;
+}
+
 /** HTML interior del sidebar (compartido por drawer móvil, rail colapsado y columna expandida). */
 export function renderShellSidebarBody(activeNav: ShellNavKey | undefined): string {
   const rol = getRolFromAccessToken();
   const sidebarActiveNav = resolveShellSidebarActiveNav(activeNav) as ShellNavKey | undefined;
 
+  const structuredNav = isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol);
   const generalSection = isEmpleadoFlatNavRol(rol)
     ? renderEmpleadoFlatNavSection(sidebarActiveNav, rol)
-    : renderNavSection({ id: "general", title: "General", items: NAV_GENERAL }, sidebarActiveNav, rol);
+    : isSupervisorStructuredNavRol(rol)
+      ? renderSupervisorStructuredNav(sidebarActiveNav, rol)
+      : renderNavSection({ id: "general", title: "General", items: NAV_GENERAL }, sidebarActiveNav, rol);
 
-  const moduleItems = isEmpleadoFlatNavRol(rol) ? [] : buildModuleItems(rol);
+  const moduleItems = structuredNav ? [] : buildModuleItems(rol);
   const modulesSection =
     moduleItems.length > 0
       ? renderNavSection(
@@ -221,7 +283,7 @@ export function renderShellSidebarBody(activeNav: ShellNavKey | undefined): stri
         )
       : "";
 
-  const adminSection = isEmpleadoFlatNavRol(rol) ? "" : renderAdminSection(sidebarActiveNav, rol);
+  const adminSection = structuredNav ? "" : renderAdminSection(sidebarActiveNav, rol);
 
   return `
     <div class="${SHELL_SIDEBAR_INNER}">

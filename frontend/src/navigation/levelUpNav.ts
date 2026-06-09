@@ -3,7 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
-import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
+import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import { hasExplicitModuleGrant, hasRhModule, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
 import { isRhEmpleadoUiMode } from "../auth/rhUiMode.ts";
 
@@ -189,7 +189,7 @@ export function getVisibleLevelUpCategories(rol: string | null): LevelUpCategory
 }
 
 export function isLevelUpHubVisibleForRol(rol: string | null): boolean {
-  if (isEmpleadoFlatNavRol(rol)) return false;
+  if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
   return getVisibleLevelUpCategories(rol).length > 0;
 }
 

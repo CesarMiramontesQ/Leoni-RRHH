@@ -3,7 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
-import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
+import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
 export type LaboralesNavKey = "laborales" | "metricas" | "solicitudes" | "incidencias" | "actas";
@@ -69,7 +69,7 @@ export function getVisibleLaboralesCategories(rol: string | null): ShellHubCateg
 }
 
 export function isLaboralesHubVisibleForRol(rol: string | null): boolean {
-  if (isEmpleadoFlatNavRol(rol)) return false;
+  if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
   return getVisibleLaboralesCategories(rol).length > 0;
 }
 
@@ -77,7 +77,11 @@ export function isLaboralesSubNavKey(key: string | undefined): key is LaboralesN
   return key != null && LABORALES_SUB_NAV_KEYS.has(key as LaboralesNavKey);
 }
 
-export function resolveLaboralesSidebarActiveNav(activeNav: string | undefined): string | undefined {
+export function resolveLaboralesSidebarActiveNav(
+  activeNav: string | undefined,
+  rol?: string | null,
+): string | undefined {
+  if (isSupervisorStructuredNavRol(rol ?? null)) return activeNav;
   if (activeNav === "laborales" || isLaboralesSubNavKey(activeNav)) {
     return "laborales";
   }

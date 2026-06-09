@@ -20,7 +20,17 @@ import {
 } from "../navigation/levelUpNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
 import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
-import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
+import {
+  SUPERVISOR_DASHBOARD_ITEM,
+  SUPERVISOR_EMPLEADOS_ITEM,
+  SUPERVISOR_NAV_SECTIONS,
+} from "../navigation/supervisorNav.ts";
+import {
+  isEmpleadoFlatNavRol,
+  isShellNavItemVisibleForRol,
+  isSupervisorStructuredNavRol,
+  type AppShellNavItemId,
+} from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
 import {
@@ -184,13 +194,65 @@ const NAV_LEVEL_UP: NavItemDef = {
 };
 
 function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
-  const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
+  const empleadosDef: NavItemDef = isSupervisorStructuredNavRol(rol)
+    ? {
+        id: SUPERVISOR_EMPLEADOS_ITEM.id,
+        key: SUPERVISOR_EMPLEADOS_ITEM.key,
+        hrefFor: () => SUPERVISOR_EMPLEADOS_ITEM.href,
+        label: SUPERVISOR_EMPLEADOS_ITEM.label,
+        svgPaths: SUPERVISOR_EMPLEADOS_ITEM.svgPaths,
+      }
+    : NAV_EMPLEADOS;
+  const empleadosLi = navItemLi(activeNav, rol, empleadosDef);
   if (empleadosLi.trim() === "") return "";
   return `<li class="mt-auto pt-6">
     <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
       ${empleadosLi}
     </ul>
   </li>`;
+}
+
+function renderSupervisorNavSection(
+  sectionId: string,
+  title: string,
+  items: readonly { id: AppShellNavItemId; key: ShellNavKey; href: string; label: string; svgPaths: string }[],
+  activeNav: ShellNavKey | undefined,
+  rol: string | null,
+): string {
+  const lis = items
+    .map((item) =>
+      navItemLi(activeNav, rol, {
+        id: item.id,
+        key: item.key,
+        hrefFor: () => item.href,
+        label: item.label,
+        svgPaths: item.svgPaths,
+      }),
+    )
+    .filter((li) => li.trim() !== "")
+    .join("");
+  if (lis.trim() === "") return "";
+  const headingId = `shell-nav-section-${sectionId}`;
+  return `<li>
+    <div id="${headingId}" class="${navSectionHeadingClass}">${escapeHtmlText(title)}</div>
+    <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${headingId}">
+      ${lis}
+    </ul>
+  </li>`;
+}
+
+function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  const dashboardLi = navItemLi(activeNav, rol, {
+    id: SUPERVISOR_DASHBOARD_ITEM.id,
+    key: SUPERVISOR_DASHBOARD_ITEM.key,
+    hrefFor: () => SUPERVISOR_DASHBOARD_ITEM.href,
+    label: SUPERVISOR_DASHBOARD_ITEM.label,
+    svgPaths: SUPERVISOR_DASHBOARD_ITEM.svgPaths,
+  });
+  const sectionLis = SUPERVISOR_NAV_SECTIONS.map((section) =>
+    renderSupervisorNavSection(section.id, section.title, section.items, activeNav, rol),
+  ).join("");
+  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
 }
 
 /** Sidebar interior (móvil + desktop idénticos). */
@@ -200,6 +262,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
 
   const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
 
+  const supervisorSidebar = isSupervisorStructuredNavRol(rol);
   const mainMenuLis = isEmpleadoFlatNavRol(rol)
     ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
         navItemLi(sidebarActiveNav, rol, {
@@ -210,25 +273,30 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
           svgPaths: d.svgPaths,
         }),
       ).join("")
-    : (() => {
-        const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
-        const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
-        const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
-        const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
-        return [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
-      })();
+    : supervisorSidebar
+      ? renderSupervisorSidebarSections(sidebarActiveNav, rol)
+      : (() => {
+          const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
+          const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
+          const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
+          const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
+          return [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
+        })();
+  const mainMenuBlock = supervisorSidebar
+    ? mainMenuLis
+    : `<li>
+          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
+            ${mainMenuLis}
+          </ul>
+        </li>`;
   return `
     <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
       <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
     </div>
     <nav class="relative flex flex-1 flex-col">
       <ul role="list" class="flex flex-1 flex-col gap-y-5">
-        <li>
-          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
-            ${mainMenuLis}
-          </ul>
-        </li>
+        ${mainMenuBlock}
         ${footerGestionHtml(sidebarActiveNav, rol)}
       </ul>
     </nav>`;
