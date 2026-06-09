@@ -22,7 +22,7 @@ import {
   renderSolicitudesSplitHeroMeta,
 } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
+import { renderSolicitudesBackBar } from "../navigation/laboralesBackLink.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
 import {
@@ -283,7 +283,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
       mainClass: solicitudesMainClass,
-      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${renderLaboralesBackBar()}${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${renderSolicitudesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -294,7 +294,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
       mainClass: solicitudesMainClass,
-      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${renderLaboralesBackBar()}${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${renderSolicitudesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -546,7 +546,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     activeNav: "solicitudes",
     mainClass: solicitudesMainClass,
     mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">
-      ${renderLaboralesBackBar()}
+      ${renderSolicitudesBackBar()}
       <div id="rh-solicitudes-inner" class="flex min-h-0 flex-1 flex-col">${
         isSplitGestorRole ?
           renderSplitSolicitudesView(
