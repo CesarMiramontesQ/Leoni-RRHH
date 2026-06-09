@@ -8,6 +8,7 @@ import { COMEDOR_SIDEBAR_ITEM, COMEDOR_NAV_ITEMS } from "./comedorNav.ts";
 import { CURSOS_SIDEBAR_ITEM, getVisibleCursosNavItems } from "./cursosNav.ts";
 import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
 import { getVisibleLevelUpCategoriesForRhSidebar, LEVEL_UP_SIDEBAR_ITEM } from "./levelUpNav.ts";
+import { PUESTOS_SIDEBAR_ITEM, getVisiblePuestosNavItems } from "./puestosNav.ts";
 
 export type RhNavKey =
   | "dashboard"
@@ -117,6 +118,17 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "cursos",
       iconSvgPaths: CURSOS_SIDEBAR_ITEM.svgPaths,
       items: cursosItems,
+    });
+  }
+
+  const puestosItems = getVisiblePuestosNavItems(rol);
+  if (puestosItems.length > 0) {
+    sections.push({
+      id: "puestos",
+      title: PUESTOS_SIDEBAR_ITEM.label,
+      sectionKey: "puestos",
+      iconSvgPaths: PUESTOS_SIDEBAR_ITEM.svgPaths,
+      items: puestosItems,
     });
   }
 

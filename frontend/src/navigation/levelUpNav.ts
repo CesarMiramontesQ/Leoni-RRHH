@@ -62,7 +62,7 @@ export const LEVEL_UP_CURSOS: readonly LevelUpAccessItem[] = [
   },
 ];
 
-const LEVEL_UP_PUESTOS: readonly LevelUpAccessItem[] = [
+export const LEVEL_UP_PUESTOS: readonly LevelUpAccessItem[] = [
   {
     id: "puestos",
     key: "puestos",
@@ -189,9 +189,13 @@ export function getVisibleLevelUpCategories(rol: string | null): LevelUpCategory
   }).filter((category) => category.items.length > 0);
 }
 
-/** Categorías Level Up visibles en el sidebar RH (sin «Cursos», sección propia). */
+/** Categorías Level Up visibles en el sidebar RH (sin secciones propias: Cursos, Puestos). */
+const RH_SIDEBAR_OWN_SECTION_CATEGORY_IDS = new Set<LevelUpCategory["id"]>(["cursos", "puestos"]);
+
 export function getVisibleLevelUpCategoriesForRhSidebar(rol: string | null): LevelUpCategory[] {
-  return getVisibleLevelUpCategories(rol).filter((category) => category.id !== "cursos");
+  return getVisibleLevelUpCategories(rol).filter(
+    (category) => !RH_SIDEBAR_OWN_SECTION_CATEGORY_IDS.has(category.id),
+  );
 }
 
 export function isLevelUpHubVisibleForRol(rol: string | null): boolean {
