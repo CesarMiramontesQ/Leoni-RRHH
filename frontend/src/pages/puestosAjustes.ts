@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { mountGruposCompetenciaSection } from "../components/puestos/ajustes/gruposCompetenciaSection.ts";
 import { mountMetodosCalificacionCompetenciaSection } from "../components/puestos/ajustes/metodosCalificacionCompetenciaSection.ts";
 import { mountMetodosCalificacionSection } from "../components/puestos/ajustes/metodosCalificacionSection.ts";
@@ -25,6 +26,7 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
     pageTitle: "Ajustes de perfiles de puesto",
     mainClass: "py-5 sm:py-6",
     mainHtml: `<div id="puestos-ajustes-root" class="${RH_LISTADO_PAGE_OUTER}">
+      ${renderLevelUpBackBar()}
       <div id="puestos-ajustes-sections" class="flex flex-col gap-6 sm:gap-8">
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
           ${renderSectionGroup(

@@ -1,6 +1,7 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { fetchWithAuth } from "../api/http.ts";
 import {
   getEvaluaciones,
@@ -113,6 +114,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   function render() {
     root.innerHTML = `
       <div class="px-6 py-6 max-w-7xl mx-auto">
+        ${renderLevelUpBackBar()}
         <div class="flex items-center justify-between mb-6">
           <h1 class="text-xl font-semibold text-gray-900">Evaluaciones de Competencias</h1>
           ${canEvaluate ? `<button data-action="open-modal" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">Nueva evaluación</button>` : ""}

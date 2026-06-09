@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getPerfilesList,
   getAreasOptions,
@@ -581,6 +582,7 @@ function renderDeleteConfirm(nombre: string, saving: boolean): string {
 function renderLoading(): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER}" aria-busy="true">
+    ${renderLevelUpBackBar()}
     <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
     <div class="h-32 animate-pulse rounded-2xl bg-white"></div>
@@ -591,6 +593,7 @@ function renderLoading(): string {
 function renderError(message: string): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER}">
+    ${renderLevelUpBackBar()}
     <div class="flex min-h-[280px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-14 text-center" role="alert">
       <div class="max-w-md">
         <p class="text-base font-semibold text-text-primary">Error al cargar perfiles</p>
@@ -703,6 +706,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
 
     inner.innerHTML = `
       <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER}">
+        ${renderLevelUpBackBar()}
         ${renderPageHeader()}
         ${renderFilterBar(filters, areasOptions, nivelesCatalog, filtered.length, sourceTotal)}
         <div class="flex flex-col gap-4 sm:gap-5">${mainContent}</div>

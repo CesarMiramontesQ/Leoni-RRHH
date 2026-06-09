@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getMultihabilidadesPuestos,
   getMultihabilidadesData,
@@ -82,6 +83,7 @@ function kpiSkeletonCard(): string {
 function renderPageSkeleton(): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER}" aria-busy="true" aria-label="Cargando matriz">
+    ${renderLevelUpBackBar()}
     <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] animate-pulse">
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="h-10 rounded-lg bg-slate-100/90"></div>
@@ -109,6 +111,7 @@ function renderResultsSkeleton(): string {
 function renderError(msg: string): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER}">
+    ${renderLevelUpBackBar()}
     <div class="flex min-h-[320px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-16 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]" role="alert">
       <div class="flex max-w-md flex-col items-center gap-4">
         <span class="flex size-14 items-center justify-center rounded-2xl bg-red-100 text-red-600">${ICON_ALERT}</span>
@@ -557,6 +560,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
 
     let content = `
     <div class="${RH_LISTADO_PAGE_OUTER}">
+      ${renderLevelUpBackBar()}
       ${renderFilters(puestoOptions, selectedPuestoId, searchFilter)}`;
 
     if (!selectedPuestoId || !matrizData) {
