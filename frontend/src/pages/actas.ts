@@ -21,6 +21,7 @@ import {
 } from "../utils/rhListadoTablaLayout.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import {
   ACTAS_ESTADOS,
   ACTAS_PERIODOS,
@@ -762,7 +763,7 @@ export function mountActas(container: HTMLElement): void {
       pageTitle: "Actas",
       activeNav: "actas",
       mainClass: actasMainClass,
-      mainHtml: forbiddenHtml(),
+      mainHtml: `${renderLaboralesBackBar()}${forbiddenHtml()}`,
     });
     return;
   }
@@ -826,6 +827,7 @@ export function mountActas(container: HTMLElement): void {
     activeNav: "actas",
     mainClass: actasMainClass,
     mainHtml: `<div id="rh-actas-page" class="${actasPageShellClass}">
+      ${renderLaboralesBackBar()}
       <div id="rh-actas-inner" class="flex min-h-0 flex-1 flex-col">${renderActasMain(state, initialTable, allRows, isLoading)}</div>
       <div id="rh-actas-nueva-modal-host" class="shrink-0"></div>
     </div>`,

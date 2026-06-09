@@ -45,6 +45,7 @@ import {
   type RhIncidenciaTablaFila,
 } from "../incidencias/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 function forbiddenHtml(): string {
@@ -186,7 +187,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       pageTitle: INC_COPY.tituloPagina,
       activeNav: "incidencias",
       mainClass: incidenciasMainClass,
-      mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">${renderLaboralesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -324,6 +325,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     activeNav: "incidencias",
     mainClass: incidenciasMainClass,
     mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
+      ${renderLaboralesBackBar()}
       <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel(filterDraft, appliedFilters, uiConfig, EMPTY_CATALOG))}</div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>

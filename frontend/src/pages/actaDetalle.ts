@@ -1,5 +1,6 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import {
   anularActaAdministrativa,
   approveActaAdministrativa,
@@ -611,6 +612,7 @@ function renderDetalleHtml(
 
   return `
     <div id="rh-acta-detalle-root" class="space-y-6">
+      ${renderLaboralesBackBar()}
       <div>
         <a href="#/actas" class="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2 py-1 text-sm font-medium text-slate-600 transition-colors hover:border-blue-100 hover:bg-blue-50 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 opacity-80" aria-hidden="true"><path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" /></svg>
@@ -953,7 +955,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       pageTitle: "Detalle de acta",
       activeNav: "actas",
       mainClass: "pt-0 pb-5 sm:pb-6",
-      mainHtml: `<div class="${actaDetallePageShellClass}"><div class="mx-auto w-full max-w-[1320px] px-2 pb-2 sm:px-3">${forbiddenHtml()}</div></div>`,
+      mainHtml: `<div class="${actaDetallePageShellClass}"><div class="mx-auto w-full max-w-[1320px] px-2 pb-2 sm:px-3">${renderLaboralesBackBar()}${forbiddenHtml()}</div></div>`,
     });
     return;
   }
@@ -962,7 +964,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
     pageTitle: "Detalle de acta",
     activeNav: "actas",
     mainClass: "pt-0 pb-5 sm:pb-6",
-    mainHtml: `<div class="${actaDetallePageShellClass}"><div id="rh-acta-detalle-page" class="mx-auto w-full max-w-[1320px] space-y-4 px-2 pb-2 sm:px-3">${skeletonHtml()}</div></div>`,
+    mainHtml: `<div class="${actaDetallePageShellClass}"><div id="rh-acta-detalle-page" class="mx-auto w-full max-w-[1320px] space-y-4 px-2 pb-2 sm:px-3">${renderLaboralesBackBar()}${skeletonHtml()}</div></div>`,
   });
 
   const pageNode = container.querySelector("#rh-acta-detalle-page");
@@ -1249,6 +1251,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       const err = error as { status?: number; detail?: string } | null;
       if (err?.status === 404) {
         page.innerHTML = `
+          ${renderLaboralesBackBar()}
           <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
             <p class="font-semibold">Acta no encontrada</p>
             <p class="mt-1">${escapeHtml(err.detail || "No se encontró el acta solicitada.")}</p>
@@ -1257,6 +1260,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
         return;
       }
       page.innerHTML = `
+        ${renderLaboralesBackBar()}
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
           <p class="font-semibold">No se pudo cargar el detalle del acta.</p>
           <p class="mt-1">${escapeHtml(err?.detail || "Ocurrió un error inesperado.")}</p>
@@ -1267,6 +1271,7 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
   })().catch(() => {
     if (signal.aborted) return;
     page.innerHTML = `
+      ${renderLaboralesBackBar()}
       <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
         <p class="font-semibold">No se pudo cargar el detalle del acta.</p>
         <p class="mt-1">Ocurrió un error inesperado.</p>

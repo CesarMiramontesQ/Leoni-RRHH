@@ -45,7 +45,7 @@ import { mountComedorHub } from "./pages/comedorHub.ts";
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
-import { isLevelUpRouteHash, schedulePageScrollReset } from "./navigation/resetPageScroll.ts";
+import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import {
   mountAjustesPermisosRh,
   mountRhModuleAccessDenied,
@@ -103,7 +103,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       : rawHash;
 
     routeToHash(container, signal, h);
-    if (isLevelUpRouteHash(window.location.hash || "#/")) {
+    if (shouldResetScrollOnRoute(window.location.hash || "#/")) {
       schedulePageScrollReset();
     }
   };
