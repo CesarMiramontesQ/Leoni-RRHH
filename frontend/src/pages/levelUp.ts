@@ -1,5 +1,6 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
+import { schedulePageScrollReset } from "../navigation/resetPageScroll.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_SECONDARY, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
@@ -1150,6 +1151,7 @@ export function mountCursos(container: HTMLElement): void {
     state.selectedEmpleados = new Set();
     history.replaceState(null, "", `#/cursos/${curso.id}`);
     render();
+    schedulePageScrollReset();
     Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id)])
       .then(([puestos, empExtra, sesionesResp]) => {
         state.detailPuestos = puestos;
@@ -1222,6 +1224,7 @@ export function mountCursos(container: HTMLElement): void {
       state.showAssignSesionPicker = false;
       history.replaceState(null, "", "#/cursos");
       render();
+      schedulePageScrollReset();
       return;
     }
 
