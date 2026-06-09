@@ -3,6 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
+import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
@@ -13,7 +14,7 @@ type ComedorAccessItem = ShellHubAccessItem & {
   key: ComedorNavKey;
 };
 
-const COMEDOR_ITEMS: readonly ComedorAccessItem[] = [
+const COMEDOR_NAV_ITEMS: readonly ComedorAccessItem[] = [
   {
     id: "comedor",
     key: "comedor",
@@ -30,8 +31,10 @@ const COMEDOR_ITEMS: readonly ComedorAccessItem[] = [
   },
 ];
 
+export { COMEDOR_NAV_ITEMS };
+
 export const COMEDOR_SUB_NAV_KEYS: ReadonlySet<ComedorNavKey> = new Set(
-  COMEDOR_ITEMS.map((item) => item.key),
+  COMEDOR_NAV_ITEMS.map((item) => item.key),
 );
 
 export const COMEDOR_SIDEBAR_ITEM = {
@@ -43,7 +46,7 @@ export const COMEDOR_SIDEBAR_ITEM = {
 };
 
 function filterVisibleItems(rol: string | null): ShellHubAccessItem[] {
-  return COMEDOR_ITEMS.filter((item) => isShellNavItemVisibleForRol(rol, item.id)).map(
+  return COMEDOR_NAV_ITEMS.filter((item) => isShellNavItemVisibleForRol(rol, item.id)).map(
     ({ href, label, svgPaths }) => ({ href, label, svgPaths }),
   );
 }
@@ -56,6 +59,7 @@ export function getVisibleComedorCategories(rol: string | null): ShellHubCategor
 
 export function isComedorHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
+  if (rol === "rh" && isRhOperativoUiMode()) return false;
   return getVisibleComedorCategories(rol).length > 0;
 }
 

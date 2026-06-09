@@ -3,6 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
+import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import { hasExplicitModuleGrant, hasRhModule, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
 import { isRhEmpleadoUiMode } from "../auth/rhUiMode.ts";
@@ -37,7 +38,7 @@ export type LevelUpCategory = {
   items: readonly LevelUpAccessItem[];
 };
 
-const LEVEL_UP_CURSOS: readonly LevelUpAccessItem[] = [
+export const LEVEL_UP_CURSOS: readonly LevelUpAccessItem[] = [
   {
     id: "cursos",
     key: "cursos",
@@ -188,8 +189,14 @@ export function getVisibleLevelUpCategories(rol: string | null): LevelUpCategory
   }).filter((category) => category.items.length > 0);
 }
 
+/** Categorías Level Up visibles en el sidebar RH (sin «Cursos», sección propia). */
+export function getVisibleLevelUpCategoriesForRhSidebar(rol: string | null): LevelUpCategory[] {
+  return getVisibleLevelUpCategories(rol).filter((category) => category.id !== "cursos");
+}
+
 export function isLevelUpHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
+  if (rol === "rh" && isRhOperativoUiMode()) return false;
   return getVisibleLevelUpCategories(rol).length > 0;
 }
 

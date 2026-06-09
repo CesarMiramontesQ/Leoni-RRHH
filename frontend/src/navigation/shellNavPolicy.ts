@@ -11,7 +11,10 @@ import {
 import { navItemIdToModuleKey, resolveModuleFromHash } from "../auth/rhModuleRegistry.ts";
 import { isComedorHubVisibleForRol } from "./comedorNav.ts";
 import { isLaboralesHubVisibleForRol } from "./laboralesNav.ts";
-import { isLevelUpHubVisibleForRol } from "./levelUpNav.ts";
+import {
+  isLevelUpHubVisibleForRol,
+  getVisibleLevelUpCategoriesForRhSidebar,
+} from "./levelUpNav.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
@@ -27,16 +30,14 @@ type RhNavLandingEntry = {
 const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "dashboard", hash: "#/" },
   { itemId: "organigrama", hash: "#/organigrama" },
-  { itemId: "laborales", hash: "#/laborales" },
   { itemId: "metricas", hash: "#/metricas" },
   { itemId: "solicitudes", hash: "#/solicitudes" },
   { itemId: "incidencias", hash: "#/incidencias" },
   { itemId: "actas", hash: "#/actas" },
-  { itemId: "comedor-menu", hash: "#/comedor/accesos" },
   { itemId: "comedor", hash: "#/comedor" },
   { itemId: "reportes", hash: "#/comedor/reporte" },
+  { itemId: "level-up", hash: "#/level-up/resumen" },
   { itemId: "capacitaciones", hash: "#/capacitaciones" },
-  { itemId: "level-up", hash: "#/level-up" },
   { itemId: "puestos", hash: "#/puestos" },
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
@@ -142,6 +143,11 @@ export function isSupervisorStructuredNavRol(rol: string | null): boolean {
   return false;
 }
 
+/** RH operativo: sidebar con secciones desplegables (Laborales, Comedor, Level Up). */
+export function isRhStructuredNavRol(rol: string | null): boolean {
+  return rol === "rh" && isRhOperativoUiMode();
+}
+
 /** Supervisor y gerente comparten política de rutas permitidas (sin hubs ni módulos extra). */
 export function usesSupervisorRoutePolicy(rol: string | null): boolean {
   return rol === "supervisor" || rol === "gerente";
@@ -193,6 +199,9 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   if (itemId === "level-up") {
+    if (isRhStructuredNavRol(rol)) {
+      return getVisibleLevelUpCategoriesForRhSidebar(rol).some((category) => category.items.length > 0);
+    }
     return isLevelUpHubVisibleForRol(rol);
   }
   if (itemId === "laborales") {

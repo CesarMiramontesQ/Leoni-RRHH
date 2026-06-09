@@ -75,14 +75,14 @@ describe("shellNavPolicy rh mode", () => {
     allowedModules.add("metricas");
     allowedModules.add("level-up");
     const { resolveRhOperativoLandingHash } = await import("./shellNavPolicy.ts");
-    expect(resolveRhOperativoLandingHash()).toBe("#/laborales");
+    expect(resolveRhOperativoLandingHash()).toBe("#/metricas");
   });
 
   it("resolveRhInitialHash redirige desde inicio cuando no hay dashboard", async () => {
     allowedModules.clear();
     allowedModules.add("level-up");
     const { resolveRhInitialHash, RH_SIN_PERMISOS_HASH } = await import("./shellNavPolicy.ts");
-    expect(resolveRhInitialHash("#/")).toBe("#/level-up");
+    expect(resolveRhInitialHash("#/")).toBe("#/level-up/resumen");
     expect(resolveRhInitialHash("#/")).not.toBe("#/");
     allowedModules.clear();
     expect(resolveRhInitialHash("#/")).toBe(RH_SIN_PERMISOS_HASH);

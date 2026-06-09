@@ -3,6 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
+import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
@@ -13,7 +14,7 @@ type LaboralesAccessItem = ShellHubAccessItem & {
   key: LaboralesNavKey;
 };
 
-const LABORALES_ITEMS: readonly LaboralesAccessItem[] = [
+export const LABORALES_NAV_ITEMS: readonly LaboralesAccessItem[] = [
   {
     id: "metricas",
     key: "metricas",
@@ -45,7 +46,7 @@ const LABORALES_ITEMS: readonly LaboralesAccessItem[] = [
 ];
 
 export const LABORALES_SUB_NAV_KEYS: ReadonlySet<LaboralesNavKey> = new Set(
-  LABORALES_ITEMS.map((item) => item.key),
+  LABORALES_NAV_ITEMS.map((item) => item.key),
 );
 
 export const LABORALES_SIDEBAR_ITEM = {
@@ -57,7 +58,7 @@ export const LABORALES_SIDEBAR_ITEM = {
 };
 
 function filterVisibleItems(rol: string | null): ShellHubAccessItem[] {
-  return LABORALES_ITEMS.filter((item) => isShellNavItemVisibleForRol(rol, item.id)).map(
+  return LABORALES_NAV_ITEMS.filter((item) => isShellNavItemVisibleForRol(rol, item.id)).map(
     ({ href, label, svgPaths }) => ({ href, label, svgPaths }),
   );
 }
@@ -70,6 +71,7 @@ export function getVisibleLaboralesCategories(rol: string | null): ShellHubCateg
 
 export function isLaboralesHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
+  if (rol === "rh" && isRhOperativoUiMode()) return false;
   return getVisibleLaboralesCategories(rol).length > 0;
 }
 

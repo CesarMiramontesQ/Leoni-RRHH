@@ -27,10 +27,19 @@ import {
 } from "../navigation/supervisorNav.ts";
 import {
   isEmpleadoFlatNavRol,
+  isRhStructuredNavRol,
   isShellNavItemVisibleForRol,
   isSupervisorStructuredNavRol,
   type AppShellNavItemId,
 } from "../navigation/shellNavPolicy.ts";
+import {
+  getVisibleRhGeneralItems,
+  getVisibleRhNavSections,
+  rhNavSectionContainsActiveKey,
+  type RhNavItem,
+  type RhNavKey,
+  type RhNavSection,
+} from "../navigation/rhNav.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
 import {
@@ -122,6 +131,137 @@ type NavItemDef = {
 const navSectionHeadingClass =
   "text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden";
 
+const rhPrimaryLabelClass = "min-w-0 flex-1 truncate md:max-lg:sr-only";
+
+/** Reserva el ancho del chevron para alinear filas con y sin submenú. */
+const rhPrimaryChevronSpacer =
+  `<span class="size-5 shrink-0 md:max-lg:hidden" aria-hidden="true"></span>`;
+
+const rhPrimaryChevronIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-text-muted transition-transform duration-150 group-open/rh-nav-section:rotate-180 md:max-lg:hidden">
+          <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>`;
+
+const rhSectionSummaryClass =
+  `${navLinkBase} list-none cursor-pointer justify-between [&::-webkit-details-marker]:hidden group-open/rh-nav-section:bg-shell-hover/50`;
+
+const rhSubNavLinkBase =
+  "group/rh-sub relative flex min-h-11 w-full items-center gap-x-3 rounded px-3 py-2 text-sm leading-snug outline-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:max-lg:justify-center md:max-lg:px-2 lg:justify-start";
+
+const rhSubNavInactive =
+  `${rhSubNavLinkBase} border border-transparent font-medium text-text-primary hover:bg-shell-hover hover:text-text-primary`;
+
+const rhSubNavActive =
+  `${rhSubNavLinkBase} border border-transparent bg-shell-active-ring font-semibold text-text-primary before:pointer-events-none before:absolute before:start-0 before:top-1/2 before:h-[1.875rem] before:w-[3px] before:-translate-y-1/2 before:rounded-e before:bg-accent`;
+
+const RH_PRIMARY_LIST_CLASS = "-mx-2 flex flex-col space-y-0.5 md:max-lg:-mx-0";
+
+function rhPrimaryIcon(svgPaths: string, isActive: boolean): string {
+  const ic = isActive ? navIconActive : navIconInactive;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">${svgPaths}</svg>`;
+}
+
+function renderRhPrimaryLinkLi(
+  item: Pick<RhNavItem, "id" | "key" | "href" | "label" | "svgPaths">,
+  activeNav: RhNavKey | undefined,
+  rol: string | null,
+): string {
+  if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
+  const isActive = activeNav === item.key;
+  const cls = isActive ? navActive : navInactive;
+  const escapedLabel = escapeHtmlText(item.label);
+  const ariaCurrent = isActive ? ` aria-current="page"` : "";
+  return `<li>
+    <a href="${item.href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
+      ${rhPrimaryIcon(item.svgPaths, isActive)}
+      <span class="${rhPrimaryLabelClass}">${item.label}</span>
+      ${rhPrimaryChevronSpacer}
+    </a>
+  </li>`;
+}
+
+function rhSubNavItemLi(activeNav: RhNavKey | undefined, rol: string | null, item: RhNavItem): string {
+  if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
+  const isActive = activeNav === item.key;
+  const cls = isActive ? rhSubNavActive : rhSubNavInactive;
+  const escapedLabel = escapeHtmlText(item.label);
+  const ariaCurrent = isActive ? ` aria-current="page"` : "";
+  const ic = isActive ? navIconActive : navIconInactive;
+  return `<li>
+    <a href="${item.href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">
+        ${item.svgPaths}
+      </svg>
+      <span class="md:max-lg:sr-only">${item.label}</span>
+    </a>
+  </li>`;
+}
+
+function renderRhCollapsibleSection(
+  section: RhNavSection,
+  activeNav: RhNavKey | undefined,
+  rol: string | null,
+): string {
+  const subLis = section.items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
+  if (subLis.length === 0) return "";
+
+  const isOpen = rhNavSectionContainsActiveKey(section, activeNav);
+  const panelId = `shell-rh-nav-panel-${section.id}`;
+
+  return `<li>
+    <details class="group/rh-nav-section" ${isOpen ? "open" : ""}>
+      <summary class="${rhSectionSummaryClass} ${navInactive}" aria-controls="${panelId}">
+        <span class="flex min-w-0 flex-1 items-center gap-x-3">
+          ${rhPrimaryIcon(section.iconSvgPaths, false)}
+          <span class="${rhPrimaryLabelClass}">${section.title}</span>
+        </span>
+        ${rhPrimaryChevronIcon}
+      </summary>
+      <ul id="${panelId}" role="list" class="space-y-0.5 py-0.5 pl-9 md:max-lg:pl-0 lg:border-l lg:border-shell-active-ring/80 lg:ml-5 lg:pl-2">
+        ${subLis.join("")}
+      </ul>
+    </details>
+  </li>`;
+}
+
+function renderRhEmpleadosFooter(activeNav: RhNavKey | undefined, rol: string | null): string {
+  const empleadosLi = renderRhPrimaryLinkLi(
+    {
+      id: "empleados",
+      key: "empleados",
+      href: "#/empleados",
+      label: NAV_EMPLEADOS.label,
+      svgPaths: NAV_EMPLEADOS.svgPaths,
+    },
+    activeNav,
+    rol,
+  );
+  if (empleadosLi.trim() === "") return "";
+  return `<ul role="list" class="${RH_PRIMARY_LIST_CLASS} mt-auto pt-4">
+    ${empleadosLi}
+  </ul>`;
+}
+
+function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol: string | null): string {
+  const primaryLis = getVisibleRhGeneralItems(rol)
+    .map((item) => renderRhPrimaryLinkLi(item, activeNav, rol))
+    .filter(Boolean)
+    .join("");
+
+  const sectionLis = getVisibleRhNavSections(rol)
+    .map((section) => renderRhCollapsibleSection(section, activeNav, rol))
+    .join("");
+
+  const empleadosFooter = renderRhEmpleadosFooter(activeNav, rol);
+
+  return `<div class="flex min-h-0 flex-1 flex-col">
+    <ul role="list" class="${RH_PRIMARY_LIST_CLASS}">
+      ${primaryLis}
+      ${sectionLis}
+    </ul>
+    ${empleadosFooter}
+  </div>`;
+}
+
 function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: NavItemDef): string {
   if (!isShellNavItemVisibleForRol(rol, def.id)) return "";
   const href = def.hrefFor(rol);
@@ -194,6 +334,7 @@ const NAV_LEVEL_UP: NavItemDef = {
 };
 
 function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  if (isRhStructuredNavRol(rol)) return "";
   const empleadosDef: NavItemDef = isSupervisorStructuredNavRol(rol)
     ? {
         id: SUPERVISOR_EMPLEADOS_ITEM.id,
@@ -263,6 +404,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
 
   const supervisorSidebar = isSupervisorStructuredNavRol(rol);
+  const rhStructuredSidebar = isRhStructuredNavRol(rol);
   const mainMenuLis = isEmpleadoFlatNavRol(rol)
     ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
         navItemLi(sidebarActiveNav, rol, {
@@ -282,23 +424,30 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
           const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
           return [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
         })();
-  const mainMenuBlock = supervisorSidebar
-    ? mainMenuLis
-    : `<li>
+
+  const navContent = rhStructuredSidebar
+    ? renderRhStructuredSidebarSections(sidebarActiveNav as RhNavKey | undefined, rol)
+    : (() => {
+        const mainMenuBlock = supervisorSidebar
+          ? mainMenuLis
+          : `<li>
           <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
           <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
             ${mainMenuLis}
           </ul>
         </li>`;
+        return `<ul role="list" class="flex flex-1 flex-col gap-y-5">
+        ${mainMenuBlock}
+        ${footerGestionHtml(sidebarActiveNav, rol)}
+      </ul>`;
+      })();
+
   return `
     <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
       <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
     </div>
     <nav class="relative flex flex-1 flex-col">
-      <ul role="list" class="flex flex-1 flex-col gap-y-5">
-        ${mainMenuBlock}
-        ${footerGestionHtml(sidebarActiveNav, rol)}
-      </ul>
+      ${navContent}
     </nav>`;
 }
 
