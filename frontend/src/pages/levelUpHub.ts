@@ -14,7 +14,7 @@ function renderLevelUpHubPage(): string {
   return renderShellHubPage({
     eyebrow: "Desarrollo y cumplimiento",
     title: "Level Up",
-    description: "Accede a las herramientas de talento, formación y cumplimiento desde un solo lugar.",
+    description: "Accede a las herramientas de cursos, puestos, formación y cumplimiento desde un solo lugar.",
     categories,
     emptyTitle: "Level Up",
     emptyMessage: "No tienes acceso a módulos de Level Up en este momento.",
