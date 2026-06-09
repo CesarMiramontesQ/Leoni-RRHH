@@ -19,10 +19,9 @@ import {
   canAccessEmpleadosKpiGestionEquipo,
   canAccessEmpleadosPage,
   canAccessUsuariosAdmin,
-  getEffectiveGestorNavRol,
   getRolFromAccessToken,
 } from "../auth/jwt.ts";
-import { isRhGestorTeamUiMode } from "../auth/rhUiMode.ts";
+import { isSupervisorStructuredNavRol } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { downloadEmpleadosExcel } from "../empleados/exportEmpleadosExcel.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
@@ -361,14 +360,13 @@ function renderKpis(
   rhKpi: RhKpiResaltado | null = null,
 ): string {
   if (!isRhAdmin && kpiGestionEquipo && liderKpi) {
-    const kpiLiderCardCls =
-      getRolFromAccessToken() === "supervisor"
-        ? `${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(148,163,184,0.32)] bg-linear-to-br from-white to-[#f8fbff]`
-        : "min-h-[9.5rem] rounded-xl border bg-white p-5 shadow-sm";
-    const kpiLiderGridCls =
-      getRolFromAccessToken() === "supervisor"
-        ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:gap-3"
-        : "grid grid-cols-1 gap-4 md:grid-cols-2";
+    const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
+    const kpiLiderCardCls = gestorStructuredUi
+      ? `${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(148,163,184,0.32)] bg-linear-to-br from-white to-[#f8fbff]`
+      : "min-h-[9.5rem] rounded-xl border bg-white p-5 shadow-sm";
+    const kpiLiderGridCls = gestorStructuredUi
+      ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:gap-3"
+      : "grid grid-cols-1 gap-4 md:grid-cols-2";
     const ringEq = kpiLiderCardRing(liderKpi.resaltarEquipo);
     const ringCt = kpiLiderCardRing(liderKpi.resaltarContratos);
     const todoAlDia =
@@ -635,9 +633,9 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
   const puestoTitle = escapeHtml(puestoRaw || "Sin asignar");
   const isRhAdmin = mode === "rh";
   const isLider = mode === "lider";
-  const jefeRol = getRolFromAccessToken();
-  const ocultarLider = isLider && jefeRol === "supervisor";
-  const useRhTableChrome = isRhAdmin || (isLider && jefeRol === "supervisor");
+  const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
+  const ocultarLider = isLider && gestorStructuredUi;
+  const useRhTableChrome = isRhAdmin || (isLider && gestorStructuredUi);
 
   const fotoUrl = u.foto?.trim();
   const avatarRhFallback = `<span class="rh-sol-avatar-fallback flex size-10 shrink-0 items-center justify-center rounded-full border border-[rgba(148,163,184,0.35)] bg-linear-to-br from-[#dbeafe] to-[#eff6ff] text-xs font-bold tracking-tight text-[#082f5f] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" title="${escapeHtml(name)}">${escapeHtml(ini)}</span>`;
@@ -1132,13 +1130,13 @@ function renderPanel(
     return renderPanelRh(state, catalogo, pg, liderUiForFilters);
   }
 
-  if (mode === "lider" && getEffectiveGestorNavRol() === "supervisor") {
+  if (mode === "lider" && isSupervisorStructuredNavRol(getRolFromAccessToken())) {
     return renderPanelLiderSupervisorRh(state, catalogo, pg);
   }
 
   const isLider = mode === "lider";
-  const jefeRol = getEffectiveGestorNavRol();
-  const ocultarLiderCol = isLider && jefeRol === "supervisor";
+  const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
+  const ocultarLiderCol = isLider && gestorStructuredUi;
   const colCount = isLider ? (ocultarLiderCol ? 7 : 8) : 6;
 
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
@@ -1288,8 +1286,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
 
   const isRhAdmin = canAccessUsuariosAdmin();
   const kpiGestionEquipo = canAccessEmpleadosKpiGestionEquipo();
-  const supervisorRhShell =
-    !isRhAdmin && (getRolFromAccessToken() === "supervisor" || isRhGestorTeamUiMode());
+  const supervisorRhShell = !isRhAdmin && isSupervisorStructuredNavRol(getRolFromAccessToken());
 
   const state: State = {
     page: 1,

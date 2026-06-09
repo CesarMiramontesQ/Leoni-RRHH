@@ -598,7 +598,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
       allowPaidLeaveTypes: pageRole === "rh",
       allowUnpaidLeaveType: pageRole === "supervisor" || pageRole === "gerente" || pageRole === "rh",
-      wideForSupervisor: pageRole === "supervisor",
+      wideForSupervisor: pageRole === "supervisor" || pageRole === "gerente",
       supervisorSolicitudSubjectSelector: pageRole === "supervisor" && sessionEmpleadoDirId != null,
       supervisorDirectoryId:
         pageRole === "supervisor" && sessionEmpleadoDirId != null ? sessionEmpleadoDirId : undefined,

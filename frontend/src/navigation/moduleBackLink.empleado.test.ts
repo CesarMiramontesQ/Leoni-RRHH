@@ -4,6 +4,7 @@ let mockRol: string | null = "empleado";
 
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => mockRol,
+  getRhGestorAlcanceFromToken: () => null,
 }));
 
 describe("module back link empleado", () => {
@@ -59,6 +60,20 @@ describe("module back link empleado", () => {
 
   it("oculta Volver en Solicitudes para rol supervisor", async () => {
     mockRol = "supervisor";
+    vi.resetModules();
+    const { renderSolicitudesBackBar } = await import("./laboralesBackLink.ts");
+    expect(renderSolicitudesBackBar()).toBe("");
+  });
+
+  it("oculta Volver en Laborales para rol gerente", async () => {
+    mockRol = "gerente";
+    vi.resetModules();
+    const { renderLaboralesBackBar } = await import("./laboralesBackLink.ts");
+    expect(renderLaboralesBackBar()).toBe("");
+  });
+
+  it("oculta Volver en Solicitudes para rol gerente", async () => {
+    mockRol = "gerente";
     vi.resetModules();
     const { renderSolicitudesBackBar } = await import("./laboralesBackLink.ts");
     expect(renderSolicitudesBackBar()).toBe("");

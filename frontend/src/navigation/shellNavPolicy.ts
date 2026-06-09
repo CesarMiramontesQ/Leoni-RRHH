@@ -137,7 +137,14 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 /** Rol con menú lateral estructurado por secciones (Laborales, Comedor). */
 export function isSupervisorStructuredNavRol(rol: string | null): boolean {
-  return rol === "supervisor";
+  if (rol === "supervisor" || rol === "gerente") return true;
+  if (rol === "rh" && (isRhLiderUiMode() || isRhGerenteUiMode())) return true;
+  return false;
+}
+
+/** Supervisor y gerente comparten política de rutas permitidas (sin hubs ni módulos extra). */
+export function usesSupervisorRoutePolicy(rol: string | null): boolean {
+  return rol === "supervisor" || rol === "gerente";
 }
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
@@ -165,7 +172,7 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   const navRol = effectiveShellNavRol(rol);
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
-  if (rol === "supervisor") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
+  if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (RH_ONLY_NAV_IDS.has(itemId)) return navRol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return navRol === "rh" || navRol === "director" || navRol === "gerente";
@@ -233,7 +240,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
 
 function hashAllowedByRole(rol: string | null, hash: string): boolean {
   if (rol === "empleado") return empleadoMayAccessHash(hash);
-  if (rol === "supervisor") return supervisorMayAccessHash(hash);
+  if (usesSupervisorRoutePolicy(rol)) return supervisorMayAccessHash(hash);
   return true;
 }
 

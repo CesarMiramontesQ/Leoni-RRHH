@@ -7,6 +7,7 @@ import {
   RH_SIN_PERMISOS_HASH,
   rhMayAccessHash,
   supervisorMayAccessHash,
+  usesSupervisorRoutePolicy,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
 import { isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
@@ -71,7 +72,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
-    if (getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash)) {
+    const rolAtEntry = getRolFromAccessToken();
+    if (usesSupervisorRoutePolicy(rolAtEntry) && !supervisorMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
     const rol = getRolFromAccessToken();
@@ -99,7 +101,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     const h =
       rol === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
-      : rol === "supervisor" && !supervisorMayAccessHash(rawHash) ? "#/"
+      : usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash) ? "#/"
       : rawHash;
 
     routeToHash(container, signal, h);

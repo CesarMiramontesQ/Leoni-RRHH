@@ -23,9 +23,10 @@ describe("shellNavPolicy supervisor structured nav", () => {
     vi.resetModules();
   });
 
-  it("detecta rol supervisor para menú estructurado", async () => {
+  it("detecta roles con menú estructurado (supervisor y gerente)", async () => {
     const { isSupervisorStructuredNavRol } = await import("./shellNavPolicy.ts");
     expect(isSupervisorStructuredNavRol("supervisor")).toBe(true);
+    expect(isSupervisorStructuredNavRol("gerente")).toBe(true);
     expect(isSupervisorStructuredNavRol("rh")).toBe(false);
     expect(isSupervisorStructuredNavRol("empleado")).toBe(false);
   });
@@ -67,5 +68,44 @@ describe("shellNavPolicy supervisor structured nav", () => {
     const { supervisorMayAccessHash } = await import("./shellNavPolicy.ts");
     expect(supervisorMayAccessHash("#/metricas")).toBe(true);
     expect(supervisorMayAccessHash("#/metricas?foo=bar")).toBe(true);
+  });
+});
+
+describe("shellNavPolicy gerente structured nav", () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.resetModules();
+  });
+
+  it("gerente ve el mismo menú que supervisor", async () => {
+    const { isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("gerente", "dashboard")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "metricas")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "incidencias")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "solicitudes")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "comedor")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "empleados")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "actas")).toBe(false);
+    expect(isShellNavItemVisibleForRol("gerente", "reportes")).toBe(false);
+    expect(isShellNavItemVisibleForRol("gerente", "level-up")).toBe(false);
+    expect(isShellNavItemVisibleForRol("gerente", "puestos")).toBe(false);
+  });
+
+  it("gerente no ve hubs agrupados", async () => {
+    const { isComedorHubVisibleForRol } = await import("./comedorNav.ts");
+    const { isLaboralesHubVisibleForRol } = await import("./laboralesNav.ts");
+    const { isLevelUpHubVisibleForRol } = await import("./levelUpNav.ts");
+    expect(isLaboralesHubVisibleForRol("gerente")).toBe(false);
+    expect(isComedorHubVisibleForRol("gerente")).toBe(false);
+    expect(isLevelUpHubVisibleForRol("gerente")).toBe(false);
+  });
+
+  it("gerente comparte política de rutas con supervisor", async () => {
+    const { supervisorMayAccessHash, usesSupervisorRoutePolicy } = await import("./shellNavPolicy.ts");
+    expect(usesSupervisorRoutePolicy("gerente")).toBe(true);
+    expect(supervisorMayAccessHash("#/metricas")).toBe(true);
+    expect(supervisorMayAccessHash("#/actas")).toBe(false);
+    expect(supervisorMayAccessHash("#/comedor/reporte")).toBe(false);
+    expect(supervisorMayAccessHash("#/level-up")).toBe(true);
   });
 });
