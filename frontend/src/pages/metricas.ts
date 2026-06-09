@@ -70,7 +70,7 @@ function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
     description:
-      "La analítica de métricas está disponible solo para usuarios con rol Recursos Humanos o gerente.",
+      "La analítica de métricas está disponible solo para usuarios con rol Recursos Humanos, supervisor o gerente.",
     linkHref: "#/",
     linkLabel: "Volver al dashboard",
   });

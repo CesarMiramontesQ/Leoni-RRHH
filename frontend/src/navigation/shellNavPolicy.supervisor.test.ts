@@ -62,4 +62,10 @@ describe("shellNavPolicy supervisor structured nav", () => {
     expect(resolveLaboralesSidebarActiveNav("solicitudes", "supervisor")).toBe("solicitudes");
     expect(resolveLaboralesSidebarActiveNav("metricas", "rh")).toBe("laborales");
   });
+
+  it("supervisor puede acceder a #/metricas", async () => {
+    const { supervisorMayAccessHash } = await import("./shellNavPolicy.ts");
+    expect(supervisorMayAccessHash("#/metricas")).toBe(true);
+    expect(supervisorMayAccessHash("#/metricas?foo=bar")).toBe(true);
+  });
 });

@@ -224,7 +224,6 @@ export function empleadoMayAccessHash(hash: string): boolean {
 export function supervisorMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h.startsWith("#/actas")) return false;
-  if (h.startsWith("#/metricas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
   if (h.startsWith("#/evaluaciones")) return true;

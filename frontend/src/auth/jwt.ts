@@ -176,14 +176,14 @@ export function canAccessRhSolicitudesAdminPage(): boolean {
   return false;
 }
 
-/** Analítica de solicitudes e incidencias (`#/metricas`). RH (global) y gerente (equipo). */
+/** Analítica de solicitudes e incidencias (`#/metricas`). RH (global), supervisor (equipo directo) y gerente (subárbol). */
 export function canAccessMetricasPage(): boolean {
   if (isRhGerenteUiMode()) return true;
   if (isRhGestorTeamUiMode()) return false;
   if (hasExplicitModuleGrant("metricas")) return true;
   const r = getRolFromAccessToken();
   if (r === "rh") return hasRhModule("metricas");
-  return r === "gerente";
+  return r === "supervisor" || r === "gerente";
 }
 
 /** Gestión de solicitudes (`#/solicitudes`): RH, supervisores y gerentes (alcance y filtros según rol). */
