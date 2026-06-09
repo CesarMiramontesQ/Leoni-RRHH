@@ -117,8 +117,14 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "solicitudes",
   "comedor",
-  "capacitaciones",
 ]);
+
+/** Rol con menú lateral plano (sin hubs ni submenús). */
+export function isEmpleadoFlatNavRol(rol: string | null): boolean {
+  if (rol === "empleado") return true;
+  if (rol === "rh" && isRhEmpleadoUiMode()) return true;
+  return false;
+}
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 

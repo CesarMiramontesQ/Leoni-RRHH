@@ -19,7 +19,8 @@ import {
   LEVEL_UP_SIDEBAR_ITEM,
 } from "../navigation/levelUpNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
-import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
+import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
+import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
 import {
@@ -196,14 +197,26 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
 function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const rol = getRolFromAccessToken();
   const sidebarActiveNav = resolveShellSidebarActiveNav(activeNav) as ShellNavKey | undefined;
-  const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
 
   const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
 
-  const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
-  const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
-  const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
-  const mainMenuLis = [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
+  const mainMenuLis = isEmpleadoFlatNavRol(rol)
+    ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
+        navItemLi(sidebarActiveNav, rol, {
+          id: d.id,
+          key: d.key,
+          hrefFor: () => d.href,
+          label: d.label,
+          svgPaths: d.svgPaths,
+        }),
+      ).join("")
+    : (() => {
+        const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
+        const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
+        const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
+        const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
+        return [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
+      })();
   return `
     <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
       <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />

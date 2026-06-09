@@ -17,7 +17,8 @@ import {
   LEVEL_UP_SIDEBAR_ITEM,
 } from "../navigation/levelUpNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
-import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
+import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
+import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import {
   SHELL_NAV_ICON_ACTIVE,
   SHELL_NAV_ICON_INACTIVE,
@@ -190,18 +191,27 @@ function renderAdminSection(activeNav: ShellNavKey | undefined, rol: string | nu
     </section>`;
 }
 
+function renderEmpleadoFlatNavSection(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  const items: NavItemDef[] = EMPLEADO_FLAT_NAV_ITEMS.map((item) => ({
+    id: item.id,
+    key: item.key,
+    hrefFor: () => item.href,
+    label: item.label,
+    svgPaths: item.svgPaths,
+  }));
+  return renderNavSection({ id: "menu-principal", title: "Menú principal", items }, activeNav, rol);
+}
+
 /** HTML interior del sidebar (compartido por drawer móvil, rail colapsado y columna expandida). */
 export function renderShellSidebarBody(activeNav: ShellNavKey | undefined): string {
   const rol = getRolFromAccessToken();
   const sidebarActiveNav = resolveShellSidebarActiveNav(activeNav) as ShellNavKey | undefined;
 
-  const generalSection = renderNavSection(
-    { id: "general", title: "General", items: NAV_GENERAL },
-    sidebarActiveNav,
-    rol,
-  );
+  const generalSection = isEmpleadoFlatNavRol(rol)
+    ? renderEmpleadoFlatNavSection(sidebarActiveNav, rol)
+    : renderNavSection({ id: "general", title: "General", items: NAV_GENERAL }, sidebarActiveNav, rol);
 
-  const moduleItems = buildModuleItems(rol);
+  const moduleItems = isEmpleadoFlatNavRol(rol) ? [] : buildModuleItems(rol);
   const modulesSection =
     moduleItems.length > 0
       ? renderNavSection(
@@ -211,7 +221,7 @@ export function renderShellSidebarBody(activeNav: ShellNavKey | undefined): stri
         )
       : "";
 
-  const adminSection = renderAdminSection(sidebarActiveNav, rol);
+  const adminSection = isEmpleadoFlatNavRol(rol) ? "" : renderAdminSection(sidebarActiveNav, rol);
 
   return `
     <div class="${SHELL_SIDEBAR_INNER}">

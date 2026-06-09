@@ -3,7 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
-import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
+import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
 export type ComedorNavKey = "comedor" | "reportes";
@@ -55,6 +55,7 @@ export function getVisibleComedorCategories(rol: string | null): ShellHubCategor
 }
 
 export function isComedorHubVisibleForRol(rol: string | null): boolean {
+  if (isEmpleadoFlatNavRol(rol)) return false;
   return getVisibleComedorCategories(rol).length > 0;
 }
 

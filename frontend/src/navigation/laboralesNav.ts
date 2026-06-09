@@ -3,7 +3,7 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
-import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
+import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
 export type LaboralesNavKey = "laborales" | "metricas" | "solicitudes" | "incidencias" | "actas";
@@ -69,6 +69,7 @@ export function getVisibleLaboralesCategories(rol: string | null): ShellHubCateg
 }
 
 export function isLaboralesHubVisibleForRol(rol: string | null): boolean {
+  if (isEmpleadoFlatNavRol(rol)) return false;
   return getVisibleLaboralesCategories(rol).length > 0;
 }
 

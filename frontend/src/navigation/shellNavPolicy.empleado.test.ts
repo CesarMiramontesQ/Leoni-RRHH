@@ -1,0 +1,57 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const storage = new Map<string, string>();
+
+vi.stubGlobal("sessionStorage", {
+  getItem: (key: string) => storage.get(key) ?? null,
+  setItem: (key: string, value: string) => {
+    storage.set(key, value);
+  },
+  removeItem: (key: string) => {
+    storage.delete(key);
+  },
+});
+
+vi.mock("../auth/jwt.ts", () => ({
+  getRolFromAccessToken: () => "empleado",
+  getRhGestorAlcanceFromToken: () => null,
+}));
+
+describe("shellNavPolicy empleado flat nav", () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.resetModules();
+  });
+
+  it("detecta rol empleado para menú plano", async () => {
+    const { isEmpleadoFlatNavRol } = await import("./shellNavPolicy.ts");
+    expect(isEmpleadoFlatNavRol("empleado")).toBe(true);
+    expect(isEmpleadoFlatNavRol("rh")).toBe(false);
+    expect(isEmpleadoFlatNavRol("supervisor")).toBe(false);
+  });
+
+  it("empleado solo ve dashboard, solicitudes y comedor", async () => {
+    const { isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("empleado", "dashboard")).toBe(true);
+    expect(isShellNavItemVisibleForRol("empleado", "solicitudes")).toBe(true);
+    expect(isShellNavItemVisibleForRol("empleado", "comedor")).toBe(true);
+    expect(isShellNavItemVisibleForRol("empleado", "capacitaciones")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "incidencias")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "empleados")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "reportes")).toBe(false);
+  });
+
+  it("empleado no ve hubs agrupados en sidebar", async () => {
+    const { isComedorHubVisibleForRol } = await import("./comedorNav.ts");
+    const { isLaboralesHubVisibleForRol } = await import("./laboralesNav.ts");
+    const { isLevelUpHubVisibleForRol } = await import("./levelUpNav.ts");
+    const { isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isLaboralesHubVisibleForRol("empleado")).toBe(false);
+    expect(isComedorHubVisibleForRol("empleado")).toBe(false);
+    expect(isLevelUpHubVisibleForRol("empleado")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "laborales")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "comedor-menu")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "level-up")).toBe(false);
+  });
+
+});
