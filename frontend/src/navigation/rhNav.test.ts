@@ -33,6 +33,10 @@ const allowedModules = new Set<string>([
   "tareas-catalogo",
   "puestos-ajustes",
   "evaluaciones",
+  "opls",
+  "evidencias",
+  "sugerencias",
+  "encuestas",
   "level-up",
 ]);
 
@@ -48,6 +52,10 @@ describe("rhNav sections", () => {
     allowedModules.add("tareas-catalogo");
     allowedModules.add("puestos-ajustes");
     allowedModules.add("evaluaciones");
+    allowedModules.add("opls");
+    allowedModules.add("evidencias");
+    allowedModules.add("sugerencias");
+    allowedModules.add("encuestas");
     allowedModules.add("level-up");
     vi.resetModules();
   });
@@ -64,10 +72,12 @@ describe("rhNav sections", () => {
       "cursos",
       "sesiones",
       "capacitaciones",
+      "encuestas",
     ]);
     expect(levelUpSection?.items.some((item) => item.key === "cursos")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "sesiones")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "capacitaciones")).toBe(false);
+    expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
   });
 
   it("expone Puestos como sección independiente sin duplicar ítems en Level Up", async () => {
@@ -88,7 +98,28 @@ describe("rhNav sections", () => {
     expect(levelUpSection?.items.some((item) => item.key === "competencias")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "tareas-catalogo")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "puestos-ajustes")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(true);
+  });
+
+  it("expone Cumplimiento como sección independiente sin duplicar ítems en Level Up", async () => {
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("rh");
+
+    const cumplimientoSection = sections.find((section) => section.id === "cumplimiento");
+    const levelUpSection = sections.find((section) => section.id === "level-up");
+
+    expect(cumplimientoSection?.title).toBe("Cumplimiento");
+    expect(cumplimientoSection?.items.map((item) => item.key)).toEqual([
+      "evaluaciones",
+      "opls",
+      "evidencias",
+      "sugerencias",
+    ]);
+    expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(false);
+    expect(levelUpSection?.items.some((item) => item.key === "opls")).toBe(false);
+    expect(levelUpSection?.items.some((item) => item.key === "evidencias")).toBe(false);
+    expect(levelUpSection?.items.some((item) => item.key === "sugerencias")).toBe(false);
+    expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
+    expect(levelUpSection?.items.some((item) => item.key === "level-up")).toBe(true);
   });
 
   it("conserva rutas y etiquetas originales de los ítems de Cursos", async () => {
@@ -110,6 +141,11 @@ describe("rhNav sections", () => {
         key: "capacitaciones",
         href: "#/capacitaciones",
         label: "Capacitaciones",
+      }),
+      expect.objectContaining({
+        key: "encuestas",
+        href: "#/encuestas",
+        label: "Encuestas Post Curso",
       }),
     ]);
   });
@@ -142,17 +178,48 @@ describe("rhNav sections", () => {
     ]);
   });
 
+  it("conserva rutas y etiquetas originales de los ítems de Cumplimiento", async () => {
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const cumplimientoSection = getVisibleRhNavSections("rh").find(
+      (section) => section.id === "cumplimiento",
+    );
+
+    expect(cumplimientoSection?.items).toEqual([
+      expect.objectContaining({
+        key: "evaluaciones",
+        href: "#/evaluaciones",
+        label: "Evaluaciones",
+      }),
+      expect.objectContaining({
+        key: "opls",
+        href: "#/opls",
+        label: "Manejo de OPLs",
+      }),
+      expect.objectContaining({
+        key: "evidencias",
+        href: "#/evidencias",
+        label: "Motor de Evidencias",
+      }),
+      expect.objectContaining({
+        key: "sugerencias",
+        href: "#/sugerencias",
+        label: "Motor de Sugerencias",
+      }),
+    ]);
+  });
+
   it("ordena módulos de forma lógica para RH", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sectionIds = getVisibleRhNavSections("rh").map((section) => section.id);
 
-    expect(sectionIds).toEqual(["cursos", "puestos", "level-up"]);
+    expect(sectionIds).toEqual(["cursos", "puestos", "cumplimiento", "level-up"]);
   });
 
   it("omite Cursos cuando no hay ítems visibles", async () => {
     allowedModules.delete("cursos");
     allowedModules.delete("sesiones");
     allowedModules.delete("capacitaciones");
+    allowedModules.delete("encuestas");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sections = getVisibleRhNavSections("rh");
@@ -170,5 +237,17 @@ describe("rhNav sections", () => {
     const sections = getVisibleRhNavSections("rh");
 
     expect(sections.some((section) => section.id === "puestos")).toBe(false);
+  });
+
+  it("omite Cumplimiento cuando no hay ítems visibles", async () => {
+    allowedModules.delete("evaluaciones");
+    allowedModules.delete("opls");
+    allowedModules.delete("evidencias");
+    allowedModules.delete("sugerencias");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("rh");
+
+    expect(sections.some((section) => section.id === "cumplimiento")).toBe(false);
   });
 });

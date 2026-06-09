@@ -4,9 +4,9 @@
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
-import { LEVEL_UP_CURSOS } from "./levelUpNav.ts";
+import { LEVEL_UP_CURSOS, LEVEL_UP_CURSOS_RH_SIDEBAR } from "./levelUpNav.ts";
 
-export type CursosNavKey = "cursos" | "sesiones" | "capacitaciones";
+export type CursosNavKey = "cursos" | "sesiones" | "capacitaciones" | "encuestas";
 
 export type CursosNavItem = {
   id: AppShellNavItemId;
@@ -16,7 +16,7 @@ export type CursosNavItem = {
   svgPaths: string;
 };
 
-export const CURSOS_NAV_ITEMS: readonly CursosNavItem[] = LEVEL_UP_CURSOS.map((item) => ({
+export const CURSOS_NAV_ITEMS: readonly CursosNavItem[] = LEVEL_UP_CURSOS_RH_SIDEBAR.map((item) => ({
   id: item.id,
   key: item.key as CursosNavKey,
   href: item.href,

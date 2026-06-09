@@ -6,6 +6,7 @@ import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import { COMEDOR_SIDEBAR_ITEM, COMEDOR_NAV_ITEMS } from "./comedorNav.ts";
 import { CURSOS_SIDEBAR_ITEM, getVisibleCursosNavItems } from "./cursosNav.ts";
+import { CUMPLIMIENTO_SIDEBAR_ITEM, getVisibleCumplimientoNavItems } from "./cumplimientoNav.ts";
 import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
 import { getVisibleLevelUpCategoriesForRhSidebar, LEVEL_UP_SIDEBAR_ITEM } from "./levelUpNav.ts";
 import { PUESTOS_SIDEBAR_ITEM, getVisiblePuestosNavItems } from "./puestosNav.ts";
@@ -129,6 +130,17 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "puestos",
       iconSvgPaths: PUESTOS_SIDEBAR_ITEM.svgPaths,
       items: puestosItems,
+    });
+  }
+
+  const cumplimientoItems = getVisibleCumplimientoNavItems(rol);
+  if (cumplimientoItems.length > 0) {
+    sections.push({
+      id: "cumplimiento",
+      title: CUMPLIMIENTO_SIDEBAR_ITEM.label,
+      sectionKey: "evaluaciones",
+      iconSvgPaths: CUMPLIMIENTO_SIDEBAR_ITEM.svgPaths,
+      items: cumplimientoItems,
     });
   }
 
