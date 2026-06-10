@@ -6,7 +6,7 @@ import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhI
 import { renderRhMetricasView } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountRhSolicitudesAnalyticsFromRows } from "../components/solicitudes/rhSolicitudesAnalyticsSection.ts";
 import { clearAuth } from "../auth/session.ts";
-import { destroyChart, destroyChartsIn } from "../charts/index.ts";
+import { destroyChart, destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import {
@@ -184,16 +184,19 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     const incVm = buildIncidenciasVm();
     const inner = container.querySelector("#rh-metricas-inner");
     if (inner) {
+      destroyChartsIn(inner);
       inner.innerHTML = renderRhMetricasView(solVm, incVm);
-      mountRhSolicitudesAnalyticsFromRows(
-        inner,
-        solVm.personasDiaChartRows,
-        solVm.tableStatus,
-        destroyChart,
-        destroyChartsIn,
-      );
-      const incSection = inner.querySelector("#rh-metricas-seccion-incidencias");
-      mountRhIncidenciasAnalyticsCharts(incSection ?? inner, incVm, destroyChart, destroyChartsIn);
+      runChartsAfterLayout(inner, () => {
+        mountRhSolicitudesAnalyticsFromRows(
+          inner,
+          solVm.personasDiaChartRows,
+          solVm.tableStatus,
+          destroyChart,
+          destroyChartsIn,
+        );
+        const incSection = inner.querySelector("#rh-metricas-seccion-incidencias");
+        mountRhIncidenciasAnalyticsCharts(incSection ?? inner, incVm, destroyChart, destroyChartsIn);
+      });
     }
   }
 

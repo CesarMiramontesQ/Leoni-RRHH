@@ -1,7 +1,7 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
-import { destroyChartsIn } from "../charts/index.ts";
+import { destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
 import {
   mountEval360ReportesCharts,
   mountEval360ResultadosCharts,
@@ -117,7 +117,9 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
         <div id="eval360-content">${renderViewContent(state)}</div>
       </div>`;
     const content = pageRoot.querySelector("#eval360-content");
-    if (content) mountViewCharts(content as HTMLElement, state);
+    if (content) {
+      runChartsAfterLayout(content, () => mountViewCharts(content as HTMLElement, state));
+    }
     bindEvents();
   }
 
