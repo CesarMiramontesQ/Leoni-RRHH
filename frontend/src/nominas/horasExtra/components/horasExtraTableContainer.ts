@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import { BTN_GHOST, FIELD_FOCUS, RH_LISTADO_SURFACE } from "../../../ui/uiTokens.ts";
+import { renderHorasExtraTableBody } from "./horasExtraTableRows.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
 
 const TABLE_COLUMNS = [
@@ -99,27 +100,14 @@ export function renderHorasExtraTableContainer(vm: HorasExtraPageViewModel): str
         <table class="min-w-full border-collapse text-left">
           <thead>
             <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
-              <th scope="col" class="w-10 px-4 py-3 sm:px-5">
-                <span class="sr-only">Seleccionar</span>
-                <input type="checkbox" class="size-4 cursor-pointer rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue/40" />
-              </th>
               ${TABLE_COLUMNS.map(
                 (col) =>
                   `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
               ).join("")}
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td colspan="${TABLE_COLUMNS.length + 1}" class="px-4 py-16 text-center sm:px-5">
-                <div class="mx-auto flex max-w-md flex-col items-center gap-2">
-                  <p class="text-sm font-semibold text-text-primary">Tabla en preparación</p>
-                  <p class="text-sm text-text-secondary">
-                    El listado de colaboradores y aprobaciones se conectará en una siguiente fase.
-                  </p>
-                </div>
-              </td>
-            </tr>
+          <tbody id="horas-extra-table-body">
+            ${renderHorasExtraTableBody(vm)}
           </tbody>
         </table>
       </div>
