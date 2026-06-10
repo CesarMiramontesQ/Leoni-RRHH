@@ -21,6 +21,7 @@ import {
   canAccessUsuariosAdmin,
   getRolFromAccessToken,
 } from "../auth/jwt.ts";
+import { isSupervisorStructuredNavRol } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { downloadEmpleadosExcel } from "../empleados/exportEmpleadosExcel.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
@@ -200,24 +201,24 @@ function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
 
 type PanelMode = "rh" | "lider" | "director";
 
-function panelMode(isRh: boolean, kpiGestionEquipo: boolean): PanelMode {
-  if (isRh) return "rh";
+function panelMode(isRhAdmin: boolean, kpiGestionEquipo: boolean): PanelMode {
+  if (isRhAdmin) return "rh";
   if (kpiGestionEquipo) return "lider";
   return "director";
 }
 
-function buildEmpleadosListParams(state: State, isRh: boolean, kpiGestionEquipo: boolean): EmpleadosListParams {
+function buildEmpleadosListParams(state: State, isRhAdmin: boolean, kpiGestionEquipo: boolean): EmpleadosListParams {
   const base: EmpleadosListParams = {
     page: state.page,
     page_size: state.page_size,
     q: state.q,
     area_id: parseOptionalInt(state.area_id),
     puesto_id: parseOptionalIntList(state.puesto_id),
-    ...(isRh ? { activo: parseActivoRh(state.activo_rh) } : {}),
-    ...(isRh && state.kpi_filtrar_sin_lider ? { solo_sin_lider: true } : {}),
-    ...(isRh && state.kpi_filtrar_sin_email ? { solo_sin_email: true } : {}),
+    ...(isRhAdmin ? { activo: parseActivoRh(state.activo_rh) } : {}),
+    ...(isRhAdmin && state.kpi_filtrar_sin_lider ? { solo_sin_lider: true } : {}),
+    ...(isRhAdmin && state.kpi_filtrar_sin_email ? { solo_sin_email: true } : {}),
   };
-  if (!kpiGestionEquipo || isRh) return base;
+  if (!kpiGestionEquipo || isRhAdmin) return base;
   if (state.kpi_filtrar_contratos) base.solo_contratos_por_vencer = true;
   if (state.estatus_lider) base.estatus = state.estatus_lider;
   return base;
@@ -353,20 +354,19 @@ function kpiLiderCardRing(on: boolean): string {
 
 function renderKpis(
   r: UsuarioResumen,
-  isRh: boolean,
+  isRhAdmin: boolean,
   kpiGestionEquipo: boolean,
   liderKpi: LiderKpiResaltado | null,
   rhKpi: RhKpiResaltado | null = null,
 ): string {
-  if (!isRh && kpiGestionEquipo && liderKpi) {
-    const kpiLiderCardCls =
-      getRolFromAccessToken() === "supervisor"
-        ? `${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(148,163,184,0.32)] bg-linear-to-br from-white to-[#f8fbff]`
-        : "min-h-[9.5rem] rounded-xl border bg-white p-5 shadow-sm";
-    const kpiLiderGridCls =
-      getRolFromAccessToken() === "supervisor"
-        ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:gap-3"
-        : "grid grid-cols-1 gap-4 md:grid-cols-2";
+  if (!isRhAdmin && kpiGestionEquipo && liderKpi) {
+    const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
+    const kpiLiderCardCls = gestorStructuredUi
+      ? `${RH_EMPLEADOS_KPI_CARD_SHELL} border-[rgba(148,163,184,0.32)] bg-linear-to-br from-white to-[#f8fbff]`
+      : "min-h-[9.5rem] rounded-xl border bg-white p-5 shadow-sm";
+    const kpiLiderGridCls = gestorStructuredUi
+      ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:gap-3"
+      : "grid grid-cols-1 gap-4 md:grid-cols-2";
     const ringEq = kpiLiderCardRing(liderKpi.resaltarEquipo);
     const ringCt = kpiLiderCardRing(liderKpi.resaltarContratos);
     const todoAlDia =
@@ -405,7 +405,7 @@ function renderKpis(
     </div>`;
   }
 
-  if (!isRh) {
+  if (!isRhAdmin) {
     return `
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
       <article class="flex min-h-[9.5rem] flex-col rounded-xl border border-border bg-white p-5 shadow-sm">
@@ -631,11 +631,11 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
   const puesto = puestoRaw || "Sin asignar";
   const email = u.email?.trim() ? u.email : "Sin correo";
   const puestoTitle = escapeHtml(puestoRaw || "Sin asignar");
-  const isRh = mode === "rh";
+  const isRhAdmin = mode === "rh";
   const isLider = mode === "lider";
-  const jefeRol = getRolFromAccessToken();
-  const ocultarLider = isLider && jefeRol === "supervisor";
-  const useRhTableChrome = isRh || (isLider && jefeRol === "supervisor");
+  const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
+  const ocultarLider = isLider && gestorStructuredUi;
+  const useRhTableChrome = isRhAdmin || (isLider && gestorStructuredUi);
 
   const fotoUrl = u.foto?.trim();
   const avatarRhFallback = `<span class="rh-sol-avatar-fallback flex size-10 shrink-0 items-center justify-center rounded-full border border-[rgba(148,163,184,0.35)] bg-linear-to-br from-[#dbeafe] to-[#eff6ff] text-xs font-bold tracking-tight text-[#082f5f] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" title="${escapeHtml(name)}">${escapeHtml(ini)}</span>`;
@@ -648,7 +648,7 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
 
   const avatar = isLider
     ? empleadoAvatarCellHtml(u.foto ?? null, ini, name)
-    : isRh
+    : isRhAdmin
       ? avatarRh
       : `<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-leoni-blue-light text-xs font-semibold text-white">${escapeHtml(ini)}</span>`;
   const nombreCls = useRhTableChrome
@@ -678,7 +678,7 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
 
   const colLider = ocultarLider
     ? ""
-    : isRh
+    : isRhAdmin
       ? `<td class="max-w-[10rem] px-3 py-3 align-middle text-[13px] text-[#475569] sm:px-4">
         <span class="block truncate" title="${escapeHtml(sup)}">${escapeHtml(sup)}</span>
       </td>`
@@ -737,7 +737,7 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
       ${colLider}
       ${colAntiguedad}
       <td class="${tdPad}">${estadoUi}</td>
-      ${isRh ? `<td class="cursor-default ${tdPad} text-right" data-empleado-row-actions>
+      ${isRhAdmin ? `<td class="cursor-default ${tdPad} text-right" data-empleado-row-actions>
         <a
           href="#/empleados/${u.id}"
           class="${EMP_RH_VER_BTN}"
@@ -1130,13 +1130,13 @@ function renderPanel(
     return renderPanelRh(state, catalogo, pg, liderUiForFilters);
   }
 
-  if (mode === "lider" && getRolFromAccessToken() === "supervisor") {
+  if (mode === "lider" && isSupervisorStructuredNavRol(getRolFromAccessToken())) {
     return renderPanelLiderSupervisorRh(state, catalogo, pg);
   }
 
   const isLider = mode === "lider";
-  const jefeRol = getRolFromAccessToken();
-  const ocultarLiderCol = isLider && jefeRol === "supervisor";
+  const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
+  const ocultarLiderCol = isLider && gestorStructuredUi;
   const colCount = isLider ? (ocultarLiderCol ? 7 : 8) : 6;
 
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
@@ -1284,9 +1284,9 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     return;
   }
 
-  const isRh = canAccessUsuariosAdmin();
+  const isRhAdmin = canAccessUsuariosAdmin();
   const kpiGestionEquipo = canAccessEmpleadosKpiGestionEquipo();
-  const supervisorRhShell = !isRh && getRolFromAccessToken() === "supervisor";
+  const supervisorRhShell = !isRhAdmin && isSupervisorStructuredNavRol(getRolFromAccessToken());
 
   const state: State = {
     page: 1,
@@ -1311,11 +1311,11 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   mountAppShell(container, {
     pageTitle: "Empleados",
     activeNav: "empleados",
-    ...(isRh || supervisorRhShell ? { mainClass: empleadosMainClass } : {}),
-    mainHtml: isRh
+    ...(isRhAdmin || supervisorRhShell ? { mainClass: empleadosMainClass } : {}),
+    mainHtml: isRhAdmin
       ? `<div id="rh-empleados-page" class="${empleadosPageShellClass}">
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderEmpleadosHeroRh(isRh)}
+        ${renderEmpleadosHeroRh(isRhAdmin)}
         <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
         <div id="empleados-panel">${renderTableLoadingRh()}</div>
       </div>
@@ -1323,7 +1323,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       : supervisorRhShell
         ? `<div class="${empleadosPageShellClass}">
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderEmpleadosHeroRh(isRh)}
+        ${renderEmpleadosHeroRh(isRhAdmin)}
         <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
         <div id="empleados-panel">${renderTableLoadingRh()}</div>
       </div>
@@ -1401,12 +1401,12 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   const panelEl = (): HTMLElement | null => container.querySelector("#empleados-panel");
 
   function empleadosExportListParams(): Omit<EmpleadosListParams, "page" | "page_size"> {
-    const { page: _p, page_size: _ps, ...rest } = buildEmpleadosListParams(state, isRh, kpiGestionEquipo);
+    const { page: _p, page_size: _ps, ...rest } = buildEmpleadosListParams(state, isRhAdmin, kpiGestionEquipo);
     return rest;
   }
 
   async function exportarEmpleadosListado(): Promise<void> {
-    if (!isRh || getRolFromAccessToken() !== "rh") return;
+    if (!isRhAdmin || getRolFromAccessToken() !== "rh") return;
     if (exportandoListado) return;
     exportandoListado = true;
     const exportBtn = container.querySelector<HTMLButtonElement>("#rh-empleados-export");
@@ -1462,23 +1462,23 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       setSearchLoading(true);
     } else {
       panel.innerHTML =
-        isRh || supervisorRhShell
+        isRhAdmin || supervisorRhShell
           ? renderTableLoadingRh()
           : `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
     }
     try {
-      const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRh, kpiGestionEquipo));
+      const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRhAdmin, kpiGestionEquipo));
       if (requestId !== latestLoadRequestId) return;
-      const pm = panelMode(isRh, kpiGestionEquipo);
+      const pm = panelMode(isRhAdmin, kpiGestionEquipo);
       panel.innerHTML = renderPanel(state, catalogo, pg, pm, kpiGestionEquipo);
       const kEl = kpisEl();
       if (resumenGestion && kEl) {
         kEl.innerHTML = renderKpis(
           resumenGestion,
-          isRh,
+          isRhAdmin,
           kpiGestionEquipo,
           kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
-          isRh ? rhKpiUiDesdeState(state) : null,
+          isRhAdmin ? rhKpiUiDesdeState(state) : null,
         );
       }
       if (shouldRestoreSearch) {
@@ -1521,21 +1521,21 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       const [res, cat, pg] = await Promise.all([
         getEmpleadosResumen(),
         getEmpleadosCatalogoFiltros(),
-        getEmpleadosPage(buildEmpleadosListParams(state, isRh, kpiGestionEquipo)),
+        getEmpleadosPage(buildEmpleadosListParams(state, isRhAdmin, kpiGestionEquipo)),
       ]);
       catalogo = cat;
       resumenGestion = res;
       if (kpis) {
         kpis.innerHTML = renderKpis(
           res,
-          isRh,
+          isRhAdmin,
           kpiGestionEquipo,
           kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
-          isRh ? rhKpiUiDesdeState(state) : null,
+          isRhAdmin ? rhKpiUiDesdeState(state) : null,
         );
       }
       const panel = panelEl();
-      if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, panelMode(isRh, kpiGestionEquipo), kpiGestionEquipo);
+      if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, panelMode(isRhAdmin, kpiGestionEquipo), kpiGestionEquipo);
     } catch (e: unknown) {
       if (isUsuariosFetchError(e) && e.status === 401) {
         clearAuth();
@@ -1563,13 +1563,13 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       const kpiBtn = t.closest<HTMLButtonElement>("[data-emp-kpi]");
       if (kpiBtn) {
         const kind = kpiBtn.getAttribute("data-emp-kpi");
-        if (kind === "sin-lider" && isRh) {
+        if (kind === "sin-lider" && isRhAdmin) {
           state.kpi_filtrar_sin_lider = !state.kpi_filtrar_sin_lider;
           state.page = 1;
           void loadPage();
           return;
         }
-        if (kind === "sin-email" && isRh) {
+        if (kind === "sin-email" && isRhAdmin) {
           state.kpi_filtrar_sin_email = !state.kpi_filtrar_sin_email;
           state.page = 1;
           void loadPage();
@@ -1639,7 +1639,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         void loadPage();
         return;
       }
-      if (isRh && t.id === "emp-filter-status") {
+      if (isRhAdmin && t.id === "emp-filter-status") {
         const v = (t as HTMLSelectElement).value;
         state.activo_rh = v === "true" ? "true" : v === "false" ? "false" : "";
         state.page = 1;

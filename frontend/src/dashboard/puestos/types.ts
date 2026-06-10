@@ -39,7 +39,8 @@ export type PerfilPuesto = {
   codigo: string; // e.g. "PRF-2024-082"
   nombre_puesto: string;
   area: string;
-  nivel: string; // e.g. "operativo", "mando_medio", "gerencial"
+  nivel_id: number;
+  nivel_nombre: string;
   recomendaciones_ia: IaRecomendacion[];
   version: string; // e.g. "3.2"
   ultima_actualizacion: string; // ISO datetime
@@ -51,7 +52,8 @@ export type PerfilPuestoListItem = {
   codigo: string;
   nombre_puesto: string;
   area: string;
-  nivel: string;
+  nivel_id: number;
+  nivel_nombre: string;
   version: string;
   ultima_actualizacion: string;
 };
@@ -62,7 +64,7 @@ export type PerfilPuestoCreatePayload = {
   nombre_puesto: string;
   area: string;
   area_id: number | null;
-  nivel: string;
+  nivel_id: number;
 };
 
 export type PerfilPuestoUpdatePayload = {
@@ -70,7 +72,7 @@ export type PerfilPuestoUpdatePayload = {
   nombre_puesto?: string;
   area?: string;
   area_id?: number | null;
-  nivel?: string;
+  nivel_id?: number;
 };
 
 // ── Respuesta de generacion IA ────────────────────────────────────────
@@ -87,5 +89,5 @@ export type PuestosPageStatus = "loading" | "ready" | "saving" | "error";
 export type PuestosFilterState = {
   q: string;
   area: string;
-  nivel: string;
+  nivel_id: string;
 };

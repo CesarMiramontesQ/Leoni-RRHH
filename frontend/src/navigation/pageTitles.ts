@@ -19,6 +19,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/actas"), titulo: "Actas" },
   { match: (h) => h.startsWith("#/reportes"), titulo: "Reporte comedor" },
+  { match: (h) => h.startsWith("#/puestos/ajustes"), titulo: "Ajustes para perfiles de puesto" },
   { match: (h) => h.startsWith("#/puestos"), titulo: "Perfiles de Puesto" },
   { match: (h) => h.startsWith("#/competencias"), titulo: "Matriz de Competencias" },
   { match: (h) => h.startsWith("#/capacidades"), titulo: "Matriz de Multihabilidades" },
@@ -27,7 +28,13 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/evidencias"), titulo: "Motor de Evidencias" },
   { match: (h) => h.startsWith("#/sugerencias"), titulo: "Motor de Sugerencias" },
   { match: (h) => h.startsWith("#/encuestas"), titulo: "Encuestas Post Curso" },
+  { match: (h) => h.startsWith("#/laborales"), titulo: "Laborales" },
+  { match: (h) => h.startsWith("#/comedor/accesos"), titulo: "Comedor" },
+  { match: (h) => h.startsWith("#/level-up/resumen"), titulo: "Resumen operativo Level Up" },
+  { match: (h) => h.startsWith("#/sesiones"), titulo: "Sesiones de Cursos" },
+  { match: (h) => h.startsWith("#/tareas-catalogo"), titulo: "Catalogo de Tareas" },
   { match: (h) => h.startsWith("#/level-up"), titulo: "Level Up" },
+  { match: (h) => h.startsWith("#/ajustes/permisos-rh"), titulo: "Permisos RH" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];
 

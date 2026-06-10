@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -71,6 +72,10 @@ class Empleado(Base):
     fecha_fin_contrato: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     a_restringido: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     requiere_cambio_password: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    puede_administrar_permisos_rh: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    modulos_rh: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

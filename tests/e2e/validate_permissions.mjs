@@ -34,8 +34,8 @@ const NAV_EXPECTATIONS = {
     hidden: ["Actas", "Reporte comedor", "Perfiles de Puesto", "Matriz de Competencias"],
   },
   gerente: {
-    visible: ["Dashboard", "Solicitudes", "Incidencias", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
-    hidden: ["Organigrama"],
+    visible: ["Dashboard", "Métricas", "Solicitudes", "Incidencias", "Comedor", "Notificaciones", "Empleados"],
+    hidden: ["Organigrama", "Actas", "Reporte comedor", "Evaluaciones", "Perfiles de Puesto", "Matriz de Competencias"],
   },
   director: {
     visible: ["Dashboard", "Solicitudes", "Incidencias", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
@@ -58,8 +58,8 @@ const ROUTE_TESTS = {
     blocked: ["#/actas", "#/puestos", "#/competencias"],
   },
   gerente: {
-    allowed: ["#/", "#/solicitudes", "#/incidencias", "#/actas", "#/comedor", "#/empleados", "#/evaluaciones", "#/puestos", "#/competencias", "#/notificaciones"],
-    blocked: ["#/organigrama"],
+    allowed: ["#/", "#/metricas", "#/solicitudes", "#/incidencias", "#/comedor", "#/empleados", "#/notificaciones"],
+    blocked: ["#/organigrama", "#/actas", "#/puestos", "#/competencias", "#/evaluaciones", "#/comedor/reporte"],
   },
   director: {
     allowed: ["#/", "#/solicitudes", "#/incidencias", "#/actas", "#/comedor", "#/empleados", "#/evaluaciones", "#/puestos", "#/competencias", "#/notificaciones"],

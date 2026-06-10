@@ -1,4 +1,5 @@
 import { getAccessToken, getRefreshToken, updateAccessToken } from "../auth/session.ts";
+import { getRhUiModeHeaderValue } from "../auth/rhUiMode.ts";
 
 /** Renueva el access token con el refresh guardado en sesión (p. ej. al abrir la app). */
 export async function refreshAccessTokenSession(): Promise<boolean> {
@@ -29,6 +30,10 @@ export async function fetchWithAuth(url: string, init: RequestInit = {}): Promis
     const headers = new Headers(init.headers);
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
+    }
+    const rhUiMode = getRhUiModeHeaderValue();
+    if (rhUiMode) {
+      headers.set("X-RH-UI-Mode", rhUiMode);
     }
     return fetch(url, { ...init, headers });
   };

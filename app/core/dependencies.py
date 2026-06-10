@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,12 @@ from app.core.security import decode_token
 from app.models.auditoria import TokenBlacklist
 from app.models.empleados import Empleado
 from app.models.roles import Rol
+from app.core.rh_ui_mode import (
+    is_rh_gestor_team_ui_mode,
+    is_rh_lider_ui_mode,
+    normalized_rh_ui_mode,
+    validate_rh_ui_mode_for_user,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -85,21 +91,65 @@ def role_checker(roles_requeridos: list[str]):
     """Factory que retorna una dependency para verificar roles."""
 
     async def check_role(
+        request: Request,
         current_user: Empleado = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> Empleado:
+        from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module
+
         rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))
         rol = rol_result.scalar_one_or_none()
-        # Alinear con auth_service y servicios de dominio: sin rol explícito → empleado.
         rol_nombre = rol.nombre if rol else "empleado"
-        if rol_nombre not in roles_requeridos:
+        if rol_nombre in roles_requeridos:
+            return current_user
+        module_key = resolve_module_from_api_path(request.url.path)
+        if module_key and user_has_module(current_user, module_key):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+        )
+
+    return check_role
+
+
+async def require_rh_permisos_admin(
+    current_user: Empleado = Depends(get_current_user),
+) -> Empleado:
+    """Solo RH con flag puede_administrar_permisos_rh."""
+    rol = current_user.rol.nombre if current_user.rol else "empleado"
+    if rol != "rh":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo usuarios RH pueden administrar permisos de módulos.",
+        )
+    if not current_user.puede_administrar_permisos_rh:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para administrar accesos de usuarios RH.",
+        )
+    return current_user
+
+
+def require_rh_module(module_key: str):
+    """Factory: exige acceso al módulo RH indicado (ignorado para otros roles)."""
+
+    async def check_module(
+        current_user: Empleado = Depends(get_current_user),
+    ) -> Empleado:
+        from app.core.rh_module_registry import user_has_module
+
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol != "rh":
+            return current_user
+        if not user_has_module(current_user, module_key):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+                detail=f"No tienes acceso al módulo '{module_key}'.",
             )
         return current_user
 
-    return check_role
+    return check_module
 
 
 async def require_huella_ip(request: Request) -> None:
@@ -156,3 +206,54 @@ async def require_torniquete_api_key(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Clave de terminal inválida",
         )
+
+
+def get_rh_ui_mode(
+    x_rh_ui_mode: str | None = Header(None, alias="X-RH-UI-Mode"),
+    current_user: Empleado = Depends(get_current_user),
+) -> str | None:
+    """Modo de UI activo para usuarios RH (`operativo` | `empleado` | `lider` | `gerente`)."""
+    mode = normalized_rh_ui_mode(x_rh_ui_mode)
+    if mode is not None:
+        validate_rh_ui_mode_for_user(current_user, mode)
+    return x_rh_ui_mode
+
+
+def gestor_team_role_checker(roles_requeridos: list[str]):
+    """Permite supervisor/gerente nativos o RH en modo líder/gerente."""
+
+    async def check(
+        current_user: Empleado = Depends(get_current_user),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    ) -> Empleado:
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol in roles_requeridos:
+            return current_user
+        if rol == "rh" and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+        )
+
+    return check
+
+
+def gestor_supervisor_role_checker():
+    """Supervisor nativo o RH en modo líder."""
+
+    async def check(
+        current_user: Empleado = Depends(get_current_user),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    ) -> Empleado:
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol == "supervisor":
+            return current_user
+        if rol == "rh" and is_rh_lider_ui_mode(current_user, rh_ui_mode):
+            return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permisos insuficientes. Se requiere rol supervisor.",
+        )
+
+    return check

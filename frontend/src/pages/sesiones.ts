@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_SECONDARY, BTN_GHOST, FIELD_FOCUS, FILTER_FIELD_WRAP } from "../ui/uiTokens.ts";
 import { getAllSesiones } from "../api/cursos.ts";
@@ -69,6 +70,7 @@ export function mountSesiones(container: HTMLElement): void {
 
     return `
     <div class="flex flex-col gap-5">
+      ${renderLevelUpBackBar()}
       <!-- Encabezado -->
       <div class="flex items-center justify-between">
         <div>

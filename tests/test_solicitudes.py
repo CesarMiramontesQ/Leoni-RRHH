@@ -564,6 +564,41 @@ async def test_listar_solicitudes_rh_ve_todas(client: AsyncClient, db):
     assert emp_b.id in empleado_ids
 
 
+@pytest.mark.asyncio
+async def test_listar_solicitudes_rh_modo_empleado_solo_ve_las_suyas(client: AsyncClient, db):
+    emp_a = await make_empleado(db, rol="empleado", email="sol008c_a@leoni.test")
+    emp_b = await make_empleado(db, rol="empleado", email="sol008c_b@leoni.test")
+    rh = await make_empleado(db, rol="rh", email="sol008c_rh@leoni.test")
+
+    await make_solicitud(db, empleado_id=emp_a.id)
+    await make_solicitud(db, empleado_id=emp_b.id)
+    await make_solicitud(db, empleado_id=rh.id)
+
+    headers_rh = await auth_headers(client, rh)
+    headers_rh["X-RH-UI-Mode"] = "empleado"
+    response = await client.get("/api/v1/solicitudes", headers=headers_rh)
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    empleado_ids = {item["empleado_id"] for item in items}
+    assert rh.id in empleado_ids
+    assert emp_a.id not in empleado_ids
+    assert emp_b.id not in empleado_ids
+
+
+@pytest.mark.asyncio
+async def test_get_solicitud_rh_modo_empleado_otra_solicitud_403(client: AsyncClient, db):
+    otro = await make_empleado(db, rol="empleado", email="sol008d_otro@leoni.test")
+    rh = await make_empleado(db, rol="rh", email="sol008d_rh@leoni.test")
+    solicitud = await make_solicitud(db, empleado_id=otro.id)
+
+    headers_rh = await auth_headers(client, rh)
+    headers_rh["X-RH-UI-Mode"] = "empleado"
+    response = await client.get(f"/api/v1/solicitudes/{solicitud.id}", headers=headers_rh)
+
+    assert response.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # TC-SOL-009: Listar solicitudes — supervisor ve las de su equipo directo
 # ---------------------------------------------------------------------------

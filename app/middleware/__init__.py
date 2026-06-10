@@ -1,3 +1,4 @@
+from app.middleware.rh_module_permission import RhModulePermissionMiddleware
 from app.middleware.supervisor_restricted_routes import SupervisorRestrictedRoutesMiddleware
 
-__all__ = ["SupervisorRestrictedRoutesMiddleware"]
+__all__ = ["RhModulePermissionMiddleware", "SupervisorRestrictedRoutesMiddleware"]

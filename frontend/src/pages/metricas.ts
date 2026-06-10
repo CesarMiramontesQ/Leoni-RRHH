@@ -8,6 +8,7 @@ import { mountRhSolicitudesAnalyticsFromRows } from "../components/solicitudes/r
 import { clearAuth } from "../auth/session.ts";
 import { destroyChart, destroyChartsIn } from "../charts/index.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import {
   cloneRhIncidenciaListFilters,
   incidenciasFiltersFromSolicitudesMetricas,
@@ -69,7 +70,7 @@ function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
     description:
-      "La analítica de métricas está disponible solo para usuarios con rol Recursos Humanos o gerente.",
+      "La analítica de métricas está disponible solo para usuarios con rol Recursos Humanos, supervisor o gerente.",
     linkHref: "#/",
     linkLabel: "Volver al dashboard",
   });
@@ -135,7 +136,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       pageTitle: "Métricas",
       activeNav: "metricas",
       mainClass,
-      mainHtml: `<div id="rh-metricas-page" class="${PAGE_SHELL_CLASS}">${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-metricas-page" class="${PAGE_SHELL_CLASS}">${renderLaboralesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -274,6 +275,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     activeNav: "metricas",
     mainClass,
     mainHtml: `<div id="rh-metricas-page" class="${PAGE_SHELL_CLASS}">
+      ${renderLaboralesBackBar()}
       <div id="rh-metricas-inner" class="flex min-h-0 flex-1 flex-col">${renderRhMetricasView(loadingSolicitudesViewModel(pageUi), loadingIncidenciasViewModel())}</div>
     </div>`,
   });

@@ -1,11 +1,13 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getEmpleadoResumen,
-  NIVEL_LABELS,
+  getNivelLabels,
   NIVEL_COLORS,
   type EmpleadoResumen,
   type CompetenciaResumenItem,
 } from "../api/evaluaciones.ts";
+import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
 
 export function mountEvaluacionEmpleado(
   container: HTMLElement,
@@ -21,12 +23,17 @@ export function mountEvaluacionEmpleado(
   const root = container.querySelector<HTMLElement>("#eval-empleado-page")!;
 
   function renderLoading(): string {
-    return `<div class="px-6 py-12 text-center text-gray-500">Cargando resumen...</div>`;
+    return `
+      <div class="px-6 py-6 max-w-5xl mx-auto">
+        ${renderLevelUpBackBar()}
+        <div class="py-12 text-center text-gray-500">Cargando resumen...</div>
+      </div>`;
   }
 
   function renderError(): string {
     return `
       <div class="px-6 py-6 max-w-4xl mx-auto">
+        ${renderLevelUpBackBar()}
         <a href="#/evaluaciones" class="text-sm text-blue-600 hover:text-blue-800">&larr; Volver a evaluaciones</a>
         <div class="mt-6 rounded-lg border border-dashed border-gray-300 py-12 text-center text-gray-500">
           <p class="text-sm">No se pudo cargar el resumen de este empleado.</p>
@@ -36,7 +43,7 @@ export function mountEvaluacionEmpleado(
   }
 
   function renderNivelBadge(nivel: number): string {
-    const label = NIVEL_LABELS[nivel] ?? `${nivel}`;
+    const label = getNivelLabels()[nivel] ?? `${nivel}`;
     const color = NIVEL_COLORS[nivel] ?? "bg-gray-100 text-gray-600";
     return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}">${label}</span>`;
   }
@@ -100,7 +107,8 @@ export function mountEvaluacionEmpleado(
 
     return `
       <div class="px-6 py-6 max-w-5xl mx-auto">
-        <a href="#/evaluaciones" class="text-sm text-blue-600 hover:text-blue-800">&larr; Volver a evaluaciones</a>
+        ${renderLevelUpBackBar()}
+        <a href="#/evaluaciones" class="mt-3 inline-block text-sm text-blue-600 hover:text-blue-800">&larr; Volver a evaluaciones</a>
 
         <div class="mt-4 flex items-center justify-between">
           <div>
@@ -139,6 +147,7 @@ export function mountEvaluacionEmpleado(
 
   async function load() {
     root.innerHTML = renderLoading();
+    await ensureMetodosCalificacionCompetenciaLoaded();
     const data = await getEmpleadoResumen(empleadoId);
     if (!data) {
       root.innerHTML = renderError();

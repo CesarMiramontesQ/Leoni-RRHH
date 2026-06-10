@@ -4,6 +4,7 @@ import type { EstadoEmpleadoResponse } from "../api/usuarios.ts";
 import { isUsuariosFetchError } from "../api/usuarios.ts";
 import { canAccessEmpleadosPage, canAccessUsuariosAdmin } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
+import { whenModuleBackLinkVisible } from "../navigation/moduleBackLink.ts";
 import { mountEditarAsignacionModal } from "../components/empleados/editarAsignacionModal.ts";
 import type { EditarAsignacionModalHandle } from "../components/empleados/editarAsignacionModal.ts";
 import { vista360CardHtml, vista360FieldRowHtml, vista360FieldRowText } from "../components/vista360/card.ts";
@@ -434,12 +435,13 @@ function renderVista360Content(
 
   return `
     <div id="v360-loaded" class="space-y-6">
+      ${whenModuleBackLinkVisible(`
       <div>
         <a href="#/empleados" class="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm font-semibold text-slate-500 transition-colors hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
           <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 opacity-80" aria-hidden="true"><path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" /></svg>
           Volver al directorio
         </a>
-      </div>
+      </div>`)}
       ${header}
       ${grid}
       ${estadisticasSection}

@@ -36,7 +36,7 @@ async def listar_puestos_perfil(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(10, ge=1, le=100, description="Items por pagina"),
     area_id: int | None = Query(None, description="Filtrar por area"),
-    nivel: str | None = Query(None, description="Filtrar por nivel"),
+    nivel_id: int | None = Query(None, description="Filtrar por nivel"),
     busqueda: str | None = Query(None, description="Buscar por nombre"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -47,7 +47,7 @@ async def listar_puestos_perfil(
         page=page,
         page_size=page_size,
         area_id=area_id,
-        nivel=nivel,
+        nivel_id=nivel_id,
         busqueda=busqueda,
     )
 

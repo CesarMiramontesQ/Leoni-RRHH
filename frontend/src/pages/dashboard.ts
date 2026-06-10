@@ -497,16 +497,16 @@ function mountStandardDashboard(container: HTMLElement): void {
  * - resto (p. ej. `director`) → KPIs actuales
  */
 export function mountDashboardPlaceholder(container: HTMLElement): void {
-  if (canAccessRhOperationalDashboard()) {
-    mountRhOperationalDashboard(container);
+  if (canAccessEmpleadoPersonalDashboard()) {
+    mountEmpleadoPersonalDashboardShell(container);
     return;
   }
   if (canAccessLiderTeamDashboard()) {
     mountLiderTeamDashboardShell(container);
     return;
   }
-  if (canAccessEmpleadoPersonalDashboard()) {
-    mountEmpleadoPersonalDashboardShell(container);
+  if (canAccessRhOperationalDashboard()) {
+    mountRhOperationalDashboard(container);
     return;
   }
   mountStandardDashboard(container);

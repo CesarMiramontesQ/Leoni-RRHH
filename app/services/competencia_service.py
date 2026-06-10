@@ -35,11 +35,17 @@ from app.repositories.competencia_repository import (
     CompetenciaRepository,
     CompetenciaRequisitoRepository,
 )
+from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.repositories.perfil_funciones_repository import (
     PerfilFuncionesCompetenciaRepository,
     PerfilFuncionesRepository,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
+from app.services.metodo_calificacion_competencia_service import (
+    MetodoCalificacionCompetenciaService,
+)
+from app.services.tipo_competencia_service import TipoCompetenciaService
+from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 from app.schemas.talento import (
     BrechaItem,
     BrechasResponse,
@@ -54,6 +60,7 @@ from app.schemas.talento import (
     MatrizRow,
     MultihabilidadesCompetenciaItem,
     MultihabilidadesEmpleadoItem,
+    MetodoCalificacionCompetenciaResumen,
     MultihabilidadesPuestoOption,
     MultihabilidadesResponse,
     PuestoPerfilResponse,
@@ -71,6 +78,7 @@ class CompetenciaService:
         self.puesto_repo = PuestoPerfilRepository(db)
         self.pf_repo = PerfilFuncionesRepository(db)
         self.pf_comp_repo = PerfilFuncionesCompetenciaRepository(db)
+        self.grado_repo = GradoPuestoRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -79,12 +87,20 @@ class CompetenciaService:
         area_nombre = None
         if comp.area:
             area_nombre = comp.area.descripcion
+        tipo_nombre = comp.tipo_competencia.nombre if comp.tipo_competencia else ""
+        tipo_grupo = ""
+        if comp.tipo_competencia and comp.tipo_competencia.grupo_competencia:
+            tipo_grupo = categoria_desde_grupo_nombre(
+                comp.tipo_competencia.grupo_competencia.nombre
+            )
         return CompetenciaResponse(
             id=comp.id,
             nombre=comp.nombre,
             descripcion=comp.descripcion,
             categoria=comp.categoria,
-            subcategoria=comp.subcategoria,
+            tipo_competencia_id=comp.tipo_competencia_id,
+            tipo_nombre=tipo_nombre,
+            tipo_grupo=tipo_grupo,
             area_id=comp.area_id,
             area_nombre=area_nombre,
             activo=comp.activo,
@@ -162,17 +178,20 @@ class CompetenciaService:
         if rol != "rh":
             raise ForbiddenError(detail="Solo RH puede crear competencias")
 
-        # Verificar duplicado
-        if await self.repo.exists_by_nombre_categoria(data.nombre, data.categoria):
+        tipo_service = TipoCompetenciaService(self.db)
+        tipo = await tipo_service.validar_tipo_activo(data.tipo_competencia_id)
+        categoria = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
+
+        if await self.repo.exists_by_nombre_categoria(data.nombre, categoria):
             raise ConflictError(
-                detail=f"Ya existe una competencia '{data.nombre}' con categoria '{data.categoria}'"
+                detail=f"Ya existe una competencia '{data.nombre}' con categoria '{categoria}'"
             )
 
         comp = await self.repo.create({
             "nombre": data.nombre,
             "descripcion": data.descripcion,
-            "categoria": data.categoria,
-            "subcategoria": data.subcategoria,
+            "categoria": categoria,
+            "tipo_competencia_id": tipo.id,
             "area_id": data.area_id,
             "activo": True,
         })
@@ -193,9 +212,12 @@ class CompetenciaService:
         if not comp:
             raise NotFoundError(entidad="Competencia", id=id)
 
-        # Verificar duplicado si cambia nombre o categoria
+        tipo_service = TipoCompetenciaService(self.db)
+        nuevo_tipo_id = data.tipo_competencia_id or comp.tipo_competencia_id
+        tipo = await tipo_service.validar_tipo_activo(nuevo_tipo_id)
+        categoria_check = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
+
         nombre_check = data.nombre or comp.nombre
-        categoria_check = data.categoria or comp.categoria
         if nombre_check != comp.nombre or categoria_check != comp.categoria:
             if await self.repo.exists_by_nombre_categoria(
                 nombre_check, categoria_check, exclude_id=id
@@ -209,10 +231,11 @@ class CompetenciaService:
             update_data["nombre"] = data.nombre
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
-        if data.categoria is not None:
-            update_data["categoria"] = data.categoria
-        if data.subcategoria is not None:
-            update_data["subcategoria"] = data.subcategoria
+        if data.tipo_competencia_id is not None:
+            update_data["tipo_competencia_id"] = tipo.id
+            update_data["categoria"] = categoria_desde_grupo_nombre(
+                tipo.grupo_competencia.nombre
+            )
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
 
@@ -311,7 +334,8 @@ class CompetenciaService:
                 nombre=p.nombre,
                 area_id=p.area_id,
                 area_nombre=area.descripcion,
-                nivel=p.nivel,
+                nivel_id=p.nivel_id,
+                nivel_nombre=p.nivel.nombre if p.nivel else "",
                 descripcion=p.descripcion,
                 version=p.version,
                 activo=p.activo,
@@ -335,6 +359,10 @@ class CompetenciaService:
         rol = self._get_rol(current_user)
         if rol != "rh":
             raise ForbiddenError(detail="Solo RH puede actualizar la matriz de competencias")
+
+        grado_default = await self.grado_repo.get_by_orden(1)
+        if not grado_default:
+            raise NotFoundError(entidad="GradoPuesto", id=0)
 
         actualizados = 0
         errores: list[str] = []
@@ -367,6 +395,7 @@ class CompetenciaService:
             await self.requisito_repo.upsert(
                 competencia_id=celda.competencia_id,
                 puesto_perfil_id=celda.puesto_perfil_id,
+                grado_id=grado_default.id,
                 nivel_requerido=celda.nivel_requerido,
             )
             actualizados += 1
@@ -634,11 +663,18 @@ class CompetenciaService:
         )
 
         if not requisitos:
+            metodos = await MetodoCalificacionCompetenciaService(self.db).listar_resumen()
             return MultihabilidadesResponse(
                 puesto_perfil_id=puesto.id,
                 puesto_nombre=puesto.nombre,
                 competencias=[],
                 empleados=[],
+                metodos_calificacion=[
+                    MetodoCalificacionCompetenciaResumen(
+                        valor=m.valor, nombre=m.nombre, orden=m.orden
+                    )
+                    for m in metodos
+                ],
             )
 
         asignaciones = await self.pf_repo.list_by_perfil(puesto_perfil_id)
@@ -671,7 +707,12 @@ class CompetenciaService:
             MultihabilidadesCompetenciaItem(
                 competencia_id=r.competencia_id,
                 competencia_nombre=r.competencia.nombre,
-                subcategoria=r.competencia.subcategoria,
+                tipo_competencia_id=r.competencia.tipo_competencia_id,
+                tipo_nombre=(
+                    r.competencia.tipo_competencia.nombre
+                    if r.competencia and r.competencia.tipo_competencia
+                    else ""
+                ),
                 nivel_requerido=r.nivel_requerido,
             )
             for r in requisitos
@@ -687,9 +728,17 @@ class CompetenciaService:
             for a in asignaciones
         ]
 
+        metodos = await MetodoCalificacionCompetenciaService(self.db).listar_resumen()
+
         return MultihabilidadesResponse(
             puesto_perfil_id=puesto.id,
             puesto_nombre=puesto.nombre,
             competencias=competencias_out,
             empleados=empleados_out,
+            metodos_calificacion=[
+                MetodoCalificacionCompetenciaResumen(
+                    valor=m.valor, nombre=m.nombre, orden=m.orden
+                )
+                for m in metodos
+            ],
         )

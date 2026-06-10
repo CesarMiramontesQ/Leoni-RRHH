@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getTareasCatalogo,
   createTareaCatalogo,
@@ -134,6 +135,7 @@ function kpiSkeletonCard(): string {
 function renderLoading(): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER} tc-page" aria-busy="true" aria-label="Cargando catálogo de tareas">
+    ${renderLevelUpBackBar()}
     <div class="h-6 w-56 animate-pulse rounded-md bg-slate-200/90"></div>
     <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
@@ -145,6 +147,7 @@ function renderLoading(): string {
 function renderError(message: string | null): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER} tc-page">
+    ${renderLevelUpBackBar()}
     <div class="flex min-h-[280px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-14 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]" role="alert">
       <div class="flex max-w-md flex-col items-center gap-4">
         <p class="text-base font-semibold text-text-primary">Error al cargar el catálogo</p>
@@ -406,6 +409,7 @@ function renderReadyContent(
 
   return `
   <div class="${RH_LISTADO_PAGE_OUTER} tc-page">
+    ${renderLevelUpBackBar()}
     ${renderPageHeader()}
     ${items.length > 0 ? renderKpis(stats) : ""}
     ${mainBlock}

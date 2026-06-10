@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import (
     get_current_user,
+    gestor_supervisor_role_checker,
+    gestor_team_role_checker,
+    get_rh_ui_mode,
     require_comedor_terminal_ip,
     require_huella_ip,
     require_torniquete_api_key,
@@ -148,6 +151,7 @@ async def mi_comedor_asignado(
     current_user: Empleado = Depends(
         role_checker(["empleado", "supervisor", "gerente", "director", "rh"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Comedor asignado al empleado según `turnos_empleados` y catálogo `comedores`."""
@@ -155,6 +159,7 @@ async def mi_comedor_asignado(
     return await service.get_comedor_asignado(
         current_user=current_user,
         target_user_id=target_user_id,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
@@ -190,7 +195,7 @@ async def primera_fecha_reserva_comedor(
 async def list_mis_reservas_comedor(
     anio: int = Query(..., ge=2000, le=2100),
     mes: int = Query(..., ge=1, le=12),
-    current_user: Empleado = Depends(role_checker(["empleado"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Reservas del empleado en un mes (calendario personal)."""
@@ -209,7 +214,7 @@ async def list_mis_reservas_comedor(
 async def mis_fechas_ocupadas_comedor(
     desde: date = Query(..., description="Inicio del rango (inclusive)"),
     hasta: date = Query(..., description="Fin del rango (inclusive)"),
-    current_user: Empleado = Depends(role_checker(["empleado"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -231,7 +236,7 @@ async def mis_fechas_ocupadas_comedor(
 @router.get("/accesos/mis-proximas-reservas", response_model=list[ComedorMisReservaItem])
 async def mis_proximas_reservas_comedor(
     limite: int = Query(5, ge=1, le=200),
-    current_user: Empleado = Depends(role_checker(["empleado"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Top N reservas próximas del empleado desde hoy (por defecto 5, máx. 200)."""
@@ -245,7 +250,8 @@ async def mis_proximas_reservas_comedor(
 @router.get("/accesos/equipo/mis-proximas-reservas", response_model=list[ComedorEquipoReservaItem])
 async def equipo_proximas_reservas_comedor(
     limite: int = Query(50, ge=1, le=200),
-    current_user: Empleado = Depends(role_checker(["supervisor", "gerente"])),
+    current_user: Empleado = Depends(gestor_team_role_checker(["supervisor", "gerente"])),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Top N reservas próximas del equipo del supervisor/gerente desde hoy."""
@@ -253,24 +259,30 @@ async def equipo_proximas_reservas_comedor(
     return await service.list_equipo_proximas_reservas(
         current_user=current_user,
         limite=limite,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
 @router.get("/accesos/equipo/beneficiarios", response_model=list[ComedorEquipoBeneficiarioItem])
 async def equipo_beneficiarios_comedor(
-    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    current_user: Empleado = Depends(gestor_supervisor_role_checker()),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Beneficiarios seleccionables por supervisor: yo + equipo directo."""
     service = ComedorService(db)
-    return await service.list_equipo_beneficiarios_directos(current_user=current_user)
+    return await service.list_equipo_beneficiarios_directos(
+        current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
+    )
 
 
 @router.get("/accesos/equipo/mis-reservas", response_model=list[ComedorEquipoReservaItem])
 async def equipo_reservas_mes_comedor(
     anio: int = Query(..., ge=2000, le=2100),
     mes: int = Query(..., ge=1, le=12),
-    current_user: Empleado = Depends(role_checker(["supervisor", "gerente"])),
+    current_user: Empleado = Depends(gestor_team_role_checker(["supervisor", "gerente"])),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Reservas del equipo del supervisor/gerente en un mes (calendario de equipo)."""
@@ -279,17 +291,22 @@ async def equipo_reservas_mes_comedor(
         current_user=current_user,
         anio=anio,
         mes=mes,
+        rh_ui_mode=rh_ui_mode,
     )
 
 
 @router.get("/accesos/equipo/metricas")
 async def equipo_metricas_comedor(
-    current_user: Empleado = Depends(role_checker(["supervisor", "gerente"])),
+    current_user: Empleado = Depends(gestor_team_role_checker(["supervisor", "gerente"])),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Tarjetas de métricas para dashboard de supervisor/gerente."""
     service = ComedorService(db)
-    return await service.get_equipo_metricas_dashboard(current_user=current_user)
+    return await service.get_equipo_metricas_dashboard(
+        current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
+    )
 
 
 @router.get("/accesos/rh/resumen-diario", response_model=list[ComedorResumenDiarioItem])
@@ -375,7 +392,10 @@ async def rh_registros_reporte_comedor(
 async def reservar_acceso_dia(
     body: ComedorAccesoReservaCreate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["empleado", "supervisor", "gerente"])),
+    current_user: Empleado = Depends(
+        role_checker(["empleado", "supervisor", "gerente", "rh"])
+    ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Pre-autorización por día y tipo de comida (empleado, supervisor y gerente)."""
@@ -384,6 +404,7 @@ async def reservar_acceso_dia(
         data=body,
         current_user=current_user,
         background_tasks=background_tasks,
+        rh_ui_mode=rh_ui_mode,
     )
     return reservas[0] if len(reservas) == 1 else reservas
 

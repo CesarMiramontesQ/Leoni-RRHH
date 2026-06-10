@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, role_checker
+from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas.incidencias import (
     IncidenciasAreasResponse,
@@ -32,6 +32,7 @@ async def list_incidencias(
     current_user: Empleado = Depends(
         role_checker(["rh", "gerente", "supervisor", "director"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=10),
@@ -51,6 +52,7 @@ async def list_incidencias(
         current_user,
         page,
         page_size,
+        rh_ui_mode=rh_ui_mode,
         tipo=tipo.strip() if tipo and tipo.strip() else None,
         empleado_id=empleado_id,
         no_empleado=no_empleado.strip() if no_empleado and no_empleado.strip() else None,
@@ -69,10 +71,11 @@ async def list_incidencias_tipos(
     current_user: Empleado = Depends(
         role_checker(["rh", "gerente", "supervisor", "director"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
 ):
     """Valores distintos de `tipo` registrados en el alcance del usuario."""
-    items = await svc.list_tipos_registrados(current_user)
+    items = await svc.list_tipos_registrados(current_user, rh_ui_mode=rh_ui_mode)
     return IncidenciasTiposResponse(items=items)
 
 
@@ -81,10 +84,11 @@ async def list_incidencias_areas(
     current_user: Empleado = Depends(
         role_checker(["rh", "gerente", "supervisor", "director"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
 ):
     """Áreas distintas con incidencias en el alcance del usuario."""
-    items = await svc.list_areas_registradas(current_user)
+    items = await svc.list_areas_registradas(current_user, rh_ui_mode=rh_ui_mode)
     return IncidenciasAreasResponse(items=items)
 
 
@@ -93,11 +97,12 @@ async def list_incidencias_subareas(
     current_user: Empleado = Depends(
         role_checker(["rh", "gerente", "supervisor", "director"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
     area: str | None = Query(None, description="Filtra subáreas de esta área (valor exacto del catálogo)"),
 ):
     """Subáreas distintas con incidencias; opcionalmente acotadas a un área."""
-    items = await svc.list_subareas_registradas(current_user, area=area)
+    items = await svc.list_subareas_registradas(current_user, rh_ui_mode=rh_ui_mode, area=area)
     return IncidenciasSubareasResponse(items=items)
 
 
@@ -106,6 +111,7 @@ async def estadisticas_incidencias(
     current_user: Empleado = Depends(
         role_checker(["rh", "gerente", "supervisor", "director"])
     ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
     tipo: str | None = Query(None, description="Coincide exactamente con la columna tipo"),
     empleado_id: int | None = Query(None),
@@ -128,6 +134,7 @@ async def estadisticas_incidencias(
         agr = None
     return await svc.estadisticas_incidencias(
         current_user,
+        rh_ui_mode=rh_ui_mode,
         tipo=tipo.strip() if tipo and tipo.strip() else None,
         empleado_id=empleado_id,
         no_empleado=no_empleado.strip() if no_empleado and no_empleado.strip() else None,

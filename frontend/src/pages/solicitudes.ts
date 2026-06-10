@@ -22,6 +22,7 @@ import {
   renderSolicitudesSplitHeroMeta,
 } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderSolicitudesBackBar } from "../navigation/laboralesBackLink.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
 import {
@@ -282,7 +283,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
       mainClass: solicitudesMainClass,
-      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${renderSolicitudesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -293,7 +294,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       pageTitle: "Solicitudes",
       activeNav: "solicitudes",
       mainClass: solicitudesMainClass,
-      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">${renderSolicitudesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -545,6 +546,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
     activeNav: "solicitudes",
     mainClass: solicitudesMainClass,
     mainHtml: `<div id="rh-solicitudes-page" class="${solicitudesPageShellClass}">
+      ${renderSolicitudesBackBar()}
       <div id="rh-solicitudes-inner" class="flex min-h-0 flex-1 flex-col">${
         isSplitGestorRole ?
           renderSplitSolicitudesView(
@@ -596,7 +598,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
       allowPaidLeaveTypes: pageRole === "rh",
       allowUnpaidLeaveType: pageRole === "supervisor" || pageRole === "gerente" || pageRole === "rh",
-      wideForSupervisor: pageRole === "supervisor",
+      wideForSupervisor: pageRole === "supervisor" || pageRole === "gerente",
       supervisorSolicitudSubjectSelector: pageRole === "supervisor" && sessionEmpleadoDirId != null,
       supervisorDirectoryId:
         pageRole === "supervisor" && sessionEmpleadoDirId != null ? sessionEmpleadoDirId : undefined,

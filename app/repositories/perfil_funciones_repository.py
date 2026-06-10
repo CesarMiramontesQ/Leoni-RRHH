@@ -11,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.talento import (
+    CualificacionCatalogo,
+    GradoPuesto,
+    MetodoCalificacion,
     PerfilCualificacion,
     PerfilFunciones,
     PerfilFuncionesCualificacion,
@@ -47,10 +50,32 @@ class PerfilCualificacionRepository(BaseRepository[PerfilCualificacion]):
         """Lista cualificaciones de un puesto perfil."""
         result = await self.db.execute(
             select(PerfilCualificacion)
+            .options(
+                selectinload(PerfilCualificacion.cualificacion_catalogo)
+                .selectinload(CualificacionCatalogo.tipo_cualificacion),
+                selectinload(PerfilCualificacion.cualificacion_catalogo)
+                .selectinload(CualificacionCatalogo.metodo_calificacion)
+                .selectinload(MetodoCalificacion.opciones),
+            )
             .where(PerfilCualificacion.puesto_perfil_id == puesto_perfil_id)
             .order_by(PerfilCualificacion.id)
         )
         return list(result.scalars().all())
+
+    async def get_with_catalogo(self, id: int) -> PerfilCualificacion | None:
+        result = await self.db.execute(
+            select(PerfilCualificacion)
+            .options(
+                selectinload(PerfilCualificacion.cualificacion_catalogo).selectinload(
+                    CualificacionCatalogo.tipo_cualificacion
+                ),
+                selectinload(PerfilCualificacion.cualificacion_catalogo)
+                .selectinload(CualificacionCatalogo.metodo_calificacion)
+                .selectinload(MetodoCalificacion.opciones),
+            )
+            .where(PerfilCualificacion.id == id)
+        )
+        return result.scalar_one_or_none()
 
     async def buscar_sugerencias(self, tipo: str, q: str, limit: int = 10) -> list[str]:
         """Valores DISTINCT de situacion_deseada filtrados por tipo y query, excluyendo N/A."""
@@ -76,7 +101,10 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
         """Lista asignaciones activas de un puesto perfil con datos del empleado."""
         result = await self.db.execute(
             select(PerfilFunciones)
-            .options(selectinload(PerfilFunciones.empleado))
+            .options(
+                selectinload(PerfilFunciones.empleado),
+                selectinload(PerfilFunciones.grado),
+            )
             .where(
                 PerfilFunciones.puesto_perfil_id == puesto_perfil_id,
                 PerfilFunciones.activo.is_(True),
@@ -90,8 +118,10 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
         result = await self.db.execute(
             select(PerfilFunciones)
             .options(
+                selectinload(PerfilFunciones.empleado),
                 selectinload(PerfilFunciones.evaluaciones_cualificacion),
                 selectinload(PerfilFunciones.evaluaciones_competencia),
+                selectinload(PerfilFunciones.grado),
             )
             .where(PerfilFunciones.id == id, PerfilFunciones.activo.is_(True))
         )

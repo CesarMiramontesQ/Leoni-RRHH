@@ -17,8 +17,15 @@ import {
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
-import { deletePerfilAsignacion, getAsignacionGap, getAsignacionTareasExtra } from "../api/puestos.ts";
+import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import {
+  deletePerfilAsignacion,
+  getAsignacionGap,
+  getAsignacionTareasExtra,
+  updatePerfilAsignacion,
+} from "../api/puestos.ts";
 import { getCursosPuesto, getCursosExtra } from "../api/cursos.ts";
+import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts";
 import { mountCursosExtraModal } from "../components/puestos/cursosExtraModal.ts";
@@ -32,6 +39,8 @@ interface AsignacionItem {
   empleado_id: number;
   nombre_empleado: string | null;
   no_empleado: string | null;
+  grado_id: number;
+  grado_nombre: string | null;
   departamento: string | null;
   activo: boolean;
   fecha_firma_superior: string | null;
@@ -43,7 +52,7 @@ interface PerfilHeader {
   codigo: string;
   nombre: string;
   area_nombre: string;
-  nivel: string;
+  nivel_nombre: string;
 }
 
 type AcuseEstado = "completo" | "parcial" | "pendiente";
@@ -82,16 +91,6 @@ const ICON_SEARCH = `<svg class="pointer-events-none absolute left-3 top-1/2 siz
 
 function isRh(): boolean {
   return getRolFromAccessToken() === "rh";
-}
-
-function nivelLabel(nivel: string): string {
-  const map: Record<string, string> = {
-    operativo: "Operativo",
-    mando_medio: "Mando Medio",
-    gerencial: "Gerencial",
-    directivo: "Directivo",
-  };
-  return map[nivel] ?? nivel;
 }
 
 function formatNoEmpleado(no: string | null): string {
@@ -195,7 +194,7 @@ function renderHero(perfil: PerfilHeader, metrics: PageMetrics, showAsignar: boo
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(perfil.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(perfil.area_nombre)}</strong> · ${escapeHtml(nivelLabel(perfil.nivel))}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(perfil.area_nombre)}</strong> · ${escapeHtml(perfil.nivel_nombre)}</span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${metrics.total}</strong> empleado${metrics.total !== 1 ? "s" : ""} asignado${metrics.total !== 1 ? "s" : ""}</span></span>
           </div>
         </div>
@@ -336,6 +335,9 @@ function renderActionMenu(a: AsignacionItem, showRhActions: boolean): string {
       <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="cursos-extra" data-id="${a.id}" data-nombre="${nombre}">
         Administrar cursos extra
       </button>
+      <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="cambiar-grado" data-id="${a.id}" data-nombre="${nombre}" data-grado-id="${a.grado_id}">
+        Cambiar grado
+      </button>
       <div class="my-1 border-t border-slate-100" role="separator"></div>
       <button type="button" role="menuitem" class="ppe-menu-item ppe-menu-item--danger" data-ppe-action="desasignar" data-id="${a.id}">
         Desasignar empleado
@@ -374,6 +376,11 @@ function renderTableRows(items: AsignacionItem[], showRhActions: boolean): strin
           ${noFmt ? `<p class="mt-0.5 text-xs tabular-nums text-text-muted">No. ${escapeHtml(noFmt)}</p>` : ""}
           ${a.departamento ? `<p class="mt-1 text-xs text-text-secondary">${escapeHtml(a.departamento)}</p>` : ""}
         </div>
+      </td>
+      <td class="hidden px-4 py-4 align-middle sm:table-cell">
+        <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-text-secondary">
+          ${escapeHtml(a.grado_nombre ?? `Grado #${a.grado_id}`)}
+        </span>
       </td>
       <td class="hidden px-4 py-4 align-middle md:table-cell">
         ${acuseBadge(estado)}
@@ -477,6 +484,7 @@ function renderTableSection(
         <thead>
           <tr>
             <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Colaborador</th>
+            <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted sm:table-cell">Grado</th>
             <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted md:table-cell">Estado</th>
             <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
           </tr>
@@ -575,6 +583,39 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
     });
   }
 
+  async function handleCambiarGrado(asignacion: AsignacionItem): Promise<void> {
+    const warn =
+      "Al cambiar el grado se eliminarán evaluaciones de competencias que no correspondan al nuevo grado. ¿Continuar?";
+    if (!confirm(warn)) return;
+    try {
+      const grados = await getGradosPuesto({ page_size: 200 });
+      if (grados.length === 0) {
+        alert("No hay grados configurados.");
+        return;
+      }
+      const options = grados
+        .map((g) => `${g.orden}. ${g.nombre}${g.id === asignacion.grado_id ? " (actual)" : ""}`)
+        .join("\n");
+      const input = prompt(
+        `Selecciona el número de orden del nuevo grado:\n\n${options}`,
+        String(grados.find((g) => g.id !== asignacion.grado_id)?.orden ?? grados[0].orden),
+      );
+      if (input == null) return;
+      const orden = Number(input.trim());
+      const nuevo = grados.find((g) => g.orden === orden);
+      if (!nuevo) {
+        alert("Grado no válido.");
+        return;
+      }
+      if (nuevo.id === asignacion.grado_id) return;
+      await updatePerfilAsignacion(perfilId, asignacion.id, { grado_id: nuevo.id });
+      await loadData();
+    } catch (err: unknown) {
+      const detail = (err as { detail?: string })?.detail ?? "Error al cambiar grado.";
+      alert(detail);
+    }
+  }
+
   async function handleDesasignar(asignacionId: number): Promise<void> {
     const confirmed = confirm("¿Desasignar a este empleado del perfil? La asignación se desactivará.");
     if (!confirmed) return;
@@ -624,9 +665,23 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
       const cursosHost = pageRoot.querySelector("#modal-host-cursos-extra") as HTMLElement;
       mountCursosExtraModal(cursosHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "evaluar-cual") {
-      mountEvaluarCualificacionesModal(cualHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      mountEvaluarCualificacionesModal(cualHost, {
+        perfilId,
+        asignacionId,
+        empleadoNombre: nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
     } else if (action === "evaluar-comp") {
-      mountEvaluarCompetenciasModal(compHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      const asig = asignaciones.find((a) => a.id === asignacionId);
+      mountEvaluarCompetenciasModal(compHost, {
+        perfilId,
+        asignacionId,
+        nombreEmpleado,
+        gradoNombre: asig?.grado_nombre ?? undefined,
+      }).open();
+    } else if (action === "cambiar-grado") {
+      const asig = asignaciones.find((a) => a.id === asignacionId);
+      if (asig) void handleCambiarGrado(asig);
     } else if (action === "desasignar") {
       void handleDesasignar(asignacionId);
     }
@@ -715,7 +770,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         codigo: perfilJson.codigo ?? "",
         nombre: perfilJson.nombre ?? "",
         area_nombre: perfilJson.area_nombre ?? "",
-        nivel: perfilJson.nivel ?? "",
+        nivel_nombre: perfilJson.nivel_nombre ?? "",
       };
 
       asignaciones = await asigRes.json();
@@ -788,7 +843,7 @@ async function openDetalleModal(
         if (g.cumple === true) badge = `<span class="text-emerald-600 text-xs font-medium">Cumple</span>`;
         else if (g.cumple === false) badge = `<span class="text-red-600 text-xs font-medium">No cumple</span>`;
         else badge = `<span class="text-amber-600 text-xs font-medium">Pendiente</span>`;
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.situacion_deseada)}</td><td class="py-1.5 text-right">${badge}</td></tr>`;
+        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.criterio_label || g.cualificacion_nombre)}</td><td class="py-1.5 text-right">${badge}</td></tr>`;
       })
       .join("");
 
