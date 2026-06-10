@@ -1594,7 +1594,7 @@ body {
   background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #horas-extra-page) .rh-sol-filters-card {
   box-shadow:
     0 8px 22px rgba(15, 23, 42, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
@@ -1752,7 +1752,7 @@ body {
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, rgba(255, 255, 255, 0.5) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-table-section {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #horas-extra-page) .rh-sol-table-section {
   border-radius: 1rem;
   overflow: hidden;
 }
