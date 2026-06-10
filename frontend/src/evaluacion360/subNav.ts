@@ -27,13 +27,10 @@ export function parseEval360ViewFromHash(hash: string): Eval360ViewId {
 
 export function renderEval360SubNav(active: Eval360ViewId): string {
   return `
-    <nav class="flex flex-wrap gap-1 rounded-xl border border-border bg-white p-1" aria-label="Secciones Evaluación 360°">
+    <nav class="e360-page-tabs" role="tablist" aria-label="Secciones Evaluación 360°">
       ${EVAL360_VIEWS.map((v) => {
         const isActive = v.id === active;
-        const cls = isActive
-          ? "rounded-lg bg-leoni-blue px-3 py-2 text-xs font-semibold text-white shadow-sm"
-          : "rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100";
-        return `<a href="${escapeHtml(v.hash)}" class="${cls}" ${isActive ? 'aria-current="page"' : ""}>${escapeHtml(v.label)}</a>`;
+        return `<a href="${escapeHtml(v.hash)}" role="tab" aria-selected="${isActive}" ${isActive ? 'aria-current="page"' : ""} class="e360-page-tab ${isActive ? "e360-page-tab--active" : ""}">${escapeHtml(v.label)}</a>`;
       }).join("")}
     </nav>`;
 }

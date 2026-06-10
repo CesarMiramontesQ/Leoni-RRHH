@@ -1,6 +1,13 @@
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
-import type { Eval360Filters, PlantKpisRh, TalentoSaludCard } from "../types.ts";
+import {
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
+  badgeCancelled,
+  badgeInProgress,
+  badgeRejected,
+} from "../../ui/uiTokens.ts";
+import type { Eval360Filters, KpiCard, PlantKpisRh, TalentoSaludCard } from "../types.ts";
 import { renderEval360Filters } from "../filters.ts";
 import {
   computeBrechaHeatmap,
@@ -14,49 +21,69 @@ import {
   MOCK_EMPLEADOS_EVAL360,
 } from "../rhDashboardData.ts";
 import { renderEval360ChartIds } from "../charts.ts";
-import { eval360Sparkline, renderSurfaceCard } from "../shared.ts";
+import { renderEval360KpiGrid, renderSurfaceCard } from "../shared.ts";
 
-const EXEC_KPIS_META = [
-  { key: "totalEvaluados" as const, label: "Total empleados evaluados", icon: "users", fmt: (v: number) => String(v) },
-  { key: "completadas" as const, label: "Evaluaciones completadas", icon: "check", fmt: (v: number) => String(v) },
-  { key: "participacionPct" as const, label: "Participación general", icon: "target", fmt: (v: number) => String(v), suffix: "%" },
-  { key: "promedioPlanta" as const, label: "Promedio general planta", icon: "star", fmt: (v: number) => v.toFixed(1), suffix: "/5" },
-  { key: "competenciasRiesgo" as const, label: "Competencias en riesgo", icon: "warn", fmt: (v: number) => String(v) },
-  { key: "brechasCriticas" as const, label: "Brechas críticas detectadas", icon: "alert", fmt: (v: number) => String(v) },
-];
+const DEMO_SPARK = [12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
 
-const KPI_ICONS: Record<string, string> = {
-  users: `<path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  check: `<path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  target: `<path d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0 0v.008H12V15Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  star: `<path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  warn: `<path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  alert: `<path d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" />`,
-};
-
-function renderExecKpis(kpis: PlantKpisRh): string {
-  const sparks = [12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
-  return `
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-    ${EXEC_KPIS_META.map((m) => {
-      const raw = kpis[m.key];
-      const value = m.fmt(raw);
-      return `
-      <div class="rounded-xl border border-border bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-        <div class="flex items-start justify-between gap-2">
-          <p class="text-xs font-medium text-text-muted">${escapeHtml(m.label)}</p>
-          <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-light text-accent" aria-hidden="true">
-            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">${KPI_ICONS[m.icon]}</svg>
-          </span>
-        </div>
-        <div class="mt-2 flex items-end justify-between gap-2">
-          <p class="text-2xl font-bold tabular-nums text-text-primary">${value}${m.suffix ? `<span class="text-sm font-medium text-slate-400">${m.suffix}</span>` : ""}</p>
-          ${eval360Sparkline(sparks, "var(--color-accent, #2563EB)")}
-        </div>
-        <p class="mt-2 text-[11px] text-slate-500">vs. ciclo anterior</p>
-      </div>`;
-    }).join("")}
-  </div>`;
+function plantKpisToKpiCards(kpis: PlantKpisRh): KpiCard[] {
+  return [
+    {
+      label: "Total empleados evaluados",
+      value: String(kpis.totalEvaluados),
+      icon: "users",
+      spark: DEMO_SPARK,
+      delta: "+4",
+      deltaPositive: true,
+      sub: "vs. ciclo anterior",
+    },
+    {
+      label: "Evaluaciones completadas",
+      value: String(kpis.completadas),
+      icon: "check",
+      spark: DEMO_SPARK,
+      delta: "+12%",
+      deltaPositive: true,
+      sub: "vs. ciclo anterior",
+    },
+    {
+      label: "Participación general",
+      value: String(kpis.participacionPct),
+      suffix: "%",
+      icon: "target",
+      spark: DEMO_SPARK,
+      delta: "+5 pts",
+      deltaPositive: true,
+      sub: "vs. ciclo anterior",
+    },
+    {
+      label: "Promedio general planta",
+      value: kpis.promedioPlanta.toFixed(1),
+      suffix: "/5",
+      icon: "star",
+      spark: DEMO_SPARK,
+      delta: "+0.2",
+      deltaPositive: true,
+      sub: "vs. ciclo anterior",
+    },
+    {
+      label: "Competencias en riesgo",
+      value: String(kpis.competenciasRiesgo),
+      icon: "warn",
+      spark: DEMO_SPARK,
+      delta: "-2",
+      deltaPositive: true,
+      sub: "vs. ciclo anterior",
+    },
+    {
+      label: "Brechas críticas detectadas",
+      value: String(kpis.brechasCriticas),
+      icon: "alert",
+      spark: DEMO_SPARK,
+      delta: "+1",
+      deltaPositive: false,
+      sub: "vs. ciclo anterior",
+    },
+  ];
 }
 
 function renderTalentoSalud(cards: TalentoSaludCard[]): string {
@@ -71,14 +98,14 @@ function renderTalentoSalud(cards: TalentoSaludCard[]): string {
     ${cards
       .map(
         (c) => `
-      <div class="rounded-xl border p-4 ${tone[c.segmento]}">
+      <article class="rounded-[14px] border p-4 ${tone[c.segmento]}">
         <p class="text-xs font-semibold text-text-primary">${escapeHtml(c.label)}</p>
-        <p class="mt-2 text-2xl font-bold tabular-nums text-text-primary">${c.cantidad}</p>
-        <div class="mt-2 flex items-center justify-between">
-          <span class="text-sm font-semibold tabular-nums text-slate-700">${c.pct}%</span>
+        <p class="mt-2 text-2xl font-bold tabular-nums tracking-tight text-text-primary">${c.cantidad}</p>
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <span class="text-sm font-semibold tabular-nums text-text-primary">${c.pct}%</span>
           <span class="text-[10px] font-semibold ${c.deltaPositive ? "text-emerald-700" : "text-red-700"}">${c.deltaPositive ? "↑" : "↓"} ${escapeHtml(c.delta)} vs ciclo ant.</span>
         </div>
-      </div>`,
+      </article>`,
       )
       .join("")}
   </div>`;
@@ -100,6 +127,12 @@ function brechaHeatmapCell(nivel: string): string {
   return `<div class="flex h-10 items-center justify-center rounded text-[10px] font-semibold ${map[nivel] ?? map.baja}">${labels[nivel] ?? nivel}</div>`;
 }
 
+function capacitacionPrioridadBadge(prioridad: string): string {
+  if (prioridad === "Alta") return badgeRejected(prioridad);
+  if (prioridad === "Media") return badgeInProgress(prioridad);
+  return badgeCancelled(prioridad);
+}
+
 export interface RhDashboardRenderOpts {
   filters: Eval360Filters;
 }
@@ -115,7 +148,7 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
   const brechaCritica = getBrechaCriticaList(filtered);
   const capacitacion = getNecesidadesCapacitacion(filtered);
 
-  const heatmapHeader = heatmap.competencias.map((c) => `<th class="px-2 py-2 text-[10px] font-semibold text-text-muted">${escapeHtml(c)}</th>`).join("");
+  const heatmapHeader = heatmap.competencias.map((c) => `<th class="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(c)}</th>`).join("");
   const heatmapRows = heatmap.departamentos
     .map(
       (dept, di) => `
@@ -132,7 +165,7 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
     <section class="mt-6" aria-labelledby="e360-seccion-planta">
       <h2 id="e360-seccion-planta" class="text-sm font-semibold text-text-primary">Resumen general de planta</h2>
       <p class="mt-0.5 text-xs text-text-muted">${filtered.length} empleados en el universo filtrado</p>
-      <div class="mt-4">${renderExecKpis(kpis)}</div>
+      <div class="mt-4">${renderEval360KpiGrid(plantKpisToKpiCards(kpis))}</div>
 
       <div class="mt-6">
         <h3 class="text-sm font-semibold text-text-primary">Salud de talento de la planta</h3>
@@ -157,7 +190,7 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
         ${renderSurfaceCard(
           "Top empleados destacados",
           "",
-          `<ul class="space-y-3">${topDestacados.map((e) => `<li class="flex items-start justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(e.nombre)}</p><p class="text-xs text-text-muted">${escapeHtml(e.puesto)} · ${escapeHtml(e.departamento)}</p></div><div class="text-right"><p class="text-sm font-bold tabular-nums text-accent">${e.calificacion.toFixed(1)}</p><p class="text-[10px] text-emerald-700">${escapeHtml(e.nivel)}</p></div></li>`).join("") || `<p class="text-sm text-text-muted">Sin datos</p>`}</ul>`,
+          `<ul class="space-y-3">${topDestacados.map((e) => `<li class="flex items-start justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(e.nombre)}</p><p class="text-xs text-text-muted">${escapeHtml(e.puesto)} · ${escapeHtml(e.departamento)}</p></div><div class="text-right"><p class="text-sm font-bold tabular-nums text-accent">${e.calificacion.toFixed(1)}</p><p class="text-[10px] font-semibold text-emerald-700">${escapeHtml(e.nivel)}</p></div></li>`).join("") || `<p class="text-sm text-text-muted">Sin datos</p>`}</ul>`,
         )}
         ${renderSurfaceCard(
           "Empleados con brecha crítica",
@@ -167,7 +200,7 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
         ${renderSurfaceCard(
           "Necesidades de capacitación",
           "Agrupado por competencia",
-          `<ul class="space-y-3">${capacitacion.map((n) => `<li class="flex items-center justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(n.competencia)}</p><p class="text-xs text-text-muted">${n.afectados} empleados</p></div><span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold ${n.prioridad === "Alta" ? "border-red-200 bg-red-50 text-red-800" : n.prioridad === "Media" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-100 text-slate-700"}">${n.prioridad}</span></li>`).join("") || `<p class="text-sm text-text-muted">Sin necesidades detectadas</p>`}</ul>`,
+          `<ul class="space-y-3">${capacitacion.map((n) => `<li class="flex items-center justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(n.competencia)}</p><p class="text-xs text-text-muted">${n.afectados} empleados</p></div>${capacitacionPrioridadBadge(n.prioridad)}</li>`).join("") || `<p class="text-sm text-text-muted">Sin necesidades detectadas</p>`}</ul>`,
         )}
       </div>
     </section>`;
@@ -175,18 +208,18 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
 
 export function renderEval360RhHeader(): string {
   return `
-    <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <header class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p class="text-xs font-medium text-text-muted">Level Up · Recursos Humanos</p>
         <h1 class="mt-0.5 text-xl font-bold text-text-primary">Evaluación 360°</h1>
         <p class="mt-1 text-sm text-text-muted">Vista integral de desempeño, competencias y brechas de talento por planta.</p>
       </div>
-      <div class="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
-        <button type="button" class="${BTN_GHOST}" data-action="e360-exportar">Exportar resultados</button>
-        <button type="button" class="${BTN_SECONDARY}" data-action="e360-generar-reporte">Generar reporte</button>
-        <button type="button" class="${BTN_PRIMARY}" data-action="e360-open-modal">Nueva campaña</button>
+      <div class="rh-sol-header__toolbar mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
+        <button type="button" class="${RH_LISTADO_BTN_GHOST}" data-action="e360-exportar">Exportar resultados</button>
+        <button type="button" class="${RH_LISTADO_BTN_SECONDARY}" data-action="e360-generar-reporte">Generar reporte</button>
+        <button type="button" class="${RH_LISTADO_BTN_PRIMARY}" data-action="e360-open-modal">Nueva campaña</button>
       </div>
-    </div>`;
+    </header>`;
 }
 
 /** Datos de gráfica competencias/depto para mount charts. */

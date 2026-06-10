@@ -114,7 +114,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
         ${renderLevelUpBackBar()}
         ${renderHeader(state.view)}
         <div class="mt-4">${renderEval360SubNav(state.view)}</div>
-        <div id="eval360-content" class="mt-5">${renderViewContent(state)}</div>
+        <div id="eval360-content">${renderViewContent(state)}</div>
       </div>`;
     const content = pageRoot.querySelector("#eval360-content");
     if (content) mountViewCharts(content as HTMLElement, state);

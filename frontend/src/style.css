@@ -2209,6 +2209,57 @@ body {
   padding-top: 1rem;
 }
 
+/* ── Evaluación 360° (#eval360-page) ───────────────────────────────────── */
+#eval360-page .e360-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  margin-top: 0.25rem;
+}
+
+#eval360-page .e360-page-tab {
+  position: relative;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  padding: 0.625rem 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+#eval360-page .e360-page-tab:hover {
+  color: #1e40af;
+  background: rgba(239, 246, 255, 0.65);
+}
+
+#eval360-page .e360-page-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+#eval360-page .e360-page-tab--active {
+  z-index: 2;
+  color: #1e40af;
+  border-color: rgba(226, 232, 240, 0.95);
+  border-bottom-color: #fff;
+  background: #fff;
+  box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.04);
+}
+
+#eval360-page #eval360-content {
+  padding-top: 1rem;
+}
+
 #competencias-root .comp-catalogo-scroll {
   max-height: min(62vh, 640px);
   overflow: auto;
