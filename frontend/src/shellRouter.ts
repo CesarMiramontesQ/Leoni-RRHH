@@ -47,6 +47,7 @@ import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
+import { destroyAllCharts } from "./charts/index.ts";
 import {
   mountAjustesPermisosRh,
   mountRhModuleAccessDenied,
@@ -111,6 +112,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   };
 
   const routeToHash = (container: HTMLElement, signal: AbortSignal, h: string): void => {
+    destroyAllCharts();
     if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
       mountRhSinPermisosDisponibles(container);
       return;
@@ -168,6 +170,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
+    if (h.startsWith("#/level-up/evaluacion-360")) {
+      void import("./pages/evaluacion360.ts").then(({ mountEvaluacion360 }) => {
+        mountEvaluacion360(container, signal);
+      });
+      return;
+    }
     if (h.startsWith("#/level-up/resumen")) {
       mountLevelUpDashboard(container);
       return;

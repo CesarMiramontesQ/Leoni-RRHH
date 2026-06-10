@@ -182,7 +182,8 @@ export function mountLogin(container: HTMLElement): void {
       void refreshNotificacionesResumen();
 
       await loadRhModulePermissions();
-      window.location.hash = resolveRhInitialHash("#/");
+      const initialHash = resolveRhInitialHash("#/");
+      history.replaceState(null, "", initialHash);
       mountAuthenticatedShell(container);
     } catch {
       errorEl.textContent = "Error de conexión. Verifica que el servidor esté activo.";

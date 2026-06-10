@@ -42,6 +42,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
   { itemId: "evaluaciones", hash: "#/evaluaciones" },
+  { itemId: "evaluacion-360", hash: "#/level-up/evaluacion-360" },
   { itemId: "capacidades", hash: "#/capacidades" },
   { itemId: "cursos", hash: "#/cursos" },
   { itemId: "sesiones", hash: "#/sesiones" },
@@ -99,6 +100,7 @@ export type AppShellNavItemId =
   | "comedor-menu"
   | "empleados"
   | "evaluaciones"
+  | "evaluacion-360"
   | "capacitaciones"
   | "reportes"
   | "puestos"
@@ -180,6 +182,7 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
+  if (itemId === "evaluacion-360") return navRol === "rh";
   if (RH_ONLY_NAV_IDS.has(itemId)) return navRol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return navRol === "rh" || navRol === "director" || navRol === "gerente";
   if (navRol === "supervisor" && rol !== "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
@@ -243,6 +246,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
   if (h.startsWith("#/evaluaciones")) return true;
+  if (h.startsWith("#/level-up/evaluacion-360")) return false;
   if (h.startsWith("#/capacitaciones")) return true;
   return true;
 }

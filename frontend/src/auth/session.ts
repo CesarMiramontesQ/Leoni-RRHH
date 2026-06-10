@@ -74,4 +74,7 @@ export function clearAuth(): void {
   void import("../notificaciones/notificacionesResumenStore.ts").then(({ resetNotificacionesResumen }) => {
     resetNotificacionesResumen();
   });
+  void import("../pages/dashboard.ts").then(({ resetRhDashboardSessionState }) => {
+    resetRhDashboardSessionState();
+  });
 }

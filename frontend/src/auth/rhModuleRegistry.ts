@@ -20,6 +20,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "competencias", prefix: "#/competencias" },
   { key: "evaluaciones", prefix: "#/evaluaciones" },
   { key: "capacitaciones", prefix: "#/capacitaciones" },
+  { key: "level-up", prefix: "#/level-up/evaluacion-360" },
   { key: "level-up", prefix: "#/level-up/resumen" },
   { key: "level-up", prefix: "#/level-up" },
   { key: "cursos", prefix: "#/cursos" },

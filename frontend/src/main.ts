@@ -20,7 +20,7 @@ async function bootstrap(): Promise<void> {
     if (getRolFromAccessToken() === "rh") {
       const initialHash = resolveRhInitialHash();
       if (initialHash !== (window.location.hash || "#/")) {
-        window.location.hash = initialHash;
+        history.replaceState(null, "", initialHash);
       }
     }
     mountAuthenticatedShell(app);

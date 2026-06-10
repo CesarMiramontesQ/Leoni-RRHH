@@ -62,7 +62,6 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     if (state.loading) return `<p class="text-sm text-slate-400">Cargando...</p>`;
     if (state.error) return `
       <div class="space-y-4">
-        <a href="#/sesiones" class="text-sm text-blue-600 hover:underline">← Volver a sesiones</a>
         <div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <p class="text-sm text-red-700">${escapeHtml(state.error)}</p>
         </div>

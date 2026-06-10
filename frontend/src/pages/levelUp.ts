@@ -782,10 +782,6 @@ export function mountCursos(container: HTMLElement): void {
     <div class="flex flex-col gap-5">
       ${renderLevelUpBackBar()}
       <div class="flex items-center gap-3">
-        <button data-action="back-to-list" class="${BTN_SECONDARY} gap-1.5">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-          Volver
-        </button>
         <h2 class="text-lg font-bold text-text-primary truncate">${escapeHtml(c.nombre)}</h2>
       </div>
 
@@ -1217,16 +1213,6 @@ export function mountCursos(container: HTMLElement): void {
 
   async function handleClick(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
-
-    if (t.closest("[data-action='back-to-list']")) {
-      state.detailCurso = null;
-      state.selectedEmpleados = new Set();
-      state.showAssignSesionPicker = false;
-      history.replaceState(null, "", "#/cursos");
-      render();
-      schedulePageScrollReset();
-      return;
-    }
 
     const viewBtn = t.closest<HTMLElement>("[data-action='view-curso']");
     if (viewBtn) {

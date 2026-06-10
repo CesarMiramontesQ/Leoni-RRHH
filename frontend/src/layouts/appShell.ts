@@ -108,6 +108,7 @@ export type ShellNavKey =
   | "tareas-catalogo"
   | "competencias"
   | "evaluaciones"
+  | "evaluacion-360"
   | "capacitaciones"
   | "capacidades"
   | "cursos"
@@ -865,4 +866,12 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   }, { signal });
 
   void loadNotificaciones();
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      void import("../charts/index.ts").then(({ retryPendingChartMounts }) => {
+        retryPendingChartMounts(container);
+      });
+    });
+  });
 }
