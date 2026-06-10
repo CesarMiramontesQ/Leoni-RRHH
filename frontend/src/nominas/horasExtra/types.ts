@@ -21,7 +21,6 @@ export type HorasExtraSummaryCard = {
 
 export type HorasExtraPageViewModel = {
   semanaLabel: string;
-  selectedCount: number;
   summaryCards: readonly HorasExtraSummaryCard[];
   tabs: readonly HorasExtraTab[];
   activeTabId: HorasExtraTabId;

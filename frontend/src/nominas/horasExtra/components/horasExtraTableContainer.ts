@@ -1,5 +1,5 @@
 import { escapeHtml } from "../../../ui/uiUtils.ts";
-import { BTN_GHOST, RH_LISTADO_SURFACE } from "../../../ui/uiTokens.ts";
+import { BTN_GHOST, FIELD_FOCUS, RH_LISTADO_SURFACE } from "../../../ui/uiTokens.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
 
 const TABLE_COLUMNS = [
@@ -29,9 +29,7 @@ function renderTabs(vm: HorasExtraPageViewModel): string {
       return `
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 border-b-2 px-1 pb-3 text-sm font-semibold transition ${activeCls} opacity-60 cursor-not-allowed"
-          disabled
-          aria-disabled="true"
+          class="inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-1 pb-3 text-sm font-semibold transition ${activeCls}"
           ${isActive ? 'aria-current="true"' : ""}
         >
           ${escapeHtml(tab.label)}
@@ -54,14 +52,17 @@ function renderPagination(vm: HorasExtraPageViewModel): string {
         <span class="text-text-muted">· ${escapeHtml(vm.semanaLabel)}</span>
       </p>
       <nav class="flex items-center gap-1" aria-label="Paginación">
-        <button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 text-text-muted opacity-50" disabled aria-label="Página anterior">‹</button>
+        <button type="button" class="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue" aria-label="Página anterior">‹</button>
         ${pages
           .map((page) => {
             const isActive = page === vm.currentPage;
-            return `<button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border text-xs font-semibold tabular-nums opacity-60 cursor-not-allowed ${isActive ? "border-leoni-blue bg-leoni-blue text-white" : "border-slate-200 bg-white text-text-secondary"}" disabled aria-label="Página ${page}" ${isActive ? 'aria-current="page"' : ""}>${page}</button>`;
+            const cls = isActive
+              ? "border-leoni-blue bg-leoni-blue text-white"
+              : "cursor-pointer border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue";
+            return `<button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border text-xs font-semibold tabular-nums ${cls}" aria-label="Página ${page}" ${isActive ? 'aria-current="page"' : ""}>${page}</button>`;
           })
           .join("")}
-        <button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 text-text-muted opacity-50" disabled aria-label="Página siguiente">›</button>
+        <button type="button" class="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue" aria-label="Página siguiente">›</button>
       </nav>
     </div>`;
 }
@@ -80,16 +81,14 @@ export function renderHorasExtraTableContainer(vm: HorasExtraPageViewModel): str
             <input
               type="search"
               placeholder="Buscar colaborador o C. cost..."
-              class="block w-full rounded-lg border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm text-text-primary shadow-sm opacity-60"
-              disabled
-              aria-disabled="true"
+              class="block w-full rounded-lg border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm text-text-primary shadow-sm ${FIELD_FOCUS}"
             />
           </label>
-          <button type="button" class="${BTN_GHOST} opacity-60 cursor-not-allowed" disabled aria-disabled="true">
+          <button type="button" class="${BTN_GHOST}">
             ${ICON_FILTER}
             Centro de costo
           </button>
-          <button type="button" class="${BTN_GHOST} opacity-60 cursor-not-allowed" disabled aria-disabled="true">
+          <button type="button" class="${BTN_GHOST}">
             ${ICON_USER}
             Gerente
           </button>
@@ -102,7 +101,7 @@ export function renderHorasExtraTableContainer(vm: HorasExtraPageViewModel): str
             <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
               <th scope="col" class="w-10 px-4 py-3 sm:px-5">
                 <span class="sr-only">Seleccionar</span>
-                <input type="checkbox" class="size-4 rounded border-slate-300 opacity-50" disabled aria-disabled="true" />
+                <input type="checkbox" class="size-4 cursor-pointer rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue/40" />
               </th>
               ${TABLE_COLUMNS.map(
                 (col) =>

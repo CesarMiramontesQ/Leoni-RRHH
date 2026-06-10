@@ -3,7 +3,6 @@ import type { HorasExtraPageViewModel } from "./types.ts";
 /** Datos estáticos de demostración — reemplazar por respuesta de API. */
 export const HORAS_EXTRA_MOCK_VIEW_MODEL: HorasExtraPageViewModel = {
   semanaLabel: "Semana 19",
-  selectedCount: 2,
   summaryCards: [
     {
       id: "total-horas",
