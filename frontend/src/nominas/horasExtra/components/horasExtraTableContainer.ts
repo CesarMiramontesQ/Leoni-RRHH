@@ -1,4 +1,4 @@
-import { escapeHtml } from "../../../ui/uiUtils.ts";
+import { escapeHtml, paginationRange } from "../../../ui/uiUtils.ts";
 import { RH_LISTADO_SURFACE } from "../../../ui/uiTokens.ts";
 import { renderHorasExtraTableBody } from "./horasExtraTableRows.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
@@ -15,9 +15,27 @@ const TABLE_COLUMNS = [
 ] as const;
 
 function renderPagination(vm: HorasExtraPageViewModel): string {
+  const visibleCount = vm.filas.length;
+  if (visibleCount === 0) return "";
+
   const start = (vm.currentPage - 1) * vm.pageSize + 1;
-  const end = Math.min(vm.currentPage * vm.pageSize, vm.totalRegistros);
-  const pages = Array.from({ length: vm.totalPages }, (_, i) => i + 1);
+  const end = start + visibleCount - 1;
+  const pages = paginationRange(vm.totalPages, vm.currentPage);
+  const prevDisabled = vm.currentPage <= 1;
+  const nextDisabled = vm.currentPage >= vm.totalPages;
+
+  const pageButtons = pages
+    .map((entry) => {
+      if (entry === "ellipsis") {
+        return `<span class="inline-flex size-8 items-center justify-center text-xs text-text-muted">…</span>`;
+      }
+      const isActive = entry === vm.currentPage;
+      const cls = isActive
+        ? "border-leoni-blue bg-leoni-blue text-white"
+        : "cursor-pointer border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue";
+      return `<button type="button" data-he-page="${entry}" class="inline-flex size-8 items-center justify-center rounded-lg border text-xs font-semibold tabular-nums ${cls}" aria-label="Página ${entry}" ${isActive ? 'aria-current="page"' : ""}>${entry}</button>`;
+    })
+    .join("");
 
   return `
     <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -27,17 +45,9 @@ function renderPagination(vm: HorasExtraPageViewModel): string {
         <span class="text-text-muted">· ${escapeHtml(vm.semanaLabel)}</span>
       </p>
       <nav class="flex items-center gap-1" aria-label="Paginación">
-        <button type="button" class="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue" aria-label="Página anterior">‹</button>
-        ${pages
-          .map((page) => {
-            const isActive = page === vm.currentPage;
-            const cls = isActive
-              ? "border-leoni-blue bg-leoni-blue text-white"
-              : "cursor-pointer border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue";
-            return `<button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border text-xs font-semibold tabular-nums ${cls}" aria-label="Página ${page}" ${isActive ? 'aria-current="page"' : ""}>${page}</button>`;
-          })
-          .join("")}
-        <button type="button" class="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue" aria-label="Página siguiente">›</button>
+        <button type="button" data-he-page="${vm.currentPage - 1}" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40" aria-label="Página anterior" ${prevDisabled ? "disabled" : ""}>‹</button>
+        ${pageButtons}
+        <button type="button" data-he-page="${vm.currentPage + 1}" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40" aria-label="Página siguiente" ${nextDisabled ? "disabled" : ""}>›</button>
       </nav>
     </div>`;
 }

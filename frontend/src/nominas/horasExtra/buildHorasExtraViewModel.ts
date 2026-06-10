@@ -83,7 +83,7 @@ export function buildHorasExtraViewModel(
     filterOptions,
     filtersStatus: opts.filtersStatus ?? "ready",
     estadoCounts: estadoCountsFromTabs(tabs),
-    filas: data.items,
+    filas: data.items.slice(0, data.page_size),
     totalRegistros: data.total,
     pageSize: data.page_size,
     currentPage: data.page,

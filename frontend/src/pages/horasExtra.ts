@@ -17,6 +17,8 @@ import {
   EMPTY_HORAS_EXTRA_FILTERS,
 } from "../nominas/horasExtra/types.ts";
 
+const PAGE_SIZE = 10;
+
 const SHELL_OPTS = {
   pageTitle: "Horas Extra",
   activeNav: "horas-extra" as const,
@@ -38,7 +40,7 @@ function loadingViewModel(): HorasExtraPageViewModel {
     estadoCounts: { todos: 0, pendientes: 0, aprobados: 0, rechazados: 0 },
     filas: [],
     totalRegistros: 0,
-    pageSize: 10,
+    pageSize: PAGE_SIZE,
     currentPage: 1,
     totalPages: 1,
     tableStatus: "loading",
@@ -54,10 +56,10 @@ function parseOptionalInt(value: string): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-function listParamsFromFilters(filters: HorasExtraFilters) {
+function listParamsFromFilters(filters: HorasExtraFilters, page = 1) {
   return {
-    page: 1,
-    page_size: 10,
+    page,
+    page_size: PAGE_SIZE,
     tab: filters.estado as HorasExtraTabFiltro,
     area_id: parseOptionalInt(filters.area_id),
     centrocosto_id: parseOptionalInt(filters.centrocosto_id),
@@ -75,13 +77,15 @@ function mergeFilterOptions(
 export function mountHorasExtra(container: HTMLElement): void {
   let filters: HorasExtraFilters = { ...EMPTY_HORAS_EXTRA_FILTERS };
   let filterOptions: HorasExtraFilterOptions = { ...EMPTY_HORAS_EXTRA_FILTER_OPTIONS };
+  let currentPage = 1;
 
   mountAppShell(container, {
     ...SHELL_OPTS,
     mainHtml: renderHorasExtraPage(loadingViewModel()),
   });
 
-  const refreshListado = async (pageRoot: HTMLElement) => {
+  const refreshListado = async (pageRoot: HTMLElement, page = currentPage) => {
+    currentPage = page;
     const listado = pageRoot.querySelector("#horas-extra-listado");
     if (listado) {
       listado.outerHTML = renderHorasExtraListado({
@@ -89,12 +93,13 @@ export function mountHorasExtra(container: HTMLElement): void {
         filters,
         filterOptions,
         filtersStatus: "ready",
+        currentPage,
         tableStatus: "loading",
       });
     }
 
     try {
-      const data = await getHorasExtraList(listParamsFromFilters(filters));
+      const data = await getHorasExtraList(listParamsFromFilters(filters, currentPage));
       filterOptions = mergeFilterOptions(
         filterOptions.areas,
         data.filter_options.centros_costo.map((cc) => ({ id: cc.id, label: cc.label })),
@@ -113,6 +118,7 @@ export function mountHorasExtra(container: HTMLElement): void {
           ...errorViewModel(detail),
           filters,
           filterOptions,
+          currentPage,
         });
       }
     }
@@ -126,7 +132,19 @@ export function mountHorasExtra(container: HTMLElement): void {
       if (!key) return;
 
       filters = { ...filters, [key]: target.value };
-      void refreshListado(pageRoot);
+      void refreshListado(pageRoot, 1);
+    });
+
+    pageRoot.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const pageBtn = target.closest<HTMLButtonElement>("[data-he-page]");
+      if (!pageBtn || pageBtn.disabled) return;
+
+      const nextPage = Number.parseInt(pageBtn.dataset.hePage ?? "", 10);
+      if (Number.isNaN(nextPage) || nextPage < 1 || nextPage === currentPage) return;
+
+      void refreshListado(pageRoot, nextPage);
     });
   };
 

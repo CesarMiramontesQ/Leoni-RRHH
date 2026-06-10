@@ -43,12 +43,10 @@ function renderCentroCostoOptions(
   return `<option value="" ${selected === "" ? "selected" : ""}>Todos los centros</option>${opts}`;
 }
 
-function renderEstadoOptions(filters: HorasExtraFilters, counts: HorasExtraPageViewModel["estadoCounts"]): string {
-  return ESTADO_OPTIONS.map(({ id, label }) => {
-    const count = counts[id] ?? 0;
-    const suffix = count > 0 ? ` (${count})` : "";
-    return `<option value="${id}" ${filters.estado === id ? "selected" : ""}>${escapeHtml(label)}${suffix}</option>`;
-  }).join("");
+function renderEstadoOptions(filters: HorasExtraFilters): string {
+  return ESTADO_OPTIONS.map(({ id, label }) =>
+    `<option value="${id}" ${filters.estado === id ? "selected" : ""}>${escapeHtml(label)}</option>`,
+  ).join("");
 }
 
 function renderSelectField(
@@ -101,7 +99,7 @@ export function renderHorasExtraFiltersBar(vm: HorasExtraPageViewModel): string 
           "he-filter-estado",
           "Estado",
           "estado",
-          renderEstadoOptions(filters, vm.estadoCounts),
+          renderEstadoOptions(filters),
           disabled,
         )}
       </div>
