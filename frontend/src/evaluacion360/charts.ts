@@ -8,7 +8,7 @@ export const E360_RADAR_CHART_ID = "e360-radar-competencias";
 export const E360_BAR_COMPARATIVO_ID = "e360-bar-comparativo";
 export const E360_LINE_EVOLUCION_ID = "e360-line-evolucion";
 export const E360_BAR_DEPT_ID = "e360-bar-departamento";
-export const E360_BAR_DEPT_COMP_ID = "e360-bar-dept-competencias";
+export const E360_RADAR_DEPT_COMP_ID = "e360-radar-dept-competencias";
 export const E360_LINE_EMPLEADO_ID = "e360-line-empleado-historico";
 
 export function renderEval360ChartIds(): {
@@ -26,7 +26,7 @@ export function renderEval360ChartIds(): {
     barComparativo: renderChartCanvas({ chartId: E360_BAR_COMPARATIVO_ID, ariaLabel: "Comparativo autoevaluación vs evaluadores", heightClass: "h-[260px]" }),
     lineEvolucion: renderChartCanvas({ chartId: E360_LINE_EVOLUCION_ID, ariaLabel: "Evolución histórica de calificación", heightClass: "h-[240px]" }),
     barDept: renderChartCanvas({ chartId: E360_BAR_DEPT_ID, ariaLabel: "Comparativo por departamento", heightClass: "h-[240px]" }),
-    barDeptComp: renderChartCanvas({ chartId: E360_BAR_DEPT_COMP_ID, ariaLabel: "Promedio de competencias por departamento", heightClass: "h-[300px]" }),
+    barDeptComp: renderChartCanvas({ chartId: E360_RADAR_DEPT_COMP_ID, ariaLabel: "Promedio de competencias por departamento", heightClass: "h-[320px]" }),
     lineEmpleado: renderChartCanvas({ chartId: E360_LINE_EMPLEADO_ID, ariaLabel: "Evolución histórica del empleado", heightClass: "h-[240px]" }),
   };
 }
@@ -34,7 +34,6 @@ export function renderEval360ChartIds(): {
 export function mountEval360RhDashboardCharts(
   root: ParentNode,
   competenciasDept: { departamentos: string[]; competencias: string[]; matrix: number[][] },
-  empleado?: EmpleadoEval360,
 ): void {
   const palette = [
     cssVar("--color-accent", "#2563EB"),
@@ -44,26 +43,46 @@ export function mountEval360RhDashboardCharts(
     cssVar("--color-danger", "#EF4444"),
   ];
 
-  mountChart(root, E360_BAR_DEPT_COMP_ID, ({ colors }) => ({
-    type: "bar",
+  const radarFillAlpha = 0.12;
+
+  mountChart(root, E360_RADAR_DEPT_COMP_ID, ({ colors }) => ({
+    type: "radar",
     data: {
-      labels: competenciasDept.departamentos,
-      datasets: competenciasDept.competencias.map((comp, i) => ({
-        label: comp,
-        data: competenciasDept.matrix.map((row) => row[i] ?? 0),
-        backgroundColor: palette[i % palette.length],
-        borderRadius: 4,
-      })),
+      labels: competenciasDept.competencias,
+      datasets: competenciasDept.departamentos.map((dept, i) => {
+        const color = palette[i % palette.length]!;
+        return {
+          label: dept,
+          data: competenciasDept.matrix[i] ?? [],
+          borderColor: color,
+          backgroundColor: colorWithAlpha(color, radarFillAlpha),
+          borderWidth: 2,
+          pointRadius: 2,
+        };
+      }),
     },
     options: {
-      ...chartCartesianScales(colors),
+      scales: {
+        r: {
+          min: 0,
+          max: 5,
+          ticks: { stepSize: 1, color: colors.textMuted, backdropColor: "transparent" },
+          grid: { color: colors.border },
+          pointLabels: { color: colors.textSecondary, font: { size: 10 } },
+        },
+      },
       plugins: { legend: { position: "bottom" } },
     },
   }));
+}
 
-  if (empleado) {
-    mountEval360EmployeeCharts(root, empleado);
-  }
+function colorWithAlpha(hex: string, alpha: number): string {
+  const raw = hex.replace("#", "").trim();
+  if (raw.length !== 6) return `rgba(37, 99, 235, ${alpha})`;
+  const r = Number.parseInt(raw.slice(0, 2), 16);
+  const g = Number.parseInt(raw.slice(2, 4), 16);
+  const b = Number.parseInt(raw.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function mountEval360EmployeeCharts(root: ParentNode, empleado: EmpleadoEval360): void {

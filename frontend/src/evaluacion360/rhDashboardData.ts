@@ -37,8 +37,8 @@ function mkEmp(
   nombre: string,
   numero: string,
   puesto: string,
-  departamento: string,
   area: string,
+  subarea: string,
   planta: string,
   turno: string,
   campana: string,
@@ -58,8 +58,9 @@ function mkEmp(
     nombre,
     numero,
     puesto,
-    departamento,
+    departamento: area,
     area,
+    subarea,
     planta,
     turno,
     campana,
@@ -111,16 +112,12 @@ export function filterEmpleadosEval360(
 ): EmpleadoEval360[] {
   const q = search.trim().toLowerCase();
   return empleados.filter((e) => {
-    if (filters.planta && e.planta !== filters.planta) return false;
-    if (filters.departamento && e.departamento !== filters.departamento) return false;
     if (filters.area && e.area !== filters.area) return false;
+    if (filters.subarea && e.subarea !== filters.subarea) return false;
     if (filters.puesto && e.puesto !== filters.puesto) return false;
-    if (filters.turno && e.turno !== filters.turno) return false;
-    if (filters.campana && e.campana !== filters.campana) return false;
-    if (filters.periodo && e.periodo !== filters.periodo) return false;
     if (filters.estado && e.estado !== filters.estado) return false;
     if (q) {
-      const hay = [e.nombre, e.numero, e.puesto, e.departamento].some((s) => s.toLowerCase().includes(q));
+      const hay = [e.nombre, e.numero, e.puesto, e.area, e.subarea].some((s) => s.toLowerCase().includes(q));
       if (!hay) return false;
     }
     return true;

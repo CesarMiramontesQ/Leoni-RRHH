@@ -15,7 +15,6 @@ import {
 } from "../rhDashboardData.ts";
 import { renderEval360ChartIds } from "../charts.ts";
 import { eval360Sparkline, evaluacionEstadoBadge, renderSurfaceCard } from "../shared.ts";
-import { renderEval360EmployeeDetail } from "./employeeDetail.ts";
 
 const EXEC_KPIS_META = [
   { key: "totalEvaluados" as const, label: "Total empleados evaluados", icon: "users", fmt: (v: number) => String(v) },
@@ -101,12 +100,10 @@ function brechaHeatmapCell(nivel: string): string {
   return `<div class="flex h-10 items-center justify-center rounded text-[10px] font-semibold ${map[nivel] ?? map.baja}">${labels[nivel] ?? nivel}</div>`;
 }
 
-function renderEmpleadosTable(empleados: EmpleadoEval360[], selectedId: string | null): string {
+function renderEmpleadosTable(empleados: EmpleadoEval360[]): string {
   const rows = empleados
-    .map((e) => {
-      const selected = e.id === selectedId;
-      return `
-    <tr class="border-b border-slate-100 hover:bg-slate-50/80 ${selected ? "bg-accent-light/40" : ""}">
+    .map((e) => `
+    <tr class="border-b border-slate-100 hover:bg-slate-50/80">
       <td class="px-4 py-3">
         <div class="flex items-center gap-2">
           <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">${escapeHtml(e.iniciales)}</span>
@@ -124,8 +121,7 @@ function renderEmpleadosTable(empleados: EmpleadoEval360[], selectedId: string |
       <td class="px-4 py-3">
         <button type="button" class="text-xs font-semibold text-accent hover:underline" data-action="e360-select-empleado" data-id="${escapeHtml(e.id)}">Ver evaluación</button>
       </td>
-    </tr>`;
-    })
+    </tr>`)
     .join("");
 
   return `
@@ -153,7 +149,6 @@ function renderEmpleadosTable(empleados: EmpleadoEval360[], selectedId: string |
 export interface RhDashboardRenderOpts {
   filters: Eval360Filters;
   search: string;
-  selectedEmployeeId: string | null;
 }
 
 export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
@@ -162,7 +157,6 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
   const salud = computeTalentoSalud(filtered);
   const heatmap = computeBrechaHeatmap(filtered);
   const charts = renderEval360ChartIds();
-  const selected = filtered.find((e) => e.id === opts.selectedEmployeeId) ?? filtered[0];
 
   const topDestacados = getTopDestacados(filtered);
   const brechaCritica = getBrechaCriticaList(filtered);
@@ -227,18 +221,12 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
 
     <section class="mt-10" aria-labelledby="e360-seccion-selector">
       <h2 id="e360-seccion-selector" class="text-sm font-semibold text-text-primary">Selector de empleado</h2>
-      <p class="mt-0.5 text-xs text-text-muted">Busque y seleccione un colaborador para revisar su evaluación 360° completa</p>
+      <p class="mt-0.5 text-xs text-text-muted">Busque colaboradores evaluados y acceda a su evaluación en la pestaña Resultados</p>
       <div class="mt-4 rounded-xl border border-border bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
         <label class="mb-1 block text-xs font-medium text-text-muted">Buscar empleado</label>
         <input type="search" name="e360-search" value="${escapeHtml(opts.search)}" placeholder="Nombre, número, puesto o departamento…" class="w-full max-w-xl rounded-lg border border-border px-3 py-2 text-sm" data-input="e360-search" />
-        <div class="mt-4">${renderEmpleadosTable(filtered, opts.selectedEmployeeId ?? selected?.id ?? null)}</div>
+        <div class="mt-4">${renderEmpleadosTable(filtered)}</div>
       </div>
-    </section>
-
-    <section id="e360-detalle-empleado" class="mt-10 scroll-mt-24" aria-labelledby="e360-seccion-detalle">
-      <h2 id="e360-seccion-detalle" class="text-sm font-semibold text-text-primary">Detalle individual del empleado</h2>
-      <p class="mt-0.5 text-xs text-text-muted">${selected ? `Mostrando evaluación de ${escapeHtml(selected.nombre)}` : "Seleccione un empleado en la tabla superior"}</p>
-      <div class="mt-4">${selected ? renderEval360EmployeeDetail(selected) : `<div class="rounded-xl border border-dashed border-border bg-white p-12 text-center text-sm text-text-muted">Seleccione «Ver evaluación» en la tabla para cargar el detalle 360°.</div>`}</div>
     </section>`;
 }
 
@@ -264,6 +252,5 @@ export function getDashboardChartData(opts: RhDashboardRenderOpts) {
   return {
     filtered,
     competenciasDept: computeCompetenciasPorDepartamento(filtered),
-    selected: filtered.find((e) => e.id === opts.selectedEmployeeId) ?? filtered[0],
   };
 }

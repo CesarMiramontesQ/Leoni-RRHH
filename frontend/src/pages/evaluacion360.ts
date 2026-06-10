@@ -30,7 +30,6 @@ interface State {
   showCampanaModal: boolean;
   filters: Eval360Filters;
   search: string;
-  selectedEmployeeId: string | null;
 }
 
 function forbiddenHtml(): string {
@@ -66,7 +65,6 @@ function renderViewContent(state: State): string {
       return renderEval360RhDashboard({
         filters: state.filters,
         search: state.search,
-        selectedEmployeeId: state.selectedEmployeeId,
       });
   }
 }
@@ -76,9 +74,8 @@ function mountViewCharts(root: HTMLElement, state: State): void {
     const data = getDashboardChartData({
       filters: state.filters,
       search: state.search,
-      selectedEmployeeId: state.selectedEmployeeId,
     });
-    mountEval360RhDashboardCharts(root, data.competenciasDept, data.selected);
+    mountEval360RhDashboardCharts(root, data.competenciasDept);
   } else if (state.view === "resultados") {
     mountEval360ResultadosCharts(root, RADAR_COMPETENCIAS);
   } else if (state.view === "reportes") {
@@ -102,7 +99,6 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     showCampanaModal: false,
     filters: { ...EMPTY_EVAL360_FILTERS },
     search: "",
-    selectedEmployeeId: null,
   };
 
   mountAppShell(container, {
@@ -114,7 +110,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
 
   const pageRoot = container.querySelector<HTMLElement>("#eval360-page")!;
 
-  function paint(scrollToDetail = false): void {
+  function paint(): void {
     destroyChartsIn(pageRoot);
     pageRoot.innerHTML = `
       <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
@@ -126,9 +122,6 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     const content = pageRoot.querySelector("#eval360-content");
     if (content) mountViewCharts(content as HTMLElement, state);
     bindEvents();
-    if (scrollToDetail) {
-      pageRoot.querySelector("#e360-detalle-empleado")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   }
 
   function bindEvents(): void {
@@ -152,8 +145,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
 
     pageRoot.querySelectorAll('[data-action="e360-select-empleado"]').forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.selectedEmployeeId = btn.getAttribute("data-id");
-        paint(true);
+        window.location.hash = `${EVAL360_BASE_HASH}/resultados`;
       });
     });
 

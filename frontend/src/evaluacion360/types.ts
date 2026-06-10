@@ -37,13 +37,9 @@ export interface KpiCard {
 }
 
 export interface Eval360Filters {
-  planta: string;
-  departamento: string;
   area: string;
+  subarea: string;
   puesto: string;
-  turno: string;
-  campana: string;
-  periodo: string;
   estado: string;
 }
 
@@ -117,6 +113,7 @@ export interface EmpleadoEval360 {
   puesto: string;
   departamento: string;
   area: string;
+  subarea: string;
   planta: string;
   turno: string;
   campana: string;
