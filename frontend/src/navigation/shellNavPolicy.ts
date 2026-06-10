@@ -161,7 +161,7 @@ const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "opls", "evidencias", "sugerencias", "encuestas", "evaluacion-360", "level-up",
+  "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
@@ -182,6 +182,7 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
+  if (itemId === "evaluacion-360") return navRol === "rh";
   if (RH_ONLY_NAV_IDS.has(itemId)) return navRol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return navRol === "rh" || navRol === "director" || navRol === "gerente";
   if (navRol === "supervisor" && rol !== "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
@@ -245,6 +246,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
   if (h.startsWith("#/evaluaciones")) return true;
+  if (h.startsWith("#/level-up/evaluacion-360")) return false;
   if (h.startsWith("#/capacitaciones")) return true;
   return true;
 }

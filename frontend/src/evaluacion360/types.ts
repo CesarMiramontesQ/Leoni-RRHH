@@ -21,6 +21,10 @@ export type TipoEvaluador =
 
 export type BrechaEstado = "cumple" | "riesgo" | "brecha";
 
+export type BrechaHeatmapNivel = "ninguna" | "baja" | "media" | "critica";
+
+export type TalentoSegmento = "sobresaliente" | "estable" | "desarrollo" | "riesgo";
+
 export interface KpiCard {
   label: string;
   value: string;
@@ -30,6 +34,17 @@ export interface KpiCard {
   delta: string;
   deltaPositive: boolean;
   sub: string;
+}
+
+export interface Eval360Filters {
+  planta: string;
+  departamento: string;
+  area: string;
+  puesto: string;
+  turno: string;
+  campana: string;
+  periodo: string;
+  estado: string;
 }
 
 export interface Campana360 {
@@ -93,6 +108,52 @@ export interface PerfilEvaluado {
   calificacionGeneral: number;
   nivel: string;
   iniciales: string;
+}
+
+export interface EmpleadoEval360 {
+  id: string;
+  nombre: string;
+  numero: string;
+  puesto: string;
+  departamento: string;
+  area: string;
+  planta: string;
+  turno: string;
+  campana: string;
+  periodo: string;
+  estado: EvaluacionEstado;
+  calificacion: number;
+  nivel: string;
+  brechaPrincipal: string;
+  segmento: TalentoSegmento;
+  supervisor: string;
+  antiguedad: string;
+  iniciales: string;
+  competencias: CompetenciaPuntuacion[];
+  comentarios: ComentarioGrupo[];
+  brechasPuesto: BrechaCompetencia[];
+  accionesRecomendadas: string[];
+  evolucion: { periodo: string; individual: number; departamento: number; planta: number }[];
+  participacion: { tipo: string; asignadas: number; completadas: number; pct: number }[];
+  distribucionEvaluadores: { tipo: string; valor: number }[];
+}
+
+export interface PlantKpisRh {
+  totalEvaluados: number;
+  completadas: number;
+  participacionPct: number;
+  promedioPlanta: number;
+  competenciasRiesgo: number;
+  brechasCriticas: number;
+}
+
+export interface TalentoSaludCard {
+  segmento: TalentoSegmento;
+  label: string;
+  cantidad: number;
+  pct: number;
+  delta: string;
+  deltaPositive: boolean;
 }
 
 export interface NineBoxCell {

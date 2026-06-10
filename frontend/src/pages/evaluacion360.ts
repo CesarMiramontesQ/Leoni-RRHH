@@ -1,46 +1,52 @@
+import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { destroyChartsIn } from "../charts/index.ts";
 import {
-  mountEval360DashboardCharts,
   mountEval360ReportesCharts,
   mountEval360ResultadosCharts,
+  mountEval360RhDashboardCharts,
 } from "../evaluacion360/charts.ts";
+import { EMPTY_EVAL360_FILTERS, readEval360FiltersFromDom } from "../evaluacion360/filters.ts";
 import { MOCK_CAMPANAS, MOCK_EVALUACIONES, RADAR_COMPETENCIAS } from "../evaluacion360/mockData.ts";
 import { EVAL360_BASE_HASH, parseEval360ViewFromHash, renderEval360SubNav } from "../evaluacion360/subNav.ts";
-import type { Eval360ViewId } from "../evaluacion360/types.ts";
+import type { Eval360Filters, Eval360ViewId } from "../evaluacion360/types.ts";
 import { renderEval360Campanas } from "../evaluacion360/views/campanas.ts";
 import { renderEval360Configuracion } from "../evaluacion360/views/configuracion.ts";
-import { renderEval360Dashboard } from "../evaluacion360/views/dashboard.ts";
+import {
+  getDashboardChartData,
+  renderEval360RhDashboard,
+  renderEval360RhHeader,
+} from "../evaluacion360/views/dashboardRh.ts";
 import { renderEval360Evaluaciones } from "../evaluacion360/views/evaluaciones.ts";
 import { renderEval360Reportes } from "../evaluacion360/views/reportes.ts";
 import { renderEval360Resultados } from "../evaluacion360/views/resultados.ts";
-import { BTN_PRIMARY, BTN_SECONDARY, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
+import { htmlAccessDenied, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
 
 const PAGE_SHELL = RH_DASHBOARD_PAGE_SHELL;
 
 interface State {
   view: Eval360ViewId;
   showCampanaModal: boolean;
+  filters: Eval360Filters;
+  search: string;
+  selectedEmployeeId: string | null;
+}
+
+function forbiddenHtml(): string {
+  return htmlAccessDenied({
+    title: "Acceso restringido",
+    description: "El módulo Evaluación 360° está disponible exclusivamente para usuarios con rol Recursos Humanos.",
+  });
 }
 
 function renderHeader(view: Eval360ViewId): string {
-  const showActions = view === "dashboard" || view === "campanas";
+  if (view === "dashboard") return renderEval360RhHeader();
   return `
-    <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-xs font-medium text-text-muted">Level Up · Desarrollo de talento</p>
-        <h1 class="mt-0.5 text-xl font-bold text-text-primary">Evaluación 360°</h1>
-        <p class="mt-1 text-sm text-text-muted">Análisis de competencias, desempeño y desarrollo de talento.</p>
-      </div>
-      ${
-        showActions
-          ? `<div class="mt-3 flex flex-wrap items-center gap-2 sm:mt-0">
-        <button type="button" class="${BTN_SECONDARY}" data-action="e360-generar-reporte">Generar reporte</button>
-        <button type="button" class="${BTN_PRIMARY}" data-action="e360-open-modal">Nueva campaña</button>
-      </div>`
-          : ""
-      }
+    <div class="flex flex-col gap-1">
+      <p class="text-xs font-medium text-text-muted">Level Up · Recursos Humanos</p>
+      <h1 class="mt-0.5 text-xl font-bold text-text-primary">Evaluación 360°</h1>
+      <p class="mt-1 text-sm text-text-muted">Vista integral de desempeño, competencias y brechas de talento por planta.</p>
     </div>`;
 }
 
@@ -57,24 +63,46 @@ function renderViewContent(state: State): string {
     case "configuracion":
       return renderEval360Configuracion();
     default:
-      return renderEval360Dashboard();
+      return renderEval360RhDashboard({
+        filters: state.filters,
+        search: state.search,
+        selectedEmployeeId: state.selectedEmployeeId,
+      });
   }
 }
 
-function mountViewCharts(root: HTMLElement, view: Eval360ViewId): void {
-  if (view === "dashboard") {
-    mountEval360DashboardCharts(root);
-  } else if (view === "resultados") {
+function mountViewCharts(root: HTMLElement, state: State): void {
+  if (state.view === "dashboard") {
+    const data = getDashboardChartData({
+      filters: state.filters,
+      search: state.search,
+      selectedEmployeeId: state.selectedEmployeeId,
+    });
+    mountEval360RhDashboardCharts(root, data.competenciasDept, data.selected);
+  } else if (state.view === "resultados") {
     mountEval360ResultadosCharts(root, RADAR_COMPETENCIAS);
-  } else if (view === "reportes") {
+  } else if (state.view === "reportes") {
     mountEval360ReportesCharts(root);
   }
 }
 
 export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal): void {
+  if (getRolFromAccessToken() !== "rh") {
+    mountAppShell(container, {
+      pageTitle: "Evaluación 360°",
+      activeNav: "evaluacion-360",
+      mainClass: "py-0",
+      mainHtml: `<div class="${PAGE_SHELL}"><div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">${renderLevelUpBackBar()}${forbiddenHtml()}</div></div>`,
+    });
+    return;
+  }
+
   const state: State = {
     view: parseEval360ViewFromHash(window.location.hash),
     showCampanaModal: false,
+    filters: { ...EMPTY_EVAL360_FILTERS },
+    search: "",
+    selectedEmployeeId: null,
   };
 
   mountAppShell(container, {
@@ -86,7 +114,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
 
   const pageRoot = container.querySelector<HTMLElement>("#eval360-page")!;
 
-  function paint(): void {
+  function paint(scrollToDetail = false): void {
     destroyChartsIn(pageRoot);
     pageRoot.innerHTML = `
       <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
@@ -96,11 +124,39 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
         <div id="eval360-content" class="mt-5">${renderViewContent(state)}</div>
       </div>`;
     const content = pageRoot.querySelector("#eval360-content");
-    if (content) mountViewCharts(content as HTMLElement, state.view);
+    if (content) mountViewCharts(content as HTMLElement, state);
     bindEvents();
+    if (scrollToDetail) {
+      pageRoot.querySelector("#e360-detalle-empleado")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   function bindEvents(): void {
+    pageRoot.querySelectorAll("[data-filter]").forEach((el) => {
+      el.addEventListener("change", () => {
+        state.filters = readEval360FiltersFromDom(pageRoot);
+        paint();
+      });
+    });
+
+    pageRoot.querySelector('[data-action="e360-clear-filters"]')?.addEventListener("click", () => {
+      state.filters = { ...EMPTY_EVAL360_FILTERS };
+      paint();
+    });
+
+    const searchInput = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-search"]');
+    searchInput?.addEventListener("input", () => {
+      state.search = searchInput.value;
+      paint();
+    });
+
+    pageRoot.querySelectorAll('[data-action="e360-select-empleado"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.selectedEmployeeId = btn.getAttribute("data-id");
+        paint(true);
+      });
+    });
+
     pageRoot.querySelector('[data-action="e360-open-modal"]')?.addEventListener("click", () => {
       state.showCampanaModal = true;
       if (state.view !== "campanas") {
@@ -119,6 +175,10 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       window.location.hash = `${EVAL360_BASE_HASH}/reportes`;
     });
 
+    pageRoot.querySelector('[data-action="e360-exportar"]')?.addEventListener("click", () => {
+      window.alert("Exportación de resultados 360° (demo).");
+    });
+
     pageRoot.querySelector('form[data-form="e360-nueva-campana"]')?.addEventListener("submit", (e) => {
       e.preventDefault();
       state.showCampanaModal = false;
@@ -127,8 +187,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
 
     pageRoot.querySelectorAll("[data-action^='e360-campana-']").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const action = btn.getAttribute("data-action");
-        if (action === "e360-campana-editar") {
+        if (btn.getAttribute("data-action") === "e360-campana-editar") {
           state.showCampanaModal = true;
           paint();
         }
