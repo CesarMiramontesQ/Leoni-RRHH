@@ -14,14 +14,7 @@ export function renderHorasExtraPageHeader(vm: Pick<HorasExtraPageViewModel, "se
   return `
     <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div class="min-w-0">
-        <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
-          <ol class="flex flex-wrap items-center gap-1">
-            <li><span class="font-medium">Nóminas</span></li>
-            <li class="text-slate-300" aria-hidden="true">/</li>
-            <li class="font-semibold text-text-primary" aria-current="page">Horas Extra</li>
-          </ol>
-        </nav>
-        <h1 class="mt-2 text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Gestión de horas extras</h1>
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Gestión de horas extras</h1>
         <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-secondary">
           Revisión y aprobación por centro de costo. La diferencia de caseta contrasta las horas reportadas contra el reloj checador de acceso.
         </p>
