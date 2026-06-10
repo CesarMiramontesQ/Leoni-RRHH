@@ -13,9 +13,11 @@ from app.schemas.incidencias import (
     IncidenciasSubareasResponse,
     IncidenciasTiposResponse,
 )
+from app.api.v1.incidencias.agent_router import router as incidencias_agent_router
 from app.services.incidencia_service import IncidenciaService
 
 router = APIRouter(prefix="/api/v1/incidencias", tags=["Incidencias"])
+router.include_router(incidencias_agent_router)
 
 
 def _svc(db: AsyncSession = Depends(get_db)) -> IncidenciaService:
