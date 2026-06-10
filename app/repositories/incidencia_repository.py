@@ -58,7 +58,20 @@ def build_incidencia_query_filters(
     if empleado_id is not None:
         conds.append(Incidencia.empleado_id == empleado_id)
     if no_empleado and no_empleado.strip():
-        conds.append(Incidencia.no_empleado.ilike(f"%{no_empleado.strip()}%"))
+        valor = no_empleado.strip()
+        variantes = {valor}
+        if valor.isdigit():
+            variantes.add(f"{valor}.0")
+        if valor.endswith(".0") and valor[:-2].isdigit():
+            variantes.add(valor[:-2])
+        conds.append(
+            or_(
+                *[
+                    Incidencia.no_empleado.ilike(f"%{v}%")
+                    for v in variantes
+                ]
+            )
+        )
     if nombre and nombre.strip():
         conds.append(Incidencia.nombre.ilike(f"%{nombre.strip()}%"))
     if fecha is not None:

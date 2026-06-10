@@ -6,7 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
+from app.agents.incidencias.context_filters import merge_context_filters
 from app.models.empleados import Empleado
+from app.schemas.incidencias import IncidenciasEstadisticasResponse
 from app.services.incidencia_service import IncidenciaService
 
 MAX_TOOL_JSON_CHARS = 4000
@@ -62,15 +64,19 @@ def _compact_json(data: Any) -> str:
     return raw[: MAX_TOOL_JSON_CHARS - 20] + "…[truncado]"
 
 
-def merge_context_filters(
-    args: dict[str, Any],
-    context: dict[str, Any] | None,
-) -> dict[str, Any]:
-    merged = dict(context or {})
-    for key, val in args.items():
-        if val is not None and val != "":
-            merged[key] = val
-    return merged
+def _slim_estadisticas_payload(stats: IncidenciasEstadisticasResponse) -> dict[str, Any]:
+    """Reduce payload para el agente: evita series largas que rompen el JSON al truncar."""
+    d = stats.model_dump(mode="json")
+    return {
+        "total_incidencias": d.get("total_incidencias", 0),
+        "incidencias_seguridad": d.get("incidencias_seguridad", 0),
+        "incidencias_calidad": d.get("incidencias_calidad", 0),
+        "empleados_con_mas_incidencias": (d.get("empleados_con_mas_incidencias") or [])[:5],
+        "incidencias_por_tipo": (d.get("incidencias_por_tipo") or [])[:12],
+        "areas_con_mas_incidencias": (d.get("areas_con_mas_incidencias") or [])[:5],
+        "subareas_con_mas_incidencias": (d.get("subareas_con_mas_incidencias") or [])[:5],
+        "incidencias_por_mes": (d.get("incidencias_por_mes") or [])[-12:],
+    }
 
 
 class IncidenciasAgentTools:
@@ -81,11 +87,13 @@ class IncidenciasAgentTools:
         *,
         rh_ui_mode: str | None = None,
         context_filters: dict[str, Any] | None = None,
+        user_message: str | None = None,
     ) -> None:
         self.svc = svc
         self.current_user = current_user
         self.rh_ui_mode = rh_ui_mode
         self.context_filters = context_filters or {}
+        self.user_message = user_message
 
     async def execute(self, tool: str, args: dict[str, Any]) -> tuple[str, bool]:
         if tool not in ALLOWED_TOOLS:
@@ -95,7 +103,9 @@ class IncidenciasAgentTools:
             )
         try:
             if tool == "consultar_estadisticas":
-                payload = merge_context_filters(args, self.context_filters)
+                payload = merge_context_filters(
+                    args, self.context_filters, user_message=self.user_message
+                )
                 parsed = ToolFilterArgs.model_validate(payload)
                 dump = parsed.model_dump(exclude_none=True)
                 agr = dump.pop("tendencia_agrupacion", None)
@@ -107,10 +117,12 @@ class IncidenciasAgentTools:
                     tendencia_agrupacion=agr,
                     **dump,
                 )
-                return _compact_json(stats.model_dump(mode="json")), True
+                return _compact_json(_slim_estadisticas_payload(stats)), True
 
             if tool == "listar_incidencias":
-                payload = merge_context_filters(args, self.context_filters)
+                payload = merge_context_filters(
+                    args, self.context_filters, user_message=self.user_message
+                )
                 parsed = ListarIncidenciasArgs.model_validate(payload)
                 page = parsed.page
                 dump = parsed.model_dump(exclude_none=True, exclude={"page", "tendencia_agrupacion"})
@@ -161,7 +173,9 @@ class IncidenciasAgentTools:
 
             if tool == "listar_subareas":
                 parsed = ListarSubareasArgs.model_validate(
-                    merge_context_filters(args, self.context_filters)
+                    merge_context_filters(
+                        args, self.context_filters, user_message=self.user_message
+                    )
                 )
                 items = await self.svc.list_subareas_registradas(
                     self.current_user,
