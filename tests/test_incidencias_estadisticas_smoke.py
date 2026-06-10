@@ -180,9 +180,59 @@ async def test_estadisticas_filtra_areas_y_subareas_por_rango_fecha(
 
 
 @pytest.mark.asyncio
-async def test_catalogo_areas_y_subareas(client: AsyncClient, db, empleado_rh):
+async def test_catalogo_areas_resuelve_ids_numericos(client: AsyncClient, db, empleado_rh):
+    from app.models.catalogos import Area, Subarea
+
     db.add_all(
         [
+            Area(area_id=10, descripcion="Calidad", estatus_id=1),
+            Subarea(subarea_id=7, descripcion="Linea A", area_id=10, estatus_id=1),
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 2, 1),
+                area="10",
+                subarea="7",
+            ),
+            Incidencia(
+                tipo="tardanza",
+                empleado_id=empleado_rh.id,
+                fecha=date(2026, 2, 2),
+                area="Calidad",
+                subarea="Linea A",
+            ),
+        ]
+    )
+    await db.flush()
+    headers = await auth_headers(client, empleado_rh)
+
+    r_areas = await client.get("/api/v1/incidencias/areas", headers=headers)
+    assert r_areas.status_code == 200, r_areas.text
+    areas = r_areas.json()["items"]
+    assert "10" not in areas
+    assert areas == ["Calidad"]
+
+    r_sub = await client.get(
+        "/api/v1/incidencias/subareas",
+        params={"area": "Calidad"},
+        headers=headers,
+    )
+    assert r_sub.status_code == 200, r_sub.text
+    assert r_sub.json()["items"] == ["Linea A"]
+
+
+@pytest.mark.asyncio
+async def test_catalogo_areas_y_subareas(client: AsyncClient, db, empleado_rh):
+    from app.models.catalogos import Area, Subarea
+
+    db.add_all(
+        [
+            Area(area_id=1, descripcion="Produccion A", estatus_id=1),
+            Area(area_id=2, descripcion="Calidad", estatus_id=1),
+            Area(area_id=3, descripcion="Sin incidencias", estatus_id=1),
+            Subarea(subarea_id=1, descripcion="Linea 1", area_id=1, estatus_id=1),
+            Subarea(subarea_id=2, descripcion="Inspeccion", area_id=2, estatus_id=1),
+            Subarea(subarea_id=3, descripcion="Subarea extra", area_id=3, estatus_id=1),
             Incidencia(
                 tipo="tardanza",
                 empleado_id=empleado_rh.id,
@@ -205,14 +255,12 @@ async def test_catalogo_areas_y_subareas(client: AsyncClient, db, empleado_rh):
     r_areas = await client.get("/api/v1/incidencias/areas", headers=headers)
     assert r_areas.status_code == 200, r_areas.text
     areas = r_areas.json()["items"]
-    assert "Produccion A" in areas
-    assert "Calidad" in areas
+    assert areas == ["Calidad", "Produccion A", "Sin incidencias"]
 
     r_sub_all = await client.get("/api/v1/incidencias/subareas", headers=headers)
     assert r_sub_all.status_code == 200, r_sub_all.text
-    subs_all = set(r_sub_all.json()["items"])
-    assert "Linea 1" in subs_all
-    assert "Inspeccion" in subs_all
+    subs_all = r_sub_all.json()["items"]
+    assert subs_all == ["Inspeccion", "Linea 1", "Subarea extra"]
 
     r_sub_area = await client.get(
         "/api/v1/incidencias/subareas",

@@ -52,9 +52,13 @@ SELECT
     sh.observaciones,
     sh.area_empleado,
     sh.subarea_empleado,
+    a.descripcion AS area_nombre,
+    s.descripcion AS subarea_nombre,
     e.no_empleado AS bono_no_empleado,
     e.nombre AS bono_nombre_empleado
 FROM seguridad_historico sh
+LEFT JOIN areas a ON a.area_id = sh.area_empleado
+LEFT JOIN subareas s ON s.subarea_id = sh.subarea_empleado
 LEFT JOIN empleados e ON e.empleado_id = sh.id_empleado
 ORDER BY sh.id ASC
 """
@@ -140,8 +144,8 @@ def validar_fila_seguridad_historico(
         "id_empleado": id_empleado,
         "observaciones": observaciones,
         "fecha": fecha,
-        "area": _texto(row.get("area_empleado")),
-        "subarea": _texto(row.get("subarea_empleado")),
+        "area": _texto(row.get("area_nombre")),
+        "subarea": _texto(row.get("subarea_nombre")),
         "no_empleado": _texto(row.get("bono_no_empleado")),
         "nombre": _texto(row.get("bono_nombre_empleado")),
     }

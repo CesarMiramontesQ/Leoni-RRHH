@@ -4824,10 +4824,10 @@ paths:
   /api/v1/incidencias/areas:
     get:
       tags: [Incidencias]
-      summary: Listar áreas con incidencias registradas
+      summary: Listar áreas del catálogo organizacional
       description: >
-        Valores distintos de la columna `area` (vacíos como «(sin área)»), con el mismo alcance
-        por rol que el listado principal. Excluye tipos internos `progresivo` y `progresivo_historico`.
+        Todas las áreas activas (`estatus_id = 1`) del catálogo `areas`, ordenadas alfabéticamente.
+        Se usan como opciones del filtro de incidencias.
       operationId: incidencias_areas_list
       security:
         - BearerAuth: []
@@ -4842,10 +4842,10 @@ paths:
   /api/v1/incidencias/subareas:
     get:
       tags: [Incidencias]
-      summary: Listar subáreas con incidencias registradas
+      summary: Listar subáreas del catálogo organizacional
       description: >
-        Valores distintos de la columna `subarea` (vacíos como «(sin subárea)»), con el mismo
-        alcance por rol que el listado principal. Si se envía `area`, solo subáreas de esa área.
+        Todas las subáreas activas (`estatus_id = 1`) del catálogo `subareas`, ordenadas
+        alfabéticamente. Si se envía `area`, solo las subáreas vinculadas a esa área.
       operationId: incidencias_subareas_list
       security:
         - BearerAuth: []

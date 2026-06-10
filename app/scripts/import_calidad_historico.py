@@ -44,11 +44,15 @@ SELECT
     ch.fecha,
     ch.area_empleado,
     ch.subarea_empleado,
+    a.descripcion AS area_nombre,
+    s.descripcion AS subarea_nombre,
     ch.incidencia_categoria_id,
     cat.nombre AS categoria_nombre,
     e.no_empleado AS bono_no_empleado,
     e.nombre AS bono_nombre_empleado
 FROM calidad_historico ch
+LEFT JOIN areas a ON a.area_id = ch.area_empleado
+LEFT JOIN subareas s ON s.subarea_id = ch.subarea_empleado
 LEFT JOIN incidencia_categoria cat ON cat.id = ch.incidencia_categoria_id
 LEFT JOIN empleados e ON e.empleado_id = ch.id_empleado
 ORDER BY ch.id ASC
@@ -140,8 +144,8 @@ def validar_fila_calidad_historico(row: dict[str, Any]) -> tuple[bool, str | Non
         "id_empleado": id_empleado,
         "motivo": motivo,
         "fecha": fecha,
-        "area": _texto(row.get("area_empleado")),
-        "subarea": _texto(row.get("subarea_empleado")),
+        "area": _texto(row.get("area_nombre")),
+        "subarea": _texto(row.get("subarea_nombre")),
         "categoria": categoria_nombre,
         "no_empleado": _texto(row.get("bono_no_empleado")),
         "nombre": _texto(row.get("bono_nombre_empleado")),

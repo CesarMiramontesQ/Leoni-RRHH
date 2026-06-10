@@ -32,7 +32,9 @@ def build_incidencia_query_filters(
     fecha: date | None = None,
     categoria: str | None = None,
     area: str | None = None,
+    area_aliases: list[str] | None = None,
     subarea: str | None = None,
+    subarea_aliases: list[str] | None = None,
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
     origen: str | None = None,
@@ -65,14 +67,20 @@ def build_incidencia_query_filters(
         conds.append(Incidencia.categoria.ilike(f"%{categoria.strip()}%"))
     if origen and origen.strip():
         conds.append(Incidencia.origen == origen.strip())
-    if area and area.strip():
+    area_values = area_aliases if area_aliases else (
+        [area.strip()] if area and area.strip() else None
+    )
+    if area_values:
         sin_ar = literal("(sin área)", type_=String)
         area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
-        conds.append(area_key == area.strip())
-    if subarea and subarea.strip():
+        conds.append(area_key.in_(area_values))
+    subarea_values = subarea_aliases if subarea_aliases else (
+        [subarea.strip()] if subarea and subarea.strip() else None
+    )
+    if subarea_values:
         sin_sub = literal("(sin subárea)", type_=String)
         sub_key = func.coalesce(func.nullif(func.trim(Incidencia.subarea), ""), sin_sub)
-        conds.append(sub_key == subarea.strip())
+        conds.append(sub_key.in_(subarea_values))
     if fecha_inicio is not None:
         conds.append(
             and_(Incidencia.fecha.isnot(None), Incidencia.fecha >= fecha_inicio)
@@ -129,7 +137,7 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         self,
         filters: list | None = None,
         *,
-        area: str | None = None,
+        area_aliases: list[str] | None = None,
     ) -> list[str]:
         sin_sub = literal("(sin subárea)", type_=String)
         sub_key = func.coalesce(func.nullif(func.trim(Incidencia.subarea), ""), sin_sub)
@@ -137,10 +145,10 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         if filters:
             for condition in filters:
                 stmt = stmt.where(condition)
-        if area and area.strip():
+        if area_aliases:
             sin_ar = literal("(sin área)", type_=String)
             area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
-            stmt = stmt.where(area_key == area.strip())
+            stmt = stmt.where(area_key.in_(area_aliases))
         result = await self.db.execute(stmt)
         return [str(r[0]) for r in result.all()]
 
