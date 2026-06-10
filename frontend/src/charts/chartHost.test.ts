@@ -3,6 +3,7 @@ import {
   destroyChart,
   renderChartCanvas,
   renderChartLoadingSkeleton,
+  retryPendingChartMounts,
 } from "./chartHost.ts";
 
 describe("chartHost", () => {
@@ -21,5 +22,9 @@ describe("chartHost", () => {
 
   it("destroyChart no lanza si el id no existe", () => {
     expect(() => destroyChart("inexistente")).not.toThrow();
+  });
+
+  it("retryPendingChartMounts no lanza sin montajes pendientes", () => {
+    expect(() => retryPendingChartMounts()).not.toThrow();
   });
 });

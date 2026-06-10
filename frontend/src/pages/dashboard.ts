@@ -154,6 +154,12 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
 let rhDashLoadSeq = 0;
 let rhDashEmpleadosCache: RhDashboardEmpleadosSlice | null = null;
 
+/** Limpia caché y cancela cargas en curso (p. ej. al cerrar sesión). */
+export function resetRhDashboardSessionState(): void {
+  rhDashEmpleadosCache = null;
+  rhDashLoadSeq += 1;
+}
+
 async function loadRhDashboardEmpleados(): Promise<RhDashboardEmpleadosSlice> {
   if (rhDashEmpleadosCache) return rhDashEmpleadosCache;
   rhDashEmpleadosCache = await fetchRhDashboardEmpleados();

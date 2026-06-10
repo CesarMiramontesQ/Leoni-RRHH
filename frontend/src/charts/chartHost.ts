@@ -16,12 +16,18 @@ export type MountChartOptions = {
 };
 
 const registry = new Map<string, Chart>();
-const pendingMounts = new Map<string, { cancel: () => void }>();
+type PendingChartMount = {
+  cancel: () => void;
+  retry: () => void;
+};
+const pendingMounts = new Map<string, PendingChartMount>();
 
 /** Opciones de montaje activas (p. ej. `isStale` desde `runChartsAfterLayout`). */
 let activeMountOptions: MountChartOptions | undefined;
 
-const MAX_LAYOUT_FRAMES = 24;
+const MAX_LAYOUT_FRAMES = 60;
+const FORCE_MOUNT_MS = 2_500;
+let globalLayoutRetryBound = false;
 
 function defaultPluginOptions(colors: ChartSemanticColors): NonNullable<ChartConfiguration["options"]>["plugins"] {
   return {
@@ -119,6 +125,27 @@ function cancelPendingChartMount(chartId: string): void {
   pendingMounts.delete(chartId);
 }
 
+function bindGlobalChartLayoutRetry(): void {
+  if (globalLayoutRetryBound || typeof window === "undefined") return;
+  globalLayoutRetryBound = true;
+  const retry = (): void => {
+    retryPendingChartMounts();
+  };
+  window.addEventListener("resize", retry);
+  window.addEventListener("load", retry);
+  if (document.fonts?.ready) {
+    void document.fonts.ready.then(retry);
+  }
+}
+
+/** Reintenta montajes diferidos (p. ej. tras layout del app shell post-login). */
+export function retryPendingChartMounts(root?: ParentNode): void {
+  for (const pending of pendingMounts.values()) {
+    pending.retry();
+  }
+  if (root) resizeChartsIn(root);
+}
+
 function resolveMountOptions(options?: MountChartOptions): MountChartOptions | undefined {
   return options ?? activeMountOptions;
 }
@@ -161,16 +188,19 @@ function scheduleChartMount(
   buildConfig: ChartConfigFactory,
   options?: MountChartOptions,
 ): void {
+  bindGlobalChartLayoutRetry();
   cancelPendingChartMount(chartId);
 
   let rafId = 0;
   let observer: ResizeObserver | null = null;
+  let forceMountTimer: ReturnType<typeof setTimeout> | null = null;
   let frame = 0;
   let cancelled = false;
 
   const cleanup = (): void => {
     cancelled = true;
     if (rafId) cancelAnimationFrame(rafId);
+    if (forceMountTimer) clearTimeout(forceMountTimer);
     observer?.disconnect();
     observer = null;
     pendingMounts.delete(chartId);
@@ -181,7 +211,7 @@ function scheduleChartMount(
       `[data-chart-canvas][data-chart-id="${CSS.escape(chartId)}"]`,
     );
 
-  const tryMount = (): Chart | null => {
+  const tryMount = (force = false): Chart | null => {
     if (cancelled || options?.isStale?.()) {
       cleanup();
       return null;
@@ -191,7 +221,7 @@ function scheduleChartMount(
       cleanup();
       return null;
     }
-    if (!chartCanvasHostHasDimensions(canvas)) return null;
+    if (!force && !chartCanvasHostHasDimensions(canvas)) return null;
     cleanup();
     return createChartInstance(canvas, chartId, buildConfig);
   };
@@ -216,21 +246,29 @@ function scheduleChartMount(
       return;
     }
 
-    const host = chartHostElement(canvas);
-    if (host && typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(() => {
-        tryMount();
-      });
-      observer.observe(host);
-      tryMount();
-      return;
-    }
-
-    cleanup();
-    createChartInstance(canvas, chartId, buildConfig);
+    tryMount(true);
   };
 
-  pendingMounts.set(chartId, { cancel: cleanup });
+  const canvas = resolveCanvas();
+  const host = canvas ? chartHostElement(canvas) : null;
+  if (host && typeof ResizeObserver !== "undefined") {
+    observer = new ResizeObserver(() => {
+      tryMount();
+    });
+    observer.observe(host);
+  }
+
+  forceMountTimer = setTimeout(() => {
+    if (cancelled || registry.has(chartId) || options?.isStale?.()) return;
+    tryMount(true);
+  }, FORCE_MOUNT_MS);
+
+  pendingMounts.set(chartId, {
+    cancel: cleanup,
+    retry: () => {
+      tryMount();
+    },
+  });
   rafId = requestAnimationFrame(waitForLayout);
 }
 
@@ -299,19 +337,20 @@ export function runChartsAfterLayout(
   mount: () => void,
   options?: MountChartOptions,
 ): void {
+  bindGlobalChartLayoutRetry();
   activeMountOptions = options;
   try {
     mount();
-    requestAnimationFrame(() => {
+    const settle = (): void => {
       if (options?.isStale?.()) return;
+      retryPendingChartMounts(root);
       resizeChartsIn(root);
+    };
+    requestAnimationFrame(() => {
+      settle();
       requestAnimationFrame(() => {
-        if (options?.isStale?.()) return;
-        resizeChartsIn(root);
-        requestAnimationFrame(() => {
-          if (options?.isStale?.()) return;
-          resizeChartsIn(root);
-        });
+        settle();
+        requestAnimationFrame(settle);
       });
     });
   } finally {

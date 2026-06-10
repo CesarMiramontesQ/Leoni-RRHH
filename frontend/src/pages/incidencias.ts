@@ -17,7 +17,9 @@ import {
   mountIncidenciasAgentPanel,
   type IncidenciasAgentPanelHandle,
 } from "../components/incidencias/incidenciasAgentPanel.ts";
+import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
+import { destroyChart, destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
 import {
   mountRhIncidenciaDetalleModal,
   type RhIncidenciaDetalleModalHandle,
@@ -206,10 +208,17 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   let loadSeq = 0;
   let exportandoListado = false;
 
-  function paintVm(vm: RhIncidenciasAdminViewModel): void {
+  function paintVm(vm: RhIncidenciasAdminViewModel, chartOpts?: { isStale?: () => boolean }): void {
     const inner = container.querySelector("#rh-incidencias-inner");
     if (!inner) return;
+    destroyChartsIn(inner);
     inner.innerHTML = renderRhIncidenciasAdminView(vm);
+    if (!vm.ui.mostrarTarjetasEstadisticas || vm.estadisticasStatus !== "ready") return;
+    runChartsAfterLayout(
+      inner,
+      () => mountRhIncidenciasAnalyticsCharts(inner, vm, destroyChart, destroyChartsIn),
+      chartOpts,
+    );
   }
 
   async function loadSubareasCatalog(area: string): Promise<void> {
@@ -260,7 +269,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       }
     }
     if (isStale()) return;
-    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, filterCatalog, kpisHold));
+    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, filterCatalog, kpisHold), { isStale });
     try {
       const pageData = await fetchIncidenciasListPage(appliedFilters, page, 10);
       if (isStale()) return;
@@ -297,6 +306,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
           uiConfig,
           filterCatalog,
         ),
+        { isStale },
       );
     } catch (error) {
       if (isStale()) return;
@@ -318,6 +328,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
           uiConfig,
           filterCatalog,
         ),
+        { isStale },
       );
     }
   }

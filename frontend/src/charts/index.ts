@@ -23,6 +23,7 @@ export {
   renderChartCanvas,
   renderChartLoadingSkeleton,
   resizeChartsIn,
+  retryPendingChartMounts,
   runChartsAfterLayout,
   updateChart,
   type ChartConfigFactory,
