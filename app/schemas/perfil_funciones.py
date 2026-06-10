@@ -5,26 +5,20 @@ Tareas, Cualificaciones, Competencias Requeridas y Asignaciones individuales.
 """
 
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.catalogos_cualificacion import ESCOLARIDAD_KEYS, TIPOS_ESCOLARIDAD
+from app.schemas.cualificaciones_catalogo import (
+    OpcionCalificacionResponse,
+    validar_criterio_requerido,
+    validar_valor_capturado,
+)
 
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
 
 DivisionType = Literal["holding", "wsd", "wcs"]
-
-TipoCualificacion = Literal[
-    "estudios_finalizados",
-    "formacion_profesional",
-    "ampliacion_formacion",
-    "estudios_universitarios",
-    "experiencia_profesional",
-    "experiencia_direccion",
-    "complementos",
-]
 
 CategoriaCompetenciaRequerida = Literal[
     "informatica",
@@ -102,46 +96,19 @@ class PerfilTareaResponse(BaseModel):
 # ── Perfil Cualificaciones ──────────────────────────────────────────────────
 
 
-TIPOS_CON_ANIOS = ("experiencia_profesional", "experiencia_direccion")
-
-
 class PerfilCualificacionCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
-    tipo: TipoCualificacion
-    situacion_deseada: str = Field(..., min_length=1)
+    cualificacion_catalogo_id: int = Field(..., gt=0)
+    criterio_requerido: dict[str, Any]
     comentarios: Optional[str] = None
-    anios_minimos: Optional[int] = Field(None, ge=0)
-
-    @model_validator(mode="after")
-    def _validar_campos(self) -> "PerfilCualificacionCreate":
-        if self.tipo in TIPOS_ESCOLARIDAD and self.situacion_deseada not in ESCOLARIDAD_KEYS:
-            raise ValueError(
-                f"Para tipo '{self.tipo}', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
-            )
-        if self.anios_minimos is not None and self.tipo not in TIPOS_CON_ANIOS:
-            raise ValueError("anios_minimos solo aplica para experiencia_profesional o experiencia_direccion")
-        return self
 
 
 class PerfilCualificacionUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
-    tipo: Optional[TipoCualificacion] = None
-    situacion_deseada: Optional[str] = Field(None, min_length=1)
+    criterio_requerido: Optional[dict[str, Any]] = None
     comentarios: Optional[str] = None
-    anios_minimos: Optional[int] = Field(None, ge=0)
-
-    @model_validator(mode="after")
-    def _validar_campos(self) -> "PerfilCualificacionUpdate":
-        if self.tipo in TIPOS_ESCOLARIDAD and self.situacion_deseada is not None:
-            if self.situacion_deseada not in ESCOLARIDAD_KEYS:
-                raise ValueError(
-                    f"Para tipo '{self.tipo}', situacion_deseada debe ser una clave válida: {sorted(ESCOLARIDAD_KEYS)}"
-                )
-        if self.anios_minimos is not None and self.tipo is not None and self.tipo not in TIPOS_CON_ANIOS:
-            raise ValueError("anios_minimos solo aplica para experiencia_profesional o experiencia_direccion")
-        return self
 
 
 class PerfilCualificacionResponse(BaseModel):
@@ -149,10 +116,14 @@ class PerfilCualificacionResponse(BaseModel):
 
     id: int
     puesto_perfil_id: int
-    tipo: str
-    situacion_deseada: str
+    cualificacion_catalogo_id: Optional[int] = None
+    cualificacion_nombre: str = ""
+    tipo_nombre: str = ""
+    metodo_tipo: str = ""
+    metodo_config: dict[str, Any] = Field(default_factory=dict)
+    opciones: list[OpcionCalificacionResponse] = Field(default_factory=list)
+    criterio_requerido: Optional[dict[str, Any]] = None
     comentarios: Optional[str] = None
-    anios_minimos: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -162,6 +133,7 @@ class PerfilCualificacionResponse(BaseModel):
 
 class PerfilCompetenciaCreate(BaseModel):
     competencia_id: int
+    grado_id: int = Field(..., gt=0)
     nivel_requerido: int = Field(..., ge=1, le=4, description="Nivel mínimo requerido (1-4)")
 
 
@@ -175,7 +147,10 @@ class PerfilCompetenciaResponse(BaseModel):
     id: int
     competencia_id: int
     competencia_nombre: str = ""
-    subcategoria: Optional[str] = None
+    tipo_competencia_id: Optional[int] = None
+    tipo_nombre: Optional[str] = None
+    grado_id: int
+    grado_nombre: str = ""
     nivel_requerido: int = 0
     orden: Optional[int] = None
 
@@ -188,6 +163,7 @@ class PerfilFuncionesCreate(BaseModel):
 
     puesto_perfil_id: int
     empleado_id: int
+    grado_id: int = Field(..., gt=0)
     departamento: Optional[str] = Field(None, max_length=200)
     fecha_firma_superior: Optional[date] = None
     fecha_firma_empleado: Optional[date] = None
@@ -198,6 +174,7 @@ class PerfilFuncionesCreate(BaseModel):
 class PerfilFuncionesUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
+    grado_id: Optional[int] = Field(None, gt=0)
     departamento: Optional[str] = Field(None, max_length=200)
     fecha_firma_superior: Optional[date] = None
     fecha_firma_empleado: Optional[date] = None
@@ -212,6 +189,8 @@ class PerfilFuncionesResponse(BaseModel):
     id: int
     puesto_perfil_id: int
     empleado_id: int
+    grado_id: int
+    grado_nombre: str = ""
     nombre_empleado: Optional[str] = None
     no_empleado: Optional[str] = None
     departamento: Optional[str] = None
@@ -238,17 +217,15 @@ class PerfilFuncionesCualificacionCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     cualificacion_id: int
-    situacion_actual: str = Field(..., min_length=1)
+    valor_capturado: dict[str, Any]
     comentarios: Optional[str] = None
-    anios_actuales: Optional[int] = Field(None, ge=0)
 
 
 class PerfilFuncionesCualificacionUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
-    situacion_actual: Optional[str] = Field(None, min_length=1)
+    valor_capturado: Optional[dict[str, Any]] = None
     comentarios: Optional[str] = None
-    anios_actuales: Optional[int] = Field(None, ge=0)
 
 
 class PerfilFuncionesCualificacionResponse(BaseModel):
@@ -257,9 +234,9 @@ class PerfilFuncionesCualificacionResponse(BaseModel):
     id: int
     perfil_funciones_id: int
     cualificacion_id: int
-    situacion_actual: str
+    valor_capturado: Optional[dict[str, Any]] = None
     comentarios: Optional[str] = None
-    anios_actuales: Optional[int] = None
+    cumple: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
 
@@ -303,7 +280,8 @@ class PerfilCompetenciaSyncItem(BaseModel):
 
 
 class PerfilCompetenciaSyncBody(BaseModel):
-    subcategoria: str = Field(..., min_length=1)
+    grado_id: int = Field(..., gt=0)
+    tipo_competencia_id: int = Field(..., gt=0)
     competencias: list[PerfilCompetenciaSyncItem] = Field(default_factory=list)
     # Legado: si se envía sin `competencias`, se interpreta nivel 1 en altas nuevas.
     competencia_ids: list[int] | None = None

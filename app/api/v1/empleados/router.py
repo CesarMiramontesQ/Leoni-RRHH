@@ -13,7 +13,8 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, role_checker
+from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
+from app.core.rh_ui_mode import is_rh_gestor_team_ui_mode
 from app.models.empleados import Empleado
 from app.schemas.actas import ActasPageResponse
 from app.schemas.usuarios import (
@@ -53,21 +54,27 @@ def _rol_nombre(u: Empleado) -> str:
 @router.get("/resumen", response_model=UsuarioResumenResponse)
 async def resumen_empleados(
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if _rol_nombre(current_user) == "rh":
+    if _rol_nombre(current_user) == "rh" and not is_rh_gestor_team_ui_mode(
+        current_user, rh_ui_mode
+    ):
         return await svc.resumen_plantilla(current_user)
-    return await svc.resumen_directorio(current_user)
+    return await svc.resumen_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
 
 @router.get("/catalogo-filtros", response_model=CatalogoFiltrosResponse)
 async def catalogo_empleados(
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if _rol_nombre(current_user) == "rh":
+    if _rol_nombre(current_user) == "rh" and not is_rh_gestor_team_ui_mode(
+        current_user, rh_ui_mode
+    ):
         return await svc.catalogo_filtros(current_user)
-    return await svc.catalogo_directorio(current_user)
+    return await svc.catalogo_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
 
 @router.get("", response_model=UsuarioPageResponse)
@@ -101,10 +108,11 @@ async def list_empleados(
         description="Solo RH: administrativos activos sin email registrado (mismo criterio que KPI)",
     ),
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
     r = _rol_nombre(current_user)
-    if r == "rh":
+    if r == "rh" and not is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
         return await svc.list_usuarios_page(
             page=page,
             page_size=page_size,
@@ -124,7 +132,9 @@ async def list_empleados(
                 status_code=422,
                 detail="estatus debe ser activo, inactivo o permiso",
             )
-    use_lider_filtros = r in ("supervisor", "gerente")
+    use_lider_filtros = r in ("supervisor", "gerente") or is_rh_gestor_team_ui_mode(
+        current_user, rh_ui_mode
+    )
     return await svc.list_directorio_empleados_page(
         page=page,
         page_size=page_size,
@@ -132,6 +142,7 @@ async def list_empleados(
         area_id=area_id,
         puesto_id=puesto_id,
         current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
         estatus_filtro=estatus if use_lider_filtros else None,
         solo_contratos_por_vencer=solo_contratos_por_vencer if use_lider_filtros else False,
     )
@@ -184,18 +195,28 @@ async def get_empleado_foto(
 async def get_vista360(
     empleado_id: int,
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    return await svc.get_vista360(id=empleado_id, current_user=current_user)
+    return await svc.get_vista360(
+        id=empleado_id,
+        current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
+    )
 
 
 @router.get("/{empleado_id}/metricas", response_model=MetricasUsuarioResponse)
 async def get_metricas(
     empleado_id: int,
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    return await svc.get_metricas(id=empleado_id, current_user=current_user)
+    return await svc.get_metricas(
+        id=empleado_id,
+        current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
+    )
 
 
 @router.get("/{empleado_id}/actas", response_model=ActasPageResponse)

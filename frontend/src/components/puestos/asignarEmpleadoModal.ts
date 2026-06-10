@@ -1,7 +1,9 @@
 import { getEmpleadosPage } from "../../api/empleados.ts";
+import { getGradosPuesto } from "../../api/gradosPuesto.ts";
 import { createPerfilAsignacion } from "../../api/puestos.ts";
+import type { GradoPuesto } from "../../dashboard/gradosPuesto/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, RH_LISTADO_LABEL, RH_LISTADO_SELECT, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
 export type AsignarEmpleadoModalHandle = {
   open: () => void;
@@ -56,6 +58,16 @@ function overlayHtml(): string {
             </div>
             <div id="asignar-resultados" class="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
             <div id="asignar-seleccion" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 px-3 py-2.5"></div>
+            <div>
+              <label for="asignar-grado" class="${RH_LISTADO_LABEL}">Grado de progresión <span class="text-red-600">*</span></label>
+              <div class="grid grid-cols-1">
+                <select id="asignar-grado" name="grado_id" required class="col-start-1 row-start-1 ${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+                  <option value="">Cargando grados…</option>
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
+              <p class="mt-1 text-xs text-text-muted">El empleado se evaluará contra las competencias de este grado.</p>
+            </div>
             <p id="asignar-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
             <div class="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
               <button type="button" data-close-asignar-modal class="${BTN_GHOST} text-sm">Cancelar</button>
@@ -78,6 +90,8 @@ export function mountAsignarEmpleadoModal(
   const resultadosEl = host.querySelector("#asignar-resultados") as HTMLElement;
   const seleccionEl = host.querySelector("#asignar-seleccion") as HTMLElement;
   const errorEl = host.querySelector("#asignar-error") as HTMLElement;
+  const gradoSelect = host.querySelector("#asignar-grado") as HTMLSelectElement;
+  let gradosCatalogo: GradoPuesto[] = [];
   const submitBtn = host.querySelector("#asignar-submit") as HTMLButtonElement;
   const form = host.querySelector("#form-asignar-empleado") as HTMLFormElement;
 
@@ -91,6 +105,21 @@ export function mountAsignarEmpleadoModal(
     document.body.style.overflow = "";
     document.removeEventListener("keydown", escHandler);
     resetState();
+  }
+
+  async function loadGrados(): Promise<void> {
+    try {
+      gradosCatalogo = await getGradosPuesto({ page_size: 200 });
+      const defaultGrado = gradosCatalogo.find((g) => g.orden === 1) ?? gradosCatalogo[0];
+      gradoSelect.innerHTML = gradosCatalogo
+        .map(
+          (g) =>
+            `<option value="${g.id}" ${defaultGrado && g.id === defaultGrado.id ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+        )
+        .join("");
+    } catch {
+      gradoSelect.innerHTML = `<option value="">No se pudieron cargar grados</option>`;
+    }
   }
 
   function resetState(): void {
@@ -192,10 +221,21 @@ export function mountAsignarEmpleadoModal(
     submitBtn.disabled = true;
     submitBtn.textContent = "Asignando...";
 
+    const gradoId = Number(gradoSelect.value);
+    if (!Number.isFinite(gradoId) || gradoId <= 0) {
+      errorEl.textContent = "Selecciona un grado válido.";
+      errorEl.classList.remove("hidden");
+      loading = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Asignar";
+      return;
+    }
+
     try {
       await createPerfilAsignacion(options.perfilId, {
         puesto_perfil_id: options.perfilId,
         empleado_id: selectedEmpleado.empleado_id,
+        grado_id: gradoId,
       });
       close();
       options.onSuccess();
@@ -233,6 +273,7 @@ export function mountAsignarEmpleadoModal(
       document.body.style.overflow = "hidden";
       document.addEventListener("keydown", escHandler);
       resetState();
+      void loadGrados();
       setTimeout(() => searchInput.focus(), 100);
     },
     close,

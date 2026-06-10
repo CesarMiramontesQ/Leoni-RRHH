@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getMultihabilidadesPuestos,
   getMultihabilidadesData,
@@ -7,6 +8,13 @@ import {
   type MultihabilidadesEmpleado,
   type MultihabilidadesResponse,
 } from "../api/competencias.ts";
+import {
+  buildNivelMetodoLabelsMap,
+  buildNivelMetodoOptions,
+  nivelMetodoLabel,
+  nivelMetodoLegendTone,
+  setMetodosCalificacionCompetenciaCache,
+} from "../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   FIELD_FOCUS,
@@ -75,6 +83,7 @@ function kpiSkeletonCard(): string {
 function renderPageSkeleton(): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER}" aria-busy="true" aria-label="Cargando matriz">
+    ${renderLevelUpBackBar()}
     <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] animate-pulse">
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="h-10 rounded-lg bg-slate-100/90"></div>
@@ -102,6 +111,7 @@ function renderResultsSkeleton(): string {
 function renderError(msg: string): string {
   return `
   <div class="${RH_LISTADO_PAGE_OUTER}">
+    ${renderLevelUpBackBar()}
     <div class="flex min-h-[320px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-16 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]" role="alert">
       <div class="flex max-w-md flex-col items-center gap-4">
         <span class="flex size-14 items-center justify-center rounded-2xl bg-red-100 text-red-600">${ICON_ALERT}</span>
@@ -331,15 +341,18 @@ function renderSinNivelRequeridoBanner(competencias: MultihabilidadesCompetencia
 }
 
 function renderLegend(): string {
+  const badges = buildNivelMetodoOptions(false)
+    .map(
+      (o) =>
+        legendBadge(nivelMetodoLegendTone(o.value), o.label),
+    )
+    .join("");
   return `
   <section class="rounded-xl border border-slate-200/90 bg-slate-50/80 px-4 py-3.5 sm:px-5" aria-label="Leyenda de niveles de dominio">
     <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
       <span class="text-xs font-semibold uppercase tracking-wide text-text-secondary shrink-0">Nivel de dominio</span>
       <div class="flex flex-wrap items-center gap-2">
-        ${legendBadge("bg-red-100 ring-1 ring-red-200/80", "1 — Planeado")}
-        ${legendBadge("bg-orange-100 ring-1 ring-orange-200/80", "2 — En entrenamiento")}
-        ${legendBadge("bg-amber-100 ring-1 ring-amber-200/80", "3 — Certificado")}
-        ${legendBadge("bg-emerald-100 ring-1 ring-emerald-200/80", "4 — Experto")}
+        ${badges}
         ${legendBadge("bg-slate-50 ring-1 ring-dashed ring-slate-300", "0 — Sin evaluar")}
       </div>
       <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
@@ -359,7 +372,7 @@ function renderLevelCell(nivel: number, required: number): string {
   const cls = capCellClasses(nivel, required);
   const below = required > 0 && nivel < required;
   const display = nivel === 0 ? "—" : String(nivel);
-  const title = nivel === 0 ? "Sin evaluar" : `Nivel ${nivel}`;
+  const title = nivel === 0 ? "Sin evaluar" : nivelMetodoLabel(nivel, false);
   return `<td class="px-1 py-1.5 text-center align-middle">
     <span class="relative inline-flex size-8 items-center justify-center rounded-md text-xs font-bold tabular-nums ${cls}" title="${escapeHtml(title)}">
       ${below ? `<span class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true"></span>` : ""}
@@ -409,13 +422,11 @@ function renderHeatmap(
     </div>`;
   }
 
-  const nivelNames = ["—", "Planeado", "En entrenamiento", "Certificado", "Experto"];
+  const nivelNames = buildNivelMetodoLabelsMap(true);
   const colHeaders = competencias
     .map((c) => {
       const reqLabel = nivelNames[c.nivel_requerido] ?? "—";
-      const catLabel = c.subcategoria
-        ? c.subcategoria.charAt(0).toUpperCase() + c.subcategoria.slice(1)
-        : "General";
+      const catLabel = c.tipo_nombre || "General";
       return `<th scope="col" class="px-1 py-2 text-center align-bottom min-w-[2.75rem] cursor-help bg-[var(--color-grid-header-bg,#f8fafc)]" data-tooltip-name="${escapeHtml(c.competencia_nombre)}" data-tooltip-cat="${escapeHtml(catLabel)}" data-tooltip-req="${escapeHtml(reqLabel)}">
         <span class="cap-matriz-comp-label" title="${escapeHtml(c.competencia_nombre)}">${escapeHtml(c.competencia_nombre)}</span>
       </th>`;
@@ -549,6 +560,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
 
     let content = `
     <div class="${RH_LISTADO_PAGE_OUTER}">
+      ${renderLevelUpBackBar()}
       ${renderFilters(puestoOptions, selectedPuestoId, searchFilter)}`;
 
     if (!selectedPuestoId || !matrizData) {
@@ -602,6 +614,9 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
     try {
       const data = await getMultihabilidadesData(selectedPuestoId);
       if (version !== loadVersion) return;
+      if (data.metodos_calificacion?.length) {
+        setMetodosCalificacionCompetenciaCache(data.metodos_calificacion);
+      }
       matrizData = data;
       status = "ready";
     } catch (err: unknown) {

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -139,29 +139,45 @@ class EvaluacionHabilidadResponse(BaseModel):
 
 # ── Curso ────────────────────────────────────────────────────────────────────
 
+CategoriaCursoLiteral = Literal["tecnico", "calidad", "seguridad", "operativo", "blanda"]
+TipoCursoLiteral = Literal["interno", "externo"]
+ClasificacionCursoLiteral = Literal["adicional", "contemplado"]
+
 
 class CursoCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
-    nombre: str = Field(..., min_length=2, max_length=255)
+    nombre: str = Field(..., min_length=2, max_length=300)
     proveedor: Optional[str] = None
-    duracion_horas: int = Field(..., ge=1)
+    duracion_horas: Optional[float] = Field(None, gt=0)
     cupo_max: Optional[int] = Field(None, ge=1)
     instructor: Optional[str] = None
-    categoria: Literal["tecnico", "calidad", "seguridad", "operativo", "blanda"]
-    modalidad: str = Field(..., max_length=50)
+    categoria: Optional[CategoriaCursoLiteral] = None
+    modalidad: Optional[str] = Field(None, max_length=50)
     sesiones_anio: Optional[int] = Field(None, ge=1)
+    tipo: Optional[TipoCursoLiteral] = None
+    clasificacion: Optional[ClasificacionCursoLiteral] = None
+    obligatorio: bool = False
+    descripcion: Optional[str] = None
+    requisitos: Optional[str] = None
+    centro_costos: Optional[int] = None
 
 
 class CursoUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
-    nombre: Optional[str] = Field(None, min_length=2, max_length=255)
+    nombre: Optional[str] = Field(None, min_length=2, max_length=300)
     proveedor: Optional[str] = None
-    duracion_horas: Optional[int] = Field(None, ge=1)
+    duracion_horas: Optional[float] = Field(None, gt=0)
     cupo_max: Optional[int] = Field(None, ge=1)
     instructor: Optional[str] = None
-    categoria: Optional[Literal["tecnico", "calidad", "seguridad", "operativo", "blanda"]] = None
+    categoria: Optional[CategoriaCursoLiteral] = None
     modalidad: Optional[str] = Field(None, max_length=50)
     sesiones_anio: Optional[int] = Field(None, ge=1)
+    tipo: Optional[TipoCursoLiteral] = None
+    clasificacion: Optional[ClasificacionCursoLiteral] = None
+    obligatorio: Optional[bool] = None
+    descripcion: Optional[str] = None
+    requisitos: Optional[str] = None
+    centro_costos: Optional[int] = None
     activo: Optional[bool] = None
 
 
@@ -170,15 +186,81 @@ class CursoResponse(BaseModel):
     id: int
     nombre: str
     proveedor: Optional[str] = None
-    duracion_horas: int
+    duracion_horas: Optional[float] = None
     cupo_max: Optional[int] = None
     instructor: Optional[str] = None
-    categoria: str
-    modalidad: str
+    categoria: Optional[str] = None
+    modalidad: Optional[str] = None
     sesiones_anio: Optional[int] = None
+    tipo: Optional[str] = None
+    clasificacion: Optional[str] = None
+    obligatorio: bool
+    descripcion: Optional[str] = None
+    requisitos: Optional[str] = None
+    centro_costos: Optional[int] = None
     activo: bool
     created_at: datetime
     updated_at: datetime
+
+
+class CursoListResponse(BaseModel):
+    items: list[CursoResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+# ── CursoSesion ─────────────────────────────────────────────────────────────
+
+EstadoSesionLiteral = Literal["programada", "en_curso", "completada", "cancelada"]
+
+
+class CursoSesionCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    fecha_inicio: date
+    fecha_fin: Optional[date] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    ubicacion: Optional[str] = Field(None, max_length=255)
+    instructor: Optional[str] = Field(None, max_length=255)
+    cupo_max: Optional[int] = Field(None, ge=1)
+    notas: Optional[str] = None
+
+
+class CursoSesionUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    fecha_inicio: Optional[date] = None
+    fecha_fin: Optional[date] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    ubicacion: Optional[str] = Field(None, max_length=255)
+    instructor: Optional[str] = Field(None, max_length=255)
+    cupo_max: Optional[int] = Field(None, ge=1)
+    notas: Optional[str] = None
+    estado: Optional[EstadoSesionLiteral] = None
+
+
+class CursoSesionResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    curso_id: int
+    fecha_inicio: date
+    fecha_fin: Optional[date] = None
+    hora_inicio: Optional[time] = None
+    hora_fin: Optional[time] = None
+    ubicacion: Optional[str] = None
+    instructor: Optional[str] = None
+    cupo_max: Optional[int] = None
+    notas: Optional[str] = None
+    estado: str
+    inscritos_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class CursoSesionListResponse(BaseModel):
+    items: list[CursoSesionResponse]
+    total: int
 
 
 # ── OPL ──────────────────────────────────────────────────────────────────────

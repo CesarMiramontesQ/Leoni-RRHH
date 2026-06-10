@@ -128,6 +128,18 @@ export function resetNotificacionesResumen(): void {
   notify();
 }
 
+/** Actualiza el snapshot tras marcar todas como leídas (sin nueva petición HTTP). */
+export function applyMarcarTodasLeidasLocal(): void {
+  snapshot = {
+    ...snapshot,
+    unreadCount: 0,
+    recientes: snapshot.recientes.map((item) => ({ ...item, is_read: true })),
+    errorMessage: null,
+    status: snapshot.status === "idle" ? "idle" : "ready",
+  };
+  notify();
+}
+
 /**
  * Suscripción ligera para futuros refrescos en tiempo real (WebSocket / SSE).
  * El shell puede ignorarla y pintar solo tras `refreshNotificacionesResumen`.

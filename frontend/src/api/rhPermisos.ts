@@ -1,0 +1,89 @@
+import { fetchWithAuth } from "./http.ts";
+
+export type RhModuloCatalogItem = {
+  key: string;
+  label: string;
+  group: string;
+  nav_item_ids: string[];
+};
+
+export type RhPermisosMeResponse = {
+  rol: string;
+  puede_administrar_permisos_rh: boolean;
+  modulos: Record<string, boolean>;
+  inscrito: boolean;
+};
+
+export type RhUsuarioPermisosItem = {
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
+  email: string | null;
+  rol_nombre: string;
+  activo: boolean;
+  permisos_personalizados: boolean;
+  puede_administrar_permisos_rh: boolean;
+  modulos: Record<string, boolean>;
+  editable: boolean;
+};
+
+export type RhEmpleadoBusquedaItem = {
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
+  email: string | null;
+  rol_nombre: string;
+};
+
+export async function fetchRhPermisosMe(): Promise<RhPermisosMeResponse | null> {
+  const res = await fetchWithAuth("/api/v1/rh-permisos/me");
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`rh-permisos/me: ${res.status}`);
+  return (await res.json()) as RhPermisosMeResponse;
+}
+
+export async function fetchRhModulosCatalogo(): Promise<RhModuloCatalogItem[]> {
+  const res = await fetchWithAuth("/api/v1/rh-permisos/modulos");
+  if (!res.ok) throw new Error(`rh-permisos/modulos: ${res.status}`);
+  return (await res.json()) as RhModuloCatalogItem[];
+}
+
+export async function fetchRhUsuariosPermisos(): Promise<RhUsuarioPermisosItem[]> {
+  const res = await fetchWithAuth("/api/v1/rh-permisos/usuarios");
+  if (!res.ok) throw new Error(`rh-permisos/usuarios: ${res.status}`);
+  return (await res.json()) as RhUsuarioPermisosItem[];
+}
+
+export async function buscarEmpleadosParaPermisos(q: string): Promise<RhEmpleadoBusquedaItem[]> {
+  const sp = new URLSearchParams({ q });
+  const res = await fetchWithAuth(`/api/v1/rh-permisos/empleados-buscar?${sp.toString()}`);
+  if (!res.ok) throw new Error(`rh-permisos/empleados-buscar: ${res.status}`);
+  return (await res.json()) as RhEmpleadoBusquedaItem[];
+}
+
+export async function agregarEmpleadoPermisos(empleadoId: number): Promise<RhUsuarioPermisosItem> {
+  const res = await fetchWithAuth(`/api/v1/rh-permisos/usuarios/${empleadoId}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}: ${res.status}`);
+  }
+  return (await res.json()) as RhUsuarioPermisosItem;
+}
+
+export async function updateRhUsuarioPermisos(
+  empleadoId: number,
+  modulos: Record<string, boolean>,
+): Promise<RhUsuarioPermisosItem> {
+  const res = await fetchWithAuth(`/api/v1/rh-permisos/usuarios/${empleadoId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modulos }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}: ${res.status}`);
+  }
+  return (await res.json()) as RhUsuarioPermisosItem;
+}

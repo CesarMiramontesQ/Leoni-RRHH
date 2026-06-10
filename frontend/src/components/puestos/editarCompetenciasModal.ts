@@ -4,9 +4,8 @@ import {
   type PerfilCompetencia,
 } from "../../api/puestos.ts";
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
-import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
-import { TIPO_COMPETENCIA_OPTIONS, TIPO_COMPETENCIA_LABELS, grupoFromTipo } from "../../ui/catalogoCompetenciaTipo.ts";
+import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
+import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
 
 export type EditarCompetenciasModalHandle = {
   open: () => void;
@@ -18,20 +17,17 @@ export type EditarCompetenciasModalOptions = {
   onSuccess: () => void;
 };
 
-const SUBCATEGORIA_LABELS: Record<string, string> = {
-  ...TIPO_COMPETENCIA_LABELS,
-  complementos: "Complementos",
-};
+import { escapeHtml } from "../../ui/uiUtils.ts";
+import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
-const SUBCATEGORIA_COLORS: Record<string, string> = {
-  informatica: "bg-blue-50 text-blue-700",
-  idiomas: "bg-violet-50 text-violet-700",
-  profesional: "bg-emerald-50 text-emerald-700",
-  social: "bg-amber-50 text-amber-700",
-  personal: "bg-rose-50 text-rose-700",
-  metodos: "bg-cyan-50 text-cyan-700",
-  complementos: "bg-slate-100 text-slate-600",
-};
+const TIPO_CHIP_PALETTE = [
+  "bg-blue-50 text-blue-700",
+  "bg-violet-50 text-violet-700",
+  "bg-emerald-50 text-emerald-700",
+  "bg-amber-50 text-amber-700",
+  "bg-rose-50 text-rose-700",
+  "bg-cyan-50 text-cyan-700",
+];
 
 function overlayHtml(): string {
   return `
@@ -73,18 +69,19 @@ function renderList(competencias: PerfilCompetencia[]): string {
 
   const grouped = new Map<string, PerfilCompetencia[]>();
   for (const c of competencias) {
-    const key = c.subcategoria ?? "sin_categoria";
+    const key = c.tipo_nombre ?? "Sin tipo";
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(c);
   }
 
   let html = `<div class="max-h-56 overflow-y-auto space-y-3 mb-4">`;
-  for (const [subcategoria, items] of grouped) {
-    const label = SUBCATEGORIA_LABELS[subcategoria] ?? subcategoria;
-    const colorClass = SUBCATEGORIA_COLORS[subcategoria] ?? "bg-slate-100 text-slate-600";
+  let colorIdx = 0;
+  for (const [tipoNombre, items] of grouped) {
+    const colorClass = TIPO_CHIP_PALETTE[colorIdx % TIPO_CHIP_PALETTE.length] ?? "bg-slate-100 text-slate-600";
+    colorIdx += 1;
     html += `
       <div>
-        <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold mb-1 ${colorClass}">${escapeHtml(label)}</span>
+        <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold mb-1 ${colorClass}">${escapeHtml(tipoNombre)}</span>
         <div class="divide-y divide-slate-100">
           ${items.map(c => `
             <div class="flex items-center justify-between gap-2 py-1.5 pl-2">
@@ -100,7 +97,7 @@ function renderList(competencias: PerfilCompetencia[]): string {
   return html;
 }
 
-function renderAddForm(showCreateNew: boolean): string {
+function renderAddForm(showCreateNew: boolean, tipos: TipoCompetencia[]): string {
   return `
     <div class="border-t border-slate-200 pt-4 space-y-3">
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar del catalogo</p>
@@ -147,8 +144,8 @@ function renderAddForm(showCreateNew: boolean): string {
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Tipo</label>
           <div class="grid grid-cols-1">
-            <select id="comp-new-tipo" required class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}">
-              ${TIPO_COMPETENCIA_OPTIONS.map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("")}
+            <select id="comp-new-tipo" required class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}" ${tipos.length === 0 ? "disabled" : ""}>
+              ${tipos.length === 0 ? `<option value="">Sin tipos registrados</option>` : tipos.map((t) => `<option value="${t.id}">${escapeHtml(t.nombre)}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
           </div>
@@ -174,6 +171,7 @@ export function mountEditarCompetenciasModal(
   let selectedCatalogo: { id: number; nombre: string; grupo: string } | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let catalogoCache: Awaited<ReturnType<typeof getCompetencias>> = [];
+  let tiposCatalogo: TipoCompetencia[] = [];
   let assignedCompetenciaIds: Set<number> = new Set();
 
   function close(): void {
@@ -188,7 +186,7 @@ export function mountEditarCompetenciasModal(
       const items = await getPerfilCompetencias(options.perfilId);
       assignedCompetenciaIds = new Set(items.map(c => c.competencia_id));
       selectedCatalogo = null;
-      body.innerHTML = renderList(items) + renderAddForm(showCreateNew);
+      body.innerHTML = renderList(items) + renderAddForm(showCreateNew, tiposCatalogo);
       bindInteractions();
     } catch {
       body.innerHTML = `<p class="text-sm text-red-600">Error al cargar competencias.</p>`;
@@ -239,7 +237,7 @@ export function mountEditarCompetenciasModal(
       resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
     } else {
       resultsEl.innerHTML = filtered.slice(0, 10).map(c => {
-        const subLabel = c.subcategoria ? SUBCATEGORIA_LABELS[c.subcategoria] ?? c.subcategoria : "";
+        const subLabel = c.tipo_nombre ?? "";
         return `
         <button type="button" data-select-comp="${c.id}" data-select-nombre="${escapeHtml(c.nombre)}" data-select-grupo="${escapeHtml(c.grupo)}"
           class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
@@ -264,7 +262,7 @@ export function mountEditarCompetenciasModal(
     searchInput.value = "";
 
     const catItem = catalogoCache.find(c => c.id === id);
-    const subLabel = catItem?.subcategoria ? SUBCATEGORIA_LABELS[catItem.subcategoria] ?? catItem.subcategoria : "";
+    const subLabel = catItem?.tipo_nombre ?? "";
 
     selectedInfo.innerHTML = `
       <div class="flex items-center gap-2">
@@ -337,9 +335,8 @@ export function mountEditarCompetenciasModal(
 
       const nombre = (body.querySelector("#comp-new-nombre") as HTMLInputElement)?.value.trim();
       const descripcion = (body.querySelector("#comp-new-desc") as HTMLTextAreaElement)?.value.trim();
-      const tipo = (body.querySelector("#comp-new-tipo") as HTMLSelectElement)?.value;
-      const grupo = grupoFromTipo(tipo);
-      const subcategoria = tipo;
+      const tipoRaw = (body.querySelector("#comp-new-tipo") as HTMLSelectElement)?.value;
+      const tipoCompetenciaId = Number.parseInt(tipoRaw ?? "", 10);
 
       if (!nombre) {
         showError("Indica el nombre de la competencia.");
@@ -349,8 +346,8 @@ export function mountEditarCompetenciasModal(
         showError("Indica la descripcion de la competencia.");
         return;
       }
-      if (!tipo) {
-        showError("Selecciona un tipo.");
+      if (!tipoRaw || Number.isNaN(tipoCompetenciaId) || tipoCompetenciaId <= 0) {
+        showError("Selecciona un tipo válido.");
         return;
       }
 
@@ -359,7 +356,7 @@ export function mountEditarCompetenciasModal(
       btn.textContent = "Creando...";
 
       try {
-        const created = await createCompetencia({ nombre, descripcion, grupo, subcategoria });
+        const created = await createCompetencia({ nombre, descripcion, tipo_competencia_id: tipoCompetenciaId });
         catalogoCache.push(created);
 
         await createPerfilCompetencia(options.perfilId, {
@@ -406,8 +403,12 @@ export function mountEditarCompetenciasModal(
       showCreateNew = false;
       selectedCatalogo = null;
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
-      getCompetencias({ page_size: 100 }).then(items => {
+      Promise.all([
+        getCompetencias({ page_size: 200 }),
+        getTiposCompetencia({ page_size: 200 }),
+      ]).then(([items, tipos]) => {
         catalogoCache = items;
+        tiposCatalogo = tipos;
       }).catch(() => { /* cache stays empty */ });
       refreshList();
     },

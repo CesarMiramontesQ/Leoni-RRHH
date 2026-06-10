@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.middleware import SupervisorRestrictedRoutesMiddleware
+from app.middleware import RhModulePermissionMiddleware, SupervisorRestrictedRoutesMiddleware
 from app.core.exceptions import EXCEPTION_STATUS_MAP, LeoniException
 
 logging.basicConfig(
@@ -180,6 +180,7 @@ app.add_middleware(
 
 # Después de CORS: bloquea `supervisor` en actas y reportes de comedor (API) antes del router.
 app.add_middleware(SupervisorRestrictedRoutesMiddleware)
+app.add_middleware(RhModulePermissionMiddleware)
 
 # ── Exception Handlers ────────────────────────────────────────
 def _validation_errors_json_safe(errors: list) -> list:
@@ -246,8 +247,19 @@ from app.api.v1.bono_productividad.router import router as bono_productividad_ro
 from app.api.v1.evaluaciones.router import router as evaluaciones_router
 from app.api.v1.capacitaciones.router import router as capacitaciones_router
 from app.api.v1.level_up.router_habilidades import router as level_up_habilidades_router
+from app.api.v1.level_up.router_cursos import router as level_up_cursos_router
+from app.api.v1.level_up.router_curso_sesiones import router as level_up_curso_sesiones_router, all_sesiones_router
 from app.api.v1.tareas_catalogo.router import router as tareas_catalogo_router
+from app.api.v1.niveles_puesto.router import router as niveles_puesto_router
+from app.api.v1.grados_puesto.router import router as grados_puesto_router
+from app.api.v1.metodos_calificacion_competencia.router import (
+    router as metodos_calificacion_competencia_router,
+)
+from app.api.v1.tipos_competencia.router import router as tipos_competencia_router
+from app.api.v1.grupos_competencia.router import router as grupos_competencia_router
 from app.api.v1.perfil_funciones.router import router as perfil_funciones_router
+from app.api.v1.cualificaciones_catalogo.router import router as cualificaciones_catalogo_router
+from app.api.v1.rh_permisos.router import router as rh_permisos_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -265,8 +277,18 @@ app.include_router(bono_productividad_router)
 app.include_router(evaluaciones_router)
 app.include_router(capacitaciones_router)
 app.include_router(level_up_habilidades_router)
+app.include_router(level_up_cursos_router)
+app.include_router(level_up_curso_sesiones_router)
+app.include_router(all_sesiones_router)
 app.include_router(tareas_catalogo_router)
+app.include_router(niveles_puesto_router)
+app.include_router(grados_puesto_router)
+app.include_router(metodos_calificacion_competencia_router)
+app.include_router(tipos_competencia_router)
+app.include_router(grupos_competencia_router)
 app.include_router(perfil_funciones_router)
+app.include_router(cualificaciones_catalogo_router)
+app.include_router(rh_permisos_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

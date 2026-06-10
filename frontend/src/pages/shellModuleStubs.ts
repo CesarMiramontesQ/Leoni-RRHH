@@ -1,4 +1,5 @@
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderComedorBackBar } from "../navigation/comedorBackLink.ts";
 
 function stubMain(title: string): string {
   return `
@@ -12,7 +13,7 @@ export function mountComedorStub(container: HTMLElement): void {
   mountAppShell(container, {
     pageTitle: "Comedor",
     activeNav: "comedor",
-    mainHtml: stubMain("Comedor"),
+    mainHtml: `${renderComedorBackBar()}${stubMain("Comedor")}`,
   });
 }
 

@@ -122,6 +122,13 @@ export async function getEmpleadoResumen(empleadoId: number): Promise<EmpleadoRe
   return res.json();
 }
 
+import { buildNivelMetodoLabelsMap } from "../ui/metodosCalificacionCompetencia.ts";
+
+export function getNivelLabels(): Record<number, string> {
+  return buildNivelMetodoLabelsMap(true);
+}
+
+/** @deprecated Usar getNivelLabels() tras cargar el catálogo. */
 export const NIVEL_LABELS: Record<number, string> = {
   0: "N/A",
   1: "Planeado",

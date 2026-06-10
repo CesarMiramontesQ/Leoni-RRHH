@@ -65,7 +65,8 @@ export type Competencia = {
   id: number;
   nombre: string;
   grupo: "tecnica" | "habilidad_blanda";
-  subcategoria?: string;
+  tipo_competencia_id: number;
+  tipo_nombre: string;
   descripcion: string;
   activa: boolean;
   created_at: string;
@@ -73,15 +74,13 @@ export type Competencia = {
 
 export type CompetenciaCreatePayload = {
   nombre: string;
-  grupo: "tecnica" | "habilidad_blanda";
-  subcategoria?: string;
+  tipo_competencia_id: number;
   descripcion: string;
 };
 
 export type CompetenciaUpdatePayload = {
   nombre?: string;
-  grupo?: "tecnica" | "habilidad_blanda";
-  subcategoria?: string;
+  tipo_competencia_id?: number;
   descripcion?: string;
   activa?: boolean;
 };

@@ -310,6 +310,7 @@ ADMIN_RH: dict = {
     "usuario": "admin.rh",
     "password": "Leoni2026!RH",
     "estado_id": 1,
+    "puede_administrar_permisos_rh": True,
 }
 
 DEV_USER: dict = {
@@ -389,13 +390,24 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
     )
     existing = result.scalar_one_or_none()
 
+    admin_flag = bool(user_data.get("puede_administrar_permisos_rh", False))
+
     if existing:
-        logger.info(
-            "  %s ya existe (id=%d, email=%s) — sin cambios",
-            label,
-            existing.id,
-            existing.email,
-        )
+        if admin_flag and not existing.puede_administrar_permisos_rh:
+            existing.puede_administrar_permisos_rh = True
+            await db.flush()
+            logger.info(
+                "  %s actualizado — puede_administrar_permisos_rh=True (id=%d)",
+                label,
+                existing.id,
+            )
+        else:
+            logger.info(
+                "  %s ya existe (id=%d, email=%s) — sin cambios",
+                label,
+                existing.id,
+                existing.email,
+            )
         return
 
     emp = Empleado(
@@ -407,6 +419,7 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
         password_hash=hash_password(user_data["password"]),
         rol_id=rol_id,
         estado_id=user_data["estado_id"],
+        puede_administrar_permisos_rh=admin_flag,
     )
     db.add(emp)
     await db.flush()
