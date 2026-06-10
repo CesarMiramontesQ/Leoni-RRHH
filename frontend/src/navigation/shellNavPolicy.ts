@@ -53,6 +53,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "encuestas", hash: "#/encuestas" },
   { itemId: "empleados", hash: "#/empleados" },
   { itemId: "horas-extra", hash: "#/nominas/horas-extra" },
+  { itemId: "conciliacion", hash: "#/nominas/conciliacion" },
 ];
 
 export function isRhHomeHash(hash: string): boolean {
@@ -118,7 +119,8 @@ export type AppShellNavItemId =
   | "encuestas"
   | "level-up"
   | "nominas"
-  | "horas-extra";
+  | "horas-extra"
+  | "conciliacion";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
@@ -189,7 +191,9 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (itemId === "evaluacion-360") return navRol === "rh";
-  if (itemId === "nominas" || itemId === "horas-extra") return NOMINAS_NAV_ROLES.has(navRol ?? "");
+  if (itemId === "nominas" || itemId === "horas-extra" || itemId === "conciliacion") {
+    return NOMINAS_NAV_ROLES.has(navRol ?? "");
+  }
   if (RH_ONLY_NAV_IDS.has(itemId)) return navRol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return navRol === "rh" || navRol === "director" || navRol === "gerente";
   if (navRol === "supervisor" && rol !== "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;

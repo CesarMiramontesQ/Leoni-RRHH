@@ -53,6 +53,7 @@ import {
   mountRhModuleAccessDenied,
   mountRhSinPermisosDisponibles,
 } from "./pages/ajustesPermisosRh.ts";
+import { mountConciliacion } from "./pages/conciliacion.ts";
 import { mountHorasExtra } from "./pages/horasExtra.ts";
 
 let routeAbort: AbortController | null = null;
@@ -127,6 +128,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (h.startsWith("#/reportes")) {
       history.replaceState(null, "", "#/comedor/reporte");
       mountComedor(container, signal);
+      return;
+    }
+
+    if (h.startsWith("#/nominas/conciliacion")) {
+      mountConciliacion(container);
       return;
     }
 

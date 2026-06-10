@@ -38,7 +38,8 @@ export type RhNavKey =
   | "encuestas"
   | "empleados"
   | "nominas"
-  | "horas-extra";
+  | "horas-extra"
+  | "conciliacion";
 
 export type RhNavItem = {
   id: AppShellNavItemId;

@@ -74,7 +74,8 @@ export type ShellNavKey =
   | "encuestas"
   | "level-up"
   | "nominas"
-  | "horas-extra";
+  | "horas-extra"
+  | "conciliacion";
 
 type NavItemDef = {
   id: AppShellNavItemId;

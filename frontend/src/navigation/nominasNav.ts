@@ -11,7 +11,7 @@ import {
 } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
-export type NominasNavKey = "nominas" | "horas-extra";
+export type NominasNavKey = "nominas" | "horas-extra" | "conciliacion";
 
 type NominasAccessItem = ShellHubAccessItem & {
   id: AppShellNavItemId;
@@ -25,6 +25,13 @@ export const NOMINAS_NAV_ITEMS: readonly NominasAccessItem[] = [
     href: "#/nominas/horas-extra",
     label: "Horas Extra",
     svgPaths: `<path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "conciliacion",
+    key: "conciliacion",
+    href: "#/nominas/conciliacion",
+    label: "Conciliación",
+    svgPaths: `<path d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.126c.122.499-.106 1.028-.589 1.202a15.91 15.91 0 0 1-8.031 0 1.056 1.056 0 0 1-.59-1.202l2.62-10.126" stroke-linecap="round" stroke-linejoin="round" />`,
   },
 ];
 
