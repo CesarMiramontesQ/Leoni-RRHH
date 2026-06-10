@@ -187,18 +187,4 @@ export const INC_COPY = {
     "Caso cerrado. El seguimiento de tiempo de respuesta quedó registrado para auditoría.",
   cardSlaHistoricoFinalizado: "SLA finalizado",
   cardSlaTiempoTotal: "Tiempo total registrado",
-
-  agenteTitulo: "Asistente de incidencias",
-  agenteSubtitulo: "Consulta datos reales del módulo (solo lectura).",
-  agenteAbrir: "Asistente IA",
-  agenteCerrar: "Cerrar asistente",
-  agentePlaceholder: "Pregunta sobre totales, áreas, tipos o listados…",
-  agenteEnviar: "Enviar",
-  agenteTu: "Tú",
-  agenteAsistente: "Asistente",
-  agenteVacio: "Pregunta, por ejemplo: «¿Cuántas incidencias hay este mes en Producción?»",
-  agentePensando: "Consultando datos…",
-  agenteOllamaNoDisponible:
-    "Ollama no está disponible o falta el modelo nemotron-3-nano:4b. Ejecuta: ollama pull nemotron-3-nano:4b",
-  agenteErrorGenerico: "No se pudo obtener respuesta del asistente.",
 } as const;

@@ -10,13 +10,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import BackgroundTasks
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.data_scope import effective_data_scope_rol
 from app.core.exceptions import ForbiddenError, NotFoundError
-from app.models.catalogos import Area, Subarea
 from app.models.empleados import Empleado
 from app.models.incidencias import Incidencia
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -43,7 +41,6 @@ from app.schemas.incidencias import (
     IncidenciasListPageResponse,
 )
 from app.utils.audit_logger import audit_background
-from app.utils.incidencia_catalog_labels import IncidenciaCatalogLabelMaps
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +54,6 @@ class IncidenciaService:
         self.evidencia_repo = EvidenciaRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
         self.db = db
-        self._catalog_label_maps: IncidenciaCatalogLabelMaps | None = None
 
     @staticmethod
     def _texto_puesto_y_supervisor(emp: Empleado | None) -> tuple[str | None, str | None]:
@@ -82,23 +78,7 @@ class IncidenciaService:
                 return emp
         return await self.empleado_repo.get_with_area_y_lider(inc.empleado_id)
 
-    async def _get_catalog_label_maps(self) -> IncidenciaCatalogLabelMaps:
-        if self._catalog_label_maps is not None:
-            return self._catalog_label_maps
-        areas_result = await self.db.execute(select(Area.area_id, Area.descripcion))
-        subs_result = await self.db.execute(select(Subarea.subarea_id, Subarea.descripcion))
-        self._catalog_label_maps = IncidenciaCatalogLabelMaps(
-            area_by_id={int(aid): str(desc).strip() for aid, desc in areas_result.all()},
-            subarea_by_id={int(sid): str(desc).strip() for sid, desc in subs_result.all()},
-        )
-        return self._catalog_label_maps
-
     async def _enriquecer_incidencia_response(self, inc: Incidencia, r: IncidenciaResponse) -> None:
-        maps = await self._get_catalog_label_maps()
-        if r.area:
-            r.area = maps.resolve_area(r.area) or r.area
-        if r.subarea:
-            r.subarea = maps.resolve_subarea(r.subarea) or r.subarea
         emp = await self._empleado_reportante_para_incidencia(inc)
         puesto_txt, sup_txt = self._texto_puesto_y_supervisor(emp)
         r.puesto = puesto_txt
@@ -177,7 +157,6 @@ class IncidenciaService:
         fecha_fin: date | None = None,
     ) -> list | None:
         scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
-        maps = await self._get_catalog_label_maps()
         user_filters = build_incidencia_query_filters(
             tipo=tipo,
             empleado_id=empleado_id,
@@ -185,8 +164,8 @@ class IncidenciaService:
             nombre=nombre,
             fecha=fecha,
             categoria=categoria,
-            area_aliases=maps.aliases_for_area_filter(area),
-            subarea_aliases=maps.aliases_for_subarea_filter(subarea),
+            area=area,
+            subarea=subarea,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
         )
@@ -298,13 +277,8 @@ class IncidenciaService:
         total_incidencias, incidencias_seguridad, incidencias_calidad = (
             await self.repo.aggregate_total_y_seguridad_calidad(filters_arg)
         )
-        maps = await self._get_catalog_label_maps()
-        areas_raw = maps.merge_area_totals(
-            await self.repo.aggregate_areas_top(filters_arg, limit=50)
-        )[:10]
-        subareas_raw = maps.merge_subarea_totals(
-            await self.repo.aggregate_subareas_top_with_area(filters_arg, limit=50)
-        )[:10]
+        areas_raw = await self.repo.aggregate_areas_top(filters_arg, limit=10)
+        subareas_raw = await self.repo.aggregate_subareas_top_with_area(filters_arg, limit=10)
         empleados_raw = await self.repo.aggregate_empleados_top(filters_arg, limit=10)
         tipos_raw = await self.repo.aggregate_tipos_con_totales(filters_arg)
         mes_rows = await self.repo.aggregate_totales_por_mes(filters_arg)
@@ -409,14 +383,10 @@ class IncidenciaService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> list[str]:
-        """Todas las áreas activas del catálogo organizacional."""
-        del current_user, rh_ui_mode
-        result = await self.db.execute(
-            select(Area.descripcion)
-            .where(Area.estatus_id == 1)
-            .order_by(Area.descripcion.asc())
-        )
-        return [str(desc).strip() for desc in result.scalars().all() if str(desc).strip()]
+        """Áreas distintas en incidencias visibles para el rol del usuario."""
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
+        catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
+        return await self.repo.distinct_areas(filters=catalog_filters)
 
     async def list_subareas_registradas(
         self,
@@ -425,21 +395,14 @@ class IncidenciaService:
         rh_ui_mode: str | None = None,
         area: str | None = None,
     ) -> list[str]:
-        """Todas las subáreas activas del catálogo; opcionalmente acotadas a un área."""
-        del current_user, rh_ui_mode
-        stmt = (
-            select(Subarea.descripcion)
-            .where(Subarea.estatus_id == 1)
-            .order_by(Subarea.descripcion.asc())
+        """Subáreas distintas; si `area` viene definida, solo las de esa área."""
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
+        catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
+        area_val = area.strip() if area and area.strip() else None
+        return await self.repo.distinct_subareas(
+            catalog_filters,
+            area=area_val,
         )
-        if area and area.strip():
-            maps = await self._get_catalog_label_maps()
-            area_id = maps.resolve_area_id(area)
-            if area_id is None:
-                return []
-            stmt = stmt.where(Subarea.area_id == area_id)
-        result = await self.db.execute(stmt)
-        return [str(desc).strip() for desc in result.scalars().all() if str(desc).strip()]
 
     # ── Obtener uno ──────────────────────────────────────────────────────────
 

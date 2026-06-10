@@ -32,9 +32,7 @@ def build_incidencia_query_filters(
     fecha: date | None = None,
     categoria: str | None = None,
     area: str | None = None,
-    area_aliases: list[str] | None = None,
     subarea: str | None = None,
-    subarea_aliases: list[str] | None = None,
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
     origen: str | None = None,
@@ -58,20 +56,7 @@ def build_incidencia_query_filters(
     if empleado_id is not None:
         conds.append(Incidencia.empleado_id == empleado_id)
     if no_empleado and no_empleado.strip():
-        valor = no_empleado.strip()
-        variantes = {valor}
-        if valor.isdigit():
-            variantes.add(f"{valor}.0")
-        if valor.endswith(".0") and valor[:-2].isdigit():
-            variantes.add(valor[:-2])
-        conds.append(
-            or_(
-                *[
-                    Incidencia.no_empleado.ilike(f"%{v}%")
-                    for v in variantes
-                ]
-            )
-        )
+        conds.append(Incidencia.no_empleado.ilike(f"%{no_empleado.strip()}%"))
     if nombre and nombre.strip():
         conds.append(Incidencia.nombre.ilike(f"%{nombre.strip()}%"))
     if fecha is not None:
@@ -80,20 +65,14 @@ def build_incidencia_query_filters(
         conds.append(Incidencia.categoria.ilike(f"%{categoria.strip()}%"))
     if origen and origen.strip():
         conds.append(Incidencia.origen == origen.strip())
-    area_values = area_aliases if area_aliases else (
-        [area.strip()] if area and area.strip() else None
-    )
-    if area_values:
+    if area and area.strip():
         sin_ar = literal("(sin área)", type_=String)
         area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
-        conds.append(area_key.in_(area_values))
-    subarea_values = subarea_aliases if subarea_aliases else (
-        [subarea.strip()] if subarea and subarea.strip() else None
-    )
-    if subarea_values:
+        conds.append(area_key == area.strip())
+    if subarea and subarea.strip():
         sin_sub = literal("(sin subárea)", type_=String)
         sub_key = func.coalesce(func.nullif(func.trim(Incidencia.subarea), ""), sin_sub)
-        conds.append(sub_key.in_(subarea_values))
+        conds.append(sub_key == subarea.strip())
     if fecha_inicio is not None:
         conds.append(
             and_(Incidencia.fecha.isnot(None), Incidencia.fecha >= fecha_inicio)
@@ -150,7 +129,7 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         self,
         filters: list | None = None,
         *,
-        area_aliases: list[str] | None = None,
+        area: str | None = None,
     ) -> list[str]:
         sin_sub = literal("(sin subárea)", type_=String)
         sub_key = func.coalesce(func.nullif(func.trim(Incidencia.subarea), ""), sin_sub)
@@ -158,10 +137,10 @@ class IncidenciaRepository(BaseRepository[Incidencia]):
         if filters:
             for condition in filters:
                 stmt = stmt.where(condition)
-        if area_aliases:
+        if area and area.strip():
             sin_ar = literal("(sin área)", type_=String)
             area_key = func.coalesce(func.nullif(func.trim(Incidencia.area), ""), sin_ar)
-            stmt = stmt.where(area_key.in_(area_aliases))
+            stmt = stmt.where(area_key == area.strip())
         result = await self.db.execute(stmt)
         return [str(r[0]) for r in result.all()]
 

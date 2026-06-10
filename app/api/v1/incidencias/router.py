@@ -13,11 +13,9 @@ from app.schemas.incidencias import (
     IncidenciasSubareasResponse,
     IncidenciasTiposResponse,
 )
-from app.api.v1.incidencias.agent_router import router as incidencias_agent_router
 from app.services.incidencia_service import IncidenciaService
 
 router = APIRouter(prefix="/api/v1/incidencias", tags=["Incidencias"])
-router.include_router(incidencias_agent_router)
 
 
 def _svc(db: AsyncSession = Depends(get_db)) -> IncidenciaService:
@@ -89,7 +87,7 @@ async def list_incidencias_areas(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
 ):
-    """Todas las áreas activas del catálogo organizacional."""
+    """Áreas distintas con incidencias en el alcance del usuario."""
     items = await svc.list_areas_registradas(current_user, rh_ui_mode=rh_ui_mode)
     return IncidenciasAreasResponse(items=items)
 
@@ -103,7 +101,7 @@ async def list_incidencias_subareas(
     svc: IncidenciaService = Depends(_svc),
     area: str | None = Query(None, description="Filtra subáreas de esta área (valor exacto del catálogo)"),
 ):
-    """Todas las subáreas activas del catálogo; opcionalmente acotadas a un área."""
+    """Subáreas distintas con incidencias; opcionalmente acotadas a un área."""
     items = await svc.list_subareas_registradas(current_user, rh_ui_mode=rh_ui_mode, area=area)
     return IncidenciasSubareasResponse(items=items)
 

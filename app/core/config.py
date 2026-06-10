@@ -62,13 +62,6 @@ class Settings(BaseSettings):
     OLLAMA_NUM_CTX: int = 16384
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
 
-    # Agente vertical incidencias (Ollama local, modelo dedicado)
-    OLLAMA_INCIDENCIAS_MODEL: str = "nemotron-3-nano:4b"
-    OLLAMA_INCIDENCIAS_TEMPERATURE: float = 0.2
-    OLLAMA_INCIDENCIAS_NUM_PREDICT: int = 1024
-    OLLAMA_INCIDENCIAS_NUM_CTX: int = 8192
-    OLLAMA_INCIDENCIAS_MAX_TOOL_ROUNDS: int = 4
-
     # Legal RAG (Chroma + LangChain; ingest vía scripts/actas_rag/ingest.py)
     LEGAL_RAG_CHROMA_PATH: str = "storage/legal-rag-chroma"
     LEGAL_RAG_CHUNK_SIZE: int = 1000
