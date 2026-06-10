@@ -15,6 +15,7 @@ export type LevelUpNavKey =
   | "competencias"
   | "tareas-catalogo"
   | "evaluaciones"
+  | "evaluacion-360"
   | "capacitaciones"
   | "capacidades"
   | "cursos"
@@ -108,6 +109,13 @@ export const LEVEL_UP_PUESTOS: readonly LevelUpAccessItem[] = [
 ];
 
 const LEVEL_UP_FORMACION: readonly LevelUpAccessItem[] = [
+  {
+    id: "evaluacion-360",
+    key: "evaluacion-360",
+    href: "#/level-up/evaluacion-360",
+    label: "Evaluación 360°",
+    svgPaths: `<path d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0 0v.008H12V15Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
   {
     id: "capacidades",
     key: "capacidades",

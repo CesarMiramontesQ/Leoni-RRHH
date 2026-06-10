@@ -42,6 +42,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
   { itemId: "evaluaciones", hash: "#/evaluaciones" },
+  { itemId: "evaluacion-360", hash: "#/level-up/evaluacion-360" },
   { itemId: "capacidades", hash: "#/capacidades" },
   { itemId: "cursos", hash: "#/cursos" },
   { itemId: "sesiones", hash: "#/sesiones" },
@@ -99,6 +100,7 @@ export type AppShellNavItemId =
   | "comedor-menu"
   | "empleados"
   | "evaluaciones"
+  | "evaluacion-360"
   | "capacitaciones"
   | "reportes"
   | "puestos"
@@ -159,7 +161,7 @@ const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
+  "cursos", "opls", "evidencias", "sugerencias", "encuestas", "evaluacion-360", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);

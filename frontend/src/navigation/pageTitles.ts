@@ -30,6 +30,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/encuestas"), titulo: "Encuestas Post Curso" },
   { match: (h) => h.startsWith("#/laborales"), titulo: "Laborales" },
   { match: (h) => h.startsWith("#/comedor/accesos"), titulo: "Comedor" },
+  { match: (h) => h.startsWith("#/level-up/evaluacion-360"), titulo: "Evaluación 360°" },
   { match: (h) => h.startsWith("#/level-up/resumen"), titulo: "Resumen operativo Level Up" },
   { match: (h) => h.startsWith("#/sesiones"), titulo: "Sesiones de Cursos" },
   { match: (h) => h.startsWith("#/tareas-catalogo"), titulo: "Catalogo de Tareas" },

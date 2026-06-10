@@ -4,6 +4,7 @@ import { LEVEL_UP_HUB_HREF } from "./levelUpBackLink.ts";
 
 const LEVEL_UP_ROUTE_PREFIXES = [
   "#/level-up",
+  "#/level-up/evaluacion-360",
   "#/cursos",
   "#/sesiones",
   "#/capacitaciones",

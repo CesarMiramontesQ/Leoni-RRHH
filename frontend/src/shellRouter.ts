@@ -168,6 +168,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
+    if (h.startsWith("#/level-up/evaluacion-360")) {
+      void import("./pages/evaluacion360.ts").then(({ mountEvaluacion360 }) => {
+        mountEvaluacion360(container, signal);
+      });
+      return;
+    }
     if (h.startsWith("#/level-up/resumen")) {
       mountLevelUpDashboard(container);
       return;
