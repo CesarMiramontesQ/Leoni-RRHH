@@ -5,16 +5,21 @@ import { renderHorasExtraSummaryCards } from "./components/horasExtraSummaryCard
 import { renderHorasExtraTableContainer } from "./components/horasExtraTableContainer.ts";
 import type { HorasExtraPageViewModel } from "./types.ts";
 
+export function renderHorasExtraListado(vm: HorasExtraPageViewModel): string {
+  return `
+    <div id="horas-extra-listado" class="flex flex-col gap-5">
+      ${renderHorasExtraFiltersBar(vm)}
+      ${renderHorasExtraTableContainer(vm)}
+    </div>`;
+}
+
 export function renderHorasExtraPage(vm: HorasExtraPageViewModel): string {
   return `
     <div id="horas-extra-page" class="${RH_DASHBOARD_PAGE_SHELL}">
       <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderHorasExtraPageHeader(vm)}
         ${renderHorasExtraSummaryCards(vm.summaryCards)}
-        <div class="flex flex-col gap-5">
-          ${renderHorasExtraFiltersBar(vm)}
-          ${renderHorasExtraTableContainer(vm)}
-        </div>
+        ${renderHorasExtraListado(vm)}
       </div>
     </div>`;
 }

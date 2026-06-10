@@ -49,12 +49,22 @@ class HorasExtraResumenResponse(BaseModel):
     porcentaje_aprobacion: float
 
 
+class HorasExtraCentroCostoOption(BaseModel):
+    id: int
+    label: str
+
+
+class HorasExtraFilterOptionsResponse(BaseModel):
+    centros_costo: list[HorasExtraCentroCostoOption]
+
+
 class HorasExtraListResponse(BaseModel):
     semana_actual: int
     resumen: HorasExtraResumenResponse
     tabs: dict[str, int] = Field(
         description="Conteos por pestaña: todos, pendientes, aprobados, rechazados"
     )
+    filter_options: HorasExtraFilterOptionsResponse
     items: list[HorasExtraFilaResponse]
     total: int
     page: int

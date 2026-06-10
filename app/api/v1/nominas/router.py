@@ -22,6 +22,7 @@ async def list_horas_extra(
     page_size: int = Query(12, ge=1, le=100),
     tab: HorasExtraTabFiltro = Query("todos"),
     q: str | None = Query(None),
+    area_id: int | None = Query(None),
     centrocosto_id: int | None = Query(None),
     lider_empleado_id: int | None = Query(None),
     current_user: Empleado = Depends(role_checker(_ROLES_HORAS_EXTRA)),
@@ -35,6 +36,7 @@ async def list_horas_extra(
         page_size=page_size,
         tab=tab,
         q=q,
+        area_id=area_id,
         centrocosto_id=centrocosto_id,
         lider_empleado_id=lider_empleado_id,
     )

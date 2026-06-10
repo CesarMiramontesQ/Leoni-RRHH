@@ -48,6 +48,7 @@ async def test_horas_extra_lista_empleados_reales_con_centro_costo(
     assert data["semana_actual"] == 19
     assert "resumen" in data
     assert "tabs" in data
+    assert "filter_options" in data
 
     numeros = {item["empleado"]["no_empleado"] for item in data["items"]}
     assert "HE-001" in numeros

@@ -44,10 +44,20 @@ export type HorasExtraResumen = {
   porcentaje_aprobacion: number;
 };
 
+export type HorasExtraCentroCostoOption = {
+  id: number;
+  label: string;
+};
+
+export type HorasExtraFilterOptionsResponse = {
+  centros_costo: HorasExtraCentroCostoOption[];
+};
+
 export type HorasExtraListResponse = {
   semana_actual: number;
   resumen: HorasExtraResumen;
   tabs: Record<HorasExtraTabFiltro, number>;
+  filter_options: HorasExtraFilterOptionsResponse;
   items: HorasExtraFila[];
   total: number;
   page: number;
@@ -64,6 +74,7 @@ export type HorasExtraListParams = {
   page_size?: number;
   tab?: HorasExtraTabFiltro;
   q?: string;
+  area_id?: number;
   centrocosto_id?: number;
   lider_empleado_id?: number;
 };
@@ -87,6 +98,7 @@ export async function getHorasExtraList(
   sp.set("page_size", String(params.page_size ?? 12));
   if (params.tab) sp.set("tab", params.tab);
   if (params.q?.trim()) sp.set("q", params.q.trim());
+  if (params.area_id != null) sp.set("area_id", String(params.area_id));
   if (params.centrocosto_id != null) sp.set("centrocosto_id", String(params.centrocosto_id));
   if (params.lider_empleado_id != null) {
     sp.set("lider_empleado_id", String(params.lider_empleado_id));

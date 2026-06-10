@@ -1,14 +1,9 @@
 /** Tipos de la vista Horas Extra — sincronizados con API. */
 
-import type { HorasExtraFila } from "../../api/horasExtra.ts";
+import type { HorasExtraFila, HorasExtraTabFiltro } from "../../api/horasExtra.ts";
+import type { AreaResponse } from "../../api/usuarios.ts";
 
-export type HorasExtraTabId = "todos" | "pendientes" | "aprobados" | "rechazados";
-
-export type HorasExtraTab = {
-  id: HorasExtraTabId;
-  label: string;
-  count: number;
-};
+export type HorasExtraTabId = HorasExtraTabFiltro;
 
 export type HorasExtraSummaryDeltaTone = "success" | "danger" | "warning" | "neutral";
 
@@ -23,11 +18,29 @@ export type HorasExtraSummaryCard = {
 
 export type HorasExtraTableStatus = "loading" | "ready" | "error" | "empty";
 
+export type HorasExtraFilters = {
+  area_id: string;
+  centrocosto_id: string;
+  estado: HorasExtraTabId;
+};
+
+export type HorasExtraCentroCostoOption = {
+  id: number;
+  label: string;
+};
+
+export type HorasExtraFilterOptions = {
+  areas: readonly AreaResponse[];
+  centrosCosto: readonly HorasExtraCentroCostoOption[];
+};
+
 export type HorasExtraPageViewModel = {
   semanaLabel: string;
   summaryCards: readonly HorasExtraSummaryCard[];
-  tabs: readonly HorasExtraTab[];
-  activeTabId: HorasExtraTabId;
+  filters: HorasExtraFilters;
+  filterOptions: HorasExtraFilterOptions;
+  filtersStatus: "loading" | "ready";
+  estadoCounts: Record<HorasExtraTabId, number>;
   filas: readonly HorasExtraFila[];
   totalRegistros: number;
   pageSize: number;
@@ -35,4 +48,15 @@ export type HorasExtraPageViewModel = {
   totalPages: number;
   tableStatus: HorasExtraTableStatus;
   tableErrorMessage?: string;
+};
+
+export const EMPTY_HORAS_EXTRA_FILTERS: HorasExtraFilters = {
+  area_id: "",
+  centrocosto_id: "",
+  estado: "todos",
+};
+
+export const EMPTY_HORAS_EXTRA_FILTER_OPTIONS: HorasExtraFilterOptions = {
+  areas: [],
+  centrosCosto: [],
 };

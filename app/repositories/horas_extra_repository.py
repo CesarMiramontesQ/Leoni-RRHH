@@ -33,6 +33,7 @@ class HorasExtraRepository:
         query,
         *,
         q: str | None,
+        area_id: int | None,
         centrocosto_id: int | None,
         lider_empleado_id: int | None,
         ids_permitidos: list[int] | None,
@@ -41,6 +42,8 @@ class HorasExtraRepository:
             if not ids_permitidos:
                 return query.where(Empleado.id == -1)
             query = query.where(Empleado.id.in_(ids_permitidos))
+        if area_id is not None:
+            query = query.where(Empleado.area_id == area_id)
         if centrocosto_id is not None:
             query = query.where(Empleado.centrocosto_id == centrocosto_id)
         if lider_empleado_id is not None:
@@ -62,6 +65,7 @@ class HorasExtraRepository:
         offset: int,
         limit: int,
         q: str | None = None,
+        area_id: int | None = None,
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
@@ -69,6 +73,7 @@ class HorasExtraRepository:
         query = self._apply_filtros(
             self._base_query(),
             q=q,
+            area_id=area_id,
             centrocosto_id=centrocosto_id,
             lider_empleado_id=lider_empleado_id,
             ids_permitidos=ids_permitidos,
@@ -81,6 +86,7 @@ class HorasExtraRepository:
         self,
         *,
         q: str | None = None,
+        area_id: int | None = None,
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
@@ -94,6 +100,8 @@ class HorasExtraRepository:
             if not ids_permitidos:
                 return 0
             query = query.where(Empleado.id.in_(ids_permitidos))
+        if area_id is not None:
+            query = query.where(Empleado.area_id == area_id)
         if centrocosto_id is not None:
             query = query.where(Empleado.centrocosto_id == centrocosto_id)
         if lider_empleado_id is not None:
@@ -114,6 +122,7 @@ class HorasExtraRepository:
         self,
         *,
         q: str | None = None,
+        area_id: int | None = None,
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
@@ -128,6 +137,8 @@ class HorasExtraRepository:
             if not ids_permitidos:
                 return []
             query = query.where(Empleado.id.in_(ids_permitidos))
+        if area_id is not None:
+            query = query.where(Empleado.area_id == area_id)
         if centrocosto_id is not None:
             query = query.where(Empleado.centrocosto_id == centrocosto_id)
         if lider_empleado_id is not None:
@@ -143,6 +154,23 @@ class HorasExtraRepository:
             )
         result = await self.db.execute(query.order_by(Empleado.nombre.asc(), Empleado.id.asc()))
         return [(int(row[0]), int(row[1])) for row in result.all()]
+
+    async def list_distinct_centrocosto_ids(
+        self,
+        *,
+        ids_permitidos: list[int] | None = None,
+    ) -> list[int]:
+        query = select(Empleado.centrocosto_id).where(
+            Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+            Empleado.centrocosto_id.isnot(None),
+        )
+        if ids_permitidos is not None:
+            if not ids_permitidos:
+                return []
+            query = query.where(Empleado.id.in_(ids_permitidos))
+        query = query.distinct().order_by(Empleado.centrocosto_id.asc())
+        result = await self.db.execute(query)
+        return [int(row[0]) for row in result.all()]
 
     async def list_by_ids(self, ids: list[int]) -> list[Empleado]:
         if not ids:

@@ -8,8 +8,10 @@ from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.horas_extra_repository import HorasExtraRepository
 from app.schemas.horas_extra import (
+    HorasExtraCentroCostoOption,
     HorasExtraEmpleadoResponse,
     HorasExtraFilaResponse,
+    HorasExtraFilterOptionsResponse,
     HorasExtraLiderResponse,
     HorasExtraListResponse,
     HorasExtraResumenResponse,
@@ -86,6 +88,7 @@ class HorasExtraService:
         page_size: int,
         tab: HorasExtraTabFiltro = "todos",
         q: str | None = None,
+        area_id: int | None = None,
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
     ) -> HorasExtraListResponse:
@@ -94,6 +97,7 @@ class HorasExtraService:
 
         pares = await self.repo.list_ids_con_centro_costo(
             q=q,
+            area_id=area_id,
             centrocosto_id=centrocosto_id,
             lider_empleado_id=lider_empleado_id,
             ids_permitidos=ids_permitidos,
@@ -149,6 +153,7 @@ class HorasExtraService:
         pct_aprob = round((aprobados / total_decisiones) * 100, 1) if total_decisiones else 0.0
 
         activos_planta = await self.repo.count_empleados_activos_planta(ids_permitidos=ids_permitidos)
+        centros_ids = await self.repo.list_distinct_centrocosto_ids(ids_permitidos=ids_permitidos)
 
         resumen = HorasExtraResumenResponse(
             total_horas_extra=total_horas,
@@ -166,6 +171,12 @@ class HorasExtraService:
             semana_actual=SEMANA_ACTUAL,
             resumen=resumen,
             tabs=tabs,
+            filter_options=HorasExtraFilterOptionsResponse(
+                centros_costo=[
+                    HorasExtraCentroCostoOption(id=cc_id, label=str(cc_id))
+                    for cc_id in centros_ids
+                ]
+            ),
             items=items,
             total=total,
             page=page,

@@ -483,9 +483,27 @@ components:
         porcentaje_aprobacion:
           type: number
 
+    HorasExtraCentroCostoOption:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+
+    HorasExtraFilterOptionsResponse:
+      type: object
+      required: [centros_costo]
+      properties:
+        centros_costo:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraCentroCostoOption"
+
     HorasExtraListResponse:
       type: object
-      required: [semana_actual, resumen, tabs, items, total, page, page_size]
+      required: [semana_actual, resumen, tabs, filter_options, items, total, page, page_size]
       properties:
         semana_actual:
           type: integer
@@ -495,6 +513,8 @@ components:
           type: object
           additionalProperties:
             type: integer
+        filter_options:
+          $ref: "#/components/schemas/HorasExtraFilterOptionsResponse"
         items:
           type: array
           items:
@@ -4331,6 +4351,11 @@ paths:
           in: query
           schema:
             type: string
+            nullable: true
+        - name: area_id
+          in: query
+          schema:
+            type: integer
             nullable: true
         - name: centrocosto_id
           in: query
