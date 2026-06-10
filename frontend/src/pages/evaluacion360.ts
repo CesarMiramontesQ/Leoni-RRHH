@@ -18,6 +18,7 @@ import {
   renderEval360RhDashboard,
   renderEval360RhHeader,
 } from "../evaluacion360/views/dashboardRh.ts";
+import { renderEval360Empleados } from "../evaluacion360/views/empleados.ts";
 import { renderEval360Evaluaciones } from "../evaluacion360/views/evaluaciones.ts";
 import { renderEval360Reportes } from "../evaluacion360/views/reportes.ts";
 import { renderEval360Resultados } from "../evaluacion360/views/resultados.ts";
@@ -51,6 +52,8 @@ function renderHeader(view: Eval360ViewId): string {
 
 function renderViewContent(state: State): string {
   switch (state.view) {
+    case "empleados":
+      return renderEval360Empleados({ filters: state.filters, search: state.search });
     case "campanas":
       return renderEval360Campanas(MOCK_CAMPANAS, state.showCampanaModal);
     case "evaluaciones":
@@ -62,19 +65,13 @@ function renderViewContent(state: State): string {
     case "configuracion":
       return renderEval360Configuracion();
     default:
-      return renderEval360RhDashboard({
-        filters: state.filters,
-        search: state.search,
-      });
+      return renderEval360RhDashboard({ filters: state.filters });
   }
 }
 
 function mountViewCharts(root: HTMLElement, state: State): void {
   if (state.view === "dashboard") {
-    const data = getDashboardChartData({
-      filters: state.filters,
-      search: state.search,
-    });
+    const data = getDashboardChartData({ filters: state.filters });
     mountEval360RhDashboardCharts(root, data.competenciasDept);
   } else if (state.view === "resultados") {
     mountEval360ResultadosCharts(root, RADAR_COMPETENCIAS);

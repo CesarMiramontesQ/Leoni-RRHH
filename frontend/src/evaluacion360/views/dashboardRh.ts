@@ -1,6 +1,6 @@
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
-import type { EmpleadoEval360, Eval360Filters, PlantKpisRh, TalentoSaludCard } from "../types.ts";
+import type { Eval360Filters, PlantKpisRh, TalentoSaludCard } from "../types.ts";
 import { renderEval360Filters } from "../filters.ts";
 import {
   computeBrechaHeatmap,
@@ -14,7 +14,7 @@ import {
   MOCK_EMPLEADOS_EVAL360,
 } from "../rhDashboardData.ts";
 import { renderEval360ChartIds } from "../charts.ts";
-import { eval360Sparkline, evaluacionEstadoBadge, renderSurfaceCard } from "../shared.ts";
+import { eval360Sparkline, renderSurfaceCard } from "../shared.ts";
 
 const EXEC_KPIS_META = [
   { key: "totalEvaluados" as const, label: "Total empleados evaluados", icon: "users", fmt: (v: number) => String(v) },
@@ -100,59 +100,12 @@ function brechaHeatmapCell(nivel: string): string {
   return `<div class="flex h-10 items-center justify-center rounded text-[10px] font-semibold ${map[nivel] ?? map.baja}">${labels[nivel] ?? nivel}</div>`;
 }
 
-function renderEmpleadosTable(empleados: EmpleadoEval360[]): string {
-  const rows = empleados
-    .map((e) => `
-    <tr class="border-b border-slate-100 hover:bg-slate-50/80">
-      <td class="px-4 py-3">
-        <div class="flex items-center gap-2">
-          <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">${escapeHtml(e.iniciales)}</span>
-          <span class="text-sm font-medium text-text-primary">${escapeHtml(e.nombre)}</span>
-        </div>
-      </td>
-      <td class="px-4 py-3 text-sm tabular-nums text-slate-600">${escapeHtml(e.numero)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(e.puesto)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(e.departamento)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600 max-w-[10rem] truncate" title="${escapeHtml(e.campana)}">${escapeHtml(e.campana)}</td>
-      <td class="px-4 py-3">${evaluacionEstadoBadge(e.estado)}</td>
-      <td class="px-4 py-3 text-sm font-semibold tabular-nums text-text-primary">${e.calificacion > 0 ? e.calificacion.toFixed(1) : "—"}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(e.nivel)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(e.brechaPrincipal)}</td>
-      <td class="px-4 py-3">
-        <button type="button" class="text-xs font-semibold text-accent hover:underline" data-action="e360-select-empleado" data-id="${escapeHtml(e.id)}">Ver evaluación</button>
-      </td>
-    </tr>`)
-    .join("");
-
-  return `
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-left">
-        <thead>
-          <tr class="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-text-muted">
-            <th class="px-4 py-3">Empleado</th>
-            <th class="px-4 py-3">Número</th>
-            <th class="px-4 py-3">Puesto</th>
-            <th class="px-4 py-3">Departamento</th>
-            <th class="px-4 py-3">Campaña</th>
-            <th class="px-4 py-3">Estado</th>
-            <th class="px-4 py-3">Calificación</th>
-            <th class="px-4 py-3">Nivel</th>
-            <th class="px-4 py-3">Brecha principal</th>
-            <th class="px-4 py-3">Acción</th>
-          </tr>
-        </thead>
-        <tbody>${rows || `<tr><td colspan="10" class="px-4 py-8 text-center text-sm text-text-muted">Sin empleados con los filtros actuales</td></tr>`}</tbody>
-      </table>
-    </div>`;
-}
-
 export interface RhDashboardRenderOpts {
   filters: Eval360Filters;
-  search: string;
 }
 
 export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
-  const filtered = filterEmpleadosEval360(MOCK_EMPLEADOS_EVAL360, opts.filters, opts.search);
+  const filtered = filterEmpleadosEval360(MOCK_EMPLEADOS_EVAL360, opts.filters, "");
   const kpis = computePlantKpis(filtered);
   const salud = computeTalentoSalud(filtered);
   const heatmap = computeBrechaHeatmap(filtered);
@@ -217,16 +170,6 @@ export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
           `<ul class="space-y-3">${capacitacion.map((n) => `<li class="flex items-center justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(n.competencia)}</p><p class="text-xs text-text-muted">${n.afectados} empleados</p></div><span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold ${n.prioridad === "Alta" ? "border-red-200 bg-red-50 text-red-800" : n.prioridad === "Media" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-100 text-slate-700"}">${n.prioridad}</span></li>`).join("") || `<p class="text-sm text-text-muted">Sin necesidades detectadas</p>`}</ul>`,
         )}
       </div>
-    </section>
-
-    <section class="mt-10" aria-labelledby="e360-seccion-selector">
-      <h2 id="e360-seccion-selector" class="text-sm font-semibold text-text-primary">Selector de empleado</h2>
-      <p class="mt-0.5 text-xs text-text-muted">Busque colaboradores evaluados y acceda a su evaluación en la pestaña Resultados</p>
-      <div class="mt-4 rounded-xl border border-border bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-        <label class="mb-1 block text-xs font-medium text-text-muted">Buscar empleado</label>
-        <input type="search" name="e360-search" value="${escapeHtml(opts.search)}" placeholder="Nombre, número, puesto o departamento…" class="w-full max-w-xl rounded-lg border border-border px-3 py-2 text-sm" data-input="e360-search" />
-        <div class="mt-4">${renderEmpleadosTable(filtered)}</div>
-      </div>
     </section>`;
 }
 
@@ -248,7 +191,7 @@ export function renderEval360RhHeader(): string {
 
 /** Datos de gráfica competencias/depto para mount charts. */
 export function getDashboardChartData(opts: RhDashboardRenderOpts) {
-  const filtered = filterEmpleadosEval360(MOCK_EMPLEADOS_EVAL360, opts.filters, opts.search);
+  const filtered = filterEmpleadosEval360(MOCK_EMPLEADOS_EVAL360, opts.filters, "");
   return {
     filtered,
     competenciasDept: computeCompetenciasPorDepartamento(filtered),

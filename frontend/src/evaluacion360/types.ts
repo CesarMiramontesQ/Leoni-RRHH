@@ -2,6 +2,7 @@
 
 export type Eval360ViewId =
   | "dashboard"
+  | "empleados"
   | "campanas"
   | "evaluaciones"
   | "resultados"
