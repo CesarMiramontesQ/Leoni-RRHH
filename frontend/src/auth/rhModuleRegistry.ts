@@ -28,6 +28,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "evidencias", prefix: "#/evidencias" },
   { key: "sugerencias", prefix: "#/sugerencias" },
   { key: "encuestas", prefix: "#/encuestas" },
+  { key: "horas-extra", prefix: "#/nominas/horas-extra" },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 export function resolveModuleFromHash(hashValue: string): string | null {
@@ -45,5 +46,7 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "puestos-ajustes") return "puestos";
   if (navItemId === "comedor-menu") return "comedor";
   if (navItemId === "laborales") return "dashboard";
+  if (navItemId === "nominas") return "dashboard";
+  if (navItemId === "horas-extra") return "dashboard";
   return navItemId;
 }

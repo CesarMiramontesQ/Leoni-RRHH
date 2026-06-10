@@ -18,6 +18,10 @@ import {
   isLevelUpHubVisibleForRol,
   LEVEL_UP_SIDEBAR_ITEM,
 } from "../navigation/levelUpNav.ts";
+import {
+  isNominasHubVisibleForRol,
+  NOMINAS_SIDEBAR_ITEM,
+} from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
 import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
 import {
@@ -117,7 +121,9 @@ export type ShellNavKey =
   | "evidencias"
   | "sugerencias"
   | "encuestas"
-  | "level-up";
+  | "level-up"
+  | "nominas"
+  | "horas-extra";
 
 type NavItemDef = {
   id: AppShellNavItemId;
@@ -334,6 +340,14 @@ const NAV_LEVEL_UP: NavItemDef = {
   svgPaths: LEVEL_UP_SIDEBAR_ITEM.svgPaths,
 };
 
+const NAV_NOMINAS: NavItemDef = {
+  id: NOMINAS_SIDEBAR_ITEM.id,
+  key: NOMINAS_SIDEBAR_ITEM.key,
+  hrefFor: () => NOMINAS_SIDEBAR_ITEM.href,
+  label: NOMINAS_SIDEBAR_ITEM.label,
+  svgPaths: NOMINAS_SIDEBAR_ITEM.svgPaths,
+};
+
 function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
   if (isRhStructuredNavRol(rol)) return "";
   const empleadosDef: NavItemDef = isSupervisorStructuredNavRol(rol)
@@ -423,7 +437,8 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
           const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
           const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
           const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
-          return [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
+          const nominasLi = isNominasHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_NOMINAS) : "";
+          return [primaryLis, laboralesLi, comedorLi, levelUpLi, nominasLi].filter((li) => li.trim() !== "").join("");
         })();
 
   const navContent = rhStructuredSidebar

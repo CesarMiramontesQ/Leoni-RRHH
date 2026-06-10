@@ -15,6 +15,7 @@ import {
   isLevelUpHubVisibleForRol,
   getVisibleLevelUpCategoriesForRhSidebar,
 } from "./levelUpNav.ts";
+import { isNominasHubVisibleForRol } from "./nominasNav.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
@@ -51,6 +52,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "sugerencias", hash: "#/sugerencias" },
   { itemId: "encuestas", hash: "#/encuestas" },
   { itemId: "empleados", hash: "#/empleados" },
+  { itemId: "horas-extra", hash: "#/nominas/horas-extra" },
 ];
 
 export function isRhHomeHash(hash: string): boolean {
@@ -114,7 +116,9 @@ export type AppShellNavItemId =
   | "sugerencias"
   | "sesiones"
   | "encuestas"
-  | "level-up";
+  | "level-up"
+  | "nominas"
+  | "horas-extra";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
@@ -159,6 +163,8 @@ const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"])
 
 const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
+const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "director", "gerente"]);
+
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
   "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
@@ -183,6 +189,7 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (itemId === "evaluacion-360") return navRol === "rh";
+  if (itemId === "nominas" || itemId === "horas-extra") return NOMINAS_NAV_ROLES.has(navRol ?? "");
   if (RH_ONLY_NAV_IDS.has(itemId)) return navRol === "rh";
   if (TALENTO_NAV_IDS.has(itemId)) return navRol === "rh" || navRol === "director" || navRol === "gerente";
   if (navRol === "supervisor" && rol !== "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
@@ -212,6 +219,9 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   }
   if (itemId === "comedor-menu") {
     return isComedorHubVisibleForRol(rol);
+  }
+  if (itemId === "nominas") {
+    return isNominasHubVisibleForRol(rol);
   }
   const byRole = roleOnlyNavVisible(rol, itemId);
   if (rol === "rh") {
@@ -267,6 +277,9 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   }
   if (h === "#/comedor/accesos") {
     return isComedorHubVisibleForRol(rol);
+  }
+  if (h.startsWith("#/nominas")) {
+    return NOMINAS_NAV_ROLES.has(rol ?? "");
   }
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {

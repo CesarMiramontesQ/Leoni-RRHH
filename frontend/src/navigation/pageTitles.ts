@@ -28,6 +28,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/evidencias"), titulo: "Motor de Evidencias" },
   { match: (h) => h.startsWith("#/sugerencias"), titulo: "Motor de Sugerencias" },
   { match: (h) => h.startsWith("#/encuestas"), titulo: "Encuestas Post Curso" },
+  { match: (h) => h.startsWith("#/nominas/horas-extra"), titulo: "Horas Extra" },
   { match: (h) => h.startsWith("#/laborales"), titulo: "Laborales" },
   { match: (h) => h.startsWith("#/comedor/accesos"), titulo: "Comedor" },
   { match: (h) => h.startsWith("#/level-up/evaluacion-360/empleados"), titulo: "Empleados · Evaluación 360°" },

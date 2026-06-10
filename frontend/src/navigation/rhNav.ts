@@ -9,6 +9,7 @@ import { CURSOS_SIDEBAR_ITEM, getVisibleCursosNavItems } from "./cursosNav.ts";
 import { CUMPLIMIENTO_SIDEBAR_ITEM, getVisibleCumplimientoNavItems } from "./cumplimientoNav.ts";
 import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
 import { getVisibleLevelUpCategoriesForRhSidebar, LEVEL_UP_SIDEBAR_ITEM } from "./levelUpNav.ts";
+import { NOMINAS_NAV_ITEMS, NOMINAS_SIDEBAR_ITEM } from "./nominasNav.ts";
 import { PUESTOS_SIDEBAR_ITEM, getVisiblePuestosNavItems } from "./puestosNav.ts";
 
 export type RhNavKey =
@@ -35,7 +36,9 @@ export type RhNavKey =
   | "evidencias"
   | "sugerencias"
   | "encuestas"
-  | "empleados";
+  | "empleados"
+  | "nominas"
+  | "horas-extra";
 
 export type RhNavItem = {
   id: AppShellNavItemId;
@@ -152,6 +155,17 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "level-up",
       iconSvgPaths: LEVEL_UP_SIDEBAR_ITEM.svgPaths,
       items: levelUpItems,
+    });
+  }
+
+  const nominasItems = filterVisibleItems(rol, NOMINAS_NAV_ITEMS);
+  if (nominasItems.length > 0) {
+    sections.push({
+      id: "nominas",
+      title: NOMINAS_SIDEBAR_ITEM.label,
+      sectionKey: "nominas",
+      iconSvgPaths: NOMINAS_SIDEBAR_ITEM.svgPaths,
+      items: nominasItems,
     });
   }
 
