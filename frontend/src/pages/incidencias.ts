@@ -13,10 +13,6 @@ import { downloadIncidenciasExcel } from "../incidencias/exportIncidenciasExcel.
 import { patchRhIncidenciaSubareaSelect } from "../components/incidencias/rhIncidenciasFilters.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
-import {
-  mountIncidenciasAgentPanel,
-  type IncidenciasAgentPanelHandle,
-} from "../components/incidencias/incidenciasAgentPanel.ts";
 import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
 import { destroyChart, destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
@@ -340,7 +336,6 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
       ${renderLaboralesBackBar()}
       <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel(filterDraft, appliedFilters, uiConfig, EMPTY_CATALOG))}</div>
-      <div id="rh-inc-agent-host" class="shrink-0"></div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>
     </div>`,
@@ -350,15 +345,6 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   const detalleModal: RhIncidenciaDetalleModalHandle | null =
     detalleModalHost ?
       mountRhIncidenciaDetalleModal(detalleModalHost as HTMLElement, { signal })
-    : null;
-
-  const agentHost = container.querySelector("#rh-inc-agent-host");
-  const agentPanel: IncidenciasAgentPanelHandle | null =
-    agentHost ?
-      mountIncidenciasAgentPanel(agentHost as HTMLElement, {
-        signal,
-        getAppliedFilters: () => appliedFilters,
-      })
     : null;
 
   const nuevaIncidenciaModalHost = container.querySelector("#rh-inc-nueva-incidencia-modal-host");
@@ -511,7 +497,6 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   signal.addEventListener("abort", () => {
     nuevaIncidenciaModal?.destroy();
     detalleModal?.destroy();
-    agentPanel?.destroy();
   });
 
   void load(true);
