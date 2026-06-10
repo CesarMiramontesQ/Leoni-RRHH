@@ -1029,10 +1029,6 @@ function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): 
     "click",
     (event) => {
       const target = event.target as HTMLElement;
-      if (target.closest("[data-comedor-admin-back]")) {
-        window.location.hash = "#/comedor";
-        return;
-      }
       if (target.closest("[data-comedor-admin-add]")) {
         crearModal?.open();
         return;
@@ -1756,26 +1752,10 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">
       <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-5 sm:gap-6">
         ${renderComedorBackBar()}
-        <nav aria-label="Navegación comedor" class="flex flex-wrap items-center gap-3">
-          <button type="button" data-comedor-codigos-volver
-            class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-gradient-to-r from-white via-white to-sky-50/50 px-4 py-2 text-sm font-semibold text-[#0A1628] shadow-sm transition-[box-shadow,transform,border-color] duration-150 ease-out hover:-translate-y-px hover:border-[#1e40af]/35 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:transform-none">
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 text-[#1e40af]">
-              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" />
-            </svg>
-            Volver a Comedor
-          </button>
-        </nav>
         <div id="comedor-codigos-root" class="min-w-0"></div>
       </div>
     </div>`,
   });
-  container.querySelector<HTMLButtonElement>("[data-comedor-codigos-volver]")?.addEventListener(
-    "click",
-    () => {
-      window.location.hash = "#/comedor";
-    },
-    { signal },
-  );
   const root = container.querySelector<HTMLElement>("#comedor-codigos-root");
   root?.addEventListener(
     "click",

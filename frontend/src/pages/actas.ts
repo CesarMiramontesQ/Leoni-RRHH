@@ -112,8 +112,6 @@ function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
     description: "La sección de actas administrativas solo está disponible para RH.",
-    linkHref: "#/",
-    linkLabel: "Volver al dashboard",
   });
 }
 

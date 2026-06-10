@@ -77,9 +77,6 @@ export function renderComedorGestionAdmin(state: ComedorGestionAdminViewState): 
           <p class="mt-1 text-sm text-text-muted">Consulta, crea y edita comedores disponibles para la operación.</p>
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-2">
-          <button type="button" data-comedor-admin-back class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-            Volver a comedor
-          </button>
           <button type="button" data-comedor-admin-add class="inline-flex items-center rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-leoni-blue-light">
             Agregar nuevo comedor
           </button>

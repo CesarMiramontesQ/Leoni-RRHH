@@ -52,8 +52,6 @@ function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
     description: "Esta sección de solicitudes no está disponible para tu usuario.",
-    linkHref: "#/",
-    linkLabel: "Volver al dashboard",
   });
 }
 

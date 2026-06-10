@@ -79,7 +79,6 @@ type PaginatedList<T> = {
 
 const PAGE_SIZE = 10;
 
-const ICON_BACK = `<svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
 const ICON_BUILDING = `<svg class="size-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-2.25-18v18m-7.5-15v15m-7.5-12v12"/></svg>`;
 const ICON_USERS = `<svg class="size-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`;
 const ICON_USERS_KPI = ICON_USERS.replace('class="size-4', 'class="size-6');
@@ -186,10 +185,7 @@ function renderHero(perfil: PerfilHeader, metrics: PageMetrics, showAsignar: boo
     <div class="border-b border-slate-100/90 bg-gradient-to-br from-slate-50/80 via-white to-blue-50/30 px-4 py-5 sm:px-6 sm:py-6">
       <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 flex-1">
-          <button type="button" id="ppe-btn-volver" class="ppe-back-link inline-flex items-center gap-1.5 text-sm font-semibold text-[#1e40af] transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2">
-            ${ICON_BACK}<span>Volver</span>
-          </button>
-          <div class="mt-4 flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <span class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-slate-700 shadow-sm">${escapeHtml(perfil.codigo)}</span>
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(perfil.nombre)}</h1>
@@ -566,10 +562,6 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
   }
 
   function wireAsignarButton(): void {
-    pageRoot.querySelector("#ppe-btn-volver")?.addEventListener("click", () => {
-      if (window.history.length > 1) window.history.back();
-      else window.location.hash = `#/puestos/${perfilId}`;
-    });
     pageRoot.querySelector("#ppe-btn-asignar")?.addEventListener("click", openAsignar);
     pageRoot.querySelector('[data-ppe-action="asignar"]')?.addEventListener("click", openAsignar);
   }

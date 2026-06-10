@@ -52,8 +52,6 @@ function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: INC_COPY.accesoDenegadoTitulo,
     description: INC_COPY.accesoDenegadoTexto,
-    linkHref: "#/",
-    linkLabel: INC_COPY.volverDashboard,
   });
 }
 

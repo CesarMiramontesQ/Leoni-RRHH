@@ -34,7 +34,6 @@ export function mountEvaluacionEmpleado(
     return `
       <div class="px-6 py-6 max-w-4xl mx-auto">
         ${renderLevelUpBackBar()}
-        <a href="#/evaluaciones" class="text-sm text-blue-600 hover:text-blue-800">&larr; Volver a evaluaciones</a>
         <div class="mt-6 rounded-lg border border-dashed border-gray-300 py-12 text-center text-gray-500">
           <p class="text-sm">No se pudo cargar el resumen de este empleado.</p>
           <p class="text-xs mt-1">Puede que no tenga competencias requeridas asignadas a su área.</p>
@@ -108,7 +107,6 @@ export function mountEvaluacionEmpleado(
     return `
       <div class="px-6 py-6 max-w-5xl mx-auto">
         ${renderLevelUpBackBar()}
-        <a href="#/evaluaciones" class="mt-3 inline-block text-sm text-blue-600 hover:text-blue-800">&larr; Volver a evaluaciones</a>
 
         <div class="mt-4 flex items-center justify-between">
           <div>

@@ -26,8 +26,6 @@ function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
     description: "La sección de detalle de actas administrativas solo está disponible para RH.",
-    linkHref: "#/actas",
-    linkLabel: "Volver al listado de actas",
   });
 }
 
@@ -613,12 +611,6 @@ function renderDetalleHtml(
   return `
     <div id="rh-acta-detalle-root" class="space-y-6">
       ${renderLaboralesBackBar()}
-      <div>
-        <a href="#/actas" class="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2 py-1 text-sm font-medium text-slate-600 transition-colors hover:border-blue-100 hover:bg-blue-50 hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30">
-          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 opacity-80" aria-hidden="true"><path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" /></svg>
-          Volver a Actas
-        </a>
-      </div>
 
       <section class="overflow-hidden rounded-3xl border border-[#dbe4f0] bg-gradient-to-br from-white via-[#f8fbff] to-[#f3f7ff] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.08)] sm:p-7">
         <div class="${
@@ -1255,7 +1247,6 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
           <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
             <p class="font-semibold">Acta no encontrada</p>
             <p class="mt-1">${escapeHtml(err.detail || "No se encontró el acta solicitada.")}</p>
-            <a href="#/actas" class="mt-3 inline-flex items-center gap-1.5 font-semibold text-leoni-blue hover:underline">Volver al listado</a>
           </div>`;
         return;
       }
@@ -1275,7 +1266,6 @@ export function mountActaDetalle(container: HTMLElement, actaId: number, signal:
       <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
         <p class="font-semibold">No se pudo cargar el detalle del acta.</p>
         <p class="mt-1">Ocurrió un error inesperado.</p>
-        <a href="#/actas" class="mt-3 inline-flex items-center gap-1.5 font-semibold text-leoni-blue hover:underline">Volver al listado</a>
       </div>`;
   });
 
