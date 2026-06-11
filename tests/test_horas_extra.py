@@ -265,6 +265,47 @@ async def test_horas_extra_sin_solicitudes_responde_vacio(
 
 
 @pytest.mark.asyncio
+async def test_horas_extra_detalle_rh(client: AsyncClient, db, empleado_rh):
+    area, sub, cc, motivo = await _seed_catalogo(db)
+    supervisor = await make_empleado(
+        db,
+        rol="supervisor",
+        nombre="Lider Detalle",
+        no_empleado="HE-DET-L",
+        puede_registrar_horas_extra=True,
+    )
+    operativo = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Operativo Detalle",
+        no_empleado="HE-DET-001",
+        lider_id=supervisor.empleado_id,
+    )
+    solicitud = await _crear_solicitud(
+        db,
+        area=area,
+        sub=sub,
+        cc=cc,
+        motivo=motivo,
+        registrado_por=supervisor,
+        empleados_horas=[(operativo.id, 3.5)],
+        estado="pendiente",
+    )
+
+    headers = await auth_headers(client, empleado_rh)
+    response = await client.get(f"{LISTADO_URL}/{solicitud.id}", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == solicitud.id
+    assert data["estado"] == "pendiente"
+    assert data["total_horas_general"] == 3.5
+    assert len(data["detalle"]) == 1
+    assert data["detalle"][0]["empleado_id"] == operativo.id
+    assert data["detalle"][0]["lunes"] == 3.5
+
+
+@pytest.mark.asyncio
 async def test_horas_extra_rechaza_empleado(client: AsyncClient, empleado_base):
     headers = await auth_headers(client, empleado_base)
     response = await client.get(LISTADO_URL, headers=headers)

@@ -1,5 +1,5 @@
 import type { HorasExtraFila, HorasExtraEstadoSolicitud } from "../../../api/horasExtra.ts";
-import { badgeApproved, badgeCancelled, badgePending, badgeRejected } from "../../../ui/uiTokens.ts";
+import { badgeApproved, badgeCancelled, badgePending, badgeRejected, RH_LISTADO_BTN_GHOST } from "../../../ui/uiTokens.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
@@ -51,23 +51,18 @@ function renderSemanaCell(fila: HorasExtraFila): string {
   return `
     <div class="min-w-[6rem]">
       <p class="text-sm font-semibold tabular-nums text-text-primary">${sol.semana}</p>
-      <p class="text-xs text-text-secondary">Inicio ${escapeHtml(formatFecha(sol.semana_inicio))}</p>
     </div>`;
 }
 
-function renderAprobacionCell(fila: HorasExtraFila): string {
-  const sol = fila.solicitud;
-  if (!sol.aprobador_nombre && !sol.fecha_aprobacion) {
-    return `<span class="text-sm text-text-muted">—</span>`;
-  }
-  const nombre = sol.aprobador_nombre
-    ? formatNombreEmpleadoUi(sol.aprobador_nombre) || sol.aprobador_nombre
-    : "—";
+function renderAccionesCell(fila: HorasExtraFila): string {
+  const solicitudId = fila.solicitud.solicitud_id;
   return `
-    <div class="min-w-[9rem]">
-      <p class="truncate text-sm text-text-primary">${escapeHtml(nombre)}</p>
-      <p class="text-xs tabular-nums text-text-secondary">${escapeHtml(formatFecha(sol.fecha_aprobacion))}</p>
-    </div>`;
+    <button
+      type="button"
+      class="${RH_LISTADO_BTN_GHOST} min-h-9 px-3 py-1.5 text-xs font-semibold"
+      data-he-rh-ver-id="${solicitudId}"
+      aria-label="Ver detalle de la solicitud ${solicitudId}"
+    >Ver</button>`;
 }
 
 function renderFila(fila: HorasExtraFila): string {
@@ -85,7 +80,7 @@ function renderFila(fila: HorasExtraFila): string {
         <p class="truncate text-sm text-text-primary" title="${escapeHtml(motivo)}">${escapeHtml(motivo)}</p>
       </td>
       <td class="px-3 py-3 whitespace-nowrap">${estadoBadge(sol.estado)}</td>
-      <td class="px-3 py-3 whitespace-nowrap">${renderAprobacionCell(fila)}</td>
+      <td class="px-3 py-3 whitespace-nowrap text-right">${renderAccionesCell(fila)}</td>
     </tr>`;
 }
 

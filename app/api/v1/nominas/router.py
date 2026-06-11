@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas.horas_extra import HorasExtraListResponse, HorasExtraTabFiltro
+from app.schemas.horas_extra_solicitud import HorasExtraSolicitudResponse
 from app.schemas.nominas_ajustes import (
     HorasExtraAutorizacionUpdate,
     HorasExtraAutorizacionUpdateResponse,
@@ -50,6 +51,23 @@ async def list_horas_extra(
         area_id=area_id,
         centrocosto_id=centrocosto_id,
         lider_empleado_id=lider_empleado_id,
+    )
+
+
+@router.get(
+    "/horas-extra/{solicitud_id}",
+    response_model=HorasExtraSolicitudResponse,
+)
+async def get_horas_extra_detalle(
+    solicitud_id: int,
+    current_user: Empleado = Depends(role_checker(_ROLES_HORAS_EXTRA)),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    svc: HorasExtraService = Depends(_svc),
+):
+    return await svc.obtener_detalle(
+        solicitud_id,
+        current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
     )
 
 

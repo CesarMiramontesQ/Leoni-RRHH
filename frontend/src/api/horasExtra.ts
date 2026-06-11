@@ -1,4 +1,5 @@
 import { fetchWithAuth } from "./http.ts";
+import type { HorasExtraSolicitudResponse } from "./horasExtraSolicitud.ts";
 
 export type HorasExtraEstadoSolicitud =
   | "borrador"
@@ -123,4 +124,13 @@ export async function getHorasExtraList(
     throw err;
   }
   return (await res.json()) as HorasExtraListResponse;
+}
+
+export async function getHorasExtraDetalle(solicitudId: number): Promise<HorasExtraSolicitudResponse> {
+  const res = await fetchWithAuth(`/api/v1/nominas/horas-extra/${solicitudId}`);
+  if (!res.ok) {
+    const err: HorasExtraFetchError = { status: res.status, detail: await readErrorDetail(res) };
+    throw err;
+  }
+  return (await res.json()) as HorasExtraSolicitudResponse;
 }

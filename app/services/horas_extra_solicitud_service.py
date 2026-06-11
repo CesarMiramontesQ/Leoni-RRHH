@@ -384,6 +384,9 @@ class HorasExtraSolicitudService:
             raise NotFoundError("Solicitud de horas extra", solicitud_id)
         return self._to_response(solicitud)
 
+    def build_response(self, solicitud: HorasExtraSolicitud) -> HorasExtraSolicitudResponse:
+        return self._to_response(solicitud)
+
     def _to_response(self, solicitud: HorasExtraSolicitud) -> HorasExtraSolicitudResponse:
         detalle = [
             HorasExtraDetalleResponse(

@@ -11,7 +11,7 @@ const TABLE_COLUMNS = [
   "Horas solicitadas",
   "Motivo",
   "Estado",
-  "Aprobación",
+  "Acciones",
 ] as const;
 
 function renderPagination(vm: HorasExtraPageViewModel): string {

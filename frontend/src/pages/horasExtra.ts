@@ -1,12 +1,18 @@
 import { getEmpleadosCatalogoFiltros } from "../api/empleados.ts";
 import {
+  getHorasExtraDetalle,
   getHorasExtraList,
   type HorasExtraFetchError,
   type HorasExtraTabFiltro,
 } from "../api/horasExtra.ts";
+import type { HorasExtraDetalleModalState } from "../horasExtra/shared/renderHorasExtraDetalleModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildHorasExtraViewModel } from "../nominas/horasExtra/buildHorasExtraViewModel.ts";
-import { renderHorasExtraListado, renderHorasExtraPage } from "../nominas/horasExtra/renderHorasExtraPage.ts";
+import {
+  renderHorasExtraDetalleModalSlot,
+  renderHorasExtraListado,
+  renderHorasExtraPage,
+} from "../nominas/horasExtra/renderHorasExtraPage.ts";
 import type {
   HorasExtraFilterOptions,
   HorasExtraFilters,
@@ -23,6 +29,11 @@ const SHELL_OPTS = {
   pageTitle: "Horas Extra",
   activeNav: "horas-extra" as const,
   mainClass: "py-0",
+};
+
+const EMPTY_DETALLE_MODAL: HorasExtraDetalleModalState = {
+  detalle: null,
+  status: "idle",
 };
 
 function loadingViewModel(): HorasExtraPageViewModel {
@@ -78,10 +89,21 @@ export function mountHorasExtra(container: HTMLElement): void {
   let filters: HorasExtraFilters = { ...EMPTY_HORAS_EXTRA_FILTERS };
   let filterOptions: HorasExtraFilterOptions = { ...EMPTY_HORAS_EXTRA_FILTER_OPTIONS };
   let currentPage = 1;
+  let detalleModal: HorasExtraDetalleModalState = { ...EMPTY_DETALLE_MODAL };
+
+  const renderDetalleModal = (pageRoot: HTMLElement) => {
+    const slot = pageRoot.querySelector("#horas-extra-detalle-modal");
+    if (slot) slot.outerHTML = renderHorasExtraDetalleModalSlot(detalleModal);
+  };
+
+  const closeDetalleModal = (pageRoot: HTMLElement) => {
+    detalleModal = { ...EMPTY_DETALLE_MODAL };
+    renderDetalleModal(pageRoot);
+  };
 
   mountAppShell(container, {
     ...SHELL_OPTS,
-    mainHtml: renderHorasExtraPage(loadingViewModel()),
+    mainHtml: renderHorasExtraPage(loadingViewModel(), EMPTY_DETALLE_MODAL),
   });
 
   const refreshListado = async (pageRoot: HTMLElement, page = currentPage) => {
@@ -135,9 +157,41 @@ export function mountHorasExtra(container: HTMLElement): void {
       void refreshListado(pageRoot, 1);
     });
 
-    pageRoot.addEventListener("click", (event) => {
+    pageRoot.addEventListener("click", async (event) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
+      if (!(target instanceof Element)) return;
+
+      const verBtn = target.closest<HTMLButtonElement>("[data-he-rh-ver-id]");
+      if (verBtn) {
+        const id = Number.parseInt(verBtn.dataset.heRhVerId ?? "0", 10);
+        if (!id) return;
+        detalleModal = { detalle: null, status: "loading" };
+        renderDetalleModal(pageRoot);
+        try {
+          const detalle = await getHorasExtraDetalle(id);
+          detalleModal = { detalle, status: "idle" };
+        } catch (err) {
+          const detail =
+            err && typeof err === "object" && "detail" in err
+              ? String((err as HorasExtraFetchError).detail)
+              : "No se pudo cargar el detalle.";
+          detalleModal = { detalle: null, status: "error", error: detail };
+        }
+        renderDetalleModal(pageRoot);
+        return;
+      }
+
+      if (target.closest("[data-he-rh-detalle-cerrar]")) {
+        closeDetalleModal(pageRoot);
+        return;
+      }
+
+      const backdrop = pageRoot.querySelector("#he-rh-detalle-backdrop");
+      if (backdrop && target === backdrop) {
+        closeDetalleModal(pageRoot);
+        return;
+      }
+
       const pageBtn = target.closest<HTMLButtonElement>("[data-he-page]");
       if (!pageBtn || pageBtn.disabled) return;
 
@@ -162,7 +216,7 @@ export function mountHorasExtra(container: HTMLElement): void {
       const vm = buildHorasExtraViewModel(data, { filters, filterOptions, filtersStatus: "ready" });
       const page = container.querySelector("#horas-extra-page");
       if (page) {
-        page.outerHTML = renderHorasExtraPage(vm);
+        page.outerHTML = renderHorasExtraPage(vm, EMPTY_DETALLE_MODAL);
         const pageRoot = container.querySelector("#horas-extra-page");
         if (pageRoot instanceof HTMLElement) bindListadoEvents(pageRoot);
       }
@@ -172,7 +226,7 @@ export function mountHorasExtra(container: HTMLElement): void {
           ? String((err as HorasExtraFetchError).detail)
           : "Error al cargar horas extra.";
       const page = container.querySelector("#horas-extra-page");
-      if (page) page.outerHTML = renderHorasExtraPage(errorViewModel(detail));
+      if (page) page.outerHTML = renderHorasExtraPage(errorViewModel(detail), EMPTY_DETALLE_MODAL);
     }
   })();
 }

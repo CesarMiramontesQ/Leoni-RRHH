@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.horas_extra import HorasExtraSolicitud, HorasExtraSolicitudDetalle
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.horas_extra_repository import HorasExtraRepository
+from app.repositories.horas_extra_solicitud_repository import HorasExtraSolicitudRepository
 from app.schemas.horas_extra import (
     HorasExtraCentroCostoOption,
     HorasExtraEmpleadoResponse,
@@ -19,6 +20,8 @@ from app.schemas.horas_extra import (
     HorasExtraSolicitudInfoResponse,
     HorasExtraTabFiltro,
 )
+from app.schemas.horas_extra_solicitud import HorasExtraSolicitudResponse
+from app.services.horas_extra_solicitud_service import HorasExtraSolicitudService
 from app.utils.business_time import business_today
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +33,8 @@ class HorasExtraService:
         self.db = db
         self.repo = HorasExtraRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
+        self.solicitud_repo = HorasExtraSolicitudRepository(db)
+        self.solicitud_svc = HorasExtraSolicitudService(db)
 
     def _require_acceso(self, current_user: Empleado) -> None:
         rol = current_user.rol.nombre if current_user.rol else "empleado"
@@ -199,3 +204,24 @@ class HorasExtraService:
             page=page,
             page_size=page_size,
         )
+
+    async def obtener_detalle(
+        self,
+        solicitud_id: int,
+        *,
+        current_user: Empleado,
+        rh_ui_mode: str | None,
+    ) -> HorasExtraSolicitudResponse:
+        self._require_acceso(current_user)
+        ids_permitidos = await self._ids_permitidos(current_user, rh_ui_mode)
+
+        solicitud = await self.solicitud_repo.get_solicitud_by_id(solicitud_id)
+        if solicitud is None:
+            raise NotFoundError("Solicitud de horas extra", solicitud_id)
+
+        if ids_permitidos is not None:
+            empleado_ids = {d.empleado_id for d in solicitud.detalle}
+            if not empleado_ids.intersection(ids_permitidos):
+                raise NotFoundError("Solicitud de horas extra", solicitud_id)
+
+        return self.solicitud_svc.build_response(solicitud)

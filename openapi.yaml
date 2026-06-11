@@ -4901,6 +4901,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/HorasExtraListResponse"
 
+  /api/v1/nominas/horas-extra/{solicitud_id}:
+    get:
+      tags: [Nóminas]
+      summary: Detalle de una solicitud de horas extra (vista RH)
+      operationId: nominas_horas_extra_detalle
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle completo de la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudResponse"
+        "403":
+          description: Sin acceso a Horas Extra
+        "404":
+          description: Solicitud no encontrada o fuera de alcance
+
   /api/v1/nominas/ajustes/horas-extra/autorizados:
     get:
       tags: [Nóminas]

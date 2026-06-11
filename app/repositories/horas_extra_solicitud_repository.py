@@ -151,6 +151,22 @@ class HorasExtraSolicitudRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_solicitud_by_id(self, solicitud_id: int) -> HorasExtraSolicitud | None:
+        result = await self.db.execute(
+            select(HorasExtraSolicitud)
+            .options(
+                selectinload(HorasExtraSolicitud.area),
+                selectinload(HorasExtraSolicitud.subarea),
+                selectinload(HorasExtraSolicitud.centro_costo),
+                selectinload(HorasExtraSolicitud.motivo),
+                selectinload(HorasExtraSolicitud.detalle).selectinload(
+                    HorasExtraSolicitudDetalle.empleado
+                ),
+            )
+            .where(HorasExtraSolicitud.id == solicitud_id)
+        )
+        return result.scalar_one_or_none()
+
     async def list_by_registrado(
         self,
         *,
