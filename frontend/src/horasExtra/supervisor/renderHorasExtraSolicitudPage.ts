@@ -3,6 +3,7 @@ import type {
   HorasExtraSolicitudListItem,
   HorasExtraSolicitudOpciones,
   HorasExtraSolicitudResponse,
+  HorasExtraTipoSolicitud,
 } from "../../api/horasExtraSolicitud.ts";
 import {
   badgeApproved,
@@ -49,6 +50,8 @@ export type HorasExtraSolicitudPageState = {
   empleadosFilas: HorasExtraEmpleadoFilaForm[];
   selectedEmpleadoId: number | null;
   formSemana: number;
+  formTipo: HorasExtraTipoSolicitud;
+  formMotivo: string;
   solicitudModalOpen: boolean;
 };
 
@@ -473,8 +476,8 @@ function renderFormularioSolicitud(
             <label for="he-sup-tipo" class="${FORM_SECTION_LABEL}">Tipo de solicitud *</label>
             <div class="${FORM_SELECT_WRAP}">
               <select id="he-sup-tipo" name="tipo" required class="${FORM_SELECT}">
-                <option value="planeado">Planeada</option>
-                <option value="espontaneo">Espontánea</option>
+                <option value="planeado"${state.formTipo === "planeado" ? " selected" : ""}>Planeada</option>
+                <option value="espontaneo"${state.formTipo === "espontaneo" ? " selected" : ""}>Espontánea</option>
               </select>
               ${SELECT_CHEVRON}
             </div>
@@ -489,7 +492,7 @@ function renderFormularioSolicitud(
               maxlength="500"
               class="${FORM_TEXTAREA}"
               placeholder="Ej. Cubrir vacante, incremento de producción, soporte a inventario…"
-            ></textarea>
+            >${escapeHtml(state.formMotivo)}</textarea>
             <p id="he-sup-motivo-error" class="mt-1 hidden text-xs text-red-600" role="alert"></p>
           </section>
         </div>

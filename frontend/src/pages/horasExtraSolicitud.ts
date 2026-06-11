@@ -17,6 +17,7 @@ import {
   type HorasExtraEmpleadoFilaForm,
   type HorasExtraSolicitudPageState,
 } from "../horasExtra/supervisor/renderHorasExtraSolicitudPage.ts";
+import type { HorasExtraTipoSolicitud } from "../api/horasExtraSolicitud.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
@@ -52,6 +53,8 @@ function initialState(): HorasExtraSolicitudPageState {
     empleadosFilas: [],
     selectedEmpleadoId: null,
     formSemana: 1,
+    formTipo: "planeado",
+    formMotivo: "",
     solicitudModalOpen: false,
   };
 }
@@ -65,6 +68,8 @@ function resetFormState(
   | "empleadosFilas"
   | "selectedEmpleadoId"
   | "formSemana"
+  | "formTipo"
+  | "formMotivo"
   | "solicitudModalOpen"
 > {
   return {
@@ -73,7 +78,23 @@ function resetFormState(
     empleadosFilas: [],
     selectedEmpleadoId: null,
     formSemana: semanaActual,
+    formTipo: "planeado",
+    formMotivo: "",
     solicitudModalOpen: false,
+  };
+}
+
+function syncFormDraftFromDom(
+  root: HTMLElement,
+  current: HorasExtraSolicitudPageState,
+): Pick<HorasExtraSolicitudPageState, "formSemana" | "formTipo" | "formMotivo"> {
+  const semanaRaw = root.querySelector<HTMLSelectElement>("#he-sup-semana")?.value ?? "";
+  const semana = Number.parseInt(semanaRaw, 10);
+  const tipo = root.querySelector<HTMLSelectElement>("#he-sup-tipo")?.value;
+  return {
+    formSemana: Number.isNaN(semana) ? current.formSemana : semana,
+    formTipo: tipo === "espontaneo" ? "espontaneo" : "planeado",
+    formMotivo: root.querySelector<HTMLTextAreaElement>("#he-sup-motivo")?.value ?? "",
   };
 }
 
@@ -451,6 +472,12 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
   let opcionesCache: HorasExtraSolicitudOpciones | null = null;
 
   const render = (): void => {
+    if (state.solicitudModalOpen) {
+      const pageRoot = container.querySelector("#horas-extra-solicitud-page");
+      if (pageRoot) {
+        state = { ...state, ...syncFormDraftFromDom(pageRoot as HTMLElement, state) };
+      }
+    }
     mountAppShell(container, {
       pageTitle: "Solicitud de horas extra",
       activeNav: "horas-extra-solicitud",
@@ -513,14 +540,20 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       render();
     });
 
-    root.querySelector<HTMLSelectElement>("#he-sup-tipo")?.addEventListener("change", () => {
+    root.querySelector<HTMLSelectElement>("#he-sup-tipo")?.addEventListener("change", (ev) => {
+      const tipo = (ev.target as HTMLSelectElement).value as HorasExtraTipoSolicitud;
+      state = {
+        ...state,
+        formTipo: tipo === "espontaneo" ? "espontaneo" : "planeado",
+      };
       updateFormLiveUi(root as HTMLElement, state.empleadosFilas);
     });
 
-    root.querySelector<HTMLTextAreaElement>("#he-sup-motivo")?.addEventListener("input", () => {
-      const motivo = root.querySelector<HTMLTextAreaElement>("#he-sup-motivo");
-      motivo?.classList.remove("border-red-400");
+    root.querySelector<HTMLTextAreaElement>("#he-sup-motivo")?.addEventListener("input", (ev) => {
+      const motivo = ev.target as HTMLTextAreaElement;
+      motivo.classList.remove("border-red-400");
       root.querySelector("#he-sup-motivo-error")?.classList.add("hidden");
+      state = { ...state, formMotivo: motivo.value };
       updateEstadoSolicitud(root as HTMLElement, state.empleadosFilas);
     });
 

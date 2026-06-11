@@ -87,6 +87,20 @@ class HorasExtraSolicitudRepository:
     async def get_centro_costo(self, centrocosto_id: int) -> CentroCosto | None:
         return await self.db.get(CentroCosto, centrocosto_id)
 
+    async def get_or_create_centro_costo(self, centrocosto_id: int) -> CentroCosto:
+        centro = await self.get_centro_costo(centrocosto_id)
+        if centro is not None:
+            return centro
+        centro = CentroCosto(
+            centrocosto_id=centrocosto_id,
+            codigo=f"CC-{centrocosto_id}",
+            descripcion=f"Centro de costo {centrocosto_id}",
+            activo=True,
+        )
+        self.db.add(centro)
+        await self.db.flush()
+        return centro
+
     async def get_centros_costo_map(self, ids: set[int]) -> dict[int, str]:
         if not ids:
             return {}

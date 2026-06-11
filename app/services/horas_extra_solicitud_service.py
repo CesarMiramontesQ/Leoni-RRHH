@@ -93,6 +93,8 @@ class HorasExtraSolicitudService:
         elegibles_ids = await self._empleados_elegibles_ids(current_user)
         empleados_db = await self.repo.get_empleados_by_ids(sorted(elegibles_ids))
         cc_ids = {e.centrocosto_id for e in empleados_db if e.centrocosto_id}
+        for cc_id in cc_ids:
+            await self.repo.get_or_create_centro_costo(cc_id)
         centros_map = await self.repo.get_centros_costo_map(cc_ids)
 
         return HorasExtraSolicitudOpcionesResponse(
@@ -193,8 +195,8 @@ class HorasExtraSolicitudService:
                 detail="La subárea del empleado no pertenece a su área."
             )
 
-        centro = await self.repo.get_centro_costo(centrocosto_id)
-        if centro is None or not centro.activo:
+        centro = await self.repo.get_or_create_centro_costo(centrocosto_id)
+        if not centro.activo:
             raise DomainValidationError(detail="Centro de costo no válido.")
 
         return area_id, subarea_id, centrocosto_id

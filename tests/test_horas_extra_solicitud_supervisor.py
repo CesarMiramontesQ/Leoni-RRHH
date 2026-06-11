@@ -167,6 +167,47 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
 
 
 @pytest.mark.asyncio
+async def test_horas_extra_solicitud_crea_centro_costo_si_falta_en_catalogo(
+    client: AsyncClient, db, empleado_supervisor
+):
+    uid = uuid.uuid4().hex[:6].upper()
+    area_id = int(uid, 16) % 900000 + 100000
+    subarea_id = area_id + 1
+    cc_id = area_id + 2
+    area = Area(area_id=area_id, descripcion="Ensamble", estatus_id=1)
+    sub = Subarea(
+        subarea_id=subarea_id, descripcion="Línea 2", area_id=area_id, estatus_id=1
+    )
+    db.add_all([area, sub])
+    await db.flush()
+
+    operativo = await make_empleado(
+        db,
+        rol="empleado",
+        email="he_op_cc@leoni.test",
+        empleado_id=88105,
+        no_empleado="HE-OP-CC-01",
+        nombre="Operativo Centro Costo",
+        lider_id=empleado_supervisor.empleado_id,
+    )
+    operativo.area_id = area.area_id
+    operativo.subarea_id = sub.subarea_id
+    operativo.centrocosto_id = cc_id
+    await db.flush()
+
+    headers = await auth_headers(client, empleado_supervisor)
+    crear = await client.post(
+        "/api/v1/horas-extra/solicitudes",
+        headers=headers,
+        json=_payload_base(operativo.id),
+    )
+    assert crear.status_code == 201
+    data = crear.json()
+    assert data["centrocosto_id"] == cc_id
+    assert data["centrocosto_descripcion"] == f"Centro de costo {cc_id}"
+
+
+@pytest.mark.asyncio
 async def test_horas_extra_solicitud_no_expone_otro_supervisor(
     client: AsyncClient, db, empleado_supervisor
 ):
