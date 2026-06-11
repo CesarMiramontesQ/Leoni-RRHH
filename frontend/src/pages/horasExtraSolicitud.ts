@@ -3,6 +3,7 @@ import { clearAuth } from "../auth/session.ts";
 import {
   createHorasExtraSolicitud,
   getHorasExtraSolicitudDetalle,
+  getHorasExtraSolicitudEstadisticas,
   getHorasExtraSolicitudOpciones,
   getHorasExtraSolicitudes,
   type HorasExtraDetalleCreate,
@@ -42,6 +43,8 @@ function initialState(): HorasExtraSolicitudPageState {
   return {
     opciones: null,
     opcionesStatus: "loading",
+    estadisticas: null,
+    estadisticasStatus: "loading",
     lista: [],
     listaStatus: "loading",
     listaTotal: 0,
@@ -621,7 +624,7 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
           ...resetFormState(opcionesCache?.semana_actual ?? state.formSemana),
           listaSuccess: "Solicitud guardada correctamente.",
         };
-        await loadLista();
+        await Promise.all([loadLista(), loadEstadisticas()]);
         render();
       } catch (e) {
         const errObj = e as HorasExtraSolicitudFetchError;
@@ -713,6 +716,31 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     }
   };
 
+  const loadEstadisticas = async (): Promise<void> => {
+    state = { ...state, estadisticasStatus: "loading" };
+    try {
+      const data = await getHorasExtraSolicitudEstadisticas();
+      state = {
+        ...state,
+        estadisticas: data,
+        estadisticasStatus: "ready",
+        estadisticasError: undefined,
+      };
+    } catch (e) {
+      const errObj = e as HorasExtraSolicitudFetchError;
+      if (isAuthError(errObj)) {
+        clearAuth();
+        window.location.hash = "#/login";
+        return;
+      }
+      state = {
+        ...state,
+        estadisticasStatus: "error",
+        estadisticasError: errObj.detail ?? "Error al cargar estadísticas.",
+      };
+    }
+  };
+
   const loadLista = async (): Promise<void> => {
     state = { ...state, listaStatus: "loading" };
     try {
@@ -742,7 +770,7 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
 
   void (async () => {
     render();
-    await Promise.all([loadOpciones(), loadLista()]);
+    await Promise.all([loadOpciones(), loadLista(), loadEstadisticas()]);
     render();
   })();
 }

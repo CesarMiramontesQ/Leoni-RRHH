@@ -134,3 +134,14 @@ class HorasExtraSolicitudListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class HorasExtraSolicitudEstadisticasResponse(BaseModel):
+    total_solicitudes: int = Field(ge=0)
+    pendientes: int = Field(ge=0)
+    aprobadas: int = Field(ge=0)
+    total_horas: Decimal = Field(ge=0)
+
+    @field_serializer("total_horas")
+    def _serialize_total_horas(self, value: Decimal) -> float:
+        return float(value)

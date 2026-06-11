@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.horas_extra_solicitud import (
     HorasExtraSolicitudCreate,
+    HorasExtraSolicitudEstadisticasResponse,
     HorasExtraSolicitudListResponse,
     HorasExtraSolicitudOpcionesResponse,
     HorasExtraSolicitudResponse,
@@ -25,6 +26,17 @@ async def horas_extra_solicitud_opciones(
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
     return await svc.obtener_opciones(current_user)
+
+
+@router.get(
+    "/solicitudes/estadisticas",
+    response_model=HorasExtraSolicitudEstadisticasResponse,
+)
+async def horas_extra_solicitud_estadisticas(
+    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    svc: HorasExtraSolicitudService = Depends(_svc),
+):
+    return await svc.obtener_estadisticas(current_user)
 
 
 @router.get("/solicitudes", response_model=HorasExtraSolicitudListResponse)

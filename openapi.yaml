@@ -775,6 +775,23 @@ components:
         page_size:
           type: integer
 
+    HorasExtraSolicitudEstadisticasResponse:
+      type: object
+      required: [total_solicitudes, pendientes, aprobadas, total_horas]
+      properties:
+        total_solicitudes:
+          type: integer
+          minimum: 0
+        pendientes:
+          type: integer
+          minimum: 0
+        aprobadas:
+          type: integer
+          minimum: 0
+        total_horas:
+          type: number
+          minimum: 0
+
     HorasExtraListResponse:
       type: object
       required: [semana_actual, resumen, tabs, filter_options, items, total, page, page_size]
@@ -4608,6 +4625,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HorasExtraSolicitudOpcionesResponse"
+        "403":
+          description: Rol no autorizado
+
+  /api/v1/horas-extra/solicitudes/estadisticas:
+    get:
+      tags: [Horas Extra]
+      summary: Estadísticas de solicitudes del supervisor autenticado
+      operationId: horas_extra_solicitud_estadisticas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Totales agregados de solicitudes propias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudEstadisticasResponse"
         "403":
           description: Rol no autorizado
 

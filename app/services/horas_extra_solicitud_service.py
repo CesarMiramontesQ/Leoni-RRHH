@@ -17,6 +17,7 @@ from app.schemas.horas_extra_solicitud import (
     HorasExtraDetalleResponse,
     HorasExtraEmpleadoOption,
     HorasExtraSolicitudCreate,
+    HorasExtraSolicitudEstadisticasResponse,
     HorasExtraSolicitudListItem,
     HorasExtraSolicitudListResponse,
     HorasExtraSolicitudOpcionesResponse,
@@ -311,6 +312,23 @@ class HorasExtraSolicitudService:
         creada = await self.repo.create(solicitud, detalle_rows)
         await self.db.commit()
         return self._to_response(creada)
+
+    async def obtener_estadisticas(
+        self,
+        current_user: Empleado,
+    ) -> HorasExtraSolicitudEstadisticasResponse:
+        self._require_supervisor(current_user)
+        total, pendientes, aprobadas, total_horas = (
+            await self.repo.estadisticas_por_registrado(
+                registrado_por_id=current_user.id
+            )
+        )
+        return HorasExtraSolicitudEstadisticasResponse(
+            total_solicitudes=total,
+            pendientes=pendientes,
+            aprobadas=aprobadas,
+            total_horas=total_horas,
+        )
 
     async def listar_mis_solicitudes(
         self,

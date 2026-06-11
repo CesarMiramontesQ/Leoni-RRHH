@@ -102,6 +102,13 @@ export type HorasExtraSolicitudListResponse = {
   page_size: number;
 };
 
+export type HorasExtraSolicitudEstadisticas = {
+  total_solicitudes: number;
+  pendientes: number;
+  aprobadas: number;
+  total_horas: number;
+};
+
 export type HorasExtraSolicitudFetchError = {
   status: number;
   detail: string;
@@ -117,6 +124,18 @@ export async function getHorasExtraSolicitudOpciones(): Promise<HorasExtraSolici
     throw err;
   }
   return (await res.json()) as HorasExtraSolicitudOpciones;
+}
+
+export async function getHorasExtraSolicitudEstadisticas(): Promise<HorasExtraSolicitudEstadisticas> {
+  const res = await fetchWithAuth("/api/v1/horas-extra/solicitudes/estadisticas");
+  if (!res.ok) {
+    const err: HorasExtraSolicitudFetchError = {
+      status: res.status,
+      detail: await readErrorDetail(res),
+    };
+    throw err;
+  }
+  return (await res.json()) as HorasExtraSolicitudEstadisticas;
 }
 
 export async function getHorasExtraSolicitudes(

@@ -167,6 +167,44 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
 
 
 @pytest.mark.asyncio
+async def test_horas_extra_solicitud_estadisticas_supervisor(
+    client: AsyncClient, db, empleado_supervisor
+):
+    area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
+    operativo = await make_empleado(
+        db,
+        rol="empleado",
+        email="he_op_stats@leoni.test",
+        empleado_id=88106,
+        no_empleado="HE-OP-ST-01",
+        nombre="Operativo Stats",
+        lider_id=empleado_supervisor.empleado_id,
+    )
+    operativo.area_id = area.area_id
+    operativo.subarea_id = sub.subarea_id
+    operativo.centrocosto_id = cc.centrocosto_id
+    await db.flush()
+
+    headers = await auth_headers(client, empleado_supervisor)
+    crear = await client.post(
+        "/api/v1/horas-extra/solicitudes",
+        headers=headers,
+        json=_payload_base(operativo.id),
+    )
+    assert crear.status_code == 201
+
+    stats = await client.get(
+        "/api/v1/horas-extra/solicitudes/estadisticas", headers=headers
+    )
+    assert stats.status_code == 200
+    body = stats.json()
+    assert body["total_solicitudes"] == 1
+    assert body["pendientes"] == 1
+    assert body["aprobadas"] == 0
+    assert body["total_horas"] == 2
+
+
+@pytest.mark.asyncio
 async def test_horas_extra_solicitud_crea_centro_costo_si_falta_en_catalogo(
     client: AsyncClient, db, empleado_supervisor
 ):

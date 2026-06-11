@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from decimal import Decimal
+
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -176,3 +178,45 @@ class HorasExtraSolicitudRepository:
             .where(HorasExtraSolicitud.registrado_por_id == registrado_por_id)
         )
         return int(result.scalar_one() or 0)
+
+    async def estadisticas_por_registrado(
+        self,
+        *,
+        registrado_por_id: int,
+    ) -> tuple[int, int, int, Decimal]:
+        stats_result = await self.db.execute(
+            select(
+                func.count().label("total"),
+                func.coalesce(
+                    func.sum(
+                        case((HorasExtraSolicitud.estado == "pendiente", 1), else_=0)
+                    ),
+                    0,
+                ).label("pendientes"),
+                func.coalesce(
+                    func.sum(
+                        case((HorasExtraSolicitud.estado == "aprobado", 1), else_=0)
+                    ),
+                    0,
+                ).label("aprobadas"),
+            ).where(HorasExtraSolicitud.registrado_por_id == registrado_por_id)
+        )
+        stats = stats_result.one()
+
+        horas_result = await self.db.execute(
+            select(func.coalesce(func.sum(HorasExtraSolicitudDetalle.total_horas), 0))
+            .select_from(HorasExtraSolicitudDetalle)
+            .join(
+                HorasExtraSolicitud,
+                HorasExtraSolicitud.id == HorasExtraSolicitudDetalle.solicitud_id,
+            )
+            .where(HorasExtraSolicitud.registrado_por_id == registrado_por_id)
+        )
+        total_horas = horas_result.scalar_one() or Decimal("0")
+
+        return (
+            int(stats.total or 0),
+            int(stats.pendientes or 0),
+            int(stats.aprobadas or 0),
+            Decimal(str(total_horas)),
+        )
