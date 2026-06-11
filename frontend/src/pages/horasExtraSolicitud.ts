@@ -11,7 +11,6 @@ import {
 } from "../api/horasExtraSolicitud.ts";
 import {
   getSemanasPermitidas,
-  renderEmpleadosPickerList,
   renderHorasExtraSolicitudPage,
   type HorasExtraEmpleadoFilaForm,
   type HorasExtraSolicitudPageState,
@@ -49,8 +48,7 @@ function initialState(): HorasExtraSolicitudPageState {
     detalleAbierto: null,
     detalleStatus: "idle",
     empleadosFilas: [],
-    selectedEmpleadoIds: [],
-    empleadosSearch: "",
+    selectedEmpleadoId: null,
     formSemana: 1,
     solicitudModalOpen: false,
   };
@@ -63,8 +61,7 @@ function resetFormState(
   | "formError"
   | "submitting"
   | "empleadosFilas"
-  | "selectedEmpleadoIds"
-  | "empleadosSearch"
+  | "selectedEmpleadoId"
   | "formSemana"
   | "solicitudModalOpen"
 > {
@@ -72,8 +69,7 @@ function resetFormState(
     formError: undefined,
     submitting: false,
     empleadosFilas: [],
-    selectedEmpleadoIds: [],
-    empleadosSearch: "",
+    selectedEmpleadoId: null,
     formSemana: semanaActual,
     solicitudModalOpen: false,
   };
@@ -83,59 +79,39 @@ function isAuthError(err: HorasExtraSolicitudFetchError): boolean {
   return err.status === 401;
 }
 
-function filasFromSelection(
+function filaFromEmpleado(
   opciones: HorasExtraSolicitudOpciones,
-  selectedIds: number[],
+  empleadoId: number | null,
   prev: HorasExtraEmpleadoFilaForm[],
 ): HorasExtraEmpleadoFilaForm[] {
-  const prevMap = new Map(prev.map((f) => [f.empleado_id, f]));
-  return selectedIds
-    .map((id) => opciones.empleados.find((e) => e.id === id))
-    .filter((e): e is NonNullable<typeof e> => Boolean(e))
-    .map((emp) => {
-      const existing = prevMap.get(emp.id);
-      return (
-        existing ?? {
-          empleado_id: emp.id,
-          no_empleado: emp.no_empleado,
-          nombre: emp.nombre,
-          lunes: "0",
-          martes: "0",
-          miercoles: "0",
-          jueves: "0",
-          viernes: "0",
-          sabado: "0",
-          domingo: "0",
-        }
-      );
-    });
+  if (!empleadoId) return [];
+  const emp = opciones.empleados.find((e) => e.id === empleadoId);
+  if (!emp) return [];
+  const existing = prev.find((f) => f.empleado_id === emp.id);
+  return [
+    existing ?? {
+      empleado_id: emp.id,
+      no_empleado: emp.no_empleado,
+      nombre: emp.nombre,
+      lunes: "0",
+      martes: "0",
+      miercoles: "0",
+      jueves: "0",
+      viernes: "0",
+      sabado: "0",
+      domingo: "0",
+    },
+  ];
 }
 
-function validateEmpleadosOrganizacion(
+function validateEmpleadoOrganizacion(
   opciones: HorasExtraSolicitudOpciones,
-  filas: HorasExtraEmpleadoFilaForm[],
+  fila: HorasExtraEmpleadoFilaForm,
 ): string | null {
-  if (!filas.length) return null;
-  const empleados = filas
-    .map((f) => opciones.empleados.find((e) => e.id === f.empleado_id))
-    .filter((e): e is NonNullable<typeof e> => Boolean(e));
-
-  for (const emp of empleados) {
-    if (!emp.area_id || !emp.subarea_id || !emp.centrocosto_id) {
-      return `El empleado ${emp.no_empleado} no tiene área, subárea o centro de costo asignado.`;
-    }
-  }
-
-  const ref = empleados[0];
-  if (!ref) return null;
-  for (const emp of empleados.slice(1)) {
-    if (
-      emp.area_id !== ref.area_id ||
-      emp.subarea_id !== ref.subarea_id ||
-      emp.centrocosto_id !== ref.centrocosto_id
-    ) {
-      return "Todos los empleados deben compartir área, subárea y centro de costo.";
-    }
+  const emp = opciones.empleados.find((e) => e.id === fila.empleado_id);
+  if (!emp) return null;
+  if (!emp.area_id || !emp.subarea_id || !emp.centrocosto_id) {
+    return `El empleado ${emp.no_empleado} no tiene área, subárea o centro de costo asignado.`;
   }
   return null;
 }
@@ -156,9 +132,9 @@ function validateForm(
   }
   const motivo = (form.elements.namedItem("motivo") as HTMLTextAreaElement | null)?.value.trim();
   if (!motivo) return "El motivo es obligatorio.";
-  if (!filas.length) return "Selecciona al menos un empleado.";
+  if (!filas.length) return "Selecciona un colaborador.";
   if (opciones) {
-    const orgErr = validateEmpleadosOrganizacion(opciones, filas);
+    const orgErr = validateEmpleadoOrganizacion(opciones, filas[0]!);
     if (orgErr) return orgErr;
   }
 
@@ -251,32 +227,6 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     bindEvents();
   };
 
-  const patchEmpleadosPicker = (root: HTMLElement): void => {
-    const wrap = root.querySelector("#he-sup-empleados-picker-wrap");
-    if (!wrap || !opcionesCache) return;
-    wrap.innerHTML =
-      state.empleadosSearch.trim().length === 0
-        ? `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">Empieza escribiendo para buscar un colaborador.</p>`
-        : renderEmpleadosPickerList(
-            opcionesCache.empleados,
-            state.selectedEmpleadoIds,
-            state.empleadosSearch,
-          );
-  };
-
-  const toggleEmpleadoSeleccion = (empleadoId: number): void => {
-    if (!opcionesCache) return;
-    const selected = new Set(state.selectedEmpleadoIds);
-    if (selected.has(empleadoId)) selected.delete(empleadoId);
-    else selected.add(empleadoId);
-    const ids = [...selected];
-    state = {
-      ...state,
-      selectedEmpleadoIds: ids,
-      empleadosFilas: filasFromSelection(opcionesCache, ids, state.empleadosFilas),
-    };
-  };
-
   const closeSolicitudModal = (): void => {
     state = {
       ...state,
@@ -330,32 +280,20 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       render();
     });
 
-    root.querySelector("#he-sup-empleados-search")?.addEventListener("input", (ev) => {
+    root.querySelector<HTMLSelectElement>("#he-sup-empleado")?.addEventListener("change", (ev) => {
+      if (!opcionesCache) return;
+      const raw = (ev.target as HTMLSelectElement).value;
+      const empleadoId = raw ? Number.parseInt(raw, 10) : null;
       state = {
         ...state,
-        empleadosSearch: (ev.target as HTMLInputElement).value,
+        selectedEmpleadoId: empleadoId && !Number.isNaN(empleadoId) ? empleadoId : null,
+        empleadosFilas: filaFromEmpleado(
+          opcionesCache,
+          empleadoId && !Number.isNaN(empleadoId) ? empleadoId : null,
+          state.empleadosFilas,
+        ),
       };
-      patchEmpleadosPicker(root as HTMLElement);
-    });
-
-    root.querySelector("#he-sup-empleados-picker-wrap")?.addEventListener("click", (ev) => {
-      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>(
-        "[data-he-picker-empleado-id]",
-      );
-      if (!btn) return;
-      const id = Number.parseInt(btn.dataset.hePickerEmpleadoId ?? "0", 10);
-      if (!id) return;
-      toggleEmpleadoSeleccion(id);
       render();
-    });
-
-    root.querySelectorAll<HTMLButtonElement>("[data-he-quitar-empleado]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = Number.parseInt(btn.dataset.heQuitarEmpleado ?? "0", 10);
-        if (!id) return;
-        toggleEmpleadoSeleccion(id);
-        render();
-      });
     });
 
     root.querySelectorAll<HTMLInputElement>("input[data-he-dia]").forEach((input) => {

@@ -47,8 +47,7 @@ export type HorasExtraSolicitudPageState = {
   detalleStatus: "idle" | "loading" | "error";
   detalleError?: string;
   empleadosFilas: HorasExtraEmpleadoFilaForm[];
-  selectedEmpleadoIds: number[];
-  empleadosSearch: string;
+  selectedEmpleadoId: number | null;
   formSemana: number;
   solicitudModalOpen: boolean;
 };
@@ -56,8 +55,6 @@ export type HorasExtraSolicitudPageState = {
 const FORM_SECTION_LABEL =
   "mb-2 block text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500";
 const FORM_HINT = "mt-2 max-w-prose text-[13px] leading-relaxed text-slate-500";
-const FORM_FIELD =
-  "h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
 const FORM_TEXTAREA =
   "w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
 const FORM_SELECT_WRAP = "relative grid grid-cols-1";
@@ -190,144 +187,38 @@ function semanaLabel(numero: number): string {
   return `Semana ${numero}`;
 }
 
-export function filterEmpleadosElegibles(
+function renderEmpleadoSelectSection(
   empleados: HorasExtraEmpleadoOption[],
-  search: string,
-): HorasExtraEmpleadoOption[] {
-  const q = search.trim().toLowerCase();
-  if (!q) return empleados;
-  return empleados.filter(
-    (e) =>
-      e.nombre.toLowerCase().includes(q) ||
-      e.no_empleado.toLowerCase().includes(q),
-  );
-}
-
-function empleadoIniciales(nombre: string): string {
-  const parts = nombre.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
-  }
-  return nombre.slice(0, 2).toUpperCase();
-}
-
-export function renderEmpleadosPickerList(
-  empleados: HorasExtraEmpleadoOption[],
-  selectedIds: number[],
-  search: string,
+  selectedId: number | null,
 ): string {
   if (!empleados.length) {
-    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">No hay colaboradores operativos en tu equipo.</p>`;
+    return `
+      <section>
+        <span class="${FORM_SECTION_LABEL}">Colaborador *</span>
+        <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+          No hay colaboradores operativos disponibles en tu equipo.
+        </p>
+      </section>`;
   }
-  if (search.trim() && !empleados.length) {
-    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">No se encontraron coincidencias.</p>`;
-  }
-  const filtrados = filterEmpleadosElegibles(empleados, search);
-  if (!filtrados.length) {
-    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">No se encontraron coincidencias.</p>`;
-  }
-  return `
-    <ul class="space-y-2" id="he-sup-empleados-picker">
-      ${filtrados
-        .map((e) => {
-          const isSelected = selectedIds.includes(e.id);
-          return `
-        <li>
-          <button
-            type="button"
-            data-he-picker-empleado-id="${e.id}"
-            aria-pressed="${isSelected ? "true" : "false"}"
-            class="flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
-              isSelected
-                ? "border-leoni-blue bg-leoni-blue/5 shadow-sm"
-                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-            }"
-          >
-            <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">
-              ${escapeHtml(empleadoIniciales(e.nombre))}
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-semibold text-slate-800">${escapeHtml(e.nombre)}</span>
-              <span class="block truncate text-xs text-slate-500">${escapeHtml(e.no_empleado)}</span>
-            </span>
-            ${
-              isSelected
-                ? `<span class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-white" aria-hidden="true">
-                     <svg viewBox="0 0 20 20" fill="currentColor" class="size-3.5"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-8 8a1 1 0 0 1-1.42-.007l-4-4a1 1 0 0 1 1.414-1.414l3.293 3.294 7.293-7.294a1 1 0 0 1 1.414.007Z" clip-rule="evenodd"/></svg>
-                   </span>`
-                : ""
-            }
-          </button>
-        </li>`;
-        })
-        .join("")}
-    </ul>`;
-}
 
-function renderSelectedEmpleadosCards(filas: HorasExtraEmpleadoFilaForm[]): string {
-  if (!filas.length) {
-    return `<p class="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs text-slate-500">Selecciona al menos un colaborador para capturar horas.</p>`;
-  }
-  return `
-    <div class="mt-4 space-y-2" id="he-sup-empleados-seleccionados">
-      <p class="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">
-        ${filas.length} seleccionado${filas.length === 1 ? "" : "s"}
-      </p>
-      <ul class="space-y-2">
-        ${filas
-          .map(
-            (f) => `
-          <li class="flex items-center gap-3 rounded-xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/95 px-3 py-2.5 shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-            <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue/12 text-xs font-semibold uppercase text-leoni-blue">
-              ${escapeHtml(empleadoIniciales(f.nombre))}
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-semibold text-slate-900">${escapeHtml(f.nombre)}</span>
-              <span class="block truncate text-xs text-slate-500">${escapeHtml(f.no_empleado)}</span>
-            </span>
-            <button
-              type="button"
-              data-he-quitar-empleado="${f.empleado_id}"
-              class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Quitar ${escapeHtml(f.nombre)}"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4" aria-hidden="true">
-                <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" />
-              </svg>
-            </button>
-          </li>`,
-          )
-          .join("")}
-      </ul>
-    </div>`;
-}
-
-function renderEmpleadosPickerSection(
-  empleados: HorasExtraEmpleadoOption[],
-  state: HorasExtraSolicitudPageState,
-): string {
-  const search = state.empleadosSearch;
-  const pickerContent =
-    search.trim().length === 0
-      ? `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">Empieza escribiendo para buscar un colaborador.</p>`
-      : renderEmpleadosPickerList(empleados, state.selectedEmpleadoIds, search);
+  const options = empleados
+    .map((e) => {
+      const selected = selectedId === e.id ? " selected" : "";
+      return `<option value="${e.id}"${selected}>${escapeHtml(e.nombre)} · ${escapeHtml(e.no_empleado)}</option>`;
+    })
+    .join("");
 
   return `
-    <section>
-      <label for="he-sup-empleados-search" class="${FORM_SECTION_LABEL}">Colaboradores *</label>
-      <input
-        type="search"
-        id="he-sup-empleados-search"
-        value="${escapeHtml(search)}"
-        placeholder="Nombre o número de empleado…"
-        autocomplete="off"
-        class="${FORM_FIELD}"
-      />
-      <p class="${FORM_HINT}">Busca y selecciona integrantes operativos de tu equipo. Deben compartir área y centro de costo.</p>
-      <div class="mt-3 max-h-52 overflow-y-auto pr-1" id="he-sup-empleados-picker-wrap">
-        ${pickerContent}
+    <section class="sm:col-span-2 lg:col-span-3">
+      <label for="he-sup-empleado" class="${FORM_SECTION_LABEL}">Colaborador *</label>
+      <div class="${FORM_SELECT_WRAP}">
+        <select id="he-sup-empleado" name="empleado_id" required class="${FORM_SELECT}">
+          <option value="">Selecciona colaborador…</option>
+          ${options}
+        </select>
+        ${SELECT_CHEVRON}
       </div>
-      ${renderSelectedEmpleadosCards(state.empleadosFilas)}
+      <p class="${FORM_HINT}">Solo puedes registrar horas extra para un colaborador operativo a la vez.</p>
     </section>`;
 }
 
@@ -488,7 +379,7 @@ function renderFormularioSolicitud(
         </section>
       </div>
 
-      ${renderEmpleadosPickerSection(opciones.empleados, state)}
+      ${renderEmpleadoSelectSection(opciones.empleados, state.selectedEmpleadoId)}
 
       ${
         horasGrid
