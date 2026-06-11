@@ -54,6 +54,30 @@ function initialState(): HorasExtraSolicitudPageState {
     empleadosModalOpen: false,
     empleadosModalSearch: "",
     empleadosModalDraftIds: [],
+    solicitudModalOpen: false,
+  };
+}
+
+function resetFormState(): Pick<
+  HorasExtraSolicitudPageState,
+  | "formError"
+  | "submitting"
+  | "empleadosFilas"
+  | "selectedEmpleadoIds"
+  | "empleadosModalOpen"
+  | "empleadosModalSearch"
+  | "empleadosModalDraftIds"
+  | "solicitudModalOpen"
+> {
+  return {
+    formError: undefined,
+    submitting: false,
+    empleadosFilas: [],
+    selectedEmpleadoIds: [],
+    empleadosModalOpen: false,
+    empleadosModalSearch: "",
+    empleadosModalDraftIds: [],
+    solicitudModalOpen: false,
   };
 }
 
@@ -238,9 +262,44 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     };
   };
 
+  const closeSolicitudModal = (): void => {
+    state = { ...state, ...resetFormState() };
+  };
+
   const bindEvents = (): void => {
     const root = container.querySelector("#horas-extra-solicitud-page");
-    if (!root || !opcionesCache) return;
+    if (!root) return;
+
+    root.querySelector("#he-sup-abrir-solicitud")?.addEventListener("click", () => {
+      if (state.opcionesStatus !== "ready" || !opcionesCache) return;
+      state = { ...state, ...resetFormState(), solicitudModalOpen: true };
+      render();
+    });
+
+    const solicitudModal = root.querySelector("#he-sup-solicitud-modal");
+    solicitudModal?.addEventListener("click", (ev) => {
+      if (ev.target === ev.currentTarget && !state.submitting) {
+        closeSolicitudModal();
+        render();
+      }
+    });
+
+    root.querySelector("#he-sup-solicitud-cerrar")?.addEventListener("click", () => {
+      if (state.submitting) return;
+      closeSolicitudModal();
+      render();
+    });
+
+    root.querySelector("#he-sup-solicitud-cancelar")?.addEventListener("click", () => {
+      if (state.submitting) return;
+      closeSolicitudModal();
+      render();
+    });
+
+    if (!opcionesCache) {
+      bindListaEvents(root as HTMLElement);
+      return;
+    }
 
     const areaSel = root.querySelector<HTMLSelectElement>("#he-sup-area");
     areaSel?.addEventListener("change", () => {
@@ -317,7 +376,7 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     const form = root.querySelector<HTMLFormElement>("#he-sup-form");
     form?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      state = { ...state, formError: undefined, formSuccess: undefined };
+      state = { ...state, formError: undefined };
       const err = validateForm(form, state.empleadosFilas);
       if (err) {
         state = { ...state, formError: err };
@@ -335,10 +394,9 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       try {
         await createHorasExtraSolicitud(payload);
         state = {
-          ...initialState(),
-          opciones: opcionesCache,
-          opcionesStatus: "ready",
-          formSuccess: "Solicitud guardada correctamente.",
+          ...state,
+          ...resetFormState(),
+          listaSuccess: "Solicitud guardada correctamente.",
         };
         await loadLista();
         render();
@@ -358,6 +416,10 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       }
     });
 
+    bindListaEvents(root as HTMLElement);
+  };
+
+  const bindListaEvents = (root: HTMLElement): void => {
     root.querySelectorAll<HTMLButtonElement>("[data-he-ver-id]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = Number.parseInt(btn.dataset.heVerId ?? "0", 10);

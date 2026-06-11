@@ -42,7 +42,7 @@ export type HorasExtraSolicitudPageState = {
   listaPage: number;
   listaPageSize: number;
   formError?: string;
-  formSuccess?: string;
+  listaSuccess?: string;
   submitting: boolean;
   detalleAbierto: HorasExtraSolicitudResponse | null;
   detalleStatus: "idle" | "loading" | "error";
@@ -52,6 +52,7 @@ export type HorasExtraSolicitudPageState = {
   empleadosModalOpen: boolean;
   empleadosModalSearch: string;
   empleadosModalDraftIds: number[];
+  solicitudModalOpen: boolean;
 };
 
 const DIAS = [
@@ -333,6 +334,145 @@ function renderDetalleModal(state: HorasExtraSolicitudPageState): string {
     </div>`;
 }
 
+function renderFormularioSolicitud(
+  opciones: HorasExtraSolicitudOpciones,
+  state: HorasExtraSolicitudPageState,
+): string {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return `
+    <form id="he-sup-form" class="flex flex-col gap-5" novalidate>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Fecha de solicitud *</span>
+          <input type="date" name="fecha_solicitud" required value="${today}" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Semana *</span>
+          <input type="week" name="semana" required class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Tipo *</span>
+          <div class="grid grid-cols-1">
+            <select name="tipo" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              <option value="planeado">Planeada</option>
+              <option value="espontaneo">Espontánea</option>
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Departamento *</span>
+          <div class="grid grid-cols-1">
+            <select name="departamento_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              ${renderSelectOptions(opciones.departamentos, "", "Seleccionar departamento")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Área *</span>
+          <div class="grid grid-cols-1">
+            <select name="area_id" required id="he-sup-area" class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              ${renderSelectOptions(opciones.areas, "", "Seleccionar área")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Subárea *</span>
+          <div class="grid grid-cols-1">
+            <select name="subarea_id" required id="he-sup-subarea" class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              <option value="">Seleccionar subárea</option>
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block font-medium text-text-secondary">Centro de costo *</span>
+          <div class="grid grid-cols-1">
+            <select name="centrocosto_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              ${renderSelectOptions(opciones.centros_costo, "", "Seleccionar centro de costo")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </label>
+        <label class="block text-sm sm:col-span-2">
+          <span class="mb-1 block font-medium text-text-secondary">Motivo *</span>
+          <div class="grid grid-cols-1">
+            <select name="motivo_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              ${renderSelectOptions(opciones.motivos, "", "Seleccionar motivo")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </label>
+        <label class="block text-sm sm:col-span-2 lg:col-span-3">
+          <span class="mb-1 block font-medium text-text-secondary">Comentarios</span>
+          <textarea name="comentarios" rows="2" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Opcional"></textarea>
+        </label>
+      </div>
+
+      <div>
+        <h3 class="mb-2 text-sm font-semibold text-text-primary">Empleados incluidos *</h3>
+        ${renderEmpleadosSeleccionSection(state.empleadosFilas)}
+      </div>
+
+      <div id="he-sup-horas-grid">
+        ${renderHorasGrid(state.empleadosFilas)}
+      </div>
+
+      ${
+        state.formError
+          ? `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">${escapeHtml(state.formError)}</p>`
+          : ""
+      }
+
+      <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+        <button type="button" id="he-sup-solicitud-cancelar" class="${BTN_SECONDARY}" ${state.submitting ? "disabled" : ""}>Cancelar</button>
+        <button type="submit" class="${BTN_PRIMARY}" ${state.submitting ? "disabled" : ""}>
+          ${state.submitting ? "Guardando…" : "Guardar solicitud"}
+        </button>
+      </div>
+    </form>`;
+}
+
+function renderSolicitudModal(
+  opciones: HorasExtraSolicitudOpciones | null,
+  state: HorasExtraSolicitudPageState,
+): string {
+  if (!state.solicitudModalOpen) return "";
+
+  const body =
+    state.opcionesStatus === "loading"
+      ? `<p class="text-sm text-text-secondary">Cargando catálogos…</p>`
+      : state.opcionesStatus === "error"
+        ? `<p class="text-sm text-red-700">${escapeHtml(state.opcionesError ?? "No se pudieron cargar los catálogos.")}</p>`
+        : opciones
+          ? renderFormularioSolicitud(opciones, state)
+          : "";
+
+  return `
+    <div id="he-sup-solicitud-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="presentation">
+      <div
+        class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="he-sup-solicitud-modal-title"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 id="he-sup-solicitud-modal-title" class="text-lg font-bold text-text-primary">Nueva solicitud de horas extra</h2>
+            <p class="mt-0.5 text-sm text-text-secondary">Registra horas extra para colaboradores operativos de tu equipo.</p>
+          </div>
+          <button type="button" id="he-sup-solicitud-cerrar" class="rounded-lg border border-slate-200 px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          ${body}
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderListaTable(state: HorasExtraSolicitudPageState): string {
   if (state.listaStatus === "loading") {
     return `<p class="px-4 py-8 text-center text-sm text-text-secondary">Cargando solicitudes…</p>`;
@@ -388,124 +528,30 @@ function renderListaTable(state: HorasExtraSolicitudPageState): string {
 
 export function renderHorasExtraSolicitudPage(state: HorasExtraSolicitudPageState): string {
   const opciones = state.opciones;
-  const today = new Date().toISOString().slice(0, 10);
+  const puedeAbrirModal = state.opcionesStatus === "ready" && Boolean(opciones);
 
   return `
     <div id="horas-extra-solicitud-page" class="${RH_DASHBOARD_PAGE_SHELL}">
-      <header class="mb-2">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Solicitud de horas extra</h1>
-        <p class="mt-1 text-sm text-text-secondary">Captura solicitudes para tu equipo operativo y consulta el historial que has registrado.</p>
+      <header class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Solicitud de horas extra</h1>
+          <p class="mt-1 text-sm text-text-secondary">Consulta tus solicitudes registradas y captura nuevas para tu equipo operativo.</p>
+        </div>
+        <button
+          type="button"
+          id="he-sup-abrir-solicitud"
+          class="${BTN_PRIMARY} shrink-0"
+          ${puedeAbrirModal ? "" : "disabled"}
+        >
+          Nueva solicitud de horas extra
+        </button>
       </header>
 
-      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-label="Formulario de solicitud">
-        <h2 class="mb-4 text-base font-semibold text-text-primary">Nueva solicitud</h2>
-        ${
-          state.opcionesStatus === "loading"
-            ? `<p class="text-sm text-text-secondary">Cargando catálogos…</p>`
-            : state.opcionesStatus === "error"
-              ? `<p class="text-sm text-red-700">${escapeHtml(state.opcionesError ?? "No se pudieron cargar los catálogos.")}</p>`
-              : opciones
-                ? `
-        <form id="he-sup-form" class="flex flex-col gap-5" novalidate>
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Fecha de solicitud *</span>
-              <input type="date" name="fecha_solicitud" required value="${today}" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-            </label>
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Semana *</span>
-              <input type="week" name="semana" required class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-            </label>
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Tipo *</span>
-              <div class="grid grid-cols-1">
-                <select name="tipo" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-                  <option value="planeado">Planeada</option>
-                  <option value="espontaneo">Espontánea</option>
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </label>
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Departamento *</span>
-              <div class="grid grid-cols-1">
-                <select name="departamento_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-                  ${renderSelectOptions(opciones.departamentos, "", "Seleccionar departamento")}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </label>
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Área *</span>
-              <div class="grid grid-cols-1">
-                <select name="area_id" required id="he-sup-area" class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-                  ${renderSelectOptions(opciones.areas, "", "Seleccionar área")}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </label>
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Subárea *</span>
-              <div class="grid grid-cols-1">
-                <select name="subarea_id" required id="he-sup-subarea" class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-                  <option value="">Seleccionar subárea</option>
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </label>
-            <label class="block text-sm">
-              <span class="mb-1 block font-medium text-text-secondary">Centro de costo *</span>
-              <div class="grid grid-cols-1">
-                <select name="centrocosto_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-                  ${renderSelectOptions(opciones.centros_costo, "", "Seleccionar centro de costo")}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </label>
-            <label class="block text-sm sm:col-span-2">
-              <span class="mb-1 block font-medium text-text-secondary">Motivo *</span>
-              <div class="grid grid-cols-1">
-                <select name="motivo_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-                  ${renderSelectOptions(opciones.motivos, "", "Seleccionar motivo")}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </label>
-            <label class="block text-sm sm:col-span-2 lg:col-span-3">
-              <span class="mb-1 block font-medium text-text-secondary">Comentarios</span>
-              <textarea name="comentarios" rows="2" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Opcional"></textarea>
-            </label>
-          </div>
-
-          <div>
-            <h3 class="mb-2 text-sm font-semibold text-text-primary">Empleados incluidos *</h3>
-            ${renderEmpleadosSeleccionSection(state.empleadosFilas)}
-          </div>
-
-          <div id="he-sup-horas-grid">
-            ${renderHorasGrid(state.empleadosFilas)}
-          </div>
-
-          ${
-            state.formError
-              ? `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">${escapeHtml(state.formError)}</p>`
-              : ""
-          }
-          ${
-            state.formSuccess
-              ? `<p class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">${escapeHtml(state.formSuccess)}</p>`
-              : ""
-          }
-
-          <div class="flex justify-end">
-            <button type="submit" class="${BTN_PRIMARY}" ${state.submitting ? "disabled" : ""}>
-              ${state.submitting ? "Guardando…" : "Guardar solicitud"}
-            </button>
-          </div>
-        </form>`
-                : ""
-        }
-      </section>
+      ${
+        state.listaSuccess
+          ? `<p class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">${escapeHtml(state.listaSuccess)}</p>`
+          : ""
+      }
 
       <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Mis solicitudes">
         <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
@@ -515,6 +561,7 @@ export function renderHorasExtraSolicitudPage(state: HorasExtraSolicitudPageStat
         ${renderListaTable(state)}
       </section>
 
+      ${renderSolicitudModal(opciones, state)}
       ${renderEmpleadosModal(opciones?.empleados ?? [], state)}
       ${renderDetalleModal(state)}
     </div>`;
