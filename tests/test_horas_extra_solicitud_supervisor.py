@@ -1,9 +1,10 @@
-"""Solicitudes de horas extra — acceso y reglas de supervisor."""
+"""Solicitudes de horas extra — acceso por autorización RH y reglas de captura."""
 
 import uuid
 from datetime import date
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 
 from app.models.catalogos import Area, Subarea
@@ -13,6 +14,17 @@ from app.models.horas_extra import (
     HorasExtraSolicitud,
 )
 from tests.conftest import auth_headers, make_clasificacion_administrativo, make_empleado
+
+
+@pytest_asyncio.fixture
+async def registrante_autorizado(db):
+    """Supervisor autorizado desde Ajustes de Nóminas para registrar horas extra."""
+    return await make_empleado(
+        db,
+        rol="supervisor",
+        nombre="Ana Martínez",
+        puede_registrar_horas_extra=True,
+    )
 
 
 async def _seed_catalogo_horas_extra(db):
@@ -59,7 +71,7 @@ def _payload_base(empleado_id: int) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_horas_extra_solicitud_rechaza_no_supervisor(
+async def test_horas_extra_solicitud_rechaza_no_autorizado(
     client: AsyncClient, db, empleado_base
 ):
     headers = await auth_headers(client, empleado_base)
@@ -68,8 +80,70 @@ async def test_horas_extra_solicitud_rechaza_no_supervisor(
 
 
 @pytest.mark.asyncio
+async def test_horas_extra_solicitud_rechaza_supervisor_sin_autorizacion(
+    client: AsyncClient, db
+):
+    """El rol supervisor ya no otorga permiso automático para registrar horas extra."""
+    supervisor = await make_empleado(
+        db, rol="supervisor", nombre="Supervisor Sin Permiso"
+    )
+    headers = await auth_headers(client, supervisor)
+
+    lista = await client.get("/api/v1/horas-extra/solicitudes", headers=headers)
+    assert lista.status_code == 403
+
+    opciones = await client.get(
+        "/api/v1/horas-extra/solicitudes/opciones", headers=headers
+    )
+    assert opciones.status_code == 403
+
+    crear = await client.post(
+        "/api/v1/horas-extra/solicitudes",
+        headers=headers,
+        json=_payload_base(supervisor.id),
+    )
+    assert crear.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_horas_extra_solicitud_empleado_autorizado_puede_crear(
+    client: AsyncClient, db
+):
+    """Cualquier empleado autorizado por RH puede registrar, sin importar el rol."""
+    area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
+    registrante = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Empleado Autorizado",
+        puede_registrar_horas_extra=True,
+    )
+    operativo = await make_empleado(
+        db,
+        rol="empleado",
+        email="he_op_aut@leoni.test",
+        empleado_id=88107,
+        no_empleado="HE-OP-AUT-01",
+        nombre="Operativo Autorizado",
+        lider_id=registrante.empleado_id,
+    )
+    operativo.area_id = area.area_id
+    operativo.subarea_id = sub.subarea_id
+    operativo.centrocosto_id = cc.centrocosto_id
+    await db.flush()
+
+    headers = await auth_headers(client, registrante)
+    crear = await client.post(
+        "/api/v1/horas-extra/solicitudes",
+        headers=headers,
+        json=_payload_base(operativo.id),
+    )
+    assert crear.status_code == 201
+    assert crear.json()["total_horas_general"] == 2
+
+
+@pytest.mark.asyncio
 async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
-    client: AsyncClient, db, empleado_supervisor
+    client: AsyncClient, db, registrante_autorizado
 ):
     area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
 
@@ -80,7 +154,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         empleado_id=88101,
         no_empleado="HE-OP-01",
         nombre="Operativo Uno",
-        lider_id=empleado_supervisor.empleado_id,
+        lider_id=registrante_autorizado.empleado_id,
     )
     operativo.area_id = area.area_id
     operativo.subarea_id = sub.subarea_id
@@ -95,7 +169,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         empleado_id=88102,
         no_empleado="HE-ADM-01",
         nombre="Admin Uno",
-        lider_id=empleado_supervisor.empleado_id,
+        lider_id=registrante_autorizado.empleado_id,
         clasificacion_id=admin_cl.clasificacion_id,
     )
     admin.area_id = area.area_id
@@ -127,7 +201,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     )
     await db.flush()
 
-    headers = await auth_headers(client, empleado_supervisor)
+    headers = await auth_headers(client, registrante_autorizado)
 
     opciones = await client.get("/api/v1/horas-extra/solicitudes/opciones", headers=headers)
     assert opciones.status_code == 200
@@ -168,7 +242,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
 
 @pytest.mark.asyncio
 async def test_horas_extra_solicitud_estadisticas_supervisor(
-    client: AsyncClient, db, empleado_supervisor
+    client: AsyncClient, db, registrante_autorizado
 ):
     area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
     operativo = await make_empleado(
@@ -178,14 +252,14 @@ async def test_horas_extra_solicitud_estadisticas_supervisor(
         empleado_id=88106,
         no_empleado="HE-OP-ST-01",
         nombre="Operativo Stats",
-        lider_id=empleado_supervisor.empleado_id,
+        lider_id=registrante_autorizado.empleado_id,
     )
     operativo.area_id = area.area_id
     operativo.subarea_id = sub.subarea_id
     operativo.centrocosto_id = cc.centrocosto_id
     await db.flush()
 
-    headers = await auth_headers(client, empleado_supervisor)
+    headers = await auth_headers(client, registrante_autorizado)
     crear = await client.post(
         "/api/v1/horas-extra/solicitudes",
         headers=headers,
@@ -206,7 +280,7 @@ async def test_horas_extra_solicitud_estadisticas_supervisor(
 
 @pytest.mark.asyncio
 async def test_horas_extra_solicitud_crea_centro_costo_si_falta_en_catalogo(
-    client: AsyncClient, db, empleado_supervisor
+    client: AsyncClient, db, registrante_autorizado
 ):
     uid = uuid.uuid4().hex[:6].upper()
     area_id = int(uid, 16) % 900000 + 100000
@@ -226,14 +300,14 @@ async def test_horas_extra_solicitud_crea_centro_costo_si_falta_en_catalogo(
         empleado_id=88105,
         no_empleado="HE-OP-CC-01",
         nombre="Operativo Centro Costo",
-        lider_id=empleado_supervisor.empleado_id,
+        lider_id=registrante_autorizado.empleado_id,
     )
     operativo.area_id = area.area_id
     operativo.subarea_id = sub.subarea_id
     operativo.centrocosto_id = cc_id
     await db.flush()
 
-    headers = await auth_headers(client, empleado_supervisor)
+    headers = await auth_headers(client, registrante_autorizado)
     crear = await client.post(
         "/api/v1/horas-extra/solicitudes",
         headers=headers,
@@ -247,7 +321,7 @@ async def test_horas_extra_solicitud_crea_centro_costo_si_falta_en_catalogo(
 
 @pytest.mark.asyncio
 async def test_horas_extra_solicitud_no_expone_otro_supervisor(
-    client: AsyncClient, db, empleado_supervisor
+    client: AsyncClient, db, registrante_autorizado
 ):
     area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
     otro = await make_empleado(
@@ -272,7 +346,7 @@ async def test_horas_extra_solicitud_no_expone_otro_supervisor(
     db.add(solicitud)
     await db.flush()
 
-    headers = await auth_headers(client, empleado_supervisor)
+    headers = await auth_headers(client, registrante_autorizado)
     detalle = await client.get(
         f"/api/v1/horas-extra/solicitudes/{solicitud.id}", headers=headers
     )

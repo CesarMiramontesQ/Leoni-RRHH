@@ -54,6 +54,7 @@ import {
   mountRhSinPermisosDisponibles,
 } from "./pages/ajustesPermisosRh.ts";
 import { mountConciliacion } from "./pages/conciliacion.ts";
+import { mountAjustesNominas } from "./pages/ajustesNominas.ts";
 import { mountHorasExtra } from "./pages/horasExtra.ts";
 import { mountHorasExtraSolicitud } from "./pages/horasExtraSolicitud.ts";
 
@@ -134,6 +135,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/nominas/conciliacion")) {
       mountConciliacion(container);
+      return;
+    }
+
+    if (h.startsWith("#/nominas/ajustes")) {
+      mountAjustesNominas(container, signal);
       return;
     }
 

@@ -44,6 +44,13 @@ async def authenticate_user(
     return empleado
 
 
+def _horas_extra_claims(empleado: Empleado) -> dict:
+    """Claim de autorización para registrar horas extra (administrada por RH)."""
+    if getattr(empleado, "puede_registrar_horas_extra", False):
+        return {"he_autorizado": True}
+    return {}
+
+
 def create_tokens(empleado: Empleado) -> dict:
     rol_nombre = empleado.rol.nombre if empleado.rol else "empleado"
     payload = {
@@ -51,6 +58,7 @@ def create_tokens(empleado: Empleado) -> dict:
         "rol": rol_nombre,
         "num": empleado.no_empleado,
         "nombre": empleado.nombre,
+        **_horas_extra_claims(empleado),
         **rh_claims_for_token(empleado),
     }
     return {
@@ -119,6 +127,7 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
         "rol": rol_nombre,
         "num": empleado.no_empleado,
         "nombre": empleado.nombre,
+        **_horas_extra_claims(empleado),
         **rh_claims_for_token(empleado),
     }
     return {

@@ -30,6 +30,11 @@ export function getRolFromAccessToken(): string | null {
   return typeof r === "string" ? r : null;
 }
 
+/** Autorización para registrar horas extra (claim `he_autorizado`, administrada por RH en Ajustes de Nóminas). */
+export function isHorasExtraRegistroAutorizado(): boolean {
+  return getAccessTokenPayload()?.he_autorizado === true;
+}
+
 /** Capacidad gestor para usuarios RH (`supervisor` = líder, `gerente`). */
 export function getRhGestorAlcanceFromToken(): "supervisor" | "gerente" | null {
   const p = getAccessTokenPayload();

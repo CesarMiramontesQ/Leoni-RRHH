@@ -187,6 +187,7 @@ async def make_empleado(
     fecha_fin_contrato: date | None = None,
     dias_vacaciones: int | None = 30,
     puede_administrar_permisos_rh: bool = False,
+    puede_registrar_horas_extra: bool = False,
     modulos_rh: dict | None = None,
     puesto_id: int | None = None,
 ):
@@ -218,6 +219,7 @@ async def make_empleado(
         clasificacion_id=clasificacion_id,
         fecha_fin_contrato=fecha_fin_contrato,
         puede_administrar_permisos_rh=puede_administrar_permisos_rh,
+        puede_registrar_horas_extra=puede_registrar_horas_extra,
         modulos_rh=modulos_rh or {},
         puesto_id=puesto_id,
     )

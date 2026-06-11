@@ -125,7 +125,8 @@ export type ShellNavKey =
   | "nominas"
   | "horas-extra"
   | "horas-extra-solicitud"
-  | "conciliacion";
+  | "conciliacion"
+  | "nominas-ajustes";
 
 type NavItemDef = {
   id: AppShellNavItemId;

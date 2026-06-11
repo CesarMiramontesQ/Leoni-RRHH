@@ -50,5 +50,6 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "nominas") return "dashboard";
   if (navItemId === "horas-extra") return "dashboard";
   if (navItemId === "conciliacion") return "dashboard";
+  if (navItemId === "nominas-ajustes") return "dashboard";
   return navItemId;
 }

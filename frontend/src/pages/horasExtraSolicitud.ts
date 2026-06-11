@@ -1,4 +1,4 @@
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   createHorasExtraSolicitud,
@@ -35,7 +35,8 @@ const DIAS = [
 function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: "Acceso restringido",
-    description: "Esta página solo está disponible para usuarios con rol supervisor.",
+    description:
+      "Esta página solo está disponible para empleados autorizados por RH para registrar horas extra (Ajustes de Nóminas).",
   });
 }
 
@@ -461,7 +462,7 @@ function bindHorasInputUx(
 }
 
 export function mountHorasExtraSolicitud(container: HTMLElement): void {
-  if (getRolFromAccessToken() !== "supervisor") {
+  if (!isHorasExtraRegistroAutorizado()) {
     mountAppShell(container, {
       pageTitle: "Solicitud de horas extra",
       activeNav: "horas-extra-solicitud",

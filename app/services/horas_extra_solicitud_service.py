@@ -1,4 +1,4 @@
-"""Lógica de negocio: solicitudes de horas extra por supervisor."""
+"""Lógica de negocio: solicitudes de horas extra por empleados autorizados (RH)."""
 
 from __future__ import annotations
 
@@ -34,11 +34,14 @@ class HorasExtraSolicitudService:
         self.empleado_repo = EmpleadoRepository(db)
 
     @staticmethod
-    def _require_supervisor(current_user: Empleado) -> None:
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol != "supervisor":
+    def _require_autorizacion(current_user: Empleado) -> None:
+        """Solo empleados autorizados desde Ajustes de Nóminas (RH) pueden registrar."""
+        if not current_user.puede_registrar_horas_extra:
             raise ForbiddenError(
-                detail="Permisos insuficientes. Se requiere rol supervisor."
+                detail=(
+                    "Permisos insuficientes. Se requiere autorización de RH "
+                    "para registrar horas extra."
+                )
             )
 
     @staticmethod
@@ -75,9 +78,9 @@ class HorasExtraSolicitudService:
     def _total_general(self, solicitud: HorasExtraSolicitud) -> Decimal:
         return sum((self._sum_horas_detalle(d) for d in solicitud.detalle), Decimal("0"))
 
-    async def _empleados_elegibles_ids(self, supervisor: Empleado) -> set[int]:
+    async def _empleados_elegibles_ids(self, registrante: Empleado) -> set[int]:
         subordinados = await self.empleado_repo.get_subordinados(
-            supervisor.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+            registrante.empleado_id, settings.ESTADOS_ACTIVOS_IDS
         )
         if not subordinados:
             return set()
@@ -89,7 +92,7 @@ class HorasExtraSolicitudService:
     async def obtener_opciones(
         self, current_user: Empleado
     ) -> HorasExtraSolicitudOpcionesResponse:
-        self._require_supervisor(current_user)
+        self._require_autorizacion(current_user)
 
         elegibles_ids = await self._empleados_elegibles_ids(current_user)
         empleados_db = await self.repo.get_empleados_by_ids(sorted(elegibles_ids))
@@ -205,7 +208,7 @@ class HorasExtraSolicitudService:
     async def _validar_empleados(
         self,
         data: HorasExtraSolicitudCreate,
-        supervisor: Empleado,
+        registrante: Empleado,
     ) -> list[HorasExtraSolicitudDetalle]:
         if not data.empleados:
             raise DomainValidationError(
@@ -218,7 +221,7 @@ class HorasExtraSolicitudService:
                 detail="No se puede repetir el mismo empleado en la solicitud."
             )
 
-        elegibles = await self._empleados_elegibles_ids(supervisor)
+        elegibles = await self._empleados_elegibles_ids(registrante)
         empleados_db = await self.repo.get_empleados_by_ids(ids_solicitados)
         encontrados = {e.id: e for e in empleados_db}
 
@@ -283,7 +286,7 @@ class HorasExtraSolicitudService:
         data: HorasExtraSolicitudCreate,
         current_user: Empleado,
     ) -> HorasExtraSolicitudResponse:
-        self._require_supervisor(current_user)
+        self._require_autorizacion(current_user)
         fecha_solicitud = business_today()
         semana_inicio = await self._validar_semana(data.semana)
         detalle_rows = await self._validar_empleados(data, current_user)
@@ -317,7 +320,7 @@ class HorasExtraSolicitudService:
         self,
         current_user: Empleado,
     ) -> HorasExtraSolicitudEstadisticasResponse:
-        self._require_supervisor(current_user)
+        self._require_autorizacion(current_user)
         total, pendientes, aprobadas, total_horas = (
             await self.repo.estadisticas_por_registrado(
                 registrado_por_id=current_user.id
@@ -337,7 +340,7 @@ class HorasExtraSolicitudService:
         page: int = 1,
         page_size: int = 10,
     ) -> HorasExtraSolicitudListResponse:
-        self._require_supervisor(current_user)
+        self._require_autorizacion(current_user)
         offset = (page - 1) * page_size
         items_db = await self.repo.list_by_registrado(
             registrado_por_id=current_user.id,
@@ -373,7 +376,7 @@ class HorasExtraSolicitudService:
         solicitud_id: int,
         current_user: Empleado,
     ) -> HorasExtraSolicitudResponse:
-        self._require_supervisor(current_user)
+        self._require_autorizacion(current_user)
         solicitud = await self.repo.get_by_id(
             solicitud_id, registrado_por_id=current_user.id
         )

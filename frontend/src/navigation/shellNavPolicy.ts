@@ -16,7 +16,7 @@ import {
   getVisibleLevelUpCategoriesForRhSidebar,
 } from "./levelUpNav.ts";
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { getRolFromAccessToken, isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
 import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
@@ -54,6 +54,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "empleados", hash: "#/empleados" },
   { itemId: "horas-extra", hash: "#/nominas/horas-extra" },
   { itemId: "conciliacion", hash: "#/nominas/conciliacion" },
+  { itemId: "nominas-ajustes", hash: "#/nominas/ajustes" },
 ];
 
 export function isRhHomeHash(hash: string): boolean {
@@ -121,7 +122,8 @@ export type AppShellNavItemId =
   | "nominas"
   | "horas-extra"
   | "horas-extra-solicitud"
-  | "conciliacion";
+  | "conciliacion"
+  | "nominas-ajustes";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
@@ -141,7 +143,6 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "metricas",
   "incidencias",
   "solicitudes",
-  "horas-extra-solicitud",
   "comedor",
   "empleados",
 ]);
@@ -189,13 +190,14 @@ function effectiveShellNavRol(rol: string | null): string | null {
 function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): boolean {
   const navRol = effectiveShellNavRol(rol);
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
+  if (itemId === "horas-extra-solicitud") {
+    return isHorasExtraRegistroAutorizado();
+  }
+  if (itemId === "nominas-ajustes") return navRol === "rh";
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (itemId === "evaluacion-360") return navRol === "rh";
-  if (itemId === "horas-extra-solicitud") {
-    return navRol === "supervisor";
-  }
   if (itemId === "nominas" || itemId === "horas-extra" || itemId === "conciliacion") {
     return NOMINAS_NAV_ROLES.has(navRol ?? "");
   }
@@ -251,6 +253,7 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
 export function empleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h === "" || h === "#" || h === "#/") return true;
+  if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
@@ -261,6 +264,8 @@ export function empleadoMayAccessHash(hash: string): boolean {
 
 export function supervisorMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
+  if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
+  if (h.startsWith("#/nominas/ajustes")) return false;
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
@@ -288,6 +293,7 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return isComedorHubVisibleForRol(rol);
   }
   if (h.startsWith("#/nominas")) {
+    if (h.startsWith("#/nominas/ajustes")) return rol === "rh";
     return NOMINAS_NAV_ROLES.has(rol ?? "");
   }
   if (h.startsWith("#/notificaciones")) return true;

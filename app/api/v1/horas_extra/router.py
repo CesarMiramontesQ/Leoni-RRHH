@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, role_checker
+from app.core.dependencies import get_current_user
 from app.models.empleados import Empleado
 from app.schemas.horas_extra_solicitud import (
     HorasExtraSolicitudCreate,
@@ -22,7 +22,7 @@ def _svc(db: AsyncSession = Depends(get_db)) -> HorasExtraSolicitudService:
 
 @router.get("/solicitudes/opciones", response_model=HorasExtraSolicitudOpcionesResponse)
 async def horas_extra_solicitud_opciones(
-    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
     return await svc.obtener_opciones(current_user)
@@ -33,7 +33,7 @@ async def horas_extra_solicitud_opciones(
     response_model=HorasExtraSolicitudEstadisticasResponse,
 )
 async def horas_extra_solicitud_estadisticas(
-    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
     return await svc.obtener_estadisticas(current_user)
@@ -43,7 +43,7 @@ async def horas_extra_solicitud_estadisticas(
 async def horas_extra_solicitud_list(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
-    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
     return await svc.listar_mis_solicitudes(
@@ -58,7 +58,7 @@ async def horas_extra_solicitud_list(
 )
 async def horas_extra_solicitud_create(
     body: HorasExtraSolicitudCreate,
-    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
     return await svc.crear(body, current_user)
@@ -67,7 +67,7 @@ async def horas_extra_solicitud_create(
 @router.get("/solicitudes/{solicitud_id}", response_model=HorasExtraSolicitudResponse)
 async def horas_extra_solicitud_detalle(
     solicitud_id: int,
-    current_user: Empleado = Depends(role_checker(["supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
     return await svc.obtener_detalle(solicitud_id, current_user)
