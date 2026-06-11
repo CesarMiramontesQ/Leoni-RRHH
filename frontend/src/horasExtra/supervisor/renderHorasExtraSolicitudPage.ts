@@ -78,6 +78,7 @@ const DIAS = [
 export type DiaColumnaHoras = {
   key: (typeof DIAS)[number][0];
   label: string;
+  labelCorto: string;
 };
 
 const NOMBRES_DIA = [
@@ -89,6 +90,14 @@ const NOMBRES_DIA = [
   "Sábado",
   "Domingo",
 ] as const;
+
+const ABREV_DIA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const;
+
+const HORAS_GRID_SCROLL =
+  "max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]";
+const HORAS_GRID_TABLE = "w-full min-w-[52rem] table-fixed divide-y divide-slate-200 text-left";
+const HORAS_GRID_INPUT =
+  "w-full rounded-lg border border-slate-200 px-1.5 py-1.5 text-center text-sm tabular-nums shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
 
 export function lunesDeSemanaIso(anio: number, semana: number): Date {
   const jan4 = new Date(anio, 0, 4);
@@ -115,9 +124,11 @@ export function buildDiasColumnasHoras(options: {
   return DIAS.map(([key], index) => {
     const fecha = new Date(lunes);
     fecha.setDate(lunes.getDate() + index);
+    const diaMes = fecha.getDate();
     return {
       key,
-      label: `${NOMBRES_DIA[index]} ${fecha.getDate()}`,
+      label: `${NOMBRES_DIA[index]} ${diaMes}`,
+      labelCorto: `${ABREV_DIA[index]} ${diaMes}`,
     };
   });
 }
@@ -334,46 +345,51 @@ export function renderHorasGrid(
       totalGeneral += total;
       return `
       <tr data-he-fila-empleado="${fila.empleado_id}">
-        <td class="px-3 py-2 text-sm font-medium text-text-primary whitespace-nowrap">
-          <div>${escapeHtml(fila.nombre)}</div>
-          <div class="text-xs text-text-secondary">${escapeHtml(fila.no_empleado)}</div>
+        <td class="w-[11rem] px-2 py-1.5 text-sm font-medium text-text-primary">
+          <div class="truncate" title="${escapeHtml(fila.nombre)}">${escapeHtml(fila.nombre)}</div>
+          <div class="truncate text-xs text-text-secondary">${escapeHtml(fila.no_empleado)}</div>
         </td>
         ${diasColumnas
           .map(
             ({ key }) => `
-          <td class="px-1 py-2">
+          <td class="px-1 py-1.5">
             <input type="number" min="0" step="0.5" inputmode="decimal"
               data-he-dia="${key}" data-he-empleado="${fila.empleado_id}"
-              class="w-full min-w-[3.25rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm tabular-nums shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25"
+              class="${HORAS_GRID_INPUT}"
               value="${escapeHtml(fila[key])}" />
           </td>`,
           )
           .join("")}
-        <td class="px-3 py-2 text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap" data-he-total-empleado="${fila.empleado_id}">${total.toFixed(2)}</td>
+        <td class="w-[4.25rem] px-2 py-1.5 text-right text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap" data-he-total-empleado="${fila.empleado_id}">${total.toFixed(2)}</td>
       </tr>`;
     })
     .join("");
 
   return `
-    <div class="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-      <table class="min-w-full divide-y divide-slate-200 text-left">
-        <thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
+    <div class="${HORAS_GRID_SCROLL}">
+      <table class="${HORAS_GRID_TABLE}">
+        <colgroup>
+          <col class="w-[11rem]" />
+          ${diasColumnas.map(() => `<col />`).join("")}
+          <col class="w-[4.25rem]" />
+        </colgroup>
+        <thead class="bg-slate-50 text-[11px] font-semibold text-slate-500">
           <tr>
-            <th class="px-3 py-2 text-left uppercase">Empleado</th>
+            <th class="px-2 py-2 text-left uppercase tracking-wide">Empleado</th>
             ${diasColumnas
               .map(
-                ({ label }) =>
-                  `<th class="min-w-[4.5rem] px-1 py-2 text-center normal-case">${escapeHtml(label)}</th>`,
+                ({ label, labelCorto }) =>
+                  `<th class="px-1 py-2 text-center whitespace-nowrap" title="${escapeHtml(label)}">${escapeHtml(labelCorto)}</th>`,
               )
               .join("")}
-            <th class="px-3 py-2 text-right uppercase">Total</th>
+            <th class="px-2 py-2 text-right uppercase tracking-wide">Total</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">${body}</tbody>
         <tfoot>
           <tr class="bg-slate-50">
-            <td colspan="8" class="px-3 py-2 text-right text-sm font-semibold text-slate-500">Total general</td>
-            <td class="px-3 py-2 text-right text-sm font-bold tabular-nums text-text-primary" id="he-sup-total-general">${totalGeneral.toFixed(2)}</td>
+            <td colspan="8" class="px-2 py-2 text-right text-sm font-semibold text-slate-500">Total general</td>
+            <td class="px-2 py-2 text-right text-sm font-bold tabular-nums text-text-primary" id="he-sup-total-general">${totalGeneral.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
@@ -437,8 +453,8 @@ function renderFormularioSolicitud(
   const horasGrid = renderHorasGrid(state.empleadosFilas, diasColumnas);
 
   return `
-    <form id="he-sup-form" class="space-y-6" novalidate>
-      <div class="grid gap-5 sm:grid-cols-2">
+    <form id="he-sup-form" class="space-y-5" novalidate>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <section>
           <label for="he-sup-semana" class="${FORM_SECTION_LABEL}">Semana *</label>
           <div class="${FORM_SELECT_WRAP}">
@@ -458,7 +474,7 @@ function renderFormularioSolicitud(
             ${SELECT_CHEVRON}
           </div>
         </section>
-        <section class="sm:col-span-2">
+        <section class="sm:col-span-2 lg:col-span-3">
           <label for="he-sup-motivo" class="${FORM_SECTION_LABEL}">Motivo *</label>
           <textarea
             id="he-sup-motivo"
@@ -488,14 +504,17 @@ function renderFormularioSolicitud(
           ? `<p class="${FORM_ALERT_ERROR}" role="alert">${escapeHtml(state.formError)}</p>`
           : ""
       }
-
-      <footer class="sticky bottom-0 -mx-1 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 px-1 pt-4 pb-1 backdrop-blur-[2px] sm:flex-row sm:justify-end">
-        <button type="button" id="he-sup-solicitud-cancelar" class="${BTN_SECONDARY} min-h-11 w-full justify-center sm:w-auto" ${state.submitting ? "disabled" : ""}>Cancelar</button>
-        <button type="submit" class="${BTN_PRIMARY} min-h-11 w-full justify-center px-6 shadow-md disabled:cursor-not-allowed disabled:opacity-70 sm:min-w-[10rem] sm:w-auto" ${state.submitting ? "disabled" : ""}>
-          ${state.submitting ? "Guardando…" : "Guardar solicitud"}
-        </button>
-      </footer>
     </form>`;
+}
+
+function renderSolicitudModalFooter(state: HorasExtraSolicitudPageState): string {
+  return `
+    <footer class="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+      <button type="button" id="he-sup-solicitud-cancelar" class="${BTN_SECONDARY} min-h-11 w-full justify-center sm:w-auto" ${state.submitting ? "disabled" : ""}>Cancelar</button>
+      <button type="submit" form="he-sup-form" class="${BTN_PRIMARY} min-h-11 w-full justify-center px-6 shadow-md disabled:cursor-not-allowed disabled:opacity-70 sm:min-w-[10rem] sm:w-auto" ${state.submitting ? "disabled" : ""}>
+        ${state.submitting ? "Guardando…" : "Guardar solicitud"}
+      </button>
+    </footer>`;
 }
 
 function renderSolicitudModal(
@@ -513,15 +532,17 @@ function renderSolicitudModal(
           ? renderFormularioSolicitud(opciones, state)
           : "";
 
+  const showFooter = state.opcionesStatus === "ready" && Boolean(opciones);
+
   return `
-    <div id="he-sup-solicitud-modal" class="fixed inset-0 z-90 flex items-center justify-center bg-slate-900/45 p-4 sm:p-6 backdrop-blur-[2px]" role="presentation">
+    <div id="he-sup-solicitud-modal" class="fixed inset-0 z-90 flex items-center justify-center overflow-hidden bg-slate-900/45 p-3 sm:p-4 md:p-6 backdrop-blur-[2px]" role="presentation">
       <div
-        class="scheme-light flex max-h-[min(94vh,920px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_26px_70px_-22px_rgba(15,23,42,0.35)]"
+        class="scheme-light flex max-h-[min(94vh,920px)] w-full max-w-[1200px] flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_26px_70px_-22px_rgba(15,23,42,0.35)] sm:w-[85vw] md:w-[82vw] lg:w-[78vw]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="he-sup-solicitud-modal-title"
       >
-        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100/95 bg-white px-5 py-4 sm:px-6 sm:py-5">
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100/95 bg-white px-4 py-4 sm:px-6 sm:py-5">
           <div class="min-w-0">
             <h2 id="he-sup-solicitud-modal-title" class="text-lg font-semibold leading-snug tracking-tight text-[#0A1628] sm:text-xl">Nueva solicitud de horas extra</h2>
             <p class="mt-1 text-[13px] leading-relaxed text-slate-500">Registra horas extra para colaboradores operativos de tu equipo.</p>
@@ -537,9 +558,10 @@ function renderSolicitudModal(
             </svg>
           </button>
         </header>
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/35 px-5 py-5 sm:px-6 sm:py-7">
+        <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-slate-50/35 px-4 py-4 sm:px-6 sm:py-6">
           ${body}
         </div>
+        ${showFooter ? renderSolicitudModalFooter(state) : ""}
       </div>
     </div>`;
 }
