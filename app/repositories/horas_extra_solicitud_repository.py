@@ -12,7 +12,6 @@ from app.models.catalogos import Area, Subarea
 from app.models.empleados import Empleado
 from app.models.horas_extra import (
     CentroCosto,
-    Departamento,
     HorasExtraMotivo,
     HorasExtraSolicitud,
     HorasExtraSolicitudDetalle,
@@ -22,14 +21,6 @@ from app.models.horas_extra import (
 class HorasExtraSolicitudRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
-
-    async def list_departamentos_activos(self) -> list[Departamento]:
-        result = await self.db.execute(
-            select(Departamento)
-            .where(Departamento.activo.is_(True))
-            .order_by(Departamento.nombre.asc())
-        )
-        return list(result.scalars().all())
 
     async def list_areas_activas(self) -> list[Area]:
         result = await self.db.execute(
@@ -74,19 +65,6 @@ class HorasExtraSolicitudRepository:
         )
         return list(result.scalars().all())
 
-    async def get_or_create_departamento_por_area(self, area: Area) -> Departamento:
-        codigo = f"AREA-{area.area_id}"
-        result = await self.db.execute(
-            select(Departamento).where(Departamento.codigo == codigo)
-        )
-        dep = result.scalar_one_or_none()
-        if dep is not None:
-            return dep
-        dep = Departamento(codigo=codigo, nombre=area.descripcion, activo=True)
-        self.db.add(dep)
-        await self.db.flush()
-        return dep
-
     async def get_or_create_motivo_texto(self, texto: str) -> HorasExtraMotivo:
         result = await self.db.execute(
             select(HorasExtraMotivo).where(HorasExtraMotivo.descripcion == texto)
@@ -99,9 +77,6 @@ class HorasExtraSolicitudRepository:
         self.db.add(motivo)
         await self.db.flush()
         return motivo
-
-    async def get_departamento(self, departamento_id: int) -> Departamento | None:
-        return await self.db.get(Departamento, departamento_id)
 
     async def get_area(self, area_id: int) -> Area | None:
         return await self.db.get(Area, area_id)
@@ -145,7 +120,6 @@ class HorasExtraSolicitudRepository:
         result = await self.db.execute(
             select(HorasExtraSolicitud)
             .options(
-                selectinload(HorasExtraSolicitud.departamento),
                 selectinload(HorasExtraSolicitud.area),
                 selectinload(HorasExtraSolicitud.subarea),
                 selectinload(HorasExtraSolicitud.centro_costo),
@@ -171,7 +145,6 @@ class HorasExtraSolicitudRepository:
         result = await self.db.execute(
             select(HorasExtraSolicitud)
             .options(
-                selectinload(HorasExtraSolicitud.departamento),
                 selectinload(HorasExtraSolicitud.area),
                 selectinload(HorasExtraSolicitud.detalle),
             )

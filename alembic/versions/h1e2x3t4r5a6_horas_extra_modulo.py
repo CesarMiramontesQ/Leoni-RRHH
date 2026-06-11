@@ -53,16 +53,6 @@ def upgrade() -> None:
     HORAS_EXTRA_APROBACION_ESTADO_ENUM.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
-        "departamentos",
-        sa.Column("departamento_id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("codigo", sa.String(length=20), nullable=False),
-        sa.Column("nombre", sa.String(length=150), nullable=False),
-        sa.Column("activo", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.PrimaryKeyConstraint("departamento_id"),
-        sa.UniqueConstraint("codigo"),
-    )
-
-    op.create_table(
         "centros_costo",
         sa.Column("centrocosto_id", sa.Integer(), nullable=False),
         sa.Column("codigo", sa.String(length=30), nullable=False),
@@ -88,7 +78,6 @@ def upgrade() -> None:
         sa.Column("fecha_solicitud", sa.Date(), nullable=False),
         sa.Column("semana_inicio", sa.Date(), nullable=False),
         sa.Column("tipo", HORAS_EXTRA_TIPO_ENUM, nullable=False),
-        sa.Column("departamento_id", sa.Integer(), nullable=False),
         sa.Column("area_id", sa.Integer(), nullable=False),
         sa.Column("subarea_id", sa.Integer(), nullable=False),
         sa.Column("centrocosto_id", sa.Integer(), nullable=False),
@@ -117,7 +106,6 @@ def upgrade() -> None:
             "EXTRACT(ISODOW FROM semana_inicio) = 1",
             name="chk_horas_extra_semana_lunes",
         ),
-        sa.ForeignKeyConstraint(["departamento_id"], ["departamentos.departamento_id"]),
         sa.ForeignKeyConstraint(["area_id"], ["areas.area_id"]),
         sa.ForeignKeyConstraint(["subarea_id"], ["subareas.subarea_id"]),
         sa.ForeignKeyConstraint(["centrocosto_id"], ["centros_costo.centrocosto_id"]),
@@ -206,7 +194,7 @@ def upgrade() -> None:
     op.create_index(
         "idx_he_solicitudes_org",
         "horas_extra_solicitudes",
-        ["departamento_id", "area_id", "subarea_id"],
+        ["area_id", "subarea_id"],
     )
     op.create_index(
         "idx_he_solicitudes_centrocosto",
@@ -373,7 +361,6 @@ def downgrade() -> None:
     op.drop_table("horas_extra_solicitudes")
     op.drop_table("horas_extra_motivos")
     op.drop_table("centros_costo")
-    op.drop_table("departamentos")
 
     HORAS_EXTRA_APROBACION_ESTADO_ENUM.drop(op.get_bind(), checkfirst=True)
     HORAS_EXTRA_TIPO_FIRMA_ENUM.drop(op.get_bind(), checkfirst=True)

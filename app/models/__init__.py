@@ -38,7 +38,6 @@ from app.models.talento import (
 )
 from app.models.horas_extra import (
     CentroCosto,
-    Departamento,
     HorasExtraAprobacion,
     HorasExtraMotivo,
     HorasExtraSolicitud,
@@ -110,7 +109,6 @@ __all__ = [
     "MetodoCalificacion",
     "OpcionCalificacion",
     "CualificacionCatalogo",
-    "Departamento",
     "CentroCosto",
     "HorasExtraMotivo",
     "HorasExtraSolicitud",

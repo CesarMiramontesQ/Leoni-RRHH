@@ -137,7 +137,7 @@ class HorasExtraSolicitudService:
     async def _resolver_contexto_desde_empleados(
         self,
         empleados_db: list[Empleado],
-    ) -> tuple[int, int, int, int]:
+    ) -> tuple[int, int, int]:
         if not empleados_db:
             raise DomainValidationError(
                 detail="Debe incluir al menos un empleado en la solicitud."
@@ -197,14 +197,7 @@ class HorasExtraSolicitudService:
         if centro is None or not centro.activo:
             raise DomainValidationError(detail="Centro de costo no válido.")
 
-        departamento = await self.repo.get_or_create_departamento_por_area(area)
-
-        return (
-            departamento.departamento_id,
-            area_id,
-            subarea_id,
-            centrocosto_id,
-        )
+        return area_id, subarea_id, centrocosto_id
 
     async def _validar_empleados(
         self,
@@ -294,12 +287,9 @@ class HorasExtraSolicitudService:
 
         ids_solicitados = [row.empleado_id for row in data.empleados]
         empleados_db = await self.repo.get_empleados_by_ids(ids_solicitados)
-        (
-            departamento_id,
-            area_id,
-            subarea_id,
-            centrocosto_id,
-        ) = await self._resolver_contexto_desde_empleados(empleados_db)
+        area_id, subarea_id, centrocosto_id = await self._resolver_contexto_desde_empleados(
+            empleados_db
+        )
 
         motivo = await self.repo.get_or_create_motivo_texto(data.motivo)
 
@@ -307,7 +297,6 @@ class HorasExtraSolicitudService:
             fecha_solicitud=fecha_solicitud,
             semana_inicio=semana_inicio,
             tipo=data.tipo,
-            departamento_id=departamento_id,
             area_id=area_id,
             subarea_id=subarea_id,
             centrocosto_id=centrocosto_id,
@@ -343,7 +332,6 @@ class HorasExtraSolicitudService:
                 fecha_solicitud=s.fecha_solicitud,
                 semana=self._numero_semana_iso(s.semana_inicio),
                 semana_inicio=s.semana_inicio,
-                departamento_nombre=s.departamento.nombre if s.departamento else "",
                 area_descripcion=s.area.descripcion if s.area else "",
                 tipo=s.tipo,
                 total_horas_general=self._total_general(s),
@@ -397,10 +385,6 @@ class HorasExtraSolicitudService:
             semana=self._numero_semana_iso(solicitud.semana_inicio),
             semana_inicio=solicitud.semana_inicio,
             tipo=solicitud.tipo,
-            departamento_id=solicitud.departamento_id,
-            departamento_nombre=(
-                solicitud.departamento.nombre if solicitud.departamento else ""
-            ),
             area_id=solicitud.area_id,
             area_descripcion=solicitud.area.descripcion if solicitud.area else "",
             subarea_id=solicitud.subarea_id,

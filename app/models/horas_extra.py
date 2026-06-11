@@ -27,22 +27,6 @@ if TYPE_CHECKING:
     from app.models.roles import Rol
 
 
-class Departamento(Base):
-    __tablename__ = "departamentos"
-
-    departamento_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
-    nombre: Mapped[str] = mapped_column(String(150), nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
-
-    solicitudes: Mapped[list["HorasExtraSolicitud"]] = relationship(
-        "HorasExtraSolicitud", back_populates="departamento"
-    )
-
-    def __repr__(self) -> str:
-        return f"<Departamento id={self.departamento_id} codigo={self.codigo}>"
-
-
 class CentroCosto(Base):
     __tablename__ = "centros_costo"
 
@@ -85,9 +69,6 @@ class HorasExtraSolicitud(Base):
         Enum("planeado", "espontaneo", name="horas_extra_tipo_enum"),
         nullable=False,
     )
-    departamento_id: Mapped[int] = mapped_column(
-        ForeignKey("departamentos.departamento_id"), nullable=False
-    )
     area_id: Mapped[int] = mapped_column(ForeignKey("areas.area_id"), nullable=False)
     subarea_id: Mapped[int] = mapped_column(ForeignKey("subareas.subarea_id"), nullable=False)
     centrocosto_id: Mapped[int] = mapped_column(
@@ -119,9 +100,6 @@ class HorasExtraSolicitud(Base):
         nullable=False,
     )
 
-    departamento: Mapped["Departamento"] = relationship(
-        "Departamento", back_populates="solicitudes"
-    )
     area: Mapped["Area"] = relationship("Area", foreign_keys=[area_id])
     subarea: Mapped["Subarea"] = relationship("Subarea", foreign_keys=[subarea_id])
     centro_costo: Mapped["CentroCosto"] = relationship(

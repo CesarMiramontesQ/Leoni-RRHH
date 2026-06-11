@@ -9,7 +9,6 @@ from httpx import AsyncClient
 from app.models.catalogos import Area, Subarea
 from app.models.horas_extra import (
     CentroCosto,
-    Departamento,
     HorasExtraMotivo,
     HorasExtraSolicitud,
 )
@@ -18,8 +17,6 @@ from tests.conftest import auth_headers, make_clasificacion_administrativo, make
 
 async def _seed_catalogo_horas_extra(db):
     uid = uuid.uuid4().hex[:6].upper()
-    dep = Departamento(codigo=f"DEP-{uid}", nombre="Producción", activo=True)
-    db.add(dep)
     area_id = int(uid, 16) % 900000 + 100000
     subarea_id = area_id + 1
     cc_id = area_id + 2
@@ -38,7 +35,7 @@ async def _seed_catalogo_horas_extra(db):
     )
     db.add_all([area, sub, cc, motivo])
     await db.flush()
-    return dep, area, sub, cc, motivo
+    return area, sub, cc, motivo
 
 
 def _payload_base(empleado_id: int) -> dict:
@@ -74,7 +71,7 @@ async def test_horas_extra_solicitud_rechaza_no_supervisor(
 async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     client: AsyncClient, db, empleado_supervisor
 ):
-    _dep, area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
+    area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
 
     operativo = await make_empleado(
         db,
@@ -120,7 +117,6 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
             fecha_solicitud=date(2026, 6, 1),
             semana_inicio=date(2026, 6, 1),
             tipo="planeado",
-            departamento_id=_dep.departamento_id,
             area_id=area.area_id,
             subarea_id=sub.subarea_id,
             centrocosto_id=cc.centrocosto_id,
@@ -174,7 +170,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
 async def test_horas_extra_solicitud_no_expone_otro_supervisor(
     client: AsyncClient, db, empleado_supervisor
 ):
-    dep, area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
+    area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
     otro = await make_empleado(
         db,
         rol="supervisor",
@@ -187,7 +183,6 @@ async def test_horas_extra_solicitud_no_expone_otro_supervisor(
         fecha_solicitud=date(2026, 6, 3),
         semana_inicio=date(2026, 6, 1),
         tipo="espontaneo",
-        departamento_id=dep.departamento_id,
         area_id=area.area_id,
         subarea_id=sub.subarea_id,
         centrocosto_id=cc.centrocosto_id,

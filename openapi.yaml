@@ -659,8 +659,6 @@ components:
         - semana
         - semana_inicio
         - tipo
-        - departamento_id
-        - departamento_nombre
         - area_id
         - area_descripcion
         - subarea_id
@@ -690,10 +688,6 @@ components:
         tipo:
           type: string
           enum: [planeado, espontaneo]
-        departamento_id:
-          type: integer
-        departamento_nombre:
-          type: string
         area_id:
           type: integer
         area_descripcion:
@@ -734,7 +728,6 @@ components:
         - fecha_solicitud
         - semana
         - semana_inicio
-        - departamento_nombre
         - area_descripcion
         - tipo
         - total_horas_general
@@ -753,8 +746,6 @@ components:
         semana_inicio:
           type: string
           format: date
-        departamento_nombre:
-          type: string
         area_descripcion:
           type: string
         tipo:

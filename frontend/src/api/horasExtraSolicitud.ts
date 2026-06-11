@@ -67,8 +67,6 @@ export type HorasExtraSolicitudResponse = {
   semana: number;
   semana_inicio: string;
   tipo: HorasExtraTipoSolicitud;
-  departamento_id: number;
-  departamento_nombre: string;
   area_id: number;
   area_descripcion: string;
   subarea_id: number;
@@ -90,7 +88,6 @@ export type HorasExtraSolicitudListItem = {
   fecha_solicitud: string;
   semana: number;
   semana_inicio: string;
-  departamento_nombre: string;
   area_descripcion: string;
   tipo: HorasExtraTipoSolicitud;
   total_horas_general: number;

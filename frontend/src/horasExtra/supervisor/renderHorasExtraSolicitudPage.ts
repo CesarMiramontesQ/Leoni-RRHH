@@ -407,7 +407,7 @@ function renderDetalleModal(state: HorasExtraSolicitudPageState): string {
         <div class="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 id="he-sup-detalle-title" class="text-lg font-bold text-text-primary">Solicitud #${det ? det.id : "…"}</h2>
-            ${det ? `<p class="text-sm text-text-secondary">${escapeHtml(det.departamento_nombre)} · ${escapeHtml(det.area_descripcion)}</p>` : ""}
+            ${det ? `<p class="text-sm text-text-secondary">${escapeHtml(det.area_descripcion)}</p>` : ""}
           </div>
           <button type="button" id="he-sup-detalle-cerrar" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cerrar</button>
         </div>
@@ -607,7 +607,7 @@ function renderListaTable(state: HorasExtraSolicitudPageState): string {
             <th class="px-3 py-3">Folio</th>
             <th class="px-3 py-3">Fecha</th>
             <th class="px-3 py-3">Semana</th>
-            <th class="px-3 py-3">Departamento / Área</th>
+            <th class="px-3 py-3">Área</th>
             <th class="px-3 py-3">Tipo</th>
             <th class="px-3 py-3 text-right">Total hrs</th>
             <th class="px-3 py-3">Estado</th>
@@ -623,10 +623,7 @@ function renderListaTable(state: HorasExtraSolicitudPageState): string {
               <td class="px-3 py-3 text-sm font-semibold text-text-primary">#${row.id}</td>
               <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${formatFecha(row.fecha_solicitud)}</td>
               <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${semanaLabel(row.semana)}</td>
-              <td class="px-3 py-3 text-sm text-text-primary">
-                <div>${escapeHtml(row.departamento_nombre)}</div>
-                <div class="text-xs text-text-secondary">${escapeHtml(row.area_descripcion)}</div>
-              </td>
+              <td class="px-3 py-3 text-sm text-text-primary">${escapeHtml(row.area_descripcion)}</td>
               <td class="px-3 py-3 text-sm text-text-primary">${tipoLabel(row.tipo)}</td>
               <td class="px-3 py-3 text-sm font-semibold tabular-nums text-text-primary text-right">${Number(row.total_horas_general).toFixed(2)}</td>
               <td class="px-3 py-3">${estadoBadge(row.estado)}</td>

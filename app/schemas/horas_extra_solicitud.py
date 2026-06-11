@@ -93,8 +93,6 @@ class HorasExtraSolicitudResponse(BaseModel):
     semana: int
     semana_inicio: date
     tipo: HorasExtraTipoSolicitud
-    departamento_id: int
-    departamento_nombre: str
     area_id: int
     area_descripcion: str
     subarea_id: int
@@ -120,7 +118,6 @@ class HorasExtraSolicitudListItem(BaseModel):
     fecha_solicitud: date
     semana: int
     semana_inicio: date
-    departamento_nombre: str
     area_descripcion: str
     tipo: HorasExtraTipoSolicitud
     total_horas_general: Decimal
