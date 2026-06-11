@@ -19,31 +19,18 @@ export type HorasExtraEstadoSolicitud =
   | "rechazado"
   | "cancelado";
 
-export type HorasExtraCatalogoOption = {
-  id: number;
-  label: string;
-};
-
-export type HorasExtraSubareaOption = {
-  id: number;
-  label: string;
-  area_id: number;
-};
-
 export type HorasExtraEmpleadoOption = {
   id: number;
   no_empleado: string;
   nombre: string;
   centrocosto_id: number | null;
+  area_id: number | null;
+  subarea_id: number | null;
 };
 
 export type HorasExtraSolicitudOpciones = {
-  departamentos: HorasExtraCatalogoOption[];
-  areas: HorasExtraCatalogoOption[];
-  subareas: HorasExtraSubareaOption[];
-  centros_costo: HorasExtraCatalogoOption[];
-  motivos: HorasExtraCatalogoOption[];
   empleados: HorasExtraEmpleadoOption[];
+  semana_actual: number;
 };
 
 export type HorasExtraDetalleCreate = {
@@ -59,14 +46,9 @@ export type HorasExtraDetalleCreate = {
 
 export type HorasExtraSolicitudCreate = {
   fecha_solicitud: string;
-  semana_inicio: string;
+  semana: number;
   tipo: HorasExtraTipoSolicitud;
-  departamento_id: number;
-  area_id: number;
-  subarea_id: number;
-  centrocosto_id: number;
-  motivo_id: number;
-  comentarios?: string | null;
+  motivo: string;
   empleados: HorasExtraDetalleCreate[];
 };
 
@@ -80,6 +62,7 @@ export type HorasExtraDetalleResponse = HorasExtraDetalleCreate & {
 export type HorasExtraSolicitudResponse = {
   id: number;
   fecha_solicitud: string;
+  semana: number;
   semana_inicio: string;
   tipo: HorasExtraTipoSolicitud;
   departamento_id: number;
@@ -103,6 +86,7 @@ export type HorasExtraSolicitudResponse = {
 export type HorasExtraSolicitudListItem = {
   id: number;
   fecha_solicitud: string;
+  semana: number;
   semana_inicio: string;
   departamento_nombre: string;
   area_descripcion: string;

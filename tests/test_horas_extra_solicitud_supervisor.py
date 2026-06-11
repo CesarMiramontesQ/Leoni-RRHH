@@ -41,17 +41,12 @@ async def _seed_catalogo_horas_extra(db):
     return dep, area, sub, cc, motivo
 
 
-def _payload_base(dep, area, sub, cc, motivo, empleado_id: int) -> dict:
+def _payload_base(empleado_id: int) -> dict:
     return {
         "fecha_solicitud": "2026-06-10",
-        "semana_inicio": "2026-06-08",
+        "semana": 24,
         "tipo": "planeado",
-        "departamento_id": dep.departamento_id,
-        "area_id": area.area_id,
-        "subarea_id": sub.subarea_id,
-        "centrocosto_id": cc.centrocosto_id,
-        "motivo_id": motivo.id,
-        "comentarios": "Cobertura turno",
+        "motivo": "Cobertura turno",
         "empleados": [
             {
                 "empleado_id": empleado_id,
@@ -80,7 +75,7 @@ async def test_horas_extra_solicitud_rechaza_no_supervisor(
 async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     client: AsyncClient, db, empleado_supervisor
 ):
-    dep, area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
+    _dep, area, sub, cc, motivo = await _seed_catalogo_horas_extra(db)
 
     operativo = await make_empleado(
         db,
@@ -91,6 +86,10 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         nombre="Operativo Uno",
         lider_id=empleado_supervisor.empleado_id,
     )
+    operativo.area_id = area.area_id
+    operativo.subarea_id = sub.subarea_id
+    operativo.centrocosto_id = cc.centrocosto_id
+    await db.flush()
 
     admin_cl = await make_clasificacion_administrativo(db)
     admin = await make_empleado(
@@ -103,6 +102,10 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         lider_id=empleado_supervisor.empleado_id,
         clasificacion_id=admin_cl.clasificacion_id,
     )
+    admin.area_id = area.area_id
+    admin.subarea_id = sub.subarea_id
+    admin.centrocosto_id = cc.centrocosto_id
+    await db.flush()
 
     otro_supervisor = await make_empleado(
         db,
@@ -118,7 +121,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
             fecha_solicitud=date(2026, 6, 1),
             semana_inicio=date(2026, 6, 1),
             tipo="planeado",
-            departamento_id=dep.departamento_id,
+            departamento_id=_dep.departamento_id,
             area_id=area.area_id,
             subarea_id=sub.subarea_id,
             centrocosto_id=cc.centrocosto_id,
@@ -133,21 +136,27 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
 
     opciones = await client.get("/api/v1/horas-extra/solicitudes/opciones", headers=headers)
     assert opciones.status_code == 200
-    empleados = {e["no_empleado"] for e in opciones.json()["empleados"]}
+    opciones_body = opciones.json()
+    empleados = {e["no_empleado"] for e in opciones_body["empleados"]}
     assert "HE-OP-01" in empleados
     assert "HE-ADM-01" not in empleados
+    assert 1 <= opciones_body["semana_actual"] <= 53
 
-    payload = _payload_base(dep, area, sub, cc, motivo, operativo.id)
+    payload = _payload_base(operativo.id)
     crear = await client.post("/api/v1/horas-extra/solicitudes", headers=headers, json=payload)
     assert crear.status_code == 201
     data = crear.json()
+    assert data["semana"] == 24
     assert data["total_horas_general"] == 2
     assert data["total_empleados"] == 1
     assert data["estado"] == "pendiente"
+    assert data["motivo_descripcion"] == "Cobertura turno"
+    assert data["centrocosto_id"] == cc.centrocosto_id
+    assert data["area_id"] == area.area_id
     assert len(data["detalle"]) == 1
     assert data["detalle"][0]["total_horas"] == 2
 
-    payload_admin = _payload_base(dep, area, sub, cc, motivo, admin.id)
+    payload_admin = _payload_base(admin.id)
     rechazo_admin = await client.post(
         "/api/v1/horas-extra/solicitudes", headers=headers, json=payload_admin
     )
@@ -158,6 +167,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     body = lista.json()
     assert body["total"] == 1
     assert len(body["items"]) == 1
+    assert body["items"][0]["semana"] == 24
     assert body["items"][0]["total_horas_general"] == 2
 
 

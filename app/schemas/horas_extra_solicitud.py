@@ -12,31 +12,18 @@ HorasExtraEstadoSolicitud = Literal[
 ]
 
 
-class HorasExtraCatalogoOption(BaseModel):
-    id: int
-    label: str
-
-
-class HorasExtraSubareaOption(BaseModel):
-    id: int
-    label: str
-    area_id: int
-
-
 class HorasExtraEmpleadoOption(BaseModel):
     id: int
     no_empleado: str
     nombre: str
     centrocosto_id: Optional[int] = None
+    area_id: Optional[int] = None
+    subarea_id: Optional[int] = None
 
 
 class HorasExtraSolicitudOpcionesResponse(BaseModel):
-    departamentos: list[HorasExtraCatalogoOption]
-    areas: list[HorasExtraCatalogoOption]
-    subareas: list[HorasExtraSubareaOption]
-    centros_costo: list[HorasExtraCatalogoOption]
-    motivos: list[HorasExtraCatalogoOption]
     empleados: list[HorasExtraEmpleadoOption]
+    semana_actual: int = Field(ge=1, le=53)
 
 
 class HorasExtraDetalleCreate(BaseModel):
@@ -52,23 +39,18 @@ class HorasExtraDetalleCreate(BaseModel):
 
 class HorasExtraSolicitudCreate(BaseModel):
     fecha_solicitud: date
-    semana_inicio: date
+    semana: int = Field(ge=1, le=53)
     tipo: HorasExtraTipoSolicitud
-    departamento_id: int
-    area_id: int
-    subarea_id: int
-    centrocosto_id: int
-    motivo_id: int
-    comentarios: Optional[str] = None
+    motivo: str = Field(min_length=1, max_length=500)
     empleados: list[HorasExtraDetalleCreate] = Field(min_length=1)
 
-    @field_validator("comentarios")
+    @field_validator("motivo")
     @classmethod
-    def strip_comentarios(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return None
+    def strip_motivo(cls, v: str) -> str:
         stripped = v.strip()
-        return stripped or None
+        if not stripped:
+            raise ValueError("El motivo es obligatorio.")
+        return stripped
 
 
 class HorasExtraDetalleResponse(BaseModel):
@@ -106,6 +88,7 @@ class HorasExtraSolicitudResponse(BaseModel):
 
     id: int
     fecha_solicitud: date
+    semana: int
     semana_inicio: date
     tipo: HorasExtraTipoSolicitud
     departamento_id: int
@@ -133,6 +116,7 @@ class HorasExtraSolicitudResponse(BaseModel):
 class HorasExtraSolicitudListItem(BaseModel):
     id: int
     fecha_solicitud: date
+    semana: int
     semana_inicio: date
     departamento_nombre: str
     area_descripcion: str

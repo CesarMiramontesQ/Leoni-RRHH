@@ -96,19 +96,30 @@ function sumFila(fila: HorasExtraEmpleadoFilaForm): number {
   return DIAS.reduce((acc, [key]) => acc + (Number.parseFloat(fila[key]) || 0), 0);
 }
 
-function renderSelectOptions(
-  items: { id: number; label: string }[],
-  selected: string,
-  placeholder: string,
-): string {
-  const opts = [
-    `<option value="">${escapeHtml(placeholder)}</option>`,
-    ...items.map(
-      (o) =>
-        `<option value="${o.id}"${selected === String(o.id) ? " selected" : ""}>${escapeHtml(o.label)}</option>`,
-    ),
-  ];
-  return opts.join("");
+export function getSemanasPermitidas(semanaActual: number): number[] {
+  const semanas: number[] = [];
+  if (semanaActual > 1) {
+    semanas.push(semanaActual - 1);
+  }
+  semanas.push(semanaActual);
+  for (let offset = 1; offset <= 4; offset += 1) {
+    const futura = semanaActual + offset;
+    if (futura <= 53) semanas.push(futura);
+  }
+  return semanas;
+}
+
+function renderSemanaOptions(semanaActual: number): string {
+  return getSemanasPermitidas(semanaActual)
+    .map(
+      (n) =>
+        `<option value="${n}"${n === semanaActual ? " selected" : ""}>Semana ${n}</option>`,
+    )
+    .join("");
+}
+
+function semanaLabel(numero: number): string {
+  return `Semana ${numero}`;
 }
 
 export function filterEmpleadosElegibles(
@@ -307,12 +318,11 @@ function renderDetalleModal(state: HorasExtraSolicitudPageState): string {
                 ? `
           <div class="mb-4 grid gap-3 sm:grid-cols-2 text-sm">
             <div><span class="text-text-secondary">Fecha:</span> <span class="font-medium">${formatFecha(det.fecha_solicitud)}</span></div>
-            <div><span class="text-text-secondary">Semana:</span> <span class="font-medium">${formatFecha(det.semana_inicio)}</span></div>
+            <div><span class="text-text-secondary">Semana:</span> <span class="font-medium">${semanaLabel(det.semana)}</span></div>
             <div><span class="text-text-secondary">Tipo:</span> <span class="font-medium">${tipoLabel(det.tipo)}</span></div>
             <div><span class="text-text-secondary">Estado:</span> ${estadoBadge(det.estado)}</div>
             <div><span class="text-text-secondary">Centro de costo:</span> <span class="font-medium">${escapeHtml(det.centrocosto_descripcion)}</span></div>
-            <div><span class="text-text-secondary">Motivo:</span> <span class="font-medium">${escapeHtml(det.motivo_descripcion)}</span></div>
-            <div class="sm:col-span-2"><span class="text-text-secondary">Comentarios:</span> <span class="font-medium">${escapeHtml(det.comentarios ?? "—")}</span></div>
+            <div class="sm:col-span-2"><span class="text-text-secondary">Motivo:</span> <span class="font-medium">${escapeHtml(det.motivo_descripcion)}</span></div>
           </div>
           ${renderHorasGrid(
             det.detalle.map((d) => ({
@@ -342,14 +352,19 @@ function renderFormularioSolicitud(
 
   return `
     <form id="he-sup-form" class="flex flex-col gap-5" novalidate>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid gap-4 sm:grid-cols-2">
         <label class="block text-sm">
           <span class="mb-1 block font-medium text-text-secondary">Fecha de solicitud *</span>
           <input type="date" name="fecha_solicitud" required value="${today}" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
         </label>
         <label class="block text-sm">
           <span class="mb-1 block font-medium text-text-secondary">Semana *</span>
-          <input type="week" name="semana" required class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          <div class="grid grid-cols-1">
+            <select name="semana" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+              ${renderSemanaOptions(opciones.semana_actual)}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </label>
         <label class="block text-sm">
           <span class="mb-1 block font-medium text-text-secondary">Tipo *</span>
@@ -361,54 +376,16 @@ function renderFormularioSolicitud(
             ${SELECT_CHEVRON}
           </div>
         </label>
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Departamento *</span>
-          <div class="grid grid-cols-1">
-            <select name="departamento_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-              ${renderSelectOptions(opciones.departamentos, "", "Seleccionar departamento")}
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </label>
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Área *</span>
-          <div class="grid grid-cols-1">
-            <select name="area_id" required id="he-sup-area" class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-              ${renderSelectOptions(opciones.areas, "", "Seleccionar área")}
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </label>
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Subárea *</span>
-          <div class="grid grid-cols-1">
-            <select name="subarea_id" required id="he-sup-subarea" class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-              <option value="">Seleccionar subárea</option>
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </label>
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Centro de costo *</span>
-          <div class="grid grid-cols-1">
-            <select name="centrocosto_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-              ${renderSelectOptions(opciones.centros_costo, "", "Seleccionar centro de costo")}
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </label>
         <label class="block text-sm sm:col-span-2">
           <span class="mb-1 block font-medium text-text-secondary">Motivo *</span>
-          <div class="grid grid-cols-1">
-            <select name="motivo_id" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
-              ${renderSelectOptions(opciones.motivos, "", "Seleccionar motivo")}
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </label>
-        <label class="block text-sm sm:col-span-2 lg:col-span-3">
-          <span class="mb-1 block font-medium text-text-secondary">Comentarios</span>
-          <textarea name="comentarios" rows="2" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Opcional"></textarea>
+          <textarea
+            name="motivo"
+            required
+            rows="3"
+            maxlength="500"
+            class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}"
+            placeholder="Ej. Cubrir vacante, incremento de producción, soporte a inventario…"
+          ></textarea>
         </label>
       </div>
 
@@ -506,7 +483,7 @@ function renderListaTable(state: HorasExtraSolicitudPageState): string {
             <tr>
               <td class="px-3 py-3 text-sm font-semibold text-text-primary">#${row.id}</td>
               <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${formatFecha(row.fecha_solicitud)}</td>
-              <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${formatFecha(row.semana_inicio)}</td>
+              <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${semanaLabel(row.semana)}</td>
               <td class="px-3 py-3 text-sm text-text-primary">
                 <div>${escapeHtml(row.departamento_nombre)}</div>
                 <div class="text-xs text-text-secondary">${escapeHtml(row.area_descripcion)}</div>
@@ -567,14 +544,3 @@ export function renderHorasExtraSolicitudPage(state: HorasExtraSolicitudPageStat
     </div>`;
 }
 
-export function weekInputToMonday(isoWeek: string): string | null {
-  const match = /^(\d{4})-W(\d{2})$/.exec(isoWeek.trim());
-  if (!match) return null;
-  const year = Number(match[1]);
-  const week = Number(match[2]);
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const day = jan4.getUTCDay() || 7;
-  const monday = new Date(jan4);
-  monday.setUTCDate(jan4.getUTCDate() - day + 1 + (week - 1) * 7);
-  return monday.toISOString().slice(0, 10);
-}

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -62,10 +64,40 @@ class HorasExtraSolicitudRepository:
             return []
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.clasificacion))
+            .options(
+                selectinload(Empleado.clasificacion),
+                selectinload(Empleado.area),
+                selectinload(Empleado.subarea),
+            )
             .where(Empleado.id.in_(ids))
         )
         return list(result.scalars().all())
+
+    async def get_or_create_departamento_por_area(self, area: Area) -> Departamento:
+        codigo = f"AREA-{area.area_id}"
+        result = await self.db.execute(
+            select(Departamento).where(Departamento.codigo == codigo)
+        )
+        dep = result.scalar_one_or_none()
+        if dep is not None:
+            return dep
+        dep = Departamento(codigo=codigo, nombre=area.descripcion, activo=True)
+        self.db.add(dep)
+        await self.db.flush()
+        return dep
+
+    async def get_or_create_motivo_texto(self, texto: str) -> HorasExtraMotivo:
+        result = await self.db.execute(
+            select(HorasExtraMotivo).where(HorasExtraMotivo.descripcion == texto)
+        )
+        motivo = result.scalar_one_or_none()
+        if motivo is not None:
+            return motivo
+        codigo = f"LIBRE-{uuid.uuid4().hex[:8].upper()}"
+        motivo = HorasExtraMotivo(codigo=codigo, descripcion=texto, activo=True)
+        self.db.add(motivo)
+        await self.db.flush()
+        return motivo
 
     async def get_departamento(self, departamento_id: int) -> Departamento | None:
         return await self.db.get(Departamento, departamento_id)

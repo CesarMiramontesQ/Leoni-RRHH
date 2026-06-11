@@ -533,35 +533,23 @@ components:
           type: string
         centrocosto_id:
           type: [integer, "null"]
+        area_id:
+          type: [integer, "null"]
+        subarea_id:
+          type: [integer, "null"]
 
     HorasExtraSolicitudOpcionesResponse:
       type: object
-      required: [departamentos, areas, subareas, centros_costo, motivos, empleados]
+      required: [empleados, semana_actual]
       properties:
-        departamentos:
-          type: array
-          items:
-            $ref: "#/components/schemas/HorasExtraCatalogoOption"
-        areas:
-          type: array
-          items:
-            $ref: "#/components/schemas/HorasExtraCatalogoOption"
-        subareas:
-          type: array
-          items:
-            $ref: "#/components/schemas/HorasExtraSubareaOption"
-        centros_costo:
-          type: array
-          items:
-            $ref: "#/components/schemas/HorasExtraCatalogoOption"
-        motivos:
-          type: array
-          items:
-            $ref: "#/components/schemas/HorasExtraCatalogoOption"
         empleados:
           type: array
           items:
             $ref: "#/components/schemas/HorasExtraEmpleadoOption"
+        semana_actual:
+          type: integer
+          minimum: 1
+          maximum: 53
 
     HorasExtraDetalleCreate:
       type: object
@@ -595,36 +583,25 @@ components:
       type: object
       required:
         - fecha_solicitud
-        - semana_inicio
+        - semana
         - tipo
-        - departamento_id
-        - area_id
-        - subarea_id
-        - centrocosto_id
-        - motivo_id
+        - motivo
         - empleados
       properties:
         fecha_solicitud:
           type: string
           format: date
-        semana_inicio:
-          type: string
-          format: date
+        semana:
+          type: integer
+          minimum: 1
+          maximum: 53
         tipo:
           type: string
           enum: [planeado, espontaneo]
-        departamento_id:
-          type: integer
-        area_id:
-          type: integer
-        subarea_id:
-          type: integer
-        centrocosto_id:
-          type: integer
-        motivo_id:
-          type: integer
-        comentarios:
-          type: [string, "null"]
+        motivo:
+          type: string
+          minLength: 1
+          maxLength: 500
         empleados:
           type: array
           minItems: 1
@@ -677,6 +654,7 @@ components:
       required:
         - id
         - fecha_solicitud
+        - semana
         - semana_inicio
         - tipo
         - departamento_id
@@ -700,6 +678,10 @@ components:
         fecha_solicitud:
           type: string
           format: date
+        semana:
+          type: integer
+          minimum: 1
+          maximum: 53
         semana_inicio:
           type: string
           format: date
@@ -748,6 +730,7 @@ components:
       required:
         - id
         - fecha_solicitud
+        - semana
         - semana_inicio
         - departamento_nombre
         - area_descripcion
@@ -761,6 +744,10 @@ components:
         fecha_solicitud:
           type: string
           format: date
+        semana:
+          type: integer
+          minimum: 1
+          maximum: 53
         semana_inicio:
           type: string
           format: date

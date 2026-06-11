@@ -14,7 +14,6 @@ from app.models.horas_extra import HorasExtraSolicitud, HorasExtraSolicitudDetal
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.horas_extra_solicitud_repository import HorasExtraSolicitudRepository
 from app.schemas.horas_extra_solicitud import (
-    HorasExtraCatalogoOption,
     HorasExtraDetalleResponse,
     HorasExtraEmpleadoOption,
     HorasExtraSolicitudCreate,
@@ -22,8 +21,8 @@ from app.schemas.horas_extra_solicitud import (
     HorasExtraSolicitudListResponse,
     HorasExtraSolicitudOpcionesResponse,
     HorasExtraSolicitudResponse,
-    HorasExtraSubareaOption,
 )
+from app.utils.business_time import business_today
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 
 
@@ -42,8 +41,23 @@ class HorasExtraSolicitudService:
             )
 
     @staticmethod
-    def _es_lunes(fecha: date) -> bool:
-        return fecha.weekday() == 0
+    def _numero_semana_iso(fecha: date) -> int:
+        return fecha.isocalendar()[1]
+
+    @staticmethod
+    def _semanas_permitidas(semana_actual: int) -> set[int]:
+        permitidas = {semana_actual}
+        if semana_actual > 1:
+            permitidas.add(semana_actual - 1)
+        for offset in range(1, 5):
+            futura = semana_actual + offset
+            if futura <= 53:
+                permitidas.add(futura)
+        return permitidas
+
+    @staticmethod
+    def _lunes_de_semana_iso(anio: int, semana: int) -> date:
+        return date.fromisocalendar(anio, semana, 1)
 
     @staticmethod
     def _sum_horas_detalle(row: HorasExtraSolicitudDetalle) -> Decimal:
@@ -80,68 +94,109 @@ class HorasExtraSolicitudService:
         empleados_db = await self.repo.get_empleados_by_ids(sorted(elegibles_ids))
 
         return HorasExtraSolicitudOpcionesResponse(
-            departamentos=[
-                HorasExtraCatalogoOption(id=d.departamento_id, label=d.nombre)
-                for d in await self.repo.list_departamentos_activos()
-            ],
-            areas=[
-                HorasExtraCatalogoOption(id=a.area_id, label=a.descripcion)
-                for a in await self.repo.list_areas_activas()
-            ],
-            subareas=[
-                HorasExtraSubareaOption(
-                    id=s.subarea_id, label=s.descripcion, area_id=s.area_id
-                )
-                for s in await self.repo.list_subareas_activas()
-            ],
-            centros_costo=[
-                HorasExtraCatalogoOption(id=c.centrocosto_id, label=c.descripcion)
-                for c in await self.repo.list_centros_costo_activos()
-            ],
-            motivos=[
-                HorasExtraCatalogoOption(id=m.id, label=m.descripcion)
-                for m in await self.repo.list_motivos_activos()
-            ],
             empleados=[
                 HorasExtraEmpleadoOption(
                     id=e.id,
                     no_empleado=e.no_empleado,
                     nombre=e.nombre,
                     centrocosto_id=e.centrocosto_id,
+                    area_id=e.area_id,
+                    subarea_id=e.subarea_id,
                 )
                 for e in sorted(empleados_db, key=lambda x: x.nombre.lower())
             ],
+            semana_actual=self._numero_semana_iso(business_today()),
         )
 
-    async def _validar_referencias(self, data: HorasExtraSolicitudCreate) -> None:
-        if not self._es_lunes(data.semana_inicio):
+    async def _validar_semana(self, fecha_solicitud: date, semana: int) -> date:
+        semana_actual = self._numero_semana_iso(business_today())
+        if semana not in self._semanas_permitidas(semana_actual):
             raise DomainValidationError(
-                detail="La semana debe iniciar en lunes (semana_inicio)."
+                detail=(
+                    "La semana seleccionada no está permitida. "
+                    "Solo puedes capturar la semana anterior, la actual "
+                    "o las cuatro siguientes."
+                )
+            )
+        try:
+            semana_inicio = self._lunes_de_semana_iso(fecha_solicitud.year, semana)
+        except ValueError as exc:
+            raise DomainValidationError(
+                detail="Número de semana no válido para el año de la solicitud."
+            ) from exc
+        return semana_inicio
+
+    async def _resolver_contexto_desde_empleados(
+        self,
+        empleados_db: list[Empleado],
+    ) -> tuple[int, int, int, int]:
+        if not empleados_db:
+            raise DomainValidationError(
+                detail="Debe incluir al menos un empleado en la solicitud."
             )
 
-        departamento = await self.repo.get_departamento(data.departamento_id)
-        if departamento is None or not departamento.activo:
-            raise DomainValidationError(detail="Departamento no válido.")
+        referencia = empleados_db[0]
+        if referencia.area_id is None:
+            raise DomainValidationError(
+                detail=(
+                    f"El empleado {referencia.no_empleado} no tiene área asignada."
+                )
+            )
+        if referencia.subarea_id is None:
+            raise DomainValidationError(
+                detail=(
+                    f"El empleado {referencia.no_empleado} no tiene subárea asignada."
+                )
+            )
+        if referencia.centrocosto_id is None:
+            raise DomainValidationError(
+                detail=(
+                    f"El empleado {referencia.no_empleado} "
+                    "no tiene centro de costo asignado."
+                )
+            )
 
-        area = await self.repo.get_area(data.area_id)
+        area_id = referencia.area_id
+        subarea_id = referencia.subarea_id
+        centrocosto_id = referencia.centrocosto_id
+
+        for emp in empleados_db[1:]:
+            if (
+                emp.area_id != area_id
+                or emp.subarea_id != subarea_id
+                or emp.centrocosto_id != centrocosto_id
+            ):
+                raise DomainValidationError(
+                    detail=(
+                        "Todos los empleados deben compartir área, subárea "
+                        "y centro de costo."
+                    )
+                )
+
+        area = await self.repo.get_area(area_id)
         if area is None:
             raise DomainValidationError(detail="Área no válida.")
 
-        subarea = await self.repo.get_subarea(data.subarea_id)
+        subarea = await self.repo.get_subarea(subarea_id)
         if subarea is None:
             raise DomainValidationError(detail="Subárea no válida.")
-        if subarea.area_id != data.area_id:
+        if subarea.area_id != area_id:
             raise DomainValidationError(
-                detail="La subárea no pertenece al área seleccionada."
+                detail="La subárea del empleado no pertenece a su área."
             )
 
-        centro = await self.repo.get_centro_costo(data.centrocosto_id)
+        centro = await self.repo.get_centro_costo(centrocosto_id)
         if centro is None or not centro.activo:
             raise DomainValidationError(detail="Centro de costo no válido.")
 
-        motivo = await self.repo.get_motivo(data.motivo_id)
-        if motivo is None or not motivo.activo:
-            raise DomainValidationError(detail="Motivo no válido.")
+        departamento = await self.repo.get_or_create_departamento_por_area(area)
+
+        return (
+            departamento.departamento_id,
+            area_id,
+            subarea_id,
+            centrocosto_id,
+        )
 
     async def _validar_empleados(
         self,
@@ -216,6 +271,7 @@ class HorasExtraSolicitudService:
                 detail="La solicitud debe registrar al menos una hora mayor a cero."
             )
 
+        await self._resolver_contexto_desde_empleados(empleados_db)
         return detalle_rows
 
     async def crear(
@@ -224,19 +280,30 @@ class HorasExtraSolicitudService:
         current_user: Empleado,
     ) -> HorasExtraSolicitudResponse:
         self._require_supervisor(current_user)
-        await self._validar_referencias(data)
+        semana_inicio = await self._validar_semana(data.fecha_solicitud, data.semana)
         detalle_rows = await self._validar_empleados(data, current_user)
+
+        ids_solicitados = [row.empleado_id for row in data.empleados]
+        empleados_db = await self.repo.get_empleados_by_ids(ids_solicitados)
+        (
+            departamento_id,
+            area_id,
+            subarea_id,
+            centrocosto_id,
+        ) = await self._resolver_contexto_desde_empleados(empleados_db)
+
+        motivo = await self.repo.get_or_create_motivo_texto(data.motivo)
 
         solicitud = HorasExtraSolicitud(
             fecha_solicitud=data.fecha_solicitud,
-            semana_inicio=data.semana_inicio,
+            semana_inicio=semana_inicio,
             tipo=data.tipo,
-            departamento_id=data.departamento_id,
-            area_id=data.area_id,
-            subarea_id=data.subarea_id,
-            centrocosto_id=data.centrocosto_id,
-            motivo_id=data.motivo_id,
-            comentarios=data.comentarios,
+            departamento_id=departamento_id,
+            area_id=area_id,
+            subarea_id=subarea_id,
+            centrocosto_id=centrocosto_id,
+            motivo_id=motivo.id,
+            comentarios=None,
             estado="pendiente",
             registrado_por_id=current_user.id,
         )
@@ -265,6 +332,7 @@ class HorasExtraSolicitudService:
             HorasExtraSolicitudListItem(
                 id=s.id,
                 fecha_solicitud=s.fecha_solicitud,
+                semana=self._numero_semana_iso(s.semana_inicio),
                 semana_inicio=s.semana_inicio,
                 departamento_nombre=s.departamento.nombre if s.departamento else "",
                 area_descripcion=s.area.descripcion if s.area else "",
@@ -317,6 +385,7 @@ class HorasExtraSolicitudService:
         return HorasExtraSolicitudResponse(
             id=solicitud.id,
             fecha_solicitud=solicitud.fecha_solicitud,
+            semana=self._numero_semana_iso(solicitud.semana_inicio),
             semana_inicio=solicitud.semana_inicio,
             tipo=solicitud.tipo,
             departamento_id=solicitud.departamento_id,

@@ -11,9 +11,9 @@ import {
 } from "../api/horasExtraSolicitud.ts";
 import {
   filterEmpleadosElegibles,
+  getSemanasPermitidas,
   renderEmpleadosModalList,
   renderHorasExtraSolicitudPage,
-  weekInputToMonday,
   type HorasExtraEmpleadoFilaForm,
   type HorasExtraSolicitudPageState,
 } from "../horasExtra/supervisor/renderHorasExtraSolicitudPage.ts";
@@ -113,19 +113,57 @@ function filasFromSelection(
     });
 }
 
+function validateEmpleadosOrganizacion(
+  opciones: HorasExtraSolicitudOpciones,
+  filas: HorasExtraEmpleadoFilaForm[],
+): string | null {
+  if (!filas.length) return null;
+  const empleados = filas
+    .map((f) => opciones.empleados.find((e) => e.id === f.empleado_id))
+    .filter((e): e is NonNullable<typeof e> => Boolean(e));
+
+  for (const emp of empleados) {
+    if (!emp.area_id || !emp.subarea_id || !emp.centrocosto_id) {
+      return `El empleado ${emp.no_empleado} no tiene área, subárea o centro de costo asignado.`;
+    }
+  }
+
+  const ref = empleados[0];
+  if (!ref) return null;
+  for (const emp of empleados.slice(1)) {
+    if (
+      emp.area_id !== ref.area_id ||
+      emp.subarea_id !== ref.subarea_id ||
+      emp.centrocosto_id !== ref.centrocosto_id
+    ) {
+      return "Todos los empleados deben compartir área, subárea y centro de costo.";
+    }
+  }
+  return null;
+}
+
 function validateForm(
   form: HTMLFormElement,
   filas: HorasExtraEmpleadoFilaForm[],
+  opciones: HorasExtraSolicitudOpciones | null,
 ): string | null {
   if (!form.fecha_solicitud.value) return "La fecha de solicitud es obligatoria.";
-  if (!form.semana.value) return "La semana es obligatoria.";
-  if (!weekInputToMonday(form.semana.value)) return "Selecciona una semana válida.";
-  if (!form.departamento_id.value) return "Selecciona un departamento.";
-  if (!form.area_id.value) return "Selecciona un área.";
-  if (!form.subarea_id.value) return "Selecciona una subárea.";
-  if (!form.centrocosto_id.value) return "Selecciona un centro de costo.";
-  if (!form.motivo_id.value) return "Selecciona un motivo.";
+  const semana = Number.parseInt(form.semana.value, 10);
+  const semanasPermitidas = opciones ? getSemanasPermitidas(opciones.semana_actual) : [];
+  if (
+    !form.semana.value ||
+    Number.isNaN(semana) ||
+    !semanasPermitidas.includes(semana)
+  ) {
+    return "Selecciona una semana válida.";
+  }
+  const motivo = (form.elements.namedItem("motivo") as HTMLTextAreaElement | null)?.value.trim();
+  if (!motivo) return "El motivo es obligatorio.";
   if (!filas.length) return "Selecciona al menos un empleado.";
+  if (opciones) {
+    const orgErr = validateEmpleadosOrganizacion(opciones, filas);
+    if (orgErr) return orgErr;
+  }
 
   let totalGeneral = 0;
   for (const fila of filas) {
@@ -150,8 +188,10 @@ function buildPayload(
   form: HTMLFormElement,
   filas: HorasExtraEmpleadoFilaForm[],
 ): Parameters<typeof createHorasExtraSolicitud>[0] | null {
-  const semanaInicio = weekInputToMonday(form.semana.value);
-  if (!semanaInicio) return null;
+  const semana = Number.parseInt(form.semana.value, 10);
+  if (Number.isNaN(semana) || semana < 1 || semana > 53) return null;
+  const motivo = (form.elements.namedItem("motivo") as HTMLTextAreaElement | null)?.value.trim();
+  if (!motivo) return null;
   const empleados: HorasExtraDetalleCreate[] = filas.map((fila) => ({
     empleado_id: fila.empleado_id,
     lunes: Number.parseFloat(fila.lunes) || 0,
@@ -164,34 +204,11 @@ function buildPayload(
   }));
   return {
     fecha_solicitud: form.fecha_solicitud.value,
-    semana_inicio: semanaInicio,
+    semana,
     tipo: form.tipo.value as "planeado" | "espontaneo",
-    departamento_id: Number.parseInt(form.departamento_id.value, 10),
-    area_id: Number.parseInt(form.area_id.value, 10),
-    subarea_id: Number.parseInt(form.subarea_id.value, 10),
-    centrocosto_id: Number.parseInt(form.centrocosto_id.value, 10),
-    motivo_id: Number.parseInt(form.motivo_id.value, 10),
-    comentarios: form.comentarios.value.trim() || null,
+    motivo,
     empleados,
   };
-}
-
-function patchSubareas(
-  root: HTMLElement,
-  opciones: HorasExtraSolicitudOpciones,
-  areaId: string,
-  selectedSubarea = "",
-): void {
-  const subSel = root.querySelector<HTMLSelectElement>("#he-sup-subarea");
-  if (!subSel) return;
-  const items = opciones.subareas.filter((s) => String(s.area_id) === areaId);
-  subSel.innerHTML = [
-    `<option value="">Seleccionar subárea</option>`,
-    ...items.map(
-      (s) =>
-        `<option value="${s.id}"${selectedSubarea === String(s.id) ? " selected" : ""}>${s.label}</option>`,
-    ),
-  ].join("");
 }
 
 function recalcTotals(root: HTMLElement): void {
@@ -301,11 +318,6 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       return;
     }
 
-    const areaSel = root.querySelector<HTMLSelectElement>("#he-sup-area");
-    areaSel?.addEventListener("change", () => {
-      patchSubareas(root as HTMLElement, opcionesCache!, areaSel.value);
-    });
-
     root.querySelector("#he-sup-abrir-empleados")?.addEventListener("click", () => {
       state = {
         ...state,
@@ -377,7 +389,7 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     form?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       state = { ...state, formError: undefined };
-      const err = validateForm(form, state.empleadosFilas);
+      const err = validateForm(form, state.empleadosFilas, opcionesCache);
       if (err) {
         state = { ...state, formError: err };
         render();
