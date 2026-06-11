@@ -10,9 +10,8 @@ import {
   type HorasExtraSolicitudOpciones,
 } from "../api/horasExtraSolicitud.ts";
 import {
-  filterEmpleadosElegibles,
   getSemanasPermitidas,
-  renderEmpleadosModalList,
+  renderEmpleadosPickerList,
   renderHorasExtraSolicitudPage,
   type HorasExtraEmpleadoFilaForm,
   type HorasExtraSolicitudPageState,
@@ -51,9 +50,7 @@ function initialState(): HorasExtraSolicitudPageState {
     detalleStatus: "idle",
     empleadosFilas: [],
     selectedEmpleadoIds: [],
-    empleadosModalOpen: false,
-    empleadosModalSearch: "",
-    empleadosModalDraftIds: [],
+    empleadosSearch: "",
     solicitudModalOpen: false,
   };
 }
@@ -64,9 +61,7 @@ function resetFormState(): Pick<
   | "submitting"
   | "empleadosFilas"
   | "selectedEmpleadoIds"
-  | "empleadosModalOpen"
-  | "empleadosModalSearch"
-  | "empleadosModalDraftIds"
+  | "empleadosSearch"
   | "solicitudModalOpen"
 > {
   return {
@@ -74,9 +69,7 @@ function resetFormState(): Pick<
     submitting: false,
     empleadosFilas: [],
     selectedEmpleadoIds: [],
-    empleadosModalOpen: false,
-    empleadosModalSearch: "",
-    empleadosModalDraftIds: [],
+    empleadosSearch: "",
     solicitudModalOpen: false,
   };
 }
@@ -255,27 +248,29 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     bindEvents();
   };
 
-  const patchEmpleadosModalList = (root: HTMLElement): void => {
-    const list = root.querySelector("#he-sup-empleados-modal-list");
-    const countEl = root.querySelector("#he-sup-empleados-modal-count");
-    if (!list || !opcionesCache) return;
-    const filtrados = filterEmpleadosElegibles(
-      opcionesCache.empleados,
-      state.empleadosModalSearch,
-    );
-    list.innerHTML = renderEmpleadosModalList(filtrados, state.empleadosModalDraftIds);
-    if (countEl) {
-      const n = state.empleadosModalDraftIds.length;
-      countEl.textContent = `${n} seleccionado${n === 1 ? "" : "s"}`;
-    }
+  const patchEmpleadosPicker = (root: HTMLElement): void => {
+    const wrap = root.querySelector("#he-sup-empleados-picker-wrap");
+    if (!wrap || !opcionesCache) return;
+    wrap.innerHTML =
+      state.empleadosSearch.trim().length === 0
+        ? `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">Empieza escribiendo para buscar un colaborador.</p>`
+        : renderEmpleadosPickerList(
+            opcionesCache.empleados,
+            state.selectedEmpleadoIds,
+            state.empleadosSearch,
+          );
   };
 
-  const closeEmpleadosModal = (): void => {
+  const toggleEmpleadoSeleccion = (empleadoId: number): void => {
+    if (!opcionesCache) return;
+    const selected = new Set(state.selectedEmpleadoIds);
+    if (selected.has(empleadoId)) selected.delete(empleadoId);
+    else selected.add(empleadoId);
+    const ids = [...selected];
     state = {
       ...state,
-      empleadosModalOpen: false,
-      empleadosModalSearch: "",
-      empleadosModalDraftIds: [],
+      selectedEmpleadoIds: ids,
+      empleadosFilas: filasFromSelection(opcionesCache, ids, state.empleadosFilas),
     };
   };
 
@@ -318,67 +313,32 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       return;
     }
 
-    root.querySelector("#he-sup-abrir-empleados")?.addEventListener("click", () => {
-      state = {
-        ...state,
-        empleadosModalOpen: true,
-        empleadosModalSearch: "",
-        empleadosModalDraftIds: [...state.selectedEmpleadoIds],
-      };
-      render();
-    });
-
-    const modal = root.querySelector("#he-sup-empleados-modal");
-    modal?.addEventListener("click", (ev) => {
-      if (ev.target === ev.currentTarget) {
-        closeEmpleadosModal();
-        render();
-      }
-    });
-
-    root.querySelector("#he-sup-empleados-cerrar")?.addEventListener("click", () => {
-      closeEmpleadosModal();
-      render();
-    });
-
-    root.querySelector("#he-sup-empleados-cancelar")?.addEventListener("click", () => {
-      closeEmpleadosModal();
-      render();
-    });
-
     root.querySelector("#he-sup-empleados-search")?.addEventListener("input", (ev) => {
       state = {
         ...state,
-        empleadosModalSearch: (ev.target as HTMLInputElement).value,
+        empleadosSearch: (ev.target as HTMLInputElement).value,
       };
-      patchEmpleadosModalList(root as HTMLElement);
+      patchEmpleadosPicker(root as HTMLElement);
     });
 
-    root.querySelector("#he-sup-empleados-modal-list")?.addEventListener("change", (ev) => {
-      const cb = (ev.target as HTMLElement).closest<HTMLInputElement>(
-        "input[data-he-modal-empleado-id]",
+    root.querySelector("#he-sup-empleados-picker-wrap")?.addEventListener("click", (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>(
+        "[data-he-picker-empleado-id]",
       );
-      if (!cb) return;
-      const id = Number.parseInt(cb.dataset.heModalEmpleadoId ?? "0", 10);
+      if (!btn) return;
+      const id = Number.parseInt(btn.dataset.hePickerEmpleadoId ?? "0", 10);
       if (!id) return;
-      const draft = new Set(state.empleadosModalDraftIds);
-      if (cb.checked) draft.add(id);
-      else draft.delete(id);
-      state = { ...state, empleadosModalDraftIds: [...draft] };
-      patchEmpleadosModalList(root as HTMLElement);
+      toggleEmpleadoSeleccion(id);
+      render();
     });
 
-    root.querySelector("#he-sup-empleados-confirmar")?.addEventListener("click", () => {
-      const selected = [...state.empleadosModalDraftIds];
-      state = {
-        ...state,
-        selectedEmpleadoIds: selected,
-        empleadosFilas: filasFromSelection(opcionesCache!, selected, state.empleadosFilas),
-        empleadosModalOpen: false,
-        empleadosModalSearch: "",
-        empleadosModalDraftIds: [],
-      };
-      render();
+    root.querySelectorAll<HTMLButtonElement>("[data-he-quitar-empleado]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = Number.parseInt(btn.dataset.heQuitarEmpleado ?? "0", 10);
+        if (!id) return;
+        toggleEmpleadoSeleccion(id);
+        render();
+      });
     });
 
     root.querySelectorAll<HTMLInputElement>("input[data-he-dia]").forEach((input) => {

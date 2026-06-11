@@ -11,7 +11,6 @@ import {
   badgeRejected,
   BTN_PRIMARY,
   BTN_SECONDARY,
-  FIELD_FOCUS,
   RH_DASHBOARD_PAGE_SHELL,
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
@@ -49,11 +48,21 @@ export type HorasExtraSolicitudPageState = {
   detalleError?: string;
   empleadosFilas: HorasExtraEmpleadoFilaForm[];
   selectedEmpleadoIds: number[];
-  empleadosModalOpen: boolean;
-  empleadosModalSearch: string;
-  empleadosModalDraftIds: number[];
+  empleadosSearch: string;
   solicitudModalOpen: boolean;
 };
+
+const FORM_SECTION_LABEL =
+  "mb-2 block text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500";
+const FORM_HINT = "mt-2 max-w-prose text-[13px] leading-relaxed text-slate-500";
+const FORM_FIELD =
+  "h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
+const FORM_TEXTAREA =
+  "w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
+const FORM_SELECT_WRAP = "relative grid grid-cols-1";
+const FORM_SELECT = `col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2.5 pr-9 pl-3.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25`;
+const FORM_ALERT_ERROR =
+  "rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800";
 
 const DIAS = [
   ["lunes", "Lun"],
@@ -135,120 +144,137 @@ export function filterEmpleadosElegibles(
   );
 }
 
-export function renderEmpleadosModalList(
+function empleadoIniciales(nombre: string): string {
+  const parts = nombre.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+  }
+  return nombre.slice(0, 2).toUpperCase();
+}
+
+export function renderEmpleadosPickerList(
   empleados: HorasExtraEmpleadoOption[],
-  draftIds: number[],
+  selectedIds: number[],
+  search: string,
 ): string {
   if (!empleados.length) {
-    return `<p class="px-2 py-6 text-center text-sm text-text-secondary">No hay empleados que coincidan con la búsqueda.</p>`;
+    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">No hay colaboradores operativos en tu equipo.</p>`;
+  }
+  if (search.trim() && !empleados.length) {
+    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">No se encontraron coincidencias.</p>`;
+  }
+  const filtrados = filterEmpleadosElegibles(empleados, search);
+  if (!filtrados.length) {
+    return `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">No se encontraron coincidencias.</p>`;
   }
   return `
-    <ul class="divide-y divide-slate-100">
-      ${empleados
-        .map(
-          (e) => `
+    <ul class="space-y-2" id="he-sup-empleados-picker">
+      ${filtrados
+        .map((e) => {
+          const isSelected = selectedIds.includes(e.id);
+          return `
         <li>
-          <label class="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-slate-50">
-            <input
-              type="checkbox"
-              class="size-4 rounded border-slate-300 text-accent focus:ring-accent/40"
-              data-he-modal-empleado-id="${e.id}"
-              ${draftIds.includes(e.id) ? "checked" : ""}
-            />
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-semibold text-text-primary">${escapeHtml(e.nombre)}</span>
-              <span class="block truncate text-xs text-text-secondary">${escapeHtml(e.no_empleado)}</span>
+          <button
+            type="button"
+            data-he-picker-empleado-id="${e.id}"
+            aria-pressed="${isSelected ? "true" : "false"}"
+            class="flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+              isSelected
+                ? "border-leoni-blue bg-leoni-blue/5 shadow-sm"
+                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+            }"
+          >
+            <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">
+              ${escapeHtml(empleadoIniciales(e.nombre))}
             </span>
-          </label>
-        </li>`,
-        )
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-semibold text-slate-800">${escapeHtml(e.nombre)}</span>
+              <span class="block truncate text-xs text-slate-500">${escapeHtml(e.no_empleado)}</span>
+            </span>
+            ${
+              isSelected
+                ? `<span class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-white" aria-hidden="true">
+                     <svg viewBox="0 0 20 20" fill="currentColor" class="size-3.5"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-8 8a1 1 0 0 1-1.42-.007l-4-4a1 1 0 0 1 1.414-1.414l3.293 3.294 7.293-7.294a1 1 0 0 1 1.414.007Z" clip-rule="evenodd"/></svg>
+                   </span>`
+                : ""
+            }
+          </button>
+        </li>`;
+        })
         .join("")}
     </ul>`;
 }
 
-function renderEmpleadosSeleccionSection(filas: HorasExtraEmpleadoFilaForm[]): string {
-  const count = filas.length;
-  const countLabel = count
-    ? `${count} empleado${count === 1 ? "" : "s"} seleccionado${count === 1 ? "" : "s"}`
-    : "Ningún empleado seleccionado";
-
+function renderSelectedEmpleadosCards(filas: HorasExtraEmpleadoFilaForm[]): string {
+  if (!filas.length) {
+    return `<p class="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs text-slate-500">Selecciona al menos un colaborador para capturar horas.</p>`;
+  }
   return `
-    <div class="flex flex-col gap-3">
-      <div class="flex flex-wrap items-center gap-3">
-        <button type="button" id="he-sup-abrir-empleados" class="${BTN_SECONDARY}">
-          Seleccionar empleados
-        </button>
-        <span class="text-sm text-text-secondary" id="he-sup-empleados-count">${countLabel}</span>
-      </div>
-      <div id="he-sup-empleados-chips" class="${count ? "flex flex-wrap gap-2" : "hidden"}">
+    <div class="mt-4 space-y-2" id="he-sup-empleados-seleccionados">
+      <p class="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">
+        ${filas.length} seleccionado${filas.length === 1 ? "" : "s"}
+      </p>
+      <ul class="space-y-2">
         ${filas
           .map(
             (f) => `
-          <span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-text-primary">
-            <span class="truncate">${escapeHtml(f.nombre)}</span>
-            <span class="shrink-0 text-text-muted">(${escapeHtml(f.no_empleado)})</span>
-          </span>`,
+          <li class="flex items-center gap-3 rounded-xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/95 px-3 py-2.5 shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+            <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue/12 text-xs font-semibold uppercase text-leoni-blue">
+              ${escapeHtml(empleadoIniciales(f.nombre))}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-semibold text-slate-900">${escapeHtml(f.nombre)}</span>
+              <span class="block truncate text-xs text-slate-500">${escapeHtml(f.no_empleado)}</span>
+            </span>
+            <button
+              type="button"
+              data-he-quitar-empleado="${f.empleado_id}"
+              class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Quitar ${escapeHtml(f.nombre)}"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4" aria-hidden="true">
+                <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" />
+              </svg>
+            </button>
+          </li>`,
           )
           .join("")}
-      </div>
+      </ul>
     </div>`;
 }
 
-function renderEmpleadosModal(
+function renderEmpleadosPickerSection(
   empleados: HorasExtraEmpleadoOption[],
   state: HorasExtraSolicitudPageState,
 ): string {
-  if (!state.empleadosModalOpen) return "";
-
-  const filtrados = filterEmpleadosElegibles(empleados, state.empleadosModalSearch);
-  const draftCount = state.empleadosModalDraftIds.length;
+  const search = state.empleadosSearch;
+  const pickerContent =
+    search.trim().length === 0
+      ? `<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">Empieza escribiendo para buscar un colaborador.</p>`
+      : renderEmpleadosPickerList(empleados, state.selectedEmpleadoIds, search);
 
   return `
-    <div id="he-sup-empleados-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="presentation">
-      <div
-        class="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="he-sup-empleados-modal-title"
-      >
-        <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div>
-            <h2 id="he-sup-empleados-modal-title" class="text-lg font-bold text-text-primary">Seleccionar empleados</h2>
-            <p class="mt-0.5 text-sm text-text-secondary">Elige uno o más colaboradores de tu equipo operativo.</p>
-          </div>
-          <button type="button" id="he-sup-empleados-cerrar" class="rounded-lg border border-slate-200 px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="border-b border-slate-100 px-5 py-3">
-          <input
-            type="search"
-            id="he-sup-empleados-search"
-            value="${escapeHtml(state.empleadosModalSearch)}"
-            placeholder="Buscar por nombre o número de empleado…"
-            autocomplete="off"
-            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}"
-          />
-        </div>
-        <div id="he-sup-empleados-modal-list" class="min-h-0 flex-1 overflow-y-auto">
-          ${
-            empleados.length
-              ? renderEmpleadosModalList(filtrados, state.empleadosModalDraftIds)
-              : `<p class="px-5 py-6 text-center text-sm text-text-secondary">No hay empleados operativos disponibles en tu equipo.</p>`
-          }
-        </div>
-        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
-          <span class="text-sm text-text-secondary" id="he-sup-empleados-modal-count">${draftCount} seleccionado${draftCount === 1 ? "" : "s"}</span>
-          <div class="flex gap-2">
-            <button type="button" id="he-sup-empleados-cancelar" class="${BTN_SECONDARY}">Cancelar</button>
-            <button type="button" id="he-sup-empleados-confirmar" class="${BTN_PRIMARY}">Confirmar</button>
-          </div>
-        </div>
+    <section>
+      <label for="he-sup-empleados-search" class="${FORM_SECTION_LABEL}">Colaboradores *</label>
+      <input
+        type="search"
+        id="he-sup-empleados-search"
+        value="${escapeHtml(search)}"
+        placeholder="Nombre o número de empleado…"
+        autocomplete="off"
+        class="${FORM_FIELD}"
+      />
+      <p class="${FORM_HINT}">Busca y selecciona integrantes operativos de tu equipo. Deben compartir área y centro de costo.</p>
+      <div class="mt-3 max-h-52 overflow-y-auto pr-1" id="he-sup-empleados-picker-wrap">
+        ${pickerContent}
       </div>
-    </div>`;
+      ${renderSelectedEmpleadosCards(state.empleadosFilas)}
+    </section>`;
 }
 
 export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
   if (!filas.length) {
-    return `<p class="text-sm text-text-secondary">Selecciona al menos un empleado para capturar horas.</p>`;
+    return "";
   }
   let totalGeneral = 0;
   const body = filas
@@ -266,7 +292,7 @@ export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
           <td class="px-1 py-2">
             <input type="number" min="0" step="0.5" inputmode="decimal"
               data-he-dia="${key}" data-he-empleado="${fila.empleado_id}"
-              class="w-full min-w-[3.25rem] rounded border border-slate-200 px-2 py-1 text-sm tabular-nums ${FIELD_FOCUS}"
+              class="w-full min-w-[3.25rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm tabular-nums shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25"
               value="${escapeHtml(fila[key])}" />
           </td>`,
         ).join("")}
@@ -276,9 +302,9 @@ export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
     .join("");
 
   return `
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
       <table class="min-w-full divide-y divide-slate-200 text-left">
-        <thead class="bg-[#f8fafc] text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
             <th class="px-3 py-2">Empleado</th>
             ${DIAS.map(([, label]) => `<th class="px-1 py-2 text-center">${label}</th>`).join("")}
@@ -288,7 +314,7 @@ export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
         <tbody class="divide-y divide-slate-100">${body}</tbody>
         <tfoot>
           <tr class="bg-slate-50">
-            <td colspan="8" class="px-3 py-2 text-right text-sm font-semibold text-text-secondary">Total general</td>
+            <td colspan="8" class="px-3 py-2 text-right text-sm font-semibold text-slate-500">Total general</td>
             <td class="px-3 py-2 text-right text-sm font-bold tabular-nums text-text-primary" id="he-sup-total-general">${totalGeneral.toFixed(2)}</td>
           </tr>
         </tfoot>
@@ -349,67 +375,71 @@ function renderFormularioSolicitud(
   state: HorasExtraSolicitudPageState,
 ): string {
   const today = new Date().toISOString().slice(0, 10);
+  const horasGrid = renderHorasGrid(state.empleadosFilas);
 
   return `
-    <form id="he-sup-form" class="flex flex-col gap-5" novalidate>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Fecha de solicitud *</span>
-          <input type="date" name="fecha_solicitud" required value="${today}" class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-        </label>
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Semana *</span>
-          <div class="grid grid-cols-1">
-            <select name="semana" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+    <form id="he-sup-form" class="space-y-6" novalidate>
+      <div class="grid gap-5 sm:grid-cols-2">
+        <section>
+          <label for="he-sup-fecha" class="${FORM_SECTION_LABEL}">Fecha de solicitud *</label>
+          <input id="he-sup-fecha" type="date" name="fecha_solicitud" required value="${today}" class="${FORM_FIELD}" />
+        </section>
+        <section>
+          <label for="he-sup-semana" class="${FORM_SECTION_LABEL}">Semana *</label>
+          <div class="${FORM_SELECT_WRAP}">
+            <select id="he-sup-semana" name="semana" required class="${FORM_SELECT}">
               ${renderSemanaOptions(opciones.semana_actual)}
             </select>
             ${SELECT_CHEVRON}
           </div>
-        </label>
-        <label class="block text-sm">
-          <span class="mb-1 block font-medium text-text-secondary">Tipo *</span>
-          <div class="grid grid-cols-1">
-            <select name="tipo" required class="col-start-1 row-start-1 w-full appearance-none rounded border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm ${FIELD_FOCUS}">
+        </section>
+        <section class="sm:col-span-2">
+          <label for="he-sup-tipo" class="${FORM_SECTION_LABEL}">Tipo de solicitud *</label>
+          <div class="${FORM_SELECT_WRAP}">
+            <select id="he-sup-tipo" name="tipo" required class="${FORM_SELECT}">
               <option value="planeado">Planeada</option>
               <option value="espontaneo">Espontánea</option>
             </select>
             ${SELECT_CHEVRON}
           </div>
-        </label>
-        <label class="block text-sm sm:col-span-2">
-          <span class="mb-1 block font-medium text-text-secondary">Motivo *</span>
+        </section>
+        <section class="sm:col-span-2">
+          <label for="he-sup-motivo" class="${FORM_SECTION_LABEL}">Motivo *</label>
           <textarea
+            id="he-sup-motivo"
             name="motivo"
             required
             rows="3"
             maxlength="500"
-            class="w-full rounded border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}"
+            class="${FORM_TEXTAREA}"
             placeholder="Ej. Cubrir vacante, incremento de producción, soporte a inventario…"
           ></textarea>
-        </label>
+        </section>
       </div>
 
-      <div>
-        <h3 class="mb-2 text-sm font-semibold text-text-primary">Empleados incluidos *</h3>
-        ${renderEmpleadosSeleccionSection(state.empleadosFilas)}
-      </div>
+      ${renderEmpleadosPickerSection(opciones.empleados, state)}
 
-      <div id="he-sup-horas-grid">
-        ${renderHorasGrid(state.empleadosFilas)}
-      </div>
+      ${
+        horasGrid
+          ? `<section>
+              <span class="${FORM_SECTION_LABEL}">Horas por día</span>
+              <div id="he-sup-horas-grid">${horasGrid}</div>
+            </section>`
+          : `<div id="he-sup-horas-grid" class="hidden"></div>`
+      }
 
       ${
         state.formError
-          ? `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">${escapeHtml(state.formError)}</p>`
+          ? `<p class="${FORM_ALERT_ERROR}" role="alert">${escapeHtml(state.formError)}</p>`
           : ""
       }
 
-      <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-        <button type="button" id="he-sup-solicitud-cancelar" class="${BTN_SECONDARY}" ${state.submitting ? "disabled" : ""}>Cancelar</button>
-        <button type="submit" class="${BTN_PRIMARY}" ${state.submitting ? "disabled" : ""}>
+      <footer class="sticky bottom-0 -mx-1 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 px-1 pt-4 pb-1 backdrop-blur-[2px] sm:flex-row sm:justify-end">
+        <button type="button" id="he-sup-solicitud-cancelar" class="${BTN_SECONDARY} min-h-11 w-full justify-center sm:w-auto" ${state.submitting ? "disabled" : ""}>Cancelar</button>
+        <button type="submit" class="${BTN_PRIMARY} min-h-11 w-full justify-center px-6 shadow-md disabled:cursor-not-allowed disabled:opacity-70 sm:min-w-[10rem] sm:w-auto" ${state.submitting ? "disabled" : ""}>
           ${state.submitting ? "Guardando…" : "Guardar solicitud"}
         </button>
-      </div>
+      </footer>
     </form>`;
 }
 
@@ -429,21 +459,30 @@ function renderSolicitudModal(
           : "";
 
   return `
-    <div id="he-sup-solicitud-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="presentation">
+    <div id="he-sup-solicitud-modal" class="fixed inset-0 z-90 flex items-center justify-center bg-slate-900/45 p-4 sm:p-6 backdrop-blur-[2px]" role="presentation">
       <div
-        class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        class="scheme-light flex max-h-[min(94vh,920px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_26px_70px_-22px_rgba(15,23,42,0.35)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="he-sup-solicitud-modal-title"
       >
-        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div>
-            <h2 id="he-sup-solicitud-modal-title" class="text-lg font-bold text-text-primary">Nueva solicitud de horas extra</h2>
-            <p class="mt-0.5 text-sm text-text-secondary">Registra horas extra para colaboradores operativos de tu equipo.</p>
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100/95 bg-white px-5 py-4 sm:px-6 sm:py-5">
+          <div class="min-w-0">
+            <h2 id="he-sup-solicitud-modal-title" class="text-lg font-semibold leading-snug tracking-tight text-[#0A1628] sm:text-xl">Nueva solicitud de horas extra</h2>
+            <p class="mt-1 text-[13px] leading-relaxed text-slate-500">Registra horas extra para colaboradores operativos de tu equipo.</p>
           </div>
-          <button type="button" id="he-sup-solicitud-cerrar" class="rounded-lg border border-slate-200 px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <button
+            type="button"
+            id="he-sup-solicitud-cerrar"
+            class="-m-1 flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2"
+            aria-label="Cerrar modal"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true">
+              <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </header>
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/35 px-5 py-5 sm:px-6 sm:py-7">
           ${body}
         </div>
       </div>
@@ -539,7 +578,6 @@ export function renderHorasExtraSolicitudPage(state: HorasExtraSolicitudPageStat
       </section>
 
       ${renderSolicitudModal(opciones, state)}
-      ${renderEmpleadosModal(opciones?.empleados ?? [], state)}
       ${renderDetalleModal(state)}
     </div>`;
 }
