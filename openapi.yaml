@@ -582,15 +582,11 @@ components:
     HorasExtraSolicitudCreate:
       type: object
       required:
-        - fecha_solicitud
         - semana
         - tipo
         - motivo
         - empleados
       properties:
-        fecha_solicitud:
-          type: string
-          format: date
         semana:
           type: integer
           minimum: 1

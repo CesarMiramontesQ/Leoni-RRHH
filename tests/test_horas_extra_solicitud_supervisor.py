@@ -43,7 +43,6 @@ async def _seed_catalogo_horas_extra(db):
 
 def _payload_base(empleado_id: int) -> dict:
     return {
-        "fecha_solicitud": "2026-06-10",
         "semana": 24,
         "tipo": "planeado",
         "motivo": "Cobertura turno",

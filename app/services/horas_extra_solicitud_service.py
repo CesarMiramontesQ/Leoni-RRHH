@@ -108,8 +108,9 @@ class HorasExtraSolicitudService:
             semana_actual=self._numero_semana_iso(business_today()),
         )
 
-    async def _validar_semana(self, fecha_solicitud: date, semana: int) -> date:
-        semana_actual = self._numero_semana_iso(business_today())
+    async def _validar_semana(self, semana: int) -> date:
+        hoy = business_today()
+        semana_actual = self._numero_semana_iso(hoy)
         if semana not in self._semanas_permitidas(semana_actual):
             raise DomainValidationError(
                 detail=(
@@ -119,7 +120,7 @@ class HorasExtraSolicitudService:
                 )
             )
         try:
-            semana_inicio = self._lunes_de_semana_iso(fecha_solicitud.year, semana)
+            semana_inicio = self._lunes_de_semana_iso(hoy.year, semana)
         except ValueError as exc:
             raise DomainValidationError(
                 detail="Número de semana no válido para el año de la solicitud."
@@ -280,7 +281,8 @@ class HorasExtraSolicitudService:
         current_user: Empleado,
     ) -> HorasExtraSolicitudResponse:
         self._require_supervisor(current_user)
-        semana_inicio = await self._validar_semana(data.fecha_solicitud, data.semana)
+        fecha_solicitud = business_today()
+        semana_inicio = await self._validar_semana(data.semana)
         detalle_rows = await self._validar_empleados(data, current_user)
 
         ids_solicitados = [row.empleado_id for row in data.empleados]
@@ -295,7 +297,7 @@ class HorasExtraSolicitudService:
         motivo = await self.repo.get_or_create_motivo_texto(data.motivo)
 
         solicitud = HorasExtraSolicitud(
-            fecha_solicitud=data.fecha_solicitud,
+            fecha_solicitud=fecha_solicitud,
             semana_inicio=semana_inicio,
             tipo=data.tipo,
             departamento_id=departamento_id,

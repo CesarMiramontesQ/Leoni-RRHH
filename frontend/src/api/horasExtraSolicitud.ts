@@ -45,7 +45,6 @@ export type HorasExtraDetalleCreate = {
 };
 
 export type HorasExtraSolicitudCreate = {
-  fecha_solicitud: string;
   semana: number;
   tipo: HorasExtraTipoSolicitud;
   motivo: string;

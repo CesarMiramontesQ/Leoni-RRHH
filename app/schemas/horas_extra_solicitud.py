@@ -38,7 +38,6 @@ class HorasExtraDetalleCreate(BaseModel):
 
 
 class HorasExtraSolicitudCreate(BaseModel):
-    fecha_solicitud: date
     semana: int = Field(ge=1, le=53)
     tipo: HorasExtraTipoSolicitud
     motivo: str = Field(min_length=1, max_length=500)

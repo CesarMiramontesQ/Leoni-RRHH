@@ -140,7 +140,6 @@ function validateForm(
   filas: HorasExtraEmpleadoFilaForm[],
   opciones: HorasExtraSolicitudOpciones | null,
 ): string | null {
-  if (!form.fecha_solicitud.value) return "La fecha de solicitud es obligatoria.";
   const semana = Number.parseInt(form.semana.value, 10);
   const semanasPermitidas = opciones ? getSemanasPermitidas(opciones.semana_actual) : [];
   if (
@@ -196,7 +195,6 @@ function buildPayload(
     domingo: Number.parseFloat(fila.domingo) || 0,
   }));
   return {
-    fecha_solicitud: form.fecha_solicitud.value,
     semana,
     tipo: form.tipo.value as "planeado" | "espontaneo",
     motivo,

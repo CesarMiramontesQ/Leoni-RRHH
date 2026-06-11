@@ -374,16 +374,11 @@ function renderFormularioSolicitud(
   opciones: HorasExtraSolicitudOpciones,
   state: HorasExtraSolicitudPageState,
 ): string {
-  const today = new Date().toISOString().slice(0, 10);
   const horasGrid = renderHorasGrid(state.empleadosFilas);
 
   return `
     <form id="he-sup-form" class="space-y-6" novalidate>
       <div class="grid gap-5 sm:grid-cols-2">
-        <section>
-          <label for="he-sup-fecha" class="${FORM_SECTION_LABEL}">Fecha de solicitud *</label>
-          <input id="he-sup-fecha" type="date" name="fecha_solicitud" required value="${today}" class="${FORM_FIELD}" />
-        </section>
         <section>
           <label for="he-sup-semana" class="${FORM_SECTION_LABEL}">Semana *</label>
           <div class="${FORM_SELECT_WRAP}">
@@ -393,7 +388,7 @@ function renderFormularioSolicitud(
             ${SELECT_CHEVRON}
           </div>
         </section>
-        <section class="sm:col-span-2">
+        <section>
           <label for="he-sup-tipo" class="${FORM_SECTION_LABEL}">Tipo de solicitud *</label>
           <div class="${FORM_SELECT_WRAP}">
             <select id="he-sup-tipo" name="tipo" required class="${FORM_SELECT}">
