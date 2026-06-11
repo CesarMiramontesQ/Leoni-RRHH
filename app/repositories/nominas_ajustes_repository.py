@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.catalogos import Area
 from app.models.empleados import Empleado
 
 
@@ -23,10 +26,12 @@ class NominasAjustesRepository:
         stmt = select(Empleado).where(Empleado.estado_id.in_(estados_activos))
         if q:
             patron = f"%{q.strip()}%"
-            stmt = stmt.where(
+            stmt = stmt.outerjoin(Area, Empleado.area_id == Area.area_id).where(
                 or_(
                     Empleado.nombre.ilike(patron),
                     Empleado.no_empleado.ilike(patron),
+                    Empleado.email.ilike(patron),
+                    Area.descripcion.ilike(patron),
                 )
             )
         if autorizado is not None:
@@ -48,6 +53,7 @@ class NominasAjustesRepository:
                 selectinload(Empleado.rol),
                 selectinload(Empleado.area),
                 selectinload(Empleado.puesto),
+                selectinload(Empleado.horas_extra_autorizado_por),
             )
             .order_by(Empleado.nombre, Empleado.id)
             .offset(offset)
@@ -69,8 +75,22 @@ class NominasAjustesRepository:
         result = await self.db.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_autorizados(self, estados_activos: list[int]) -> int:
-        return await self.count_empleados(estados_activos, autorizado=True)
+    async def count_total_autorizados(self) -> int:
+        """Empleados autorizados sin importar su estado laboral."""
+        stmt = select(func.count()).where(
+            Empleado.puede_registrar_horas_extra.is_(True)
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())
+
+    async def count_autorizados_recientes(self, desde: datetime) -> int:
+        stmt = select(func.count()).where(
+            Empleado.puede_registrar_horas_extra.is_(True),
+            Empleado.horas_extra_autorizado_en.is_not(None),
+            Empleado.horas_extra_autorizado_en >= desde,
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())
 
     async def get_activos_by_ids(
         self, estados_activos: list[int], ids: list[int]
@@ -83,11 +103,22 @@ class NominasAjustesRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def set_autorizacion(self, empleados: list[Empleado], autorizado: bool) -> int:
+    async def set_autorizacion(
+        self,
+        empleados: list[Empleado],
+        autorizado: bool,
+        *,
+        autorizado_por_id: int | None,
+        fecha: datetime,
+    ) -> int:
         actualizados = 0
         for emp in empleados:
             if emp.puede_registrar_horas_extra != autorizado:
                 emp.puede_registrar_horas_extra = autorizado
+                emp.horas_extra_autorizado_en = fecha if autorizado else None
+                emp.horas_extra_autorizado_por_id = (
+                    autorizado_por_id if autorizado else None
+                )
                 actualizados += 1
         if actualizados:
             await self.db.flush()

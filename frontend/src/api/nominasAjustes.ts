@@ -18,9 +18,19 @@ export type HorasExtraAutorizadoItem = {
   no_empleado: string;
   nombre: string;
   rol: string;
+  email: string | null;
   area_descripcion: string | null;
   puesto_descripcion: string | null;
   autorizado: boolean;
+  fecha_autorizacion: string | null;
+  autorizado_por: string | null;
+};
+
+export type HorasExtraAutorizadosStats = {
+  total_autorizados: number;
+  autorizaciones_activas: number;
+  sin_autorizacion: number;
+  autorizaciones_recientes: number;
 };
 
 export type HorasExtraAutorizadosListResponse = {
@@ -28,12 +38,12 @@ export type HorasExtraAutorizadosListResponse = {
   total: number;
   page: number;
   page_size: number;
-  total_autorizados: number;
+  stats: HorasExtraAutorizadosStats;
 };
 
 export type HorasExtraAutorizacionUpdateResponse = {
   actualizados: number;
-  total_autorizados: number;
+  stats: HorasExtraAutorizadosStats;
 };
 
 export type NominasAjustesFetchError = {

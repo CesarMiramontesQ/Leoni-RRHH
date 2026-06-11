@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.security import decode_token
+from app.models.catalogos import Area
 from tests.conftest import auth_headers, make_empleado
 
 AUTORIZADOS_URL = "/api/v1/nominas/ajustes/horas-extra/autorizados"
@@ -63,7 +64,13 @@ async def test_ajustes_autorizados_lista_busqueda_y_filtro(
     por_no = {item["no_empleado"]: item for item in body["items"]}
     assert por_no["AJ-HE-01"]["autorizado"] is True
     assert por_no["AJ-HE-02"]["autorizado"] is False
-    assert body["total_autorizados"] >= 1
+    assert body["stats"]["total_autorizados"] >= 1
+    assert {
+        "total_autorizados",
+        "autorizaciones_activas",
+        "sin_autorizacion",
+        "autorizaciones_recientes",
+    } <= set(body["stats"])
 
     solo_autorizados = await client.get(
         AUTORIZADOS_URL,
@@ -104,12 +111,25 @@ async def test_ajustes_autorizar_y_revocar_controla_registro(
         json={"empleado_ids": [supervisor.id], "autorizado": True},
     )
     assert otorgar.status_code == 200
-    assert otorgar.json()["actualizados"] == 1
+    body_otorgar = otorgar.json()
+    assert body_otorgar["actualizados"] == 1
+    assert body_otorgar["stats"]["total_autorizados"] >= 1
+    assert body_otorgar["stats"]["autorizaciones_recientes"] >= 1
 
     con_permiso = await client.get(
         "/api/v1/horas-extra/solicitudes", headers=headers_sup
     )
     assert con_permiso.status_code == 200
+
+    detalle = await client.get(
+        AUTORIZADOS_URL,
+        headers=headers_rh,
+        params={"q": "Supervisor Gestionado", "filtro": "autorizados"},
+    )
+    assert detalle.status_code == 200
+    item = detalle.json()["items"][0]
+    assert item["fecha_autorizacion"] is not None
+    assert item["autorizado_por"] == empleado_rh.nombre
 
     revocar = await client.put(
         AUTORIZADOS_URL,
@@ -123,6 +143,15 @@ async def test_ajustes_autorizar_y_revocar_controla_registro(
         "/api/v1/horas-extra/solicitudes", headers=headers_sup
     )
     assert revocado.status_code == 403
+
+    sin_autorizacion = await client.get(
+        AUTORIZADOS_URL,
+        headers=headers_rh,
+        params={"q": "Supervisor Gestionado", "filtro": "no_autorizados"},
+    )
+    item_revocado = sin_autorizacion.json()["items"][0]
+    assert item_revocado["fecha_autorizacion"] is None
+    assert item_revocado["autorizado_por"] is None
 
 
 @pytest.mark.asyncio
@@ -163,3 +192,65 @@ async def test_ajustes_autorizar_rechaza_empleado_inexistente(
         json={"empleado_ids": [999999], "autorizado": True},
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ajustes_autorizar_rechaza_duplicados(
+    client: AsyncClient, db, empleado_rh
+):
+    ya_autorizado = await make_empleado(
+        db,
+        rol="supervisor",
+        nombre="Duplicado Autorizado",
+        puede_registrar_horas_extra=True,
+    )
+    headers = await auth_headers(client, empleado_rh)
+
+    response = await client.put(
+        AUTORIZADOS_URL,
+        headers=headers,
+        json={"empleado_ids": [ya_autorizado.id], "autorizado": True},
+    )
+    assert response.status_code == 422
+    assert "ya autorizados" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_ajustes_busqueda_por_correo_y_area(
+    client: AsyncClient, db, empleado_rh
+):
+    area = Area(area_id=98765, descripcion="Corte Especial", estatus_id=1)
+    db.add(area)
+    await db.flush()
+
+    con_area = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Búsqueda Por Área",
+        no_empleado="AJ-BUSQ-01",
+    )
+    con_area.area_id = area.area_id
+    con_correo = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Búsqueda Por Correo",
+        no_empleado="AJ-BUSQ-02",
+        email="busqueda.correo@leoni.test",
+    )
+    await db.flush()
+
+    headers = await auth_headers(client, empleado_rh)
+
+    por_correo = await client.get(
+        AUTORIZADOS_URL, headers=headers, params={"q": "busqueda.correo@"}
+    )
+    assert por_correo.status_code == 200
+    nos = {item["no_empleado"] for item in por_correo.json()["items"]}
+    assert nos == {con_correo.no_empleado}
+
+    por_area = await client.get(
+        AUTORIZADOS_URL, headers=headers, params={"q": "Corte Especial"}
+    )
+    assert por_area.status_code == 200
+    nos_area = {item["no_empleado"] for item in por_area.json()["items"]}
+    assert con_area.no_empleado in nos_area

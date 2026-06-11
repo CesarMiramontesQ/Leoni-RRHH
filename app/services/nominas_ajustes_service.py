@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -14,7 +16,10 @@ from app.schemas.nominas_ajustes import (
     HorasExtraAutorizadoItem,
     HorasExtraAutorizadosFiltro,
     HorasExtraAutorizadosListResponse,
+    HorasExtraAutorizadosStats,
 )
+
+RECIENTES_DIAS = 7
 
 
 class NominasAjustesService:
@@ -32,14 +37,36 @@ class NominasAjustesService:
 
     @staticmethod
     def _to_item(emp: Empleado) -> HorasExtraAutorizadoItem:
+        autorizado_por = (
+            emp.horas_extra_autorizado_por
+            if emp.horas_extra_autorizado_por_id is not None
+            else None
+        )
         return HorasExtraAutorizadoItem(
             id=emp.id,
             no_empleado=emp.no_empleado,
             nombre=emp.nombre,
             rol=emp.rol.nombre if emp.rol else "empleado",
+            email=emp.email,
             area_descripcion=emp.area.descripcion if emp.area else None,
             puesto_descripcion=emp.puesto.descripcion if emp.puesto else None,
             autorizado=emp.puede_registrar_horas_extra,
+            fecha_autorizacion=emp.horas_extra_autorizado_en,
+            autorizado_por=autorizado_por.nombre if autorizado_por else None,
+        )
+
+    async def _build_stats(self) -> HorasExtraAutorizadosStats:
+        estados = settings.ESTADOS_ACTIVOS_IDS
+        total_autorizados = await self.repo.count_total_autorizados()
+        activas = await self.repo.count_empleados(estados, autorizado=True)
+        sin_autorizacion = await self.repo.count_empleados(estados, autorizado=False)
+        desde = datetime.now(timezone.utc) - timedelta(days=RECIENTES_DIAS)
+        recientes = await self.repo.count_autorizados_recientes(desde)
+        return HorasExtraAutorizadosStats(
+            total_autorizados=total_autorizados,
+            autorizaciones_activas=activas,
+            sin_autorizacion=sin_autorizacion,
+            autorizaciones_recientes=recientes,
         )
 
     async def listar_autorizados(
@@ -58,18 +85,17 @@ class NominasAjustesService:
             estados, q=q, autorizado=autorizado, offset=offset, limit=page_size
         )
         total = await self.repo.count_empleados(estados, q=q, autorizado=autorizado)
-        total_autorizados = await self.repo.count_autorizados(estados)
 
         return HorasExtraAutorizadosListResponse(
             items=[self._to_item(e) for e in empleados],
             total=total,
             page=page,
             page_size=page_size,
-            total_autorizados=total_autorizados,
+            stats=await self._build_stats(),
         )
 
     async def actualizar_autorizacion(
-        self, data: HorasExtraAutorizacionUpdate
+        self, data: HorasExtraAutorizacionUpdate, current_user: Empleado
     ) -> HorasExtraAutorizacionUpdateResponse:
         estados = settings.ESTADOS_ACTIVOS_IDS
         ids = list(dict.fromkeys(data.empleado_ids))
@@ -85,11 +111,23 @@ class NominasAjustesService:
                 )
             )
 
-        actualizados = await self.repo.set_autorizacion(empleados, data.autorizado)
+        if data.autorizado:
+            ya_autorizados = [e for e in empleados if e.puede_registrar_horas_extra]
+            if ya_autorizados:
+                nombres = ", ".join(e.nombre for e in ya_autorizados)
+                raise DomainValidationError(
+                    detail=f"Empleados ya autorizados: {nombres}."
+                )
+
+        actualizados = await self.repo.set_autorizacion(
+            empleados,
+            data.autorizado,
+            autorizado_por_id=current_user.id,
+            fecha=datetime.now(timezone.utc),
+        )
         await self.db.commit()
-        total_autorizados = await self.repo.count_autorizados(estados)
 
         return HorasExtraAutorizacionUpdateResponse(
             actualizados=actualizados,
-            total_autorizados=total_autorizados,
+            stats=await self._build_stats(),
         )

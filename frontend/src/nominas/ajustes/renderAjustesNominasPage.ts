@@ -1,10 +1,11 @@
 /**
- * Página Ajustes de Nóminas (solo RH): autorización para registro de horas extra.
+ * Página Ajustes de Nóminas (solo RH): administración de empleados
+ * autorizados para registrar horas extra.
  */
 
 import {
   badgeApproved,
-  badgeCancelled,
+  BTN_GHOST,
   BTN_PRIMARY,
   BTN_SECONDARY,
   FIELD_FOCUS,
@@ -13,106 +14,158 @@ import {
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER_GRADIENT,
-  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
-  SELECT_CHEVRON,
 } from "../../ui/uiTokens.ts";
 import { escapeHtml, paginationRange } from "../../ui/uiUtils.ts";
-import type { AjustesNominasState } from "./types.ts";
+import type { AjustesNominasModalState, AjustesNominasState } from "./types.ts";
 
-const FILTRO_OPTIONS = [
-  { id: "todos", label: "Todos" },
-  { id: "autorizados", label: "Autorizados" },
-  { id: "no_autorizados", label: "No autorizados" },
+const TABLE_COLUMNS = [
+  "Empleado",
+  "Área / Puesto",
+  "Fecha de autorización",
+  "Autorizado por",
+  "Estado",
+  "Acciones",
 ] as const;
-
-const TABLE_COLUMNS = ["Empleado", "No. empleado", "Área", "Puesto", "Autorización"] as const;
 
 const CHECKBOX_CLS =
   "size-4 rounded border-slate-300 text-leoni-blue focus:ring-2 focus:ring-leoni-blue/40";
 
-function renderHeader(): string {
+const SEARCH_INPUT_CLS =
+  "w-full rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-slate-900 shadow-sm";
+
+function formatFechaAutorizacion(iso: string | null): string {
+  if (!iso) return "—";
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return "—";
+  return fecha.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function renderHeader(state: AjustesNominasState): string {
+  const disabled = state.status === "loading" || state.revokingId !== null;
   return `
-    <header class="min-w-0">
-      <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Ajustes de Nóminas</h1>
-      <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-secondary">
-        Configuración del módulo de Nóminas administrada por Recursos Humanos.
-      </p>
+    <header class="flex min-w-0 flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Ajustes de Nóminas</h1>
+        <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-secondary">
+          Administra a los empleados autorizados para registrar horas extra de sus equipos.
+        </p>
+      </div>
+      <button type="button" id="aj-he-abrir-modal" class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50" ${disabled ? "disabled" : ""}>
+        Autorizar empleados
+      </button>
     </header>`;
 }
 
-function renderFiltersBar(state: AjustesNominasState): string {
-  const disabled = state.status === "loading" || state.updating;
-  const filtroOptions = FILTRO_OPTIONS.map(
-    ({ id, label }) =>
-      `<option value="${id}" ${state.filtro === id ? "selected" : ""}>${escapeHtml(label)}</option>`,
-  ).join("");
-
+function renderStatCard(opts: {
+  label: string;
+  value: number | null;
+  hint?: string;
+  tone: "default" | "success" | "muted" | "info";
+}): string {
+  const tones: Record<typeof opts.tone, string> = {
+    default: "border-[rgba(148,163,184,0.22)] from-white to-[#f8fbff]",
+    success: "border-emerald-200/80 from-emerald-50/40 to-white",
+    muted: "border-slate-200/80 from-slate-50/60 to-white",
+    info: "border-blue-200/80 from-blue-50/40 to-white",
+  };
+  const value =
+    opts.value === null
+      ? `<span class="text-text-muted">…</span>`
+      : `${opts.value}`;
   return `
-    <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-3 sm:gap-x-3">
-      <div class="${FILTER_FIELD_WRAP} sm:max-w-xs">
-        <label for="aj-he-busqueda" class="${RH_LISTADO_LABEL}">Buscar empleado</label>
-        <input
-          id="aj-he-busqueda"
-          type="search"
-          value="${escapeHtml(state.q)}"
-          placeholder="Nombre o no. de empleado"
-          autocomplete="off"
-          class="w-full rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
-          ${disabled ? "disabled" : ""}
-        />
-      </div>
-      <div class="${FILTER_FIELD_WRAP} sm:max-w-[14rem]">
-        <label for="aj-he-filtro" class="${RH_LISTADO_LABEL}">Estado de autorización</label>
-        <div class="grid grid-cols-1">
-          <select
-            id="aj-he-filtro"
-            class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
-            ${disabled ? "disabled" : ""}
-          >
-            ${filtroOptions}
-          </select>
-          ${SELECT_CHEVRON}
-        </div>
-      </div>
-      <p class="ml-auto pb-2 text-xs text-text-secondary">
-        <span class="font-semibold tabular-nums text-text-primary">${state.totalAutorizados}</span>
-        empleados autorizados actualmente
-      </p>
+    <div class="rounded-[14px] border bg-linear-to-br p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] ${tones[opts.tone]}">
+      <p class="text-xs font-semibold uppercase tracking-wide text-[#64748b]">${escapeHtml(opts.label)}</p>
+      <p class="mt-2 text-2xl font-bold tabular-nums text-[#0f172a]">${value}</p>
+      ${opts.hint ? `<p class="mt-1 text-[11px] text-text-muted">${escapeHtml(opts.hint)}</p>` : ""}
     </div>`;
 }
 
+function renderStats(state: AjustesNominasState): string {
+  const stats = state.stats;
+  return `
+    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Estadísticas de autorización de horas extra">
+      ${renderStatCard({
+        label: "Total de empleados autorizados",
+        value: stats?.total_autorizados ?? null,
+        tone: "default",
+      })}
+      ${renderStatCard({
+        label: "Autorizaciones activas",
+        value: stats?.autorizaciones_activas ?? null,
+        hint: "Empleados con estado laboral activo",
+        tone: "success",
+      })}
+      ${renderStatCard({
+        label: "Empleados sin autorización",
+        value: stats?.sin_autorizacion ?? null,
+        tone: "muted",
+      })}
+      ${renderStatCard({
+        label: "Últimas autorizaciones",
+        value: stats?.autorizaciones_recientes ?? null,
+        hint: "Otorgadas en los últimos 7 días",
+        tone: "info",
+      })}
+    </section>`;
+}
+
+function renderMensajes(state: AjustesNominasState): string {
+  const success = state.successMessage
+    ? `<p class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-900" role="status">${escapeHtml(state.successMessage)}</p>`
+    : "";
+  const error =
+    state.status === "ready" && state.errorMessage
+      ? `<p class="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-800" role="alert">${escapeHtml(state.errorMessage)}</p>`
+      : "";
+  return success + error;
+}
+
 function renderRows(state: AjustesNominasState): string {
+  const colspan = TABLE_COLUMNS.length;
   if (state.status === "loading") {
-    return `<tr><td colspan="${TABLE_COLUMNS.length + 1}" class="px-4 py-10 text-center text-sm text-text-secondary">Cargando empleados…</td></tr>`;
+    return `<tr><td colspan="${colspan}" class="px-4 py-10 text-center text-sm text-text-secondary">Cargando empleados autorizados…</td></tr>`;
   }
   if (state.status === "error") {
-    return `<tr><td colspan="${TABLE_COLUMNS.length + 1}" class="px-4 py-10 text-center text-sm text-red-700">${escapeHtml(state.errorMessage ?? "No se pudo cargar el listado.")}</td></tr>`;
+    return `<tr><td colspan="${colspan}" class="px-4 py-10 text-center text-sm text-red-700">${escapeHtml(state.errorMessage ?? "No se pudo cargar el listado.")}</td></tr>`;
   }
   if (state.items.length === 0) {
-    return `<tr><td colspan="${TABLE_COLUMNS.length + 1}" class="px-4 py-10 text-center text-sm text-text-secondary">Sin empleados que coincidan con la búsqueda.</td></tr>`;
+    const vacio = state.q.trim()
+      ? "Sin empleados autorizados que coincidan con la búsqueda."
+      : "Aún no hay empleados autorizados para registrar horas extra.";
+    return `<tr><td colspan="${colspan}" class="px-4 py-10 text-center text-sm text-text-secondary">${vacio}</td></tr>`;
   }
 
   return state.items
     .map((item) => {
-      const checked = state.seleccion.has(item.id);
+      const revoking = state.revokingId === item.id;
+      const areaPuesto = [item.area_descripcion, item.puesto_descripcion]
+        .filter(Boolean)
+        .join(" · ");
       return `
-      <tr class="border-b border-slate-100 transition hover:bg-slate-50/70 ${checked ? "bg-blue-50/50" : ""}" data-aj-he-row="${item.id}">
+      <tr class="border-b border-slate-100 transition hover:bg-slate-50/70" data-aj-he-row="${item.id}">
         <td class="px-3 py-3">
-          <input
-            type="checkbox"
-            data-aj-he-check="${item.id}"
-            class="${CHECKBOX_CLS}"
-            aria-label="Seleccionar a ${escapeHtml(item.nombre)}"
-            ${checked ? "checked" : ""}
-            ${state.updating ? "disabled" : ""}
-          />
+          <p class="text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
+          <p class="mt-0.5 text-xs tabular-nums text-text-muted">${escapeHtml(item.no_empleado)}</p>
         </td>
-        <td class="px-3 py-3 text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</td>
-        <td class="px-3 py-3 text-sm tabular-nums text-text-secondary">${escapeHtml(item.no_empleado)}</td>
-        <td class="px-3 py-3 text-sm text-text-secondary">${escapeHtml(item.area_descripcion ?? "—")}</td>
-        <td class="px-3 py-3 text-sm text-text-secondary">${escapeHtml(item.puesto_descripcion ?? "—")}</td>
-        <td class="px-3 py-3">${item.autorizado ? badgeApproved("Autorizado") : badgeCancelled("No autorizado")}</td>
+        <td class="px-3 py-3 text-sm text-text-secondary">${escapeHtml(areaPuesto || "—")}</td>
+        <td class="px-3 py-3 text-sm tabular-nums text-text-secondary">${escapeHtml(formatFechaAutorizacion(item.fecha_autorizacion))}</td>
+        <td class="px-3 py-3 text-sm text-text-secondary">${escapeHtml(item.autorizado_por ?? "—")}</td>
+        <td class="px-3 py-3">${badgeApproved("Activa")}</td>
+        <td class="px-3 py-3">
+          <button
+            type="button"
+            data-aj-he-revocar="${item.id}"
+            class="${BTN_GHOST} px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            ${state.revokingId !== null ? "disabled" : ""}
+          >
+            ${revoking ? "Retirando…" : "Retirar autorización"}
+          </button>
+        </td>
       </tr>`;
     })
     .join("");
@@ -142,7 +195,7 @@ function renderPagination(state: AjustesNominasState): string {
     <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <p class="text-xs text-text-secondary">
         Mostrando <span class="font-semibold tabular-nums text-text-primary">${start}-${end}</span> de
-        <span class="font-semibold tabular-nums text-text-primary">${state.total}</span> empleados
+        <span class="font-semibold tabular-nums text-text-primary">${state.total}</span> empleados autorizados
       </p>
       <nav class="flex items-center gap-1" aria-label="Paginación">
         <button type="button" data-aj-he-page="${state.page - 1}" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40" aria-label="Página anterior" ${state.page <= 1 ? "disabled" : ""}>‹</button>
@@ -152,67 +205,35 @@ function renderPagination(state: AjustesNominasState): string {
     </div>`;
 }
 
-function renderSelectionActions(state: AjustesNominasState): string {
-  const count = state.seleccion.size;
-  const disabled = count === 0 || state.updating;
-  return `
-    <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-      <p class="text-sm text-text-secondary" aria-live="polite">
-        <span class="font-semibold tabular-nums text-text-primary">${count}</span>
-        ${count === 1 ? "empleado seleccionado" : "empleados seleccionados"}
-      </p>
-      <div class="flex flex-wrap items-center gap-2">
-        <button type="button" id="aj-he-revocar" class="${BTN_SECONDARY} disabled:cursor-not-allowed disabled:opacity-50" ${disabled ? "disabled" : ""}>
-          Retirar autorización
-        </button>
-        <button type="button" id="aj-he-autorizar" class="${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50" ${disabled ? "disabled" : ""}>
-          ${state.updating ? "Guardando…" : "Autorizar seleccionados"}
-        </button>
-      </div>
-    </div>`;
-}
-
-function renderMensajes(state: AjustesNominasState): string {
-  const success = state.successMessage
-    ? `<p class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-900" role="status">${escapeHtml(state.successMessage)}</p>`
-    : "";
-  const error =
-    state.status === "ready" && state.errorMessage
-      ? `<p class="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-800" role="alert">${escapeHtml(state.errorMessage)}</p>`
-      : "";
-  return success + error;
-}
-
-function renderAutorizacionSection(state: AjustesNominasState): string {
-  const allChecked =
-    state.items.length > 0 && state.items.every((item) => state.seleccion.has(item.id));
+function renderTablaAutorizados(state: AjustesNominasState): string {
+  const disabled = state.status === "loading";
   return `
     <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-labelledby="aj-he-titulo">
       <div class="flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5">
         <div class="min-w-0">
-          <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Autorización para registro de horas extra</h2>
+          <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados</h2>
           <p class="mt-1 text-sm leading-relaxed text-text-secondary">
-            Selecciona a los empleados que pueden capturar solicitudes de horas extra para sus equipos.
-            Los empleados sin autorización no podrán registrar horas extra.
+            Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
           </p>
         </div>
         ${renderMensajes(state)}
-        ${renderFiltersBar(state)}
+        <div class="${FILTER_FIELD_WRAP} sm:max-w-xs">
+          <label for="aj-he-busqueda" class="${RH_LISTADO_LABEL}">Buscar en autorizados</label>
+          <input
+            id="aj-he-busqueda"
+            type="search"
+            value="${escapeHtml(state.q)}"
+            placeholder="Nombre, no. empleado, correo o área"
+            autocomplete="off"
+            class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
+            ${disabled ? "disabled" : ""}
+          />
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full border-collapse text-left">
           <thead>
             <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
-              <th scope="col" class="w-10 px-3 py-3">
-                <input
-                  type="checkbox"
-                  id="aj-he-check-todos"
-                  class="${CHECKBOX_CLS}"
-                  aria-label="Seleccionar empleados de la página"
-                  ${allChecked ? "checked" : ""}
-                  ${state.status !== "ready" || state.items.length === 0 || state.updating ? "disabled" : ""}
-                />
-              </th>
               ${TABLE_COLUMNS.map(
                 (col) =>
                   `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
@@ -224,17 +245,138 @@ function renderAutorizacionSection(state: AjustesNominasState): string {
           </tbody>
         </table>
       </div>
-      ${renderSelectionActions(state)}
       ${renderPagination(state)}
     </section>`;
+}
+
+function renderModalResultados(modal: AjustesNominasModalState): string {
+  if (modal.searching) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-secondary">Buscando empleados…</p>`;
+  }
+  if (!modal.searched) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Escribe un nombre, no. de empleado, correo o área para buscar empleados disponibles.</p>`;
+  }
+  if (modal.results.length === 0) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-secondary">Sin empleados disponibles que coincidan con la búsqueda.</p>`;
+  }
+
+  const rows = modal.results
+    .map((emp) => {
+      const checked = modal.seleccionados.has(emp.id);
+      const detalle = [emp.no_empleado, emp.area_descripcion, emp.email]
+        .filter(Boolean)
+        .join(" · ");
+      return `
+      <label class="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition ${checked ? "border-leoni-blue/50 bg-blue-50/60" : "border-slate-200 bg-white hover:border-leoni-blue/30 hover:bg-slate-50"}">
+        <input
+          type="checkbox"
+          data-aj-he-modal-check="${emp.id}"
+          class="${CHECKBOX_CLS} mt-0.5"
+          ${checked ? "checked" : ""}
+          ${modal.submitting ? "disabled" : ""}
+        />
+        <span class="min-w-0">
+          <span class="block truncate text-sm font-medium text-text-primary">${escapeHtml(emp.nombre)}</span>
+          <span class="block truncate text-xs text-text-muted">${escapeHtml(detalle)}</span>
+        </span>
+      </label>`;
+    })
+    .join("");
+
+  return `<div class="grid gap-2" role="listbox" aria-label="Resultados de búsqueda">${rows}</div>`;
+}
+
+function renderModalSeleccionados(modal: AjustesNominasModalState): string {
+  if (modal.seleccionados.size === 0) {
+    return `<p class="text-xs text-text-muted">Aún no has seleccionado empleados.</p>`;
+  }
+  const chips = [...modal.seleccionados.values()]
+    .map(
+      (emp) => `
+      <span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 py-1 pl-3 pr-1.5 text-xs font-semibold text-blue-900">
+        <span class="truncate">${escapeHtml(emp.nombre)}</span>
+        <button
+          type="button"
+          data-aj-he-modal-quitar="${emp.id}"
+          class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-blue-700 transition hover:bg-blue-200/70"
+          aria-label="Quitar a ${escapeHtml(emp.nombre)}"
+          ${modal.submitting ? "disabled" : ""}
+        >×</button>
+      </span>`,
+    )
+    .join("");
+  return `<div class="flex flex-wrap gap-1.5">${chips}</div>`;
+}
+
+function renderModal(state: AjustesNominasState): string {
+  const modal = state.modal;
+  if (!modal) return "";
+  const count = modal.seleccionados.size;
+  const confirmDisabled = count === 0 || modal.submitting;
+
+  return `
+    <div id="aj-he-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div
+        class="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="aj-he-modal-titulo"
+      >
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div class="min-w-0">
+            <h2 id="aj-he-modal-titulo" class="text-lg font-semibold text-text-primary">Autorizar empleados</h2>
+            <p class="mt-1 text-sm text-text-secondary">
+              Busca y selecciona a los empleados que podrán registrar horas extra. Los empleados ya autorizados no aparecen en los resultados.
+            </p>
+          </div>
+          <button type="button" id="aj-he-modal-cerrar" class="${BTN_GHOST} shrink-0 px-2 py-1.5 text-xs" aria-label="Cerrar" ${modal.submitting ? "disabled" : ""}>
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </header>
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <label for="aj-he-modal-busqueda" class="${RH_LISTADO_LABEL}">Buscar empleados disponibles</label>
+          <input
+            id="aj-he-modal-busqueda"
+            type="search"
+            value="${escapeHtml(modal.q)}"
+            placeholder="Nombre, no. empleado, correo o área"
+            autocomplete="off"
+            class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS}"
+            ${modal.submitting ? "disabled" : ""}
+          />
+          ${
+            modal.errorMessage
+              ? `<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">${escapeHtml(modal.errorMessage)}</p>`
+              : ""
+          }
+          <div class="mt-4">
+            ${renderModalResultados(modal)}
+          </div>
+          <div class="mt-5 border-t border-slate-100 pt-4">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted" aria-live="polite">
+              Seleccionados (${count})
+            </p>
+            ${renderModalSeleccionados(modal)}
+          </div>
+        </div>
+        <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+          <button type="button" id="aj-he-modal-cancelar" class="${BTN_SECONDARY}" ${modal.submitting ? "disabled" : ""}>Cancelar</button>
+          <button type="button" id="aj-he-modal-confirmar" class="${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50" ${confirmDisabled ? "disabled" : ""}>
+            ${modal.submitting ? "Autorizando…" : "Confirmar autorización"}
+          </button>
+        </footer>
+      </div>
+    </div>`;
 }
 
 export function renderAjustesNominasPage(state: AjustesNominasState): string {
   return `
     <div id="ajustes-nominas-page" class="${RH_DASHBOARD_PAGE_SHELL}">
       <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderHeader()}
-        ${renderAutorizacionSection(state)}
+        ${renderHeader(state)}
+        ${renderStats(state)}
+        ${renderTablaAutorizados(state)}
       </div>
+      ${renderModal(state)}
     </div>`;
 }

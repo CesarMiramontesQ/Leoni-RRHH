@@ -804,6 +804,9 @@ components:
           type: string
         rol:
           type: string
+        email:
+          type: string
+          nullable: true
         area_descripcion:
           type: string
           nullable: true
@@ -812,10 +815,41 @@ components:
           nullable: true
         autorizado:
           type: boolean
+        fecha_autorizacion:
+          type: string
+          format: date-time
+          nullable: true
+        autorizado_por:
+          type: string
+          nullable: true
+          description: Nombre del usuario RH que otorgó la autorización.
+
+    HorasExtraAutorizadosStats:
+      type: object
+      required:
+        [
+          total_autorizados,
+          autorizaciones_activas,
+          sin_autorizacion,
+          autorizaciones_recientes,
+        ]
+      properties:
+        total_autorizados:
+          type: integer
+          description: Empleados autorizados sin importar su estado laboral.
+        autorizaciones_activas:
+          type: integer
+          description: Empleados autorizados con estado laboral activo.
+        sin_autorizacion:
+          type: integer
+          description: Empleados activos sin autorización.
+        autorizaciones_recientes:
+          type: integer
+          description: Autorizaciones otorgadas en los últimos 7 días.
 
     HorasExtraAutorizadosListResponse:
       type: object
-      required: [items, total, page, page_size, total_autorizados]
+      required: [items, total, page, page_size, stats]
       properties:
         items:
           type: array
@@ -827,8 +861,8 @@ components:
           type: integer
         page_size:
           type: integer
-        total_autorizados:
-          type: integer
+        stats:
+          $ref: "#/components/schemas/HorasExtraAutorizadosStats"
 
     HorasExtraAutorizacionUpdate:
       type: object
@@ -844,12 +878,12 @@ components:
 
     HorasExtraAutorizacionUpdateResponse:
       type: object
-      required: [actualizados, total_autorizados]
+      required: [actualizados, stats]
       properties:
         actualizados:
           type: integer
-        total_autorizados:
-          type: integer
+        stats:
+          $ref: "#/components/schemas/HorasExtraAutorizadosStats"
 
     HorasExtraListResponse:
       type: object
@@ -4861,7 +4895,7 @@ paths:
             default: 10
         - name: q
           in: query
-          description: Búsqueda por nombre o número de empleado.
+          description: Búsqueda por nombre, número de empleado, correo o área.
           schema:
             type: string
             nullable: true
@@ -4902,7 +4936,7 @@ paths:
         "403":
           description: Solo usuarios con rol RH
         "422":
-          description: Empleados inexistentes o inactivos
+          description: Empleados inexistentes, inactivos o ya autorizados
 
   /api/v1/empleados/{empleado_id}/vacaciones:
     get:

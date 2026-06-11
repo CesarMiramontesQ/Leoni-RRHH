@@ -1,5 +1,6 @@
 """Schemas para Ajustes de Nóminas (autorización de registro de horas extra)."""
 
+from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -12,9 +13,19 @@ class HorasExtraAutorizadoItem(BaseModel):
     no_empleado: str
     nombre: str
     rol: str
+    email: Optional[str] = None
     area_descripcion: Optional[str] = None
     puesto_descripcion: Optional[str] = None
     autorizado: bool
+    fecha_autorizacion: Optional[datetime] = None
+    autorizado_por: Optional[str] = None
+
+
+class HorasExtraAutorizadosStats(BaseModel):
+    total_autorizados: int
+    autorizaciones_activas: int
+    sin_autorizacion: int
+    autorizaciones_recientes: int
 
 
 class HorasExtraAutorizadosListResponse(BaseModel):
@@ -22,7 +33,7 @@ class HorasExtraAutorizadosListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-    total_autorizados: int
+    stats: HorasExtraAutorizadosStats
 
 
 class HorasExtraAutorizacionUpdate(BaseModel):
@@ -32,4 +43,4 @@ class HorasExtraAutorizacionUpdate(BaseModel):
 
 class HorasExtraAutorizacionUpdateResponse(BaseModel):
     actualizados: int
-    total_autorizados: int
+    stats: HorasExtraAutorizadosStats

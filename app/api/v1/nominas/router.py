@@ -79,4 +79,4 @@ async def update_horas_extra_autorizados(
     current_user: Empleado = Depends(role_checker(["rh"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
-    return await svc.actualizar_autorizacion(body)
+    return await svc.actualizar_autorizacion(body, current_user)

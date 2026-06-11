@@ -1,9 +1,20 @@
 import type {
   HorasExtraAutorizadoItem,
-  HorasExtraAutorizadosFiltro,
+  HorasExtraAutorizadosStats,
 } from "../../api/nominasAjustes.ts";
 
 export type AjustesNominasStatus = "loading" | "ready" | "error";
+
+/** Estado del modal "Autorizar empleados" (null = cerrado). */
+export type AjustesNominasModalState = {
+  q: string;
+  searching: boolean;
+  searched: boolean;
+  results: HorasExtraAutorizadoItem[];
+  seleccionados: ReadonlyMap<number, HorasExtraAutorizadoItem>;
+  submitting: boolean;
+  errorMessage?: string;
+};
 
 export type AjustesNominasState = {
   status: AjustesNominasStatus;
@@ -11,11 +22,10 @@ export type AjustesNominasState = {
   successMessage?: string;
   items: HorasExtraAutorizadoItem[];
   total: number;
-  totalAutorizados: number;
   page: number;
   pageSize: number;
   q: string;
-  filtro: HorasExtraAutorizadosFiltro;
-  seleccion: ReadonlySet<number>;
-  updating: boolean;
+  stats: HorasExtraAutorizadosStats | null;
+  revokingId: number | null;
+  modal: AjustesNominasModalState | null;
 };
