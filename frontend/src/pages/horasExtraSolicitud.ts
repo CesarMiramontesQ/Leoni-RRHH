@@ -674,9 +674,11 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       });
     });
 
-    root.querySelector("#he-sup-detalle-cerrar")?.addEventListener("click", () => {
-      state = { ...state, detalleAbierto: null, detalleStatus: "idle" };
-      render();
+    root.querySelectorAll<HTMLButtonElement>("[data-he-detalle-cerrar]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state = { ...state, detalleAbierto: null, detalleStatus: "idle" };
+        render();
+      });
     });
     root.querySelector("#he-sup-detalle-backdrop")?.addEventListener("click", (ev) => {
       if (ev.target === ev.currentTarget) {
