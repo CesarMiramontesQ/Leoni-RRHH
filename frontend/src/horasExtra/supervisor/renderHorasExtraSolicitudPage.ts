@@ -49,6 +49,7 @@ export type HorasExtraSolicitudPageState = {
   empleadosFilas: HorasExtraEmpleadoFilaForm[];
   selectedEmpleadoIds: number[];
   empleadosSearch: string;
+  formSemana: number;
   solicitudModalOpen: boolean;
 };
 
@@ -73,6 +74,53 @@ const DIAS = [
   ["sabado", "Sáb"],
   ["domingo", "Dom"],
 ] as const;
+
+export type DiaColumnaHoras = {
+  key: (typeof DIAS)[number][0];
+  label: string;
+};
+
+const NOMBRES_DIA = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+  "Domingo",
+] as const;
+
+export function lunesDeSemanaIso(anio: number, semana: number): Date {
+  const jan4 = new Date(anio, 0, 4);
+  const diaSemana = jan4.getDay() || 7;
+  const lunes = new Date(jan4);
+  lunes.setDate(jan4.getDate() - (diaSemana - 1) + (semana - 1) * 7);
+  return lunes;
+}
+
+export function buildDiasColumnasHoras(options: {
+  semana?: number;
+  anio?: number;
+  semanaInicio?: string;
+}): DiaColumnaHoras[] {
+  let lunes: Date;
+  if (options.semanaInicio) {
+    const [y, m, d] = options.semanaInicio.split("-").map((v) => Number.parseInt(v, 10));
+    lunes = new Date(y, (m ?? 1) - 1, d ?? 1);
+  } else {
+    const anio = options.anio ?? new Date().getFullYear();
+    lunes = lunesDeSemanaIso(anio, options.semana ?? 1);
+  }
+
+  return DIAS.map(([key], index) => {
+    const fecha = new Date(lunes);
+    fecha.setDate(lunes.getDate() + index);
+    return {
+      key,
+      label: `${NOMBRES_DIA[index]} ${fecha.getDate()}`,
+    };
+  });
+}
 
 function estadoBadge(estado: string): string {
   if (estado === "aprobado") return badgeApproved("Aprobado");
@@ -118,11 +166,11 @@ export function getSemanasPermitidas(semanaActual: number): number[] {
   return semanas;
 }
 
-function renderSemanaOptions(semanaActual: number): string {
+function renderSemanaOptions(semanaActual: number, seleccionada: number): string {
   return getSemanasPermitidas(semanaActual)
     .map(
       (n) =>
-        `<option value="${n}"${n === semanaActual ? " selected" : ""}>Semana ${n}</option>`,
+        `<option value="${n}"${n === seleccionada ? " selected" : ""}>Semana ${n}</option>`,
     )
     .join("");
 }
@@ -272,7 +320,10 @@ function renderEmpleadosPickerSection(
     </section>`;
 }
 
-export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
+export function renderHorasGrid(
+  filas: HorasExtraEmpleadoFilaForm[],
+  diasColumnas: DiaColumnaHoras[],
+): string {
   if (!filas.length) {
     return "";
   }
@@ -287,15 +338,17 @@ export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
           <div>${escapeHtml(fila.nombre)}</div>
           <div class="text-xs text-text-secondary">${escapeHtml(fila.no_empleado)}</div>
         </td>
-        ${DIAS.map(
-          ([key]) => `
+        ${diasColumnas
+          .map(
+            ({ key }) => `
           <td class="px-1 py-2">
             <input type="number" min="0" step="0.5" inputmode="decimal"
               data-he-dia="${key}" data-he-empleado="${fila.empleado_id}"
               class="w-full min-w-[3.25rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm tabular-nums shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25"
               value="${escapeHtml(fila[key])}" />
           </td>`,
-        ).join("")}
+          )
+          .join("")}
         <td class="px-3 py-2 text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap" data-he-total-empleado="${fila.empleado_id}">${total.toFixed(2)}</td>
       </tr>`;
     })
@@ -304,11 +357,16 @@ export function renderHorasGrid(filas: HorasExtraEmpleadoFilaForm[]): string {
   return `
     <div class="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
       <table class="min-w-full divide-y divide-slate-200 text-left">
-        <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <thead class="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
           <tr>
-            <th class="px-3 py-2">Empleado</th>
-            ${DIAS.map(([, label]) => `<th class="px-1 py-2 text-center">${label}</th>`).join("")}
-            <th class="px-3 py-2 text-right">Total</th>
+            <th class="px-3 py-2 text-left uppercase">Empleado</th>
+            ${diasColumnas
+              .map(
+                ({ label }) =>
+                  `<th class="min-w-[4.5rem] px-1 py-2 text-center normal-case">${escapeHtml(label)}</th>`,
+              )
+              .join("")}
+            <th class="px-3 py-2 text-right uppercase">Total</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">${body}</tbody>
@@ -363,6 +421,7 @@ function renderDetalleModal(state: HorasExtraSolicitudPageState): string {
               sabado: String(d.sabado),
               domingo: String(d.domingo),
             })),
+            buildDiasColumnasHoras({ semanaInicio: det.semana_inicio }),
           )}`
                 : ""
         }
@@ -374,7 +433,8 @@ function renderFormularioSolicitud(
   opciones: HorasExtraSolicitudOpciones,
   state: HorasExtraSolicitudPageState,
 ): string {
-  const horasGrid = renderHorasGrid(state.empleadosFilas);
+  const diasColumnas = buildDiasColumnasHoras({ semana: state.formSemana });
+  const horasGrid = renderHorasGrid(state.empleadosFilas, diasColumnas);
 
   return `
     <form id="he-sup-form" class="space-y-6" novalidate>
@@ -383,7 +443,7 @@ function renderFormularioSolicitud(
           <label for="he-sup-semana" class="${FORM_SECTION_LABEL}">Semana *</label>
           <div class="${FORM_SELECT_WRAP}">
             <select id="he-sup-semana" name="semana" required class="${FORM_SELECT}">
-              ${renderSemanaOptions(opciones.semana_actual)}
+              ${renderSemanaOptions(opciones.semana_actual, state.formSemana)}
             </select>
             ${SELECT_CHEVRON}
           </div>

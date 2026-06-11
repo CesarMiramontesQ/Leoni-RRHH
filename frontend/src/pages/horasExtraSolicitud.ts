@@ -51,17 +51,21 @@ function initialState(): HorasExtraSolicitudPageState {
     empleadosFilas: [],
     selectedEmpleadoIds: [],
     empleadosSearch: "",
+    formSemana: 1,
     solicitudModalOpen: false,
   };
 }
 
-function resetFormState(): Pick<
+function resetFormState(
+  semanaActual = 1,
+): Pick<
   HorasExtraSolicitudPageState,
   | "formError"
   | "submitting"
   | "empleadosFilas"
   | "selectedEmpleadoIds"
   | "empleadosSearch"
+  | "formSemana"
   | "solicitudModalOpen"
 > {
   return {
@@ -70,6 +74,7 @@ function resetFormState(): Pick<
     empleadosFilas: [],
     selectedEmpleadoIds: [],
     empleadosSearch: "",
+    formSemana: semanaActual,
     solicitudModalOpen: false,
   };
 }
@@ -273,7 +278,10 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
   };
 
   const closeSolicitudModal = (): void => {
-    state = { ...state, ...resetFormState() };
+    state = {
+      ...state,
+      ...resetFormState(opcionesCache?.semana_actual ?? state.formSemana),
+    };
   };
 
   const bindEvents = (): void => {
@@ -282,7 +290,11 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
 
     root.querySelector("#he-sup-abrir-solicitud")?.addEventListener("click", () => {
       if (state.opcionesStatus !== "ready" || !opcionesCache) return;
-      state = { ...state, ...resetFormState(), solicitudModalOpen: true };
+      state = {
+        ...state,
+        ...resetFormState(opcionesCache.semana_actual),
+        solicitudModalOpen: true,
+      };
       render();
     });
 
@@ -310,6 +322,13 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       bindListaEvents(root as HTMLElement);
       return;
     }
+
+    root.querySelector<HTMLSelectElement>("#he-sup-semana")?.addEventListener("change", (ev) => {
+      const semana = Number.parseInt((ev.target as HTMLSelectElement).value, 10);
+      if (Number.isNaN(semana)) return;
+      state = { ...state, formSemana: semana };
+      render();
+    });
 
     root.querySelector("#he-sup-empleados-search")?.addEventListener("input", (ev) => {
       state = {
@@ -365,7 +384,7 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
         await createHorasExtraSolicitud(payload);
         state = {
           ...state,
-          ...resetFormState(),
+          ...resetFormState(opcionesCache?.semana_actual ?? state.formSemana),
           listaSuccess: "Solicitud guardada correctamente.",
         };
         await loadLista();
@@ -437,7 +456,12 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
     try {
       const opciones = await getHorasExtraSolicitudOpciones();
       opcionesCache = opciones;
-      state = { ...state, opciones, opcionesStatus: "ready" };
+      state = {
+        ...state,
+        opciones,
+        opcionesStatus: "ready",
+        formSemana: state.formSemana || opciones.semana_actual,
+      };
     } catch (e) {
       const errObj = e as HorasExtraSolicitudFetchError;
       if (isAuthError(errObj)) {
