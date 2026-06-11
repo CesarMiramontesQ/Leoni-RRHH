@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.security import decode_token
-from app.models.catalogos import Area
+from app.models.catalogos import Area, Puesto
 from tests.conftest import auth_headers, make_empleado
 
 AUTORIZADOS_URL = "/api/v1/nominas/ajustes/horas-extra/autorizados"
@@ -216,11 +216,12 @@ async def test_ajustes_autorizar_rechaza_duplicados(
 
 
 @pytest.mark.asyncio
-async def test_ajustes_busqueda_por_correo_y_area(
+async def test_ajustes_busqueda_por_correo_area_y_puesto(
     client: AsyncClient, db, empleado_rh
 ):
     area = Area(area_id=98765, descripcion="Corte Especial", estatus_id=1)
-    db.add(area)
+    puesto = Puesto(puesto_id=98765, descripcion="Lider de Producción", estatus_id=1)
+    db.add_all([area, puesto])
     await db.flush()
 
     con_area = await make_empleado(
@@ -236,6 +237,13 @@ async def test_ajustes_busqueda_por_correo_y_area(
         nombre="Búsqueda Por Correo",
         no_empleado="AJ-BUSQ-02",
         email="busqueda.correo@leoni.test",
+    )
+    con_puesto = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Búsqueda Por Puesto",
+        no_empleado="AJ-BUSQ-03",
+        puesto_id=puesto.puesto_id,
     )
     await db.flush()
 
@@ -254,3 +262,10 @@ async def test_ajustes_busqueda_por_correo_y_area(
     assert por_area.status_code == 200
     nos_area = {item["no_empleado"] for item in por_area.json()["items"]}
     assert con_area.no_empleado in nos_area
+
+    por_puesto = await client.get(
+        AUTORIZADOS_URL, headers=headers, params={"q": "Lider"}
+    )
+    assert por_puesto.status_code == 200
+    nos_puesto = {item["no_empleado"] for item in por_puesto.json()["items"]}
+    assert con_puesto.no_empleado in nos_puesto

@@ -4895,7 +4895,7 @@ paths:
             default: 10
         - name: q
           in: query
-          description: Búsqueda por nombre, número de empleado, correo o área.
+          description: Búsqueda por nombre, número de empleado, correo, área o puesto.
           schema:
             type: string
             nullable: true

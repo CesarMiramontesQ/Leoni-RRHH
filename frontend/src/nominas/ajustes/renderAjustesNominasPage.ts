@@ -223,7 +223,7 @@ function renderTablaAutorizados(state: AjustesNominasState): string {
             id="aj-he-busqueda"
             type="search"
             value="${escapeHtml(state.q)}"
-            placeholder="Nombre, no. empleado, correo o área"
+            placeholder="Nombre, no. empleado, correo, área o puesto"
             autocomplete="off"
             class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
             ${disabled ? "disabled" : ""}
@@ -254,7 +254,7 @@ function renderModalResultados(modal: AjustesNominasModalState): string {
     return `<p class="px-1 py-6 text-center text-sm text-text-secondary">Buscando empleados…</p>`;
   }
   if (!modal.searched) {
-    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Escribe un nombre, no. de empleado, correo o área para buscar empleados disponibles.</p>`;
+    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Escribe un nombre, no. de empleado, correo, área o puesto para buscar empleados disponibles.</p>`;
   }
   if (modal.results.length === 0) {
     return `<p class="px-1 py-6 text-center text-sm text-text-secondary">Sin empleados disponibles que coincidan con la búsqueda.</p>`;
@@ -263,7 +263,7 @@ function renderModalResultados(modal: AjustesNominasModalState): string {
   const rows = modal.results
     .map((emp) => {
       const checked = modal.seleccionados.has(emp.id);
-      const detalle = [emp.no_empleado, emp.area_descripcion, emp.email]
+      const detalle = [emp.no_empleado, emp.puesto_descripcion, emp.area_descripcion, emp.email]
         .filter(Boolean)
         .join(" · ");
       return `
@@ -339,7 +339,7 @@ function renderModal(state: AjustesNominasState): string {
             id="aj-he-modal-busqueda"
             type="search"
             value="${escapeHtml(modal.q)}"
-            placeholder="Nombre, no. empleado, correo o área"
+            placeholder="Nombre, no. empleado, correo, área o puesto"
             autocomplete="off"
             class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS}"
             ${modal.submitting ? "disabled" : ""}

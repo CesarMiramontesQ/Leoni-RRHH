@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.catalogos import Area
+from app.models.catalogos import Area, Puesto
 from app.models.empleados import Empleado
 
 
@@ -26,12 +26,17 @@ class NominasAjustesRepository:
         stmt = select(Empleado).where(Empleado.estado_id.in_(estados_activos))
         if q:
             patron = f"%{q.strip()}%"
-            stmt = stmt.outerjoin(Area, Empleado.area_id == Area.area_id).where(
-                or_(
-                    Empleado.nombre.ilike(patron),
-                    Empleado.no_empleado.ilike(patron),
-                    Empleado.email.ilike(patron),
-                    Area.descripcion.ilike(patron),
+            stmt = (
+                stmt.outerjoin(Area, Empleado.area_id == Area.area_id)
+                .outerjoin(Puesto, Empleado.puesto_id == Puesto.puesto_id)
+                .where(
+                    or_(
+                        Empleado.nombre.ilike(patron),
+                        Empleado.no_empleado.ilike(patron),
+                        Empleado.email.ilike(patron),
+                        Area.descripcion.ilike(patron),
+                        Puesto.descripcion.ilike(patron),
+                    )
                 )
             )
         if autorizado is not None:
