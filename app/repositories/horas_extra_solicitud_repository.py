@@ -68,6 +68,7 @@ class HorasExtraSolicitudRepository:
                 selectinload(Empleado.clasificacion),
                 selectinload(Empleado.area),
                 selectinload(Empleado.subarea),
+                selectinload(Empleado.turno_empleado),
             )
             .where(Empleado.id.in_(ids))
         )
@@ -110,6 +111,14 @@ class HorasExtraSolicitudRepository:
 
     async def get_centro_costo(self, centrocosto_id: int) -> CentroCosto | None:
         return await self.db.get(CentroCosto, centrocosto_id)
+
+    async def get_centros_costo_map(self, ids: set[int]) -> dict[int, str]:
+        if not ids:
+            return {}
+        result = await self.db.execute(
+            select(CentroCosto).where(CentroCosto.centrocosto_id.in_(ids))
+        )
+        return {c.centrocosto_id: c.descripcion for c in result.scalars()}
 
     async def get_motivo(self, motivo_id: int) -> HorasExtraMotivo | None:
         return await self.db.get(HorasExtraMotivo, motivo_id)

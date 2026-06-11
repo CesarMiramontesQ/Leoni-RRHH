@@ -537,6 +537,12 @@ components:
           type: [integer, "null"]
         subarea_id:
           type: [integer, "null"]
+        area_descripcion:
+          type: [string, "null"]
+        centrocosto_descripcion:
+          type: [string, "null"]
+        turno:
+          type: [string, "null"]
 
     HorasExtraSolicitudOpcionesResponse:
       type: object

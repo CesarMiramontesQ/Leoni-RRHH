@@ -19,6 +19,9 @@ class HorasExtraEmpleadoOption(BaseModel):
     centrocosto_id: Optional[int] = None
     area_id: Optional[int] = None
     subarea_id: Optional[int] = None
+    area_descripcion: Optional[str] = None
+    centrocosto_descripcion: Optional[str] = None
+    turno: Optional[str] = None
 
 
 class HorasExtraSolicitudOpcionesResponse(BaseModel):

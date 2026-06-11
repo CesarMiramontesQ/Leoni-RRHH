@@ -92,6 +92,8 @@ class HorasExtraSolicitudService:
 
         elegibles_ids = await self._empleados_elegibles_ids(current_user)
         empleados_db = await self.repo.get_empleados_by_ids(sorted(elegibles_ids))
+        cc_ids = {e.centrocosto_id for e in empleados_db if e.centrocosto_id}
+        centros_map = await self.repo.get_centros_costo_map(cc_ids)
 
         return HorasExtraSolicitudOpcionesResponse(
             empleados=[
@@ -102,6 +104,11 @@ class HorasExtraSolicitudService:
                     centrocosto_id=e.centrocosto_id,
                     area_id=e.area_id,
                     subarea_id=e.subarea_id,
+                    area_descripcion=e.area.descripcion if e.area else None,
+                    centrocosto_descripcion=(
+                        centros_map.get(e.centrocosto_id) if e.centrocosto_id else None
+                    ),
+                    turno=e.turno_empleado.turno if e.turno_empleado else None,
                 )
                 for e in sorted(empleados_db, key=lambda x: x.nombre.lower())
             ],

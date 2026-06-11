@@ -26,6 +26,9 @@ export type HorasExtraEmpleadoOption = {
   centrocosto_id: number | null;
   area_id: number | null;
   subarea_id: number | null;
+  area_descripcion: string | null;
+  centrocosto_descripcion: string | null;
+  turno: string | null;
 };
 
 export type HorasExtraSolicitudOpciones = {
