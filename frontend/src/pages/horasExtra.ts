@@ -73,7 +73,7 @@ function mergeFilterOptions(
   return { areas: catalogAreas, centrosCosto };
 }
 
-/** Monta la vista de Gestión de Horas Extra (empleados reales + campos simulados). */
+/** Monta la vista de Gestión de Horas Extra (solicitudes reales desde la API). */
 export function mountHorasExtra(container: HTMLElement): void {
   let filters: HorasExtraFilters = { ...EMPTY_HORAS_EXTRA_FILTERS };
   let filterOptions: HorasExtraFilterOptions = { ...EMPTY_HORAS_EXTRA_FILTER_OPTIONS };

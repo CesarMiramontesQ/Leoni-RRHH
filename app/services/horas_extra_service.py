@@ -1,10 +1,11 @@
-"""Servicio de Horas Extra: empleados reales + campos simulados estables."""
+"""Servicio de Horas Extra (vista RH): solicitudes reales registradas en BD."""
 
 from __future__ import annotations
 
 from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
 from app.core.exceptions import ForbiddenError
 from app.models.empleados import Empleado
+from app.models.horas_extra import HorasExtraSolicitud, HorasExtraSolicitudDetalle
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.horas_extra_repository import HorasExtraRepository
 from app.schemas.horas_extra import (
@@ -15,10 +16,10 @@ from app.schemas.horas_extra import (
     HorasExtraLiderResponse,
     HorasExtraListResponse,
     HorasExtraResumenResponse,
-    HorasExtraSimuladoResponse,
+    HorasExtraSolicitudInfoResponse,
     HorasExtraTabFiltro,
 )
-from app.services.horas_extra_simulacion import SEMANA_ACTUAL, simular_fila_horas_extra
+from app.utils.business_time import business_today
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _ROLES_PERMITIDOS = frozenset({"rh", "director", "gerente"})
@@ -65,19 +66,56 @@ class HorasExtraService:
             no_empleado=emp.no_empleado,
             nombre=emp.nombre,
             puesto_nombre=emp.puesto.descripcion if emp.puesto else None,
-            centrocosto_id=int(emp.centrocosto_id),
+            centrocosto_id=(
+                int(emp.centrocosto_id) if emp.centrocosto_id is not None else None
+            ),
             lider=lider,
         )
 
-    def _tab_coincide(self, estado: str, tab: HorasExtraTabFiltro) -> bool:
-        if tab == "todos":
-            return True
-        mapping = {
-            "pendientes": "pendiente",
-            "aprobados": "aprobado",
-            "rechazados": "rechazado",
-        }
-        return estado == mapping[tab]
+    @staticmethod
+    def _aprobacion_firmada(solicitud: HorasExtraSolicitud):
+        """Última firma resuelta (aprobado/rechazado) de la solicitud, si existe."""
+        firmadas = [
+            a
+            for a in solicitud.aprobaciones
+            if a.estado in ("aprobado", "rechazado") and a.fecha_aprobacion is not None
+        ]
+        if not firmadas:
+            return None
+        return max(firmadas, key=lambda a: a.fecha_aprobacion)
+
+    def _to_fila_response(
+        self, detalle: HorasExtraSolicitudDetalle
+    ) -> HorasExtraFilaResponse:
+        solicitud = detalle.solicitud
+        firma = self._aprobacion_firmada(solicitud)
+        return HorasExtraFilaResponse(
+            empleado=self._to_empleado_response(detalle.empleado),
+            solicitud=HorasExtraSolicitudInfoResponse(
+                solicitud_id=solicitud.id,
+                semana=solicitud.semana_inicio.isocalendar()[1],
+                semana_inicio=solicitud.semana_inicio,
+                fecha_solicitud=solicitud.fecha_solicitud,
+                tipo=solicitud.tipo,
+                area_descripcion=solicitud.area.descripcion if solicitud.area else None,
+                centrocosto_id=solicitud.centrocosto_id,
+                centrocosto_descripcion=(
+                    solicitud.centro_costo.descripcion if solicitud.centro_costo else None
+                ),
+                motivo=solicitud.motivo.descripcion if solicitud.motivo else None,
+                estado=solicitud.estado,
+                total_horas=float(detalle.total_horas),
+                registrado_por_nombre=(
+                    solicitud.registrado_por.nombre if solicitud.registrado_por else None
+                ),
+                aprobador_nombre=(
+                    firma.aprobador.nombre if firma and firma.aprobador else None
+                ),
+                fecha_aprobacion=(
+                    firma.fecha_aprobacion.date() if firma else None
+                ),
+            ),
+        )
 
     async def listar(
         self,
@@ -95,89 +133,68 @@ class HorasExtraService:
         self._require_acceso(current_user)
         ids_permitidos = await self._ids_permitidos(current_user, rh_ui_mode)
 
-        pares = await self.repo.list_ids_con_centro_costo(
-            q=q,
-            area_id=area_id,
-            centrocosto_id=centrocosto_id,
-            lider_empleado_id=lider_empleado_id,
-            ids_permitidos=ids_permitidos,
-        )
-
-        filas_simuladas = [
-            (local_id, empleado_id, simular_fila_horas_extra(empleado_id))
-            for local_id, empleado_id in pares
-        ]
-
-        tabs = {
-            "todos": len(filas_simuladas),
-            "pendientes": sum(1 for _, _, s in filas_simuladas if s["estado_aprobacion"] == "pendiente"),
-            "aprobados": sum(1 for _, _, s in filas_simuladas if s["estado_aprobacion"] == "aprobado"),
-            "rechazados": sum(1 for _, _, s in filas_simuladas if s["estado_aprobacion"] == "rechazado"),
+        filtros = {
+            "q": q,
+            "area_id": area_id,
+            "centrocosto_id": centrocosto_id,
+            "lider_empleado_id": lider_empleado_id,
+            "ids_permitidos": ids_permitidos,
         }
 
-        filtradas = [
-            (local_id, empleado_id, sim)
-            for local_id, empleado_id, sim in filas_simuladas
-            if self._tab_coincide(sim["estado_aprobacion"], tab)
-        ]
-        total = len(filtradas)
+        total = await self.repo.count_filas(tab=tab, **filtros)
         offset = (page - 1) * page_size
-        pagina_ids = [local_id for local_id, _, _ in filtradas[offset : offset + page_size]]
+        detalles = await self.repo.list_filas(
+            offset=offset, limit=page_size, tab=tab, **filtros
+        )
+        tabs = await self.repo.tabs_counts(**filtros)
 
-        empleados_map: dict[int, Empleado] = {}
-        if pagina_ids:
-            empleados = await self.repo.list_by_ids(pagina_ids)
-            empleados_map = {e.id: e for e in empleados}
+        total_horas, con_registro, con_horas = await self.repo.resumen_filas(
+            ids_permitidos=ids_permitidos
+        )
+        solicitudes_por_estado = await self.repo.solicitudes_counts(
+            ids_permitidos=ids_permitidos
+        )
+        pendientes = solicitudes_por_estado.get("pendiente", 0)
+        aprobadas = solicitudes_por_estado.get("aprobado", 0)
+        rechazadas = solicitudes_por_estado.get("rechazado", 0)
+        total_solicitudes = sum(solicitudes_por_estado.values())
+        total_decisiones = aprobadas + rechazadas
+        pct_aprob = (
+            round((aprobadas / total_decisiones) * 100, 1) if total_decisiones else 0.0
+        )
 
-        items: list[HorasExtraFilaResponse] = []
-        sim_por_local = {local_id: sim for local_id, _, sim in filtradas}
-        for local_id in pagina_ids:
-            emp = empleados_map.get(local_id)
-            if not emp:
-                continue
-            sim = sim_por_local[local_id]
-            items.append(
-                HorasExtraFilaResponse(
-                    empleado=self._to_empleado_response(emp),
-                    simulado=HorasExtraSimuladoResponse(**sim),
-                )
-            )
-
-        total_horas = round(sum(s["total_horas_extra"] for _, _, s in filas_simuladas), 2)
-        con_he = sum(1 for _, _, s in filas_simuladas if s["total_horas_extra"] > 0)
-        pendientes = tabs["pendientes"]
-        aprobados = tabs["aprobados"]
-        rechazados = tabs["rechazados"]
-        con_dif = sum(1 for _, _, s in filas_simuladas if s["dif_caseta"] > 0)
-        total_decisiones = aprobados + rechazados
-        pct_aprob = round((aprobados / total_decisiones) * 100, 1) if total_decisiones else 0.0
-
-        activos_planta = await self.repo.count_empleados_activos_planta(ids_permitidos=ids_permitidos)
-        centros_ids = await self.repo.list_distinct_centrocosto_ids(ids_permitidos=ids_permitidos)
+        activos_planta = await self.repo.count_empleados_activos_planta(
+            ids_permitidos=ids_permitidos
+        )
+        centros = await self.repo.list_centros_costo_en_solicitudes(
+            ids_permitidos=ids_permitidos
+        )
 
         resumen = HorasExtraResumenResponse(
-            total_horas_extra=total_horas,
-            colaboradores_con_registro=len(filas_simuladas),
-            empleados_con_horas_extra=con_he,
+            total_horas_extra=round(float(total_horas), 2),
+            colaboradores_con_registro=con_registro,
+            empleados_con_horas_extra=con_horas,
             empleados_activos_planta=activos_planta,
+            solicitudes_total=total_solicitudes,
             solicitudes_pendientes=pendientes,
-            solicitudes_aprobadas=aprobados,
-            solicitudes_rechazadas=rechazados,
-            solicitudes_con_dif_caseta=con_dif,
+            solicitudes_aprobadas=aprobadas,
+            solicitudes_rechazadas=rechazadas,
             porcentaje_aprobacion=pct_aprob,
         )
 
         return HorasExtraListResponse(
-            semana_actual=SEMANA_ACTUAL,
+            semana_actual=business_today().isocalendar()[1],
             resumen=resumen,
             tabs=tabs,
             filter_options=HorasExtraFilterOptionsResponse(
                 centros_costo=[
-                    HorasExtraCentroCostoOption(id=cc_id, label=str(cc_id))
-                    for cc_id in centros_ids
+                    HorasExtraCentroCostoOption(
+                        id=cc_id, label=descripcion or str(cc_id)
+                    )
+                    for cc_id, descripcion in centros
                 ]
             ),
-            items=items,
+            items=[self._to_fila_response(d) for d in detalles],
             total=total,
             page=page,
             page_size=page_size,

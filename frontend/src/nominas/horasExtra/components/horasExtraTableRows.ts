@@ -1,19 +1,22 @@
-import type { HorasExtraFila } from "../../../api/horasExtra.ts";
-import { badgeApproved, badgePending, badgeRejected } from "../../../ui/uiTokens.ts";
+import type { HorasExtraFila, HorasExtraEstadoSolicitud } from "../../../api/horasExtra.ts";
+import { badgeApproved, badgeCancelled, badgePending, badgeRejected } from "../../../ui/uiTokens.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
 
-function estadoBadge(estado: HorasExtraFila["simulado"]["estado_aprobacion"]): string {
+function estadoBadge(estado: HorasExtraEstadoSolicitud): string {
   if (estado === "aprobado") return badgeApproved("Aprobado");
   if (estado === "rechazado") return badgeRejected("Rechazado");
+  if (estado === "cancelado") return badgeCancelled("Cancelado");
+  if (estado === "borrador") return badgeCancelled("Borrador");
   return badgePending("Pendiente");
 }
 
-function difCasetaClass(valor: number): string {
-  if (valor === 0) return "text-text-muted";
-  if (valor <= 0.75) return "font-semibold text-amber-700";
-  return "font-semibold text-red-700";
+function formatFecha(iso: string | null): string {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
 }
 
 function renderEmpleadoCell(fila: HorasExtraFila): string {
@@ -33,28 +36,56 @@ function renderEmpleadoCell(fila: HorasExtraFila): string {
 }
 
 function renderCentroCostoCell(fila: HorasExtraFila): string {
-  const id = fila.empleado.centrocosto_id;
+  const sol = fila.solicitud;
+  const label = sol.centrocosto_descripcion?.trim() || String(sol.centrocosto_id);
+  const area = sol.area_descripcion?.trim() || "Sin área";
   return `
-    <div class="min-w-[7rem]">
-      <p class="text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(String(id))}</p>
-      <p class="text-xs text-text-secondary">Centro de costo</p>
+    <div class="min-w-[8rem]">
+      <p class="truncate text-sm font-semibold text-text-primary">${escapeHtml(label)}</p>
+      <p class="truncate text-xs text-text-secondary">${escapeHtml(area)}</p>
+    </div>`;
+}
+
+function renderSemanaCell(fila: HorasExtraFila): string {
+  const sol = fila.solicitud;
+  return `
+    <div class="min-w-[6rem]">
+      <p class="text-sm font-semibold tabular-nums text-text-primary">${sol.semana}</p>
+      <p class="text-xs text-text-secondary">Inicio ${escapeHtml(formatFecha(sol.semana_inicio))}</p>
+    </div>`;
+}
+
+function renderAprobacionCell(fila: HorasExtraFila): string {
+  const sol = fila.solicitud;
+  if (!sol.aprobador_nombre && !sol.fecha_aprobacion) {
+    return `<span class="text-sm text-text-muted">—</span>`;
+  }
+  const nombre = sol.aprobador_nombre
+    ? formatNombreEmpleadoUi(sol.aprobador_nombre) || sol.aprobador_nombre
+    : "—";
+  return `
+    <div class="min-w-[9rem]">
+      <p class="truncate text-sm text-text-primary">${escapeHtml(nombre)}</p>
+      <p class="text-xs tabular-nums text-text-secondary">${escapeHtml(formatFecha(sol.fecha_aprobacion))}</p>
     </div>`;
 }
 
 function renderFila(fila: HorasExtraFila): string {
-  const sim = fila.simulado;
-  const difFmt = sim.dif_caseta === 0 ? "0.00" : `+${sim.dif_caseta.toFixed(2)}`;
+  const sol = fila.solicitud;
+  const motivo = sol.motivo?.trim() || "—";
 
   return `
     <tr class="border-b border-slate-100 transition hover:bg-slate-50/70">
       <td class="px-3 py-3">${renderEmpleadoCell(fila)}</td>
       <td class="px-3 py-3 whitespace-nowrap">${renderCentroCostoCell(fila)}</td>
-      <td class="px-3 py-3 text-sm tabular-nums text-text-primary whitespace-nowrap">${sim.semana}</td>
-      <td class="px-3 py-3 text-sm tabular-nums text-text-primary whitespace-nowrap">${sim.horas_dobles.toFixed(2)}</td>
-      <td class="px-3 py-3 text-sm tabular-nums text-text-primary whitespace-nowrap">${sim.horas_descanso_trabajado.toFixed(2)}</td>
-      <td class="px-3 py-3 text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap">${sim.total_horas_extra.toFixed(2)}</td>
-      <td class="px-3 py-3 text-sm tabular-nums whitespace-nowrap ${difCasetaClass(sim.dif_caseta)}">${difFmt}</td>
-      <td class="px-3 py-3 whitespace-nowrap">${estadoBadge(sim.estado_aprobacion)}</td>
+      <td class="px-3 py-3 whitespace-nowrap">${renderSemanaCell(fila)}</td>
+      <td class="px-3 py-3 text-sm tabular-nums text-text-primary whitespace-nowrap">${escapeHtml(formatFecha(sol.fecha_solicitud))}</td>
+      <td class="px-3 py-3 text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap">${sol.total_horas.toFixed(2)}</td>
+      <td class="max-w-[16rem] px-3 py-3">
+        <p class="truncate text-sm text-text-primary" title="${escapeHtml(motivo)}">${escapeHtml(motivo)}</p>
+      </td>
+      <td class="px-3 py-3 whitespace-nowrap">${estadoBadge(sol.estado)}</td>
+      <td class="px-3 py-3 whitespace-nowrap">${renderAprobacionCell(fila)}</td>
     </tr>`;
 }
 
@@ -63,7 +94,7 @@ function renderTableBody(vm: HorasExtraPageViewModel): string {
     return `
       <tr>
         <td colspan="8" class="px-4 py-16 text-center sm:px-5">
-          <p class="text-sm text-text-secondary">Cargando colaboradores…</p>
+          <p class="text-sm text-text-secondary">Cargando solicitudes…</p>
         </td>
       </tr>`;
   }
@@ -82,8 +113,8 @@ function renderTableBody(vm: HorasExtraPageViewModel): string {
     return `
       <tr>
         <td colspan="8" class="px-4 py-16 text-center sm:px-5">
-          <p class="text-sm font-semibold text-text-primary">Sin registros</p>
-          <p class="mt-1 text-sm text-text-secondary">No hay empleados activos con centro de costo asignado.</p>
+          <p class="text-sm font-semibold text-text-primary">Sin solicitudes</p>
+          <p class="mt-1 text-sm text-text-secondary">No hay solicitudes de horas extra registradas con los filtros actuales.</p>
         </td>
       </tr>`;
   }

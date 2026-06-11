@@ -16,7 +16,7 @@ export function renderHorasExtraPageHeader(vm: Pick<HorasExtraPageViewModel, "se
       <div class="min-w-0">
         <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Gestión de horas extras</h1>
         <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          Revisión y aprobación por centro de costo. La diferencia de caseta contrasta las horas reportadas contra el reloj checador de acceso.
+          Solicitudes de horas extra registradas por los líderes autorizados, con su estado de aprobación por centro de costo.
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">

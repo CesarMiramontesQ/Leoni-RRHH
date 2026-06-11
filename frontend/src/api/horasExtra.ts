@@ -1,6 +1,11 @@
 import { fetchWithAuth } from "./http.ts";
 
-export type HorasExtraEstadoAprobacion = "pendiente" | "aprobado" | "rechazado";
+export type HorasExtraEstadoSolicitud =
+  | "borrador"
+  | "pendiente"
+  | "aprobado"
+  | "rechazado"
+  | "cancelado";
 export type HorasExtraTabFiltro = "todos" | "pendientes" | "aprobados" | "rechazados";
 
 export type HorasExtraLider = {
@@ -14,22 +19,30 @@ export type HorasExtraEmpleado = {
   no_empleado: string;
   nombre: string;
   puesto_nombre: string | null;
-  centrocosto_id: number;
+  centrocosto_id: number | null;
   lider: HorasExtraLider | null;
 };
 
-export type HorasExtraSimulado = {
+export type HorasExtraSolicitudInfo = {
+  solicitud_id: number;
   semana: number;
-  horas_dobles: number;
-  horas_descanso_trabajado: number;
-  total_horas_extra: number;
-  dif_caseta: number;
-  estado_aprobacion: HorasExtraEstadoAprobacion;
+  semana_inicio: string;
+  fecha_solicitud: string;
+  tipo: "planeado" | "espontaneo";
+  area_descripcion: string | null;
+  centrocosto_id: number;
+  centrocosto_descripcion: string | null;
+  motivo: string | null;
+  estado: HorasExtraEstadoSolicitud;
+  total_horas: number;
+  registrado_por_nombre: string | null;
+  aprobador_nombre: string | null;
+  fecha_aprobacion: string | null;
 };
 
 export type HorasExtraFila = {
   empleado: HorasExtraEmpleado;
-  simulado: HorasExtraSimulado;
+  solicitud: HorasExtraSolicitudInfo;
 };
 
 export type HorasExtraResumen = {
@@ -37,10 +50,10 @@ export type HorasExtraResumen = {
   colaboradores_con_registro: number;
   empleados_con_horas_extra: number;
   empleados_activos_planta: number;
+  solicitudes_total: number;
   solicitudes_pendientes: number;
   solicitudes_aprobadas: number;
   solicitudes_rechazadas: number;
-  solicitudes_con_dif_caseta: number;
   porcentaje_aprobacion: number;
 };
 

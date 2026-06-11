@@ -1,17 +1,17 @@
-import { escapeHtml, paginationRange } from "../../../ui/uiUtils.ts";
+import { paginationRange } from "../../../ui/uiUtils.ts";
 import { RH_LISTADO_SURFACE } from "../../../ui/uiTokens.ts";
 import { renderHorasExtraTableBody } from "./horasExtraTableRows.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
 
 const TABLE_COLUMNS = [
   "Empleado",
-  "Centro de costo",
+  "Centro de costo / Área",
   "Semana",
-  "H. dobles",
-  "H. descanso trab.",
-  "Total H.E.",
-  "Dif. caseta",
-  "Estado de aprobación",
+  "Fecha solicitud",
+  "Horas solicitadas",
+  "Motivo",
+  "Estado",
+  "Aprobación",
 ] as const;
 
 function renderPagination(vm: HorasExtraPageViewModel): string {
@@ -42,7 +42,6 @@ function renderPagination(vm: HorasExtraPageViewModel): string {
       <p class="text-xs text-text-secondary">
         Mostrando <span class="font-semibold tabular-nums text-text-primary">${start}-${end}</span> de
         <span class="font-semibold tabular-nums text-text-primary">${vm.totalRegistros}</span> registros
-        <span class="text-text-muted">· ${escapeHtml(vm.semanaLabel)}</span>
       </p>
       <nav class="flex items-center gap-1" aria-label="Paginación">
         <button type="button" data-he-page="${vm.currentPage - 1}" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40" aria-label="Página anterior" ${prevDisabled ? "disabled" : ""}>‹</button>

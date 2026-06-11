@@ -399,7 +399,7 @@ components:
 
     HorasExtraEmpleadoResponse:
       type: object
-      required: [id, empleado_id, no_empleado, nombre, centrocosto_id]
+      required: [id, empleado_id, no_empleado, nombre]
       properties:
         id:
           type: integer
@@ -414,42 +414,71 @@ components:
           nullable: true
         centrocosto_id:
           type: integer
+          nullable: true
         lider:
           $ref: "#/components/schemas/HorasExtraLiderResponse"
           nullable: true
 
-    HorasExtraSimuladoResponse:
+    HorasExtraSolicitudInfoResponse:
       type: object
       required:
+        - solicitud_id
         - semana
-        - horas_dobles
-        - horas_descanso_trabajado
-        - total_horas_extra
-        - dif_caseta
-        - estado_aprobacion
+        - semana_inicio
+        - fecha_solicitud
+        - tipo
+        - centrocosto_id
+        - estado
+        - total_horas
       properties:
+        solicitud_id:
+          type: integer
         semana:
           type: integer
-        horas_dobles:
-          type: number
-        horas_descanso_trabajado:
-          type: number
-        total_horas_extra:
-          type: number
-        dif_caseta:
-          type: number
-        estado_aprobacion:
+        semana_inicio:
           type: string
-          enum: [pendiente, aprobado, rechazado]
+          format: date
+        fecha_solicitud:
+          type: string
+          format: date
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        area_descripcion:
+          type: string
+          nullable: true
+        centrocosto_id:
+          type: integer
+        centrocosto_descripcion:
+          type: string
+          nullable: true
+        motivo:
+          type: string
+          nullable: true
+        estado:
+          type: string
+          enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        total_horas:
+          type: number
+        registrado_por_nombre:
+          type: string
+          nullable: true
+        aprobador_nombre:
+          type: string
+          nullable: true
+        fecha_aprobacion:
+          type: string
+          format: date
+          nullable: true
 
     HorasExtraFilaResponse:
       type: object
-      required: [empleado, simulado]
+      required: [empleado, solicitud]
       properties:
         empleado:
           $ref: "#/components/schemas/HorasExtraEmpleadoResponse"
-        simulado:
-          $ref: "#/components/schemas/HorasExtraSimuladoResponse"
+        solicitud:
+          $ref: "#/components/schemas/HorasExtraSolicitudInfoResponse"
 
     HorasExtraResumenResponse:
       type: object
@@ -458,10 +487,10 @@ components:
         - colaboradores_con_registro
         - empleados_con_horas_extra
         - empleados_activos_planta
+        - solicitudes_total
         - solicitudes_pendientes
         - solicitudes_aprobadas
         - solicitudes_rechazadas
-        - solicitudes_con_dif_caseta
         - porcentaje_aprobacion
       properties:
         total_horas_extra:
@@ -472,13 +501,13 @@ components:
           type: integer
         empleados_activos_planta:
           type: integer
+        solicitudes_total:
+          type: integer
         solicitudes_pendientes:
           type: integer
         solicitudes_aprobadas:
           type: integer
         solicitudes_rechazadas:
-          type: integer
-        solicitudes_con_dif_caseta:
           type: integer
         porcentaje_aprobacion:
           type: number
@@ -4820,7 +4849,7 @@ paths:
   /api/v1/nominas/horas-extra:
     get:
       tags: [Nóminas]
-      summary: Listado de horas extra (empleados reales + campos simulados)
+      summary: Listado de solicitudes de horas extra registradas (una fila por empleado-solicitud)
       operationId: nominas_horas_extra_list
       security:
         - BearerAuth: []
