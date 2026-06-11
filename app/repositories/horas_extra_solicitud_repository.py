@@ -1,0 +1,150 @@
+"""Acceso a datos de solicitudes de horas extra."""
+
+from __future__ import annotations
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.catalogos import Area, Subarea
+from app.models.empleados import Empleado
+from app.models.horas_extra import (
+    CentroCosto,
+    Departamento,
+    HorasExtraMotivo,
+    HorasExtraSolicitud,
+    HorasExtraSolicitudDetalle,
+)
+
+
+class HorasExtraSolicitudRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def list_departamentos_activos(self) -> list[Departamento]:
+        result = await self.db.execute(
+            select(Departamento)
+            .where(Departamento.activo.is_(True))
+            .order_by(Departamento.nombre.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_areas_activas(self) -> list[Area]:
+        result = await self.db.execute(
+            select(Area).order_by(Area.descripcion.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_subareas_activas(self) -> list[Subarea]:
+        result = await self.db.execute(
+            select(Subarea).order_by(Subarea.descripcion.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_centros_costo_activos(self) -> list[CentroCosto]:
+        result = await self.db.execute(
+            select(CentroCosto)
+            .where(CentroCosto.activo.is_(True))
+            .order_by(CentroCosto.descripcion.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_motivos_activos(self) -> list[HorasExtraMotivo]:
+        result = await self.db.execute(
+            select(HorasExtraMotivo)
+            .where(HorasExtraMotivo.activo.is_(True))
+            .order_by(HorasExtraMotivo.descripcion.asc())
+        )
+        return list(result.scalars().all())
+
+    async def get_empleados_by_ids(self, ids: list[int]) -> list[Empleado]:
+        if not ids:
+            return []
+        result = await self.db.execute(
+            select(Empleado)
+            .options(selectinload(Empleado.clasificacion))
+            .where(Empleado.id.in_(ids))
+        )
+        return list(result.scalars().all())
+
+    async def get_departamento(self, departamento_id: int) -> Departamento | None:
+        return await self.db.get(Departamento, departamento_id)
+
+    async def get_area(self, area_id: int) -> Area | None:
+        return await self.db.get(Area, area_id)
+
+    async def get_subarea(self, subarea_id: int) -> Subarea | None:
+        return await self.db.get(Subarea, subarea_id)
+
+    async def get_centro_costo(self, centrocosto_id: int) -> CentroCosto | None:
+        return await self.db.get(CentroCosto, centrocosto_id)
+
+    async def get_motivo(self, motivo_id: int) -> HorasExtraMotivo | None:
+        return await self.db.get(HorasExtraMotivo, motivo_id)
+
+    async def create(
+        self,
+        solicitud: HorasExtraSolicitud,
+        detalle: list[HorasExtraSolicitudDetalle],
+    ) -> HorasExtraSolicitud:
+        self.db.add(solicitud)
+        await self.db.flush()
+        for row in detalle:
+            row.solicitud_id = solicitud.id
+            self.db.add(row)
+        await self.db.flush()
+        return await self.get_by_id(solicitud.id, registrado_por_id=solicitud.registrado_por_id)
+
+    async def get_by_id(
+        self,
+        solicitud_id: int,
+        *,
+        registrado_por_id: int,
+    ) -> HorasExtraSolicitud | None:
+        result = await self.db.execute(
+            select(HorasExtraSolicitud)
+            .options(
+                selectinload(HorasExtraSolicitud.departamento),
+                selectinload(HorasExtraSolicitud.area),
+                selectinload(HorasExtraSolicitud.subarea),
+                selectinload(HorasExtraSolicitud.centro_costo),
+                selectinload(HorasExtraSolicitud.motivo),
+                selectinload(HorasExtraSolicitud.detalle).selectinload(
+                    HorasExtraSolicitudDetalle.empleado
+                ),
+            )
+            .where(
+                HorasExtraSolicitud.id == solicitud_id,
+                HorasExtraSolicitud.registrado_por_id == registrado_por_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_by_registrado(
+        self,
+        *,
+        registrado_por_id: int,
+        offset: int,
+        limit: int,
+    ) -> list[HorasExtraSolicitud]:
+        result = await self.db.execute(
+            select(HorasExtraSolicitud)
+            .options(
+                selectinload(HorasExtraSolicitud.departamento),
+                selectinload(HorasExtraSolicitud.area),
+                selectinload(HorasExtraSolicitud.detalle),
+            )
+            .where(HorasExtraSolicitud.registrado_por_id == registrado_por_id)
+            .order_by(HorasExtraSolicitud.created_at.desc(), HorasExtraSolicitud.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def count_by_registrado(self, *, registrado_por_id: int) -> int:
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(HorasExtraSolicitud)
+            .where(HorasExtraSolicitud.registrado_por_id == registrado_por_id)
+        )
+        return int(result.scalar_one() or 0)

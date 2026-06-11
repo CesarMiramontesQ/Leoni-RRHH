@@ -77,12 +77,6 @@ class HorasExtraMotivo(Base):
 
 class HorasExtraSolicitud(Base):
     __tablename__ = "horas_extra_solicitudes"
-    __table_args__ = (
-        CheckConstraint(
-            "EXTRACT(ISODOW FROM semana_inicio) = 1",
-            name="chk_horas_extra_semana_lunes",
-        ),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     fecha_solicitud: Mapped[date] = mapped_column(Date, nullable=False)

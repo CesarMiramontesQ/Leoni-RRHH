@@ -501,6 +501,300 @@ components:
           items:
             $ref: "#/components/schemas/HorasExtraCentroCostoOption"
 
+    HorasExtraCatalogoOption:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+
+    HorasExtraSubareaOption:
+      type: object
+      required: [id, label, area_id]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        area_id:
+          type: integer
+
+    HorasExtraEmpleadoOption:
+      type: object
+      required: [id, no_empleado, nombre]
+      properties:
+        id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        centrocosto_id:
+          type: [integer, "null"]
+
+    HorasExtraSolicitudOpcionesResponse:
+      type: object
+      required: [departamentos, areas, subareas, centros_costo, motivos, empleados]
+      properties:
+        departamentos:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraCatalogoOption"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraCatalogoOption"
+        subareas:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraSubareaOption"
+        centros_costo:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraCatalogoOption"
+        motivos:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraCatalogoOption"
+        empleados:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraEmpleadoOption"
+
+    HorasExtraDetalleCreate:
+      type: object
+      required: [empleado_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo]
+      properties:
+        empleado_id:
+          type: integer
+        lunes:
+          type: number
+          minimum: 0
+        martes:
+          type: number
+          minimum: 0
+        miercoles:
+          type: number
+          minimum: 0
+        jueves:
+          type: number
+          minimum: 0
+        viernes:
+          type: number
+          minimum: 0
+        sabado:
+          type: number
+          minimum: 0
+        domingo:
+          type: number
+          minimum: 0
+
+    HorasExtraSolicitudCreate:
+      type: object
+      required:
+        - fecha_solicitud
+        - semana_inicio
+        - tipo
+        - departamento_id
+        - area_id
+        - subarea_id
+        - centrocosto_id
+        - motivo_id
+        - empleados
+      properties:
+        fecha_solicitud:
+          type: string
+          format: date
+        semana_inicio:
+          type: string
+          format: date
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        departamento_id:
+          type: integer
+        area_id:
+          type: integer
+        subarea_id:
+          type: integer
+        centrocosto_id:
+          type: integer
+        motivo_id:
+          type: integer
+        comentarios:
+          type: [string, "null"]
+        empleados:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/HorasExtraDetalleCreate"
+
+    HorasExtraDetalleResponse:
+      type: object
+      required:
+        - id
+        - empleado_id
+        - no_empleado
+        - nombre_empleado
+        - lunes
+        - martes
+        - miercoles
+        - jueves
+        - viernes
+        - sabado
+        - domingo
+        - total_horas
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre_empleado:
+          type: string
+        lunes:
+          type: number
+        martes:
+          type: number
+        miercoles:
+          type: number
+        jueves:
+          type: number
+        viernes:
+          type: number
+        sabado:
+          type: number
+        domingo:
+          type: number
+        total_horas:
+          type: number
+
+    HorasExtraSolicitudResponse:
+      type: object
+      required:
+        - id
+        - fecha_solicitud
+        - semana_inicio
+        - tipo
+        - departamento_id
+        - departamento_nombre
+        - area_id
+        - area_descripcion
+        - subarea_id
+        - subarea_descripcion
+        - centrocosto_id
+        - centrocosto_descripcion
+        - motivo_id
+        - motivo_descripcion
+        - estado
+        - total_horas_general
+        - total_empleados
+        - created_at
+        - detalle
+      properties:
+        id:
+          type: integer
+        fecha_solicitud:
+          type: string
+          format: date
+        semana_inicio:
+          type: string
+          format: date
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        departamento_id:
+          type: integer
+        departamento_nombre:
+          type: string
+        area_id:
+          type: integer
+        area_descripcion:
+          type: string
+        subarea_id:
+          type: integer
+        subarea_descripcion:
+          type: string
+        centrocosto_id:
+          type: integer
+        centrocosto_descripcion:
+          type: string
+        motivo_id:
+          type: integer
+        motivo_descripcion:
+          type: string
+        comentarios:
+          type: [string, "null"]
+        estado:
+          type: string
+          enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        total_horas_general:
+          type: number
+        total_empleados:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        detalle:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraDetalleResponse"
+
+    HorasExtraSolicitudListItem:
+      type: object
+      required:
+        - id
+        - fecha_solicitud
+        - semana_inicio
+        - departamento_nombre
+        - area_descripcion
+        - tipo
+        - total_horas_general
+        - estado
+        - created_at
+      properties:
+        id:
+          type: integer
+        fecha_solicitud:
+          type: string
+          format: date
+        semana_inicio:
+          type: string
+          format: date
+        departamento_nombre:
+          type: string
+        area_descripcion:
+          type: string
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        total_horas_general:
+          type: number
+        estado:
+          type: string
+          enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        created_at:
+          type: string
+          format: date-time
+
+    HorasExtraSolicitudListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraSolicitudListItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
     HorasExtraListResponse:
       type: object
       required: [semana_actual, resumen, tabs, filter_options, items, total, page, page_size]
@@ -4319,6 +4613,102 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UsuarioPageResponse"
+
+  /api/v1/horas-extra/solicitudes/opciones:
+    get:
+      tags: [Horas Extra]
+      summary: Catálogos y empleados elegibles para solicitud (supervisor)
+      operationId: horas_extra_solicitud_opciones
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Opciones del formulario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudOpcionesResponse"
+        "403":
+          description: Rol no autorizado
+
+  /api/v1/horas-extra/solicitudes:
+    get:
+      tags: [Horas Extra]
+      summary: Listado de solicitudes creadas por el supervisor autenticado
+      operationId: horas_extra_solicitud_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Solicitudes del supervisor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudListResponse"
+        "403":
+          description: Rol no autorizado
+    post:
+      tags: [Horas Extra]
+      summary: Crear solicitud de horas extra (supervisor)
+      operationId: horas_extra_solicitud_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraSolicitudCreate"
+      responses:
+        "201":
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudResponse"
+        "403":
+          description: Rol no autorizado
+        "422":
+          description: Validación de negocio o payload
+
+  /api/v1/horas-extra/solicitudes/{solicitud_id}:
+    get:
+      tags: [Horas Extra]
+      summary: Detalle de solicitud propia del supervisor
+      operationId: horas_extra_solicitud_detalle
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle de solicitud
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudResponse"
+        "403":
+          description: Rol no autorizado
+        "404":
+          description: Solicitud no encontrada o no pertenece al supervisor
 
   /api/v1/nominas/horas-extra:
     get:

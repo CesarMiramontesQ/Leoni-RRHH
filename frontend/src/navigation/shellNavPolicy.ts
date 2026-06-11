@@ -120,6 +120,7 @@ export type AppShellNavItemId =
   | "level-up"
   | "nominas"
   | "horas-extra"
+  | "horas-extra-solicitud"
   | "conciliacion";
 
 const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
@@ -140,6 +141,7 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "metricas",
   "incidencias",
   "solicitudes",
+  "horas-extra-solicitud",
   "comedor",
   "empleados",
 ]);
@@ -191,6 +193,9 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (itemId === "evaluacion-360") return navRol === "rh";
+  if (itemId === "horas-extra-solicitud") {
+    return navRol === "supervisor";
+  }
   if (itemId === "nominas" || itemId === "horas-extra" || itemId === "conciliacion") {
     return NOMINAS_NAV_ROLES.has(navRol ?? "");
   }

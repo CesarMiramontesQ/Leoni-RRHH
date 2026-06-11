@@ -55,6 +55,7 @@ import {
 } from "./pages/ajustesPermisosRh.ts";
 import { mountConciliacion } from "./pages/conciliacion.ts";
 import { mountHorasExtra } from "./pages/horasExtra.ts";
+import { mountHorasExtraSolicitud } from "./pages/horasExtraSolicitud.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -133,6 +134,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/nominas/conciliacion")) {
       mountConciliacion(container);
+      return;
+    }
+
+    if (h.startsWith("#/horas-extra/solicitud")) {
+      mountHorasExtraSolicitud(container);
       return;
     }
 
