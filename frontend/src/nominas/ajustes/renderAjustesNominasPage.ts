@@ -10,7 +10,6 @@ import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   FIELD_FOCUS,
-  FILTER_FIELD_WRAP,
   RH_DASHBOARD_PAGE_SHELL,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
@@ -243,24 +242,10 @@ function renderMensajes(state: AjustesNominasState): string {
     state.status === "ready" && state.errorMessage
       ? `<p class="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-800" role="alert">${escapeHtml(state.errorMessage)}</p>`
       : "";
-  return success + error;
+  return success || error ? `<div class="grid gap-2">${success}${error}</div>` : "";
 }
 
 function renderRows(state: AjustesNominasState): string {
-  const colspan = TABLE_COLUMNS.length;
-  if (state.status === "loading") {
-    return `<tr><td colspan="${colspan}" class="px-4 py-10 text-center text-sm text-text-secondary">Cargando empleados autorizados…</td></tr>`;
-  }
-  if (state.status === "error") {
-    return `<tr><td colspan="${colspan}" class="px-4 py-10 text-center text-sm text-red-700">${escapeHtml(state.errorMessage ?? "No se pudo cargar el listado.")}</td></tr>`;
-  }
-  if (state.items.length === 0) {
-    const vacio = state.q.trim()
-      ? "Sin empleados autorizados que coincidan con la búsqueda."
-      : "Aún no hay empleados autorizados para registrar horas extra.";
-    return `<tr><td colspan="${colspan}" class="px-4 py-10 text-center text-sm text-text-secondary">${vacio}</td></tr>`;
-  }
-
   return state.items
     .map((item) => {
       const revoking = state.revokingId === item.id;
@@ -331,52 +316,94 @@ function renderPagination(state: AjustesNominasState): string {
     </div>`;
 }
 
+function renderAutorizadosEmptyState(state: AjustesNominasState): string {
+  const disabled = state.status === "loading" || state.revokingId !== null;
+  return `
+    <div class="m-4 rounded-xl border border-dashed border-[var(--color-border)]/90 bg-slate-50/40 px-4 py-8 text-center sm:m-5">
+      <span class="mx-auto flex size-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">${FLUJO_ICONS.empleado}</span>
+      <p class="mt-3 text-sm font-semibold text-text-primary">No hay empleados autorizados</p>
+      <p class="mt-1.5 text-xs text-text-muted">Autoriza empleados para que puedan registrar las horas extra de sus equipos.</p>
+      <button
+        type="button"
+        data-aj-he-abrir-modal
+        class="${BTN_SECONDARY} mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+        ${disabled ? "disabled" : ""}
+      >+ Autorizar empleados</button>
+    </div>`;
+}
+
+function renderAutorizadosBody(state: AjustesNominasState): string {
+  if (state.status === "loading") {
+    return `<p class="px-4 py-8 text-center text-sm text-text-secondary sm:px-5">Cargando empleados autorizados…</p>`;
+  }
+  if (state.status === "error") {
+    return `<p class="px-4 py-8 text-center text-sm text-red-700 sm:px-5">${escapeHtml(state.errorMessage ?? "No se pudo cargar el listado.")}</p>`;
+  }
+  if (state.items.length === 0) {
+    if (state.q.trim()) {
+      return `<p class="px-4 py-8 text-center text-sm text-text-secondary sm:px-5">Sin empleados autorizados que coincidan con la búsqueda.</p>`;
+    }
+    return renderAutorizadosEmptyState(state);
+  }
+  return `
+    <div class="overflow-x-auto">
+      <table class="min-w-full border-collapse text-left">
+        <thead>
+          <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
+            ${TABLE_COLUMNS.map(
+              (col) =>
+                `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
+            ).join("")}
+          </tr>
+        </thead>
+        <tbody id="aj-he-table-body">
+          ${renderRows(state)}
+        </tbody>
+      </table>
+    </div>
+    ${renderPagination(state)}`;
+}
+
 function renderTablaAutorizados(state: AjustesNominasState): string {
   const disabled = state.status === "loading";
+  // Sin registros ni búsqueda activa: el CTA vive en el empty state (igual que aprobadores).
+  const sinRegistros =
+    state.status === "ready" && state.items.length === 0 && state.q.trim() === "";
+  const mostrarBusqueda = state.status !== "error" && !sinRegistros;
   return `
-    <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-labelledby="aj-he-titulo">
-      <div class="flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados para registrar horas extra</h2>
-            <p class="mt-1 text-sm leading-relaxed text-text-secondary">
-              Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
-            </p>
-          </div>
-          <button type="button" id="aj-he-abrir-modal" class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50" ${disabled || state.revokingId !== null ? "disabled" : ""}>
-            Autorizar empleados
-          </button>
+    <section class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden" aria-labelledby="aj-he-titulo">
+      <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+        <div class="min-w-0">
+          <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados para registrar horas extra</h2>
+          <p class="mt-1 text-sm leading-relaxed text-text-secondary">
+            Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
+          </p>
         </div>
-        ${renderMensajes(state)}
-        <div class="${FILTER_FIELD_WRAP} sm:max-w-xs">
-          <label for="aj-he-busqueda" class="${RH_LISTADO_LABEL}">Buscar en autorizados</label>
-          <input
-            id="aj-he-busqueda"
-            type="search"
-            value="${escapeHtml(state.q)}"
-            placeholder="Nombre, no. empleado, correo, área o puesto"
-            autocomplete="off"
-            class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
-            ${disabled ? "disabled" : ""}
-          />
-        </div>
+        ${
+          sinRegistros
+            ? ""
+            : `<button type="button" data-aj-he-abrir-modal class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50" ${disabled || state.revokingId !== null ? "disabled" : ""}>
+                Autorizar empleados
+              </button>`
+        }
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-full border-collapse text-left">
-          <thead>
-            <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
-              ${TABLE_COLUMNS.map(
-                (col) =>
-                  `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
-              ).join("")}
-            </tr>
-          </thead>
-          <tbody id="aj-he-table-body">
-            ${renderRows(state)}
-          </tbody>
-        </table>
-      </div>
-      ${renderPagination(state)}
+      ${
+        mostrarBusqueda
+          ? `<div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+              <input
+                id="aj-he-busqueda"
+                type="search"
+                value="${escapeHtml(state.q)}"
+                placeholder="Buscar por nombre, no. empleado, correo, área o puesto"
+                aria-label="Buscar en empleados autorizados"
+                autocomplete="off"
+                class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING} sm:max-w-xs"
+                ${disabled ? "disabled" : ""}
+              />
+            </div>`
+          : ""
+      }
+      ${renderAutorizadosBody(state)}
     </section>`;
 }
 
@@ -850,6 +877,7 @@ export function renderAjustesNominasPage(state: AjustesNominasState): string {
         ${renderHeader(state)}
         ${renderStats(state)}
         ${renderEstadoFlujo(state)}
+        ${renderMensajes(state)}
         ${renderTablaAutorizados(state)}
         ${renderSeccionAprobadores(state.aprobadores)}
       </div>

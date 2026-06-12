@@ -568,7 +568,9 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
       });
     });
 
-    root.querySelector("#aj-he-abrir-modal")?.addEventListener("click", abrirModal);
+    root.querySelectorAll<HTMLButtonElement>("[data-aj-he-abrir-modal]").forEach((btn) => {
+      btn.addEventListener("click", abrirModal);
+    });
 
     // Modal
     const backdrop = root.querySelector("#aj-he-modal-backdrop");
