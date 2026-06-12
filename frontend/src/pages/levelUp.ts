@@ -1,8 +1,8 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_SECONDARY, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
-import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
-import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible } from "../api/cursos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
+import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
@@ -339,12 +339,24 @@ export function mountCursos(container: HTMLElement): void {
     detailCurso: Curso | null;
     detailPuestos: CursoPuestoDetail[];
     detailEmpleadosExtra: CursoEmpleadoDetail[];
+    detailGrupos: CursoGrupoItem[];
     detailSesiones: CursoSesion[];
     showCreateSesionModal: boolean;
     viewingSesion: CursoSesion | null;
     sesionEmpleados: SesionEmpleadoItem[];
     selectedEmpleados: Set<number>;
     showAssignSesionPicker: boolean;
+    expandedGrupos: Set<number>;
+    expandedPuestos: Set<number>;
+    expandedExtras: boolean;
+    showAsignacionMasivaModal: boolean;
+    asignacionCatalogos: CursoCatalogos | null;
+    asignacionCatalogosLoading: boolean;
+    asignacionAreaId: number | null;
+    asignacionSubareaId: number | null;
+    asignacionPuestoId: number | null;
+    asignacionLoading: boolean;
+    asignacionResult: { asignados: number; ya_asignados: number } | null;
   }
 
   const state: CursosState = {
@@ -360,12 +372,24 @@ export function mountCursos(container: HTMLElement): void {
     detailCurso: null,
     detailPuestos: [],
     detailEmpleadosExtra: [],
+    detailGrupos: [],
     detailSesiones: [],
     showCreateSesionModal: false,
     viewingSesion: null,
     sesionEmpleados: [],
     selectedEmpleados: new Set(),
     showAssignSesionPicker: false,
+    expandedGrupos: new Set(),
+    expandedPuestos: new Set(),
+    expandedExtras: false,
+    showAsignacionMasivaModal: false,
+    asignacionCatalogos: null,
+    asignacionCatalogosLoading: false,
+    asignacionAreaId: null,
+    asignacionSubareaId: null,
+    asignacionPuestoId: null,
+    asignacionLoading: false,
+    asignacionResult: null,
   };
 
   async function loadEmpleados() {
@@ -682,6 +706,7 @@ export function mountCursos(container: HTMLElement): void {
     const puestoBlocks = puestos.map(p => {
       const puestoEmpIds = p.empleados.map(e => e.empleado_id);
       const allSelected = puestoEmpIds.length > 0 && puestoEmpIds.every(id => state.selectedEmpleados.has(id));
+      const isExpanded = state.expandedPuestos.has(p.id);
 
       const empRows = p.empleados.length > 0
         ? p.empleados.map(e => {
@@ -698,16 +723,17 @@ export function mountCursos(container: HTMLElement): void {
 
       return `
       <div class="border-b border-slate-100 last:border-0">
-        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-puesto-expand" data-puesto-id="${p.id}">
           <div class="flex items-center gap-2">
             ${hasSesiones && isRH && puestoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(puestoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            <svg class="size-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
             <a href="#/puestos/${p.puesto_perfil_id}" class="text-sm font-semibold text-leoni-blue hover:underline">${escapeHtml(p.puesto_nombre ?? `Puesto #${p.puesto_perfil_id}`)}</a>
             ${p.puesto_codigo ? `<span class="text-xs text-slate-400">${escapeHtml(p.puesto_codigo)}</span>` : ""}
             ${p.obligatorio ? `<span class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
           </div>
           <span class="text-xs text-slate-500 tabular-nums">${p.empleados_count} empleado${p.empleados_count !== 1 ? "s" : ""}</span>
         </div>
-        <ul class="px-5 py-2">${empRows}</ul>
+        ${isExpanded ? `<ul class="px-5 py-2">${empRows}</ul>` : ""}
       </div>`;
     }).join("");
 
@@ -746,10 +772,14 @@ export function mountCursos(container: HTMLElement): void {
 
     return `
     <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
-      <div class="border-b border-slate-100 px-6 py-4">
-        <h3 class="text-sm font-semibold text-text-primary">Empleados extra (individuales)</h3>
-        <p class="text-xs text-slate-500 mt-0.5">${emps.length} empleado${emps.length !== 1 ? "s" : ""} asignado${emps.length !== 1 ? "s" : ""} directamente</p>
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between cursor-pointer" data-action="toggle-extras-expand">
+        <div class="flex items-center gap-2">
+          <svg class="size-4 text-slate-400 transition-transform ${state.expandedExtras ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          <h3 class="text-sm font-semibold text-text-primary">Empleados extra (individuales)</h3>
+        </div>
+        <span class="text-xs text-slate-500">${emps.length} empleado${emps.length !== 1 ? "s" : ""}</span>
       </div>
+      ${state.expandedExtras ? `
       <table class="w-full text-left">
         <thead class="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
@@ -759,7 +789,7 @@ export function mountCursos(container: HTMLElement): void {
           </tr>
         </thead>
         <tbody>${rows}</tbody>
-      </table>
+      </table>` : ""}
     </div>`;
   }
 
@@ -836,10 +866,123 @@ export function mountCursos(container: HTMLElement): void {
       </div>
 
       ${renderDetailSesiones()}
+      ${renderDetailGrupos()}
       ${renderDetailPuestos()}
       ${renderDetailEmpleadosExtra()}
       ${renderSelectionBar()}
       ${state.showAssignSesionPicker ? renderAssignSesionPicker() : ""}
+      ${state.showAsignacionMasivaModal ? renderAsignacionMasivaModal() : ""}
+    </div>`;
+  }
+
+  function renderDetailGrupos(): string {
+    const grupos = state.detailGrupos;
+    const hasSesiones = state.detailSesiones.length > 0;
+    const tipoLabel = (t: string) => t === "area" ? "Área" : t === "subarea" ? "Subárea" : "Puesto";
+    const tipoCls = (t: string) => t === "area"
+      ? "border-blue-200 bg-blue-50 text-blue-800"
+      : t === "subarea"
+      ? "border-violet-200 bg-violet-50 text-violet-800"
+      : "border-amber-200 bg-amber-50 text-amber-800";
+
+    const totalEmps = grupos.reduce((s, g) => s + g.empleados_count, 0);
+
+    const grupoBlocks = grupos.map(g => {
+      const grupoEmpIds = g.empleados.map(e => e.empleado_id);
+      const allSelected = grupoEmpIds.length > 0 && grupoEmpIds.every(id => state.selectedEmpleados.has(id));
+      const isExpanded = state.expandedGrupos.has(g.id);
+
+      const empRows = g.empleados.length > 0
+        ? g.empleados.map(e => {
+          const checked = state.selectedEmpleados.has(e.empleado_id);
+          return `
+          <li class="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-0">
+            ${hasSesiones && isRH ? `<input type="checkbox" data-action="toggle-emp" data-emp-id="${e.empleado_id}" ${checked ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">${escapeHtml((e.nombre ?? "?").slice(0, 2).toUpperCase())}</span>
+            <span class="text-sm text-text-primary truncate">${escapeHtml(e.nombre ?? `#${e.empleado_id}`)}</span>
+            ${e.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">No. ${escapeHtml(e.no_empleado)}</span>` : ""}
+          </li>`;
+        }).join("")
+        : `<li class="text-xs text-slate-400 italic py-1">Sin empleados en este grupo</li>`;
+
+      return `
+      <div class="border-b border-slate-100 last:border-0">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-grupo-expand" data-grupo-id="${g.id}">
+          <div class="flex items-center gap-2">
+            ${hasSesiones && isRH && grupoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(grupoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            <svg class="size-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <span class="inline-flex items-center rounded-full border ${tipoCls(g.tipo)} px-2 py-0.5 text-[10px] font-semibold">${tipoLabel(g.tipo)}</span>
+            <span class="text-sm font-semibold text-text-primary">${escapeHtml(g.nombre)}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500 tabular-nums">${g.empleados_count} empleado${g.empleados_count !== 1 ? "s" : ""}</span>
+            ${isRH ? `<button data-action="quitar-grupo" data-grupo-id="${g.id}" class="text-xs text-red-600 hover:underline">Quitar</button>` : ""}
+          </div>
+        </div>
+        ${isExpanded ? `<ul class="px-5 py-2">${empRows}</ul>` : ""}
+      </div>`;
+    }).join("");
+
+    return `
+    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary">Grupos asignados</h3>
+          <p class="text-xs text-slate-500 mt-0.5">${grupos.length === 0 ? "Sin grupos asignados" : `${grupos.length} grupo${grupos.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total`}</p>
+        </div>
+        ${isRH ? `<button data-action="open-asignacion-masiva" class="${BTN_SECONDARY} text-xs">+ Asignar grupo</button>` : ""}
+      </div>
+      ${grupoBlocks}
+    </div>`;
+  }
+
+  function renderAsignacionMasivaModal(): string {
+    const selectCls = `w-full rounded-lg border border-border bg-white px-3 py-2 text-sm ${FIELD_FOCUS}`;
+    const cat = state.asignacionCatalogos;
+
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="asignacion-masiva">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-text-primary">Asignar grupo al curso</h3>
+          <button data-action="close-asignacion-masiva" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        ${state.asignacionCatalogosLoading ? `<p class="text-xs text-slate-400 text-center py-6">Cargando catálogos...</p>` :
+          !cat ? `<p class="text-xs text-red-500 text-center py-6">Error al cargar catálogos.</p>` : `
+        <div class="space-y-3">
+          <p class="text-xs text-slate-500">Selecciona un área, subárea o puesto. Todos los empleados de ese grupo quedarán asignados al curso dinámicamente.</p>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Área</label>
+            <select data-action="asignacion-area" class="${selectCls}">
+              <option value="">— Seleccionar —</option>
+              ${cat.areas.map(a => `<option value="${a.id}" ${state.asignacionAreaId === a.id ? "selected" : ""}>${escapeHtml(a.descripcion)}</option>`).join("")}
+            </select>
+            ${state.asignacionAreaId ? `<button data-action="agregar-grupo" data-tipo="area" data-ref-id="${state.asignacionAreaId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar esta área como grupo</button>` : ""}
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Subárea</label>
+            <select data-action="asignacion-subarea" class="${selectCls}">
+              <option value="">— Seleccionar —</option>
+              ${cat.subareas.map(s => `<option value="${s.id}" ${state.asignacionSubareaId === s.id ? "selected" : ""}>${escapeHtml(s.descripcion)}</option>`).join("")}
+            </select>
+            ${state.asignacionSubareaId ? `<button data-action="agregar-grupo" data-tipo="subarea" data-ref-id="${state.asignacionSubareaId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar esta subárea como grupo</button>` : ""}
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Puesto</label>
+            <select data-action="asignacion-puesto" class="${selectCls}">
+              <option value="">— Seleccionar —</option>
+              ${cat.puestos.map(p => `<option value="${p.id}" ${state.asignacionPuestoId === p.id ? "selected" : ""}>${escapeHtml(p.descripcion)}</option>`).join("")}
+            </select>
+            ${state.asignacionPuestoId ? `<button data-action="agregar-grupo" data-tipo="puesto" data-ref-id="${state.asignacionPuestoId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar este puesto como grupo</button>` : ""}
+          </div>
+          ${state.asignacionResult ? `
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              Grupo asignado correctamente.
+            </div>` : ""}
+        </div>`}
+      </div>
     </div>`;
   }
 
@@ -1142,15 +1285,17 @@ export function mountCursos(container: HTMLElement): void {
     state.detailCurso = curso;
     state.detailPuestos = [];
     state.detailEmpleadosExtra = [];
+    state.detailGrupos = [];
     state.detailSesiones = [];
     state.selectedEmpleados = new Set();
     history.replaceState(null, "", `#/cursos/${curso.id}`);
     render();
-    Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id)])
-      .then(([puestos, empExtra, sesionesResp]) => {
+    Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id), getCursoGrupos(curso.id)])
+      .then(([puestos, empExtra, sesionesResp, grupos]) => {
         state.detailPuestos = puestos;
         state.detailEmpleadosExtra = empExtra;
         state.detailSesiones = sesionesResp.items;
+        state.detailGrupos = grupos;
         render();
       })
       .catch(() => {});
@@ -1391,6 +1536,88 @@ export function mountCursos(container: HTMLElement): void {
     }
 
     // ── Selection & assign to session handlers ──
+    if (t.closest("[data-action='open-asignacion-masiva']")) {
+      state.showAsignacionMasivaModal = true;
+      state.asignacionResult = null;
+      state.asignacionAreaId = null;
+      state.asignacionSubareaId = null;
+      state.asignacionPuestoId = null;
+      state.asignacionCatalogosLoading = true;
+      render();
+      try {
+        state.asignacionCatalogos = await getCursoCatalogosAsignacion(state.detailCurso!.id);
+      } catch { state.asignacionCatalogos = null; }
+      state.asignacionCatalogosLoading = false;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='close-asignacion-masiva']") || (t as HTMLElement).dataset.backdrop === "asignacion-masiva") {
+      state.showAsignacionMasivaModal = false;
+      render();
+      return;
+    }
+
+    const toggleExpandBtn = t.closest("[data-action='toggle-grupo-expand']") as HTMLElement | null;
+    if (toggleExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("[data-action='quitar-grupo']")) {
+      const grupoId = Number(toggleExpandBtn.dataset.grupoId);
+      if (state.expandedGrupos.has(grupoId)) {
+        state.expandedGrupos.delete(grupoId);
+      } else {
+        state.expandedGrupos.add(grupoId);
+      }
+      render();
+      return;
+    }
+
+    const togglePuestoExpandBtn = t.closest("[data-action='toggle-puesto-expand']") as HTMLElement | null;
+    if (togglePuestoExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("a")) {
+      const puestoId = Number(togglePuestoExpandBtn.dataset.puestoId);
+      if (state.expandedPuestos.has(puestoId)) {
+        state.expandedPuestos.delete(puestoId);
+      } else {
+        state.expandedPuestos.add(puestoId);
+      }
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='toggle-extras-expand']") && !t.closest("[data-action='toggle-all-extras']")) {
+      state.expandedExtras = !state.expandedExtras;
+      render();
+      return;
+    }
+
+    const agregarGrupoBtn = t.closest("[data-action='agregar-grupo']") as HTMLElement | null;
+    if (agregarGrupoBtn) {
+      const tipo = agregarGrupoBtn.dataset.tipo!;
+      const refId = Number(agregarGrupoBtn.dataset.refId);
+      if (!tipo || !refId) return;
+      state.asignacionLoading = true;
+      state.asignacionResult = null;
+      render();
+      try {
+        await agregarGrupoCurso(state.detailCurso!.id, tipo, refId);
+        state.asignacionResult = { asignados: 1, ya_asignados: 0 };
+        state.detailGrupos = await getCursoGrupos(state.detailCurso!.id);
+      } catch { /* silently handle */ }
+      state.asignacionLoading = false;
+      render();
+      return;
+    }
+
+    const quitarGrupoBtn = t.closest("[data-action='quitar-grupo']") as HTMLElement | null;
+    if (quitarGrupoBtn) {
+      const grupoId = Number(quitarGrupoBtn.dataset.grupoId);
+      if (!grupoId) return;
+      try {
+        await quitarGrupoCurso(state.detailCurso!.id, grupoId);
+        state.detailGrupos = state.detailGrupos.filter(g => g.id !== grupoId);
+        render();
+      } catch { /* silently handle */ }
+      return;
+    }
+
     if (t.closest("[data-action='open-assign-sesion-picker']")) {
       state.showAssignSesionPicker = true;
       render();
@@ -1497,6 +1724,36 @@ export function mountCursos(container: HTMLElement): void {
     }
 
     const sel = t as HTMLSelectElement;
+
+    if (sel.matches("[data-action='asignacion-area']")) {
+      state.asignacionAreaId = sel.value ? Number(sel.value) : null;
+      state.asignacionSubareaId = null;
+      state.asignacionPuestoId = null;
+      state.asignacionResult = null;
+      state.asignacionCatalogosLoading = true;
+      render();
+      try {
+        state.asignacionCatalogos = await getCursoCatalogosAsignacion(state.detailCurso!.id, state.asignacionAreaId ?? undefined);
+      } catch { state.asignacionCatalogos = null; }
+      state.asignacionCatalogosLoading = false;
+      render();
+      return;
+    }
+
+    if (sel.matches("[data-action='asignacion-subarea']")) {
+      state.asignacionSubareaId = sel.value ? Number(sel.value) : null;
+      state.asignacionResult = null;
+      render();
+      return;
+    }
+
+    if (sel.matches("[data-action='asignacion-puesto']")) {
+      state.asignacionPuestoId = sel.value ? Number(sel.value) : null;
+      state.asignacionResult = null;
+      render();
+      return;
+    }
+
     if (sel.matches("[data-action='cursos-filter-tipo']")) {
       state.filters.tipo = sel.value;
       state.page = 1;
