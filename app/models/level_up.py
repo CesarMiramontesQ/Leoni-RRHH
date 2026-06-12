@@ -324,6 +324,7 @@ class CursoSesion(Base):
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     hora_inicio: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     hora_fin: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    tipo: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     ubicacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

@@ -619,23 +619,13 @@ export function mountCursos(container: HTMLElement): void {
             <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
             <input type="text" name="nombre" required value="${escapeHtml(c?.nombre ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-              <select name="tipo" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">—</option>
-                <option value="interno" ${c?.tipo === "interno" ? "selected" : ""}>Interno</option>
-                <option value="externo" ${c?.tipo === "externo" ? "selected" : ""}>Externo</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
-              <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">—</option>
-                <option value="adicional" ${c?.clasificacion === "adicional" ? "selected" : ""}>Adicional</option>
-                <option value="contemplado" ${c?.clasificacion === "contemplado" ? "selected" : ""}>Contemplado</option>
-              </select>
-            </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
+            <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="">—</option>
+              <option value="adicional" ${c?.clasificacion === "adicional" ? "selected" : ""}>Adicional</option>
+              <option value="contemplado" ${c?.clasificacion === "contemplado" ? "selected" : ""}>Contemplado</option>
+            </select>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
@@ -658,12 +648,6 @@ export function mountCursos(container: HTMLElement): void {
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
               <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-            </div>
-            <div class="relative">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
-              <input type="hidden" name="instructor" value="${escapeHtml(c?.instructor ?? "")}" />
-              <input type="text" data-action="instructor-search" placeholder="Buscar empleado..." value="${escapeHtml(c?.instructor ?? "")}" autocomplete="off" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-              <div data-ref="instructor-dropdown" class="absolute z-20 mt-1 hidden w-full max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"></div>
             </div>
           </div>
           <div>
@@ -819,7 +803,6 @@ export function mountCursos(container: HTMLElement): void {
         <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-6 py-4">
           ${cursoCatBadge(c.categoria)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
-          ${cursoTipoBadge(c.tipo)}
           <span class="ml-auto text-xs text-slate-500">ID: ${c.id}</span>
         </div>
 
@@ -827,9 +810,7 @@ export function mountCursos(container: HTMLElement): void {
           <dl class="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
             ${field("Nombre", c.nombre)}
             ${field("Categoría", CATEGORIA_LABELS[c.categoria ?? ""] ?? c.categoria)}
-            ${field("Tipo", TIPO_LABELS[c.tipo ?? ""] ?? c.tipo)}
             ${field("Clasificación", CLASIFICACION_LABELS[c.clasificacion ?? ""] ?? c.clasificacion)}
-            ${field("Instructor", c.instructor)}
             ${field("Proveedor", c.proveedor)}
             ${field("Duración", horas)}
             ${field("Cupo máximo", c.cupo_max ? String(c.cupo_max) : null)}
@@ -1053,6 +1034,7 @@ export function mountCursos(container: HTMLElement): void {
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
         <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(fecha)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(horario)}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${s.tipo ? escapeHtml(s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1)) : "—"}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
         <td class="px-4 py-2.5">
@@ -1081,6 +1063,7 @@ export function mountCursos(container: HTMLElement): void {
             <tr>
               <th class="px-4 py-2.5">Fecha</th>
               <th class="px-4 py-2.5">Horario</th>
+              <th class="px-4 py-2.5">Tipo</th>
               <th class="px-4 py-2.5">Ubicación</th>
               <th class="px-4 py-2.5">Instructor</th>
               <th class="px-4 py-2.5">Inscritos</th>
@@ -1164,9 +1147,19 @@ export function mountCursos(container: HTMLElement): void {
               <input type="time" name="hora_fin" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
             </div>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
-            <input type="text" name="ubicacion" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+              <select name="tipo" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}">
+                <option value="">—</option>
+                <option value="interno">Interno</option>
+                <option value="externo">Externo</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
+              <input type="text" name="ubicacion" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>

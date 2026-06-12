@@ -221,6 +221,7 @@ class CursoSesionCreate(BaseModel):
     fecha_fin: Optional[date] = None
     hora_inicio: Optional[time] = None
     hora_fin: Optional[time] = None
+    tipo: Optional[str] = Field(None, max_length=20)
     ubicacion: Optional[str] = Field(None, max_length=255)
     instructor: Optional[str] = Field(None, max_length=255)
     cupo_max: Optional[int] = Field(None, ge=1)
@@ -233,6 +234,7 @@ class CursoSesionUpdate(BaseModel):
     fecha_fin: Optional[date] = None
     hora_inicio: Optional[time] = None
     hora_fin: Optional[time] = None
+    tipo: Optional[str] = Field(None, max_length=20)
     ubicacion: Optional[str] = Field(None, max_length=255)
     instructor: Optional[str] = Field(None, max_length=255)
     cupo_max: Optional[int] = Field(None, ge=1)
@@ -248,6 +250,7 @@ class CursoSesionResponse(BaseModel):
     fecha_fin: Optional[date] = None
     hora_inicio: Optional[time] = None
     hora_fin: Optional[time] = None
+    tipo: Optional[str] = None
     ubicacion: Optional[str] = None
     instructor: Optional[str] = None
     cupo_max: Optional[int] = None
