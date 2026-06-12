@@ -57,23 +57,24 @@ Tabla: `curso_clasificacion`
 
 Reemplaza el enum `ClasificacionCurso` (adicional, contemplado).
 
-### 4. CursoInstructor (nueva tabla)
+### 4. CursoInstructorExterno (nueva tabla — solo instructores externos)
 
-Tabla: `curso_instructor`
+Tabla: `curso_instructor_externo`
 
 | Campo | Tipo | Constraints | Notas |
 |-------|------|-------------|-------|
 | id | serial PK | — | — |
 | nombre | varchar(255) | NOT NULL | Nombre completo |
 | especialidad | varchar(255) | nullable | Área de especialidad |
-| empresa | varchar(255) | nullable | Empresa (si es externo) |
-| es_interno | boolean | default true | Si es empleado de Leoni |
-| empleado_id | FK empleados.id | nullable | Vínculo opcional con empleado |
+| empresa | varchar(255) | nullable | Empresa proveedora |
 | contacto | varchar(255) | nullable | Email o teléfono |
 | activo | boolean | default true | Soft delete |
 | created_at | timestamp | default now() | — |
 
-Reemplaza el campo varchar `instructor` en la tabla `cursos` y `curso_sesion`.
+**Lógica de instructores:**
+- **Instructor interno** = un empleado de Leoni. Se selecciona de la tabla `empleados` existente. Se guarda como `instructor_empleado_id` (FK → `empleados.id`).
+- **Instructor externo** = persona externa. Se selecciona de este catálogo. Se guarda como `instructor_externo_id` (FK → `curso_instructor_externo.id`).
+- Un curso/sesión tiene `instructor_tipo` (enum: 'interno' | 'externo') + la FK correspondiente. Solo una de las dos FK puede tener valor (la otra es NULL).
 
 ### 5. CursoProveedor (nueva tabla)
 
@@ -99,14 +100,14 @@ Reemplaza el campo varchar `proveedor` en la tabla `cursos`.
 | categoria (enum) | Cambiar a `categoria_id` FK → `curso_categoria.id`, nullable |
 | tipo (enum) | Cambiar a `tipo_id` FK → `curso_tipo.id`, nullable |
 | clasificacion (enum) | Cambiar a `clasificacion_id` FK → `curso_clasificacion.id`, nullable |
-| instructor (varchar) | Cambiar a `instructor_id` FK → `curso_instructor.id`, nullable |
+| instructor (varchar) | Reemplazar por `instructor_tipo` (enum 'interno'/'externo', nullable) + `instructor_empleado_id` (FK → empleados.id, nullable) + `instructor_externo_id` (FK → curso_instructor_externo.id, nullable) |
 | proveedor (varchar) | Cambiar a `proveedor_id` FK → `curso_proveedor.id`, nullable |
 
 ### 7. Cambios a tabla `curso_sesion` (existente)
 
 | Campo actual | Cambio |
 |--------------|--------|
-| instructor (varchar) | Cambiar a `instructor_id` FK → `curso_instructor.id`, nullable |
+| instructor (varchar) | Reemplazar por `instructor_tipo` (enum 'interno'/'externo', nullable) + `instructor_empleado_id` (FK → empleados.id, nullable) + `instructor_externo_id` (FK → curso_instructor_externo.id, nullable) |
 
 ## Migración de datos
 
@@ -114,7 +115,7 @@ Reemplaza el campo varchar `proveedor` en la tabla `cursos`.
 2. Poblar `curso_categoria` con los valores actuales del enum: tecnico, calidad, seguridad, operativo, blanda.
 3. Poblar `curso_tipo` con: interno, externo.
 4. Poblar `curso_clasificacion` con: adicional, contemplado.
-5. Poblar `curso_instructor` extrayendo valores únicos del campo `cursos.instructor` y `curso_sesion.instructor`.
+5. Poblar `curso_instructor_externo` extrayendo valores únicos del campo `cursos.instructor` y `curso_sesion.instructor` (los que no coincidan con empleados activos se consideran externos).
 6. Poblar `curso_proveedor` extrayendo valores únicos del campo `cursos.proveedor`.
 7. Agregar columnas FK nuevas (`categoria_id`, `tipo_id`, `clasificacion_id`, `instructor_id`, `proveedor_id`).
 8. Actualizar las FK con los IDs correspondientes basándose en los valores actuales.
@@ -150,14 +151,16 @@ Reemplaza el campo varchar `proveedor` en la tabla `cursos`.
 | PUT | `/api/v1/level-up/catalogos/clasificaciones/{id}` | Editar | rh |
 | DELETE | `/api/v1/level-up/catalogos/clasificaciones/{id}` | Desactivar | rh |
 
-### Instructores
+### Instructores Externos
 
 | Método | Ruta | Descripción | Roles |
 |--------|------|-------------|-------|
-| GET | `/api/v1/level-up/catalogos/instructores` | Listar con búsqueda | todos |
-| POST | `/api/v1/level-up/catalogos/instructores` | Crear | rh |
-| PUT | `/api/v1/level-up/catalogos/instructores/{id}` | Editar | rh |
-| DELETE | `/api/v1/level-up/catalogos/instructores/{id}` | Desactivar | rh |
+| GET | `/api/v1/level-up/catalogos/instructores-externos` | Listar con búsqueda | todos |
+| POST | `/api/v1/level-up/catalogos/instructores-externos` | Crear | rh |
+| PUT | `/api/v1/level-up/catalogos/instructores-externos/{id}` | Editar | rh |
+| DELETE | `/api/v1/level-up/catalogos/instructores-externos/{id}` | Desactivar | rh |
+
+Nota: los instructores internos se obtienen del endpoint existente de empleados (`/api/v1/empleados` con búsqueda).
 
 ### Proveedores
 
@@ -178,7 +181,7 @@ Reemplaza el campo varchar `proveedor` en la tabla `cursos`.
 ### Nueva página: `#/cursos/ajustes`
 
 - Accesible desde el menú lateral del módulo de Cursos (solo rol RH)
-- Layout con tabs horizontales: Categorías | Tipos | Clasificaciones | Instructores | Proveedores
+- Layout con tabs horizontales: Categorías | Tipos | Clasificaciones | Instructores Externos | Proveedores
 - Cada tab muestra:
   - Tabla con columnas relevantes del catálogo
   - Botón "Agregar" que abre modal de creación
@@ -201,11 +204,12 @@ Reemplaza el campo varchar `proveedor` en la tabla `cursos`.
 - Columnas: Nombre, Descripción, Estado, Acciones
 - Modal crear/editar: nombre (requerido), descripción (opcional)
 
-### Tab Instructores
+### Tab Instructores Externos
 
-- Columnas: Nombre, Especialidad, Empresa, Interno/Externo, Estado, Acciones
-- Modal crear/editar: nombre (requerido), especialidad, empresa, es_interno (toggle), empleado (selector si es interno), contacto
+- Columnas: Nombre, Especialidad, Empresa, Contacto, Estado, Acciones
+- Modal crear/editar: nombre (requerido), especialidad, empresa, contacto
 - Búsqueda inline en la tabla
+- Nota: los instructores internos son empleados y no se administran aquí — se seleccionan directamente del listado de empleados al crear/editar un curso o sesión
 
 ### Tab Proveedores
 
@@ -218,7 +222,10 @@ Reemplaza el campo varchar `proveedor` en la tabla `cursos`.
 - El campo "Categoría" pasa de ser un select con enum fijo a un select dinámico que consume `/catalogos/categorias`
 - El campo "Tipo" pasa de enum fijo a select dinámico de `/catalogos/tipos`
 - El campo "Clasificación" pasa de enum fijo a select dinámico de `/catalogos/clasificaciones`
-- El campo "Instructor" pasa de texto libre a un select buscable de `/catalogos/instructores`
+- El campo "Instructor" cambia a un selector dual:
+  1. Primero se elige tipo: "Interno" o "Externo" (radio/toggle)
+  2. Si **Interno** → select buscable de empleados (endpoint `/api/v1/empleados`)
+  3. Si **Externo** → select buscable del catálogo de instructores externos (`/catalogos/instructores-externos`)
 - El campo "Proveedor" pasa de texto libre a un select buscable de `/catalogos/proveedores`
 
 ### Navegación
