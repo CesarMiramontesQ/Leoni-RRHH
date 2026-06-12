@@ -112,6 +112,7 @@ export interface CursoSesion {
   instructor_externo_id: number | null;
   instructor_nombre: string | null;
   costo: number | null;
+  cupo_max: number | null;
   notas: string | null;
   estado: EstadoSesion;
   inscritos_count: number;

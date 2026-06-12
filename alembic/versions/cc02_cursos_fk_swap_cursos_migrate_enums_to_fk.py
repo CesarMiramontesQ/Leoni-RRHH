@@ -1,7 +1,7 @@
 """cursos_migrate_enums_to_fk
 
-Revision ID: b2c3d4e5f6g7
-Revises: a1b2c3d4e5f6
+Revision ID: cc02_cursos_fk_swap
+Revises: cc01_cursos_cat_tbl
 Create Date: 2026-06-12
 
 """
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "b2c3d4e5f6g7"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
+revision: str = "cc02_cursos_fk_swap"
+down_revision: Union[str, None] = "cc01_cursos_cat_tbl"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

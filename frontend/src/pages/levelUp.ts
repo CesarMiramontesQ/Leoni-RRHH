@@ -208,7 +208,7 @@ function renderDashCapacitaciones(): string {
           </div>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(c.curso)}</p>
-            <p class="text-[11px] text-slate-500">${escapeHtml(c.instructor_nombre)} · ${escapeHtml(c.modalidad)}</p>
+            <p class="text-[11px] text-slate-500">${escapeHtml(c.instructor)} · ${escapeHtml(c.modalidad)}</p>
           </div>
           <span class="inline-flex items-center rounded-full border ${cupoCls} px-2 py-0.5 text-[10px] font-semibold tabular-nums">${c.cuposUsados}/${c.cuposTotal}</span>
         </div>`;
@@ -623,8 +623,8 @@ export function mountCursos(container: HTMLElement): void {
             <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
             <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
               <option value="">—</option>
-              <option value="adicional" ${c?.clasificacion === "adicional" ? "selected" : ""}>Adicional</option>
-              <option value="contemplado" ${c?.clasificacion === "contemplado" ? "selected" : ""}>Contemplado</option>
+              <option value="adicional" ${c?.clasificacion_nombre === "adicional" ? "selected" : ""}>Adicional</option>
+              <option value="contemplado" ${c?.clasificacion_nombre === "contemplado" ? "selected" : ""}>Contemplado</option>
             </select>
           </div>
           <div class="grid grid-cols-2 gap-4">
@@ -636,11 +636,11 @@ export function mountCursos(container: HTMLElement): void {
               <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
               <select name="categoria" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">—</option>
-                <option value="tecnico" ${c?.categoria === "tecnico" ? "selected" : ""}>Técnico</option>
-                <option value="calidad" ${c?.categoria === "calidad" ? "selected" : ""}>Calidad</option>
-                <option value="seguridad" ${c?.categoria === "seguridad" ? "selected" : ""}>Seguridad</option>
-                <option value="operativo" ${c?.categoria === "operativo" ? "selected" : ""}>Operativo</option>
-                <option value="blanda" ${c?.categoria === "blanda" ? "selected" : ""}>Blanda</option>
+                <option value="tecnico" ${c?.categoria_nombre === "tecnico" ? "selected" : ""}>Técnico</option>
+                <option value="calidad" ${c?.categoria_nombre === "calidad" ? "selected" : ""}>Calidad</option>
+                <option value="seguridad" ${c?.categoria_nombre === "seguridad" ? "selected" : ""}>Seguridad</option>
+                <option value="operativo" ${c?.categoria_nombre === "operativo" ? "selected" : ""}>Operativo</option>
+                <option value="blanda" ${c?.categoria_nombre === "blanda" ? "selected" : ""}>Blanda</option>
               </select>
             </div>
           </div>
@@ -1826,7 +1826,6 @@ export function mountCursos(container: HTMLElement): void {
         hora_inicio: (fd.get("hora_inicio") as string) || undefined,
         hora_fin: (fd.get("hora_fin") as string) || undefined,
         ubicacion: (fd.get("ubicacion") as string) || undefined,
-        instructor: (fd.get("instructor") as string) || undefined,
         costo: fd.get("costo") ? Number(fd.get("costo")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
@@ -1851,12 +1850,7 @@ export function mountCursos(container: HTMLElement): void {
     const fd = new FormData(form);
     const payload: CursoCreatePayload = {
       nombre: fd.get("nombre") as string,
-      tipo: (fd.get("tipo") as string as CursoCreatePayload["tipo"]) || undefined,
-      clasificacion: (fd.get("clasificacion") as string as CursoCreatePayload["clasificacion"]) || undefined,
       duracion_horas: fd.get("duracion_horas") ? Number(fd.get("duracion_horas")) : undefined,
-      categoria: (fd.get("categoria") as string as CursoCreatePayload["categoria"]) || undefined,
-      proveedor: (fd.get("proveedor") as string) || undefined,
-      instructor: (fd.get("instructor") as string) || undefined,
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
       descripcion: (fd.get("descripcion") as string) || undefined,
       requisitos: (fd.get("requisitos") as string) || undefined,
@@ -2837,10 +2831,10 @@ function renderEncTabla(): string {
           ${alertBadge}
         </div>
       </td>
-      <td class="px-3 py-2.5 text-xs text-slate-600">${escapeHtml(c.instructor_nombre)}</td>
+      <td class="px-3 py-2.5 text-xs text-slate-600">${escapeHtml(c.instructor)}</td>
       <td class="px-3 py-2.5 text-center font-mono text-xs font-semibold tabular-nums text-slate-700">${c.n}</td>
       <td class="px-3 py-2.5">${encHorizBar(c.contenido, 5, c.contenido >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
-      <td class="px-3 py-2.5">${encHorizBar(c.instructor_nombreScore, 5, c.instructor_nombreScore >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
+      <td class="px-3 py-2.5">${encHorizBar(c.instructorScore, 5, c.instructorScore >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
       <td class="px-3 py-2.5">${encHorizBar(c.utilidad, 5, c.utilidad >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
       <td class="px-3 py-2.5 text-center">${encSparkline(c.trend, trendColor)}</td>
       <td class="px-3 py-2.5 text-center">${encScorePill(c.score)}</td>
