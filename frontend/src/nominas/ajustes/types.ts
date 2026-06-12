@@ -29,6 +29,8 @@ export type AjustesNominasState = {
   revokingId: number | null;
   modal: AjustesNominasModalState | null;
   aprobadores: AprobadoresState;
+  /** Momento de la última carga exitosa del listado (para el header ejecutivo). */
+  lastUpdatedAt: Date | null;
 };
 
 // ── Configuración de aprobadores (gerentes regionales / director) ──

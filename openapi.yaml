@@ -861,6 +861,7 @@ components:
           autorizaciones_activas,
           sin_autorizacion,
           autorizaciones_recientes,
+          solicitudes_pendientes,
         ]
       properties:
         total_autorizados:
@@ -875,6 +876,9 @@ components:
         autorizaciones_recientes:
           type: integer
           description: Autorizaciones otorgadas en los últimos 7 días.
+        solicitudes_pendientes:
+          type: integer
+          description: Solicitudes de horas extra en estado pendiente.
 
     HorasExtraAutorizadosListResponse:
       type: object

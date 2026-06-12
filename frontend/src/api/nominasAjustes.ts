@@ -31,6 +31,7 @@ export type HorasExtraAutorizadosStats = {
   autorizaciones_activas: number;
   sin_autorizacion: number;
   autorizaciones_recientes: number;
+  solicitudes_pendientes: number;
 };
 
 export type HorasExtraAutorizadosListResponse = {

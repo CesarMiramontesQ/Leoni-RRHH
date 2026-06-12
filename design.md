@@ -1329,6 +1329,46 @@ CUMPLIMIENTO                                         (NUEVA SECCION)
 
 ---
 
+## 15.5 Ajustes de Nómina — Component Patterns
+
+Página `#/nominas/ajustes` estructurada como **centro de control de autorizaciones** (no como mantenimiento de catálogos). Estructura: header ejecutivo → KPI cards → Flow Status Card → tabla de autorizados → grid de aprobadores (2 col).
+
+### 15.5.1 Flow Status Card (Estado del flujo)
+
+Tarjeta que resume la salud de la configuración de un proceso de aprobación en cadena.
+
+- Header: título + descripción a la izquierda; badge de estado general a la derecha.
+- Badge de estado: pill `text-sm font-bold` con dot — verde `OPERATIVO` cuando toda la cadena está configurada, ámbar `CONFIGURACIÓN INCOMPLETA` cuando falta algún eslabón, azul `Verificando…` durante la carga.
+- Banda de flujo: `<ol>` horizontal en desktop (`sm:flex-row`), apilada en móvil. Cada paso es un chip `rounded-lg border` con icono + título + descripción corta. Tono por estado: emerald (configurado), amber (falta configuración), blue (paso informativo/terminal). Flechas SVG entre pasos (`rotate-90` en móvil).
+- Checklist inferior: grid `sm:grid-cols-3` con check emerald (✓ configurado) o triángulo amber (falta), separado con `border-t`.
+
+### 15.5.2 Executive Approver Card (Ficha ejecutiva)
+
+Cuando un rol de aprobación tiene un único responsable (p. ej. Director), se muestra como ficha en lugar de tabla:
+
+- Avatar `size-14 text-lg` con iniciales (`bg-leoni-blue text-white rounded-full`).
+- Nombre (`text-base font-semibold`), no. empleado · área/puesto, correo en `text-xs text-muted`.
+- Badge de estado (Activo/Inactivo) debajo de los metadatos.
+- Acciones (Desactivar/Eliminar) en footer separado con `border-t`.
+- Si hay más de un registro (histórico de inactivos), degrada a tabla estándar.
+
+### 15.5.3 Empty State con CTA
+
+Extensión del empty state de sección (8.15): dashed border + icono circular `bg-blue-50 text-blue-600` + título + descripción + botón secundario `+ {acción}` que abre el modal correspondiente.
+
+### 15.5.4 Selector de empleados en modal
+
+Filas de resultados como `<label>` clickeable: checkbox/radio + avatar `size-9` con iniciales + nombre + detalle (no. empleado · correo · área/puesto). Selección con tinte `bg-blue-50/60 border-leoni-blue/50`. Chips removibles de seleccionados debajo.
+
+### 15.5.5 Jerarquía de color de la página
+
+- **Azul**: configuración e información (pasos del flujo, iconos de empty state).
+- **Verde**: estados activos y configuración completa.
+- **Ámbar**: pendiente o configuración incompleta.
+- **Rojo**: solo acciones destructivas (Eliminar, Revocar).
+
+---
+
 ## 16. Stitch Screens Reference
 
 ### Original — HCM Platform (project `1746412759455982581`)

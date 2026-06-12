@@ -26,6 +26,7 @@ class HorasExtraAutorizadosStats(BaseModel):
     autorizaciones_activas: int
     sin_autorizacion: int
     autorizaciones_recientes: int
+    solicitudes_pendientes: int
 
 
 class HorasExtraAutorizadosListResponse(BaseModel):

@@ -67,11 +67,13 @@ class NominasAjustesService:
         sin_autorizacion = await self.repo.count_empleados(estados, autorizado=False)
         desde = datetime.now(timezone.utc) - timedelta(days=RECIENTES_DIAS)
         recientes = await self.repo.count_autorizados_recientes(desde)
+        pendientes = await self.repo.count_solicitudes_pendientes()
         return HorasExtraAutorizadosStats(
             total_autorizados=total_autorizados,
             autorizaciones_activas=activas,
             sin_autorizacion=sin_autorizacion,
             autorizaciones_recientes=recientes,
+            solicitudes_pendientes=pendientes,
         )
 
     async def listar_autorizados(

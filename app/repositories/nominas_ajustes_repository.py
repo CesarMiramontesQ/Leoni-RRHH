@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.catalogos import Area, Puesto
 from app.models.empleados import Empleado
-from app.models.horas_extra import HorasExtraAprobador
+from app.models.horas_extra import HorasExtraAprobador, HorasExtraSolicitud
 
 
 class NominasAjustesRepository:
@@ -86,6 +86,11 @@ class NominasAjustesRepository:
         stmt = select(func.count()).where(
             Empleado.puede_registrar_horas_extra.is_(True)
         )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())
+
+    async def count_solicitudes_pendientes(self) -> int:
+        stmt = select(func.count()).where(HorasExtraSolicitud.estado == "pendiente")
         result = await self.db.execute(stmt)
         return int(result.scalar_one())
 

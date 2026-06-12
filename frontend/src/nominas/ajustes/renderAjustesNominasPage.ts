@@ -53,19 +53,41 @@ function formatFechaAutorizacion(iso: string | null): string {
   });
 }
 
+function initials(nombre: string): string {
+  return nombre
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function avatarHtml(nombre: string, sizeCls = "size-9 text-xs"): string {
+  return `<span class="inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full bg-leoni-blue font-bold text-white" aria-hidden="true">${escapeHtml(initials(nombre))}</span>`;
+}
+
+function countGerentesActivos(aprobadores: AprobadoresState): number {
+  return aprobadores.gerentes.filter((g) => g.activo).length;
+}
+
+function directorActivo(aprobadores: AprobadoresState): AprobadorItem | undefined {
+  return aprobadores.directores.find((d) => d.activo);
+}
+
 function renderHeader(state: AjustesNominasState): string {
-  const disabled = state.status === "loading" || state.revokingId !== null;
+  const actualizado = state.lastUpdatedAt
+    ? `Actualizado a las ${state.lastUpdatedAt.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`
+    : "Cargando información…";
   return `
     <header class="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Ajustes de Nóminas</h1>
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Ajustes de Nómina</h1>
         <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          Administra a los empleados autorizados para registrar horas extra de sus equipos.
+          Administra los permisos y responsables del proceso de horas extra.
         </p>
       </div>
-      <button type="button" id="aj-he-abrir-modal" class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50" ${disabled ? "disabled" : ""}>
-        Autorizar empleados
-      </button>
+      <p class="shrink-0 text-xs text-text-muted" aria-live="polite">${actualizado}</p>
     </header>`;
 }
 
@@ -95,30 +117,121 @@ function renderStatCard(opts: {
 
 function renderStats(state: AjustesNominasState): string {
   const stats = state.stats;
+  const aprobadoresListos = !state.aprobadores.loading;
+  const director = directorActivo(state.aprobadores);
   return `
-    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Estadísticas de autorización de horas extra">
+    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Indicadores del proceso de horas extra">
       ${renderStatCard({
-        label: "Total de empleados autorizados",
-        value: stats?.total_autorizados ?? null,
-        tone: "default",
+        label: "Empleados autorizados",
+        value: stats?.autorizaciones_activas ?? null,
+        hint: "Autorizados para registrar horas extra",
+        tone: "info",
       })}
       ${renderStatCard({
-        label: "Autorizaciones activas",
-        value: stats?.autorizaciones_activas ?? null,
-        hint: "Empleados con estado laboral activo",
+        label: "Gerentes regionales",
+        value: aprobadoresListos ? countGerentesActivos(state.aprobadores) : null,
+        hint: "Aprobadores activos",
         tone: "success",
       })}
       ${renderStatCard({
-        label: "Empleados sin autorización",
-        value: stats?.sin_autorizacion ?? null,
-        tone: "muted",
+        label: "Director",
+        value: aprobadoresListos ? (director ? 1 : 0) : null,
+        hint: director ? "Director configurado" : "Sin director activo",
+        tone: director || !aprobadoresListos ? "success" : "muted",
       })}
       ${renderStatCard({
-        label: "Últimas autorizaciones",
-        value: stats?.autorizaciones_recientes ?? null,
-        hint: "Otorgadas en los últimos 7 días",
-        tone: "info",
+        label: "Solicitudes pendientes",
+        value: stats?.solicitudes_pendientes ?? null,
+        hint: "Pendientes de aprobación",
+        tone: "default",
       })}
+    </section>`;
+}
+
+// ── Estado del flujo de horas extra ──
+
+const FLUJO_ICONS: Record<string, string> = {
+  empleado: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0v.15H4.5v-.15Z"/></svg>`,
+  gerente: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.7a3.75 3.75 0 1 0-3-6.7m3 6.7a8.97 8.97 0 0 1-6 2.3 8.97 8.97 0 0 1-6-2.3m12 0v-.2c0-1-.27-1.9-.75-2.7M6 18.7a3.75 3.75 0 1 1 3-6.7m-3 6.7v-.2c0-1 .27-1.9.75-2.7m0 0a5.25 5.25 0 0 1 8.5 0M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>`,
+  director: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>`,
+  nomina: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60 60 0 0 1 15.8 2.1 2.25 2.25 0 0 0 2.7-2.2V6a2.25 2.25 0 0 0-2.7-2.2 60 60 0 0 1-15.8 2.1m0 12.85V5.9m0 12.85v.4a2.25 2.25 0 0 0 2.25 2.25h.4M2.25 5.9v-.4A2.25 2.25 0 0 1 4.5 3.25h.4m10.6 8.75a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z"/></svg>`,
+};
+
+function renderFlujoPaso(opts: {
+  icon: string;
+  titulo: string;
+  descripcion: string;
+  ok: boolean | null;
+}): string {
+  const tone =
+    opts.ok === null
+      ? "border-blue-200/80 bg-blue-50/50 text-blue-800"
+      : opts.ok
+        ? "border-emerald-200/80 bg-emerald-50/50 text-emerald-800"
+        : "border-amber-200/90 bg-amber-50/60 text-amber-800";
+  return `
+    <li class="flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 ${tone}">
+      ${opts.icon}
+      <span class="min-w-0">
+        <span class="block truncate text-xs font-semibold">${opts.titulo}</span>
+        <span class="block truncate text-[11px] opacity-80">${opts.descripcion}</span>
+      </span>
+    </li>`;
+}
+
+const FLUJO_FLECHA = `<li class="flex shrink-0 items-center justify-center text-text-muted" aria-hidden="true"><svg class="size-4 rotate-90 sm:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12l-7.5 7.5M21 12H3"/></svg></li>`;
+
+function renderEstadoFlujo(state: AjustesNominasState): string {
+  const cargando = state.stats === null || state.aprobadores.loading;
+  const tieneAutorizados = state.stats ? state.stats.autorizaciones_activas > 0 : null;
+  const tieneGerentes = state.aprobadores.loading
+    ? null
+    : countGerentesActivos(state.aprobadores) > 0;
+  const tieneDirector = state.aprobadores.loading
+    ? null
+    : directorActivo(state.aprobadores) !== undefined;
+
+  const operativo = tieneAutorizados === true && tieneGerentes === true && tieneDirector === true;
+  const estadoBadge = cargando
+    ? `<span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-bold text-blue-900">Verificando…</span>`
+    : operativo
+      ? `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-900"><span class="size-2 rounded-full bg-emerald-500" aria-hidden="true"></span>OPERATIVO</span>`
+      : `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-bold text-amber-900"><span class="size-2 rounded-full bg-amber-500" aria-hidden="true"></span>CONFIGURACIÓN INCOMPLETA</span>`;
+
+  const checkItem = (ok: boolean | null, label: string, pendiente: string): string => {
+    if (ok === null) {
+      return `<li class="flex items-center gap-2 text-sm text-text-muted"><span class="inline-block size-4 shrink-0 animate-pulse rounded-full bg-slate-200" aria-hidden="true"></span>${label}</li>`;
+    }
+    return ok
+      ? `<li class="flex items-center gap-2 text-sm text-text-secondary"><svg class="size-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>${label}</li>`
+      : `<li class="flex items-center gap-2 text-sm text-amber-800"><svg class="size-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.3 3.4c-.87 1.5.22 3.35 1.95 3.35h14.7c1.73 0 2.82-1.85 1.95-3.35L13.95 3.4c-.87-1.5-3.03-1.5-3.9 0L2.7 16.15ZM12 15.75h.01v.01H12v-.01Z"/></svg>${pendiente}</li>`;
+  };
+
+  return `
+    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-labelledby="aj-flujo-titulo">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 id="aj-flujo-titulo" class="text-base font-semibold text-text-primary">Estado del flujo de horas extra</h2>
+          <p class="mt-1 text-sm leading-relaxed text-text-secondary">
+            Cadena de aprobación configurada para las solicitudes de horas extra.
+          </p>
+        </div>
+        ${estadoBadge}
+      </div>
+      <ol class="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center" aria-label="Flujo de aprobación">
+        ${renderFlujoPaso({ icon: FLUJO_ICONS.empleado, titulo: "Empleado autorizado", descripcion: "Registra la solicitud", ok: tieneAutorizados })}
+        ${FLUJO_FLECHA}
+        ${renderFlujoPaso({ icon: FLUJO_ICONS.gerente, titulo: "Gerente Regional", descripcion: "Aprobación inicial", ok: tieneGerentes })}
+        ${FLUJO_FLECHA}
+        ${renderFlujoPaso({ icon: FLUJO_ICONS.director, titulo: "Director", descripcion: "Autorización final", ok: tieneDirector })}
+        ${FLUJO_FLECHA}
+        ${renderFlujoPaso({ icon: FLUJO_ICONS.nomina, titulo: "Nómina", descripcion: "Procesa el pago", ok: null })}
+      </ol>
+      <ul class="mt-4 grid gap-1.5 border-t border-slate-100 pt-3 sm:grid-cols-3">
+        ${checkItem(tieneAutorizados, "Empleados autorizados", "Sin empleados autorizados")}
+        ${checkItem(tieneGerentes, "Gerentes configurados", "Sin gerentes regionales activos")}
+        ${checkItem(tieneDirector, "Director configurado", "Sin director activo")}
+      </ul>
     </section>`;
 }
 
@@ -157,8 +270,13 @@ function renderRows(state: AjustesNominasState): string {
       return `
       <tr class="border-b border-slate-100 transition hover:bg-slate-50/70" data-aj-he-row="${item.id}">
         <td class="px-3 py-3">
-          <p class="text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
-          <p class="mt-0.5 text-xs tabular-nums text-text-muted">${escapeHtml(item.no_empleado)}</p>
+          <div class="flex items-center gap-3">
+            ${avatarHtml(item.nombre)}
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
+              <p class="mt-0.5 text-xs tabular-nums text-text-muted">${escapeHtml(item.no_empleado)}</p>
+            </div>
+          </div>
         </td>
         <td class="px-3 py-3 text-sm text-text-secondary">${escapeHtml(areaPuesto || "—")}</td>
         <td class="px-3 py-3 text-sm tabular-nums text-text-secondary">${escapeHtml(formatFechaAutorizacion(item.fecha_autorizacion))}</td>
@@ -218,11 +336,16 @@ function renderTablaAutorizados(state: AjustesNominasState): string {
   return `
     <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-labelledby="aj-he-titulo">
       <div class="flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5">
-        <div class="min-w-0">
-          <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados</h2>
-          <p class="mt-1 text-sm leading-relaxed text-text-secondary">
-            Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
-          </p>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados para registrar horas extra</h2>
+            <p class="mt-1 text-sm leading-relaxed text-text-secondary">
+              Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
+            </p>
+          </div>
+          <button type="button" id="aj-he-abrir-modal" class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50" ${disabled || state.revokingId !== null ? "disabled" : ""}>
+            Autorizar empleados
+          </button>
         </div>
         ${renderMensajes(state)}
         <div class="${FILTER_FIELD_WRAP} sm:max-w-xs">
@@ -275,14 +398,15 @@ function renderModalResultados(modal: AjustesNominasModalState): string {
         .filter(Boolean)
         .join(" · ");
       return `
-      <label class="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition ${checked ? "border-leoni-blue/50 bg-blue-50/60" : "border-slate-200 bg-white hover:border-leoni-blue/30 hover:bg-slate-50"}">
+      <label class="flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition ${checked ? "border-leoni-blue/50 bg-blue-50/60" : "border-slate-200 bg-white hover:border-leoni-blue/30 hover:bg-slate-50"}">
         <input
           type="checkbox"
           data-aj-he-modal-check="${emp.id}"
-          class="${CHECKBOX_CLS} mt-0.5"
+          class="${CHECKBOX_CLS}"
           ${checked ? "checked" : ""}
           ${modal.submitting ? "disabled" : ""}
         />
+        ${avatarHtml(emp.nombre)}
         <span class="min-w-0">
           <span class="block truncate text-sm font-medium text-text-primary">${escapeHtml(emp.nombre)}</span>
           <span class="block truncate text-xs text-text-muted">${escapeHtml(detalle)}</span>
@@ -386,34 +510,63 @@ const APROBADOR_CARD_COPY: Record<
   { titulo: string; descripcion: string; boton: string; vacio: string }
 > = {
   gerente_regional: {
-    titulo: "Gerentes regionales aprobadores",
-    descripcion:
-      "Gerentes regionales que pueden aprobar solicitudes de horas extra.",
+    titulo: "Gerentes Regionales",
+    descripcion: "Responsables de la aprobación inicial de horas extra.",
     boton: "Agregar gerente regional",
-    vacio: "Aún no hay gerentes regionales registrados como aprobadores.",
+    vacio: "No hay gerentes regionales configurados",
   },
   director: {
-    titulo: "Director aprobador",
+    titulo: "Director de aprobación final",
     descripcion:
-      "Director responsable de la aprobación final. Solo puede haber un director activo.",
+      "Responsable de la autorización final. Solo puede haber un director activo.",
     boton: "Agregar director",
-    vacio: "Aún no hay un director registrado como aprobador.",
+    vacio: "No hay un director configurado",
   },
 };
 
+function renderAprobadorAcciones(
+  item: AprobadorItem,
+  mutating: boolean,
+  busy: boolean,
+): string {
+  return `
+    <div class="flex flex-wrap items-center gap-1">
+      <button
+        type="button"
+        data-aj-ap-toggle="${item.id}"
+        class="${BTN_GHOST} px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+        ${busy ? "disabled" : ""}
+      >${mutating ? "Guardando…" : item.activo ? "Desactivar" : "Activar"}</button>
+      <button
+        type="button"
+        data-aj-ap-eliminar="${item.id}"
+        class="${BTN_GHOST} px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        ${busy ? "disabled" : ""}
+      >${mutating ? "…" : "Eliminar"}</button>
+    </div>`;
+}
+
+function renderAprobadorEmptyState(tipo: AprobadorTipo, busy: boolean): string {
+  const copy = APROBADOR_CARD_COPY[tipo];
+  return `
+    <div class="m-4 rounded-xl border border-dashed border-[var(--color-border)]/90 bg-slate-50/40 px-4 py-8 text-center sm:m-5">
+      <span class="mx-auto flex size-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">${tipo === "director" ? FLUJO_ICONS.director : FLUJO_ICONS.gerente}</span>
+      <p class="mt-3 text-sm font-semibold text-text-primary">${copy.vacio}</p>
+      <p class="mt-1.5 text-xs text-text-muted">${copy.descripcion}</p>
+      <button
+        type="button"
+        data-aj-ap-abrir-modal="${tipo}"
+        class="${BTN_SECONDARY} mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+        ${busy ? "disabled" : ""}
+      >+ ${copy.boton}</button>
+    </div>`;
+}
+
 function renderAprobadorRows(
-  tipo: AprobadorTipo,
   aprobadores: AprobadoresState,
   items: AprobadorItem[],
   busy: boolean,
 ): string {
-  const colspan = APROBADORES_TABLE_COLUMNS.length;
-  if (aprobadores.loading) {
-    return `<tr><td colspan="${colspan}" class="px-4 py-8 text-center text-sm text-text-secondary">Cargando aprobadores…</td></tr>`;
-  }
-  if (items.length === 0) {
-    return `<tr><td colspan="${colspan}" class="px-4 py-8 text-center text-sm text-text-secondary">${APROBADOR_CARD_COPY[tipo].vacio}</td></tr>`;
-  }
   return items
     .map((item) => {
       const mutating = aprobadores.mutatingId === item.id;
@@ -423,29 +576,85 @@ function renderAprobadorRows(
       return `
       <tr class="border-b border-slate-100 transition hover:bg-slate-50/70">
         <td class="px-3 py-3">
-          <p class="text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
-          <p class="mt-0.5 truncate text-xs tabular-nums text-text-muted">${escapeHtml(detalle)}</p>
-        </td>
-        <td class="px-3 py-3">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
-        <td class="px-3 py-3">
-          <div class="flex flex-wrap items-center gap-1">
-            <button
-              type="button"
-              data-aj-ap-toggle="${item.id}"
-              class="${BTN_GHOST} px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-              ${busy ? "disabled" : ""}
-            >${mutating ? "Guardando…" : item.activo ? "Desactivar" : "Activar"}</button>
-            <button
-              type="button"
-              data-aj-ap-eliminar="${item.id}"
-              class="${BTN_GHOST} px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              ${busy ? "disabled" : ""}
-            >${mutating ? "…" : "Eliminar"}</button>
+          <div class="flex items-center gap-3">
+            ${avatarHtml(item.nombre)}
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
+              <p class="mt-0.5 truncate text-xs tabular-nums text-text-muted">${escapeHtml(detalle)}</p>
+            </div>
           </div>
         </td>
+        <td class="px-3 py-3">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
+        <td class="px-3 py-3">${renderAprobadorAcciones(item, mutating, busy)}</td>
       </tr>`;
     })
     .join("");
+}
+
+function renderAprobadorTabla(
+  aprobadores: AprobadoresState,
+  items: AprobadorItem[],
+  busy: boolean,
+): string {
+  return `
+    <div class="overflow-x-auto">
+      <table class="min-w-full border-collapse text-left">
+        <thead>
+          <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
+            ${APROBADORES_TABLE_COLUMNS.map(
+              (col) =>
+                `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
+            ).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${renderAprobadorRows(aprobadores, items, busy)}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Ficha ejecutiva: se usa cuando el director es único en su tabla. */
+function renderDirectorFicha(
+  aprobadores: AprobadoresState,
+  item: AprobadorItem,
+  busy: boolean,
+): string {
+  const mutating = aprobadores.mutatingId === item.id;
+  const detalle = [item.noEmpleado, item.areaPuesto].filter(Boolean).join(" · ");
+  return `
+    <div class="flex flex-col gap-4 p-4 sm:p-5">
+      <div class="flex items-start gap-4">
+        ${avatarHtml(item.nombre, "size-14 text-lg")}
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-base font-semibold text-text-primary">${escapeHtml(item.nombre)}</p>
+          <p class="mt-0.5 truncate text-sm text-text-secondary">${escapeHtml(detalle || "—")}</p>
+          ${item.email ? `<p class="mt-0.5 truncate text-xs text-text-muted">${escapeHtml(item.email)}</p>` : ""}
+          <div class="mt-2">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</div>
+        </div>
+      </div>
+      <div class="border-t border-slate-100 pt-3">
+        ${renderAprobadorAcciones(item, mutating, busy)}
+      </div>
+    </div>`;
+}
+
+function renderAprobadorCardBody(
+  tipo: AprobadorTipo,
+  aprobadores: AprobadoresState,
+  items: AprobadorItem[],
+  busy: boolean,
+): string {
+  if (aprobadores.loading) {
+    return `<p class="px-4 py-8 text-center text-sm text-text-secondary sm:px-5">Cargando aprobadores…</p>`;
+  }
+  if (items.length === 0) {
+    return renderAprobadorEmptyState(tipo, busy);
+  }
+  if (tipo === "director" && items.length === 1) {
+    return renderDirectorFicha(aprobadores, items[0], busy);
+  }
+  return renderAprobadorTabla(aprobadores, items, busy);
 }
 
 function renderAprobadorCard(
@@ -455,6 +664,7 @@ function renderAprobadorCard(
   busy: boolean,
 ): string {
   const copy = APROBADOR_CARD_COPY[tipo];
+  const conRegistros = !aprobadores.loading && items.length > 0;
   return `
     <section class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden" aria-label="${copy.titulo}">
       <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
@@ -462,28 +672,18 @@ function renderAprobadorCard(
           <h3 class="text-base font-semibold text-text-primary">${copy.titulo}</h3>
           <p class="mt-1 text-sm leading-relaxed text-text-secondary">${copy.descripcion}</p>
         </div>
-        <button
-          type="button"
-          data-aj-ap-abrir-modal="${tipo}"
-          class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
-          ${busy ? "disabled" : ""}
-        >${copy.boton}</button>
+        ${
+          conRegistros
+            ? `<button
+                type="button"
+                data-aj-ap-abrir-modal="${tipo}"
+                class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
+                ${busy ? "disabled" : ""}
+              >${copy.boton}</button>`
+            : ""
+        }
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-full border-collapse text-left">
-          <thead>
-            <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
-              ${APROBADORES_TABLE_COLUMNS.map(
-                (col) =>
-                  `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
-              ).join("")}
-            </tr>
-          </thead>
-          <tbody>
-            ${renderAprobadorRows(tipo, aprobadores, items, busy)}
-          </tbody>
-        </table>
-      </div>
+      ${renderAprobadorCardBody(tipo, aprobadores, items, busy)}
     </section>`;
 }
 
@@ -535,15 +735,16 @@ function renderAprobadoresModalResultados(modal: AprobadoresModalState): string 
       const checked = modal.seleccionados.has(emp.empleadoId);
       const detalle = [emp.noEmpleado, emp.email, emp.areaPuesto].filter(Boolean).join(" · ");
       return `
-      <label class="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition ${checked ? "border-leoni-blue/50 bg-blue-50/60" : "border-slate-200 bg-white hover:border-leoni-blue/30 hover:bg-slate-50"}">
+      <label class="flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition ${checked ? "border-leoni-blue/50 bg-blue-50/60" : "border-slate-200 bg-white hover:border-leoni-blue/30 hover:bg-slate-50"}">
         <input
           type="${single ? "radio" : "checkbox"}"
           ${single ? 'name="aj-ap-modal-director"' : ""}
           data-aj-ap-modal-check="${emp.empleadoId}"
-          class="${CHECKBOX_CLS} mt-0.5"
+          class="${CHECKBOX_CLS}"
           ${checked ? "checked" : ""}
           ${modal.submitting ? "disabled" : ""}
         />
+        ${avatarHtml(emp.nombre)}
         <span class="min-w-0">
           <span class="block truncate text-sm font-medium text-text-primary">${escapeHtml(emp.nombre)}</span>
           <span class="block truncate text-xs text-text-muted">${escapeHtml(detalle)}</span>
@@ -648,6 +849,7 @@ export function renderAjustesNominasPage(state: AjustesNominasState): string {
       <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderHeader(state)}
         ${renderStats(state)}
+        ${renderEstadoFlujo(state)}
         ${renderTablaAutorizados(state)}
         ${renderSeccionAprobadores(state.aprobadores)}
       </div>
