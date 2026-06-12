@@ -1,10 +1,10 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
-import { BTN_SECONDARY, BTN_DANGER, FIELD_FOCUS } from "../ui/uiTokens.ts";
+import { BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER, FIELD_FOCUS } from "../ui/uiTokens.ts";
 import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, updateCursoSesion, actualizarAsistencia } from "../api/cursos.ts";
 import type { EmpleadoElegible } from "../api/cursos.ts";
 import { ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
-import type { Curso, CursoSesion, EstadoSesion, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
+import type { Curso, CursoSesion, EstadoSesion, SesionEmpleadoItem, CursoSesionUpdatePayload } from "../dashboard/cursos/types.ts";
 
 export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesionId: number, signal: AbortSignal): void {
   interface State {
@@ -17,6 +17,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchResults: EmpleadoElegible[];
     searchLoading: boolean;
     showAddModal: boolean;
+    showEditModal: boolean;
   }
 
   const state: State = {
@@ -29,6 +30,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchResults: [],
     searchLoading: false,
     showAddModal: false,
+    showEditModal: false,
   };
 
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -111,13 +113,16 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       <div class="rounded-2xl border border-border bg-white p-5">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-base font-semibold text-text-primary">Datos de la Sesión</h2>
-          <div class="flex items-center gap-2">
-            <label for="sesion-estado" class="text-xs text-slate-500">Estado:</label>
-            <select id="sesion-estado" data-action="change-estado" class="rounded-lg border ${estadoCls} px-3 py-1.5 text-xs font-semibold ${FIELD_FOCUS} cursor-pointer">
-              ${(["programada", "en_curso", "completada", "cancelada"] as const).map(e =>
-                `<option value="${e}" ${s.estado === e ? "selected" : ""}>${escapeHtml(ESTADO_SESION_LABELS[e])}</option>`
-              ).join("")}
-            </select>
+          <div class="flex items-center gap-3">
+            <button data-action="open-edit-sesion" class="${BTN_SECONDARY} text-xs">Editar</button>
+            <div class="flex items-center gap-2">
+              <label for="sesion-estado" class="text-xs text-slate-500">Estado:</label>
+              <select id="sesion-estado" data-action="change-estado" class="rounded-lg border ${estadoCls} px-3 py-1.5 text-xs font-semibold ${FIELD_FOCUS} cursor-pointer">
+                ${(["programada", "en_curso", "completada", "cancelada"] as const).map(e =>
+                  `<option value="${e}" ${s.estado === e ? "selected" : ""}>${escapeHtml(ESTADO_SESION_LABELS[e])}</option>`
+                ).join("")}
+              </select>
+            </div>
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
@@ -133,6 +138,10 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
             <p class="text-slate-400 text-xs">Horario</p>
             <p class="font-medium text-text-primary">${escapeHtml(horario)}</p>
           </div>` : ""}
+          ${s.tipo ? `<div>
+            <p class="text-slate-400 text-xs">Tipo</p>
+            <p class="font-medium text-text-primary">${escapeHtml(s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1))}</p>
+          </div>` : ""}
           ${s.ubicacion ? `<div>
             <p class="text-slate-400 text-xs">Ubicación</p>
             <p class="font-medium text-text-primary">${escapeHtml(s.ubicacion)}</p>
@@ -141,9 +150,13 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
             <p class="text-slate-400 text-xs">Instructor</p>
             <p class="font-medium text-text-primary">${escapeHtml(s.instructor)}</p>
           </div>` : ""}
+          ${s.costo != null ? `<div>
+            <p class="text-slate-400 text-xs">Costo</p>
+            <p class="font-medium text-text-primary">$${s.costo.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</p>
+          </div>` : ""}
           <div>
-            <p class="text-slate-400 text-xs">Cupo</p>
-            <p class="font-medium text-text-primary">${s.cupo_max ? `${state.empleados.length}/${s.cupo_max}` : `${state.empleados.length} inscritos`}</p>
+            <p class="text-slate-400 text-xs">Inscritos</p>
+            <p class="font-medium text-text-primary">${state.empleados.length}</p>
           </div>
         </div>
         ${s.notas ? `<div class="mt-4 pt-3 border-t border-slate-100">
@@ -194,6 +207,74 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       </div>
 
       ${state.showAddModal ? renderAddModal() : ""}
+      ${state.showEditModal ? renderEditModal() : ""}
+    </div>`;
+  }
+
+  function renderEditModal(): string {
+    const s = state.sesion!;
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-backdrop="edit-sesion-modal">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-text-primary">Editar Sesión</h3>
+          <button data-action="close-edit-modal" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+        </div>
+        <form data-form="edit-sesion" class="flex flex-col gap-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Fecha inicio *</label>
+              <input type="date" name="fecha_inicio" required value="${s.fecha_inicio}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Fecha fin</label>
+              <input type="date" name="fecha_fin" value="${s.fecha_fin ?? ""}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Hora inicio</label>
+              <input type="time" name="hora_inicio" value="${s.hora_inicio?.slice(0, 5) ?? ""}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Hora fin</label>
+              <input type="time" name="hora_fin" value="${s.hora_fin?.slice(0, 5) ?? ""}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+              <select name="tipo" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}">
+                <option value="">—</option>
+                <option value="interno" ${s.tipo === "interno" ? "selected" : ""}>Interno</option>
+                <option value="externo" ${s.tipo === "externo" ? "selected" : ""}>Externo</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
+              <input type="text" name="ubicacion" value="${escapeHtml(s.ubicacion ?? "")}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>
+              <input type="text" name="instructor" value="${escapeHtml(s.instructor ?? "")}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Costo</label>
+              <input type="number" name="costo" min="0" step="0.01" value="${s.costo ?? ""}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+            <textarea name="notas" rows="2" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}">${escapeHtml(s.notas ?? "")}</textarea>
+          </div>
+          <div class="flex items-center justify-end gap-3 mt-2">
+            <button type="button" data-action="close-edit-modal" class="${BTN_SECONDARY}">Cancelar</button>
+            <button type="submit" class="${BTN_PRIMARY}">Guardar</button>
+          </div>
+        </form>
+      </div>
     </div>`;
   }
 
@@ -228,6 +309,43 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     container.addEventListener("click", handleClick, { signal });
     container.addEventListener("input", handleInput, { signal });
     container.addEventListener("change", handleChange, { signal });
+    container.addEventListener("submit", handleSubmit, { signal });
+  }
+
+  async function handleSubmit(e: Event): Promise<void> {
+    const form = (e.target as HTMLElement).closest("[data-form='edit-sesion']") as HTMLFormElement | null;
+    if (!form) return;
+    e.preventDefault();
+
+    const fd = new FormData(form);
+    const payload: CursoSesionUpdatePayload = {};
+    const fechaInicio = fd.get("fecha_inicio") as string;
+    if (fechaInicio) payload.fecha_inicio = fechaInicio;
+    const fechaFin = fd.get("fecha_fin") as string;
+    if (fechaFin) payload.fecha_fin = fechaFin;
+    const horaInicio = fd.get("hora_inicio") as string;
+    if (horaInicio) payload.hora_inicio = horaInicio;
+    const horaFin = fd.get("hora_fin") as string;
+    if (horaFin) payload.hora_fin = horaFin;
+    const tipo = fd.get("tipo") as string;
+    payload.tipo = tipo || undefined;
+    const ubicacion = fd.get("ubicacion") as string;
+    payload.ubicacion = ubicacion || undefined;
+    const instructor = fd.get("instructor") as string;
+    payload.instructor = instructor || undefined;
+    const costo = fd.get("costo") as string;
+    if (costo) payload.costo = Number(costo);
+    const notas = fd.get("notas") as string;
+    payload.notas = notas || undefined;
+
+    try {
+      const updated = await updateCursoSesion(cursoId, sesionId, payload);
+      state.sesion = updated;
+      state.showEditModal = false;
+      render();
+    } catch {
+      render();
+    }
   }
 
   async function handleChange(e: Event): Promise<void> {
@@ -285,6 +403,18 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       state.showAddModal = false;
       state.searchQuery = "";
       state.searchResults = [];
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='open-edit-sesion']")) {
+      state.showEditModal = true;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='close-edit-modal']") || (t as HTMLElement).matches("[data-backdrop='edit-sesion-modal']")) {
+      state.showEditModal = false;
       render();
       return;
     }

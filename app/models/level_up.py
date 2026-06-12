@@ -327,6 +327,7 @@ class CursoSesion(Base):
     tipo: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     ubicacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    costo: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[EstadoSesion] = mapped_column(

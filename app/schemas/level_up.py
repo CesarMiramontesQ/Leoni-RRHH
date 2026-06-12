@@ -224,7 +224,7 @@ class CursoSesionCreate(BaseModel):
     tipo: Optional[str] = Field(None, max_length=20)
     ubicacion: Optional[str] = Field(None, max_length=255)
     instructor: Optional[str] = Field(None, max_length=255)
-    cupo_max: Optional[int] = Field(None, ge=1)
+    costo: Optional[float] = Field(None, ge=0)
     notas: Optional[str] = None
 
 
@@ -237,7 +237,7 @@ class CursoSesionUpdate(BaseModel):
     tipo: Optional[str] = Field(None, max_length=20)
     ubicacion: Optional[str] = Field(None, max_length=255)
     instructor: Optional[str] = Field(None, max_length=255)
-    cupo_max: Optional[int] = Field(None, ge=1)
+    costo: Optional[float] = Field(None, ge=0)
     notas: Optional[str] = None
     estado: Optional[EstadoSesionLiteral] = None
 
@@ -253,7 +253,7 @@ class CursoSesionResponse(BaseModel):
     tipo: Optional[str] = None
     ubicacion: Optional[str] = None
     instructor: Optional[str] = None
-    cupo_max: Optional[int] = None
+    costo: Optional[float] = None
     notas: Optional[str] = None
     estado: str
     inscritos_count: int = 0

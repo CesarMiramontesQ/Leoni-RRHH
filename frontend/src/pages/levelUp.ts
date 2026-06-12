@@ -990,7 +990,7 @@ export function mountCursos(container: HTMLElement): void {
           ${sesiones.map(s => {
             const fecha = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
             const hora = s.hora_inicio ? ` ${s.hora_inicio.slice(0, 5)}` : "";
-            const cupo = s.cupo_max ? ` (${s.inscritos_count}/${s.cupo_max})` : "";
+            const cupo = s.inscritos_count ? ` (${s.inscritos_count})` : "";
             return `
             <button data-action="assign-to-sesion" data-sesion-id="${s.id}" class="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-blue-300 hover:bg-blue-50/50 transition">
               <div>
@@ -1029,7 +1029,7 @@ export function mountCursos(container: HTMLElement): void {
     const rows = sesiones.map(s => {
       const fecha = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" });
       const horario = s.hora_inicio ? `${s.hora_inicio.slice(0, 5)}${s.hora_fin ? " – " + s.hora_fin.slice(0, 5) : ""}` : "—";
-      const cupo = s.cupo_max ? `${s.inscritos_count}/${s.cupo_max}` : `${s.inscritos_count}`;
+      const cupo = `${s.inscritos_count}`;
       return `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
         <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(fecha)}</td>
@@ -1166,8 +1166,8 @@ export function mountCursos(container: HTMLElement): void {
             <input type="text" name="instructor" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Cupo máximo</label>
-            <input type="number" name="cupo_max" min="1" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            <label class="block text-xs font-medium text-slate-600 mb-1">Costo</label>
+            <input type="number" name="costo" min="0" step="0.01" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Notas</label>
@@ -1827,7 +1827,7 @@ export function mountCursos(container: HTMLElement): void {
         hora_fin: (fd.get("hora_fin") as string) || undefined,
         ubicacion: (fd.get("ubicacion") as string) || undefined,
         instructor: (fd.get("instructor") as string) || undefined,
-        cupo_max: fd.get("cupo_max") ? Number(fd.get("cupo_max")) : undefined,
+        costo: fd.get("costo") ? Number(fd.get("costo")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
       if (!payload.fecha_inicio) { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; } return; }
