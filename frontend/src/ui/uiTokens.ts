@@ -143,3 +143,36 @@ export function htmlAccessDenied(opts: {
       ${linkHtml}
     </div>`;
 }
+
+// ── Shell sidebar tokens ─────────────────────────────────────────────────────
+
+const navLinkBase =
+  "group/nav relative flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm leading-6 transition-colors md:max-lg:justify-center md:max-lg:px-2";
+
+export const SHELL_NAV_LINK_INACTIVE =
+  `${navLinkBase} border border-transparent font-semibold text-text-primary hover:bg-shell-hover hover:text-text-primary`;
+
+export const SHELL_NAV_LINK_ACTIVE =
+  `${navLinkBase} border border-transparent bg-shell-active-ring font-bold text-text-primary before:pointer-events-none before:absolute before:start-0 before:top-1/2 before:h-[1.875rem] before:w-[3px] before:-translate-y-1/2 before:rounded-e before:bg-accent`;
+
+export const SHELL_NAV_ICON_INACTIVE =
+  "size-5 shrink-0 text-text-muted transition-colors duration-150 group-hover/nav:text-text-primary md:max-lg:mx-auto";
+
+export const SHELL_NAV_ICON_ACTIVE = "size-5 shrink-0 text-text-primary md:max-lg:mx-auto";
+
+export const SHELL_NAV_LABEL = "md:max-lg:sr-only";
+
+export const SHELL_NAV_LIST = "-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3";
+
+export const SHELL_NAV_SECTION_HEADING =
+  "text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden";
+
+export const SHELL_NAV_SECTION_DIVIDER = "my-3 border-t border-slate-100";
+
+export const SHELL_SIDEBAR_INNER =
+  "flex grow flex-col gap-y-5 overflow-y-auto bg-shell px-6 pb-4 ring-1 ring-shell-ring";
+
+export const SHELL_SIDEBAR_LOGO_WRAP =
+  "flex h-16 shrink-0 items-center";
+
+export const SHELL_SIDEBAR_LOGO_IMG = "h-8 w-auto";

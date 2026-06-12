@@ -993,7 +993,7 @@ function openAsignarCursoModal(
           activas.map(s => {
             const f = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
             const h = s.hora_inicio ? ` ${s.hora_inicio.slice(0, 5)}` : "";
-            const cap = s.cupo_max ? ` (${s.inscritos_count}/${s.cupo_max})` : "";
+            const cap = s.inscritos_count ? ` (${s.inscritos_count})` : "";
             return `<option value="${s.id}">${f}${h}${cap}${s.ubicacion ? " — " + s.ubicacion : ""}</option>`;
           }).join("");
         sesionesDiv.classList.remove("hidden");
@@ -1103,7 +1103,6 @@ function openEditBaseModal(
     ev.preventDefault();
     const fd = new FormData(form);
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
-    const nivel = String(fd.get("nivel") ?? "").trim();
 
     if (!nombre_puesto) {
       errorEl.textContent = "El nombre es requerido.";
@@ -1116,7 +1115,7 @@ function openEditBaseModal(
     submitBtn.textContent = "Guardando...";
 
     try {
-      await updatePerfil(perfilId, { nombre_puesto, nivel: nivel || undefined });
+      await updatePerfil(perfilId, { nombre_puesto });
       close();
       document.removeEventListener("keydown", escHandler);
       onSuccess();

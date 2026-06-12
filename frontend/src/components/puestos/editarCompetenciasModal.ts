@@ -14,7 +14,7 @@ export type EditarCompetenciasModalHandle = {
 
 export type EditarCompetenciasModalOptions = {
   perfilId: number;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 };
 
 import { escapeHtml } from "../../ui/uiUtils.ts";
