@@ -5,7 +5,6 @@ import {
   getHorasExtraAprobadores,
   getHorasExtraAutorizados,
   setHorasExtraAutorizacion,
-  updateHorasExtraAprobador,
   type HorasExtraAprobadoresListResponse,
   type HorasExtraAprobadorItem,
   type HorasExtraAutorizadoItem,
@@ -513,30 +512,6 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
     }
   };
 
-  const cambiarEstadoAprobador = async (aprobadorId: number): Promise<void> => {
-    if (state.aprobadores.mutatingId !== null) return;
-    const item = buscarAprobadorPorId(aprobadorId);
-    if (!item) return;
-    setAprobadores({ mutatingId: aprobadorId, successMessage: undefined, errorMessage: undefined });
-    try {
-      const data = await updateHorasExtraAprobador(aprobadorId, !item.activo);
-      if (signal?.aborted) return;
-      setAprobadores({
-        mutatingId: null,
-        ...mapAprobadoresResponse(data),
-        successMessage: `${item.nombre} ${item.activo ? "desactivado" : "activado"} como aprobador.`,
-      });
-    } catch (e) {
-      const err = e as NominasAjustesFetchError;
-      if (handleAuthError(err)) return;
-      if (signal?.aborted) return;
-      setAprobadores({
-        mutatingId: null,
-        errorMessage: err.detail ?? "No se pudo actualizar el aprobador.",
-      });
-    }
-  };
-
   const bindEvents = (): void => {
     const root = container.querySelector("#ajustes-nominas-page");
     if (!root) return;
@@ -608,13 +583,6 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
       btn.addEventListener("click", () => {
         const tipo = btn.dataset.ajApAbrirModal as AprobadorTipo | undefined;
         if (tipo === "gerente_regional" || tipo === "director") abrirModalAprobadores(tipo);
-      });
-    });
-
-    root.querySelectorAll<HTMLButtonElement>("[data-aj-ap-toggle]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = Number.parseInt(btn.dataset.ajApToggle ?? "0", 10);
-        if (id) void cambiarEstadoAprobador(id);
       });
     });
 

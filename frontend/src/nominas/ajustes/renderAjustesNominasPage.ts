@@ -580,20 +580,12 @@ function renderAprobadorAcciones(
   busy: boolean,
 ): string {
   return `
-    <div class="flex flex-wrap items-center gap-1">
-      <button
-        type="button"
-        data-aj-ap-toggle="${item.id}"
-        class="${BTN_GHOST} px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-        ${busy ? "disabled" : ""}
-      >${mutating ? "Guardando…" : item.activo ? "Desactivar" : "Activar"}</button>
-      <button
-        type="button"
-        data-aj-ap-eliminar="${item.id}"
-        class="${BTN_GHOST} px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-        ${busy ? "disabled" : ""}
-      >${mutating ? "…" : "Eliminar"}</button>
-    </div>`;
+    <button
+      type="button"
+      data-aj-ap-eliminar="${item.id}"
+      class="${BTN_GHOST} px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+      ${busy ? "disabled" : ""}
+    >${mutating ? "Eliminando…" : "Eliminar"}</button>`;
 }
 
 function renderAprobadorEmptyState(tipo: AprobadorTipo, busy: boolean): string {
