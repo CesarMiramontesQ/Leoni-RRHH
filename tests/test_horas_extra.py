@@ -306,6 +306,94 @@ async def test_horas_extra_detalle_rh(client: AsyncClient, db, empleado_rh):
 
 
 @pytest.mark.asyncio
+async def test_horas_extra_filtra_por_semana_inicio(client: AsyncClient, db, empleado_rh):
+    area, sub, cc, motivo = await _seed_catalogo(db)
+    supervisor = await make_empleado(
+        db,
+        rol="supervisor",
+        nombre="Sup Semana",
+        puede_registrar_horas_extra=True,
+    )
+    operativo = await make_empleado(db, rol="empleado", nombre="Op Semana", lider_id=supervisor.empleado_id)
+    await _crear_solicitud(
+        db,
+        area=area,
+        sub=sub,
+        cc=cc,
+        motivo=motivo,
+        registrado_por=supervisor,
+        empleados_horas=[(operativo.id, 2.0)],
+        semana_inicio=date(2026, 6, 8),
+        fecha_solicitud=date(2026, 6, 9),
+    )
+    await _crear_solicitud(
+        db,
+        area=area,
+        sub=sub,
+        cc=cc,
+        motivo=motivo,
+        registrado_por=supervisor,
+        empleados_horas=[(operativo.id, 1.0)],
+        semana_inicio=date(2026, 6, 1),
+        fecha_solicitud=date(2026, 6, 2),
+    )
+
+    headers = await auth_headers(client, empleado_rh)
+    response = await client.get(
+        LISTADO_URL,
+        headers=headers,
+        params={"semana_inicio": "2026-06-08"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["solicitud"]["semana_inicio"] == "2026-06-08"
+
+
+@pytest.mark.asyncio
+async def test_horas_extra_filtra_por_fecha_solicitud(client: AsyncClient, db, empleado_rh):
+    area, sub, cc, motivo = await _seed_catalogo(db)
+    supervisor = await make_empleado(
+        db,
+        rol="supervisor",
+        nombre="Sup Fecha",
+        puede_registrar_horas_extra=True,
+    )
+    operativo = await make_empleado(db, rol="empleado", nombre="Op Fecha", lider_id=supervisor.empleado_id)
+    await _crear_solicitud(
+        db,
+        area=area,
+        sub=sub,
+        cc=cc,
+        motivo=motivo,
+        registrado_por=supervisor,
+        empleados_horas=[(operativo.id, 2.0)],
+        fecha_solicitud=date(2026, 6, 9),
+    )
+    await _crear_solicitud(
+        db,
+        area=area,
+        sub=sub,
+        cc=cc,
+        motivo=motivo,
+        registrado_por=supervisor,
+        empleados_horas=[(operativo.id, 1.0)],
+        fecha_solicitud=date(2026, 6, 2),
+    )
+
+    headers = await auth_headers(client, empleado_rh)
+    response = await client.get(
+        LISTADO_URL,
+        headers=headers,
+        params={"fecha_inicio": "2026-06-08", "fecha_fin": "2026-06-30"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["solicitud"]["fecha_solicitud"] == "2026-06-09"
+
+
+@pytest.mark.asyncio
 async def test_horas_extra_rechaza_empleado(client: AsyncClient, empleado_base):
     headers = await auth_headers(client, empleado_base)
     response = await client.get(LISTADO_URL, headers=headers)

@@ -8,11 +8,13 @@ import {
 import type { HorasExtraDetalleModalState } from "../horasExtra/shared/renderHorasExtraDetalleModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildHorasExtraViewModel } from "../nominas/horasExtra/buildHorasExtraViewModel.ts";
+import { renderHorasExtraPageHeader } from "../nominas/horasExtra/components/horasExtraPageHeader.ts";
 import {
   renderHorasExtraDetalleModalSlot,
   renderHorasExtraListado,
   renderHorasExtraPage,
 } from "../nominas/horasExtra/renderHorasExtraPage.ts";
+import { semanaInicioIsoFromNumero } from "../nominas/horasExtra/semanaFilterHelpers.ts";
 import type {
   HorasExtraFilterOptions,
   HorasExtraFilters,
@@ -38,6 +40,7 @@ const EMPTY_DETALLE_MODAL: HorasExtraDetalleModalState = {
 
 function loadingViewModel(): HorasExtraPageViewModel {
   return {
+    semanaActual: 1,
     semanaLabel: "Semana —",
     summaryCards: [
       { id: "s1", label: "Total de horas extras", value: "—", footer: "Cargando…" },
@@ -67,13 +70,31 @@ function parseOptionalInt(value: string): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-function listParamsFromFilters(filters: HorasExtraFilters, page = 1) {
+function fechasFiltroValidas(fechaInicio: string, fechaFin: string): boolean {
+  const fi = fechaInicio.trim();
+  const ff = fechaFin.trim();
+  if (!fi || !ff) return true;
+  return fi <= ff;
+}
+
+function listParamsFromFilters(
+  filters: HorasExtraFilters,
+  semanaActual: number,
+  page = 1,
+) {
+  const semanaInicio = filters.semana.trim()
+    ? semanaInicioIsoFromNumero(filters.semana, semanaActual)
+    : undefined;
+
   return {
     page,
     page_size: PAGE_SIZE,
     tab: filters.estado as HorasExtraTabFiltro,
     area_id: parseOptionalInt(filters.area_id),
     centrocosto_id: parseOptionalInt(filters.centrocosto_id),
+    semana_inicio: semanaInicio,
+    fecha_inicio: filters.fecha_inicio.trim() || undefined,
+    fecha_fin: filters.fecha_fin.trim() || undefined,
   };
 }
 
@@ -89,7 +110,19 @@ export function mountHorasExtra(container: HTMLElement): void {
   let filters: HorasExtraFilters = { ...EMPTY_HORAS_EXTRA_FILTERS };
   let filterOptions: HorasExtraFilterOptions = { ...EMPTY_HORAS_EXTRA_FILTER_OPTIONS };
   let currentPage = 1;
+  let semanaActual = 1;
   let detalleModal: HorasExtraDetalleModalState = { ...EMPTY_DETALLE_MODAL };
+
+  const renderPageHeader = (pageRoot: HTMLElement, vm: HorasExtraPageViewModel) => {
+    const header = pageRoot.querySelector("#horas-extra-page-header");
+    if (header) {
+      header.outerHTML = renderHorasExtraPageHeader({
+        filters: vm.filters,
+        semanaActual: vm.semanaActual,
+        filtersStatus: vm.filtersStatus,
+      });
+    }
+  };
 
   const renderDetalleModal = (pageRoot: HTMLElement) => {
     const slot = pageRoot.querySelector("#horas-extra-detalle-modal");
@@ -121,7 +154,8 @@ export function mountHorasExtra(container: HTMLElement): void {
     }
 
     try {
-      const data = await getHorasExtraList(listParamsFromFilters(filters, currentPage));
+      const data = await getHorasExtraList(listParamsFromFilters(filters, semanaActual, currentPage));
+      semanaActual = data.semana_actual;
       filterOptions = mergeFilterOptions(
         filterOptions.areas,
         data.filter_options.centros_costo.map((cc) => ({ id: cc.id, label: cc.label })),
@@ -129,6 +163,7 @@ export function mountHorasExtra(container: HTMLElement): void {
       const vm = buildHorasExtraViewModel(data, { filters, filterOptions, filtersStatus: "ready" });
       const target = pageRoot.querySelector("#horas-extra-listado");
       if (target) target.outerHTML = renderHorasExtraListado(vm);
+      renderPageHeader(pageRoot, vm);
     } catch (err) {
       const detail =
         err && typeof err === "object" && "detail" in err
@@ -149,12 +184,22 @@ export function mountHorasExtra(container: HTMLElement): void {
   const bindListadoEvents = (pageRoot: HTMLElement) => {
     pageRoot.addEventListener("change", (event) => {
       const target = event.target;
-      if (!(target instanceof HTMLSelectElement)) return;
-      const key = target.dataset.heFilter as keyof HorasExtraFilters | undefined;
-      if (!key) return;
+      if (target instanceof HTMLSelectElement) {
+        const key = target.dataset.heFilter as keyof HorasExtraFilters | undefined;
+        if (!key) return;
+        filters = { ...filters, [key]: target.value };
+        void refreshListado(pageRoot, 1);
+        return;
+      }
 
-      filters = { ...filters, [key]: target.value };
-      void refreshListado(pageRoot, 1);
+      if (target instanceof HTMLInputElement && target.type === "date") {
+        const key = target.dataset.heFilter as keyof HorasExtraFilters | undefined;
+        if (!key) return;
+        const next = { ...filters, [key]: target.value };
+        if (!fechasFiltroValidas(next.fecha_inicio, next.fecha_fin)) return;
+        filters = next;
+        void refreshListado(pageRoot, 1);
+      }
     });
 
     pageRoot.addEventListener("click", async (event) => {
@@ -206,9 +251,10 @@ export function mountHorasExtra(container: HTMLElement): void {
     try {
       const [catalog, data] = await Promise.all([
         getEmpleadosCatalogoFiltros(),
-        getHorasExtraList(listParamsFromFilters(filters)),
+        getHorasExtraList(listParamsFromFilters(filters, semanaActual)),
       ]);
 
+      semanaActual = data.semana_actual;
       filterOptions = mergeFilterOptions(
         catalog.areas,
         data.filter_options.centros_costo.map((cc) => ({ id: cc.id, label: cc.label })),

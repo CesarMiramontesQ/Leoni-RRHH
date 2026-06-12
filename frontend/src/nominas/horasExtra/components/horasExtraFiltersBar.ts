@@ -74,6 +74,28 @@ function renderSelectField(
     </div>`;
 }
 
+function renderDateField(
+  id: string,
+  label: string,
+  filterKey: "fecha_inicio" | "fecha_fin",
+  value: string,
+  disabled: boolean,
+): string {
+  return `
+    <div class="${FILTER_FIELD_WRAP}">
+      <label for="${id}" class="${RH_LISTADO_LABEL}">${label}</label>
+      <input
+        id="${id}"
+        name="${filterKey}"
+        type="date"
+        data-he-filter="${filterKey}"
+        value="${escapeHtml(value)}"
+        class="w-full min-h-[42px] rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2.5 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
+        ${disabled ? "disabled" : ""}
+      />
+    </div>`;
+}
+
 export function renderHorasExtraFiltersBar(vm: HorasExtraPageViewModel): string {
   const disabled = vm.filtersStatus === "loading";
   const { filters, filterOptions } = vm;
@@ -102,6 +124,8 @@ export function renderHorasExtraFiltersBar(vm: HorasExtraPageViewModel): string 
           renderEstadoOptions(filters),
           disabled,
         )}
+        ${renderDateField("he-filter-fecha-inicio", "Fecha desde", "fecha_inicio", filters.fecha_inicio, disabled)}
+        ${renderDateField("he-filter-fecha-fin", "Fecha hasta", "fecha_fin", filters.fecha_fin, disabled)}
       </div>
     </section>`;
 }

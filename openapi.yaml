@@ -4893,6 +4893,27 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: semana_inicio
+          in: query
+          description: Lunes ISO (YYYY-MM-DD) de la semana a filtrar
+          schema:
+            type: string
+            format: date
+            nullable: true
+        - name: fecha_inicio
+          in: query
+          description: Fecha mínima de solicitud (inclusive)
+          schema:
+            type: string
+            format: date
+            nullable: true
+        - name: fecha_fin
+          in: query
+          description: Fecha máxima de solicitud (inclusive)
+          schema:
+            type: string
+            format: date
+            nullable: true
       responses:
         "200":
           description: Filas de horas extra

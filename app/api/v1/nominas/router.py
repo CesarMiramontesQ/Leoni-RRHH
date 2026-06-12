@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -37,6 +38,9 @@ async def list_horas_extra(
     area_id: int | None = Query(None),
     centrocosto_id: int | None = Query(None),
     lider_empleado_id: int | None = Query(None),
+    semana_inicio: date | None = Query(None),
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
     current_user: Empleado = Depends(role_checker(_ROLES_HORAS_EXTRA)),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: HorasExtraService = Depends(_svc),
@@ -51,6 +55,9 @@ async def list_horas_extra(
         area_id=area_id,
         centrocosto_id=centrocosto_id,
         lider_empleado_id=lider_empleado_id,
+        semana_inicio=semana_inicio,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
     )
 
 

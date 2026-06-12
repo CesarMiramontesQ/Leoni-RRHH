@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
@@ -134,6 +136,9 @@ class HorasExtraService:
         area_id: int | None = None,
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
+        semana_inicio: date | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
     ) -> HorasExtraListResponse:
         self._require_acceso(current_user)
         ids_permitidos = await self._ids_permitidos(current_user, rh_ui_mode)
@@ -144,6 +149,9 @@ class HorasExtraService:
             "centrocosto_id": centrocosto_id,
             "lider_empleado_id": lider_empleado_id,
             "ids_permitidos": ids_permitidos,
+            "semana_inicio": semana_inicio,
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
         }
 
         total = await self.repo.count_filas(tab=tab, **filtros)

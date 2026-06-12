@@ -22,6 +22,9 @@ export type HorasExtraFilters = {
   area_id: string;
   centrocosto_id: string;
   estado: HorasExtraTabId;
+  semana: string;
+  fecha_inicio: string;
+  fecha_fin: string;
 };
 
 export type HorasExtraCentroCostoOption = {
@@ -35,6 +38,7 @@ export type HorasExtraFilterOptions = {
 };
 
 export type HorasExtraPageViewModel = {
+  semanaActual: number;
   semanaLabel: string;
   summaryCards: readonly HorasExtraSummaryCard[];
   filters: HorasExtraFilters;
@@ -54,6 +58,9 @@ export const EMPTY_HORAS_EXTRA_FILTERS: HorasExtraFilters = {
   area_id: "",
   centrocosto_id: "",
   estado: "todos",
+  semana: "",
+  fecha_inicio: "",
+  fecha_fin: "",
 };
 
 export const EMPTY_HORAS_EXTRA_FILTER_OPTIONS: HorasExtraFilterOptions = {

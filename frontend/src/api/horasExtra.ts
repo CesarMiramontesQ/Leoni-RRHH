@@ -91,6 +91,9 @@ export type HorasExtraListParams = {
   area_id?: number;
   centrocosto_id?: number;
   lider_empleado_id?: number;
+  semana_inicio?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
 };
 
 async function readErrorDetail(res: Response): Promise<string> {
@@ -117,6 +120,9 @@ export async function getHorasExtraList(
   if (params.lider_empleado_id != null) {
     sp.set("lider_empleado_id", String(params.lider_empleado_id));
   }
+  if (params.semana_inicio) sp.set("semana_inicio", params.semana_inicio);
+  if (params.fecha_inicio) sp.set("fecha_inicio", params.fecha_inicio);
+  if (params.fecha_fin) sp.set("fecha_fin", params.fecha_fin);
 
   const res = await fetchWithAuth(`/api/v1/nominas/horas-extra?${sp.toString()}`);
   if (!res.ok) {

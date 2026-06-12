@@ -42,7 +42,8 @@ export function buildHorasExtraViewModel(
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
 
   return {
-    semanaLabel: `Semana ${semana}`,
+    semanaActual: semana,
+    semanaLabel: filters.semana.trim() ? `Semana ${filters.semana}` : `Semana ${semana}`,
     summaryCards: [
       {
         id: "total-horas",

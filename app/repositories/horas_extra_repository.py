@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from datetime import date
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -51,6 +53,9 @@ class HorasExtraRepository:
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
+        semana_inicio: date | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
     ):
         if ids_permitidos is not None:
             if not ids_permitidos:
@@ -62,6 +67,12 @@ class HorasExtraRepository:
             query = query.where(HorasExtraSolicitud.centrocosto_id == centrocosto_id)
         if lider_empleado_id is not None:
             query = query.where(Empleado.lider_id == lider_empleado_id)
+        if semana_inicio is not None:
+            query = query.where(HorasExtraSolicitud.semana_inicio == semana_inicio)
+        if fecha_inicio is not None:
+            query = query.where(HorasExtraSolicitud.fecha_solicitud >= fecha_inicio)
+        if fecha_fin is not None:
+            query = query.where(HorasExtraSolicitud.fecha_solicitud <= fecha_fin)
         if tab and tab != "todos":
             estado = self._estado_por_tab(tab)
             if estado:
@@ -87,6 +98,9 @@ class HorasExtraRepository:
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
+        semana_inicio: date | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
     ) -> list[HorasExtraSolicitudDetalle]:
         query = self._apply_filtros(
             self._filas_query(),
@@ -96,6 +110,9 @@ class HorasExtraRepository:
             centrocosto_id=centrocosto_id,
             lider_empleado_id=lider_empleado_id,
             ids_permitidos=ids_permitidos,
+            semana_inicio=semana_inicio,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
         )
         query = (
             query.options(
@@ -142,6 +159,9 @@ class HorasExtraRepository:
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
+        semana_inicio: date | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
     ) -> int:
         query = self._apply_filtros(
             select(func.count())
@@ -157,6 +177,9 @@ class HorasExtraRepository:
             centrocosto_id=centrocosto_id,
             lider_empleado_id=lider_empleado_id,
             ids_permitidos=ids_permitidos,
+            semana_inicio=semana_inicio,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
         )
         result = await self.db.execute(query)
         return int(result.scalar_one() or 0)
@@ -169,6 +192,9 @@ class HorasExtraRepository:
         centrocosto_id: int | None = None,
         lider_empleado_id: int | None = None,
         ids_permitidos: list[int] | None = None,
+        semana_inicio: date | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
     ) -> dict[str, int]:
         """Conteo de filas por estado de solicitud (sin filtro de pestaña)."""
         query = self._apply_filtros(
@@ -184,6 +210,9 @@ class HorasExtraRepository:
             centrocosto_id=centrocosto_id,
             lider_empleado_id=lider_empleado_id,
             ids_permitidos=ids_permitidos,
+            semana_inicio=semana_inicio,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
         ).group_by(HorasExtraSolicitud.estado)
         result = await self.db.execute(query)
         por_estado = {str(estado): int(cnt) for estado, cnt in result.all()}
