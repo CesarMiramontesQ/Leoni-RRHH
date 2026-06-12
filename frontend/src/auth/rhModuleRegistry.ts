@@ -43,6 +43,7 @@ export function resolveModuleFromHash(hashValue: string): string | null {
 
 export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "puestos-ajustes") return "puestos";
+  if (navItemId === "cursos-ajustes") return "cursos";
   if (navItemId === "comedor-menu") return "comedor";
   if (navItemId === "laborales") return "dashboard";
   return navItemId;
