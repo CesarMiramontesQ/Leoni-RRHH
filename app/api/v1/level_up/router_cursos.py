@@ -16,9 +16,6 @@ from app.schemas.level_up import (
     CursoListResponse,
     CursoResponse,
     CursoUpdate,
-    CategoriaCursoLiteral,
-    ClasificacionCursoLiteral,
-    TipoCursoLiteral,
 )
 from app.services.level_up_cursos import CursoService
 
@@ -29,10 +26,10 @@ router = APIRouter(prefix="/api/v1/level-up/cursos", tags=["Level Up - Cursos"])
 async def listar_cursos(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(20, ge=1, le=100, description="Items por pagina"),
-    tipo: TipoCursoLiteral | None = Query(None, description="Filtrar por tipo"),
-    clasificacion: ClasificacionCursoLiteral | None = Query(None, description="Filtrar por clasificacion"),
+    tipo: str | None = Query(None, description="Filtrar por tipo (nombre)"),
+    clasificacion: str | None = Query(None, description="Filtrar por clasificacion (nombre)"),
     obligatorio: bool | None = Query(None, description="Filtrar por obligatorio"),
-    categoria: CategoriaCursoLiteral | None = Query(None, description="Filtrar por categoria"),
+    categoria: str | None = Query(None, description="Filtrar por categoria (nombre)"),
     busqueda: str | None = Query(None, max_length=200, description="Buscar por nombre"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

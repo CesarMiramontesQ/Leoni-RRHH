@@ -1,6 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.cursos_catalogo import CursoCategoria, CursoClasificacion, CursoTipo
 from app.models.level_up import Curso
 from app.repositories.base import BaseRepository
 
@@ -22,13 +23,19 @@ class CursoRepository(BaseRepository[Curso]):
         query = select(Curso).where(Curso.activo.is_(True))
 
         if tipo:
-            query = query.where(Curso.tipo == tipo)
+            query = query.join(CursoTipo, Curso.tipo_id == CursoTipo.id).where(
+                CursoTipo.nombre == tipo
+            )
         if clasificacion:
-            query = query.where(Curso.clasificacion == clasificacion)
+            query = query.join(CursoClasificacion, Curso.clasificacion_id == CursoClasificacion.id).where(
+                CursoClasificacion.nombre == clasificacion
+            )
         if obligatorio is not None:
             query = query.where(Curso.obligatorio.is_(obligatorio))
         if categoria:
-            query = query.where(Curso.categoria == categoria)
+            query = query.join(CursoCategoria, Curso.categoria_id == CursoCategoria.id).where(
+                CursoCategoria.nombre == categoria
+            )
         if busqueda:
             escaped = busqueda.replace("%", r"\%").replace("_", r"\_")
             query = query.where(Curso.nombre.ilike(f"%{escaped}%", escape="\\"))
@@ -38,7 +45,7 @@ class CursoRepository(BaseRepository[Curso]):
 
         query = query.order_by(Curso.nombre.asc()).offset(offset).limit(limit)
         result = await self.db.execute(query)
-        items = list(result.scalars().all())
+        items = list(result.unique().scalars().all())
 
         return items, total or 0
 

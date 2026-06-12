@@ -36,6 +36,13 @@ from app.models.talento import (
     TipoCualificacionCatalogo, MetodoCalificacion, OpcionCalificacion, CualificacionCatalogo,
     MetodoCalificacionCompetencia,
 )
+from app.models.cursos_catalogo import (
+    CursoCategoria,
+    CursoClasificacion,
+    CursoInstructorExterno,
+    CursoProveedor,
+    CursoTipo,
+)
 from app.models.level_up import (
     Capacidad,
     CapacidadPuestoPerfil,
@@ -102,6 +109,11 @@ __all__ = [
     "MetodoCalificacion",
     "OpcionCalificacion",
     "CualificacionCatalogo",
+    "CursoCategoria",
+    "CursoTipo",
+    "CursoClasificacion",
+    "CursoInstructorExterno",
+    "CursoProveedor",
     "Capacidad",
     "CapacidadPuestoPerfil",
     "Habilidad",

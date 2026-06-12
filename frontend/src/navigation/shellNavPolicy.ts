@@ -109,6 +109,7 @@ export type AppShellNavItemId =
   | "competencias"
   | "capacidades"
   | "cursos"
+  | "cursos-ajustes"
   | "opls"
   | "evidencias"
   | "sugerencias"
@@ -161,7 +162,7 @@ const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
+  "cursos", "cursos-ajustes", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
