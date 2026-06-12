@@ -38,20 +38,20 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         offset: int,
         limit: int,
         area_id: int | None = None,
-        nivel: str | None = None,
+        nivel_id: int | None = None,
         busqueda: str | None = None,
     ) -> tuple[list[PuestoPerfil], int]:
         """Lista paginada con filtros opcionales. Retorna (items, total)."""
         query = (
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.area))
+            .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
             .where(PuestoPerfil.activo.is_(True))
         )
 
         if area_id is not None:
             query = query.where(PuestoPerfil.area_id == area_id)
-        if nivel is not None:
-            query = query.where(PuestoPerfil.nivel == nivel)
+        if nivel_id is not None:
+            query = query.where(PuestoPerfil.nivel_id == nivel_id)
         if busqueda:
             query = query.where(PuestoPerfil.nombre.ilike(f"%{busqueda}%"))
 
