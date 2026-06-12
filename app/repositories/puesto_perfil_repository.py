@@ -180,7 +180,6 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 PuestoPerfil.id,
                 PuestoPerfil.codigo,
                 PuestoPerfil.nombre,
-                PuestoPerfil.nivel,
                 func.coalesce(personas_sq.c.personas, 0).label("personas"),
                 func.coalesce(cualif_count_sq.c.total_cualif, 0).label("total_cualif"),
                 func.coalesce(comp_count_sq.c.total_comp, 0).label("total_comp"),
@@ -225,7 +224,6 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 "id": row.id,
                 "codigo": row.codigo,
                 "nombre": row.nombre,
-                "nivel": row.nivel,
                 "personas": personas,
                 "cumplimiento_pct": cumplimiento_pct,
                 "brechas": brechas,
@@ -238,12 +236,14 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         if perfil_ids:
             perfiles_result = await self.db.execute(
                 select(PuestoPerfil)
-                .options(selectinload(PuestoPerfil.area))
+                .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
                 .where(PuestoPerfil.id.in_(perfil_ids))
             )
             perfiles_map = {p.id: p for p in perfiles_result.scalars().all()}
             for item in items:
                 perfil = perfiles_map.get(item["id"])
                 item["area_nombre"] = perfil.area.descripcion if perfil and perfil.area else None
+                item["nivel_id"] = perfil.nivel_id if perfil else 0
+                item["nivel_nombre"] = perfil.nivel.nombre if perfil and perfil.nivel else ""
 
         return items
