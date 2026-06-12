@@ -86,6 +86,5 @@ export function renderComedorForbidden(role: string | null): string {
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
       <p class="font-semibold">Acceso restringido</p>
       <p class="mt-1">La vista analítica de comedor es exclusiva para RH. Rol actual: ${roleLabel}.</p>
-      <a href="#/" class="mt-3 inline-block font-semibold text-leoni-blue hover:underline">Volver al dashboard</a>
     </div>`;
 }

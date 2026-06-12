@@ -57,7 +57,7 @@ function safeMountChart(label: string, mount: () => void): void {
   }
 }
 
-/** Reajusta gráficas tras cambio de layout (p. ej. tras filtro de periodo). */
+/** Reajusta gráficas del dashboard RH por id (compatibilidad). */
 export function resizeRhDashboardAnalyticsCharts(): void {
   for (const id of RH_DASH_ANALYTICS_CHART_IDS) {
     getChart(id)?.resize();

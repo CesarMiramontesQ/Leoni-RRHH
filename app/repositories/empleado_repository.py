@@ -32,6 +32,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
+                selectinload(Empleado.puesto),
             )
             .where(func.lower(Empleado.email) == normalized_email)
         )
@@ -45,6 +46,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
+                selectinload(Empleado.puesto),
             )
             .where(
                 Empleado.usuario.isnot(None),
@@ -62,6 +64,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado)
             .options(
                 selectinload(Empleado.rol),
+                selectinload(Empleado.puesto),
             )
             .where(
                 func.lower(Empleado.no_empleado).in_(variantes_lower),
@@ -96,7 +99,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_with_rol(self, id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.rol), selectinload(Empleado.puesto))
             .where(Empleado.id == id)
         )
         return result.scalar_one_or_none()

@@ -39,7 +39,8 @@ function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
     codigo: (p.codigo ?? "") as string,
     nombre_puesto: (p.nombre ?? "") as string,
     area: (p.area_nombre ?? "") as string,
-    nivel: (p.nivel ?? "") as string,
+    nivel_id: p.nivel_id as number,
+    nivel_nombre: (p.nivel_nombre ?? "") as string,
     recomendaciones_ia: [] as PerfilPuesto["recomendaciones_ia"],
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
@@ -68,7 +69,8 @@ export type PerfilTarjetaItem = {
   codigo: string;
   nombre: string;
   area_nombre: string | null;
-  nivel: string | null;
+  nivel_id: number;
+  nivel_nombre: string;
   personas: number;
   cumplimiento_pct: number;
   brechas: number;
@@ -107,7 +109,8 @@ export async function getPerfilesList(opts?: {
     codigo: p.codigo as string,
     nombre_puesto: (p.nombre ?? "") as string,
     area: (p.area_nombre ?? "") as string,
-    nivel: (p.nivel ?? "") as string,
+    nivel_id: p.nivel_id as number,
+    nivel_nombre: (p.nivel_nombre ?? "") as string,
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
   }));
@@ -125,7 +128,7 @@ export async function getPerfilById(id: number): Promise<PerfilPuesto> {
 export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<PerfilPuesto> {
   const body = {
     nombre: payload.nombre_puesto,
-    nivel: payload.nivel || null,
+    nivel_id: payload.nivel_id,
     area_id: payload.area_id || null,
   };
   const res = await fetchWithAuth("/api/v1/puestos-perfil", {
@@ -141,7 +144,7 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
 export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayload): Promise<PerfilPuesto> {
   const body: Record<string, unknown> = {};
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
-  if (payload.nivel) body.nivel = payload.nivel;
+  if (payload.nivel_id !== undefined) body.nivel_id = payload.nivel_id;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
   const res = await fetchWithAuth(`/api/v1/puestos-perfil/${id}`, {
     method: "PUT",
@@ -223,10 +226,23 @@ export async function reorderPerfilTareas(perfilId: number, items: { id: number;
 
 export type PerfilCualificacion = {
   id: number;
-  tipo: string;
-  situacion_deseada: string;
+  puesto_perfil_id?: number;
+  cualificacion_catalogo_id: number | null;
+  cualificacion_nombre: string;
+  tipo_nombre: string;
+  metodo_tipo: string;
+  metodo_config: Record<string, unknown>;
+  opciones: Array<{
+    id: number;
+    etiqueta: string;
+    valor: string;
+    orden: number;
+    peso: number | null;
+  }>;
+  criterio_requerido: Record<string, unknown> | null;
   comentarios: string | null;
-  anios_minimos: number | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 /** GET /api/v1/perfiles/:id/cualificaciones */
@@ -239,10 +255,29 @@ export async function getPerfilCualificaciones(perfilId: number): Promise<Perfil
 /** POST /api/v1/perfiles/:id/cualificaciones */
 export async function createPerfilCualificacion(
   perfilId: number,
-  body: { tipo: string; situacion_deseada: string; comentarios?: string; anios_minimos?: number },
+  body: {
+    cualificacion_catalogo_id: number;
+    criterio_requerido: Record<string, unknown>;
+    comentarios?: string;
+  },
 ): Promise<PerfilCualificacion> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilCualificacion;
+}
+
+/** PUT /api/v1/perfiles/:id/cualificaciones/:cualificacionId */
+export async function updatePerfilCualificacion(
+  perfilId: number,
+  cualificacionId: number,
+  body: { criterio_requerido?: Record<string, unknown>; comentarios?: string },
+): Promise<PerfilCualificacion> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/cualificaciones/${cualificacionId}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -258,28 +293,26 @@ export async function deletePerfilCualificacion(perfilId: number, cualificacionI
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
 
-/** GET /api/v1/perfiles/catalogos/sugerencias?tipo=X&q=Y */
-export async function getSugerenciasCualificacion(tipo: string, q: string, limit = 10): Promise<string[]> {
-  const params = new URLSearchParams({ tipo, q, limit: String(limit) });
-  const res = await fetchWithAuth(`/api/v1/perfiles/catalogos/sugerencias?${params}`);
-  if (!res.ok) return [];
-  return (await res.json()) as string[];
-}
-
 // ── Competencias requeridas (tabla unificada) ───────────────────────────────
 
 export type PerfilCompetencia = {
   id: number;
   competencia_id: number;
   competencia_nombre: string;
-  subcategoria: string | null;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
+  grado_id: number;
+  grado_nombre: string;
   nivel_requerido: number;
   orden: number | null;
 };
 
-/** GET /api/v1/perfiles/:id/competencias */
-export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCompetencia[]> {
-  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`);
+/** GET /api/v1/perfiles/:id/competencias?grado_id= */
+export async function getPerfilCompetencias(
+  perfilId: number,
+  gradoId: number,
+): Promise<PerfilCompetencia[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias?grado_id=${gradoId}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilCompetencia[];
 }
@@ -287,7 +320,7 @@ export async function getPerfilCompetencias(perfilId: number): Promise<PerfilCom
 /** POST /api/v1/perfiles/:id/competencias — agrega competencia del catálogo */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id: number; nivel_requerido: number },
+  body: { competencia_id: number; grado_id: number; nivel_requerido: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",
@@ -306,7 +339,11 @@ export type PerfilCompetenciaSyncItem = {
 /** PUT /api/v1/perfiles/:id/competencias/sync — sync multi-select por categoría */
 export async function syncPerfilCompetencias(
   perfilId: number,
-  body: { subcategoria: string; competencias: PerfilCompetenciaSyncItem[] },
+  body: {
+    grado_id: number;
+    tipo_competencia_id: number;
+    competencias: PerfilCompetenciaSyncItem[];
+  },
 ): Promise<PerfilCompetencia[]> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/sync`, {
     method: "PUT",
@@ -354,20 +391,26 @@ export async function syncEvaluacionCompetencias(
 
 export type GapCualificacion = {
   cualificacion_id: number;
-  tipo: string;
-  situacion_deseada: string;
-  situacion_actual: string | null;
+  cualificacion_catalogo_id: number | null;
+  cualificacion_nombre: string;
+  tipo_nombre: string;
+  metodo_tipo: string;
+  metodo_config: Record<string, unknown>;
+  opciones: PerfilCualificacion["opciones"];
+  criterio_requerido: Record<string, unknown> | null;
+  criterio_label: string;
+  valor_capturado: Record<string, unknown> | null;
+  capturado_label: string | null;
   comentarios: string | null;
   evaluado: boolean;
   cumple: boolean | null;
-  anios_minimos: number | null;
-  anios_actuales: number | null;
 };
 
 export type GapCompetencia = {
   competencia_requisito_id: number;
   competencia_nombre: string;
-  subcategoria: string | null;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
   nivel_requerido: number;
   situacion_actual: string | null;
   comentarios: string | null;
@@ -397,9 +440,8 @@ export async function getAsignacionGap(perfilId: number, asignacionId: number): 
 
 export type EvaluacionCualificacionPayload = {
   cualificacion_id: number;
-  situacion_actual: string;
+  valor_capturado: Record<string, unknown>;
   comentarios?: string;
-  anios_actuales?: number;
 };
 
 /** PUT /api/v1/perfiles/:perfilId/asignaciones/:asignacionId (upsert evaluaciones) */
@@ -422,10 +464,30 @@ export async function updateEvaluaciones(
 /** POST /api/v1/perfiles/:id/asignaciones */
 export async function createPerfilAsignacion(
   perfilId: number,
-  body: { puesto_perfil_id: number; empleado_id: number; departamento?: string },
+  body: {
+    puesto_perfil_id: number;
+    empleado_id: number;
+    grado_id: number;
+    departamento?: string;
+  },
 ): Promise<unknown> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return await res.json();
+}
+
+/** PATCH /api/v1/perfiles/:id/asignaciones/:asignacionId */
+export async function updatePerfilAsignacion(
+  perfilId: number,
+  asignacionId: number,
+  body: { grado_id?: number; departamento?: string },
+): Promise<unknown> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });

@@ -58,19 +58,9 @@ async def make_puesto_perfil(
     nombre: str = "Puesto Test",
     area_id: int | None = None,
 ):
-    from app.models.talento import PuestoPerfil
+    from tests.conftest_talento import make_puesto_perfil as _make
 
-    uid = str(uuid.uuid4())[:6]
-    perfil = PuestoPerfil(
-        codigo=f"PRF-{uid}",
-        nombre=nombre,
-        area_id=area_id,
-        activo=True,
-    )
-    db.add(perfil)
-    await db.flush()
-    await db.refresh(perfil)
-    return perfil
+    return await _make(db, nombre=nombre, area_id=area_id)
 
 
 async def make_requisito(

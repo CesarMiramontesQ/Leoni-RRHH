@@ -13,7 +13,9 @@ import { downloadIncidenciasExcel } from "../incidencias/exportIncidenciasExcel.
 import { patchRhIncidenciaSubareaSelect } from "../components/incidencias/rhIncidenciasFilters.ts";
 import { clearAuth } from "../auth/session.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
+import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
 import { renderRhIncidenciasAdminView } from "../components/incidencias/rhIncidenciasAdminView.ts";
+import { destroyChart, destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
 import {
   mountRhIncidenciaDetalleModal,
   type RhIncidenciaDetalleModalHandle,
@@ -45,14 +47,13 @@ import {
   type RhIncidenciaTablaFila,
 } from "../incidencias/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 function forbiddenHtml(): string {
   return htmlAccessDenied({
     title: INC_COPY.accesoDenegadoTitulo,
     description: INC_COPY.accesoDenegadoTexto,
-    linkHref: "#/",
-    linkLabel: INC_COPY.volverDashboard,
   });
 }
 
@@ -186,7 +187,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       pageTitle: INC_COPY.tituloPagina,
       activeNav: "incidencias",
       mainClass: incidenciasMainClass,
-      mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">${forbiddenHtml()}</div>`,
+      mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">${renderLaboralesBackBar()}${forbiddenHtml()}</div>`,
     });
     return;
   }
@@ -203,10 +204,17 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
   let loadSeq = 0;
   let exportandoListado = false;
 
-  function paintVm(vm: RhIncidenciasAdminViewModel): void {
+  function paintVm(vm: RhIncidenciasAdminViewModel, chartOpts?: { isStale?: () => boolean }): void {
     const inner = container.querySelector("#rh-incidencias-inner");
     if (!inner) return;
+    destroyChartsIn(inner);
     inner.innerHTML = renderRhIncidenciasAdminView(vm);
+    if (!vm.ui.mostrarTarjetasEstadisticas || vm.estadisticasStatus !== "ready") return;
+    runChartsAfterLayout(
+      inner,
+      () => mountRhIncidenciasAnalyticsCharts(inner, vm, destroyChart, destroyChartsIn),
+      chartOpts,
+    );
   }
 
   async function loadSubareasCatalog(area: string): Promise<void> {
@@ -257,7 +265,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
       }
     }
     if (isStale()) return;
-    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, filterCatalog, kpisHold));
+    paintVm(loadingViewModel(filterDraft, appliedFilters, uiConfig, filterCatalog, kpisHold), { isStale });
     try {
       const pageData = await fetchIncidenciasListPage(appliedFilters, page, 10);
       if (isStale()) return;
@@ -294,6 +302,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
           uiConfig,
           filterCatalog,
         ),
+        { isStale },
       );
     } catch (error) {
       if (isStale()) return;
@@ -315,6 +324,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
           uiConfig,
           filterCatalog,
         ),
+        { isStale },
       );
     }
   }
@@ -324,6 +334,7 @@ export function mountIncidencias(container: HTMLElement, signal: AbortSignal): v
     activeNav: "incidencias",
     mainClass: incidenciasMainClass,
     mainHtml: `<div id="rh-incidencias-page" class="${INCIDENCIAS_PAGE_SHELL_CLASS}">
+      ${renderLaboralesBackBar()}
       <div id="rh-incidencias-inner" class="flex min-h-0 flex-1 flex-col">${renderRhIncidenciasAdminView(loadingViewModel(filterDraft, appliedFilters, uiConfig, EMPTY_CATALOG))}</div>
       <div id="rh-inc-detalle-modal-host" class="shrink-0"></div>
       <div id="rh-inc-nueva-incidencia-modal-host" class="shrink-0"></div>

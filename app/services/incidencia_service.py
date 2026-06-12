@@ -13,6 +13,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.data_scope import effective_data_scope_rol
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.incidencias import Incidencia
@@ -86,18 +87,22 @@ class IncidenciaService:
     def _get_rol(self, current_user: Empleado) -> str:
         return current_user.rol.nombre if current_user.rol else "empleado"
 
-    async def _scope_filters_for_list(self, current_user: Empleado) -> list:
-        """Restricción por rol sobre empleado_id (vacío = sin restricción adicional)."""
-        rol = self._get_rol(current_user)
-        if rol in ("director", "rh"):
+    async def _scope_filters_for_list(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> list:
+        """Restricción por rol efectivo sobre empleado_id (vacío = sin restricción adicional)."""
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope in ("director", "rh"):
             return []
-        if rol == "supervisor":
+        if scope == "supervisor":
             subordinados = await self.empleado_repo.get_subordinados(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
             ids = [e.id for e in subordinados] + [current_user.id]
             return [Incidencia.empleado_id.in_(ids)]
-        if rol == "gerente":
+        if scope == "gerente":
             equipo = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
             )
@@ -113,7 +118,7 @@ class IncidenciaService:
         limit: int,
         current_user: Empleado,
     ) -> PaginatedResponse[IncidenciaResponse]:
-        scope = await self._scope_filters_for_list(current_user)
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
         list_filters = [*scope, filtro_tipos_visibles_en_listados()]
         filters = list_filters if list_filters else None
         items, next_cursor = await self.repo.list_paginated(
@@ -139,6 +144,7 @@ class IncidenciaService:
         self,
         current_user: Empleado,
         *,
+        rh_ui_mode: str | None = None,
         tipo: str | None = None,
         empleado_id: int | None = None,
         no_empleado: str | None = None,
@@ -150,7 +156,7 @@ class IncidenciaService:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
     ) -> list | None:
-        scope = await self._scope_filters_for_list(current_user)
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
         user_filters = build_incidencia_query_filters(
             tipo=tipo,
             empleado_id=empleado_id,
@@ -172,6 +178,7 @@ class IncidenciaService:
         page: int,
         page_size: int,
         *,
+        rh_ui_mode: str | None = None,
         tipo: str | None = None,
         empleado_id: int | None = None,
         no_empleado: str | None = None,
@@ -189,6 +196,7 @@ class IncidenciaService:
 
         filters_arg = await self._build_list_filters(
             current_user,
+            rh_ui_mode=rh_ui_mode,
             tipo=tipo,
             empleado_id=empleado_id,
             no_empleado=no_empleado,
@@ -237,6 +245,7 @@ class IncidenciaService:
         self,
         current_user: Empleado,
         *,
+        rh_ui_mode: str | None = None,
         tipo: str | None = None,
         empleado_id: int | None = None,
         no_empleado: str | None = None,
@@ -252,6 +261,7 @@ class IncidenciaService:
         """Agregados desde la tabla interna `incidencias` (mismos filtros que el listado)."""
         filters_arg = await self._build_list_filters(
             current_user,
+            rh_ui_mode=rh_ui_mode,
             tipo=tipo,
             empleado_id=empleado_id,
             no_empleado=no_empleado,
@@ -309,6 +319,7 @@ class IncidenciaService:
             prev_start = prev_end - timedelta(days=span_days - 1)
             prev_filters = await self._build_list_filters(
                 current_user,
+                rh_ui_mode=rh_ui_mode,
                 tipo=tipo,
                 empleado_id=empleado_id,
                 no_empleado=no_empleado,
@@ -357,15 +368,23 @@ class IncidenciaService:
             variacion_total_pct=variacion_total_pct,
         )
 
-    async def list_tipos_registrados(self, current_user: Empleado) -> list[str]:
+    async def list_tipos_registrados(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> list[str]:
         """Tipos distintos en incidencias visibles para el rol del usuario."""
-        scope = await self._scope_filters_for_list(current_user)
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
         tipos_filters = [*scope, filtro_tipos_visibles_en_listados()]
         return await self.repo.distinct_tipos(filters=tipos_filters)
 
-    async def list_areas_registradas(self, current_user: Empleado) -> list[str]:
+    async def list_areas_registradas(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> list[str]:
         """Áreas distintas en incidencias visibles para el rol del usuario."""
-        scope = await self._scope_filters_for_list(current_user)
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
         catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
         return await self.repo.distinct_areas(filters=catalog_filters)
 
@@ -373,10 +392,11 @@ class IncidenciaService:
         self,
         current_user: Empleado,
         *,
+        rh_ui_mode: str | None = None,
         area: str | None = None,
     ) -> list[str]:
         """Subáreas distintas; si `area` viene definida, solo las de esa área."""
-        scope = await self._scope_filters_for_list(current_user)
+        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
         catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
         area_val = area.strip() if area and area.strip() else None
         return await self.repo.distinct_subareas(

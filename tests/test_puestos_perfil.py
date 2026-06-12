@@ -17,14 +17,13 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 
 from tests.conftest import auth_headers, make_empleado
-from tests.conftest_talento import make_area, make_puesto_perfil
+from tests.conftest_talento import make_area, make_nivel_puesto, make_puesto_perfil
 
 
-# Payload valido reutilizable
-PERFIL_PAYLOAD = {
+# Payload valido reutilizable — nivel_id se asigna en cada test
+PERFIL_PAYLOAD_BASE = {
     "nombre": "Ingeniero de Procesos",
     "descripcion": "Optimizar procesos de manufactura",
-    "nivel": "Senior",
 }
 
 
@@ -36,10 +35,11 @@ PERFIL_PAYLOAD = {
 async def test_create_puesto_perfil_success(client: AsyncClient, db):
     """RH crea perfil exitosamente → 201, codigo generado, version=1."""
     area = await make_area(db, descripcion="Manufactura")
+    nivel = await make_nivel_puesto(db, nombre="Senior")
     rh = await make_empleado(db, rol="rh", email="pp_create_ok@leoni.test")
     headers = await auth_headers(client, rh)
 
-    payload = {**PERFIL_PAYLOAD, "area_id": area.area_id}
+    payload = {**PERFIL_PAYLOAD_BASE, "area_id": area.area_id, "nivel_id": nivel.id}
     response = await client.post(
         "/api/v1/puestos-perfil",
         json=payload,
@@ -53,7 +53,8 @@ async def test_create_puesto_perfil_success(client: AsyncClient, db):
     assert body["activo"] is True
     assert body["codigo"].startswith("PRF-")
     assert body["area_id"] == area.area_id
-    assert body["nivel"] == "Senior"
+    assert body["nivel_id"] == nivel.id
+    assert body["nivel_nombre"] == "Senior"
     assert body["created_by"] == rh.id
 
 
@@ -66,9 +67,10 @@ async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
     """Crear perfil con nombre duplicado → 409."""
     rh = await make_empleado(db, rol="rh", email="pp_dup@leoni.test")
     headers = await auth_headers(client, rh)
+    nivel = await make_nivel_puesto(db, nombre="Nivel Dup")
 
     # Crear el primero
-    payload = {**PERFIL_PAYLOAD, "nombre": "Operador CNC Unico"}
+    payload = {**PERFIL_PAYLOAD_BASE, "nombre": "Operador CNC Unico", "nivel_id": nivel.id}
     response1 = await client.post(
         "/api/v1/puestos-perfil",
         json=payload,
@@ -95,10 +97,11 @@ async def test_create_puesto_perfil_unauthorized(client: AsyncClient, db):
     """Empleado no-RH intenta crear → 403."""
     empleado = await make_empleado(db, rol="empleado", email="pp_noauth@leoni.test")
     headers = await auth_headers(client, empleado)
+    nivel = await make_nivel_puesto(db, nombre="Nivel Noauth")
 
     response = await client.post(
         "/api/v1/puestos-perfil",
-        json=PERFIL_PAYLOAD,
+        json={**PERFIL_PAYLOAD_BASE, "nivel_id": nivel.id},
         headers=headers,
     )
     assert response.status_code == 403

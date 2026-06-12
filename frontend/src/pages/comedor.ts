@@ -1,8 +1,10 @@
 import {
   canAccessComedorLiderPage,
+  canAccessComedorPersonalForRh,
   canAccessComedorReportePage,
   canAccessComedorRhPage,
   canAccessEmpleadoPersonalDashboard,
+  getEffectiveGestorNavRol,
   getEmpleadoDirectoryNumericIdFromAccessToken,
   getEmpleadoIdFromAccessToken,
   getNoEmpleadoFromAccessToken,
@@ -110,6 +112,7 @@ import {
   filterComedorKpisOpcionAb,
 } from "../components/comedor/comedorUiUtils.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderComedorBackBar } from "../navigation/comedorBackLink.ts";
 import {
   BTN_GHOST,
   FILTER_FIELD_WRAP,
@@ -997,7 +1000,7 @@ function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): 
     pageTitle: "Gestión de comedores",
     activeNav: "comedor",
     mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-admin-root">${renderComedorGestionAdmin(state)}</div><div id="comedor-admin-crear-host"></div><div id="comedor-admin-editar-host"></div>`,
+    mainHtml: `${renderComedorBackBar()}<div id="comedor-admin-root">${renderComedorGestionAdmin(state)}</div><div id="comedor-admin-crear-host"></div><div id="comedor-admin-editar-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-admin-root");
@@ -1026,10 +1029,6 @@ function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): 
     "click",
     (event) => {
       const target = event.target as HTMLElement;
-      if (target.closest("[data-comedor-admin-back]")) {
-        window.location.hash = "#/comedor";
-        return;
-      }
       if (target.closest("[data-comedor-admin-add]")) {
         crearModal?.open();
         return;
@@ -1180,7 +1179,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     pageTitle: "Comedor",
     activeNav: "comedor",
     mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
-    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div><div id="comedor-rh-asignar-comedor-host"></div>`,
+    mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">${renderComedorBackBar()}<div id="comedor-rh-root">${renderComedorDashboardRh(toViewState(state))}</div></div><div id="comedor-new-request-modal-host"></div><div id="comedor-rh-crear-comedor-host"></div><div id="comedor-rh-asignar-comedor-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-rh-root");
@@ -1752,26 +1751,11 @@ function mountComedorRhCodigosExternos(container: HTMLElement, signal: AbortSign
     mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
     mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">
       <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-5 sm:gap-6">
-        <nav aria-label="Navegación comedor" class="flex flex-wrap items-center gap-3">
-          <button type="button" data-comedor-codigos-volver
-            class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-gradient-to-r from-white via-white to-sky-50/50 px-4 py-2 text-sm font-semibold text-[#0A1628] shadow-sm transition-[box-shadow,transform,border-color] duration-150 ease-out hover:-translate-y-px hover:border-[#1e40af]/35 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:transform-none">
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 text-[#1e40af]">
-              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" />
-            </svg>
-            Volver a Comedor
-          </button>
-        </nav>
+        ${renderComedorBackBar()}
         <div id="comedor-codigos-root" class="min-w-0"></div>
       </div>
     </div>`,
   });
-  container.querySelector<HTMLButtonElement>("[data-comedor-codigos-volver]")?.addEventListener(
-    "click",
-    () => {
-      window.location.hash = "#/comedor";
-    },
-    { signal },
-  );
   const root = container.querySelector<HTMLElement>("#comedor-codigos-root");
   root?.addEventListener(
     "click",
@@ -1980,7 +1964,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
     pageTitle: "Planeación de Menú",
     activeNav: "comedor",
     mainClass: "py-5 sm:py-6",
-    mainHtml: `<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div><div id="comedor-plan-clear-host"></div>`,
+    mainHtml: `${renderComedorBackBar()}<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div><div id="comedor-plan-clear-host"></div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-plan-root");
@@ -2065,9 +2049,9 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 }
 
 function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
-  const rol = getRolFromAccessToken();
-  const isSupervisor = rol === "supervisor";
-  const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(rol);
+  const liderRol = getEffectiveGestorNavRol();
+  const isSupervisor = liderRol === "supervisor";
+  const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(liderRol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const beneficiaryTargetRef = { id: undefined as number | undefined };
   const comedorIdResolver = createComedorIdResolver({
@@ -2189,7 +2173,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
       pageTitle: "Comedor",
       activeNav: "comedor",
       mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
-      mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-lider-root">${renderComedorDashboardLider(toLiderViewState(state))}</div></div><div id="comedor-lider-new-request-modal-host"></div>`,
+      mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">${renderComedorBackBar()}<div id="comedor-lider-root">${renderComedorDashboardLider(toLiderViewState(state))}</div></div><div id="comedor-lider-new-request-modal-host"></div>`,
     });
 
     const root = container.querySelector<HTMLElement>("#comedor-lider-root");
@@ -2560,7 +2544,7 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
       pageTitle: "Comedor",
       activeNav: "comedor",
       mainClass: COMEDOR_DASHBOARD_MAIN_CLASS,
-      mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}"><div id="comedor-empleado-root">${renderComedorDashboardEmpleado(toEmpleadoViewState(state))}</div></div><div id="comedor-empleado-new-request-modal-host"></div>`,
+      mainHtml: `<div id="rh-comedor-page" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">${renderComedorBackBar()}<div id="comedor-empleado-root">${renderComedorDashboardEmpleado(toEmpleadoViewState(state))}</div></div><div id="comedor-empleado-new-request-modal-host"></div>`,
     });
 
     const root = container.querySelector<HTMLElement>("#comedor-empleado-root");
@@ -2865,7 +2849,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   function paint(): void {
     const root = container.querySelector<HTMLElement>("#comedor-reporte-root");
     if (!root) return;
-    root.innerHTML = reporteComedorInnerWrap(renderComedorReporteDashboard(toReporteViewState(state)));
+    root.innerHTML = reporteComedorInnerWrap(`${renderComedorBackBar()}${renderComedorReporteDashboard(toReporteViewState(state))}`);
   }
 
   async function loadFilters(): Promise<void> {
@@ -3058,7 +3042,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     pageTitle: "Reporte comedor",
     activeNav: "reportes",
     mainClass: "pt-0 pb-5 sm:pb-6",
-    mainHtml: `<div id="comedor-reporte-root" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">${reporteComedorInnerWrap(renderComedorReporteDashboard(toReporteViewState(state)))}</div>`,
+    mainHtml: `<div id="comedor-reporte-root" class="${COMEDOR_DASHBOARD_PAGE_SHELL}">${reporteComedorInnerWrap(`${renderComedorBackBar()}${renderComedorReporteDashboard(toReporteViewState(state))}`)}</div>`,
   });
 
   const root = container.querySelector<HTMLElement>("#comedor-reporte-root");
@@ -3233,8 +3217,12 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorGestionAdmin(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/");
-    mountDashboardPlaceholder(container);
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+    } else {
+      mountDashboardPlaceholder(container);
+    }
     return;
   }
 
@@ -3244,7 +3232,11 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorRhPlanner(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/comedor");
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/comedor");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+      return;
+    }
   }
 
   const isReporteRoute = hash.startsWith("#/comedor/reporte");
@@ -3253,7 +3245,11 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorReporte(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/comedor");
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/comedor");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+      return;
+    }
   }
 
   const isCodigosExternosRoute = hash.startsWith("#/comedor/codigos-externos");
@@ -3262,9 +3258,17 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
       mountComedorRhCodigosExternos(container, signal);
       return;
     }
-    history.replaceState(null, "", "#/comedor");
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/comedor");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+      return;
+    }
   }
 
+  if (canAccessComedorPersonalForRh()) {
+    mountComedorEmpleado(container, signal);
+    return;
+  }
   if (canAccessComedorRhPage()) {
     mountComedorRh(container, signal);
     return;

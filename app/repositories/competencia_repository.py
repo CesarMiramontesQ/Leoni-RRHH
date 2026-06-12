@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.talento import Competencia, CompetenciaRequisito, PuestoPerfil
+from app.models.talento import Competencia, CompetenciaRequisito, PuestoPerfil, TipoCompetencia
 from app.repositories.base import BaseRepository
 
 
@@ -18,7 +18,12 @@ class CompetenciaRepository(BaseRepository[Competencia]):
     async def get_with_relations(self, id: int) -> Competencia | None:
         result = await self.db.execute(
             select(Competencia)
-            .options(selectinload(Competencia.area))
+            .options(
+                selectinload(Competencia.area),
+                selectinload(Competencia.tipo_competencia).selectinload(
+                    TipoCompetencia.grupo_competencia
+                ),
+            )
             .where(Competencia.id == id, Competencia.activo.is_(True))
         )
         return result.scalar_one_or_none()
@@ -34,7 +39,12 @@ class CompetenciaRepository(BaseRepository[Competencia]):
         """Lista paginada con filtros opcionales."""
         query = (
             select(Competencia)
-            .options(selectinload(Competencia.area))
+            .options(
+                selectinload(Competencia.area),
+                selectinload(Competencia.tipo_competencia).selectinload(
+                    TipoCompetencia.grupo_competencia
+                ),
+            )
             .where(Competencia.activo.is_(True))
         )
 
@@ -85,13 +95,14 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         super().__init__(CompetenciaRequisito, db)
 
     async def get_by_pair(
-        self, competencia_id: int, puesto_perfil_id: int
+        self, competencia_id: int, puesto_perfil_id: int, grado_id: int
     ) -> CompetenciaRequisito | None:
-        """Obtiene el requisito por par competencia-puesto."""
+        """Obtiene el requisito por par competencia-puesto-grado."""
         result = await self.db.execute(
             select(CompetenciaRequisito).where(
                 CompetenciaRequisito.competencia_id == competencia_id,
                 CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
+                CompetenciaRequisito.grado_id == grado_id,
             )
         )
         return result.scalar_one_or_none()
@@ -123,44 +134,62 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         return list(result.scalars().all())
 
     async def list_by_puesto_with_competencia(
-        self, puesto_perfil_id: int
+        self, puesto_perfil_id: int, grado_id: int | None = None
     ) -> list[CompetenciaRequisito]:
         """Lista requisitos de un puesto con eager load de competencia, ordenados por orden."""
-        result = await self.db.execute(
+        query = (
             select(CompetenciaRequisito)
-            .options(selectinload(CompetenciaRequisito.competencia))
+            .options(
+                selectinload(CompetenciaRequisito.competencia).selectinload(
+                    Competencia.tipo_competencia
+                ),
+                selectinload(CompetenciaRequisito.grado),
+            )
             .where(CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id)
-            .order_by(CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id)
         )
+        if grado_id is not None:
+            query = query.where(CompetenciaRequisito.grado_id == grado_id)
+        query = query.order_by(
+            CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id
+        )
+        result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def exists_by_competencia_and_perfil(
-        self, competencia_id: int, puesto_perfil_id: int
+        self, competencia_id: int, puesto_perfil_id: int, grado_id: int
     ) -> bool:
-        """Verifica si ya existe la combinacion competencia+puesto."""
+        """Verifica si ya existe la combinacion competencia+puesto+grado."""
         result = await self.db.execute(
             select(CompetenciaRequisito.id)
             .where(
                 CompetenciaRequisito.competencia_id == competencia_id,
                 CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
+                CompetenciaRequisito.grado_id == grado_id,
             )
             .limit(1)
         )
         return result.scalar_one_or_none() is not None
 
-    async def max_orden(self, puesto_perfil_id: int) -> int:
-        """Obtiene el maximo orden actual para un puesto."""
+    async def max_orden(self, puesto_perfil_id: int, grado_id: int) -> int:
+        """Obtiene el maximo orden actual para un puesto y grado."""
         result = await self.db.execute(
             select(func.coalesce(func.max(CompetenciaRequisito.orden), 0))
-            .where(CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id)
+            .where(
+                CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
+                CompetenciaRequisito.grado_id == grado_id,
+            )
         )
         return result.scalar_one()
 
     async def upsert(
-        self, competencia_id: int, puesto_perfil_id: int, nivel_requerido: int
+        self,
+        competencia_id: int,
+        puesto_perfil_id: int,
+        grado_id: int,
+        nivel_requerido: int,
     ) -> CompetenciaRequisito:
         """Crea o actualiza un requisito de competencia. Nivel 0 se mantiene (no elimina)."""
-        existing = await self.get_by_pair(competencia_id, puesto_perfil_id)
+        existing = await self.get_by_pair(competencia_id, puesto_perfil_id, grado_id)
 
         if existing:
             existing.nivel_requerido = nivel_requerido
@@ -171,6 +200,7 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
             return await self.create({
                 "competencia_id": competencia_id,
                 "puesto_perfil_id": puesto_perfil_id,
+                "grado_id": grado_id,
                 "nivel_requerido": nivel_requerido,
             })
 
@@ -187,17 +217,18 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         )
         return result.scalar_one() or 0
 
-    async def list_by_puesto_and_subcategoria(
-        self, puesto_perfil_id: int, subcategoria: str
+    async def list_by_puesto_and_tipo(
+        self, puesto_perfil_id: int, tipo_competencia_id: int, grado_id: int
     ) -> list[CompetenciaRequisito]:
-        """Lista requisitos de un puesto filtrados por subcategoría de la competencia."""
+        """Lista requisitos de un puesto filtrados por tipo de competencia y grado."""
         result = await self.db.execute(
             select(CompetenciaRequisito)
             .join(Competencia, CompetenciaRequisito.competencia_id == Competencia.id)
             .options(selectinload(CompetenciaRequisito.competencia))
             .where(
                 CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
-                Competencia.subcategoria == subcategoria,
+                CompetenciaRequisito.grado_id == grado_id,
+                Competencia.tipo_competencia_id == tipo_competencia_id,
             )
             .order_by(CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id)
         )

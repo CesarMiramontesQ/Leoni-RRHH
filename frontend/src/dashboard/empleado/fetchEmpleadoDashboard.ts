@@ -2,6 +2,7 @@ import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { getComedorMisReservasMes } from "../../api/comedor.ts";
 import { getEmpleadoVista360 } from "../../api/vista360.ts";
 import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
+import { isRhEmpleadoUiMode } from "../../auth/rhUiMode.ts";
 import { etiquetaTipoComida } from "../../utils/comedorReservaFechas.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyEmpleadoDashboardPayload } from "./mock.ts";
@@ -88,7 +89,9 @@ function calcVacationDaysInclusive(fechaInicio: string, fechaFin: string): numbe
  * el calendario marca solicitudes propias pendientes (amarillo) y aprobadas (verde).
  */
 export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget): Promise<EmpleadoDashboardPayload | null> {
-  if (getRolFromAccessToken() !== "empleado") return null;
+  const rol = getRolFromAccessToken();
+  const esAutoservicio = rol === "empleado" || (rol === "rh" && isRhEmpleadoUiMode());
+  if (!esAutoservicio) return null;
 
   const now = new Date();
   const referenceDate =

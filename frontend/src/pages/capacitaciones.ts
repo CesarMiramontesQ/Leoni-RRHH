@@ -1,5 +1,6 @@
 import { getRolFromAccessToken, getEmpleadoIdFromAccessToken } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getCapacitaciones,
   createCapacitacion,
@@ -283,6 +284,7 @@ export function mountCapacitaciones(container: HTMLElement, signal: AbortSignal)
   function render() {
     root.innerHTML = `
       <div class="px-6 py-6 max-w-7xl mx-auto">
+        ${renderLevelUpBackBar()}
         <!-- Header -->
         <div class="flex items-center justify-between mb-6">
           <div>

@@ -22,6 +22,8 @@ from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.data_scope import effective_data_scope_rol, equipo_empleado_ids_comedor
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -42,7 +44,6 @@ from app.repositories.comedor_repository import (
     MenuSemanalRepository,
 )
 from app.repositories.empleado_repository import EmpleadoRepository
-from app.core.config import settings
 from app.schemas import PaginatedResponse
 from app.schemas.comedor import (
     ComedorAccesoReservaCreate,
@@ -112,10 +113,52 @@ class ComedorService:
         self.empleado_repo = EmpleadoRepository(db)
 
     async def _get_rol(self, user: Empleado) -> str:
-        """Fuente de verdad: rol_id en BD (evita relación ORM cacheada o no cargada)."""
-        rol_result = await self.db.execute(select(Rol).where(Rol.id == user.rol_id))
-        rol = rol_result.scalar_one_or_none()
+        if user.rol:
+            return user.rol.nombre
+        result = await self.db.execute(select(Rol).where(Rol.id == user.rol_id))
+        rol = result.scalar_one_or_none()
         return rol.nombre if rol else "empleado"
+
+    async def _equipo_ids_comedor(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> set[int]:
+        """IDs de empleados visibles en vistas de comedor de equipo."""
+        raw_rol = await self._get_rol(current_user)
+        if raw_rol in ("supervisor", "gerente"):
+            equipo_ids = await self.empleado_repo.get_ids_subarbol(
+                current_user.empleado_id,
+                settings.ESTADOS_ACTIVOS_IDS,
+            )
+            equipo_ids.add(current_user.id)
+            return equipo_ids
+        return await equipo_empleado_ids_comedor(
+            self.empleado_repo,
+            current_user,
+            rh_ui_mode,
+        )
+
+    def _require_gestor_team_scope(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> str:
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("supervisor", "gerente"):
+            raise ForbiddenError(
+                detail="Solo supervisor o gerente pueden consultar datos de equipo"
+            )
+        return scope
+
+    def _require_gestor_supervisor_scope(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> None:
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope != "supervisor":
+            raise ForbiddenError(detail="Solo supervisor puede consultar beneficiarios")
 
     @staticmethod
     def _nombre_corto(nombre_completo: str | None) -> str:
@@ -200,23 +243,24 @@ class ComedorService:
         self,
         current_user: Empleado,
         target_user_id: int | None,
+        rh_ui_mode: str | None = None,
     ) -> int:
-        rol = await self._get_rol(current_user)
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
         beneficiario_id = target_user_id or current_user.id
 
-        if rol == "empleado":
+        if scope == "empleado":
             if beneficiario_id != current_user.id:
                 raise ForbiddenError(detail="No puedes registrar comida para otro empleado")
             return current_user.id
 
-        if rol == "gerente":
+        if scope == "gerente":
             if beneficiario_id != current_user.id:
                 raise ForbiddenError(
                     detail="Solo el rol supervisor puede registrar comida para terceros",
                 )
             return current_user.id
 
-        if rol in ("rh", "director"):
+        if scope in ("rh", "director"):
             if not target_user_id:
                 return current_user.id
             empleado = await self.empleado_repo.get(target_user_id)
@@ -224,7 +268,7 @@ class ComedorService:
                 raise NotFoundError(entidad="Empleado", id=target_user_id)
             return target_user_id
 
-        if rol != "supervisor":
+        if scope != "supervisor":
             raise ForbiddenError(detail="No tienes permiso para registrar reservas")
 
         if beneficiario_id == current_user.id:
@@ -290,10 +334,12 @@ class ComedorService:
         self,
         current_user: Empleado,
         target_user_id: int | None = None,
+        rh_ui_mode: str | None = None,
     ) -> ComedorAsignadoResponse:
         beneficiario_id = await self._resolver_beneficiario_reserva(
             current_user=current_user,
             target_user_id=target_user_id,
+            rh_ui_mode=rh_ui_mode,
         )
         comedor_id = await self._resolver_comedor_id_asignado(beneficiario_id)
         comedor = await self.comedor_repo.get(comedor_id)
@@ -307,9 +353,9 @@ class ComedorService:
     async def list_equipo_beneficiarios_directos(
         self,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> list[ComedorEquipoBeneficiarioItem]:
-        if await self._get_rol(current_user) != "supervisor":
-            raise ForbiddenError(detail="Solo supervisor puede consultar beneficiarios")
+        self._require_gestor_supervisor_scope(current_user, rh_ui_mode)
         subordinados = await self.empleado_repo.get_subordinados(
             current_user.empleado_id,
             settings.ESTADOS_ACTIVOS_IDS,
@@ -584,14 +630,10 @@ class ComedorService:
         self,
         current_user: Empleado,
         limite: int = 50,
+        rh_ui_mode: str | None = None,
     ) -> list[ComedorEquipoReservaItem]:
-        if await self._get_rol(current_user) not in ("supervisor", "gerente"):
-            raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar reservas de equipo")
-        equipo_ids = await self.empleado_repo.get_ids_subarbol(
-            current_user.empleado_id,
-            settings.ESTADOS_ACTIVOS_IDS,
-        )
-        equipo_ids.add(current_user.id)
+        self._require_gestor_team_scope(current_user, rh_ui_mode)
+        equipo_ids = await self._equipo_ids_comedor(current_user, rh_ui_mode)
         if not equipo_ids:
             return []
         rows = await self.acceso_repo.list_proximos_accesos_equipo(
@@ -617,17 +659,13 @@ class ComedorService:
         current_user: Empleado,
         anio: int,
         mes: int,
+        rh_ui_mode: str | None = None,
     ) -> list[ComedorEquipoReservaItem]:
-        if await self._get_rol(current_user) not in ("supervisor", "gerente"):
-            raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar reservas de equipo")
+        self._require_gestor_team_scope(current_user, rh_ui_mode)
         desde = date(anio, mes, 1)
         ultimo = calendar.monthrange(anio, mes)[1]
         hasta = date(anio, mes, ultimo)
-        equipo_ids = await self.empleado_repo.get_ids_subarbol(
-            current_user.empleado_id,
-            settings.ESTADOS_ACTIVOS_IDS,
-        )
-        equipo_ids.add(current_user.id)
+        equipo_ids = await self._equipo_ids_comedor(current_user, rh_ui_mode)
         if not equipo_ids:
             return []
         rows = await self.acceso_repo.list_accesos_equipo_mes(
@@ -651,20 +689,16 @@ class ComedorService:
     async def get_equipo_metricas_dashboard(
         self,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> dict[str, int]:
-        if await self._get_rol(current_user) not in ("supervisor", "gerente"):
-            raise ForbiddenError(detail="Solo supervisor o gerente pueden consultar métricas de equipo")
+        self._require_gestor_team_scope(current_user, rh_ui_mode)
         hoy = business_today()
         inicio_semana_actual = hoy - timedelta(days=hoy.weekday())
         fin_semana_actual = inicio_semana_actual + timedelta(days=6)
         inicio_semana_siguiente = inicio_semana_actual + timedelta(days=7)
         fin_semana_siguiente = inicio_semana_siguiente + timedelta(days=6)
 
-        equipo_ids = await self.empleado_repo.get_ids_subarbol(
-            current_user.empleado_id,
-            settings.ESTADOS_ACTIVOS_IDS,
-        )
-        equipo_ids.add(current_user.id)
+        equipo_ids = await self._equipo_ids_comedor(current_user, rh_ui_mode)
         metricas = await self.acceso_repo.get_metricas_reservas_activas_equipo(
             empleado_ids=list(equipo_ids),
             semana_actual_inicio=inicio_semana_actual,
@@ -1168,10 +1202,12 @@ class ComedorService:
         data: ComedorAccesoReservaCreate,
         current_user: Empleado,
         background_tasks: BackgroundTasks,
+        rh_ui_mode: str | None = None,
     ) -> list[ComedorAccesoReservaResponse]:
         beneficiario_id = await self._resolver_beneficiario_reserva(
             current_user=current_user,
             target_user_id=data.target_user_id,
+            rh_ui_mode=rh_ui_mode,
         )
 
         fechas = list(data.fechas_servicio or [])

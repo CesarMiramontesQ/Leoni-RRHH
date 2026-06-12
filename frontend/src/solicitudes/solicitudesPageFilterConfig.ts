@@ -1,4 +1,5 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhLiderUiMode } from "../auth/rhUiMode.ts";
 
 /** Roles con acceso a `#/solicitudes` (gestores + empleado). */
 export type SolicitudesPageRole = "rh" | "supervisor" | "gerente" | "empleado";
@@ -61,8 +62,16 @@ export function normalizeSolicitudesPageRole(rol: string | null): SolicitudesPag
   return null;
 }
 
+/** Rol efectivo de la página solicitudes (RH según modo UI). */
 export function getSolicitudesPageRoleFromSession(): SolicitudesPageRole | null {
-  return normalizeSolicitudesPageRole(getRolFromAccessToken());
+  const rol = getRolFromAccessToken();
+  if (rol === "rh") {
+    if (isRhEmpleadoUiMode()) return "empleado";
+    if (isRhLiderUiMode()) return "supervisor";
+    if (isRhGerenteUiMode()) return "gerente";
+    return "rh";
+  }
+  return normalizeSolicitudesPageRole(rol);
 }
 
 export function resolveVisibleFilterKeys(role: SolicitudesPageRole): RequestFilterKey[] {
@@ -94,7 +103,10 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
 /** UI de `#/metricas`: filtros globales + gráficas analíticas (sin tabla ni toolbar de solicitudes). */
 export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
   const sessionRole = getSolicitudesPageRoleFromSession();
-  const role: SolicitudesPageRole = sessionRole === "gerente" ? "gerente" : "rh";
+  const role: SolicitudesPageRole =
+    sessionRole === "gerente" ? "gerente"
+    : sessionRole === "supervisor" ? "supervisor"
+    : "rh";
   return {
     ...buildDefaultSolicitudesPageUiConfig(role),
     showStatsCards: false,

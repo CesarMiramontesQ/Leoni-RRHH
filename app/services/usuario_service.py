@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.repositories.comedor_repository import ComedorRepository
 from app.models.empleados import Empleado
@@ -106,9 +107,13 @@ class UsuarioService:
         if self._get_rol(current_user) != "rh":
             raise ForbiddenError(detail="Solo el rol rh puede usar esta operacion")
 
-    def _require_directorio(self, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol not in ("gerente", "director", "supervisor"):
+    def _require_directorio(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> None:
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("gerente", "director", "supervisor"):
             raise ForbiddenError(
                 detail="Se requiere rol gerente, director o supervisor para esta operacion"
             )
@@ -116,50 +121,36 @@ class UsuarioService:
     async def _ids_permitidos_directorio(
         self,
         current_user: Empleado,
-        rol: str,
+        scope_rol: str,
         estados: list[int],
         *,
         alcance_todos_los_estados: bool = False,
+        rh_ui_mode: str | None = None,
     ) -> list[int] | None:
-        if rol == "gerente":
-            if alcance_todos_los_estados:
-                subarbol = await self.empleado_repo.get_ids_subarbol_sin_filtro_estado(
-                    current_user.empleado_id
-                )
-            else:
-                subarbol = await self.empleado_repo.get_ids_subarbol(
-                    current_user.empleado_id, estados
-                )
-            return list(subarbol) + [current_user.id]
-        if rol == "supervisor":
-            if alcance_todos_los_estados:
-                directos = await self.empleado_repo.get_subordinados_directos_ids(
-                    current_user.empleado_id
-                )
-                return directos + [current_user.id]
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, estados
+        if scope_rol in ("gerente", "supervisor"):
+            return await empleado_ids_en_alcance(
+                self.empleado_repo,
+                current_user,
+                rh_ui_mode,
+                alcance_todos_los_estados=alcance_todos_los_estados,
             )
-            return [e.id for e in subordinados] + [current_user.id]
         return None
 
     async def _ensure_puede_ver_empleado(
         self,
         current_user: Empleado,
         empleado_id: int,
+        rh_ui_mode: str | None = None,
     ) -> None:
-        rol = self._get_rol(current_user)
-        if rol in ("rh", "gerente", "director"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope in ("rh", "director"):
             return
-        if rol == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
-            )
-            ids = {e.id for e in subordinados}
-            if empleado_id in ids or empleado_id == current_user.id:
-                return
-            raise ForbiddenError(detail="No tienes acceso a este usuario")
-        if empleado_id == current_user.id:
+        ids = await empleado_ids_en_alcance(
+            self.empleado_repo,
+            current_user,
+            rh_ui_mode,
+        )
+        if ids is None or empleado_id in ids:
             return
         raise ForbiddenError(detail="No tienes acceso a este usuario")
 
@@ -244,14 +235,15 @@ class UsuarioService:
         puesto_id: list[int] | None,
         current_user: Empleado,
         *,
+        rh_ui_mode: str | None = None,
         estatus_filtro: str | None = None,
         solo_contratos_por_vencer: bool = False,
     ) -> UsuarioPageResponse:
-        self._require_directorio(current_user)
+        self._require_directorio(current_user, rh_ui_mode)
         offset = (page - 1) * page_size
         estados = settings.ESTADOS_ACTIVOS_IDS
         permiso_ids = settings.ESTADOS_PERMISO_IDS
-        rol = self._get_rol(current_user)
+        scope_rol = effective_data_scope_rol(current_user, rh_ui_mode)
         ef = (estatus_filtro or "activo").strip().lower()
         if ef in ("", "activo", "activos"):
             modo: ModoEstadoListado = "activos"
@@ -268,7 +260,11 @@ class UsuarioService:
 
         alcance_todos = modo != "activos"
         ids_permitidos = await self._ids_permitidos_directorio(
-            current_user, rol, estados, alcance_todos_los_estados=alcance_todos
+            current_user,
+            scope_rol,
+            estados,
+            alcance_todos_los_estados=alcance_todos,
+            rh_ui_mode=rh_ui_mode,
         )
 
         hoy = date.today()
@@ -374,12 +370,16 @@ class UsuarioService:
             empleados_por_clasificacion_y_area=series,
         )
 
-    async def resumen_directorio(self, current_user: Empleado) -> UsuarioResumenResponse:
-        self._require_directorio(current_user)
+    async def resumen_directorio(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> UsuarioResumenResponse:
+        self._require_directorio(current_user, rh_ui_mode)
         estados_activos = settings.ESTADOS_ACTIVOS_IDS
-        rol = self._get_rol(current_user)
+        scope_rol = effective_data_scope_rol(current_user, rh_ui_mode)
         ids_permitidos = await self._ids_permitidos_directorio(
-            current_user, rol, estados_activos
+            current_user, scope_rol, estados_activos, rh_ui_mode=rh_ui_mode
         )
         hoy = date.today()
         activos = await self.repo.count_activos(estados_activos)
@@ -410,8 +410,12 @@ class UsuarioService:
             puestos=[PuestoResponse.model_validate(p) for p in puestos],
         )
 
-    async def catalogo_directorio(self, current_user: Empleado) -> CatalogoFiltrosResponse:
-        self._require_directorio(current_user)
+    async def catalogo_directorio(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
+    ) -> CatalogoFiltrosResponse:
+        self._require_directorio(current_user, rh_ui_mode)
         areas = await self.repo.list_areas_activas()
         puestos = await self.repo.list_puestos_activos()
         return CatalogoFiltrosResponse(
@@ -502,12 +506,13 @@ class UsuarioService:
         self,
         id: int,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> UsuarioVista360Response:
         usuario = await self.repo.get_with_rol(id)
         if not usuario:
             raise NotFoundError(entidad="Usuario", id=id)
 
-        await self._ensure_puede_ver_empleado(current_user, id)
+        await self._ensure_puede_ver_empleado(current_user, id, rh_ui_mode=rh_ui_mode)
 
         result = await self.db.execute(
             select(Solicitud)
@@ -571,12 +576,13 @@ class UsuarioService:
         self,
         id: int,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> MetricasUsuarioResponse:
         usuario = await self.repo.get(id)
         if not usuario:
             raise NotFoundError(entidad="Usuario", id=id)
 
-        await self._ensure_puede_ver_empleado(current_user, id)
+        await self._ensure_puede_ver_empleado(current_user, id, rh_ui_mode=rh_ui_mode)
 
         from sqlalchemy import func
 

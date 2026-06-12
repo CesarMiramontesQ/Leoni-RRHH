@@ -1,11 +1,13 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { fetchWithAuth } from "../api/http.ts";
 import {
   getEvaluaciones,
   createEvaluacion,
   deleteEvaluacion,
-  NIVEL_LABELS,
+  getNivelLabels,
   NIVEL_COLORS,
   type Evaluacion,
   type EvaluacionListResponse,
@@ -104,7 +106,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   }
 
   function renderNivelBadge(nivel: number): string {
-    const label = NIVEL_LABELS[nivel] ?? `${nivel}`;
+    const label = getNivelLabels()[nivel] ?? `${nivel}`;
     const color = NIVEL_COLORS[nivel] ?? "bg-gray-100 text-gray-600";
     return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}">${label}</span>`;
   }
@@ -112,6 +114,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   function render() {
     root.innerHTML = `
       <div class="px-6 py-6 max-w-7xl mx-auto">
+        ${renderLevelUpBackBar()}
         <div class="flex items-center justify-between mb-6">
           <h1 class="text-xl font-semibold text-gray-900">Evaluaciones de Competencias</h1>
           ${canEvaluate ? `<button data-action="open-modal" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">Nueva evaluación</button>` : ""}
@@ -250,7 +253,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Nivel</label>
               <select name="nivel_actual" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                ${[0, 1, 2, 3, 4].map((n) => `<option value="${n}">${n} — ${NIVEL_LABELS[n]}</option>`).join("")}
+                ${[0, 1, 2, 3, 4].map((n) => `<option value="${n}">${n} — ${getNivelLabels()[n]}</option>`).join("")}
               </select>
             </div>
             <div>
@@ -540,6 +543,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   // Initial load
   (async () => {
     render();
+    await ensureMetodosCalificacionCompetenciaLoaded();
     await Promise.all([loadAreas(), loadCompetencias(), loadEmpleados()]);
     await loadEvaluaciones();
     state.loading = false;

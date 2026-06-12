@@ -129,13 +129,17 @@ export const RH_SURFACE_CARD = RH_LISTADO_SURFACE;
 export function htmlAccessDenied(opts: {
   title: string;
   description: string;
-  linkHref: string;
-  linkLabel: string;
+  linkHref?: string;
+  linkLabel?: string;
 }): string {
+  const linkHtml =
+    opts.linkHref && opts.linkLabel
+      ? `<a href="${escapeHtml(opts.linkHref)}" class="mt-4 inline-flex font-semibold text-[#1e40af] transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2">${escapeHtml(opts.linkLabel)}</a>`
+      : "";
   return `
     <div class="rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 px-5 py-5 text-sm text-amber-950 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
       <p class="font-semibold text-[#111827]">${escapeHtml(opts.title)}</p>
       <p class="mt-1.5 leading-snug text-amber-950/90">${escapeHtml(opts.description)}</p>
-      <a href="${escapeHtml(opts.linkHref)}" class="mt-4 inline-flex font-semibold text-[#1e40af] transition hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2">${escapeHtml(opts.linkLabel)}</a>
+      ${linkHtml}
     </div>`;
 }

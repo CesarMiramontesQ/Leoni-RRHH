@@ -10,7 +10,6 @@ import {
 import {
   mountRhDashboardAnalyticsCharts,
   mountRhDashboardEmpleadosCharts,
-  resizeRhDashboardAnalyticsCharts,
   RH_DASH_ANALYTICS_CHART_IDS,
 } from "../components/dashboard/rhAnalyticsCharts.ts";
 import {
@@ -20,7 +19,7 @@ import {
   renderRhAnalyticsSection,
   renderRhAnalyticsSectionSkeleton,
 } from "../components/dashboard/rhAnalyticsSection.ts";
-import { destroyChart, destroyChartsIn } from "../charts/index.ts";
+import { destroyAllCharts, destroyChart, destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
 import { mountSupervisorIncidenciasChart } from "../components/dashboard/liderSupervisorIncidenciasChart.ts";
 import { mountSupervisorHomeOfficeWeekdayChart } from "../components/dashboard/liderSupervisorHomeOfficeWeekdayChart.ts";
 import type {
@@ -155,6 +154,12 @@ async function loadDashboardKpis(container: HTMLElement): Promise<void> {
 let rhDashLoadSeq = 0;
 let rhDashEmpleadosCache: RhDashboardEmpleadosSlice | null = null;
 
+/** Limpia caché y cancela cargas en curso (p. ej. al cerrar sesión). */
+export function resetRhDashboardSessionState(): void {
+  rhDashEmpleadosCache = null;
+  rhDashLoadSeq += 1;
+}
+
 async function loadRhDashboardEmpleados(): Promise<RhDashboardEmpleadosSlice> {
   if (rhDashEmpleadosCache) return rhDashEmpleadosCache;
   rhDashEmpleadosCache = await fetchRhDashboardEmpleados();
@@ -176,15 +181,11 @@ function mountRhDashboardChartsWhenReady(
   payload: RhDashboardAnalyticsPayload,
   isStale: () => boolean,
 ): void {
-  mountRhDashboardAnalyticsCharts(analyticsRoot, payload);
-  requestAnimationFrame(() => {
-    if (isStale()) return;
-    resizeRhDashboardAnalyticsCharts();
-    requestAnimationFrame(() => {
-      if (isStale()) return;
-      resizeRhDashboardAnalyticsCharts();
-    });
-  });
+  runChartsAfterLayout(
+    analyticsRoot,
+    () => mountRhDashboardAnalyticsCharts(analyticsRoot, payload),
+    { isStale },
+  );
 }
 
 function bindRhDashboardPeriodControls(
@@ -219,6 +220,7 @@ async function loadRhOperationalDashboard(
   const seq = ++rhDashLoadSeq;
   const isStale = (): boolean => seq !== rhDashLoadSeq;
 
+  destroyAllCharts();
   for (const id of RH_DASH_ANALYTICS_CHART_IDS) destroyChart(id);
   const analyticsRoot = root.querySelector<HTMLElement>("#rh-dashboard-analytics");
   const analyticsBody = root.querySelector<HTMLElement>("#rh-dashboard-analytics-body");
@@ -233,7 +235,11 @@ async function loadRhOperationalDashboard(
       ? renderRhAnalyticsBodyPeriodLoading(rhDashEmpleadosCache!)
       : renderRhAnalyticsBodySkeleton();
     if (pinEmpleadosWhileLoading && analyticsRoot && rhDashEmpleadosCache) {
-      mountRhDashboardEmpleadosCharts(analyticsRoot, rhDashEmpleadosCache);
+      runChartsAfterLayout(
+        analyticsRoot,
+        () => mountRhDashboardEmpleadosCharts(analyticsRoot, rhDashEmpleadosCache),
+        { isStale },
+      );
     }
   } else {
     root.innerHTML = wrapDashboardPageContent(renderRhAnalyticsSectionSkeleton(periodDays));
@@ -269,6 +275,7 @@ async function loadRhOperationalDashboard(
       return;
     }
     analyticsBody.removeAttribute("aria-busy");
+    destroyChartsIn(analyticsBody);
     analyticsBody.innerHTML = renderRhAnalyticsBody(analyticsPayload, analyticsPartial);
     syncRhDashboardPeriodButtons(root, analyticsPayload.periodDays);
     try {
@@ -407,12 +414,14 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   if (canAccessLiderTeamDashboard()) {
     const chartsHost = root.querySelector("#lider-supervisor-charts");
     if (chartsHost) {
-      if (payload.supervisor_incidencias_chart) {
-        mountSupervisorIncidenciasChart(chartsHost, payload.supervisor_incidencias_chart);
-      }
-      if (payload.supervisor_ho_weekday_chart) {
-        mountSupervisorHomeOfficeWeekdayChart(chartsHost, payload.supervisor_ho_weekday_chart);
-      }
+      runChartsAfterLayout(chartsHost, () => {
+        if (payload.supervisor_incidencias_chart) {
+          mountSupervisorIncidenciasChart(chartsHost, payload.supervisor_incidencias_chart);
+        }
+        if (payload.supervisor_ho_weekday_chart) {
+          mountSupervisorHomeOfficeWeekdayChart(chartsHost, payload.supervisor_ho_weekday_chart);
+        }
+      });
     }
   }
   if (canSeeDashboardTeamCalendar()) {
@@ -497,16 +506,16 @@ function mountStandardDashboard(container: HTMLElement): void {
  * - resto (p. ej. `director`) → KPIs actuales
  */
 export function mountDashboardPlaceholder(container: HTMLElement): void {
-  if (canAccessRhOperationalDashboard()) {
-    mountRhOperationalDashboard(container);
+  if (canAccessEmpleadoPersonalDashboard()) {
+    mountEmpleadoPersonalDashboardShell(container);
     return;
   }
   if (canAccessLiderTeamDashboard()) {
     mountLiderTeamDashboardShell(container);
     return;
   }
-  if (canAccessEmpleadoPersonalDashboard()) {
-    mountEmpleadoPersonalDashboardShell(container);
+  if (canAccessRhOperationalDashboard()) {
+    mountRhOperationalDashboard(container);
     return;
   }
   mountStandardDashboard(container);
