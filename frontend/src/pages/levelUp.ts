@@ -1566,6 +1566,9 @@ export function mountCursos(container: HTMLElement): void {
       e.preventDefault();
       const cursoId = state.detailCurso?.id;
       if (!cursoId) return;
+      const submitBtn = form.querySelector<HTMLButtonElement>("button[type='submit']");
+      if (submitBtn?.disabled) return;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Guardando..."; }
       const fd = new FormData(form);
       const payload: CursoSesionCreatePayload = {
         fecha_inicio: fd.get("fecha_inicio") as string,
@@ -1577,7 +1580,7 @@ export function mountCursos(container: HTMLElement): void {
         cupo_max: fd.get("cupo_max") ? Number(fd.get("cupo_max")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
-      if (!payload.fecha_inicio) return;
+      if (!payload.fecha_inicio) { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; } return; }
       try {
         await createCursoSesion(cursoId, payload);
         state.showCreateSesionModal = false;
@@ -1585,6 +1588,7 @@ export function mountCursos(container: HTMLElement): void {
         state.detailSesiones = resp.items;
         render();
       } catch (err: any) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; }
         alert(err?.detail ?? "Error al crear la sesión");
       }
       return;
