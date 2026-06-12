@@ -38,6 +38,9 @@ const TABLE_COLUMNS = [
 const CHECKBOX_CLS =
   "size-4 rounded border-slate-300 text-leoni-blue focus:ring-2 focus:ring-leoni-blue/40";
 
+const AJUSTES_SECTION_STACK = "grid gap-4 sm:gap-6";
+const AJUSTES_SURFACE_PAD = "p-5 sm:p-6";
+
 const SEARCH_INPUT_CLS =
   "w-full rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-slate-900 shadow-sm";
 
@@ -74,22 +77,6 @@ function directorActivo(aprobadores: AprobadoresState): AprobadorItem | undefine
   return aprobadores.directores.find((d) => d.activo);
 }
 
-function renderHeader(state: AjustesNominasState): string {
-  const actualizado = state.lastUpdatedAt
-    ? `Actualizado a las ${state.lastUpdatedAt.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`
-    : "Cargando información…";
-  return `
-    <header class="flex min-w-0 flex-wrap items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Ajustes de Nómina</h1>
-        <p class="mt-1 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          Administra los permisos y responsables del proceso de horas extra.
-        </p>
-      </div>
-      <p class="shrink-0 text-xs text-text-muted" aria-live="polite">${actualizado}</p>
-    </header>`;
-}
-
 function renderStatCard(opts: {
   label: string;
   value: number | null;
@@ -107,24 +94,30 @@ function renderStatCard(opts: {
       ? `<span class="text-text-muted">…</span>`
       : `${opts.value}`;
   return `
-    <div class="rounded-[14px] border bg-linear-to-br p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] ${tones[opts.tone]}">
+    <div class="rounded-[14px] border bg-linear-to-br p-5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] ${tones[opts.tone]}">
       <p class="text-xs font-semibold uppercase tracking-wide text-[#64748b]">${escapeHtml(opts.label)}</p>
       <p class="mt-2 text-2xl font-bold tabular-nums text-[#0f172a]">${value}</p>
       ${opts.hint ? `<p class="mt-1 text-[11px] text-text-muted">${escapeHtml(opts.hint)}</p>` : ""}
     </div>`;
 }
 
-function renderStats(state: AjustesNominasState): string {
+function renderPageStats(state: AjustesNominasState): string {
   const stats = state.stats;
   const aprobadoresListos = !state.aprobadores.loading;
   const director = directorActivo(state.aprobadores);
   return `
-    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Indicadores del proceso de horas extra">
+    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores del proceso de horas extra">
       ${renderStatCard({
         label: "Empleados autorizados",
         value: stats?.autorizaciones_activas ?? null,
         hint: "Autorizados para registrar horas extra",
         tone: "info",
+      })}
+      ${renderStatCard({
+        label: "Solicitudes pendientes",
+        value: stats?.solicitudes_pendientes ?? null,
+        hint: "Pendientes de aprobación",
+        tone: "default",
       })}
       ${renderStatCard({
         label: "Gerentes regionales",
@@ -137,12 +130,6 @@ function renderStats(state: AjustesNominasState): string {
         value: aprobadoresListos ? (director ? 1 : 0) : null,
         hint: director ? "Director configurado" : "Sin director activo",
         tone: director || !aprobadoresListos ? "success" : "muted",
-      })}
-      ${renderStatCard({
-        label: "Solicitudes pendientes",
-        value: stats?.solicitudes_pendientes ?? null,
-        hint: "Pendientes de aprobación",
-        tone: "default",
       })}
     </section>`;
 }
@@ -207,17 +194,17 @@ function renderEstadoFlujo(state: AjustesNominasState): string {
   };
 
   return `
-    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-labelledby="aj-flujo-titulo">
-      <div class="flex flex-wrap items-start justify-between gap-3">
+    <section class="${RH_LISTADO_SURFACE} ${AJUSTES_SURFACE_PAD}" aria-labelledby="aj-flujo-titulo">
+      <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0">
           <h2 id="aj-flujo-titulo" class="text-base font-semibold text-text-primary">Estado del flujo de horas extra</h2>
-          <p class="mt-1 text-sm leading-relaxed text-text-secondary">
+          <p class="mt-1.5 text-sm leading-relaxed text-text-secondary">
             Cadena de aprobación configurada para las solicitudes de horas extra.
           </p>
         </div>
         ${estadoBadge}
       </div>
-      <ol class="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center" aria-label="Flujo de aprobación">
+      <ol class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center" aria-label="Flujo de aprobación">
         ${renderFlujoPaso({ icon: FLUJO_ICONS.empleado, titulo: "Empleado autorizado", descripcion: "Registra la solicitud", ok: tieneAutorizados })}
         ${FLUJO_FLECHA}
         ${renderFlujoPaso({ icon: FLUJO_ICONS.gerente, titulo: "Gerente Regional", descripcion: "Aprobación inicial", ok: tieneGerentes })}
@@ -226,7 +213,7 @@ function renderEstadoFlujo(state: AjustesNominasState): string {
         ${FLUJO_FLECHA}
         ${renderFlujoPaso({ icon: FLUJO_ICONS.nomina, titulo: "Nómina", descripcion: "Procesa el pago", ok: null })}
       </ol>
-      <ul class="mt-4 grid gap-1.5 border-t border-slate-100 pt-3 sm:grid-cols-3">
+      <ul class="mt-6 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3">
         ${checkItem(tieneAutorizados, "Empleados autorizados", "Sin empleados autorizados")}
         ${checkItem(tieneGerentes, "Gerentes configurados", "Sin gerentes regionales activos")}
         ${checkItem(tieneDirector, "Director configurado", "Sin director activo")}
@@ -303,7 +290,7 @@ function renderPagination(state: AjustesNominasState): string {
     .join("");
 
   return `
-    <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div class="flex flex-col gap-4 border-t border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <p class="text-xs text-text-secondary">
         Mostrando <span class="font-semibold tabular-nums text-text-primary">${start}-${end}</span> de
         <span class="font-semibold tabular-nums text-text-primary">${state.total}</span> empleados autorizados
@@ -319,9 +306,9 @@ function renderPagination(state: AjustesNominasState): string {
 function renderAutorizadosEmptyState(state: AjustesNominasState): string {
   const disabled = state.status === "loading" || state.revokingId !== null;
   return `
-    <div class="m-4 rounded-xl border border-dashed border-[var(--color-border)]/90 bg-slate-50/40 px-4 py-8 text-center sm:m-5">
+    <div class="m-5 rounded-xl border border-dashed border-[var(--color-border)]/90 bg-slate-50/40 px-5 py-8 text-center sm:m-6">
       <span class="mx-auto flex size-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">${FLUJO_ICONS.empleado}</span>
-      <p class="mt-3 text-sm font-semibold text-text-primary">No hay empleados autorizados</p>
+      <p class="mt-4 text-sm font-semibold text-text-primary">No hay empleados autorizados</p>
       <p class="mt-1.5 text-xs text-text-muted">Autoriza empleados para que puedan registrar las horas extra de sus equipos.</p>
       <button
         type="button"
@@ -334,14 +321,14 @@ function renderAutorizadosEmptyState(state: AjustesNominasState): string {
 
 function renderAutorizadosBody(state: AjustesNominasState): string {
   if (state.status === "loading") {
-    return `<p class="px-4 py-8 text-center text-sm text-text-secondary sm:px-5">Cargando empleados autorizados…</p>`;
+    return `<p class="px-5 py-10 text-center text-sm text-text-secondary sm:px-6">Cargando empleados autorizados…</p>`;
   }
   if (state.status === "error") {
-    return `<p class="px-4 py-8 text-center text-sm text-red-700 sm:px-5">${escapeHtml(state.errorMessage ?? "No se pudo cargar el listado.")}</p>`;
+    return `<p class="px-5 py-10 text-center text-sm text-red-700 sm:px-6">${escapeHtml(state.errorMessage ?? "No se pudo cargar el listado.")}</p>`;
   }
   if (state.items.length === 0) {
     if (state.q.trim()) {
-      return `<p class="px-4 py-8 text-center text-sm text-text-secondary sm:px-5">Sin empleados autorizados que coincidan con la búsqueda.</p>`;
+      return `<p class="px-5 py-10 text-center text-sm text-text-secondary sm:px-6">Sin empleados autorizados que coincidan con la búsqueda.</p>`;
     }
     return renderAutorizadosEmptyState(state);
   }
@@ -368,28 +355,19 @@ function autorizadosSinRegistros(state: AjustesNominasState): boolean {
   return state.status === "ready" && state.items.length === 0 && state.q.trim() === "";
 }
 
-function renderAutorizadosEncabezado(state: AjustesNominasState): string {
+function renderAutorizadosToolbar(state: AjustesNominasState): string {
   const disabled = state.status === "loading";
   const sinRegistros = autorizadosSinRegistros(state);
+  if (sinRegistros) return "";
   return `
-    <header class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div class="min-w-0">
-        <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados para registrar horas extra</h2>
-        <p class="mt-1 text-sm leading-relaxed text-text-secondary">
-          Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
-        </p>
-      </div>
-      ${
-        sinRegistros
-          ? ""
-          : `<button
-              type="button"
-              data-aj-he-abrir-modal
-              class="${BTN_PRIMARY} w-full shrink-0 sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
-              ${disabled || state.revokingId !== null ? "disabled" : ""}
-            >Autorizar empleados</button>`
-      }
-    </header>`;
+    <div class="flex justify-end">
+      <button
+        type="button"
+        data-aj-he-abrir-modal
+        class="${BTN_PRIMARY} w-full shrink-0 sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
+        ${disabled || state.revokingId !== null ? "disabled" : ""}
+      >Autorizar empleados</button>
+    </div>`;
 }
 
 function renderAutorizadosFiltros(state: AjustesNominasState): string {
@@ -398,8 +376,8 @@ function renderAutorizadosFiltros(state: AjustesNominasState): string {
   if (!mostrarBusqueda) return "";
 
   return `
-    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-label="Filtros de empleados autorizados">
-      <div class="flex flex-wrap items-center gap-3">
+    <section class="${RH_LISTADO_SURFACE} ${AJUSTES_SURFACE_PAD}" aria-label="Filtros de empleados autorizados">
+      <div class="flex flex-wrap items-center gap-4">
         <div class="min-w-0 w-full flex-1 sm:max-w-md">
           <input
             id="aj-he-busqueda"
@@ -426,13 +404,30 @@ function renderAutorizadosTabla(state: AjustesNominasState): string {
     </section>`;
 }
 
-function renderSeccionAutorizados(state: AjustesNominasState): string {
+function renderAutorizacionesContenido(state: AjustesNominasState): string {
   return `
-    <section class="grid gap-3" aria-labelledby="aj-he-titulo">
-      ${renderAutorizadosEncabezado(state)}
+    <div class="${AJUSTES_SECTION_STACK}">
+      ${renderMensajes(state)}
+      ${renderAutorizadosToolbar(state)}
       ${renderAutorizadosFiltros(state)}
       ${renderAutorizadosTabla(state)}
-    </section>`;
+    </div>`;
+}
+
+function renderAprobadoresContenido(state: AjustesNominasState): string {
+  const aprobadores = state.aprobadores;
+  const busy =
+    (aprobadores.modal?.submitting ?? false) ||
+    aprobadores.mutatingId !== null ||
+    aprobadores.loading;
+  return `
+    <div class="${AJUSTES_SECTION_STACK}">
+      ${renderAprobadoresMensajes(aprobadores)}
+      <div class="flex w-full flex-col gap-8 sm:gap-10">
+        ${renderAprobadorCard("gerente_regional", aprobadores, aprobadores.gerentes, busy)}
+        ${renderAprobadorCard("director", aprobadores, aprobadores.directores, busy)}
+      </div>
+    </div>`;
 }
 
 function renderModalResultados(modal: AjustesNominasModalState): string {
@@ -604,9 +599,9 @@ function renderAprobadorAcciones(
 function renderAprobadorEmptyState(tipo: AprobadorTipo, busy: boolean): string {
   const copy = APROBADOR_CARD_COPY[tipo];
   return `
-    <div class="m-4 rounded-xl border border-dashed border-[var(--color-border)]/90 bg-slate-50/40 px-4 py-8 text-center sm:m-5">
+    <div class="m-5 rounded-xl border border-dashed border-[var(--color-border)]/90 bg-slate-50/40 px-5 py-8 text-center sm:m-6">
       <span class="mx-auto flex size-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">${tipo === "director" ? FLUJO_ICONS.director : FLUJO_ICONS.gerente}</span>
-      <p class="mt-3 text-sm font-semibold text-text-primary">${copy.vacio}</p>
+      <p class="mt-4 text-sm font-semibold text-text-primary">${copy.vacio}</p>
       <p class="mt-1.5 text-xs text-text-muted">${copy.descripcion}</p>
       <button
         type="button"
@@ -614,6 +609,22 @@ function renderAprobadorEmptyState(tipo: AprobadorTipo, busy: boolean): string {
         class="${BTN_SECONDARY} mt-4 disabled:cursor-not-allowed disabled:opacity-50"
         ${busy ? "disabled" : ""}
       >+ ${copy.boton}</button>
+    </div>`;
+}
+
+function renderAprobadorEmpleadoCell(item: AprobadorItem): string {
+  return `
+    <div class="flex items-start gap-3">
+      ${avatarHtml(item.nombre)}
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium leading-snug text-text-primary">${escapeHtml(item.nombre)}</p>
+        <p class="mt-1 text-xs tabular-nums text-text-muted">${escapeHtml(item.noEmpleado)}</p>
+        ${
+          item.areaPuesto
+            ? `<p class="mt-0.5 text-xs leading-relaxed text-text-secondary">${escapeHtml(item.areaPuesto)}</p>`
+            : ""
+        }
+      </div>
     </div>`;
 }
 
@@ -625,22 +636,11 @@ function renderAprobadorRows(
   return items
     .map((item) => {
       const mutating = aprobadores.mutatingId === item.id;
-      const detalle = [item.noEmpleado, item.email, item.areaPuesto]
-        .filter(Boolean)
-        .join(" · ");
       return `
       <tr class="border-b border-slate-100 transition hover:bg-slate-50/70">
-        <td class="px-3 py-3">
-          <div class="flex items-center gap-3">
-            ${avatarHtml(item.nombre)}
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
-              <p class="mt-0.5 truncate text-xs tabular-nums text-text-muted">${escapeHtml(detalle)}</p>
-            </div>
-          </div>
-        </td>
-        <td class="px-3 py-3">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
-        <td class="px-3 py-3">${renderAprobadorAcciones(item, mutating, busy)}</td>
+        <td class="px-4 py-4 sm:px-5">${renderAprobadorEmpleadoCell(item)}</td>
+        <td class="px-4 py-4 align-middle whitespace-nowrap sm:px-5">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
+        <td class="px-4 py-4 align-middle sm:px-5">${renderAprobadorAcciones(item, mutating, busy)}</td>
       </tr>`;
     })
     .join("");
@@ -658,7 +658,7 @@ function renderAprobadorTabla(
           <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
             ${APROBADORES_TABLE_COLUMNS.map(
               (col) =>
-                `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
+                `<th scope="col" class="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap sm:px-5">${col}</th>`,
             ).join("")}
           </tr>
         </thead>
@@ -669,31 +669,6 @@ function renderAprobadorTabla(
     </div>`;
 }
 
-/** Ficha ejecutiva: se usa cuando el director es único en su tabla. */
-function renderDirectorFicha(
-  aprobadores: AprobadoresState,
-  item: AprobadorItem,
-  busy: boolean,
-): string {
-  const mutating = aprobadores.mutatingId === item.id;
-  const detalle = [item.noEmpleado, item.areaPuesto].filter(Boolean).join(" · ");
-  return `
-    <div class="flex flex-col gap-4 p-4 sm:p-5">
-      <div class="flex items-start gap-4">
-        ${avatarHtml(item.nombre, "size-14 text-lg")}
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-base font-semibold text-text-primary">${escapeHtml(item.nombre)}</p>
-          <p class="mt-0.5 truncate text-sm text-text-secondary">${escapeHtml(detalle || "—")}</p>
-          ${item.email ? `<p class="mt-0.5 truncate text-xs text-text-muted">${escapeHtml(item.email)}</p>` : ""}
-          <div class="mt-2">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</div>
-        </div>
-      </div>
-      <div class="border-t border-slate-100 pt-3">
-        ${renderAprobadorAcciones(item, mutating, busy)}
-      </div>
-    </div>`;
-}
-
 function renderAprobadorCardBody(
   tipo: AprobadorTipo,
   aprobadores: AprobadoresState,
@@ -701,13 +676,10 @@ function renderAprobadorCardBody(
   busy: boolean,
 ): string {
   if (aprobadores.loading) {
-    return `<p class="px-4 py-8 text-center text-sm text-text-secondary sm:px-5">Cargando aprobadores…</p>`;
+    return `<p class="px-5 py-10 text-center text-sm text-text-secondary sm:px-6">Cargando aprobadores…</p>`;
   }
   if (items.length === 0) {
     return renderAprobadorEmptyState(tipo, busy);
-  }
-  if (tipo === "director" && items.length === 1) {
-    return renderDirectorFicha(aprobadores, items[0], busy);
   }
   return renderAprobadorTabla(aprobadores, items, busy);
 }
@@ -725,10 +697,10 @@ function renderAprobadorEncabezado(
   const copy = APROBADOR_CARD_COPY[tipo];
   const conRegistros = !aprobadores.loading && items.length > 0;
   return `
-    <header class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <header class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
         <h3 id="${aprobadorHeadingId(tipo)}" class="text-base font-semibold text-text-primary">${copy.titulo}</h3>
-        <p class="mt-1 text-sm leading-relaxed text-text-secondary">${copy.descripcion}</p>
+        <p class="mt-1.5 text-sm leading-relaxed text-text-secondary">${copy.descripcion}</p>
       </div>
       ${
         conRegistros
@@ -752,7 +724,7 @@ function renderAprobadorContenedor(
   const copy = APROBADOR_CARD_COPY[tipo];
   return `
     <section
-      class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden"
+      class="${RH_LISTADO_SURFACE} flex w-full min-w-0 flex-col overflow-hidden"
       aria-label="Datos de ${copy.titulo}"
     >
       ${renderAprobadorCardBody(tipo, aprobadores, items, busy)}
@@ -767,7 +739,7 @@ function renderAprobadorCard(
 ): string {
   const headingId = aprobadorHeadingId(tipo);
   return `
-    <div class="grid min-w-0 gap-3" aria-labelledby="${headingId}">
+    <div class="grid w-full min-w-0 gap-4 sm:gap-6" aria-labelledby="${headingId}">
       ${renderAprobadorEncabezado(tipo, aprobadores, items, busy)}
       ${renderAprobadorContenedor(tipo, aprobadores, items, busy)}
     </div>`;
@@ -783,23 +755,63 @@ function renderAprobadoresMensajes(aprobadores: AprobadoresState): string {
   return success || error ? `<div class="grid gap-2">${success}${error}</div>` : "";
 }
 
-function renderSeccionAprobadores(aprobadores: AprobadoresState): string {
-  const busy =
-    (aprobadores.modal?.submitting ?? false) ||
-    aprobadores.mutatingId !== null ||
-    aprobadores.loading;
+type AjustesScopedSectionCopy = {
+  title: string;
+  subtitle: string;
+  chip: string;
+  sectionId: string;
+};
+
+const AUTORIZACIONES_SECTION_COPY: AjustesScopedSectionCopy = {
+  title: "Autorizaciones",
+  subtitle: "Empleados autorizados para registrar horas extra y su administración.",
+  chip: "Autorizaciones",
+  sectionId: "aj-seccion-autorizaciones",
+};
+
+const APROBADORES_SECTION_COPY: AjustesScopedSectionCopy = {
+  title: "Aprobadores",
+  subtitle: "Gerentes regionales y director del flujo de aprobación de horas extra.",
+  chip: "Aprobadores",
+  sectionId: "aj-seccion-aprobadores",
+};
+
+function renderAutorizacionesSection(state: AjustesNominasState): string {
+  const copy = AUTORIZACIONES_SECTION_COPY;
   return `
-    <section aria-labelledby="aj-ap-titulo" class="grid gap-3">
-      <div class="min-w-0">
-        <h2 id="aj-ap-titulo" class="text-lg font-semibold text-text-primary">Configuración de aprobadores</h2>
-        <p class="mt-1 text-sm leading-relaxed text-text-secondary">
-          Define a los gerentes regionales y al director que participan en la aprobación de horas extra.
-        </p>
+    <section
+      id="${copy.sectionId}"
+      class="${RH_LISTADO_SURFACE} border-l-[6px] border-l-[#1e40af] p-4 sm:p-5"
+      aria-labelledby="${copy.sectionId}-titulo"
+    >
+      <header class="mb-4 border-b border-slate-200/90 pb-3">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h2 id="${copy.sectionId}-titulo" class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(copy.title)}<span class="ml-2 inline-flex shrink-0 rounded-full border border-[#1e40af]/20 bg-[#eff6ff] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#1e40af]">${copy.chip}</span></h2>
+        </div>
+        <p class="mt-1.5 text-xs leading-snug text-text-muted sm:text-sm">${escapeHtml(copy.subtitle)}</p>
+      </header>
+      <div class="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5">
+        ${renderAutorizacionesContenido(state)}
       </div>
-      ${renderAprobadoresMensajes(aprobadores)}
-      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        ${renderAprobadorCard("gerente_regional", aprobadores, aprobadores.gerentes, busy)}
-        ${renderAprobadorCard("director", aprobadores, aprobadores.directores, busy)}
+    </section>`;
+}
+
+function renderAprobadoresSection(state: AjustesNominasState): string {
+  const copy = APROBADORES_SECTION_COPY;
+  return `
+    <section
+      id="${copy.sectionId}"
+      class="${RH_LISTADO_SURFACE} border-emerald-200/80 border-l-[6px] border-l-emerald-600 bg-linear-to-br from-emerald-50/40 via-white to-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-5"
+      aria-labelledby="${copy.sectionId}-titulo"
+    >
+      <header class="mb-4 border-b border-slate-200/90 pb-3">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h2 id="${copy.sectionId}-titulo" class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(copy.title)}<span class="ml-2 inline-flex shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">${copy.chip}</span></h2>
+        </div>
+        <p class="mt-1.5 text-xs leading-snug text-text-muted sm:text-sm">${escapeHtml(copy.subtitle)}</p>
+      </header>
+      <div class="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5">
+        ${renderAprobadoresContenido(state)}
       </div>
     </section>`;
 }
@@ -932,13 +944,11 @@ function renderAprobadoresModal(aprobadores: AprobadoresState): string {
 export function renderAjustesNominasPage(state: AjustesNominasState): string {
   return `
     <div id="ajustes-nominas-page" class="${RH_DASHBOARD_PAGE_SHELL}">
-      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderHeader(state)}
-        ${renderStats(state)}
+      <div id="ajustes-nominas-root" class="rh-ajustes-module ${RH_LISTADO_PAGE_OUTER_GRADIENT} grid gap-4 sm:gap-6">
+        ${renderPageStats(state)}
         ${renderEstadoFlujo(state)}
-        ${renderMensajes(state)}
-        ${renderSeccionAutorizados(state)}
-        ${renderSeccionAprobadores(state.aprobadores)}
+        ${renderAutorizacionesSection(state)}
+        ${renderAprobadoresSection(state)}
       </div>
       ${renderModal(state)}
       ${renderAprobadoresModal(state.aprobadores)}

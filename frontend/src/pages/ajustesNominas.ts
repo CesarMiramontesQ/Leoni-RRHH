@@ -56,7 +56,6 @@ function initialState(): AjustesNominasState {
       directores: [],
       modal: null,
     },
-    lastUpdatedAt: null,
   };
 }
 
@@ -200,7 +199,6 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
         page: data.page,
         pageSize: data.page_size,
         errorMessage: undefined,
-        lastUpdatedAt: new Date(),
       };
     } catch (e) {
       const err = e as NominasAjustesFetchError;
