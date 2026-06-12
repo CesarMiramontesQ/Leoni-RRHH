@@ -454,8 +454,8 @@ export function mountCursos(container: HTMLElement): void {
     const total = state.cursos.total;
     const items = state.cursos.items;
     const obligatorios = items.filter(c => c.obligatorio).length;
-    const internos = items.filter(c => c.tipo === "interno").length;
-    const externos = items.filter(c => c.tipo === "externo").length;
+    const internos = items.filter(c => c.tipo_nombre === "interno").length;
+    const externos = items.filter(c => c.tipo_nombre === "externo").length;
     return `
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -569,22 +569,22 @@ export function mountCursos(container: HTMLElement): void {
     <div class="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm transition hover:shadow-md">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2 flex-wrap">
-          ${cursoCatBadge(c.categoria)}
+          ${cursoCatBadge(c.categoria_nombre)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
         </div>
-        ${cursoTipoBadge(c.tipo)}
+        ${cursoTipoBadge(c.tipo_nombre)}
       </div>
       <div>
         <button data-action="view-curso" data-id="${c.id}" class="text-left text-sm font-semibold leading-tight text-text-primary line-clamp-2 hover:text-blue-600 hover:underline transition">${escapeHtml(c.nombre)}</button>
-        <p class="mt-1 text-xs text-text-muted">${escapeHtml(c.proveedor ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
+        <p class="mt-1 text-xs text-text-muted">${escapeHtml(c.proveedor_nombre ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
       </div>
-      ${c.instructor ? `
+      ${c.instructor_nombre ? `
       <div class="flex items-center gap-2">
-        <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${c.instructor.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</span>
-        <span class="text-xs text-slate-600">${escapeHtml(c.instructor)}</span>
+        <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${c.instructor_nombre.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</span>
+        <span class="text-xs text-slate-600">${escapeHtml(c.instructor_nombre)}</span>
       </div>` : ""}
       <div class="mt-auto border-t border-slate-100 pt-3 flex items-center justify-between text-[11px]">
-        <span class="text-slate-500">${CLASIFICACION_LABELS[c.clasificacion ?? ""] ?? "—"}</span>
+        <span class="text-slate-500">${CLASIFICACION_LABELS[c.clasificacion_nombre ?? ""] ?? "—"}</span>
         ${isRH ? `
         <div class="flex items-center gap-2">
           <button data-action="edit-curso" data-id="${c.id}" class="text-xs font-medium text-blue-600 hover:text-blue-800">Editar</button>
@@ -623,8 +623,8 @@ export function mountCursos(container: HTMLElement): void {
             <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
             <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
               <option value="">—</option>
-              <option value="adicional" ${c?.clasificacion === "adicional" ? "selected" : ""}>Adicional</option>
-              <option value="contemplado" ${c?.clasificacion === "contemplado" ? "selected" : ""}>Contemplado</option>
+              <option value="adicional" ${c?.clasificacion_nombre === "adicional" ? "selected" : ""}>Adicional</option>
+              <option value="contemplado" ${c?.clasificacion_nombre === "contemplado" ? "selected" : ""}>Contemplado</option>
             </select>
           </div>
           <div class="grid grid-cols-2 gap-4">
@@ -636,18 +636,18 @@ export function mountCursos(container: HTMLElement): void {
               <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
               <select name="categoria" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">—</option>
-                <option value="tecnico" ${c?.categoria === "tecnico" ? "selected" : ""}>Técnico</option>
-                <option value="calidad" ${c?.categoria === "calidad" ? "selected" : ""}>Calidad</option>
-                <option value="seguridad" ${c?.categoria === "seguridad" ? "selected" : ""}>Seguridad</option>
-                <option value="operativo" ${c?.categoria === "operativo" ? "selected" : ""}>Operativo</option>
-                <option value="blanda" ${c?.categoria === "blanda" ? "selected" : ""}>Blanda</option>
+                <option value="tecnico" ${c?.categoria_nombre === "tecnico" ? "selected" : ""}>Técnico</option>
+                <option value="calidad" ${c?.categoria_nombre === "calidad" ? "selected" : ""}>Calidad</option>
+                <option value="seguridad" ${c?.categoria_nombre === "seguridad" ? "selected" : ""}>Seguridad</option>
+                <option value="operativo" ${c?.categoria_nombre === "operativo" ? "selected" : ""}>Operativo</option>
+                <option value="blanda" ${c?.categoria_nombre === "blanda" ? "selected" : ""}>Blanda</option>
               </select>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-              <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+              <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor_nombre ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Se asigna desde catálogo" disabled />
             </div>
           </div>
           <div>
@@ -801,7 +801,7 @@ export function mountCursos(container: HTMLElement): void {
 
       <div class="rounded-2xl border border-border bg-white shadow-sm">
         <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-6 py-4">
-          ${cursoCatBadge(c.categoria)}
+          ${cursoCatBadge(c.categoria_nombre)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
           <span class="ml-auto text-xs text-slate-500">ID: ${c.id}</span>
         </div>
@@ -809,9 +809,9 @@ export function mountCursos(container: HTMLElement): void {
         <div class="p-6">
           <dl class="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
             ${field("Nombre", c.nombre)}
-            ${field("Categoría", CATEGORIA_LABELS[c.categoria ?? ""] ?? c.categoria)}
-            ${field("Clasificación", CLASIFICACION_LABELS[c.clasificacion ?? ""] ?? c.clasificacion)}
-            ${field("Proveedor", c.proveedor)}
+            ${field("Categoría", CATEGORIA_LABELS[c.categoria_nombre ?? ""] ?? c.categoria_nombre)}
+            ${field("Clasificación", CLASIFICACION_LABELS[c.clasificacion_nombre ?? ""] ?? c.clasificacion_nombre)}
+            ${field("Proveedor", c.proveedor_nombre)}
             ${field("Duración", horas)}
             ${field("Cupo máximo", c.cupo_max ? String(c.cupo_max) : null)}
             ${field("Modalidad", c.modalidad)}
@@ -1036,7 +1036,7 @@ export function mountCursos(container: HTMLElement): void {
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(horario)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${s.tipo ? escapeHtml(s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1)) : "—"}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
-        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor_nombre ?? "—")}</td>
         <td class="px-4 py-2.5">
           <span class="text-sm tabular-nums text-blue-600 font-medium">${cupo}</span>
         </td>
@@ -1218,10 +1218,10 @@ export function mountCursos(container: HTMLElement): void {
           ${items.map(c => `
           <tr class="hover:bg-slate-50/60 transition">
             <td class="px-4 py-3 font-medium max-w-[280px] truncate"><button data-action="view-curso" data-id="${c.id}" class="text-left text-text-primary hover:text-blue-600 hover:underline transition">${escapeHtml(c.nombre)}</button></td>
-            <td class="px-4 py-3">${c.categoria ? cursoCatBadge(c.categoria) : `<span class="text-slate-400">—</span>`}</td>
-            <td class="px-4 py-3 text-slate-600">${c.tipo ? escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo) : "—"}</td>
-            <td class="px-4 py-3 text-slate-600">${c.clasificacion ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion] ?? c.clasificacion) : "—"}</td>
-            <td class="px-4 py-3 text-slate-600 max-w-[180px] truncate">${c.instructor ? escapeHtml(c.instructor) : "—"}</td>
+            <td class="px-4 py-3">${c.categoria_nombre ? cursoCatBadge(c.categoria_nombre) : `<span class="text-slate-400">—</span>`}</td>
+            <td class="px-4 py-3 text-slate-600">${c.tipo_nombre ? escapeHtml(TIPO_LABELS[c.tipo_nombre] ?? c.tipo_nombre) : "—"}</td>
+            <td class="px-4 py-3 text-slate-600">${c.clasificacion_nombre ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion_nombre] ?? c.clasificacion_nombre) : "—"}</td>
+            <td class="px-4 py-3 text-slate-600 max-w-[180px] truncate">${c.instructor_nombre ? escapeHtml(c.instructor_nombre) : "—"}</td>
             <td class="px-4 py-3 tabular-nums text-slate-600">${c.duracion_horas ?? "—"}</td>
             <td class="px-4 py-3 text-slate-600">${c.modalidad ? escapeHtml(c.modalidad) : "—"}</td>
             <td class="px-4 py-3">${c.obligatorio
@@ -1826,7 +1826,6 @@ export function mountCursos(container: HTMLElement): void {
         hora_inicio: (fd.get("hora_inicio") as string) || undefined,
         hora_fin: (fd.get("hora_fin") as string) || undefined,
         ubicacion: (fd.get("ubicacion") as string) || undefined,
-        instructor: (fd.get("instructor") as string) || undefined,
         costo: fd.get("costo") ? Number(fd.get("costo")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
@@ -1851,12 +1850,7 @@ export function mountCursos(container: HTMLElement): void {
     const fd = new FormData(form);
     const payload: CursoCreatePayload = {
       nombre: fd.get("nombre") as string,
-      tipo: (fd.get("tipo") as string as CursoCreatePayload["tipo"]) || undefined,
-      clasificacion: (fd.get("clasificacion") as string as CursoCreatePayload["clasificacion"]) || undefined,
       duracion_horas: fd.get("duracion_horas") ? Number(fd.get("duracion_horas")) : undefined,
-      categoria: (fd.get("categoria") as string as CursoCreatePayload["categoria"]) || undefined,
-      proveedor: (fd.get("proveedor") as string) || undefined,
-      instructor: (fd.get("instructor") as string) || undefined,
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
       descripcion: (fd.get("descripcion") as string) || undefined,
       requisitos: (fd.get("requisitos") as string) || undefined,

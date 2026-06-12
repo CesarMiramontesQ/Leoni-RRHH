@@ -31,6 +31,7 @@ import {
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
+import { mountCursosAjustes } from "./pages/cursosAjustes.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -102,6 +103,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/capacidades")) {
       mountCapacidades(container, signal);
+      return;
+    }
+    if (h === "#/cursos/ajustes") {
+      mountCursosAjustes(container, signal);
       return;
     }
     if (h.startsWith("#/cursos")) {

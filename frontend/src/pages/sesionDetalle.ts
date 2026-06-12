@@ -102,9 +102,9 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
           <a href="#/cursos/${c.id}" class="text-xs text-blue-600 hover:underline">Ver curso completo →</a>
         </div>
         <div class="flex flex-wrap gap-4 mt-3 text-xs text-slate-500">
-          ${c.proveedor ? `<span>Proveedor: <strong>${escapeHtml(c.proveedor)}</strong></span>` : ""}
+          ${c.proveedor_nombre ? `<span>Proveedor: <strong>${escapeHtml(c.proveedor_nombre)}</strong></span>` : ""}
           ${c.duracion_horas ? `<span>Duración: <strong>${c.duracion_horas}h</strong></span>` : ""}
-          ${c.categoria ? `<span>Categoría: <strong>${escapeHtml(c.categoria)}</strong></span>` : ""}
+          ${c.categoria_nombre ? `<span>Categoría: <strong>${escapeHtml(c.categoria_nombre)}</strong></span>` : ""}
           ${c.centro_costos ? `<span>Centro costos: <strong>${c.centro_costos}</strong></span>` : ""}
         </div>
       </div>
@@ -146,9 +146,9 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
             <p class="text-slate-400 text-xs">Ubicación</p>
             <p class="font-medium text-text-primary">${escapeHtml(s.ubicacion)}</p>
           </div>` : ""}
-          ${s.instructor ? `<div>
+          ${s.instructor_nombre ? `<div>
             <p class="text-slate-400 text-xs">Instructor</p>
-            <p class="font-medium text-text-primary">${escapeHtml(s.instructor)}</p>
+            <p class="font-medium text-text-primary">${escapeHtml(s.instructor_nombre)}</p>
           </div>` : ""}
           ${s.costo != null ? `<div>
             <p class="text-slate-400 text-xs">Costo</p>
@@ -258,7 +258,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>
-              <input type="text" name="instructor" value="${escapeHtml(s.instructor ?? "")}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+              <input type="text" name="instructor_nombre" value="${escapeHtml(s.instructor_nombre ?? "")}" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Se asigna desde catálogo" disabled />
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Costo</label>
@@ -331,8 +331,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     payload.tipo = tipo || undefined;
     const ubicacion = fd.get("ubicacion") as string;
     payload.ubicacion = ubicacion || undefined;
-    const instructor = fd.get("instructor") as string;
-    payload.instructor = instructor || undefined;
+    // Instructor se gestiona desde catálogos — no se edita aquí por ahora
     const costo = fd.get("costo") as string;
     if (costo) payload.costo = Number(costo);
     const notas = fd.get("notas") as string;

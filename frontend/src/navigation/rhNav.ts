@@ -30,6 +30,7 @@ export type RhNavKey =
   | "capacitaciones"
   | "capacidades"
   | "cursos"
+  | "cursos-ajustes"
   | "sesiones"
   | "opls"
   | "evidencias"

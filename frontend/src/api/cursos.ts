@@ -290,7 +290,7 @@ export interface SesionGlobalItem {
   hora_inicio: string | null;
   hora_fin: string | null;
   ubicacion: string | null;
-  instructor: string | null;
+  instructor_nombre: string | null;
   cupo_max: number | null;
   inscritos_count: number;
   estado: string;

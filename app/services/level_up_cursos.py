@@ -22,19 +22,36 @@ class CursoService:
         return user.rol.nombre if user.rol else "empleado"
 
     @staticmethod
+    def _resolve_instructor_nombre(curso: Curso) -> str | None:
+        if curso.instructor_tipo == "interno" and curso.instructor_empleado_rel:
+            emp = curso.instructor_empleado_rel
+            return f"{emp.nombre} {emp.apellido_paterno or ''}".strip()
+        if curso.instructor_tipo == "externo" and curso.instructor_externo_rel:
+            return curso.instructor_externo_rel.nombre
+        return None
+
+    @staticmethod
     def _to_response(curso: Curso) -> CursoResponse:
+        instructor_nombre = CursoService._resolve_instructor_nombre(curso)
         return CursoResponse(
             id=curso.id,
             nombre=curso.nombre,
-            proveedor=curso.proveedor,
             duracion_horas=curso.duracion_horas,
             cupo_max=curso.cupo_max,
-            instructor=curso.instructor,
-            categoria=curso.categoria.value if curso.categoria and hasattr(curso.categoria, "value") else curso.categoria,
+            categoria_id=curso.categoria_id,
+            categoria_nombre=curso.categoria_rel.nombre if curso.categoria_rel else None,
+            tipo_id=curso.tipo_id,
+            tipo_nombre=curso.tipo_rel.nombre if curso.tipo_rel else None,
+            clasificacion_id=curso.clasificacion_id,
+            clasificacion_nombre=curso.clasificacion_rel.nombre if curso.clasificacion_rel else None,
+            proveedor_id=curso.proveedor_id,
+            proveedor_nombre=curso.proveedor_rel.nombre if curso.proveedor_rel else None,
+            instructor_tipo=curso.instructor_tipo,
+            instructor_empleado_id=curso.instructor_empleado_id,
+            instructor_externo_id=curso.instructor_externo_id,
+            instructor_nombre=instructor_nombre,
             modalidad=curso.modalidad,
             sesiones_anio=curso.sesiones_anio,
-            tipo=curso.tipo.value if curso.tipo and hasattr(curso.tipo, "value") else curso.tipo,
-            clasificacion=curso.clasificacion.value if curso.clasificacion and hasattr(curso.clasificacion, "value") else curso.clasificacion,
             obligatorio=curso.obligatorio,
             descripcion=curso.descripcion,
             requisitos=curso.requisitos,

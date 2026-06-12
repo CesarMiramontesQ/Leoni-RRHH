@@ -171,7 +171,7 @@ export function mountSesiones(container: HTMLElement): void {
         <td class="px-4 py-3 text-sm text-text-primary font-medium whitespace-nowrap">${escapeHtml(fecha)}</td>
         <td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">${escapeHtml(horario)}</td>
         <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
-        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
+        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(s.instructor_nombre ?? "—")}</td>
         <td class="px-4 py-3 text-sm tabular-nums text-slate-600 text-center">${cupo}</td>
         <td class="px-4 py-3 text-center">
           <span class="inline-flex items-center rounded-full border ${estadoCls} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(label)}</span>
