@@ -12,7 +12,6 @@ from sqlalchemy.orm import selectinload
 from app.models.level_up import CursoPuesto
 from app.models.talento import (
     CompetenciaRequisito,
-    NivelPuesto,
     PerfilCualificacion,
     PerfilFunciones,
     PerfilFuncionesCualificacion,
@@ -29,10 +28,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
     async def get_with_relations(self, id: int) -> PuestoPerfil | None:
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(
-                selectinload(PuestoPerfil.area),
-                selectinload(PuestoPerfil.nivel),
-            )
+            .options(selectinload(PuestoPerfil.area))
             .where(PuestoPerfil.id == id, PuestoPerfil.activo.is_(True))
         )
         return result.scalar_one_or_none()
@@ -42,23 +38,20 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         offset: int,
         limit: int,
         area_id: int | None = None,
-        nivel_id: int | None = None,
+        nivel: str | None = None,
         busqueda: str | None = None,
     ) -> tuple[list[PuestoPerfil], int]:
         """Lista paginada con filtros opcionales. Retorna (items, total)."""
         query = (
             select(PuestoPerfil)
-            .options(
-                selectinload(PuestoPerfil.area),
-                selectinload(PuestoPerfil.nivel),
-            )
+            .options(selectinload(PuestoPerfil.area))
             .where(PuestoPerfil.activo.is_(True))
         )
 
         if area_id is not None:
             query = query.where(PuestoPerfil.area_id == area_id)
-        if nivel_id is not None:
-            query = query.where(PuestoPerfil.nivel_id == nivel_id)
+        if nivel is not None:
+            query = query.where(PuestoPerfil.nivel == nivel)
         if busqueda:
             query = query.where(PuestoPerfil.nombre.ilike(f"%{busqueda}%"))
 
@@ -77,7 +70,6 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         """Lista todos los puestos perfil activos de un area."""
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.nivel))
             .where(PuestoPerfil.area_id == area_id, PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )
@@ -188,8 +180,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 PuestoPerfil.id,
                 PuestoPerfil.codigo,
                 PuestoPerfil.nombre,
-                PuestoPerfil.nivel_id,
-                NivelPuesto.nombre.label("nivel_nombre"),
+                PuestoPerfil.nivel,
                 func.coalesce(personas_sq.c.personas, 0).label("personas"),
                 func.coalesce(cualif_count_sq.c.total_cualif, 0).label("total_cualif"),
                 func.coalesce(comp_count_sq.c.total_comp, 0).label("total_comp"),
@@ -203,7 +194,6 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             .outerjoin(eval_cualif_sq, eval_cualif_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(eval_comp_sq, eval_comp_sq.c.puesto_perfil_id == PuestoPerfil.id)
             .outerjoin(cursos_sq, cursos_sq.c.puesto_perfil_id == PuestoPerfil.id)
-            .join(NivelPuesto, PuestoPerfil.nivel_id == NivelPuesto.id)
             .where(PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )
@@ -235,8 +225,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 "id": row.id,
                 "codigo": row.codigo,
                 "nombre": row.nombre,
-                "nivel_id": row.nivel_id,
-                "nivel_nombre": row.nivel_nombre,
+                "nivel": row.nivel,
                 "personas": personas,
                 "cumplimiento_pct": cumplimiento_pct,
                 "brechas": brechas,

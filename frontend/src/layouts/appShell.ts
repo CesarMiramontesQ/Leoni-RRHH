@@ -4,52 +4,11 @@ import {
   getUserDisplayNameFromAccessToken,
   getUserInitialsFromAccessToken,
 } from "../auth/jwt.ts";
-import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
-import { getRhUiModeLabel, isRhEmpleadoUiMode, isRhToggleOn, toggleRhUiMode } from "../auth/rhUiMode.ts";
-import {
-  isComedorHubVisibleForRol,
-  COMEDOR_SIDEBAR_ITEM,
-} from "../navigation/comedorNav.ts";
-import {
-  isLaboralesHubVisibleForRol,
-  LABORALES_SIDEBAR_ITEM,
-} from "../navigation/laboralesNav.ts";
-import {
-  isLevelUpHubVisibleForRol,
-  LEVEL_UP_SIDEBAR_ITEM,
-} from "../navigation/levelUpNav.ts";
-import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
-import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
-import {
-  SUPERVISOR_DASHBOARD_ITEM,
-  SUPERVISOR_EMPLEADOS_ITEM,
-  SUPERVISOR_NAV_SECTIONS,
-} from "../navigation/supervisorNav.ts";
-import {
-  isEmpleadoFlatNavRol,
-  isRhStructuredNavRol,
-  isShellNavItemVisibleForRol,
-  isSupervisorStructuredNavRol,
-  type AppShellNavItemId,
-} from "../navigation/shellNavPolicy.ts";
-import {
-  getVisibleRhGeneralItems,
-  getVisibleRhNavSections,
-  rhNavSectionContainsActiveKey,
-  type RhNavItem,
-  type RhNavKey,
-  type RhNavSection,
-} from "../navigation/rhNav.ts";
+import { isShellNavItemVisibleForRol, type AppShellNavItemId } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
+import { marcarNotificacionLeida, type NotificacionApiItem } from "../api/notificaciones.ts";
 import {
-  marcarNotificacionLeida,
-  marcarTodasLeidas,
-  type NotificacionApiItem,
-  type NotificacionesFetchError,
-} from "../api/notificaciones.ts";
-import {
-  applyMarcarTodasLeidasLocal,
   getNotificacionesResumenSnapshot,
   refreshNotificacionesResumen,
 } from "../notificaciones/notificacionesResumenStore.ts";
@@ -96,7 +55,6 @@ export type ShellNavKey =
   | "dashboard"
   | "organigrama"
   | "empleados"
-  | "laborales"
   | "metricas"
   | "solicitudes"
   | "incidencias"
@@ -104,11 +62,9 @@ export type ShellNavKey =
   | "comedor"
   | "reportes"
   | "puestos"
-  | "puestos-ajustes"
   | "tareas-catalogo"
   | "competencias"
   | "evaluaciones"
-  | "evaluacion-360"
   | "capacitaciones"
   | "capacidades"
   | "cursos"
@@ -128,140 +84,15 @@ type NavItemDef = {
   svgPaths: string;
 };
 
+type NavGroupDef = {
+  id: string;
+  label: string;
+  children: readonly NavItemDef[];
+};
+
 /** Encabezado de sección del sidebar (mismo criterio visual que «Talento»). */
 const navSectionHeadingClass =
   "text-[11px] font-semibold uppercase tracking-wider text-text-muted md:max-lg:hidden";
-
-const rhPrimaryLabelClass = "min-w-0 flex-1 truncate md:max-lg:sr-only";
-
-/** Reserva el ancho del chevron para alinear filas con y sin submenú. */
-const rhPrimaryChevronSpacer =
-  `<span class="size-5 shrink-0 md:max-lg:hidden" aria-hidden="true"></span>`;
-
-const rhPrimaryChevronIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-text-muted transition-transform duration-150 group-open/rh-nav-section:rotate-180 md:max-lg:hidden">
-          <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-        </svg>`;
-
-const rhSectionSummaryClass =
-  `${navLinkBase} list-none cursor-pointer justify-between [&::-webkit-details-marker]:hidden group-open/rh-nav-section:bg-shell-hover/50`;
-
-const rhSubNavLinkBase =
-  "group/rh-sub relative flex min-h-11 w-full items-center gap-x-3 rounded px-3 py-2 text-sm leading-snug outline-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:max-lg:justify-center md:max-lg:px-2 lg:justify-start";
-
-const rhSubNavInactive =
-  `${rhSubNavLinkBase} border border-transparent font-medium text-text-primary hover:bg-shell-hover hover:text-text-primary`;
-
-const rhSubNavActive =
-  `${rhSubNavLinkBase} border border-transparent bg-shell-active-ring font-semibold text-text-primary before:pointer-events-none before:absolute before:start-0 before:top-1/2 before:h-[1.875rem] before:w-[3px] before:-translate-y-1/2 before:rounded-e before:bg-accent`;
-
-const RH_PRIMARY_LIST_CLASS = "-mx-2 flex flex-col space-y-0.5 md:max-lg:-mx-0";
-
-function rhPrimaryIcon(svgPaths: string, isActive: boolean): string {
-  const ic = isActive ? navIconActive : navIconInactive;
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">${svgPaths}</svg>`;
-}
-
-function renderRhPrimaryLinkLi(
-  item: Pick<RhNavItem, "id" | "key" | "href" | "label" | "svgPaths">,
-  activeNav: RhNavKey | undefined,
-  rol: string | null,
-): string {
-  if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
-  const isActive = activeNav === item.key;
-  const cls = isActive ? navActive : navInactive;
-  const escapedLabel = escapeHtmlText(item.label);
-  const ariaCurrent = isActive ? ` aria-current="page"` : "";
-  return `<li>
-    <a href="${item.href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
-      ${rhPrimaryIcon(item.svgPaths, isActive)}
-      <span class="${rhPrimaryLabelClass}">${item.label}</span>
-      ${rhPrimaryChevronSpacer}
-    </a>
-  </li>`;
-}
-
-function rhSubNavItemLi(activeNav: RhNavKey | undefined, rol: string | null, item: RhNavItem): string {
-  if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
-  const isActive = activeNav === item.key;
-  const cls = isActive ? rhSubNavActive : rhSubNavInactive;
-  const escapedLabel = escapeHtmlText(item.label);
-  const ariaCurrent = isActive ? ` aria-current="page"` : "";
-  const ic = isActive ? navIconActive : navIconInactive;
-  return `<li>
-    <a href="${item.href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">
-        ${item.svgPaths}
-      </svg>
-      <span class="md:max-lg:sr-only">${item.label}</span>
-    </a>
-  </li>`;
-}
-
-function renderRhCollapsibleSection(
-  section: RhNavSection,
-  activeNav: RhNavKey | undefined,
-  rol: string | null,
-): string {
-  const subLis = section.items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
-  if (subLis.length === 0) return "";
-
-  const isOpen = rhNavSectionContainsActiveKey(section, activeNav);
-  const panelId = `shell-rh-nav-panel-${section.id}`;
-
-  return `<li>
-    <details class="group/rh-nav-section" ${isOpen ? "open" : ""}>
-      <summary class="${rhSectionSummaryClass} ${navInactive}" aria-controls="${panelId}">
-        <span class="flex min-w-0 flex-1 items-center gap-x-3">
-          ${rhPrimaryIcon(section.iconSvgPaths, false)}
-          <span class="${rhPrimaryLabelClass}">${section.title}</span>
-        </span>
-        ${rhPrimaryChevronIcon}
-      </summary>
-      <ul id="${panelId}" role="list" class="space-y-0.5 py-0.5 pl-9 md:max-lg:pl-0 lg:border-l lg:border-shell-active-ring/80 lg:ml-5 lg:pl-2">
-        ${subLis.join("")}
-      </ul>
-    </details>
-  </li>`;
-}
-
-function renderRhEmpleadosFooter(activeNav: RhNavKey | undefined, rol: string | null): string {
-  const empleadosLi = renderRhPrimaryLinkLi(
-    {
-      id: "empleados",
-      key: "empleados",
-      href: "#/empleados",
-      label: NAV_EMPLEADOS.label,
-      svgPaths: NAV_EMPLEADOS.svgPaths,
-    },
-    activeNav,
-    rol,
-  );
-  if (empleadosLi.trim() === "") return "";
-  return `<ul role="list" class="${RH_PRIMARY_LIST_CLASS} mt-auto pt-4">
-    ${empleadosLi}
-  </ul>`;
-}
-
-function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol: string | null): string {
-  const primaryLis = getVisibleRhGeneralItems(rol)
-    .map((item) => renderRhPrimaryLinkLi(item, activeNav, rol))
-    .filter(Boolean)
-    .join("");
-
-  const sectionLis = getVisibleRhNavSections(rol)
-    .map((section) => renderRhCollapsibleSection(section, activeNav, rol))
-    .join("");
-
-  const empleadosFooter = renderRhEmpleadosFooter(activeNav, rol);
-
-  return `<div class="flex min-h-0 flex-1 flex-col">
-    <ul role="list" class="${RH_PRIMARY_LIST_CLASS}">
-      ${primaryLis}
-      ${sectionLis}
-    </ul>
-    ${empleadosFooter}
-  </div>`;
-}
 
 function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: NavItemDef): string {
   if (!isShellNavItemVisibleForRol(rol, def.id)) return "";
@@ -285,6 +116,20 @@ function navItemLi(activeNav: ShellNavKey | undefined, rol: string | null, def: 
   </li>`;
 }
 
+function navSectionFromGroup(activeNav: ShellNavKey | undefined, rol: string | null, def: NavGroupDef): string {
+  const visibleChildren = def.children.filter((child) => isShellNavItemVisibleForRol(rol, child.id));
+  if (visibleChildren.length === 0) return "";
+  const childHtml = visibleChildren.map((child) => navItemLi(activeNav, rol, child)).join("");
+  const escapedLabel = escapeHtmlText(def.label);
+  const headingId = `shell-nav-section-${def.id}`;
+  return `<li>
+    <div id="${headingId}" class="${navSectionHeadingClass}">${escapedLabel}</div>
+    <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${headingId}">
+      ${childHtml}
+    </ul>
+  </li>`;
+}
+
 const NAV_PRIMARY: readonly NavItemDef[] = [
   {
     id: "dashboard",
@@ -302,6 +147,73 @@ const NAV_PRIMARY: readonly NavItemDef[] = [
   },
 ];
 
+const NAV_LABORALES: readonly NavItemDef[] = [
+  {
+    id: "metricas",
+    key: "metricas",
+    hrefFor: () => "#/metricas",
+    label: "Métricas",
+    svgPaths: `<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "solicitudes",
+    key: "solicitudes",
+    hrefFor: () => "#/solicitudes",
+    label: "Solicitudes",
+    svgPaths: `<path d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "incidencias",
+    key: "incidencias",
+    hrefFor: () => "#/incidencias",
+    label: "Incidencias",
+    svgPaths: `<path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "actas",
+    key: "actas",
+    hrefFor: () => "#/actas",
+    label: "Actas",
+    svgPaths: `<path d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
+const NAV_COMEDOR: readonly NavItemDef[] = [
+  {
+    id: "comedor",
+    key: "comedor",
+    hrefFor: (rol) =>
+      rol === "empleado" || rol === "rh" || rol === "supervisor" || rol === "gerente"
+        ? "#/comedor"
+        : "#",
+    label: "Gestión Comedor",
+    svgPaths: `<path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "reportes",
+    key: "reportes",
+    hrefFor: (rol) =>
+      rol === "rh" || rol === "gerente" || rol === "director"
+        ? "#/comedor/reporte"
+        : "#",
+    label: "Reporte de comedor",
+    svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
+const NAV_GROUPS: readonly NavGroupDef[] = [
+  {
+    id: "laborales",
+    label: "Laborales",
+    children: NAV_LABORALES,
+  },
+  {
+    id: "comedor-group",
+    label: "Comedor",
+    children: NAV_COMEDOR,
+  },
+];
+
 const NAV_EMPLEADOS: NavItemDef = {
   id: "empleados",
   key: "empleados",
@@ -310,42 +222,112 @@ const NAV_EMPLEADOS: NavItemDef = {
   svgPaths: `<path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
 };
 
-const NAV_LABORALES: NavItemDef = {
-  id: LABORALES_SIDEBAR_ITEM.id,
-  key: LABORALES_SIDEBAR_ITEM.key,
-  hrefFor: () => LABORALES_SIDEBAR_ITEM.href,
-  label: LABORALES_SIDEBAR_ITEM.label,
-  svgPaths: LABORALES_SIDEBAR_ITEM.svgPaths,
-};
+const NAV_TALENTO: readonly NavItemDef[] = [
+  {
+    id: "puestos",
+    key: "puestos",
+    hrefFor: () => "#/puestos",
+    label: "Perfiles de Puesto",
+    svgPaths: `<path d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "competencias",
+    key: "competencias",
+    hrefFor: () => "#/competencias",
+    label: "Matriz de Competencias",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12h2.25m-2.25 0a1.125 1.125 0 0 1-1.125 1.125M13.125 12c-.621 0-1.125.504-1.125 1.125m0 0v1.5c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m-2.25-1.125c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M10.875 15.75h2.25m-2.25 0a1.125 1.125 0 0 1-1.125 1.125M13.125 15.75c-.621 0-1.125.504-1.125 1.125m1.125-1.125c.621 0 1.125.504 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M12 18.375h-1.125m2.25 0h7.5m-9.75 0c-.621 0-1.125-.504-1.125-1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m0-3.75h-7.5m7.5 0c.621 0 1.125.504 1.125 1.125M20.625 15.75c.621 0 1.125.504 1.125 1.125v1.5" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "tareas-catalogo",
+    key: "tareas-catalogo",
+    hrefFor: () => "#/tareas-catalogo",
+    label: "Catalogo de Tareas",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 3h1A2.25 2.25 0 0 1 16.65 3.836m-5.8 0c-.376.023-.75.05-1.124.08C8.095 4.01 7.25 4.973 7.25 6.108V8.25m0 0H5.625c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "evaluaciones",
+    key: "evaluaciones",
+    hrefFor: () => "#/evaluaciones",
+    label: "Evaluaciones",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.5" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "capacitaciones",
+    key: "capacitaciones",
+    hrefFor: () => "#/capacitaciones",
+    label: "Capacitaciones",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
 
-const NAV_COMEDOR: NavItemDef = {
-  id: COMEDOR_SIDEBAR_ITEM.id,
-  key: COMEDOR_SIDEBAR_ITEM.key,
-  hrefFor: () => COMEDOR_SIDEBAR_ITEM.href,
-  label: COMEDOR_SIDEBAR_ITEM.label,
-  svgPaths: COMEDOR_SIDEBAR_ITEM.svgPaths,
-};
+const NAV_FORMACION: readonly NavItemDef[] = [
+  {
+    id: "capacidades",
+    key: "capacidades",
+    hrefFor: () => "#/capacidades",
+    label: "Matriz de Multihabilidades",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "cursos",
+    key: "cursos",
+    hrefFor: () => "#/cursos",
+    label: "Manejo de Cursos",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "sesiones",
+    key: "sesiones",
+    hrefFor: () => "#/sesiones",
+    label: "Sesiones de Cursos",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "opls",
+    key: "opls",
+    hrefFor: () => "#/opls",
+    label: "Manejo de OPLs",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
 
-const NAV_LEVEL_UP: NavItemDef = {
-  id: LEVEL_UP_SIDEBAR_ITEM.id,
-  key: LEVEL_UP_SIDEBAR_ITEM.key,
-  hrefFor: () => LEVEL_UP_SIDEBAR_ITEM.href,
-  label: LEVEL_UP_SIDEBAR_ITEM.label,
-  svgPaths: LEVEL_UP_SIDEBAR_ITEM.svgPaths,
-};
+const NAV_CUMPLIMIENTO: readonly NavItemDef[] = [
+  {
+    id: "evidencias",
+    key: "evidencias",
+    hrefFor: () => "#/evidencias",
+    label: "Motor de Evidencias",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "sugerencias",
+    key: "sugerencias",
+    hrefFor: () => "#/sugerencias",
+    label: "Motor de Sugerencias",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "encuestas",
+    key: "encuestas",
+    hrefFor: () => "#/encuestas",
+    label: "Encuestas Post Curso",
+    labelWrapClass: "truncate",
+    svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
 
 function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
-  if (isRhStructuredNavRol(rol)) return "";
-  const empleadosDef: NavItemDef = isSupervisorStructuredNavRol(rol)
-    ? {
-        id: SUPERVISOR_EMPLEADOS_ITEM.id,
-        key: SUPERVISOR_EMPLEADOS_ITEM.key,
-        hrefFor: () => SUPERVISOR_EMPLEADOS_ITEM.href,
-        label: SUPERVISOR_EMPLEADOS_ITEM.label,
-        svgPaths: SUPERVISOR_EMPLEADOS_ITEM.svgPaths,
-      }
-    : NAV_EMPLEADOS;
-  const empleadosLi = navItemLi(activeNav, rol, empleadosDef);
+  const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
   if (empleadosLi.trim() === "") return "";
   return `<li class="mt-auto pt-6">
     <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
@@ -354,101 +336,67 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
   </li>`;
 }
 
-function renderSupervisorNavSection(
-  sectionId: string,
-  title: string,
-  items: readonly { id: AppShellNavItemId; key: ShellNavKey; href: string; label: string; svgPaths: string }[],
-  activeNav: ShellNavKey | undefined,
-  rol: string | null,
-): string {
-  const lis = items
-    .map((item) =>
-      navItemLi(activeNav, rol, {
-        id: item.id,
-        key: item.key,
-        hrefFor: () => item.href,
-        label: item.label,
-        svgPaths: item.svgPaths,
-      }),
-    )
-    .filter((li) => li.trim() !== "")
-    .join("");
-  if (lis.trim() === "") return "";
-  const headingId = `shell-nav-section-${sectionId}`;
-  return `<li>
-    <div id="${headingId}" class="${navSectionHeadingClass}">${escapeHtmlText(title)}</div>
-    <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${headingId}">
-      ${lis}
-    </ul>
-  </li>`;
-}
-
-function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
-  const dashboardLi = navItemLi(activeNav, rol, {
-    id: SUPERVISOR_DASHBOARD_ITEM.id,
-    key: SUPERVISOR_DASHBOARD_ITEM.key,
-    hrefFor: () => SUPERVISOR_DASHBOARD_ITEM.href,
-    label: SUPERVISOR_DASHBOARD_ITEM.label,
-    svgPaths: SUPERVISOR_DASHBOARD_ITEM.svgPaths,
-  });
-  const sectionLis = SUPERVISOR_NAV_SECTIONS.map((section) =>
-    renderSupervisorNavSection(section.id, section.title, section.items, activeNav, rol),
-  ).join("");
-  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
-}
-
 /** Sidebar interior (móvil + desktop idénticos). */
 function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const rol = getRolFromAccessToken();
-  const sidebarActiveNav = resolveShellSidebarActiveNav(activeNav) as ShellNavKey | undefined;
+  const primaryLis = NAV_PRIMARY.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const groupSectionLis = NAV_GROUPS.map((g) => navSectionFromGroup(activeNav, rol, g)).join("");
+
+  const talentoLis = NAV_TALENTO.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const talentoHeadingId = "shell-nav-section-talento";
+  const talentoBlock =
+    talentoLis.trim() === "" ?
+      ""
+    : `<li>
+          <div id="${talentoHeadingId}" class="${navSectionHeadingClass}">Talento</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${talentoHeadingId}">
+            ${talentoLis}
+          </ul>
+        </li>`;
 
   const menuPrincipalHeadingId = "shell-nav-section-menu-principal";
 
-  const supervisorSidebar = isSupervisorStructuredNavRol(rol);
-  const rhStructuredSidebar = isRhStructuredNavRol(rol);
-  const mainMenuLis = isEmpleadoFlatNavRol(rol)
-    ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
-        navItemLi(sidebarActiveNav, rol, {
-          id: d.id,
-          key: d.key,
-          hrefFor: () => d.href,
-          label: d.label,
-          svgPaths: d.svgPaths,
-        }),
-      ).join("")
-    : supervisorSidebar
-      ? renderSupervisorSidebarSections(sidebarActiveNav, rol)
-      : (() => {
-          const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
-          const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
-          const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
-          const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
-          return [primaryLis, laboralesLi, comedorLi, levelUpLi].filter((li) => li.trim() !== "").join("");
-        })();
-
-  const navContent = rhStructuredSidebar
-    ? renderRhStructuredSidebarSections(sidebarActiveNav as RhNavKey | undefined, rol)
-    : (() => {
-        const mainMenuBlock = supervisorSidebar
-          ? mainMenuLis
-          : `<li>
-          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
-          <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
-            ${mainMenuLis}
+  const formacionLis = NAV_FORMACION.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const formacionHeadingId = "shell-nav-section-formacion";
+  const formacionBlock =
+    formacionLis.trim() === "" ?
+      ""
+    : `<li>
+          <div id="${formacionHeadingId}" class="${navSectionHeadingClass}">Formación</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${formacionHeadingId}">
+            ${formacionLis}
           </ul>
         </li>`;
-        return `<ul role="list" class="flex flex-1 flex-col gap-y-5">
-        ${mainMenuBlock}
-        ${footerGestionHtml(sidebarActiveNav, rol)}
-      </ul>`;
-      })();
 
+  const cumplimientoLis = NAV_CUMPLIMIENTO.map((d) => navItemLi(activeNav, rol, d)).join("");
+  const cumplimientoHeadingId = "shell-nav-section-cumplimiento";
+  const cumplimientoBlock =
+    cumplimientoLis.trim() === "" ?
+      ""
+    : `<li>
+          <div id="${cumplimientoHeadingId}" class="${navSectionHeadingClass}">Cumplimiento</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${cumplimientoHeadingId}">
+            ${cumplimientoLis}
+          </ul>
+        </li>`;
   return `
     <div class="flex shrink-0 items-center lg:pb-5 md:max-lg:flex md:max-lg:flex-col md:max-lg:items-center md:max-lg:pb-4 lg:items-start lg:pt-6">
       <img src="/leoni-logo.png" alt="Leoni" class="h-7 w-auto max-w-[11rem] object-contain object-left md:max-lg:h-[1.5rem] md:max-lg:max-w-[4.75rem]" />
     </div>
     <nav class="relative flex flex-1 flex-col">
-      ${navContent}
+      <ul role="list" class="flex flex-1 flex-col gap-y-5">
+        <li>
+          <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
+          <ul role="list" class="-mx-2 mt-2 space-y-1 md:max-lg:-mx-0 md:max-lg:mt-3" aria-labelledby="${menuPrincipalHeadingId}">
+            ${primaryLis}
+          </ul>
+        </li>
+        ${groupSectionLis}
+        ${talentoBlock}
+        ${formacionBlock}
+        ${cumplimientoBlock}
+        ${footerGestionHtml(activeNav, rol)}
+      </ul>
     </nav>`;
 }
 
@@ -477,29 +425,8 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
   const rawRol = getRolFromAccessToken();
   const userRolLine =
-    rawRol === "rh" ?
-      `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal text-text-muted xl:block">${escapeHtmlText(getRhUiModeLabel())}</span>`
-    : rawRol && !canAccessEmpleadoPersonalDashboard() ?
+    rawRol && !canAccessEmpleadoPersonalDashboard() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
-    : "";
-  const rhModeToggleHtml =
-    rawRol === "rh"
-      ? `<div class="hidden items-center gap-2 sm:flex" id="rh-ui-mode-toggle-wrap">
-          <span class="text-xs font-medium text-text-muted" id="rh-ui-mode-toggle-label">${escapeHtmlText(getRhUiModeLabel())}</span>
-          <button
-            type="button"
-            id="rh-ui-mode-toggle"
-            role="switch"
-            aria-checked="${isRhToggleOn() ? "true" : "false"}"
-            aria-labelledby="rh-ui-mode-toggle-label"
-            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-surface transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 ${isRhToggleOn() ? "bg-accent" : ""}"
-          >
-            <span class="pointer-events-none inline-block size-5 translate-x-0.5 rounded-full bg-white shadow ring-1 ring-black/5 transition-transform ${isRhToggleOn() ? "translate-x-[1.375rem]" : ""}"></span>
-          </button>
-        </div>`
-      : "";
-  const permisosRhMenuItem = canAccessRhPermisosAdmin() && !isRhEmpleadoUiMode()
-    ? `<a href="#/ajustes/permisos-rh" class="block px-3 py-1 text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Permisos RH</a>`
     : "";
 
   container.innerHTML = `
@@ -557,8 +484,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       >
         ${tituloNavbar}
       </p>
-      <div class="flex shrink-0 items-center gap-x-4 sm:gap-x-6">
-        ${rhModeToggleHtml}
+      <div class="flex shrink-0 items-center gap-x-6 sm:gap-x-10">
         <div id="app-shell-notifications-wrapper" class="relative flex shrink-0 items-center">
           <button
             type="button"
@@ -581,27 +507,8 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
             aria-labelledby="notif-dropdown-heading"
           >
             <header class="notif-dropdown-header">
-              <div class="notif-dropdown-header__row">
-                <h2 id="notif-dropdown-heading" class="notif-dropdown-header__title">Notificaciones</h2>
-                <span id="app-shell-notifications-count" class="notif-dropdown-header-badge">0 no leídas</span>
-              </div>
-              <button
-                type="button"
-                id="app-shell-notifications-mark-all"
-                class="notif-dropdown-mark-all-btn"
-                disabled
-                aria-busy="false"
-                aria-label="Marcar todas las notificaciones como leídas"
-              >
-                Marcar todas como leídas
-              </button>
-              <p
-                id="app-shell-notifications-mark-all-feedback"
-                class="notif-dropdown-mark-all-feedback"
-                role="status"
-                aria-live="polite"
-                hidden
-              ></p>
+              <h2 id="notif-dropdown-heading" class="notif-dropdown-header__title">Notificaciones</h2>
+              <span id="app-shell-notifications-count" class="notif-dropdown-header-badge">0 no leídas</span>
             </header>
             <div id="app-shell-notifications-list" class="notif-dropdown-list">
               <p class="notif-dropdown-loading">Cargando...</p>
@@ -633,8 +540,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
               ${userRolLine}
             </span>
           </button>
-          <el-menu anchor="bottom end" popover class="w-48 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
-            ${permisosRhMenuItem}
+          <el-menu anchor="bottom end" popover class="w-40 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
             <button type="button" id="app-shell-sign-out" class="block w-full px-3 py-1 text-left text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Cerrar sesión</button>
           </el-menu>
         </el-dropdown>
@@ -649,14 +555,6 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </main>
 </div>
 `;
-  container.querySelector("#rh-ui-mode-toggle")?.addEventListener(
-    "click",
-    () => {
-      toggleRhUiMode();
-    },
-    { signal },
-  );
-
   container.querySelector("#app-shell-sign-out")?.addEventListener("click", () => {
     if (options.onSignOut) {
       options.onSignOut();
@@ -675,11 +573,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const notifBadgeHost = container.querySelector<HTMLElement>("#app-shell-notifications-badge");
   const notifList = container.querySelector<HTMLElement>("#app-shell-notifications-list");
   const notifCount = container.querySelector<HTMLElement>("#app-shell-notifications-count");
-  const notifMarkAllBtn = container.querySelector<HTMLButtonElement>("#app-shell-notifications-mark-all");
-  const notifMarkAllFeedback = container.querySelector<HTMLElement>("#app-shell-notifications-mark-all-feedback");
   let notifPanelOpen = false;
-  let notifMarkingAll = false;
-  let notifMarkAllFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   let recientes: NotificacionApiItem[] = [];
 
   const mountLoginPage = (): void => {
@@ -706,91 +600,17 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     notifList.innerHTML = items.map((item) => renderNotificacionListItem(item, { compact: true })).join("");
   };
 
-  const clearNotifMarkAllFeedback = (): void => {
-    if (notifMarkAllFeedbackTimer) {
-      clearTimeout(notifMarkAllFeedbackTimer);
-      notifMarkAllFeedbackTimer = null;
-    }
-    if (!notifMarkAllFeedback) return;
-    notifMarkAllFeedback.hidden = true;
-    notifMarkAllFeedback.textContent = "";
-    notifMarkAllFeedback.classList.remove(
-      "notif-dropdown-mark-all-feedback--success",
-      "notif-dropdown-mark-all-feedback--error",
-    );
-  };
-
-  const showNotifMarkAllFeedback = (message: string, kind: "success" | "error"): void => {
-    if (!notifMarkAllFeedback) return;
-    clearNotifMarkAllFeedback();
-    notifMarkAllFeedback.textContent = message;
-    notifMarkAllFeedback.classList.add(
-      kind === "success" ? "notif-dropdown-mark-all-feedback--success" : "notif-dropdown-mark-all-feedback--error",
-    );
-    notifMarkAllFeedback.hidden = false;
-    if (kind === "success") {
-      notifMarkAllFeedbackTimer = setTimeout(() => clearNotifMarkAllFeedback(), 3000);
-    }
-  };
-
-  const updateNotifMarkAllButton = (): void => {
-    if (!notifMarkAllBtn) return;
-    const snap = getNotificacionesResumenSnapshot();
-    const hasUnread = snap.unreadCount > 0;
-    notifMarkAllBtn.disabled = notifMarkingAll || !hasUnread;
-    notifMarkAllBtn.setAttribute("aria-busy", notifMarkingAll ? "true" : "false");
-    notifMarkAllBtn.textContent = notifMarkingAll ? "Marcando..." : "Marcar todas como leídas";
-  };
-
   const applyNotificacionesSnapshot = (): void => {
     if (!notifList || !notifBadgeHost || !notifCount) return;
     const snap = getNotificacionesResumenSnapshot();
     recientes = snap.recientes;
     notifBadgeHost.innerHTML = renderNotificacionBadge(snap.unreadCount);
     notifCount.textContent = `${snap.unreadCount} no leídas`;
-    updateNotifMarkAllButton();
     if (snap.status === "error" && snap.errorMessage) {
       notifList.innerHTML = `<p class="notif-dropdown-error" role="alert">${escapeHtmlText(snap.errorMessage)}</p>`;
       return;
     }
     renderNotifDropdown(snap.recientes);
-  };
-
-  const marcarTodasNotificaciones = async (): Promise<void> => {
-    if (notifMarkingAll) return;
-    const snap = getNotificacionesResumenSnapshot();
-    if (snap.unreadCount <= 0) return;
-
-    notifMarkingAll = true;
-    clearNotifMarkAllFeedback();
-    updateNotifMarkAllButton();
-
-    try {
-      const marcadas = await marcarTodasLeidas();
-      if (marcadas > 0) {
-        applyMarcarTodasLeidasLocal();
-      }
-      notifMarkingAll = false;
-      applyNotificacionesSnapshot();
-      showNotifMarkAllFeedback(
-        marcadas > 0 ?
-          "Todas las notificaciones fueron marcadas como leídas."
-        : "No había notificaciones pendientes.",
-        "success",
-      );
-    } catch (error: unknown) {
-      if (typeof error === "object" && error != null && "status" in error && (error as { status?: unknown }).status === 401) {
-        mountLoginPage();
-        return;
-      }
-      notifMarkingAll = false;
-      updateNotifMarkAllButton();
-      const detail =
-        typeof error === "object" && error != null && "detail" in error ?
-          (error as NotificacionesFetchError).detail
-        : "";
-      showNotifMarkAllFeedback(detail || "No se pudo marcar las notificaciones como leídas.", "error");
-    }
   };
 
   const loadNotificaciones = async (): Promise<void> => {
@@ -816,12 +636,6 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
     const open = !notifPanelOpen;
     setNotifPanelState(open);
     if (open) void loadNotificaciones();
-  }, { signal });
-
-  notifMarkAllBtn?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void marcarTodasNotificaciones();
   }, { signal });
 
   notifList?.addEventListener("click", (event) => {
@@ -866,12 +680,4 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   }, { signal });
 
   void loadNotificaciones();
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      void import("../charts/index.ts").then(({ retryPendingChartMounts }) => {
-        retryPendingChartMounts(container);
-      });
-    });
-  });
 }

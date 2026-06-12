@@ -1,16 +1,5 @@
 import { getRolFromAccessToken } from "./auth/jwt.ts";
-import {
-  empleadoMayAccessHash,
-  isRhHomeHash,
-  modulosMayAccessHash,
-  resolveRhOperativoLandingHash,
-  RH_SIN_PERMISOS_HASH,
-  rhMayAccessHash,
-  supervisorMayAccessHash,
-  usesSupervisorRoutePolicy,
-} from "./navigation/shellNavPolicy.ts";
-import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
-import { isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
+import { empleadoMayAccessHash, supervisorMayAccessHash } from "./navigation/shellNavPolicy.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -21,7 +10,6 @@ import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
 import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
-import { mountPuestosAjustes } from "./pages/puestosAjustes.ts";
 import { mountPerfilPuestoDetalle } from "./pages/perfilPuestoDetalle.ts";
 import { mountPuestoEmpleados } from "./pages/puestoEmpleados.ts";
 import { mountMetricas } from "./pages/metricas.ts";
@@ -40,19 +28,9 @@ import {
   mountSugerencias,
   mountEncuestas,
 } from "./pages/levelUp.ts";
-import { mountLevelUpHub } from "./pages/levelUpHub.ts";
-import { mountLaboralesHub } from "./pages/laboralesHub.ts";
-import { mountComedorHub } from "./pages/comedorHub.ts";
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
-import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
-import { destroyAllCharts } from "./charts/index.ts";
-import {
-  mountAjustesPermisosRh,
-  mountRhModuleAccessDenied,
-  mountRhSinPermisosDisponibles,
-} from "./pages/ajustesPermisosRh.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -69,73 +47,21 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   const { signal } = routeAbort;
 
   const go = (): void => {
-    let rawHash = window.location.hash || "#/";
+    const rawHash = window.location.hash || "#/";
     if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
-    const rolAtEntry = getRolFromAccessToken();
-    if (usesSupervisorRoutePolicy(rolAtEntry) && !supervisorMayAccessHash(rawHash)) {
+    if (getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash)) {
       history.replaceState(null, "", "#/");
     }
-    const rol = getRolFromAccessToken();
-    if (rol === "rh" && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
-      const landing = resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
-      if (landing !== rawHash) {
-        history.replaceState(null, "", landing);
-        rawHash = landing;
-      }
-    }
-    if (rol === "rh" && !rhMayAccessHash(rawHash)) {
-      if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) {
-        if (rawHash !== "#/") {
-          history.replaceState(null, "", "#/");
-        }
-        routeToHash(container, signal, "#/");
-        return;
-      }
-      mountRhModuleAccessDenied(container);
-      return;
-    }
-    if (rol !== "rh" && isModulosRhEnrolled() && !modulosMayAccessHash(rawHash, rol)) {
-      mountRhModuleAccessDenied(container);
-      return;
-    }
     const h =
-      rol === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
-      : usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash) ? "#/"
+      getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
+      : getRolFromAccessToken() === "supervisor" && !supervisorMayAccessHash(rawHash) ? "#/"
       : rawHash;
-
-    routeToHash(container, signal, h);
-    if (shouldResetScrollOnRoute(window.location.hash || "#/")) {
-      schedulePageScrollReset();
-    }
-  };
-
-  const routeToHash = (container: HTMLElement, signal: AbortSignal, h: string): void => {
-    destroyAllCharts();
-    if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
-      mountRhSinPermisosDisponibles(container);
-      return;
-    }
-
-    if (h.startsWith("#/ajustes/permisos-rh")) {
-      mountAjustesPermisosRh(container, signal);
-      return;
-    }
 
     if (h.startsWith("#/reportes")) {
       history.replaceState(null, "", "#/comedor/reporte");
       mountComedor(container, signal);
-      return;
-    }
-
-    if (h === "#/laborales") {
-      mountLaboralesHub(container);
-      return;
-    }
-
-    if (h === "#/comedor/accesos") {
-      mountComedorHub(container);
       return;
     }
 
@@ -170,18 +96,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
-    if (h.startsWith("#/level-up/evaluacion-360")) {
-      void import("./pages/evaluacion360.ts").then(({ mountEvaluacion360 }) => {
-        mountEvaluacion360(container, signal);
-      });
-      return;
-    }
-    if (h.startsWith("#/level-up/resumen")) {
-      mountLevelUpDashboard(container);
-      return;
-    }
     if (h.startsWith("#/level-up")) {
-      mountLevelUpHub(container);
+      mountLevelUpDashboard(container);
       return;
     }
     if (h.startsWith("#/capacidades")) {
@@ -219,11 +135,6 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/sesiones")) {
       mountSesiones(container);
-      return;
-    }
-
-    if (h.startsWith("#/puestos/ajustes")) {
-      mountPuestosAjustes(container, signal);
       return;
     }
 
@@ -293,6 +204,5 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   };
 
   window.addEventListener("hashchange", go, { signal });
-  window.addEventListener(RH_UI_MODE_CHANGE_EVENT, go, { signal });
   go();
 }

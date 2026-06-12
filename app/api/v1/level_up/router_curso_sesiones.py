@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, union_all
+from sqlalchemy import select, union_all, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -380,7 +380,10 @@ async def listar_empleados_elegibles(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Empleados que pueden inscribirse: asignados a puestos con el curso, o con el curso como extra."""
+    """Empleados que pueden inscribirse: por puestos, extras, o grupos asignados al curso."""
+    from app.models.level_up import CursoGrupo, TipoGrupoCurso
+    from sqlalchemy import or_
+
     sesion = await db.get(CursoSesion, sesion_id)
     if not sesion or sesion.curso_id != curso_id:
         from app.core.exceptions import NotFoundError
@@ -413,6 +416,28 @@ async def listar_empleados_elegibles(
         )
     )
 
+    # Empleados de grupos asignados al curso (dinámico)
+    grupos_result = await db.execute(
+        select(CursoGrupo).where(CursoGrupo.curso_id == curso_id)
+    )
+    grupos = grupos_result.scalars().all()
+
+    from_grupos_conditions = []
+    for g in grupos:
+        if g.tipo == TipoGrupoCurso.area:
+            from_grupos_conditions.append(Empleado.area_id == g.referencia_id)
+        elif g.tipo == TipoGrupoCurso.subarea:
+            from_grupos_conditions.append(Empleado.subarea_id == g.referencia_id)
+        elif g.tipo == TipoGrupoCurso.puesto:
+            from_grupos_conditions.append(Empleado.puesto_id == g.referencia_id)
+
+    from_grupos = None
+    if from_grupos_conditions:
+        from_grupos = (
+            select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
+            .where(or_(*from_grupos_conditions), Empleado.id.notin_(already_inscribed))
+        )
+
     if q.strip():
         search = f"%{q.strip()}%"
         from_puestos = from_puestos.where(
@@ -421,8 +446,15 @@ async def listar_empleados_elegibles(
         from_extras = from_extras.where(
             Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
         )
+        if from_grupos is not None:
+            from_grupos = from_grupos.where(
+                Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+            )
 
-    combined = union_all(from_puestos, from_extras).limit(20)
+    queries = [from_puestos, from_extras]
+    if from_grupos is not None:
+        queries.append(from_grupos)
+    combined = union_all(*queries).limit(30)
     result = await db.execute(combined)
     rows = result.all()
 
@@ -450,7 +482,6 @@ async def inscribir_empleado_sesion(
     current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy import func as sa_func
     from app.core.exceptions import NotFoundError, ConflictError
 
     sesion = await db.get(CursoSesion, sesion_id)
@@ -500,6 +531,8 @@ async def inscribir_empleado_sesion(
         no_empleado=ce.empleado.no_empleado if ce.empleado else None,
         asistio=ce.asistio,
     )
+
+
 
 
 class SesionEmpleadoUpdate(BaseModel):

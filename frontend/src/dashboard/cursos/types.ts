@@ -94,9 +94,10 @@ export interface CursoSesion {
   fecha_fin: string | null;
   hora_inicio: string | null;
   hora_fin: string | null;
+  tipo: string | null;
   ubicacion: string | null;
   instructor: string | null;
-  cupo_max: number | null;
+  costo: number | null;
   notas: string | null;
   estado: EstadoSesion;
   inscritos_count: number;
@@ -114,9 +115,10 @@ export interface CursoSesionCreatePayload {
   fecha_fin?: string;
   hora_inicio?: string;
   hora_fin?: string;
+  tipo?: string;
   ubicacion?: string;
   instructor?: string;
-  cupo_max?: number;
+  costo?: number;
   notas?: string;
 }
 
@@ -125,9 +127,10 @@ export interface CursoSesionUpdatePayload {
   fecha_fin?: string;
   hora_inicio?: string;
   hora_fin?: string;
+  tipo?: string;
   ubicacion?: string;
   instructor?: string;
-  cupo_max?: number;
+  costo?: number;
   notas?: string;
   estado?: EstadoSesion;
 }

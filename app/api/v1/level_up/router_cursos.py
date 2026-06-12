@@ -1,6 +1,8 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -217,3 +219,203 @@ async def listar_empleados_extra_del_curso(
             asistio=ce.asistio,
         ))
     return response
+
+
+# ── Grupos asignados a un curso (áreas, subáreas, puestos) ───────────────────
+
+
+class CatalogoItemResponse(BaseModel):
+    id: int
+    descripcion: str
+
+
+class CursoCatalogosResponse(BaseModel):
+    areas: list[CatalogoItemResponse]
+    subareas: list[CatalogoItemResponse]
+    puestos: list[CatalogoItemResponse]
+
+
+@router.get("/{id}/catalogos-asignacion", response_model=CursoCatalogosResponse)
+async def catalogos_asignacion_curso(
+    id: int,
+    area_id: Optional[int] = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Catálogos de áreas, subáreas y puestos para asignación de grupos al curso."""
+    from app.models.catalogos import Area, Subarea, Puesto
+
+    areas_q = select(Area.area_id, Area.descripcion).where(Area.estatus_id == 1).order_by(Area.descripcion)
+    areas_result = await db.execute(areas_q)
+    areas = [CatalogoItemResponse(id=r[0], descripcion=r[1]) for r in areas_result.all()]
+
+    subareas_q = select(Subarea.subarea_id, Subarea.descripcion).where(Subarea.estatus_id == 1)
+    if area_id:
+        subareas_q = subareas_q.where(Subarea.area_id == area_id)
+    subareas_q = subareas_q.order_by(Subarea.descripcion)
+    subareas_result = await db.execute(subareas_q)
+    subareas = [CatalogoItemResponse(id=r[0], descripcion=r[1]) for r in subareas_result.all()]
+
+    puestos_q = select(Puesto.puesto_id, Puesto.descripcion).where(Puesto.estatus_id == 1)
+    if area_id:
+        puestos_q = puestos_q.where(Puesto.area_id == area_id)
+    puestos_q = puestos_q.order_by(Puesto.descripcion)
+    puestos_result = await db.execute(puestos_q)
+    puestos = [CatalogoItemResponse(id=r[0], descripcion=r[1]) for r in puestos_result.all()]
+
+    return CursoCatalogosResponse(areas=areas, subareas=subareas, puestos=puestos)
+
+
+class CursoGrupoEmpleadoItem(BaseModel):
+    empleado_id: int
+    nombre: str | None = None
+    no_empleado: str | None = None
+
+
+class CursoGrupoResponse(BaseModel):
+    id: int
+    tipo: str
+    referencia_id: int
+    nombre: str
+    empleados_count: int
+    empleados: list[CursoGrupoEmpleadoItem]
+
+
+@router.get("/{id}/grupos", response_model=list[CursoGrupoResponse])
+async def listar_grupos_del_curso(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista los grupos (áreas, subáreas, puestos) asignados a este curso con empleados dinámicos."""
+    from app.models.level_up import CursoGrupo
+    from app.models.catalogos import Area, Subarea, Puesto
+
+    result = await db.execute(
+        select(CursoGrupo).where(CursoGrupo.curso_id == id).order_by(CursoGrupo.tipo, CursoGrupo.id)
+    )
+    grupos = result.scalars().all()
+
+    response = []
+    for g in grupos:
+        nombre = "—"
+        emp_filter = None
+
+        if g.tipo.value == "area":
+            area = await db.get(Area, g.referencia_id)
+            nombre = area.descripcion if area else f"Área #{g.referencia_id}"
+            emp_filter = Empleado.area_id == g.referencia_id
+        elif g.tipo.value == "subarea":
+            sub = await db.get(Subarea, g.referencia_id)
+            nombre = sub.descripcion if sub else f"Subárea #{g.referencia_id}"
+            emp_filter = Empleado.subarea_id == g.referencia_id
+        elif g.tipo.value == "puesto":
+            puesto = await db.get(Puesto, g.referencia_id)
+            nombre = puesto.descripcion if puesto else f"Puesto #{g.referencia_id}"
+            emp_filter = Empleado.puesto_id == g.referencia_id
+
+        empleados_list: list[CursoGrupoEmpleadoItem] = []
+        if emp_filter is not None:
+            emp_result = await db.execute(
+                select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
+                .where(emp_filter)
+                .order_by(Empleado.nombre)
+            )
+            empleados_list = [
+                CursoGrupoEmpleadoItem(empleado_id=r[0], nombre=r[1], no_empleado=r[2])
+                for r in emp_result.all()
+            ]
+
+        response.append(CursoGrupoResponse(
+            id=g.id, tipo=g.tipo.value, referencia_id=g.referencia_id,
+            nombre=nombre, empleados_count=len(empleados_list),
+            empleados=empleados_list,
+        ))
+    return response
+
+
+class CursoGrupoCreateBody(BaseModel):
+    tipo: str
+    referencia_id: int
+
+
+@router.post("/{id}/grupos", response_model=CursoGrupoResponse, status_code=status.HTTP_201_CREATED)
+async def agregar_grupo_al_curso(
+    id: int,
+    body: CursoGrupoCreateBody,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asignar un grupo (área, subárea o puesto) al curso."""
+    from app.core.exceptions import NotFoundError, ConflictError
+    from app.models.level_up import Curso as CursoModel, CursoGrupo, TipoGrupoCurso
+    from app.models.catalogos import Area, Subarea, Puesto
+
+    curso = await db.get(CursoModel, id)
+    if not curso:
+        raise NotFoundError(entidad="Curso", id=id)
+
+    if body.tipo not in ("area", "subarea", "puesto"):
+        raise ConflictError(detail="tipo debe ser: area, subarea o puesto")
+
+    tipo_enum = TipoGrupoCurso(body.tipo)
+
+    existing = await db.execute(
+        select(CursoGrupo).where(
+            CursoGrupo.curso_id == id,
+            CursoGrupo.tipo == tipo_enum,
+            CursoGrupo.referencia_id == body.referencia_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise ConflictError(detail="Este grupo ya está asignado al curso")
+
+    nombre = "—"
+    emp_count = 0
+    if body.tipo == "area":
+        area = await db.get(Area, body.referencia_id)
+        if not area:
+            raise NotFoundError(entidad="Área", id=body.referencia_id)
+        nombre = area.descripcion
+        count_r = await db.execute(select(sa_func.count()).where(Empleado.area_id == body.referencia_id))
+        emp_count = count_r.scalar() or 0
+    elif body.tipo == "subarea":
+        sub = await db.get(Subarea, body.referencia_id)
+        if not sub:
+            raise NotFoundError(entidad="Subárea", id=body.referencia_id)
+        nombre = sub.descripcion
+        count_r = await db.execute(select(sa_func.count()).where(Empleado.subarea_id == body.referencia_id))
+        emp_count = count_r.scalar() or 0
+    elif body.tipo == "puesto":
+        puesto = await db.get(Puesto, body.referencia_id)
+        if not puesto:
+            raise NotFoundError(entidad="Puesto", id=body.referencia_id)
+        nombre = puesto.descripcion
+        count_r = await db.execute(select(sa_func.count()).where(Empleado.puesto_id == body.referencia_id))
+        emp_count = count_r.scalar() or 0
+
+    grupo = CursoGrupo(curso_id=id, tipo=tipo_enum, referencia_id=body.referencia_id)
+    db.add(grupo)
+    await db.flush()
+
+    return CursoGrupoResponse(
+        id=grupo.id, tipo=body.tipo, referencia_id=body.referencia_id,
+        nombre=nombre, empleados_count=emp_count,
+    )
+
+
+@router.delete("/{id}/grupos/{grupo_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_grupo_del_curso(
+    id: int,
+    grupo_id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.exceptions import NotFoundError
+    from app.models.level_up import CursoGrupo
+
+    grupo = await db.get(CursoGrupo, grupo_id)
+    if not grupo or grupo.curso_id != id:
+        raise NotFoundError(entidad="Grupo de curso", id=grupo_id)
+    await db.delete(grupo)
+    await db.flush()

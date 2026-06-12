@@ -308,6 +308,9 @@ class Curso(Base):
     empleados: Mapped[List["CursoEmpleado"]] = relationship(
         "CursoEmpleado", back_populates="curso", cascade="all, delete-orphan"
     )
+    grupos: Mapped[List["CursoGrupo"]] = relationship(
+        "CursoGrupo", back_populates="curso", cascade="all, delete-orphan"
+    )
 
 
 class CursoSesion(Base):
@@ -321,8 +324,10 @@ class CursoSesion(Base):
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     hora_inicio: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     hora_fin: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    tipo: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     ubicacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    costo: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[EstadoSesion] = mapped_column(
@@ -401,6 +406,34 @@ class CursoEmpleado(Base):
     curso: Mapped["Curso"] = relationship("Curso", back_populates="empleados")
     empleado: Mapped["Empleado"] = relationship("Empleado")
     sesion: Mapped[Optional["CursoSesion"]] = relationship("CursoSesion", back_populates="empleados")
+
+
+class TipoGrupoCurso(str, enum.Enum):
+    area = "area"
+    subarea = "subarea"
+    puesto = "puesto"
+
+
+class CursoGrupo(Base):
+    __tablename__ = "curso_grupo"
+    __table_args__ = (
+        UniqueConstraint("curso_id", "tipo", "referencia_id", name="uq_curso_grupo"),
+        Index("ix_curso_grupo_curso_id", "curso_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    curso_id: Mapped[int] = mapped_column(
+        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+    )
+    tipo: Mapped[TipoGrupoCurso] = mapped_column(
+        Enum(TipoGrupoCurso, name="tipo_grupo_curso_enum"), nullable=False
+    )
+    referencia_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    curso: Mapped["Curso"] = relationship("Curso", back_populates="grupos")
 
 
 class OPL(Base):
