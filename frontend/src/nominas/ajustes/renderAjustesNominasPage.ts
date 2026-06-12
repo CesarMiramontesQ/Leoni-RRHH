@@ -364,46 +364,74 @@ function renderAutorizadosBody(state: AjustesNominasState): string {
     ${renderPagination(state)}`;
 }
 
-function renderTablaAutorizados(state: AjustesNominasState): string {
+function autorizadosSinRegistros(state: AjustesNominasState): boolean {
+  return state.status === "ready" && state.items.length === 0 && state.q.trim() === "";
+}
+
+function renderAutorizadosEncabezado(state: AjustesNominasState): string {
   const disabled = state.status === "loading";
-  // Sin registros ni búsqueda activa: el CTA vive en el empty state (igual que aprobadores).
-  const sinRegistros =
-    state.status === "ready" && state.items.length === 0 && state.q.trim() === "";
-  const mostrarBusqueda = state.status !== "error" && !sinRegistros;
+  const sinRegistros = autorizadosSinRegistros(state);
   return `
-    <section class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden" aria-labelledby="aj-he-titulo">
-      <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-        <div class="min-w-0">
-          <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados para registrar horas extra</h2>
-          <p class="mt-1 text-sm leading-relaxed text-text-secondary">
-            Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
-          </p>
-        </div>
-        ${
-          sinRegistros
-            ? ""
-            : `<button type="button" data-aj-he-abrir-modal class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50" ${disabled || state.revokingId !== null ? "disabled" : ""}>
-                Autorizar empleados
-              </button>`
-        }
+    <header class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <h2 id="aj-he-titulo" class="text-base font-semibold text-text-primary">Empleados autorizados para registrar horas extra</h2>
+        <p class="mt-1 text-sm leading-relaxed text-text-secondary">
+          Listado de empleados con autorización vigente para capturar solicitudes de horas extra.
+        </p>
       </div>
       ${
-        mostrarBusqueda
-          ? `<div class="border-b border-slate-100 px-4 py-3 sm:px-5">
-              <input
-                id="aj-he-busqueda"
-                type="search"
-                value="${escapeHtml(state.q)}"
-                placeholder="Buscar por nombre, no. empleado, correo, área o puesto"
-                aria-label="Buscar en empleados autorizados"
-                autocomplete="off"
-                class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING} sm:max-w-xs"
-                ${disabled ? "disabled" : ""}
-              />
-            </div>`
-          : ""
+        sinRegistros
+          ? ""
+          : `<button
+              type="button"
+              data-aj-he-abrir-modal
+              class="${BTN_PRIMARY} w-full shrink-0 sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
+              ${disabled || state.revokingId !== null ? "disabled" : ""}
+            >Autorizar empleados</button>`
       }
+    </header>`;
+}
+
+function renderAutorizadosFiltros(state: AjustesNominasState): string {
+  const disabled = state.status === "loading";
+  const mostrarBusqueda = state.status !== "error" && !autorizadosSinRegistros(state);
+  if (!mostrarBusqueda) return "";
+
+  return `
+    <section class="${RH_LISTADO_SURFACE} p-4 sm:p-5" aria-label="Filtros de empleados autorizados">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="min-w-0 w-full flex-1 sm:max-w-md">
+          <input
+            id="aj-he-busqueda"
+            type="search"
+            value="${escapeHtml(state.q)}"
+            placeholder="Buscar por nombre, no. empleado, correo, área o puesto"
+            aria-label="Buscar en empleados autorizados"
+            autocomplete="off"
+            class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING} w-full"
+            ${disabled ? "disabled" : ""}
+          />
+        </div>
+      </div>
+    </section>`;
+}
+
+function renderAutorizadosTabla(state: AjustesNominasState): string {
+  return `
+    <section
+      class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden"
+      aria-label="Tabla de empleados autorizados"
+    >
       ${renderAutorizadosBody(state)}
+    </section>`;
+}
+
+function renderSeccionAutorizados(state: AjustesNominasState): string {
+  return `
+    <section class="grid gap-3" aria-labelledby="aj-he-titulo">
+      ${renderAutorizadosEncabezado(state)}
+      ${renderAutorizadosFiltros(state)}
+      ${renderAutorizadosTabla(state)}
     </section>`;
 }
 
@@ -684,7 +712,11 @@ function renderAprobadorCardBody(
   return renderAprobadorTabla(aprobadores, items, busy);
 }
 
-function renderAprobadorCard(
+function aprobadorHeadingId(tipo: AprobadorTipo): string {
+  return tipo === "director" ? "aj-ap-director-titulo" : "aj-ap-gerentes-titulo";
+}
+
+function renderAprobadorEncabezado(
   tipo: AprobadorTipo,
   aprobadores: AprobadoresState,
   items: AprobadorItem[],
@@ -693,25 +725,52 @@ function renderAprobadorCard(
   const copy = APROBADOR_CARD_COPY[tipo];
   const conRegistros = !aprobadores.loading && items.length > 0;
   return `
-    <section class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden" aria-label="${copy.titulo}">
-      <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-        <div class="min-w-0">
-          <h3 class="text-base font-semibold text-text-primary">${copy.titulo}</h3>
-          <p class="mt-1 text-sm leading-relaxed text-text-secondary">${copy.descripcion}</p>
-        </div>
-        ${
-          conRegistros
-            ? `<button
-                type="button"
-                data-aj-ap-abrir-modal="${tipo}"
-                class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
-                ${busy ? "disabled" : ""}
-              >${copy.boton}</button>`
-            : ""
-        }
+    <header class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <h3 id="${aprobadorHeadingId(tipo)}" class="text-base font-semibold text-text-primary">${copy.titulo}</h3>
+        <p class="mt-1 text-sm leading-relaxed text-text-secondary">${copy.descripcion}</p>
       </div>
+      ${
+        conRegistros
+          ? `<button
+              type="button"
+              data-aj-ap-abrir-modal="${tipo}"
+              class="${BTN_PRIMARY} w-full shrink-0 sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
+              ${busy ? "disabled" : ""}
+            >${copy.boton}</button>`
+          : ""
+      }
+    </header>`;
+}
+
+function renderAprobadorContenedor(
+  tipo: AprobadorTipo,
+  aprobadores: AprobadoresState,
+  items: AprobadorItem[],
+  busy: boolean,
+): string {
+  const copy = APROBADOR_CARD_COPY[tipo];
+  return `
+    <section
+      class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden"
+      aria-label="Datos de ${copy.titulo}"
+    >
       ${renderAprobadorCardBody(tipo, aprobadores, items, busy)}
     </section>`;
+}
+
+function renderAprobadorCard(
+  tipo: AprobadorTipo,
+  aprobadores: AprobadoresState,
+  items: AprobadorItem[],
+  busy: boolean,
+): string {
+  const headingId = aprobadorHeadingId(tipo);
+  return `
+    <div class="grid min-w-0 gap-3" aria-labelledby="${headingId}">
+      ${renderAprobadorEncabezado(tipo, aprobadores, items, busy)}
+      ${renderAprobadorContenedor(tipo, aprobadores, items, busy)}
+    </div>`;
 }
 
 function renderAprobadoresMensajes(aprobadores: AprobadoresState): string {
@@ -878,7 +937,7 @@ export function renderAjustesNominasPage(state: AjustesNominasState): string {
         ${renderStats(state)}
         ${renderEstadoFlujo(state)}
         ${renderMensajes(state)}
-        ${renderTablaAutorizados(state)}
+        ${renderSeccionAutorizados(state)}
         ${renderSeccionAprobadores(state.aprobadores)}
       </div>
       ${renderModal(state)}
