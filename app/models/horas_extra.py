@@ -10,12 +10,14 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -181,6 +183,53 @@ class HorasExtraSolicitudDetalle(Base):
 
     def __repr__(self) -> str:
         return f"<HorasExtraSolicitudDetalle id={self.id} solicitud_id={self.solicitud_id}>"
+
+
+class HorasExtraAprobador(Base):
+    """Configuración de aprobadores de horas extra (gerentes regionales y director)."""
+
+    __tablename__ = "horas_extra_aprobadores"
+    __table_args__ = (
+        UniqueConstraint("empleado_id", "tipo", name="uq_he_aprobador_empleado_tipo"),
+        # Solo puede existir un director activo a la vez.
+        Index(
+            "uq_he_aprobador_director_activo",
+            "tipo",
+            unique=True,
+            postgresql_where=text("tipo = 'director' AND activo"),
+            sqlite_where=text("tipo = 'director' AND activo"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    tipo: Mapped[str] = mapped_column(
+        Enum("gerente_regional", "director", name="horas_extra_aprobador_tipo_enum"),
+        nullable=False,
+    )
+    activo: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    creado_por_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    empleado: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[empleado_id])
+    creado_por: Mapped[Optional["Empleado"]] = relationship(
+        "Empleado", foreign_keys=[creado_por_id]
+    )
+
+    def __repr__(self) -> str:
+        return f"<HorasExtraAprobador id={self.id} tipo={self.tipo} empleado_id={self.empleado_id}>"
 
 
 class HorasExtraAprobacion(Base):

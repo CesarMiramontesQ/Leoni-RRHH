@@ -1,14 +1,29 @@
+import { getEmpleadosPage } from "../api/empleados.ts";
 import {
+  createHorasExtraAprobadores,
+  deleteHorasExtraAprobador,
+  getHorasExtraAprobadores,
   getHorasExtraAutorizados,
   setHorasExtraAutorizacion,
+  updateHorasExtraAprobador,
+  type HorasExtraAprobadoresListResponse,
+  type HorasExtraAprobadorItem,
   type HorasExtraAutorizadoItem,
   type NominasAjustesFetchError,
 } from "../api/nominasAjustes.ts";
+import type { UsuarioListItem } from "../api/usuarios.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderAjustesNominasPage } from "../nominas/ajustes/renderAjustesNominasPage.ts";
-import type { AjustesNominasModalState, AjustesNominasState } from "../nominas/ajustes/types.ts";
+import type {
+  AjustesNominasModalState,
+  AjustesNominasState,
+  AprobadorCandidato,
+  AprobadoresModalState,
+  AprobadorItem,
+  AprobadorTipo,
+} from "../nominas/ajustes/types.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 const PAGE_SIZE = 10;
@@ -21,7 +36,7 @@ const SHELL_OPTS = {
   mainClass: "pt-0 pb-5 sm:pb-6",
 };
 
-type FocusTarget = "table-search" | "modal-search" | null;
+type FocusTarget = "table-search" | "modal-search" | "aprobadores-modal-search" | null;
 
 function initialState(): AjustesNominasState {
   return {
@@ -34,6 +49,13 @@ function initialState(): AjustesNominasState {
     stats: null,
     revokingId: null,
     modal: null,
+    aprobadores: {
+      loading: true,
+      mutatingId: null,
+      gerentes: [],
+      directores: [],
+      modal: null,
+    },
   };
 }
 
@@ -45,6 +67,56 @@ function initialModalState(): AjustesNominasModalState {
     results: [],
     seleccionados: new Map<number, HorasExtraAutorizadoItem>(),
     submitting: false,
+  };
+}
+
+function initialAprobadoresModalState(tipo: AprobadorTipo): AprobadoresModalState {
+  return {
+    tipo,
+    q: "",
+    searching: true,
+    searched: false,
+    results: [],
+    seleccionados: new Map<number, AprobadorCandidato>(),
+    submitting: false,
+  };
+}
+
+function toAprobadorCandidato(item: UsuarioListItem): AprobadorCandidato {
+  const areaPuesto = [item.area?.descripcion, item.puesto?.descripcion]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    empleadoId: item.empleado_id,
+    noEmpleado: item.no_empleado,
+    nombre: item.nombre,
+    email: item.email,
+    areaPuesto: areaPuesto || null,
+  };
+}
+
+function toAprobadorItem(item: HorasExtraAprobadorItem): AprobadorItem {
+  const areaPuesto = [item.area_descripcion, item.puesto_descripcion]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    id: item.id,
+    empleadoId: item.empleado_id,
+    noEmpleado: item.no_empleado,
+    nombre: item.nombre,
+    email: item.email,
+    areaPuesto: areaPuesto || null,
+    activo: item.activo,
+  };
+}
+
+function mapAprobadoresResponse(data: HorasExtraAprobadoresListResponse): {
+  gerentes: AprobadorItem[];
+  directores: AprobadorItem[];
+} {
+  return {
+    gerentes: data.gerentes.map(toAprobadorItem),
+    directores: data.directores.map(toAprobadorItem),
   };
 }
 
@@ -68,6 +140,8 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
   let tableSearchTimer: number | undefined;
   let modalSearchTimer: number | undefined;
   let modalSearchSeq = 0;
+  let aprobadoresSearchTimer: number | undefined;
+  let aprobadoresSearchSeq = 0;
 
   const setBodyScrollLocked = (locked: boolean): void => {
     document.body.style.overflow = locked ? "hidden" : "";
@@ -80,11 +154,15 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
       ...SHELL_OPTS,
       mainHtml: renderAjustesNominasPage(state),
     });
-    setBodyScrollLocked(state.modal !== null);
+    setBodyScrollLocked(state.modal !== null || state.aprobadores.modal !== null);
     bindEvents();
     if (focus) {
-      const selector = focus === "table-search" ? "#aj-he-busqueda" : "#aj-he-modal-busqueda";
-      const input = container.querySelector<HTMLInputElement>(selector);
+      const selectors: Record<Exclude<FocusTarget, null>, string> = {
+        "table-search": "#aj-he-busqueda",
+        "modal-search": "#aj-he-modal-busqueda",
+        "aprobadores-modal-search": "#aj-ap-modal-busqueda",
+      };
+      const input = container.querySelector<HTMLInputElement>(selectors[focus]);
       if (input) {
         const len = input.value.length;
         input.focus();
@@ -263,6 +341,202 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
     }
   };
 
+  // ── Configuración de aprobadores ──
+
+  const setAprobadores = (
+    patch: Partial<AjustesNominasState["aprobadores"]>,
+    focus: FocusTarget = null,
+  ): void => {
+    state = { ...state, aprobadores: { ...state.aprobadores, ...patch } };
+    render(focus);
+  };
+
+  const cargarAprobadores = async (): Promise<void> => {
+    try {
+      const data = await getHorasExtraAprobadores();
+      if (signal?.aborted) return;
+      setAprobadores({ loading: false, ...mapAprobadoresResponse(data) });
+    } catch (e) {
+      const err = e as NominasAjustesFetchError;
+      if (handleAuthError(err)) return;
+      if (signal?.aborted) return;
+      setAprobadores({
+        loading: false,
+        errorMessage: err.detail ?? "No se pudo cargar la configuración de aprobadores.",
+      });
+    }
+  };
+
+  const buscarCandidatosAprobador = async (q: string): Promise<void> => {
+    const modal = state.aprobadores.modal;
+    if (!modal) return;
+    const seq = ++aprobadoresSearchSeq;
+    setAprobadores(
+      { modal: { ...modal, q, searching: true, errorMessage: undefined } },
+      "aprobadores-modal-search",
+    );
+    try {
+      const data = await getEmpleadosPage({ page: 1, page_size: MODAL_RESULTS_LIMIT, q, activo: true });
+      if (signal?.aborted || seq !== aprobadoresSearchSeq || !state.aprobadores.modal) return;
+      const tipo = state.aprobadores.modal.tipo;
+      const registrados = new Set(
+        (tipo === "director" ? state.aprobadores.directores : state.aprobadores.gerentes).map(
+          (item) => item.empleadoId,
+        ),
+      );
+      setAprobadores(
+        {
+          modal: {
+            ...state.aprobadores.modal,
+            searching: false,
+            searched: true,
+            results: data.items
+              .map(toAprobadorCandidato)
+              .filter((emp) => !registrados.has(emp.empleadoId)),
+          },
+        },
+        "aprobadores-modal-search",
+      );
+    } catch (e) {
+      const err = e as NominasAjustesFetchError;
+      if (handleAuthError(err)) return;
+      if (signal?.aborted || seq !== aprobadoresSearchSeq || !state.aprobadores.modal) return;
+      setAprobadores(
+        {
+          modal: {
+            ...state.aprobadores.modal,
+            searching: false,
+            searched: true,
+            results: [],
+            errorMessage: err.detail ?? "No se pudieron buscar empleados.",
+          },
+        },
+        "aprobadores-modal-search",
+      );
+    }
+  };
+
+  const abrirModalAprobadores = (tipo: AprobadorTipo): void => {
+    setAprobadores({
+      modal: initialAprobadoresModalState(tipo),
+      successMessage: undefined,
+      errorMessage: undefined,
+    });
+    void buscarCandidatosAprobador("");
+  };
+
+  const cerrarModalAprobadores = (): void => {
+    if (state.aprobadores.modal?.submitting) return;
+    if (aprobadoresSearchTimer !== undefined) window.clearTimeout(aprobadoresSearchTimer);
+    aprobadoresSearchSeq += 1;
+    setAprobadores({ modal: null });
+  };
+
+  const toggleSeleccionAprobador = (empleadoId: number, checked: boolean): void => {
+    const modal = state.aprobadores.modal;
+    if (!modal) return;
+    // El modal de director solo admite una selección a la vez.
+    const seleccionados =
+      modal.tipo === "director"
+        ? new Map<number, AprobadorCandidato>()
+        : new Map(modal.seleccionados);
+    if (checked) {
+      const emp = modal.results.find((item) => item.empleadoId === empleadoId);
+      if (!emp) return;
+      seleccionados.set(empleadoId, emp);
+    } else {
+      seleccionados.delete(empleadoId);
+    }
+    setAprobadores({ modal: { ...modal, seleccionados } });
+  };
+
+  const guardarAprobadores = async (): Promise<void> => {
+    const modal = state.aprobadores.modal;
+    if (!modal || modal.submitting || modal.seleccionados.size === 0) return;
+    const seleccion = [...modal.seleccionados.values()];
+    setAprobadores({ modal: { ...modal, submitting: true, errorMessage: undefined } });
+    try {
+      const data = await createHorasExtraAprobadores(
+        modal.tipo,
+        seleccion.map((emp) => emp.empleadoId),
+      );
+      if (signal?.aborted) return;
+      const successMessage =
+        modal.tipo === "director"
+          ? "Director agregado como aprobador."
+          : `${seleccion.length} ${seleccion.length === 1 ? "gerente regional agregado" : "gerentes regionales agregados"} como ${seleccion.length === 1 ? "aprobador" : "aprobadores"}.`;
+      setAprobadores({
+        ...mapAprobadoresResponse(data),
+        modal: null,
+        successMessage,
+        errorMessage: undefined,
+      });
+    } catch (e) {
+      const err = e as NominasAjustesFetchError;
+      if (handleAuthError(err)) return;
+      if (signal?.aborted || !state.aprobadores.modal) return;
+      setAprobadores({
+        modal: {
+          ...state.aprobadores.modal,
+          submitting: false,
+          errorMessage: err.detail ?? "No se pudieron guardar los aprobadores.",
+        },
+      });
+    }
+  };
+
+  const buscarAprobadorPorId = (aprobadorId: number): AprobadorItem | undefined =>
+    state.aprobadores.gerentes.find((entry) => entry.id === aprobadorId) ??
+    state.aprobadores.directores.find((entry) => entry.id === aprobadorId);
+
+  const eliminarAprobador = async (aprobadorId: number): Promise<void> => {
+    if (state.aprobadores.mutatingId !== null) return;
+    const item = buscarAprobadorPorId(aprobadorId);
+    if (!item) return;
+    setAprobadores({ mutatingId: aprobadorId, successMessage: undefined, errorMessage: undefined });
+    try {
+      const data = await deleteHorasExtraAprobador(aprobadorId);
+      if (signal?.aborted) return;
+      setAprobadores({
+        mutatingId: null,
+        ...mapAprobadoresResponse(data),
+        successMessage: `${item.nombre} eliminado de los aprobadores.`,
+      });
+    } catch (e) {
+      const err = e as NominasAjustesFetchError;
+      if (handleAuthError(err)) return;
+      if (signal?.aborted) return;
+      setAprobadores({
+        mutatingId: null,
+        errorMessage: err.detail ?? "No se pudo eliminar el aprobador.",
+      });
+    }
+  };
+
+  const cambiarEstadoAprobador = async (aprobadorId: number): Promise<void> => {
+    if (state.aprobadores.mutatingId !== null) return;
+    const item = buscarAprobadorPorId(aprobadorId);
+    if (!item) return;
+    setAprobadores({ mutatingId: aprobadorId, successMessage: undefined, errorMessage: undefined });
+    try {
+      const data = await updateHorasExtraAprobador(aprobadorId, !item.activo);
+      if (signal?.aborted) return;
+      setAprobadores({
+        mutatingId: null,
+        ...mapAprobadoresResponse(data),
+        successMessage: `${item.nombre} ${item.activo ? "desactivado" : "activado"} como aprobador.`,
+      });
+    } catch (e) {
+      const err = e as NominasAjustesFetchError;
+      if (handleAuthError(err)) return;
+      if (signal?.aborted) return;
+      setAprobadores({
+        mutatingId: null,
+        errorMessage: err.detail ?? "No se pudo actualizar el aprobador.",
+      });
+    }
+  };
+
   const bindEvents = (): void => {
     const root = container.querySelector("#ajustes-nominas-page");
     if (!root) return;
@@ -326,12 +600,73 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
         if (id) toggleSeleccion(id, false);
       });
     });
+
+    // Sección de aprobadores
+    root.querySelectorAll<HTMLButtonElement>("[data-aj-ap-abrir-modal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tipo = btn.dataset.ajApAbrirModal as AprobadorTipo | undefined;
+        if (tipo === "gerente_regional" || tipo === "director") abrirModalAprobadores(tipo);
+      });
+    });
+
+    root.querySelectorAll<HTMLButtonElement>("[data-aj-ap-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = Number.parseInt(btn.dataset.ajApToggle ?? "0", 10);
+        if (id) void cambiarEstadoAprobador(id);
+      });
+    });
+
+    root.querySelectorAll<HTMLButtonElement>("[data-aj-ap-eliminar]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = Number.parseInt(btn.dataset.ajApEliminar ?? "0", 10);
+        if (id) void eliminarAprobador(id);
+      });
+    });
+
+    // Modal de aprobadores
+    const aprobadoresBackdrop = root.querySelector("#aj-ap-modal-backdrop");
+    aprobadoresBackdrop?.addEventListener("click", (ev) => {
+      if (ev.target === aprobadoresBackdrop) cerrarModalAprobadores();
+    });
+    root.querySelector("#aj-ap-modal-cerrar")?.addEventListener("click", cerrarModalAprobadores);
+    root.querySelector("#aj-ap-modal-cancelar")?.addEventListener("click", cerrarModalAprobadores);
+    root.querySelector("#aj-ap-modal-confirmar")?.addEventListener("click", () => {
+      void guardarAprobadores();
+    });
+
+    root
+      .querySelector<HTMLInputElement>("#aj-ap-modal-busqueda")
+      ?.addEventListener("input", (ev) => {
+        const value = (ev.target as HTMLInputElement).value;
+        if (aprobadoresSearchTimer !== undefined) window.clearTimeout(aprobadoresSearchTimer);
+        aprobadoresSearchTimer = window.setTimeout(() => {
+          void buscarCandidatosAprobador(value);
+        }, SEARCH_DEBOUNCE_MS);
+      });
+
+    root.querySelectorAll<HTMLInputElement>("[data-aj-ap-modal-check]").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const id = Number.parseInt(checkbox.dataset.ajApModalCheck ?? "0", 10);
+        if (id) toggleSeleccionAprobador(id, checkbox.checked);
+      });
+    });
+
+    root.querySelectorAll<HTMLButtonElement>("[data-aj-ap-modal-quitar]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = Number.parseInt(btn.dataset.ajApModalQuitar ?? "0", 10);
+        if (id) toggleSeleccionAprobador(id, false);
+      });
+    });
   };
 
   document.addEventListener(
     "keydown",
     (ev) => {
-      if (ev.key === "Escape" && state.modal !== null) {
+      if (ev.key !== "Escape") return;
+      if (state.aprobadores.modal !== null) {
+        ev.preventDefault();
+        cerrarModalAprobadores();
+      } else if (state.modal !== null) {
         ev.preventDefault();
         cerrarModal();
       }
@@ -340,4 +675,5 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
   );
 
   void load();
+  void cargarAprobadores();
 }

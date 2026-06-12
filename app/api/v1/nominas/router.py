@@ -8,6 +8,9 @@ from app.models.empleados import Empleado
 from app.schemas.horas_extra import HorasExtraListResponse, HorasExtraTabFiltro
 from app.schemas.horas_extra_solicitud import HorasExtraSolicitudResponse
 from app.schemas.nominas_ajustes import (
+    HorasExtraAprobadoresCreate,
+    HorasExtraAprobadoresListResponse,
+    HorasExtraAprobadorUpdate,
     HorasExtraAutorizacionUpdate,
     HorasExtraAutorizacionUpdateResponse,
     HorasExtraAutorizadosFiltro,
@@ -105,3 +108,52 @@ async def update_horas_extra_autorizados(
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.actualizar_autorizacion(body, current_user)
+
+
+@router.get(
+    "/ajustes/horas-extra/aprobadores",
+    response_model=HorasExtraAprobadoresListResponse,
+)
+async def list_horas_extra_aprobadores(
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    svc: NominasAjustesService = Depends(_ajustes_svc),
+):
+    return await svc.listar_aprobadores()
+
+
+@router.post(
+    "/ajustes/horas-extra/aprobadores",
+    response_model=HorasExtraAprobadoresListResponse,
+    status_code=201,
+)
+async def create_horas_extra_aprobadores(
+    body: HorasExtraAprobadoresCreate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    svc: NominasAjustesService = Depends(_ajustes_svc),
+):
+    return await svc.crear_aprobadores(body, current_user)
+
+
+@router.patch(
+    "/ajustes/horas-extra/aprobadores/{aprobador_id}",
+    response_model=HorasExtraAprobadoresListResponse,
+)
+async def update_horas_extra_aprobador(
+    aprobador_id: int,
+    body: HorasExtraAprobadorUpdate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    svc: NominasAjustesService = Depends(_ajustes_svc),
+):
+    return await svc.actualizar_aprobador(aprobador_id, body)
+
+
+@router.delete(
+    "/ajustes/horas-extra/aprobadores/{aprobador_id}",
+    response_model=HorasExtraAprobadoresListResponse,
+)
+async def delete_horas_extra_aprobador(
+    aprobador_id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    svc: NominasAjustesService = Depends(_ajustes_svc),
+):
+    return await svc.eliminar_aprobador(aprobador_id)

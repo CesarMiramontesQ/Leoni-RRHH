@@ -90,3 +90,69 @@ export async function setHorasExtraAutorizacion(
   if (!res.ok) await throwFetchError(res);
   return (await res.json()) as HorasExtraAutorizacionUpdateResponse;
 }
+
+// ── Aprobadores de horas extra (gerentes regionales / director) ──
+
+export type HorasExtraAprobadorTipo = "gerente_regional" | "director";
+
+export type HorasExtraAprobadorItem = {
+  id: number;
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
+  email: string | null;
+  area_descripcion: string | null;
+  puesto_descripcion: string | null;
+  tipo: HorasExtraAprobadorTipo;
+  activo: boolean;
+  created_at: string;
+};
+
+export type HorasExtraAprobadoresListResponse = {
+  gerentes: HorasExtraAprobadorItem[];
+  directores: HorasExtraAprobadorItem[];
+};
+
+const APROBADORES_URL = "/api/v1/nominas/ajustes/horas-extra/aprobadores";
+
+export async function getHorasExtraAprobadores(): Promise<HorasExtraAprobadoresListResponse> {
+  const res = await fetchWithAuth(APROBADORES_URL);
+  if (!res.ok) await throwFetchError(res);
+  return (await res.json()) as HorasExtraAprobadoresListResponse;
+}
+
+export async function createHorasExtraAprobadores(
+  tipo: HorasExtraAprobadorTipo,
+  empleadoIds: number[],
+): Promise<HorasExtraAprobadoresListResponse> {
+  const res = await fetchWithAuth(APROBADORES_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo, empleado_ids: empleadoIds }),
+  });
+  if (!res.ok) await throwFetchError(res);
+  return (await res.json()) as HorasExtraAprobadoresListResponse;
+}
+
+export async function updateHorasExtraAprobador(
+  aprobadorId: number,
+  activo: boolean,
+): Promise<HorasExtraAprobadoresListResponse> {
+  const res = await fetchWithAuth(`${APROBADORES_URL}/${aprobadorId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activo }),
+  });
+  if (!res.ok) await throwFetchError(res);
+  return (await res.json()) as HorasExtraAprobadoresListResponse;
+}
+
+export async function deleteHorasExtraAprobador(
+  aprobadorId: number,
+): Promise<HorasExtraAprobadoresListResponse> {
+  const res = await fetchWithAuth(`${APROBADORES_URL}/${aprobadorId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) await throwFetchError(res);
+  return (await res.json()) as HorasExtraAprobadoresListResponse;
+}

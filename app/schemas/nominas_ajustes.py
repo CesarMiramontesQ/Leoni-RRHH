@@ -44,3 +44,35 @@ class HorasExtraAutorizacionUpdate(BaseModel):
 class HorasExtraAutorizacionUpdateResponse(BaseModel):
     actualizados: int
     stats: HorasExtraAutorizadosStats
+
+
+# ── Aprobadores de horas extra (gerentes regionales / director) ──
+
+HorasExtraAprobadorTipo = Literal["gerente_regional", "director"]
+
+
+class HorasExtraAprobadorItem(BaseModel):
+    id: int
+    empleado_id: int
+    no_empleado: str
+    nombre: str
+    email: Optional[str] = None
+    area_descripcion: Optional[str] = None
+    puesto_descripcion: Optional[str] = None
+    tipo: HorasExtraAprobadorTipo
+    activo: bool
+    created_at: datetime
+
+
+class HorasExtraAprobadoresListResponse(BaseModel):
+    gerentes: list[HorasExtraAprobadorItem]
+    directores: list[HorasExtraAprobadorItem]
+
+
+class HorasExtraAprobadoresCreate(BaseModel):
+    tipo: HorasExtraAprobadorTipo
+    empleado_ids: list[int] = Field(min_length=1)
+
+
+class HorasExtraAprobadorUpdate(BaseModel):
+    activo: bool

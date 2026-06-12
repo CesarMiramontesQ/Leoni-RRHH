@@ -8,6 +8,7 @@ from app.models.catalogos import Area, Puesto
 from tests.conftest import auth_headers, make_empleado
 
 AUTORIZADOS_URL = "/api/v1/nominas/ajustes/horas-extra/autorizados"
+APROBADORES_URL = "/api/v1/nominas/ajustes/horas-extra/aprobadores"
 
 
 @pytest.mark.asyncio
@@ -269,3 +270,191 @@ async def test_ajustes_busqueda_por_correo_area_y_puesto(
     assert por_puesto.status_code == 200
     nos_puesto = {item["no_empleado"] for item in por_puesto.json()["items"]}
     assert con_puesto.no_empleado in nos_puesto
+
+
+# ── Aprobadores de horas extra (gerentes regionales / director) ──
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_solo_rh(
+    client: AsyncClient, db, empleado_base, empleado_supervisor, empleado_gerente
+):
+    for empleado in (empleado_base, empleado_supervisor, empleado_gerente):
+        headers = await auth_headers(client, empleado)
+
+        lista = await client.get(APROBADORES_URL, headers=headers)
+        assert lista.status_code == 403
+
+        crear = await client.post(
+            APROBADORES_URL,
+            headers=headers,
+            json={"tipo": "gerente_regional", "empleado_ids": [empleado.id]},
+        )
+        assert crear.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_crear_listar_eliminar_gerentes(
+    client: AsyncClient, db, empleado_rh
+):
+    gerente1 = await make_empleado(db, rol="gerente", nombre="Gerente Regional Uno")
+    gerente2 = await make_empleado(db, rol="gerente", nombre="Gerente Regional Dos")
+    headers = await auth_headers(client, empleado_rh)
+
+    vacio = await client.get(APROBADORES_URL, headers=headers)
+    assert vacio.status_code == 200
+    assert vacio.json() == {"gerentes": [], "directores": []}
+
+    crear = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "gerente_regional", "empleado_ids": [gerente1.id, gerente2.id]},
+    )
+    assert crear.status_code == 201
+    body = crear.json()
+    assert {g["nombre"] for g in body["gerentes"]} == {
+        "Gerente Regional Uno",
+        "Gerente Regional Dos",
+    }
+    assert all(g["tipo"] == "gerente_regional" and g["activo"] for g in body["gerentes"])
+    assert body["directores"] == []
+
+    aprobador_id = body["gerentes"][0]["id"]
+    eliminar = await client.delete(f"{APROBADORES_URL}/{aprobador_id}", headers=headers)
+    assert eliminar.status_code == 200
+    assert len(eliminar.json()["gerentes"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_rechaza_duplicados(client: AsyncClient, db, empleado_rh):
+    gerente = await make_empleado(db, rol="gerente", nombre="Gerente Duplicado")
+    headers = await auth_headers(client, empleado_rh)
+
+    primero = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "gerente_regional", "empleado_ids": [gerente.id]},
+    )
+    assert primero.status_code == 201
+
+    duplicado = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "gerente_regional", "empleado_ids": [gerente.id]},
+    )
+    assert duplicado.status_code == 422
+    assert "ya registrados" in duplicado.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_rechaza_empleado_inexistente(
+    client: AsyncClient, db, empleado_rh
+):
+    headers = await auth_headers(client, empleado_rh)
+    response = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "gerente_regional", "empleado_ids": [999999]},
+    )
+    assert response.status_code == 422
+    assert "no encontrados" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_director_unico_activo(client: AsyncClient, db, empleado_rh):
+    director1 = await make_empleado(db, rol="director", nombre="Director Uno")
+    director2 = await make_empleado(db, rol="director", nombre="Director Dos")
+    headers = await auth_headers(client, empleado_rh)
+
+    primero = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "director", "empleado_ids": [director1.id]},
+    )
+    assert primero.status_code == 201
+    director_item = primero.json()["directores"][0]
+    assert director_item["activo"] is True
+
+    # No se permite un segundo director mientras haya uno activo.
+    segundo = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "director", "empleado_ids": [director2.id]},
+    )
+    assert segundo.status_code == 422
+    assert "director activo" in segundo.json()["detail"].lower()
+
+    # Tampoco más de un director en la misma petición.
+    varios = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "director", "empleado_ids": [director1.id, director2.id]},
+    )
+    assert varios.status_code == 422
+
+    # Al desactivar el primero, se puede agregar el segundo.
+    desactivar = await client.patch(
+        f"{APROBADORES_URL}/{director_item['id']}",
+        headers=headers,
+        json={"activo": False},
+    )
+    assert desactivar.status_code == 200
+    assert desactivar.json()["directores"][0]["activo"] is False
+
+    segundo_ok = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "director", "empleado_ids": [director2.id]},
+    )
+    assert segundo_ok.status_code == 201
+    directores = segundo_ok.json()["directores"]
+    assert len(directores) == 2
+    activos = [d for d in directores if d["activo"]]
+    assert len(activos) == 1
+    assert activos[0]["nombre"] == "Director Dos"
+
+    # Reactivar al primero debe fallar mientras el segundo siga activo.
+    reactivar = await client.patch(
+        f"{APROBADORES_URL}/{director_item['id']}",
+        headers=headers,
+        json={"activo": True},
+    )
+    assert reactivar.status_code == 422
+    assert "un director activo" in reactivar.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_toggle_y_eliminar_inexistente(
+    client: AsyncClient, db, empleado_rh
+):
+    gerente = await make_empleado(db, rol="gerente", nombre="Gerente Toggle")
+    headers = await auth_headers(client, empleado_rh)
+
+    crear = await client.post(
+        APROBADORES_URL,
+        headers=headers,
+        json={"tipo": "gerente_regional", "empleado_ids": [gerente.id]},
+    )
+    aprobador_id = crear.json()["gerentes"][0]["id"]
+
+    desactivar = await client.patch(
+        f"{APROBADORES_URL}/{aprobador_id}", headers=headers, json={"activo": False}
+    )
+    assert desactivar.status_code == 200
+    assert desactivar.json()["gerentes"][0]["activo"] is False
+
+    reactivar = await client.patch(
+        f"{APROBADORES_URL}/{aprobador_id}", headers=headers, json={"activo": True}
+    )
+    assert reactivar.status_code == 200
+    assert reactivar.json()["gerentes"][0]["activo"] is True
+
+    no_existe = await client.patch(
+        f"{APROBADORES_URL}/999999", headers=headers, json={"activo": False}
+    )
+    assert no_existe.status_code == 404
+
+    eliminar_no_existe = await client.delete(
+        f"{APROBADORES_URL}/999999", headers=headers
+    )
+    assert eliminar_no_existe.status_code == 404

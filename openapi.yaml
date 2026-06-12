@@ -914,6 +914,70 @@ components:
         stats:
           $ref: "#/components/schemas/HorasExtraAutorizadosStats"
 
+    HorasExtraAprobadorItem:
+      type: object
+      required: [id, empleado_id, no_empleado, nombre, tipo, activo, created_at]
+      properties:
+        id:
+          type: integer
+          description: Id del registro de aprobador (no del empleado).
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: string
+          nullable: true
+        area_descripcion:
+          type: string
+          nullable: true
+        puesto_descripcion:
+          type: string
+          nullable: true
+        tipo:
+          type: string
+          enum: [gerente_regional, director]
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    HorasExtraAprobadoresListResponse:
+      type: object
+      required: [gerentes, directores]
+      properties:
+        gerentes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraAprobadorItem"
+        directores:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraAprobadorItem"
+
+    HorasExtraAprobadoresCreate:
+      type: object
+      required: [tipo, empleado_ids]
+      properties:
+        tipo:
+          type: string
+          enum: [gerente_regional, director]
+        empleado_ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+
+    HorasExtraAprobadorUpdate:
+      type: object
+      required: [activo]
+      properties:
+        activo:
+          type: boolean
+
     HorasExtraListResponse:
       type: object
       required: [semana_actual, resumen, tabs, filter_options, items, total, page, page_size]
@@ -5012,6 +5076,104 @@ paths:
           description: Solo usuarios con rol RH
         "422":
           description: Empleados inexistentes, inactivos o ya autorizados
+
+  /api/v1/nominas/ajustes/horas-extra/aprobadores:
+    get:
+      tags: [Nóminas]
+      summary: Listado de aprobadores de horas extra — gerentes regionales y director (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Aprobadores registrados, separados por tipo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+    post:
+      tags: [Nóminas]
+      summary: Registrar aprobadores de horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraAprobadoresCreate"
+      responses:
+        "201":
+          description: Aprobadores registrados; regresa el listado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "422":
+          description: >-
+            Empleados inexistentes/inactivos, ya registrados como aprobadores,
+            más de un director en la petición o ya existe un director activo.
+
+  /api/v1/nominas/ajustes/horas-extra/aprobadores/{aprobador_id}:
+    patch:
+      tags: [Nóminas]
+      summary: Activar o desactivar un aprobador de horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: aprobador_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraAprobadorUpdate"
+      responses:
+        "200":
+          description: Aprobador actualizado; regresa el listado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "404":
+          description: Aprobador no encontrado
+        "422":
+          description: Ya existe otro director activo
+    delete:
+      tags: [Nóminas]
+      summary: Eliminar un aprobador de horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: aprobador_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Aprobador eliminado; regresa el listado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "404":
+          description: Aprobador no encontrado
 
   /api/v1/empleados/{empleado_id}/vacaciones:
     get:

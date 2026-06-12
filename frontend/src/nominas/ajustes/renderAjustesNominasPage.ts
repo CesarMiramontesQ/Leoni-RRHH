@@ -5,6 +5,7 @@
 
 import {
   badgeApproved,
+  badgeCancelled,
   BTN_GHOST,
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -17,7 +18,14 @@ import {
   RH_LISTADO_SURFACE,
 } from "../../ui/uiTokens.ts";
 import { escapeHtml, paginationRange } from "../../ui/uiUtils.ts";
-import type { AjustesNominasModalState, AjustesNominasState } from "./types.ts";
+import type {
+  AjustesNominasModalState,
+  AjustesNominasState,
+  AprobadorItem,
+  AprobadoresModalState,
+  AprobadoresState,
+  AprobadorTipo,
+} from "./types.ts";
 
 const TABLE_COLUMNS = [
   "Empleado",
@@ -369,6 +377,271 @@ function renderModal(state: AjustesNominasState): string {
     </div>`;
 }
 
+// ── Sección: configuración de aprobadores ──
+
+const APROBADORES_TABLE_COLUMNS = ["Empleado", "Estado", "Acciones"] as const;
+
+const APROBADOR_CARD_COPY: Record<
+  AprobadorTipo,
+  { titulo: string; descripcion: string; boton: string; vacio: string }
+> = {
+  gerente_regional: {
+    titulo: "Gerentes regionales aprobadores",
+    descripcion:
+      "Gerentes regionales que pueden aprobar solicitudes de horas extra.",
+    boton: "Agregar gerente regional",
+    vacio: "Aún no hay gerentes regionales registrados como aprobadores.",
+  },
+  director: {
+    titulo: "Director aprobador",
+    descripcion:
+      "Director responsable de la aprobación final. Solo puede haber un director activo.",
+    boton: "Agregar director",
+    vacio: "Aún no hay un director registrado como aprobador.",
+  },
+};
+
+function renderAprobadorRows(
+  tipo: AprobadorTipo,
+  aprobadores: AprobadoresState,
+  items: AprobadorItem[],
+  busy: boolean,
+): string {
+  const colspan = APROBADORES_TABLE_COLUMNS.length;
+  if (aprobadores.loading) {
+    return `<tr><td colspan="${colspan}" class="px-4 py-8 text-center text-sm text-text-secondary">Cargando aprobadores…</td></tr>`;
+  }
+  if (items.length === 0) {
+    return `<tr><td colspan="${colspan}" class="px-4 py-8 text-center text-sm text-text-secondary">${APROBADOR_CARD_COPY[tipo].vacio}</td></tr>`;
+  }
+  return items
+    .map((item) => {
+      const mutating = aprobadores.mutatingId === item.id;
+      const detalle = [item.noEmpleado, item.email, item.areaPuesto]
+        .filter(Boolean)
+        .join(" · ");
+      return `
+      <tr class="border-b border-slate-100 transition hover:bg-slate-50/70">
+        <td class="px-3 py-3">
+          <p class="text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</p>
+          <p class="mt-0.5 truncate text-xs tabular-nums text-text-muted">${escapeHtml(detalle)}</p>
+        </td>
+        <td class="px-3 py-3">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
+        <td class="px-3 py-3">
+          <div class="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              data-aj-ap-toggle="${item.id}"
+              class="${BTN_GHOST} px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              ${busy ? "disabled" : ""}
+            >${mutating ? "Guardando…" : item.activo ? "Desactivar" : "Activar"}</button>
+            <button
+              type="button"
+              data-aj-ap-eliminar="${item.id}"
+              class="${BTN_GHOST} px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              ${busy ? "disabled" : ""}
+            >${mutating ? "…" : "Eliminar"}</button>
+          </div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function renderAprobadorCard(
+  tipo: AprobadorTipo,
+  aprobadores: AprobadoresState,
+  items: AprobadorItem[],
+  busy: boolean,
+): string {
+  const copy = APROBADOR_CARD_COPY[tipo];
+  return `
+    <section class="${RH_LISTADO_SURFACE} flex min-w-0 flex-col overflow-hidden" aria-label="${copy.titulo}">
+      <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+        <div class="min-w-0">
+          <h3 class="text-base font-semibold text-text-primary">${copy.titulo}</h3>
+          <p class="mt-1 text-sm leading-relaxed text-text-secondary">${copy.descripcion}</p>
+        </div>
+        <button
+          type="button"
+          data-aj-ap-abrir-modal="${tipo}"
+          class="${BTN_PRIMARY} shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
+          ${busy ? "disabled" : ""}
+        >${copy.boton}</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full border-collapse text-left">
+          <thead>
+            <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
+              ${APROBADORES_TABLE_COLUMNS.map(
+                (col) =>
+                  `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
+              ).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${renderAprobadorRows(tipo, aprobadores, items, busy)}
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+function renderAprobadoresMensajes(aprobadores: AprobadoresState): string {
+  const success = aprobadores.successMessage
+    ? `<p class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-900" role="status">${escapeHtml(aprobadores.successMessage)}</p>`
+    : "";
+  const error = aprobadores.errorMessage
+    ? `<p class="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-800" role="alert">${escapeHtml(aprobadores.errorMessage)}</p>`
+    : "";
+  return success || error ? `<div class="grid gap-2">${success}${error}</div>` : "";
+}
+
+function renderSeccionAprobadores(aprobadores: AprobadoresState): string {
+  const busy =
+    (aprobadores.modal?.submitting ?? false) ||
+    aprobadores.mutatingId !== null ||
+    aprobadores.loading;
+  return `
+    <section aria-labelledby="aj-ap-titulo" class="grid gap-3">
+      <div class="min-w-0">
+        <h2 id="aj-ap-titulo" class="text-lg font-semibold text-text-primary">Configuración de aprobadores</h2>
+        <p class="mt-1 text-sm leading-relaxed text-text-secondary">
+          Define a los gerentes regionales y al director que participan en la aprobación de horas extra.
+        </p>
+      </div>
+      ${renderAprobadoresMensajes(aprobadores)}
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        ${renderAprobadorCard("gerente_regional", aprobadores, aprobadores.gerentes, busy)}
+        ${renderAprobadorCard("director", aprobadores, aprobadores.directores, busy)}
+      </div>
+    </section>`;
+}
+
+function renderAprobadoresModalResultados(modal: AprobadoresModalState): string {
+  if (modal.searching) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-secondary">Buscando empleados…</p>`;
+  }
+  if (!modal.searched) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Escribe un nombre, número de empleado o correo para buscar empleados.</p>`;
+  }
+  if (modal.results.length === 0) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-secondary">Sin empleados disponibles que coincidan con la búsqueda.</p>`;
+  }
+
+  const single = modal.tipo === "director";
+  const rows = modal.results
+    .map((emp) => {
+      const checked = modal.seleccionados.has(emp.empleadoId);
+      const detalle = [emp.noEmpleado, emp.email, emp.areaPuesto].filter(Boolean).join(" · ");
+      return `
+      <label class="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition ${checked ? "border-leoni-blue/50 bg-blue-50/60" : "border-slate-200 bg-white hover:border-leoni-blue/30 hover:bg-slate-50"}">
+        <input
+          type="${single ? "radio" : "checkbox"}"
+          ${single ? 'name="aj-ap-modal-director"' : ""}
+          data-aj-ap-modal-check="${emp.empleadoId}"
+          class="${CHECKBOX_CLS} mt-0.5"
+          ${checked ? "checked" : ""}
+          ${modal.submitting ? "disabled" : ""}
+        />
+        <span class="min-w-0">
+          <span class="block truncate text-sm font-medium text-text-primary">${escapeHtml(emp.nombre)}</span>
+          <span class="block truncate text-xs text-text-muted">${escapeHtml(detalle)}</span>
+        </span>
+      </label>`;
+    })
+    .join("");
+
+  return `<div class="grid gap-2" role="listbox" aria-label="Resultados de búsqueda">${rows}</div>`;
+}
+
+function renderAprobadoresModalSeleccionados(modal: AprobadoresModalState): string {
+  if (modal.seleccionados.size === 0) {
+    return `<p class="text-xs text-text-muted">${modal.tipo === "director" ? "Aún no has seleccionado un director." : "Aún no has seleccionado empleados."}</p>`;
+  }
+  const chips = [...modal.seleccionados.values()]
+    .map(
+      (emp) => `
+      <span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 py-1 pl-3 pr-1.5 text-xs font-semibold text-blue-900">
+        <span class="truncate">${escapeHtml(emp.nombre)}</span>
+        <button
+          type="button"
+          data-aj-ap-modal-quitar="${emp.empleadoId}"
+          class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-blue-700 transition hover:bg-blue-200/70"
+          aria-label="Quitar a ${escapeHtml(emp.nombre)}"
+          ${modal.submitting ? "disabled" : ""}
+        >×</button>
+      </span>`,
+    )
+    .join("");
+  return `<div class="flex flex-wrap gap-1.5">${chips}</div>`;
+}
+
+function renderAprobadoresModal(aprobadores: AprobadoresState): string {
+  const modal = aprobadores.modal;
+  if (!modal) return "";
+  const single = modal.tipo === "director";
+  const count = modal.seleccionados.size;
+  const confirmDisabled = count === 0 || modal.submitting;
+  const titulo = single ? "Agregar director" : "Agregar gerente regional";
+  const descripcion = single
+    ? "Busca y selecciona al director que aprobará las horas extra. Solo puede haber un director activo."
+    : "Busca y selecciona a los gerentes regionales que podrán aprobar horas extra. Los empleados ya registrados no aparecen en los resultados.";
+  const confirmLabel = single ? "Guardar director" : "Guardar aprobadores";
+
+  return `
+    <div id="aj-ap-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div
+        class="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="aj-ap-modal-titulo"
+      >
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div class="min-w-0">
+            <h2 id="aj-ap-modal-titulo" class="text-lg font-semibold text-text-primary">${titulo}</h2>
+            <p class="mt-1 text-sm text-text-secondary">${descripcion}</p>
+          </div>
+          <button type="button" id="aj-ap-modal-cerrar" class="${BTN_GHOST} shrink-0 px-2 py-1.5 text-xs" aria-label="Cerrar" ${modal.submitting ? "disabled" : ""}>
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </header>
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <label for="aj-ap-modal-busqueda" class="${RH_LISTADO_LABEL}">Buscar empleado</label>
+          <input
+            id="aj-ap-modal-busqueda"
+            type="search"
+            value="${escapeHtml(modal.q)}"
+            placeholder="Nombre, número de empleado o correo"
+            autocomplete="off"
+            class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS}"
+            ${modal.submitting ? "disabled" : ""}
+          />
+          ${
+            modal.errorMessage
+              ? `<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">${escapeHtml(modal.errorMessage)}</p>`
+              : ""
+          }
+          <div class="mt-4">
+            ${renderAprobadoresModalResultados(modal)}
+          </div>
+          <div class="mt-5 border-t border-slate-100 pt-4">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted" aria-live="polite">
+              ${single ? "Director seleccionado" : `Seleccionados (${count})`}
+            </p>
+            ${renderAprobadoresModalSeleccionados(modal)}
+          </div>
+        </div>
+        <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+          <button type="button" id="aj-ap-modal-cancelar" class="${BTN_SECONDARY}" ${modal.submitting ? "disabled" : ""}>Cancelar</button>
+          <button type="button" id="aj-ap-modal-confirmar" class="${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50" ${confirmDisabled ? "disabled" : ""}>
+            ${modal.submitting ? "Guardando…" : confirmLabel}
+          </button>
+        </footer>
+      </div>
+    </div>`;
+}
+
 export function renderAjustesNominasPage(state: AjustesNominasState): string {
   return `
     <div id="ajustes-nominas-page" class="${RH_DASHBOARD_PAGE_SHELL}">
@@ -376,7 +649,9 @@ export function renderAjustesNominasPage(state: AjustesNominasState): string {
         ${renderHeader(state)}
         ${renderStats(state)}
         ${renderTablaAutorizados(state)}
+        ${renderSeccionAprobadores(state.aprobadores)}
       </div>
       ${renderModal(state)}
+      ${renderAprobadoresModal(state.aprobadores)}
     </div>`;
 }

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.catalogos import Area, Puesto
 from app.models.empleados import Empleado
+from app.models.horas_extra import HorasExtraAprobador
 
 
 class NominasAjustesRepository:
@@ -128,3 +129,62 @@ class NominasAjustesRepository:
         if actualizados:
             await self.db.flush()
         return actualizados
+
+    # ── Aprobadores de horas extra ──
+
+    def _aprobadores_query(self):
+        return select(HorasExtraAprobador).options(
+            selectinload(HorasExtraAprobador.empleado).selectinload(Empleado.area),
+            selectinload(HorasExtraAprobador.empleado).selectinload(Empleado.puesto),
+        )
+
+    async def list_aprobadores(self) -> list[HorasExtraAprobador]:
+        stmt = self._aprobadores_query().order_by(HorasExtraAprobador.id)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_aprobador(self, aprobador_id: int) -> HorasExtraAprobador | None:
+        stmt = self._aprobadores_query().where(HorasExtraAprobador.id == aprobador_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_aprobadores_by_tipo(self, tipo: str) -> list[HorasExtraAprobador]:
+        stmt = self._aprobadores_query().where(HorasExtraAprobador.tipo == tipo)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def exists_director_activo(
+        self, *, excluir_id: int | None = None
+    ) -> bool:
+        stmt = select(func.count()).where(
+            HorasExtraAprobador.tipo == "director",
+            HorasExtraAprobador.activo.is_(True),
+        )
+        if excluir_id is not None:
+            stmt = stmt.where(HorasExtraAprobador.id != excluir_id)
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one()) > 0
+
+    async def add_aprobadores(
+        self,
+        empleado_ids: list[int],
+        tipo: str,
+        *,
+        creado_por_id: int | None,
+    ) -> list[HorasExtraAprobador]:
+        nuevos = [
+            HorasExtraAprobador(
+                empleado_id=empleado_id,
+                tipo=tipo,
+                activo=True,
+                creado_por_id=creado_por_id,
+            )
+            for empleado_id in empleado_ids
+        ]
+        self.db.add_all(nuevos)
+        await self.db.flush()
+        return nuevos
+
+    async def delete_aprobador(self, aprobador: HorasExtraAprobador) -> None:
+        await self.db.delete(aprobador)
+        await self.db.flush()

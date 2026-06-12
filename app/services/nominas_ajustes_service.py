@@ -7,10 +7,15 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import DomainValidationError
+from app.core.exceptions import DomainValidationError, NotFoundError
 from app.models.empleados import Empleado
+from app.models.horas_extra import HorasExtraAprobador
 from app.repositories.nominas_ajustes_repository import NominasAjustesRepository
 from app.schemas.nominas_ajustes import (
+    HorasExtraAprobadoresCreate,
+    HorasExtraAprobadoresListResponse,
+    HorasExtraAprobadorItem,
+    HorasExtraAprobadorUpdate,
     HorasExtraAutorizacionUpdate,
     HorasExtraAutorizacionUpdateResponse,
     HorasExtraAutorizadoItem,
@@ -131,3 +136,107 @@ class NominasAjustesService:
             actualizados=actualizados,
             stats=await self._build_stats(),
         )
+
+    # ── Aprobadores de horas extra (gerentes regionales / director) ──
+
+    @staticmethod
+    def _to_aprobador_item(aprobador: HorasExtraAprobador) -> HorasExtraAprobadorItem:
+        emp = aprobador.empleado
+        return HorasExtraAprobadorItem(
+            id=aprobador.id,
+            empleado_id=aprobador.empleado_id,
+            no_empleado=emp.no_empleado,
+            nombre=emp.nombre,
+            email=emp.email,
+            area_descripcion=emp.area.descripcion if emp.area else None,
+            puesto_descripcion=emp.puesto.descripcion if emp.puesto else None,
+            tipo=aprobador.tipo,
+            activo=aprobador.activo,
+            created_at=aprobador.created_at,
+        )
+
+    async def listar_aprobadores(self) -> HorasExtraAprobadoresListResponse:
+        aprobadores = await self.repo.list_aprobadores()
+        return HorasExtraAprobadoresListResponse(
+            gerentes=[
+                self._to_aprobador_item(a)
+                for a in aprobadores
+                if a.tipo == "gerente_regional"
+            ],
+            directores=[
+                self._to_aprobador_item(a) for a in aprobadores if a.tipo == "director"
+            ],
+        )
+
+    async def crear_aprobadores(
+        self, data: HorasExtraAprobadoresCreate, current_user: Empleado
+    ) -> HorasExtraAprobadoresListResponse:
+        ids = list(dict.fromkeys(data.empleado_ids))
+
+        if data.tipo == "director":
+            if len(ids) > 1:
+                raise DomainValidationError(
+                    detail="Solo puedes agregar un director a la vez."
+                )
+            if await self.repo.exists_director_activo():
+                raise DomainValidationError(
+                    detail=(
+                        "Ya existe un director activo. Desactívalo o elimínalo "
+                        "antes de agregar otro."
+                    )
+                )
+
+        estados = settings.ESTADOS_ACTIVOS_IDS
+        empleados = await self.repo.get_activos_by_ids(estados, ids)
+        encontrados = {e.id for e in empleados}
+        faltantes = [i for i in ids if i not in encontrados]
+        if faltantes:
+            raise DomainValidationError(
+                detail=(
+                    "Empleados no encontrados o inactivos: "
+                    f"{', '.join(str(i) for i in faltantes)}."
+                )
+            )
+
+        registrados = await self.repo.get_aprobadores_by_tipo(data.tipo)
+        duplicados = [
+            a.empleado.nombre for a in registrados if a.empleado_id in encontrados
+        ]
+        if duplicados:
+            raise DomainValidationError(
+                detail=f"Ya registrados como aprobadores: {', '.join(duplicados)}."
+            )
+
+        await self.repo.add_aprobadores(ids, data.tipo, creado_por_id=current_user.id)
+        await self.db.commit()
+        return await self.listar_aprobadores()
+
+    async def actualizar_aprobador(
+        self, aprobador_id: int, data: HorasExtraAprobadorUpdate
+    ) -> HorasExtraAprobadoresListResponse:
+        aprobador = await self.repo.get_aprobador(aprobador_id)
+        if aprobador is None:
+            raise NotFoundError("Aprobador", aprobador_id)
+
+        if (
+            data.activo
+            and aprobador.tipo == "director"
+            and await self.repo.exists_director_activo(excluir_id=aprobador.id)
+        ):
+            raise DomainValidationError(
+                detail="Solo puede haber un director activo a la vez."
+            )
+
+        aprobador.activo = data.activo
+        await self.db.commit()
+        return await self.listar_aprobadores()
+
+    async def eliminar_aprobador(
+        self, aprobador_id: int
+    ) -> HorasExtraAprobadoresListResponse:
+        aprobador = await self.repo.get_aprobador(aprobador_id)
+        if aprobador is None:
+            raise NotFoundError("Aprobador", aprobador_id)
+        await self.repo.delete_aprobador(aprobador)
+        await self.db.commit()
+        return await self.listar_aprobadores()
