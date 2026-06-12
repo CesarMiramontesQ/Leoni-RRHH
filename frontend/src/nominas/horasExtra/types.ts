@@ -22,7 +22,7 @@ export type HorasExtraFilters = {
   area_id: string;
   centrocosto_id: string;
   estado: HorasExtraTabId;
-  semana: string;
+  semana_inicio: string;
   fecha_inicio: string;
   fecha_fin: string;
 };
@@ -58,7 +58,7 @@ export const EMPTY_HORAS_EXTRA_FILTERS: HorasExtraFilters = {
   area_id: "",
   centrocosto_id: "",
   estado: "todos",
-  semana: "",
+  semana_inicio: "",
   fecha_inicio: "",
   fecha_fin: "",
 };

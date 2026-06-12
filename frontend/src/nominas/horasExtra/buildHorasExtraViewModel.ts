@@ -5,6 +5,7 @@ import type {
   HorasExtraPageViewModel,
   HorasExtraTabId,
 } from "./types.ts";
+import { semanaLabelFromInicio } from "./semanaFilterHelpers.ts";
 import { EMPTY_HORAS_EXTRA_FILTER_OPTIONS, EMPTY_HORAS_EXTRA_FILTERS } from "./types.ts";
 
 function formatHoras(value: number): string {
@@ -43,7 +44,9 @@ export function buildHorasExtraViewModel(
 
   return {
     semanaActual: semana,
-    semanaLabel: filters.semana.trim() ? `Semana ${filters.semana}` : `Semana ${semana}`,
+    semanaLabel: filters.semana_inicio.trim()
+      ? semanaLabelFromInicio(filters.semana_inicio)
+      : `Semana ${semana}`,
     summaryCards: [
       {
         id: "total-horas",

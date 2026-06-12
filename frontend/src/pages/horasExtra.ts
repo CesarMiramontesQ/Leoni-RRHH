@@ -14,7 +14,10 @@ import {
   renderHorasExtraListado,
   renderHorasExtraPage,
 } from "../nominas/horasExtra/renderHorasExtraPage.ts";
-import { semanaInicioIsoFromNumero } from "../nominas/horasExtra/semanaFilterHelpers.ts";
+import {
+  semanaInicioDesdeNumero,
+  stepSemanaInicio,
+} from "../nominas/horasExtra/semanaFilterHelpers.ts";
 import type {
   HorasExtraFilterOptions,
   HorasExtraFilters,
@@ -79,20 +82,16 @@ function fechasFiltroValidas(fechaInicio: string, fechaFin: string): boolean {
 
 function listParamsFromFilters(
   filters: HorasExtraFilters,
-  semanaActual: number,
+  _semanaActual: number,
   page = 1,
 ) {
-  const semanaInicio = filters.semana.trim()
-    ? semanaInicioIsoFromNumero(filters.semana, semanaActual)
-    : undefined;
-
   return {
     page,
     page_size: PAGE_SIZE,
     tab: filters.estado as HorasExtraTabFiltro,
     area_id: parseOptionalInt(filters.area_id),
     centrocosto_id: parseOptionalInt(filters.centrocosto_id),
-    semana_inicio: semanaInicio,
+    semana_inicio: filters.semana_inicio.trim() || undefined,
     fecha_inicio: filters.fecha_inicio.trim() || undefined,
     fecha_fin: filters.fecha_fin.trim() || undefined,
   };
@@ -117,9 +116,8 @@ export function mountHorasExtra(container: HTMLElement): void {
     const header = pageRoot.querySelector("#horas-extra-page-header");
     if (header) {
       header.outerHTML = renderHorasExtraPageHeader({
-        filters: vm.filters,
-        semanaActual: vm.semanaActual,
         filtersStatus: vm.filtersStatus,
+        semanaLabel: vm.semanaLabel,
       });
     }
   };
@@ -237,6 +235,24 @@ export function mountHorasExtra(container: HTMLElement): void {
         return;
       }
 
+      if (target.closest("[data-he-semana-prev]") && filters.semana_inicio.trim()) {
+        filters = {
+          ...filters,
+          semana_inicio: stepSemanaInicio(filters.semana_inicio, -1),
+        };
+        void refreshListado(pageRoot, 1);
+        return;
+      }
+
+      if (target.closest("[data-he-semana-next]") && filters.semana_inicio.trim()) {
+        filters = {
+          ...filters,
+          semana_inicio: stepSemanaInicio(filters.semana_inicio, 1),
+        };
+        void refreshListado(pageRoot, 1);
+        return;
+      }
+
       const pageBtn = target.closest<HTMLButtonElement>("[data-he-page]");
       if (!pageBtn || pageBtn.disabled) return;
 
@@ -249,12 +265,17 @@ export function mountHorasExtra(container: HTMLElement): void {
 
   void (async () => {
     try {
-      const [catalog, data] = await Promise.all([
+      const [catalog, dataInitial] = await Promise.all([
         getEmpleadosCatalogoFiltros(),
         getHorasExtraList(listParamsFromFilters(filters, semanaActual)),
       ]);
 
-      semanaActual = data.semana_actual;
+      semanaActual = dataInitial.semana_actual;
+      let data = dataInitial;
+      if (!filters.semana_inicio) {
+        filters = { ...filters, semana_inicio: semanaInicioDesdeNumero(semanaActual) };
+        data = await getHorasExtraList(listParamsFromFilters(filters, semanaActual));
+      }
       filterOptions = mergeFilterOptions(
         catalog.areas,
         data.filter_options.centros_costo.map((cc) => ({ id: cc.id, label: cc.label })),
