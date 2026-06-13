@@ -13,7 +13,6 @@ import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   RH_DASHBOARD_PAGE_SHELL,
-  RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
@@ -22,6 +21,15 @@ import {
   type HorasExtraDetalleAprobacionesState,
   type HorasExtraDetalleModalState,
 } from "../shared/renderHorasExtraDetalleModal.ts";
+import {
+  HE_TABLE_ROW,
+  HE_TABLE_TD,
+  HE_TABLE_SECTION,
+  renderHorasExtraTableScroll,
+  renderHorasExtraTableStatusRow,
+  renderHorasExtraVerButton,
+  type HorasExtraTableColumn,
+} from "../shared/horasExtraTableUi.ts";
 
 export type HorasExtraEmpleadoFilaForm = {
   empleado_id: number;
@@ -660,53 +668,61 @@ function renderEstadisticasCards(state: HorasExtraSolicitudPageState): string {
 }
 
 function renderListaTable(state: HorasExtraSolicitudPageState): string {
+  const columns: readonly HorasExtraTableColumn[] = [
+    { label: "Folio" },
+    { label: "Fecha" },
+    { label: "Semana" },
+    { label: "Área" },
+    { label: "Tipo" },
+    { label: "Total hrs", align: "right" },
+    { label: "Estado" },
+    { label: "Creada" },
+    { label: "Acciones", align: "right" },
+  ] as const;
+  const colspan = columns.length;
+
+  let bodyRows = "";
   if (state.listaStatus === "loading") {
-    return `<p class="px-4 py-8 text-center text-sm text-text-secondary">Cargando solicitudes…</p>`;
-  }
-  if (state.listaStatus === "error") {
-    return `<p class="px-4 py-8 text-center text-sm text-red-700">${escapeHtml(state.listaError ?? "Error al cargar solicitudes.")}</p>`;
-  }
-  if (!state.lista.length) {
-    return `<p class="px-4 py-8 text-center text-sm text-text-secondary">Aún no has creado solicitudes de horas extra.</p>`;
-  }
-  return `
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-slate-200 text-left">
-        <thead class="bg-[#f8fafc] text-xs font-semibold uppercase tracking-wide text-text-secondary">
-          <tr>
-            <th class="px-3 py-3">Folio</th>
-            <th class="px-3 py-3">Fecha</th>
-            <th class="px-3 py-3">Semana</th>
-            <th class="px-3 py-3">Área</th>
-            <th class="px-3 py-3">Tipo</th>
-            <th class="px-3 py-3 text-right">Total hrs</th>
-            <th class="px-3 py-3">Estado</th>
-            <th class="px-3 py-3">Creada</th>
-            <th class="px-3 py-3">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          ${state.lista
-            .map(
-              (row) => `
-            <tr>
-              <td class="px-3 py-3 text-sm font-semibold text-text-primary">#${row.id}</td>
-              <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${formatFecha(row.fecha_solicitud)}</td>
-              <td class="px-3 py-3 text-sm text-text-primary whitespace-nowrap">${semanaLabel(row.semana)}</td>
-              <td class="px-3 py-3 text-sm text-text-primary">${escapeHtml(row.area_descripcion)}</td>
-              <td class="px-3 py-3 text-sm text-text-primary">${tipoLabel(row.tipo)}</td>
-              <td class="px-3 py-3 text-sm font-semibold tabular-nums text-text-primary text-right">${Number(row.total_horas_general).toFixed(2)}</td>
-              <td class="px-3 py-3">${estadoBadge(row.estado)}</td>
-              <td class="px-3 py-3 text-sm text-text-secondary whitespace-nowrap">${formatDateTime(row.created_at)}</td>
-              <td class="px-3 py-3">
-                <button type="button" data-he-ver-id="${row.id}" class="text-sm font-semibold text-accent hover:underline">Ver</button>
+    bodyRows = renderHorasExtraTableStatusRow(
+      colspan,
+      `<p class="text-sm text-text-secondary">Cargando solicitudes…</p>`,
+    );
+  } else if (state.listaStatus === "error") {
+    bodyRows = renderHorasExtraTableStatusRow(
+      colspan,
+      `<p class="text-sm font-semibold text-text-primary">No se pudo cargar el listado</p>
+       <p class="mt-1 text-sm text-text-secondary">${escapeHtml(state.listaError ?? "Intenta de nuevo más tarde.")}</p>`,
+    );
+  } else if (!state.lista.length) {
+    bodyRows = renderHorasExtraTableStatusRow(
+      colspan,
+      `<p class="text-sm font-semibold text-text-primary">Sin solicitudes</p>
+       <p class="mt-1 text-sm text-text-secondary">Aún no has creado solicitudes de horas extra.</p>`,
+    );
+  } else {
+    bodyRows = state.lista
+      .map(
+        (row) => `
+            <tr class="${HE_TABLE_ROW}">
+              <td class="${HE_TABLE_TD} text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap">#${row.id}</td>
+              <td class="${HE_TABLE_TD} text-sm tabular-nums text-text-primary whitespace-nowrap">${formatFecha(row.fecha_solicitud)}</td>
+              <td class="${HE_TABLE_TD} text-sm tabular-nums text-text-primary whitespace-nowrap">${semanaLabel(row.semana)}</td>
+              <td class="${HE_TABLE_TD} whitespace-nowrap">
+                <p class="truncate text-sm text-text-primary">${escapeHtml(row.area_descripcion)}</p>
               </td>
+              <td class="${HE_TABLE_TD} whitespace-nowrap">
+                <p class="truncate text-sm text-text-primary">${tipoLabel(row.tipo)}</p>
+              </td>
+              <td class="${HE_TABLE_TD} text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap text-right">${Number(row.total_horas_general).toFixed(2)}</td>
+              <td class="${HE_TABLE_TD} whitespace-nowrap">${estadoBadge(row.estado)}</td>
+              <td class="${HE_TABLE_TD} text-sm tabular-nums text-text-secondary whitespace-nowrap">${formatDateTime(row.created_at)}</td>
+              <td class="${HE_TABLE_TD} whitespace-nowrap text-right">${renderHorasExtraVerButton({ dataAttr: "he-ver-id", solicitudId: row.id })}</td>
             </tr>`,
-            )
-            .join("")}
-        </tbody>
-      </table>
-    </div>`;
+      )
+      .join("");
+  }
+
+  return renderHorasExtraTableScroll(columns, bodyRows);
 }
 
 export function renderHorasExtraSolicitudPage(state: HorasExtraSolicitudPageState): string {
@@ -738,7 +754,7 @@ export function renderHorasExtraSolicitudPage(state: HorasExtraSolicitudPageStat
 
       <div class="mb-4">${renderEstadisticasCards(state)}</div>
 
-      <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Mis solicitudes">
+      <section class="${HE_TABLE_SECTION}" aria-label="Mis solicitudes">
         <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 class="text-base font-semibold text-text-primary">Mis solicitudes registradas</h2>
           <p class="text-xs text-text-secondary">Solo se muestran solicitudes creadas por ti.</p>

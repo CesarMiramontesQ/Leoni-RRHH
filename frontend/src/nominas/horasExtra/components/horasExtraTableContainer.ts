@@ -1,17 +1,22 @@
+import {
+  HE_TABLE_SECTION,
+  HE_TABLE_EL,
+  renderHorasExtraTableThead,
+  type HorasExtraTableColumn,
+} from "../../../horasExtra/shared/horasExtraTableUi.ts";
 import { paginationRange } from "../../../ui/uiUtils.ts";
-import { RH_LISTADO_SURFACE } from "../../../ui/uiTokens.ts";
 import { renderHorasExtraTableBody } from "./horasExtraTableRows.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
 
-const TABLE_COLUMNS = [
-  "Empleado",
-  "Centro de costo / Área",
-  "Semana",
-  "Fecha solicitud",
-  "Horas solicitadas",
-  "Motivo",
-  "Estado",
-  "Acciones",
+const TABLE_COLUMNS: readonly HorasExtraTableColumn[] = [
+  { label: "Empleado" },
+  { label: "Centro de costo / Área" },
+  { label: "Semana" },
+  { label: "Fecha solicitud" },
+  { label: "Horas solicitadas" },
+  { label: "Motivo" },
+  { label: "Estado" },
+  { label: "Acciones", align: "right" },
 ] as const;
 
 function renderPagination(vm: HorasExtraPageViewModel): string {
@@ -53,17 +58,10 @@ function renderPagination(vm: HorasExtraPageViewModel): string {
 
 export function renderHorasExtraTableContainer(vm: HorasExtraPageViewModel): string {
   return `
-    <section class="rh-sol-table-section ${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Listado de horas extras">
+    <section class="${HE_TABLE_SECTION}" aria-label="Listado de horas extras">
       <div class="overflow-x-auto">
-        <table class="min-w-full border-collapse text-left">
-          <thead>
-            <tr class="border-b border-slate-100 bg-[var(--color-grid-header-bg)]">
-              ${TABLE_COLUMNS.map(
-                (col) =>
-                  `<th scope="col" class="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-grid-header-text)] whitespace-nowrap">${col}</th>`,
-              ).join("")}
-            </tr>
-          </thead>
+        <table class="${HE_TABLE_EL}">
+          ${renderHorasExtraTableThead(TABLE_COLUMNS)}
           <tbody id="horas-extra-table-body">
             ${renderHorasExtraTableBody(vm)}
           </tbody>

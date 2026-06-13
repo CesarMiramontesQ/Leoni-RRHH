@@ -1,5 +1,6 @@
 import type { HorasExtraFila, HorasExtraEstadoSolicitud } from "../../../api/horasExtra.ts";
-import { badgeApproved, badgeCancelled, badgePending, badgeRejected, RH_LISTADO_BTN_GHOST } from "../../../ui/uiTokens.ts";
+import { HE_TABLE_ROW, HE_TABLE_TD, renderHorasExtraTableStatusRow, renderHorasExtraVerButton } from "../../../horasExtra/shared/horasExtraTableUi.ts";
+import { badgeApproved, badgeCancelled, badgePending, badgeRejected } from "../../../ui/uiTokens.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
@@ -55,14 +56,10 @@ function renderSemanaCell(fila: HorasExtraFila): string {
 }
 
 function renderAccionesCell(fila: HorasExtraFila): string {
-  const solicitudId = fila.solicitud.solicitud_id;
-  return `
-    <button
-      type="button"
-      class="${RH_LISTADO_BTN_GHOST} min-h-9 px-3 py-1.5 text-xs font-semibold"
-      data-he-rh-ver-id="${solicitudId}"
-      aria-label="Ver detalle de la solicitud ${solicitudId}"
-    >Ver</button>`;
+  return renderHorasExtraVerButton({
+    dataAttr: "he-rh-ver-id",
+    solicitudId: fila.solicitud.solicitud_id,
+  });
 }
 
 function renderFila(fila: HorasExtraFila): string {
@@ -70,48 +67,42 @@ function renderFila(fila: HorasExtraFila): string {
   const motivo = sol.motivo?.trim() || "—";
 
   return `
-    <tr class="border-b border-slate-100 transition hover:bg-slate-50/70">
-      <td class="px-3 py-3">${renderEmpleadoCell(fila)}</td>
-      <td class="px-3 py-3 whitespace-nowrap">${renderCentroCostoCell(fila)}</td>
-      <td class="px-3 py-3 whitespace-nowrap">${renderSemanaCell(fila)}</td>
-      <td class="px-3 py-3 text-sm tabular-nums text-text-primary whitespace-nowrap">${escapeHtml(formatFecha(sol.fecha_solicitud))}</td>
-      <td class="px-3 py-3 text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap">${sol.total_horas.toFixed(2)}</td>
-      <td class="max-w-[16rem] px-3 py-3">
+    <tr class="${HE_TABLE_ROW}">
+      <td class="${HE_TABLE_TD}">${renderEmpleadoCell(fila)}</td>
+      <td class="${HE_TABLE_TD} whitespace-nowrap">${renderCentroCostoCell(fila)}</td>
+      <td class="${HE_TABLE_TD} whitespace-nowrap">${renderSemanaCell(fila)}</td>
+      <td class="${HE_TABLE_TD} text-sm tabular-nums text-text-primary whitespace-nowrap">${escapeHtml(formatFecha(sol.fecha_solicitud))}</td>
+      <td class="${HE_TABLE_TD} text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap">${sol.total_horas.toFixed(2)}</td>
+      <td class="max-w-[16rem] ${HE_TABLE_TD}">
         <p class="truncate text-sm text-text-primary" title="${escapeHtml(motivo)}">${escapeHtml(motivo)}</p>
       </td>
-      <td class="px-3 py-3 whitespace-nowrap">${estadoBadge(sol.estado)}</td>
-      <td class="px-3 py-3 whitespace-nowrap text-right">${renderAccionesCell(fila)}</td>
+      <td class="${HE_TABLE_TD} whitespace-nowrap">${estadoBadge(sol.estado)}</td>
+      <td class="${HE_TABLE_TD} whitespace-nowrap text-right">${renderAccionesCell(fila)}</td>
     </tr>`;
 }
 
 function renderTableBody(vm: HorasExtraPageViewModel): string {
   if (vm.tableStatus === "loading") {
-    return `
-      <tr>
-        <td colspan="8" class="px-4 py-16 text-center sm:px-5">
-          <p class="text-sm text-text-secondary">Cargando solicitudes…</p>
-        </td>
-      </tr>`;
+    return renderHorasExtraTableStatusRow(
+      8,
+      `<p class="text-sm text-text-secondary">Cargando solicitudes…</p>`,
+    );
   }
 
   if (vm.tableStatus === "error") {
-    return `
-      <tr>
-        <td colspan="8" class="px-4 py-16 text-center sm:px-5">
-          <p class="text-sm font-semibold text-text-primary">No se pudo cargar el listado</p>
-          <p class="mt-1 text-sm text-text-secondary">${escapeHtml(vm.tableErrorMessage ?? "Intenta de nuevo más tarde.")}</p>
-        </td>
-      </tr>`;
+    return renderHorasExtraTableStatusRow(
+      8,
+      `<p class="text-sm font-semibold text-text-primary">No se pudo cargar el listado</p>
+       <p class="mt-1 text-sm text-text-secondary">${escapeHtml(vm.tableErrorMessage ?? "Intenta de nuevo más tarde.")}</p>`,
+    );
   }
 
   if (vm.filas.length === 0) {
-    return `
-      <tr>
-        <td colspan="8" class="px-4 py-16 text-center sm:px-5">
-          <p class="text-sm font-semibold text-text-primary">Sin solicitudes</p>
-          <p class="mt-1 text-sm text-text-secondary">No hay solicitudes de horas extra registradas con los filtros actuales.</p>
-        </td>
-      </tr>`;
+    return renderHorasExtraTableStatusRow(
+      8,
+      `<p class="text-sm font-semibold text-text-primary">Sin solicitudes</p>
+       <p class="mt-1 text-sm text-text-secondary">No hay solicitudes de horas extra registradas con los filtros actuales.</p>`,
+    );
   }
 
   return vm.filas.map(renderFila).join("");

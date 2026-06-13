@@ -1,6 +1,7 @@
 import type { HorasExtraAprobacionEstadisticas, HorasExtraPendiente } from "../../api/horasExtraAprobacion.ts";
-import { RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_BTN_GHOST, RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
+import { RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import { HE_TABLE_SECTION } from "./horasExtraTableUi.ts";
 import {
   renderHorasExtraAprobacionDetalleModalSlot,
   renderHorasExtraAprobacionRechazoModal,
@@ -106,7 +107,7 @@ export function renderHorasExtraAprobacionesPage(state: HorasExtraAprobacionesPa
         })}
       </div>
 
-      <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Solicitudes asignadas">
+      <section class="${HE_TABLE_SECTION}" aria-label="Solicitudes asignadas">
         <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 class="text-base font-semibold text-text-primary">Solicitudes asignadas</h2>
           <p class="text-xs text-text-secondary">Solo se muestran solicitudes donde estás designado como aprobador.</p>
