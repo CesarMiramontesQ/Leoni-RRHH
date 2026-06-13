@@ -4,7 +4,12 @@
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 
-export type EmpleadoFlatNavKey = "dashboard" | "solicitudes" | "horas-extra-solicitud" | "comedor";
+export type EmpleadoFlatNavKey =
+  | "dashboard"
+  | "solicitudes"
+  | "horas-extra-solicitud"
+  | "horas-extra-aprobaciones"
+  | "comedor";
 
 export type EmpleadoFlatNavItem = {
   id: AppShellNavItemId;
@@ -36,6 +41,14 @@ export const EMPLEADO_FLAT_NAV_ITEMS: readonly EmpleadoFlatNavItem[] = [
     href: "#/horas-extra/solicitud",
     label: "Horas extra",
     svgPaths: `<path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  // Visible solo si RH designó al empleado como aprobador (shellNavPolicy).
+  {
+    id: "horas-extra-aprobaciones",
+    key: "horas-extra-aprobaciones",
+    href: "#/nominas/horas-extra/aprobaciones",
+    label: "Aprobar horas extra",
+    svgPaths: `<path d="m9 12.75 2.25 2.25 4.5-4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
     id: "comedor",

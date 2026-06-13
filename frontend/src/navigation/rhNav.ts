@@ -40,6 +40,7 @@ export type RhNavKey =
   | "empleados"
   | "nominas"
   | "horas-extra"
+  | "horas-extra-aprobaciones"
   | "conciliacion"
   | "nominas-ajustes";
 

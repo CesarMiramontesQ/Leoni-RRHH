@@ -982,6 +982,94 @@ components:
         activo:
           type: boolean
 
+    HorasExtraFirmaResponse:
+      type: object
+      required: [tipo_firma, tipo_firma_label, estado]
+      properties:
+        tipo_firma:
+          type: string
+          enum: [gerente_area, gerente_regional, director_planta]
+        tipo_firma_label: { type: string }
+        estado:
+          type: string
+          enum: [pendiente, aprobado, rechazado]
+        aprobador_id: { type: integer, nullable: true }
+        aprobador_nombre: { type: string, nullable: true }
+        rol_aprobador_nombre: { type: string, nullable: true }
+        fecha_aprobacion: { type: string, format: date-time, nullable: true }
+        comentario: { type: string, nullable: true }
+
+    HorasExtraPendienteItem:
+      type: object
+      required:
+        [solicitud_id, semana, semana_inicio, fecha_solicitud, tipo, total_horas,
+         total_empleados, mi_tipo_firma, mi_tipo_firma_label, estado_consolidado, aprobado_parcial]
+      properties:
+        solicitud_id: { type: integer }
+        semana: { type: integer }
+        semana_inicio: { type: string, format: date }
+        fecha_solicitud: { type: string, format: date }
+        tipo: { type: string }
+        area_descripcion: { type: string, nullable: true }
+        centrocosto_id: { type: integer, nullable: true }
+        centrocosto_descripcion: { type: string, nullable: true }
+        motivo: { type: string, nullable: true }
+        total_horas: { type: number }
+        total_empleados: { type: integer }
+        registrado_por_nombre: { type: string, nullable: true }
+        mi_tipo_firma:
+          type: string
+          enum: [gerente_area, gerente_regional, director_planta]
+        mi_tipo_firma_label: { type: string }
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        aprobado_parcial: { type: boolean }
+
+    HorasExtraPendientesListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraPendienteItem" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
+    HorasExtraEstadoConsolidadoResponse:
+      type: object
+      required: [solicitud_id, estado, estado_label, aprobado_parcial, listo_para_nomina, firmas, faltantes]
+      properties:
+        solicitud_id: { type: integer }
+        estado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        estado_label: { type: string }
+        aprobado_parcial: { type: boolean }
+        listo_para_nomina: { type: boolean }
+        firmas:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraFirmaResponse" }
+        faltantes:
+          type: array
+          items: { type: string }
+        rechazado_por: { type: string, nullable: true }
+        comentario_rechazo: { type: string, nullable: true }
+
+    HorasExtraHistorialResponse:
+      type: object
+      required: [solicitud_id, estado, estado_label, firmas]
+      properties:
+        solicitud_id: { type: integer }
+        estado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        estado_label: { type: string }
+        firmas:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraFirmaResponse" }
+
     HorasExtraListResponse:
       type: object
       required: [semana_actual, resumen, tabs, filter_options, items, total, page, page_size]
@@ -5014,6 +5102,137 @@ paths:
           description: Sin acceso a Horas Extra
         "404":
           description: Solicitud no encontrada o fuera de alcance
+
+  /api/v1/nominas/horas-extra/aprobaciones/pendientes:
+    get:
+      tags: [Nóminas]
+      summary: Solicitudes de horas extra pendientes de la firma del usuario (gerente regional / director)
+      description: >-
+        Devuelve las solicitudes con una firma pendiente del tipo que el usuario
+        puede firmar según su designación activa en horas_extra_aprobadores.
+        Si el usuario no es aprobador, regresa lista vacía.
+      operationId: nominas_horas_extra_pendientes
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 12, minimum: 1, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: area_id, in: query, schema: { type: integer } }
+        - { name: centrocosto_id, in: query, schema: { type: integer } }
+        - { name: semana_inicio, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Pendientes del aprobador
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraPendientesListResponse"
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/aprobar:
+    post:
+      tags: [Nóminas]
+      summary: Aprobar una solicitud de horas extra (firma del aprobador asignado)
+      operationId: nominas_horas_extra_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comentario: { type: string, nullable: true, maxLength: 500 }
+      responses:
+        "200":
+          description: Estado consolidado tras la aprobación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraEstadoConsolidadoResponse"
+        "403":
+          description: El usuario no está asignado como aprobador
+        "404":
+          description: Solicitud no encontrada
+        "422":
+          description: Solicitud ya aprobada/rechazada o firma duplicada del mismo tipo
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/rechazar:
+    post:
+      tags: [Nóminas]
+      summary: Rechazar una solicitud de horas extra (cancela el ciclo, comentario obligatorio)
+      operationId: nominas_horas_extra_rechazar
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comentario]
+              properties:
+                comentario: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200":
+          description: Estado consolidado tras el rechazo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraEstadoConsolidadoResponse"
+        "403":
+          description: El usuario no está asignado como aprobador
+        "404":
+          description: Solicitud no encontrada
+        "422":
+          description: Comentario faltante o solicitud no accionable
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/estado:
+    get:
+      tags: [Nóminas]
+      summary: Estado consolidado de una solicitud de horas extra (vista RH)
+      operationId: nominas_horas_extra_estado
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Estado calculado a partir de las firmas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraEstadoConsolidadoResponse"
+        "403":
+          description: Sin acceso a Horas Extra
+        "404":
+          description: Solicitud no encontrada
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/historial:
+    get:
+      tags: [Nóminas]
+      summary: Historial de firmas de una solicitud de horas extra
+      operationId: nominas_horas_extra_historial
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Firmas y estado consolidado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraHistorialResponse"
+        "403":
+          description: Sin acceso a Horas Extra
+        "404":
+          description: Solicitud no encontrada
 
   /api/v1/nominas/ajustes/horas-extra/autorizados:
     get:

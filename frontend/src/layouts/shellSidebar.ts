@@ -75,6 +75,7 @@ export type ShellNavKey =
   | "level-up"
   | "nominas"
   | "horas-extra"
+  | "horas-extra-aprobaciones"
   | "horas-extra-solicitud"
   | "conciliacion"
   | "nominas-ajustes";

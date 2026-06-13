@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -58,10 +58,11 @@ async def horas_extra_solicitud_list(
 )
 async def horas_extra_solicitud_create(
     body: HorasExtraSolicitudCreate,
+    background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraSolicitudService = Depends(_svc),
 ):
-    return await svc.crear(body, current_user)
+    return await svc.crear(body, current_user, background_tasks=background_tasks)
 
 
 @router.get("/solicitudes/{solicitud_id}", response_model=HorasExtraSolicitudResponse)

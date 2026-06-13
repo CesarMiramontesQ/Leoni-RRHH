@@ -51,7 +51,23 @@ def _horas_extra_claims(empleado: Empleado) -> dict:
     return {}
 
 
-def create_tokens(empleado: Empleado) -> dict:
+async def _horas_extra_aprobador_claims(empleado: Empleado, db: AsyncSession) -> dict:
+    """Claim de aprobador de horas extra: gerente regional o director designado por RH.
+
+    La designación vive en `horas_extra_aprobadores` (no en el rol del sistema),
+    por lo que el frontend muestra la vista de aprobación según este claim.
+    """
+    from app.repositories.horas_extra_aprobacion_repository import (
+        HorasExtraAprobacionRepository,
+    )
+
+    tipos = await HorasExtraAprobacionRepository(db).tipos_firma_de_empleado(empleado.id)
+    if tipos:
+        return {"he_aprobador": True}
+    return {}
+
+
+async def create_tokens(empleado: Empleado, db: AsyncSession) -> dict:
     rol_nombre = empleado.rol.nombre if empleado.rol else "empleado"
     payload = {
         "sub": str(empleado.id),
@@ -59,6 +75,7 @@ def create_tokens(empleado: Empleado) -> dict:
         "num": empleado.no_empleado,
         "nombre": empleado.nombre,
         **_horas_extra_claims(empleado),
+        **(await _horas_extra_aprobador_claims(empleado, db)),
         **rh_claims_for_token(empleado),
     }
     return {
@@ -128,6 +145,7 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession) -> dict:
         "num": empleado.no_empleado,
         "nombre": empleado.nombre,
         **_horas_extra_claims(empleado),
+        **(await _horas_extra_aprobador_claims(empleado, db)),
         **rh_claims_for_token(empleado),
     }
     return {

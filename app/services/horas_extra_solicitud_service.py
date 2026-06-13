@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -13,6 +14,10 @@ from app.models.empleados import Empleado
 from app.models.horas_extra import HorasExtraSolicitud, HorasExtraSolicitudDetalle
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.horas_extra_solicitud_repository import HorasExtraSolicitudRepository
+from app.services.horas_extra_aprobacion_service import (
+    notificar_solicitud_creada,
+    seed_firmas_solicitud,
+)
 from app.schemas.horas_extra_solicitud import (
     HorasExtraDetalleResponse,
     HorasExtraEmpleadoOption,
@@ -285,6 +290,8 @@ class HorasExtraSolicitudService:
         self,
         data: HorasExtraSolicitudCreate,
         current_user: Empleado,
+        *,
+        background_tasks: BackgroundTasks | None = None,
     ) -> HorasExtraSolicitudResponse:
         self._require_autorizacion(current_user)
         fecha_solicitud = business_today()
@@ -313,7 +320,12 @@ class HorasExtraSolicitudService:
         )
 
         creada = await self.repo.create(solicitud, detalle_rows)
+        # Genera automáticamente las firmas pendientes según aprobadores activos.
+        await seed_firmas_solicitud(self.db, creada.id)
         await self.db.commit()
+
+        # Notifica a los aprobadores asignados (in-app + correo).
+        await notificar_solicitud_creada(self.db, creada, background_tasks)
         return self._to_response(creada)
 
     async def obtener_estadisticas(

@@ -16,7 +16,7 @@ import {
   getVisibleLevelUpCategoriesForRhSidebar,
 } from "./levelUpNav.ts";
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
-import { getRolFromAccessToken, isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
+import { getRolFromAccessToken, isHorasExtraAprobador, isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
 import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
@@ -122,6 +122,7 @@ export type AppShellNavItemId =
   | "level-up"
   | "nominas"
   | "horas-extra"
+  | "horas-extra-aprobaciones"
   | "horas-extra-solicitud"
   | "conciliacion"
   | "nominas-ajustes";
@@ -194,6 +195,11 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (itemId === "horas-extra-solicitud") {
     return isHorasExtraRegistroAutorizado();
   }
+  // La vista de aprobación se muestra a quien RH designó como aprobador,
+  // sin importar su rol (gerente regional / director).
+  if (itemId === "horas-extra-aprobaciones") {
+    return isHorasExtraAprobador();
+  }
   if (itemId === "nominas-ajustes") return navRol === "rh";
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
@@ -255,6 +261,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h === "" || h === "#" || h === "#/") return true;
   if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
+  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
@@ -266,6 +273,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
 export function supervisorMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
+  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
   if (h.startsWith("#/nominas/ajustes")) return false;
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
@@ -295,6 +303,7 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   }
   if (h.startsWith("#/nominas")) {
     if (h.startsWith("#/nominas/ajustes")) return rol === "rh";
+    if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
     return NOMINAS_NAV_ROLES.has(rol ?? "");
   }
   if (h.startsWith("#/notificaciones")) return true;
