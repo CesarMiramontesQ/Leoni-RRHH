@@ -1,10 +1,8 @@
 import { mountAppShell } from "../layouts/appShell.ts";
-import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
-import { schedulePageScrollReset } from "../navigation/resetPageScroll.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_PRIMARY, BTN_SECONDARY, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
-import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles } from "../api/cursos.ts";
-import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible } from "../api/cursos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
+import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
@@ -304,7 +302,6 @@ function renderDashSugerencias(): string {
 function renderDashboardPage(): string {
   return `
   <div class="flex flex-col gap-5">
-    ${renderLevelUpBackBar()}
     ${renderDashHeader()}
     ${renderDashKpis()}
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1.35fr_1fr]">
@@ -320,7 +317,7 @@ function renderDashboardPage(): string {
 
 export function mountLevelUpDashboard(container: HTMLElement): void {
   mountAppShell(container, {
-    pageTitle: "Resumen operativo Level Up",
+    pageTitle: "Level Up",
     activeNav: "level-up",
     mainHtml: renderDashboardPage(),
   });
@@ -342,12 +339,24 @@ export function mountCursos(container: HTMLElement): void {
     detailCurso: Curso | null;
     detailPuestos: CursoPuestoDetail[];
     detailEmpleadosExtra: CursoEmpleadoDetail[];
+    detailGrupos: CursoGrupoItem[];
     detailSesiones: CursoSesion[];
     showCreateSesionModal: boolean;
     viewingSesion: CursoSesion | null;
     sesionEmpleados: SesionEmpleadoItem[];
     selectedEmpleados: Set<number>;
     showAssignSesionPicker: boolean;
+    expandedGrupos: Set<number>;
+    expandedPuestos: Set<number>;
+    expandedExtras: boolean;
+    showAsignacionMasivaModal: boolean;
+    asignacionCatalogos: CursoCatalogos | null;
+    asignacionCatalogosLoading: boolean;
+    asignacionAreaId: number | null;
+    asignacionSubareaId: number | null;
+    asignacionPuestoId: number | null;
+    asignacionLoading: boolean;
+    asignacionResult: { asignados: number; ya_asignados: number } | null;
   }
 
   const state: CursosState = {
@@ -363,12 +372,24 @@ export function mountCursos(container: HTMLElement): void {
     detailCurso: null,
     detailPuestos: [],
     detailEmpleadosExtra: [],
+    detailGrupos: [],
     detailSesiones: [],
     showCreateSesionModal: false,
     viewingSesion: null,
     sesionEmpleados: [],
     selectedEmpleados: new Set(),
     showAssignSesionPicker: false,
+    expandedGrupos: new Set(),
+    expandedPuestos: new Set(),
+    expandedExtras: false,
+    showAsignacionMasivaModal: false,
+    asignacionCatalogos: null,
+    asignacionCatalogosLoading: false,
+    asignacionAreaId: null,
+    asignacionSubareaId: null,
+    asignacionPuestoId: null,
+    asignacionLoading: false,
+    asignacionResult: null,
   };
 
   async function loadEmpleados() {
@@ -433,8 +454,8 @@ export function mountCursos(container: HTMLElement): void {
     const total = state.cursos.total;
     const items = state.cursos.items;
     const obligatorios = items.filter(c => c.obligatorio).length;
-    const internos = items.filter(c => c.tipo === "interno").length;
-    const externos = items.filter(c => c.tipo === "externo").length;
+    const internos = items.filter(c => c.tipo_nombre === "interno").length;
+    const externos = items.filter(c => c.tipo_nombre === "externo").length;
     return `
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -548,22 +569,22 @@ export function mountCursos(container: HTMLElement): void {
     <div class="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm transition hover:shadow-md">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2 flex-wrap">
-          ${cursoCatBadge(c.categoria)}
+          ${cursoCatBadge(c.categoria_nombre)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
         </div>
-        ${cursoTipoBadge(c.tipo)}
+        ${cursoTipoBadge(c.tipo_nombre)}
       </div>
       <div>
         <button data-action="view-curso" data-id="${c.id}" class="text-left text-sm font-semibold leading-tight text-text-primary line-clamp-2 hover:text-blue-600 hover:underline transition">${escapeHtml(c.nombre)}</button>
-        <p class="mt-1 text-xs text-text-muted">${escapeHtml(c.proveedor ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
+        <p class="mt-1 text-xs text-text-muted">${escapeHtml(c.proveedor_nombre ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
       </div>
-      ${c.instructor ? `
+      ${c.instructor_nombre ? `
       <div class="flex items-center gap-2">
-        <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${c.instructor.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</span>
-        <span class="text-xs text-slate-600">${escapeHtml(c.instructor)}</span>
+        <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${c.instructor_nombre.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</span>
+        <span class="text-xs text-slate-600">${escapeHtml(c.instructor_nombre)}</span>
       </div>` : ""}
       <div class="mt-auto border-t border-slate-100 pt-3 flex items-center justify-between text-[11px]">
-        <span class="text-slate-500">${CLASIFICACION_LABELS[c.clasificacion ?? ""] ?? "—"}</span>
+        <span class="text-slate-500">${CLASIFICACION_LABELS[c.clasificacion_nombre ?? ""] ?? "—"}</span>
         ${isRH ? `
         <div class="flex items-center gap-2">
           <button data-action="edit-curso" data-id="${c.id}" class="text-xs font-medium text-blue-600 hover:text-blue-800">Editar</button>
@@ -598,23 +619,13 @@ export function mountCursos(container: HTMLElement): void {
             <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
             <input type="text" name="nombre" required value="${escapeHtml(c?.nombre ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-              <select name="tipo" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">—</option>
-                <option value="interno" ${c?.tipo === "interno" ? "selected" : ""}>Interno</option>
-                <option value="externo" ${c?.tipo === "externo" ? "selected" : ""}>Externo</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
-              <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">—</option>
-                <option value="adicional" ${c?.clasificacion === "adicional" ? "selected" : ""}>Adicional</option>
-                <option value="contemplado" ${c?.clasificacion === "contemplado" ? "selected" : ""}>Contemplado</option>
-              </select>
-            </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
+            <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="">—</option>
+              <option value="adicional" ${c?.clasificacion_nombre === "adicional" ? "selected" : ""}>Adicional</option>
+              <option value="contemplado" ${c?.clasificacion_nombre === "contemplado" ? "selected" : ""}>Contemplado</option>
+            </select>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
@@ -625,24 +636,18 @@ export function mountCursos(container: HTMLElement): void {
               <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
               <select name="categoria" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">—</option>
-                <option value="tecnico" ${c?.categoria === "tecnico" ? "selected" : ""}>Técnico</option>
-                <option value="calidad" ${c?.categoria === "calidad" ? "selected" : ""}>Calidad</option>
-                <option value="seguridad" ${c?.categoria === "seguridad" ? "selected" : ""}>Seguridad</option>
-                <option value="operativo" ${c?.categoria === "operativo" ? "selected" : ""}>Operativo</option>
-                <option value="blanda" ${c?.categoria === "blanda" ? "selected" : ""}>Blanda</option>
+                <option value="tecnico" ${c?.categoria_nombre === "tecnico" ? "selected" : ""}>Técnico</option>
+                <option value="calidad" ${c?.categoria_nombre === "calidad" ? "selected" : ""}>Calidad</option>
+                <option value="seguridad" ${c?.categoria_nombre === "seguridad" ? "selected" : ""}>Seguridad</option>
+                <option value="operativo" ${c?.categoria_nombre === "operativo" ? "selected" : ""}>Operativo</option>
+                <option value="blanda" ${c?.categoria_nombre === "blanda" ? "selected" : ""}>Blanda</option>
               </select>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-              <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-            </div>
-            <div class="relative">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
-              <input type="hidden" name="instructor" value="${escapeHtml(c?.instructor ?? "")}" />
-              <input type="text" data-action="instructor-search" placeholder="Buscar empleado..." value="${escapeHtml(c?.instructor ?? "")}" autocomplete="off" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-              <div data-ref="instructor-dropdown" class="absolute z-20 mt-1 hidden w-full max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"></div>
+              <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor_nombre ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Se asigna desde catálogo" disabled />
             </div>
           </div>
           <div>
@@ -685,6 +690,7 @@ export function mountCursos(container: HTMLElement): void {
     const puestoBlocks = puestos.map(p => {
       const puestoEmpIds = p.empleados.map(e => e.empleado_id);
       const allSelected = puestoEmpIds.length > 0 && puestoEmpIds.every(id => state.selectedEmpleados.has(id));
+      const isExpanded = state.expandedPuestos.has(p.id);
 
       const empRows = p.empleados.length > 0
         ? p.empleados.map(e => {
@@ -701,16 +707,17 @@ export function mountCursos(container: HTMLElement): void {
 
       return `
       <div class="border-b border-slate-100 last:border-0">
-        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-puesto-expand" data-puesto-id="${p.id}">
           <div class="flex items-center gap-2">
             ${hasSesiones && isRH && puestoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(puestoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            <svg class="size-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
             <a href="#/puestos/${p.puesto_perfil_id}" class="text-sm font-semibold text-leoni-blue hover:underline">${escapeHtml(p.puesto_nombre ?? `Puesto #${p.puesto_perfil_id}`)}</a>
             ${p.puesto_codigo ? `<span class="text-xs text-slate-400">${escapeHtml(p.puesto_codigo)}</span>` : ""}
             ${p.obligatorio ? `<span class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
           </div>
           <span class="text-xs text-slate-500 tabular-nums">${p.empleados_count} empleado${p.empleados_count !== 1 ? "s" : ""}</span>
         </div>
-        <ul class="px-5 py-2">${empRows}</ul>
+        ${isExpanded ? `<ul class="px-5 py-2">${empRows}</ul>` : ""}
       </div>`;
     }).join("");
 
@@ -749,10 +756,14 @@ export function mountCursos(container: HTMLElement): void {
 
     return `
     <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
-      <div class="border-b border-slate-100 px-6 py-4">
-        <h3 class="text-sm font-semibold text-text-primary">Empleados extra (individuales)</h3>
-        <p class="text-xs text-slate-500 mt-0.5">${emps.length} empleado${emps.length !== 1 ? "s" : ""} asignado${emps.length !== 1 ? "s" : ""} directamente</p>
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between cursor-pointer" data-action="toggle-extras-expand">
+        <div class="flex items-center gap-2">
+          <svg class="size-4 text-slate-400 transition-transform ${state.expandedExtras ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          <h3 class="text-sm font-semibold text-text-primary">Empleados extra (individuales)</h3>
+        </div>
+        <span class="text-xs text-slate-500">${emps.length} empleado${emps.length !== 1 ? "s" : ""}</span>
       </div>
+      ${state.expandedExtras ? `
       <table class="w-full text-left">
         <thead class="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
@@ -762,7 +773,7 @@ export function mountCursos(container: HTMLElement): void {
           </tr>
         </thead>
         <tbody>${rows}</tbody>
-      </table>
+      </table>` : ""}
     </div>`;
   }
 
@@ -780,27 +791,27 @@ export function mountCursos(container: HTMLElement): void {
 
     return `
     <div class="flex flex-col gap-5">
-      ${renderLevelUpBackBar()}
       <div class="flex items-center gap-3">
+        <button data-action="back-to-list" class="${BTN_SECONDARY} gap-1.5">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+          Volver
+        </button>
         <h2 class="text-lg font-bold text-text-primary truncate">${escapeHtml(c.nombre)}</h2>
       </div>
 
       <div class="rounded-2xl border border-border bg-white shadow-sm">
         <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-6 py-4">
-          ${cursoCatBadge(c.categoria)}
+          ${cursoCatBadge(c.categoria_nombre)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
-          ${cursoTipoBadge(c.tipo)}
           <span class="ml-auto text-xs text-slate-500">ID: ${c.id}</span>
         </div>
 
         <div class="p-6">
           <dl class="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
             ${field("Nombre", c.nombre)}
-            ${field("Categoría", CATEGORIA_LABELS[c.categoria ?? ""] ?? c.categoria)}
-            ${field("Tipo", TIPO_LABELS[c.tipo ?? ""] ?? c.tipo)}
-            ${field("Clasificación", CLASIFICACION_LABELS[c.clasificacion ?? ""] ?? c.clasificacion)}
-            ${field("Instructor", c.instructor)}
-            ${field("Proveedor", c.proveedor)}
+            ${field("Categoría", CATEGORIA_LABELS[c.categoria_nombre ?? ""] ?? c.categoria_nombre)}
+            ${field("Clasificación", CLASIFICACION_LABELS[c.clasificacion_nombre ?? ""] ?? c.clasificacion_nombre)}
+            ${field("Proveedor", c.proveedor_nombre)}
             ${field("Duración", horas)}
             ${field("Cupo máximo", c.cupo_max ? String(c.cupo_max) : null)}
             ${field("Modalidad", c.modalidad)}
@@ -836,10 +847,123 @@ export function mountCursos(container: HTMLElement): void {
       </div>
 
       ${renderDetailSesiones()}
+      ${renderDetailGrupos()}
       ${renderDetailPuestos()}
       ${renderDetailEmpleadosExtra()}
       ${renderSelectionBar()}
       ${state.showAssignSesionPicker ? renderAssignSesionPicker() : ""}
+      ${state.showAsignacionMasivaModal ? renderAsignacionMasivaModal() : ""}
+    </div>`;
+  }
+
+  function renderDetailGrupos(): string {
+    const grupos = state.detailGrupos;
+    const hasSesiones = state.detailSesiones.length > 0;
+    const tipoLabel = (t: string) => t === "area" ? "Área" : t === "subarea" ? "Subárea" : "Puesto";
+    const tipoCls = (t: string) => t === "area"
+      ? "border-blue-200 bg-blue-50 text-blue-800"
+      : t === "subarea"
+      ? "border-violet-200 bg-violet-50 text-violet-800"
+      : "border-amber-200 bg-amber-50 text-amber-800";
+
+    const totalEmps = grupos.reduce((s, g) => s + g.empleados_count, 0);
+
+    const grupoBlocks = grupos.map(g => {
+      const grupoEmpIds = g.empleados.map(e => e.empleado_id);
+      const allSelected = grupoEmpIds.length > 0 && grupoEmpIds.every(id => state.selectedEmpleados.has(id));
+      const isExpanded = state.expandedGrupos.has(g.id);
+
+      const empRows = g.empleados.length > 0
+        ? g.empleados.map(e => {
+          const checked = state.selectedEmpleados.has(e.empleado_id);
+          return `
+          <li class="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-0">
+            ${hasSesiones && isRH ? `<input type="checkbox" data-action="toggle-emp" data-emp-id="${e.empleado_id}" ${checked ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">${escapeHtml((e.nombre ?? "?").slice(0, 2).toUpperCase())}</span>
+            <span class="text-sm text-text-primary truncate">${escapeHtml(e.nombre ?? `#${e.empleado_id}`)}</span>
+            ${e.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">No. ${escapeHtml(e.no_empleado)}</span>` : ""}
+          </li>`;
+        }).join("")
+        : `<li class="text-xs text-slate-400 italic py-1">Sin empleados en este grupo</li>`;
+
+      return `
+      <div class="border-b border-slate-100 last:border-0">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-grupo-expand" data-grupo-id="${g.id}">
+          <div class="flex items-center gap-2">
+            ${hasSesiones && isRH && grupoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(grupoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            <svg class="size-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <span class="inline-flex items-center rounded-full border ${tipoCls(g.tipo)} px-2 py-0.5 text-[10px] font-semibold">${tipoLabel(g.tipo)}</span>
+            <span class="text-sm font-semibold text-text-primary">${escapeHtml(g.nombre)}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500 tabular-nums">${g.empleados_count} empleado${g.empleados_count !== 1 ? "s" : ""}</span>
+            ${isRH ? `<button data-action="quitar-grupo" data-grupo-id="${g.id}" class="text-xs text-red-600 hover:underline">Quitar</button>` : ""}
+          </div>
+        </div>
+        ${isExpanded ? `<ul class="px-5 py-2">${empRows}</ul>` : ""}
+      </div>`;
+    }).join("");
+
+    return `
+    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary">Grupos asignados</h3>
+          <p class="text-xs text-slate-500 mt-0.5">${grupos.length === 0 ? "Sin grupos asignados" : `${grupos.length} grupo${grupos.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total`}</p>
+        </div>
+        ${isRH ? `<button data-action="open-asignacion-masiva" class="${BTN_SECONDARY} text-xs">+ Asignar grupo</button>` : ""}
+      </div>
+      ${grupoBlocks}
+    </div>`;
+  }
+
+  function renderAsignacionMasivaModal(): string {
+    const selectCls = `w-full rounded-lg border border-border bg-white px-3 py-2 text-sm ${FIELD_FOCUS}`;
+    const cat = state.asignacionCatalogos;
+
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="asignacion-masiva">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-text-primary">Asignar grupo al curso</h3>
+          <button data-action="close-asignacion-masiva" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        ${state.asignacionCatalogosLoading ? `<p class="text-xs text-slate-400 text-center py-6">Cargando catálogos...</p>` :
+          !cat ? `<p class="text-xs text-red-500 text-center py-6">Error al cargar catálogos.</p>` : `
+        <div class="space-y-3">
+          <p class="text-xs text-slate-500">Selecciona un área, subárea o puesto. Todos los empleados de ese grupo quedarán asignados al curso dinámicamente.</p>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Área</label>
+            <select data-action="asignacion-area" class="${selectCls}">
+              <option value="">— Seleccionar —</option>
+              ${cat.areas.map(a => `<option value="${a.id}" ${state.asignacionAreaId === a.id ? "selected" : ""}>${escapeHtml(a.descripcion)}</option>`).join("")}
+            </select>
+            ${state.asignacionAreaId ? `<button data-action="agregar-grupo" data-tipo="area" data-ref-id="${state.asignacionAreaId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar esta área como grupo</button>` : ""}
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Subárea</label>
+            <select data-action="asignacion-subarea" class="${selectCls}">
+              <option value="">— Seleccionar —</option>
+              ${cat.subareas.map(s => `<option value="${s.id}" ${state.asignacionSubareaId === s.id ? "selected" : ""}>${escapeHtml(s.descripcion)}</option>`).join("")}
+            </select>
+            ${state.asignacionSubareaId ? `<button data-action="agregar-grupo" data-tipo="subarea" data-ref-id="${state.asignacionSubareaId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar esta subárea como grupo</button>` : ""}
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-600 mb-1 block">Puesto</label>
+            <select data-action="asignacion-puesto" class="${selectCls}">
+              <option value="">— Seleccionar —</option>
+              ${cat.puestos.map(p => `<option value="${p.id}" ${state.asignacionPuestoId === p.id ? "selected" : ""}>${escapeHtml(p.descripcion)}</option>`).join("")}
+            </select>
+            ${state.asignacionPuestoId ? `<button data-action="agregar-grupo" data-tipo="puesto" data-ref-id="${state.asignacionPuestoId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar este puesto como grupo</button>` : ""}
+          </div>
+          ${state.asignacionResult ? `
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              Grupo asignado correctamente.
+            </div>` : ""}
+        </div>`}
+      </div>
     </div>`;
   }
 
@@ -866,7 +990,7 @@ export function mountCursos(container: HTMLElement): void {
           ${sesiones.map(s => {
             const fecha = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
             const hora = s.hora_inicio ? ` ${s.hora_inicio.slice(0, 5)}` : "";
-            const cupo = s.cupo_max ? ` (${s.inscritos_count}/${s.cupo_max})` : "";
+            const cupo = s.inscritos_count ? ` (${s.inscritos_count})` : "";
             return `
             <button data-action="assign-to-sesion" data-sesion-id="${s.id}" class="w-full flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-blue-300 hover:bg-blue-50/50 transition">
               <div>
@@ -905,13 +1029,14 @@ export function mountCursos(container: HTMLElement): void {
     const rows = sesiones.map(s => {
       const fecha = new Date(s.fecha_inicio + "T00:00:00").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" });
       const horario = s.hora_inicio ? `${s.hora_inicio.slice(0, 5)}${s.hora_fin ? " – " + s.hora_fin.slice(0, 5) : ""}` : "—";
-      const cupo = s.cupo_max ? `${s.inscritos_count}/${s.cupo_max}` : `${s.inscritos_count}`;
+      const cupo = `${s.inscritos_count}`;
       return `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
         <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(fecha)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(horario)}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${s.tipo ? escapeHtml(s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1)) : "—"}</td>
         <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
-        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor_nombre ?? "—")}</td>
         <td class="px-4 py-2.5">
           <span class="text-sm tabular-nums text-blue-600 font-medium">${cupo}</span>
         </td>
@@ -938,6 +1063,7 @@ export function mountCursos(container: HTMLElement): void {
             <tr>
               <th class="px-4 py-2.5">Fecha</th>
               <th class="px-4 py-2.5">Horario</th>
+              <th class="px-4 py-2.5">Tipo</th>
               <th class="px-4 py-2.5">Ubicación</th>
               <th class="px-4 py-2.5">Instructor</th>
               <th class="px-4 py-2.5">Inscritos</th>
@@ -1021,17 +1147,27 @@ export function mountCursos(container: HTMLElement): void {
               <input type="time" name="hora_fin" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
             </div>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
-            <input type="text" name="ubicacion" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+              <select name="tipo" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}">
+                <option value="">—</option>
+                <option value="interno">Interno</option>
+                <option value="externo">Externo</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Ubicación</label>
+              <input type="text" name="ubicacion" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            </div>
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>
             <input type="text" name="instructor" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Cupo máximo</label>
-            <input type="number" name="cupo_max" min="1" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            <label class="block text-xs font-medium text-slate-600 mb-1">Costo</label>
+            <input type="number" name="costo" min="0" step="0.01" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Notas</label>
@@ -1082,10 +1218,10 @@ export function mountCursos(container: HTMLElement): void {
           ${items.map(c => `
           <tr class="hover:bg-slate-50/60 transition">
             <td class="px-4 py-3 font-medium max-w-[280px] truncate"><button data-action="view-curso" data-id="${c.id}" class="text-left text-text-primary hover:text-blue-600 hover:underline transition">${escapeHtml(c.nombre)}</button></td>
-            <td class="px-4 py-3">${c.categoria ? cursoCatBadge(c.categoria) : `<span class="text-slate-400">—</span>`}</td>
-            <td class="px-4 py-3 text-slate-600">${c.tipo ? escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo) : "—"}</td>
-            <td class="px-4 py-3 text-slate-600">${c.clasificacion ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion] ?? c.clasificacion) : "—"}</td>
-            <td class="px-4 py-3 text-slate-600 max-w-[180px] truncate">${c.instructor ? escapeHtml(c.instructor) : "—"}</td>
+            <td class="px-4 py-3">${c.categoria_nombre ? cursoCatBadge(c.categoria_nombre) : `<span class="text-slate-400">—</span>`}</td>
+            <td class="px-4 py-3 text-slate-600">${c.tipo_nombre ? escapeHtml(TIPO_LABELS[c.tipo_nombre] ?? c.tipo_nombre) : "—"}</td>
+            <td class="px-4 py-3 text-slate-600">${c.clasificacion_nombre ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion_nombre] ?? c.clasificacion_nombre) : "—"}</td>
+            <td class="px-4 py-3 text-slate-600 max-w-[180px] truncate">${c.instructor_nombre ? escapeHtml(c.instructor_nombre) : "—"}</td>
             <td class="px-4 py-3 tabular-nums text-slate-600">${c.duracion_horas ?? "—"}</td>
             <td class="px-4 py-3 text-slate-600">${c.modalidad ? escapeHtml(c.modalidad) : "—"}</td>
             <td class="px-4 py-3">${c.obligatorio
@@ -1114,7 +1250,6 @@ export function mountCursos(container: HTMLElement): void {
 
     return `
     <div class="flex flex-col gap-5">
-      ${renderLevelUpBackBar()}
       ${renderFilterSection()}
       ${renderCursosKpis()}
       <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
@@ -1143,16 +1278,17 @@ export function mountCursos(container: HTMLElement): void {
     state.detailCurso = curso;
     state.detailPuestos = [];
     state.detailEmpleadosExtra = [];
+    state.detailGrupos = [];
     state.detailSesiones = [];
     state.selectedEmpleados = new Set();
     history.replaceState(null, "", `#/cursos/${curso.id}`);
     render();
-    schedulePageScrollReset();
-    Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id)])
-      .then(([puestos, empExtra, sesionesResp]) => {
+    Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id), getCursoGrupos(curso.id)])
+      .then(([puestos, empExtra, sesionesResp, grupos]) => {
         state.detailPuestos = puestos;
         state.detailEmpleadosExtra = empExtra;
         state.detailSesiones = sesionesResp.items;
+        state.detailGrupos = grupos;
         render();
       })
       .catch(() => {});
@@ -1213,6 +1349,15 @@ export function mountCursos(container: HTMLElement): void {
 
   async function handleClick(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
+
+    if (t.closest("[data-action='back-to-list']")) {
+      state.detailCurso = null;
+      state.selectedEmpleados = new Set();
+      state.showAssignSesionPicker = false;
+      history.replaceState(null, "", "#/cursos");
+      render();
+      return;
+    }
 
     const viewBtn = t.closest<HTMLElement>("[data-action='view-curso']");
     if (viewBtn) {
@@ -1384,6 +1529,88 @@ export function mountCursos(container: HTMLElement): void {
     }
 
     // ── Selection & assign to session handlers ──
+    if (t.closest("[data-action='open-asignacion-masiva']")) {
+      state.showAsignacionMasivaModal = true;
+      state.asignacionResult = null;
+      state.asignacionAreaId = null;
+      state.asignacionSubareaId = null;
+      state.asignacionPuestoId = null;
+      state.asignacionCatalogosLoading = true;
+      render();
+      try {
+        state.asignacionCatalogos = await getCursoCatalogosAsignacion(state.detailCurso!.id);
+      } catch { state.asignacionCatalogos = null; }
+      state.asignacionCatalogosLoading = false;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='close-asignacion-masiva']") || (t as HTMLElement).dataset.backdrop === "asignacion-masiva") {
+      state.showAsignacionMasivaModal = false;
+      render();
+      return;
+    }
+
+    const toggleExpandBtn = t.closest("[data-action='toggle-grupo-expand']") as HTMLElement | null;
+    if (toggleExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("[data-action='quitar-grupo']")) {
+      const grupoId = Number(toggleExpandBtn.dataset.grupoId);
+      if (state.expandedGrupos.has(grupoId)) {
+        state.expandedGrupos.delete(grupoId);
+      } else {
+        state.expandedGrupos.add(grupoId);
+      }
+      render();
+      return;
+    }
+
+    const togglePuestoExpandBtn = t.closest("[data-action='toggle-puesto-expand']") as HTMLElement | null;
+    if (togglePuestoExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("a")) {
+      const puestoId = Number(togglePuestoExpandBtn.dataset.puestoId);
+      if (state.expandedPuestos.has(puestoId)) {
+        state.expandedPuestos.delete(puestoId);
+      } else {
+        state.expandedPuestos.add(puestoId);
+      }
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='toggle-extras-expand']") && !t.closest("[data-action='toggle-all-extras']")) {
+      state.expandedExtras = !state.expandedExtras;
+      render();
+      return;
+    }
+
+    const agregarGrupoBtn = t.closest("[data-action='agregar-grupo']") as HTMLElement | null;
+    if (agregarGrupoBtn) {
+      const tipo = agregarGrupoBtn.dataset.tipo!;
+      const refId = Number(agregarGrupoBtn.dataset.refId);
+      if (!tipo || !refId) return;
+      state.asignacionLoading = true;
+      state.asignacionResult = null;
+      render();
+      try {
+        await agregarGrupoCurso(state.detailCurso!.id, tipo, refId);
+        state.asignacionResult = { asignados: 1, ya_asignados: 0 };
+        state.detailGrupos = await getCursoGrupos(state.detailCurso!.id);
+      } catch { /* silently handle */ }
+      state.asignacionLoading = false;
+      render();
+      return;
+    }
+
+    const quitarGrupoBtn = t.closest("[data-action='quitar-grupo']") as HTMLElement | null;
+    if (quitarGrupoBtn) {
+      const grupoId = Number(quitarGrupoBtn.dataset.grupoId);
+      if (!grupoId) return;
+      try {
+        await quitarGrupoCurso(state.detailCurso!.id, grupoId);
+        state.detailGrupos = state.detailGrupos.filter(g => g.id !== grupoId);
+        render();
+      } catch { /* silently handle */ }
+      return;
+    }
+
     if (t.closest("[data-action='open-assign-sesion-picker']")) {
       state.showAssignSesionPicker = true;
       render();
@@ -1490,6 +1717,36 @@ export function mountCursos(container: HTMLElement): void {
     }
 
     const sel = t as HTMLSelectElement;
+
+    if (sel.matches("[data-action='asignacion-area']")) {
+      state.asignacionAreaId = sel.value ? Number(sel.value) : null;
+      state.asignacionSubareaId = null;
+      state.asignacionPuestoId = null;
+      state.asignacionResult = null;
+      state.asignacionCatalogosLoading = true;
+      render();
+      try {
+        state.asignacionCatalogos = await getCursoCatalogosAsignacion(state.detailCurso!.id, state.asignacionAreaId ?? undefined);
+      } catch { state.asignacionCatalogos = null; }
+      state.asignacionCatalogosLoading = false;
+      render();
+      return;
+    }
+
+    if (sel.matches("[data-action='asignacion-subarea']")) {
+      state.asignacionSubareaId = sel.value ? Number(sel.value) : null;
+      state.asignacionResult = null;
+      render();
+      return;
+    }
+
+    if (sel.matches("[data-action='asignacion-puesto']")) {
+      state.asignacionPuestoId = sel.value ? Number(sel.value) : null;
+      state.asignacionResult = null;
+      render();
+      return;
+    }
+
     if (sel.matches("[data-action='cursos-filter-tipo']")) {
       state.filters.tipo = sel.value;
       state.page = 1;
@@ -1559,6 +1816,9 @@ export function mountCursos(container: HTMLElement): void {
       e.preventDefault();
       const cursoId = state.detailCurso?.id;
       if (!cursoId) return;
+      const submitBtn = form.querySelector<HTMLButtonElement>("button[type='submit']");
+      if (submitBtn?.disabled) return;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Guardando..."; }
       const fd = new FormData(form);
       const payload: CursoSesionCreatePayload = {
         fecha_inicio: fd.get("fecha_inicio") as string,
@@ -1566,11 +1826,10 @@ export function mountCursos(container: HTMLElement): void {
         hora_inicio: (fd.get("hora_inicio") as string) || undefined,
         hora_fin: (fd.get("hora_fin") as string) || undefined,
         ubicacion: (fd.get("ubicacion") as string) || undefined,
-        instructor: (fd.get("instructor") as string) || undefined,
-        cupo_max: fd.get("cupo_max") ? Number(fd.get("cupo_max")) : undefined,
+        costo: fd.get("costo") ? Number(fd.get("costo")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
-      if (!payload.fecha_inicio) return;
+      if (!payload.fecha_inicio) { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; } return; }
       try {
         await createCursoSesion(cursoId, payload);
         state.showCreateSesionModal = false;
@@ -1578,6 +1837,7 @@ export function mountCursos(container: HTMLElement): void {
         state.detailSesiones = resp.items;
         render();
       } catch (err: any) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; }
         alert(err?.detail ?? "Error al crear la sesión");
       }
       return;
@@ -1590,12 +1850,7 @@ export function mountCursos(container: HTMLElement): void {
     const fd = new FormData(form);
     const payload: CursoCreatePayload = {
       nombre: fd.get("nombre") as string,
-      tipo: (fd.get("tipo") as string as CursoCreatePayload["tipo"]) || undefined,
-      clasificacion: (fd.get("clasificacion") as string as CursoCreatePayload["clasificacion"]) || undefined,
       duracion_horas: fd.get("duracion_horas") ? Number(fd.get("duracion_horas")) : undefined,
-      categoria: (fd.get("categoria") as string as CursoCreatePayload["categoria"]) || undefined,
-      proveedor: (fd.get("proveedor") as string) || undefined,
-      instructor: (fd.get("instructor") as string) || undefined,
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
       descripcion: (fd.get("descripcion") as string) || undefined,
       requisitos: (fd.get("requisitos") as string) || undefined,
@@ -1875,7 +2130,6 @@ function renderOPLDetail(): string {
 function renderOPLsPage(): string {
   return `
   <div class="flex flex-col gap-5">
-    ${renderLevelUpBackBar()}
     ${renderOPLsHeader()}
     ${renderOPLsAlert()}
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-5">
@@ -2168,7 +2422,6 @@ function renderEvidDetail(): string {
 function renderEvidenciasPage(): string {
   return `
   <div class="flex flex-col gap-5 h-full">
-    ${renderLevelUpBackBar()}
     <div class="flex items-start justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Motor de evidencias &middot; 18 pendientes</p>
@@ -2432,7 +2685,6 @@ function renderSugCard(sug: SugerenciaItem): string {
 function renderSugerenciasPage(): string {
   return `
   <div class="flex flex-col gap-5">
-    ${renderLevelUpBackBar()}
     <div class="flex items-start justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Motor de sugerencias &middot; 11 propuestas activas</p>
@@ -2693,7 +2945,6 @@ function renderEncComentarios(): string {
 function renderEncuestasPage(): string {
   return `
   <div class="flex flex-col gap-5">
-    ${renderLevelUpBackBar()}
     <div class="flex items-start justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Encuestas &middot; &Uacute;ltimos 90 d&iacute;as</p>

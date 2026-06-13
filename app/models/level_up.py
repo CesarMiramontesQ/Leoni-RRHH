@@ -269,21 +269,29 @@ class Curso(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(300), nullable=False)
-    proveedor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     duracion_horas: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    categoria: Mapped[Optional[CategoriaCurso]] = mapped_column(
-        Enum(CategoriaCurso, name="categoria_curso_enum"), nullable=True
+    categoria_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("curso_categoria.id"), nullable=True
+    )
+    tipo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("curso_tipo.id"), nullable=True
+    )
+    clasificacion_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("curso_clasificacion.id"), nullable=True
+    )
+    proveedor_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("curso_proveedor.id"), nullable=True
+    )
+    instructor_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    instructor_empleado_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
+    instructor_externo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("curso_instructor_externo.id"), nullable=True
     )
     modalidad: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     sesiones_anio: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    tipo: Mapped[Optional[TipoCurso]] = mapped_column(
-        Enum(TipoCurso, name="tipo_curso_enum"), nullable=True
-    )
-    clasificacion: Mapped[Optional[ClasificacionCurso]] = mapped_column(
-        Enum(ClasificacionCurso, name="clasificacion_curso_enum"), nullable=True
-    )
     obligatorio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     requisitos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -296,6 +304,13 @@ class Curso(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    categoria_rel = relationship("CursoCategoria", foreign_keys=[categoria_id], lazy="joined")
+    tipo_rel = relationship("CursoTipo", foreign_keys=[tipo_id], lazy="joined")
+    clasificacion_rel = relationship("CursoClasificacion", foreign_keys=[clasificacion_id], lazy="joined")
+    proveedor_rel = relationship("CursoProveedor", foreign_keys=[proveedor_id], lazy="joined")
+    instructor_externo_rel = relationship("CursoInstructorExterno", foreign_keys=[instructor_externo_id], lazy="joined")
+    instructor_empleado_rel = relationship("Empleado", foreign_keys=[instructor_empleado_id], lazy="joined")
+
     capacitaciones: Mapped[List["Capacitacion"]] = relationship(
         "Capacitacion", back_populates="curso"
     )
@@ -307,6 +322,9 @@ class Curso(Base):
     )
     empleados: Mapped[List["CursoEmpleado"]] = relationship(
         "CursoEmpleado", back_populates="curso", cascade="all, delete-orphan"
+    )
+    grupos: Mapped[List["CursoGrupo"]] = relationship(
+        "CursoGrupo", back_populates="curso", cascade="all, delete-orphan"
     )
 
 
@@ -321,8 +339,16 @@ class CursoSesion(Base):
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     hora_inicio: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     hora_fin: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    tipo: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     ubicacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    instructor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    instructor_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    instructor_empleado_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
+    instructor_externo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("curso_instructor_externo.id"), nullable=True
+    )
+    costo: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[EstadoSesion] = mapped_column(
@@ -338,6 +364,8 @@ class CursoSesion(Base):
     )
 
     curso: Mapped["Curso"] = relationship("Curso", back_populates="sesiones")
+    instructor_externo_rel = relationship("CursoInstructorExterno", foreign_keys=[instructor_externo_id], lazy="joined")
+    instructor_empleado_rel = relationship("Empleado", foreign_keys=[instructor_empleado_id], lazy="joined")
     puestos: Mapped[List["CursoPuesto"]] = relationship(
         "CursoPuesto", back_populates="sesion"
     )
@@ -401,6 +429,34 @@ class CursoEmpleado(Base):
     curso: Mapped["Curso"] = relationship("Curso", back_populates="empleados")
     empleado: Mapped["Empleado"] = relationship("Empleado")
     sesion: Mapped[Optional["CursoSesion"]] = relationship("CursoSesion", back_populates="empleados")
+
+
+class TipoGrupoCurso(str, enum.Enum):
+    area = "area"
+    subarea = "subarea"
+    puesto = "puesto"
+
+
+class CursoGrupo(Base):
+    __tablename__ = "curso_grupo"
+    __table_args__ = (
+        UniqueConstraint("curso_id", "tipo", "referencia_id", name="uq_curso_grupo"),
+        Index("ix_curso_grupo_curso_id", "curso_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    curso_id: Mapped[int] = mapped_column(
+        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+    )
+    tipo: Mapped[TipoGrupoCurso] = mapped_column(
+        Enum(TipoGrupoCurso, name="tipo_grupo_curso_enum"), nullable=False
+    )
+    referencia_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    curso: Mapped["Curso"] = relationship("Curso", back_populates="grupos")
 
 
 class OPL(Base):

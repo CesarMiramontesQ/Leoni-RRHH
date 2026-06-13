@@ -1,19 +1,24 @@
-export type TipoCurso = "interno" | "externo";
-export type ClasificacionCurso = "adicional" | "contemplado";
-export type CategoriaCurso = "tecnico" | "calidad" | "seguridad" | "operativo" | "blanda";
+export type InstructorTipo = "interno" | "externo";
 
 export interface Curso {
   id: number;
   nombre: string;
-  proveedor: string | null;
   duracion_horas: number | null;
   cupo_max: number | null;
-  instructor: string | null;
-  categoria: CategoriaCurso | null;
+  categoria_id: number | null;
+  categoria_nombre: string | null;
+  tipo_id: number | null;
+  tipo_nombre: string | null;
+  clasificacion_id: number | null;
+  clasificacion_nombre: string | null;
+  proveedor_id: number | null;
+  proveedor_nombre: string | null;
+  instructor_tipo: InstructorTipo | null;
+  instructor_empleado_id: number | null;
+  instructor_externo_id: number | null;
+  instructor_nombre: string | null;
   modalidad: string | null;
   sesiones_anio: number | null;
-  tipo: TipoCurso | null;
-  clasificacion: ClasificacionCurso | null;
   obligatorio: boolean;
   descripcion: string | null;
   requisitos: string | null;
@@ -32,15 +37,17 @@ export interface CursoListResponse {
 
 export interface CursoCreatePayload {
   nombre: string;
-  proveedor?: string;
   duracion_horas?: number;
   cupo_max?: number;
-  instructor?: string;
-  categoria?: CategoriaCurso;
+  categoria_id?: number;
+  tipo_id?: number;
+  clasificacion_id?: number;
+  proveedor_id?: number;
+  instructor_tipo?: InstructorTipo;
+  instructor_empleado_id?: number;
+  instructor_externo_id?: number;
   modalidad?: string;
   sesiones_anio?: number;
-  tipo?: TipoCurso;
-  clasificacion?: ClasificacionCurso;
   obligatorio?: boolean;
   descripcion?: string;
   requisitos?: string;
@@ -49,21 +56,25 @@ export interface CursoCreatePayload {
 
 export interface CursoUpdatePayload {
   nombre?: string;
-  proveedor?: string;
   duracion_horas?: number;
   cupo_max?: number;
-  instructor?: string;
-  categoria?: CategoriaCurso;
+  categoria_id?: number;
+  tipo_id?: number;
+  clasificacion_id?: number;
+  proveedor_id?: number;
+  instructor_tipo?: InstructorTipo;
+  instructor_empleado_id?: number;
+  instructor_externo_id?: number;
   modalidad?: string;
   sesiones_anio?: number;
-  tipo?: TipoCurso;
-  clasificacion?: ClasificacionCurso;
   obligatorio?: boolean;
   descripcion?: string;
   requisitos?: string;
   centro_costos?: number;
   activo?: boolean;
 }
+
+// ── Sesiones ──────────────────────────────────────────────────────────────────
 
 export const TIPO_LABELS: Record<string, string> = {
   interno: "Interno",
@@ -94,8 +105,13 @@ export interface CursoSesion {
   fecha_fin: string | null;
   hora_inicio: string | null;
   hora_fin: string | null;
+  tipo: string | null;
   ubicacion: string | null;
-  instructor: string | null;
+  instructor_tipo: InstructorTipo | null;
+  instructor_empleado_id: number | null;
+  instructor_externo_id: number | null;
+  instructor_nombre: string | null;
+  costo: number | null;
   cupo_max: number | null;
   notas: string | null;
   estado: EstadoSesion;
@@ -114,9 +130,12 @@ export interface CursoSesionCreatePayload {
   fecha_fin?: string;
   hora_inicio?: string;
   hora_fin?: string;
+  tipo?: string;
   ubicacion?: string;
-  instructor?: string;
-  cupo_max?: number;
+  instructor_tipo?: InstructorTipo;
+  instructor_empleado_id?: number;
+  instructor_externo_id?: number;
+  costo?: number;
   notas?: string;
 }
 
@@ -125,9 +144,12 @@ export interface CursoSesionUpdatePayload {
   fecha_fin?: string;
   hora_inicio?: string;
   hora_fin?: string;
+  tipo?: string;
   ubicacion?: string;
-  instructor?: string;
-  cupo_max?: number;
+  instructor_tipo?: InstructorTipo;
+  instructor_empleado_id?: number;
+  instructor_externo_id?: number;
+  costo?: number;
   notas?: string;
   estado?: EstadoSesion;
 }

@@ -10,25 +10,20 @@ import {
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
-  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
-  SELECT_CHEVRON,
   badgeCancelled,
   badgeOpen,
 } from "../ui/uiTokens.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
-import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
+import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.ts";
+import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
-import { getPerfilCompetencias, updatePerfil } from "../api/puestos.ts";
+import { updatePerfil } from "../api/puestos.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
-import { getGradosPuesto } from "../api/gradosPuesto.ts";
-import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
-import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
-import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
 
 // ── Tipos (misma forma de respuesta API) ────────────────────────────────
 
@@ -37,8 +32,7 @@ interface PuestoPerfilInfo {
   codigo: string;
   nombre: string;
   area_nombre: string;
-  nivel_id: number;
-  nivel_nombre: string;
+  nivel: string;
   descripcion: string | null;
   version: number;
   activo: boolean;
@@ -54,22 +48,17 @@ interface Tarea {
 
 interface Cualificacion {
   id: number;
-  cualificacion_catalogo_id: number | null;
-  cualificacion_nombre: string;
-  tipo_nombre: string;
-  metodo_tipo: string;
-  metodo_config: Record<string, unknown>;
-  opciones: Array<{ id: number; etiqueta: string; valor: string; orden: number; peso: number | null }>;
-  criterio_requerido: Record<string, unknown> | null;
+  tipo: string;
+  situacion_deseada: string;
   comentarios: string | null;
+  anios_minimos: number | null;
 }
 
 interface Competencia {
   id: number;
   competencia_id: number;
   competencia_nombre: string;
-  tipo_competencia_id: number | null;
-  tipo_nombre: string | null;
+  subcategoria: string | null;
   nivel_requerido: number;
   orden: number | null;
 }
@@ -79,12 +68,8 @@ interface AsignacionResumen {
   empleado_id: number;
   nombre_empleado: string | null;
   no_empleado: string | null;
-  grado_id?: number;
-  grado_nombre?: string;
   activo: boolean;
 }
-
-let perfilDetalleGradoId: number | null = null;
 
 type ExecutiveSummary = {
   empleados: number;
@@ -98,8 +83,43 @@ type ExecutiveSummary = {
 
 // ── Constantes de etiquetas ─────────────────────────────────────────────
 
-const CATEGORIA_CHIP_DEFAULT = "ppd-cat-chip ppd-cat-chip--default";
+const TIPO_LABELS: Record<string, string> = {
+  estudios_finalizados: "Nivel de estudios finalizados",
+  formacion_profesional: "Formación profesional/ especialización (académica)/ diplomas",
+  ampliacion_formacion: "Ampliación de la formación profesional/especialización (académica)/diplomas",
+  estudios_universitarios: "Estudios universitarios / especialización (académica)/ diplomas",
+  experiencia_profesional: "Experiencia profesional",
+  experiencia_direccion: "Experiencia de dirección/ gerencia",
+  complementos: "Complementos individuales",
+};
 
+const CUALIF_GROUPS: { key: string; label: string; tipos: string[] }[] = [
+  { key: "educacion", label: "Educación", tipos: ["estudios_finalizados", "estudios_universitarios"] },
+  {
+    key: "formacion",
+    label: "Formación y especialización",
+    tipos: ["formacion_profesional", "ampliacion_formacion"],
+  },
+  { key: "experiencia", label: "Experiencia", tipos: ["experiencia_profesional", "experiencia_direccion"] },
+  { key: "complementos", label: "Complementos", tipos: ["complementos"] },
+];
+
+const CATEGORIA_LABELS: Record<string, string> = {
+  ...TIPO_COMPETENCIA_LABELS,
+  complementos: "Complementos",
+};
+
+const CATEGORIA_CHIP: Record<string, string> = {
+  informatica: "ppd-cat-chip ppd-cat-chip--informatica",
+  idiomas: "ppd-cat-chip ppd-cat-chip--idiomas",
+  profesional: "ppd-cat-chip ppd-cat-chip--profesional",
+  social: "ppd-cat-chip ppd-cat-chip--social",
+  personal: "ppd-cat-chip ppd-cat-chip--personal",
+  metodos: "ppd-cat-chip ppd-cat-chip--metodos",
+  complementos: "ppd-cat-chip ppd-cat-chip--complementos",
+};
+
+const ICON_BACK = `<svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
 const ICON_BUILDING = `<svg class="size-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-2.25-18v18m-7.5-15v15m-7.5-12v12"/></svg>`;
 const ICON_USERS = `<svg class="size-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`;
 const ICON_USERS_KPI = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`;
@@ -114,13 +134,6 @@ const ICON_PENCIL = `<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke=
 function isRhUser(): boolean {
   return getRolFromAccessToken() === "rh";
 }
-
-function canEditPerfilRequisitos(): boolean {
-  const rol = getRolFromAccessToken();
-  return rol === "rh" || rol === "supervisor";
-}
-
-let perfilDetalleActionsAbort: AbortController | null = null;
 
 function formatFecha(iso: string | undefined): string | null {
   if (!iso) return null;
@@ -167,7 +180,7 @@ function nivelVisual(nivel: number): { cls: string; short: string; title: string
 }
 
 function sectionEditBtn(action: string, label: string): string {
-  if (!canEditPerfilRequisitos()) return "";
+  if (!isRhUser()) return "";
   return `<button type="button" data-action="${action}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
 }
 
@@ -240,7 +253,7 @@ function renderHeader(puesto: PuestoPerfilInfo, empleadosCount: number, perfilId
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(puesto.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(puesto.area_nombre)}</strong> · ${escapeHtml(puesto.nivel_nombre)}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(puesto.area_nombre)}</strong> · ${escapeHtml(puesto.nivel)}</span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${empleadosCount}</strong> empleado${empleadosCount !== 1 ? "s" : ""} asignado${empleadosCount !== 1 ? "s" : ""}</span></span>
             ${fechaActualizacion ? `<span class="text-xs text-text-muted">Actualizado ${escapeHtml(fechaActualizacion)}</span>` : ""}
           </div>
@@ -404,9 +417,13 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
 }
 
 function renderCualificacionValor(c: Cualificacion): string {
-  const label = labelCriterio(c.criterio_requerido, c.opciones);
-  if (c.criterio_requerido?.na) return badgeCancelled("No aplica");
-  return escapeHtml(label);
+  const isNA = c.situacion_deseada === "N/A";
+  if (isNA) return badgeCancelled("No aplica");
+  if (esTipoEscolaridad(c.tipo)) return escapeHtml(escolaridadLabel(c.situacion_deseada));
+  if (c.tipo === "complementos") {
+    return `<span class="whitespace-pre-line text-sm leading-relaxed">${escapeHtml(c.situacion_deseada)}</span>`;
+  }
+  return escapeHtml(c.situacion_deseada);
 }
 
 function renderCualificaciones(cualificaciones: Cualificacion[]): string {
@@ -420,85 +437,105 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
       "Editar calificaciones",
       emptyState(
         "Sin calificaciones registradas",
-        canEditPerfilRequisitos() ? "Selecciona cualificaciones del catálogo y define criterios requeridos." : undefined,
+        isRhUser() ? "Define estudios, experiencia y complementos desde la edición." : undefined,
       ),
     );
   }
 
   const byTipo = new Map<string, Cualificacion[]>();
   for (const c of cualificaciones) {
-    const key = c.tipo_nombre || "Sin tipo";
-    const list = byTipo.get(key) ?? [];
+    const list = byTipo.get(c.tipo) ?? [];
     list.push(c);
-    byTipo.set(key, list);
+    byTipo.set(c.tipo, list);
   }
 
-  const groupBlocks = Array.from(byTipo.entries())
-    .map(([tipoNombre, items]) => `
+  const assigned = new Set<string>();
+  const groupBlocks = CUALIF_GROUPS.map((group) => {
+    const items: Cualificacion[] = [];
+    for (const tipo of group.tipos) {
+      const list = byTipo.get(tipo);
+      if (list) {
+        items.push(...list);
+        assigned.add(tipo);
+      }
+    }
+    if (items.length === 0) return "";
+    return `
     <div class="ppd-cualif-group rounded-xl border border-slate-200/90 bg-gradient-to-br from-slate-50/50 to-white p-4">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(tipoNombre)}</h3>
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(group.label)}</h3>
       <div class="mt-3 flex flex-col gap-2">
-        ${items.map((c) => `
+        ${items
+          .map((c) => {
+            const aniosInfo =
+              c.anios_minimos != null
+                ? `<span class="ml-1 text-xs font-medium text-text-muted">(${c.anios_minimos} años mín.)</span>`
+                : "";
+            return `
           <article class="rounded-lg border border-slate-200/80 bg-white p-3 shadow-sm">
-            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(c.cualificacion_nombre)}</p>
-            <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}</div>
+            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</p>
+            <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}${aniosInfo}</div>
             ${c.comentarios ? `<p class="mt-1.5 text-xs leading-relaxed text-text-muted">${escapeHtml(c.comentarios)}</p>` : ""}
-          </article>`).join("")}
+          </article>`;
+          })
+          .join("")}
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
+
+  const otrosTipos = Array.from(byTipo.entries()).filter(([tipo]) => !assigned.has(tipo));
+  const otrosBlock =
+    otrosTipos.length === 0
+      ? ""
+      : `
+    <div class="ppd-cualif-group rounded-xl border border-slate-200/90 bg-slate-50/50 p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Otros requisitos</h3>
+      <div class="mt-3 flex flex-col gap-2">
+        ${otrosTipos
+          .map(([, items]) =>
+            items
+              .map(
+                (c) => `
+          <article class="rounded-lg border border-slate-200/80 bg-white p-3">
+            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</p>
+            <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}</div>
+          </article>`,
+              )
+              .join(""),
+          )
+          .join("")}
+      </div>
+    </div>`;
 
   return sectionShell(
     "ppd-cualificaciones",
     "Calificaciones requeridas",
-    "Criterios configurados desde el catálogo",
+    "Educación, experiencia, formación y complementos",
     cualificaciones.length,
     "edit-cualificaciones",
     "Editar calificaciones",
-    `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${groupBlocks}</div>`,
+    `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${groupBlocks}${otrosBlock}</div>`,
   );
 }
 
-function renderGradoSelector(grados: GradoPuesto[], selectedId: number): string {
-  if (grados.length === 0) return "";
-  const options = grados
-    .map(
-      (g) =>
-        `<option value="${g.id}" ${g.id === selectedId ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
-    )
-    .join("");
-  return `
-    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-      <div class="min-w-0 flex-1 max-w-xs">
-        <label for="ppd-grado-select" class="${RH_LISTADO_LABEL}">Grado de progresión</label>
-        <div class="grid grid-cols-1">
-          <select id="ppd-grado-select" class="col-start-1 row-start-1 ${RH_LISTADO_SELECT} ${FIELD_FOCUS}">${options}</select>
-          ${SELECT_CHEVRON}
-        </div>
-      </div>
-      <p class="text-xs text-text-muted sm:pb-2">Las competencias mostradas corresponden al grado seleccionado.</p>
-    </div>`;
-}
-
-function renderCompetencias(competencias: Competencia[], grados: GradoPuesto[], selectedGradoId: number): string {
-  const gradoSelector = renderGradoSelector(grados, selectedGradoId);
+function renderCompetencias(competencias: Competencia[]): string {
   if (competencias.length === 0) {
     return sectionShell(
       "ppd-competencias",
       "Competencias demostradas",
-      "Por grado, categoría y nivel requerido",
+      "Por categoría y nivel requerido",
       0,
       "edit-competencias",
       "Editar competencias",
-      `${gradoSelector}${emptyState(
+      emptyState(
         "Sin competencias registradas",
         isRhUser() ? "Asocia competencias del catálogo y define el nivel mínimo requerido." : undefined,
-      )}`,
+      ),
     );
   }
 
   const grouped = new Map<string, Competencia[]>();
   for (const c of competencias) {
-    const key = c.tipo_nombre ?? "Sin tipo";
+    const key = c.subcategoria ?? "sin_categoria";
     const list = grouped.get(key) ?? [];
     list.push(c);
     grouped.set(key, list);
@@ -508,8 +545,8 @@ function renderCompetencias(competencias: Competencia[], grados: GradoPuesto[], 
 
   const sections = Array.from(grouped.entries())
     .map(([sub, items]) => {
-      const chipCls = CATEGORIA_CHIP_DEFAULT;
-      const label = sub;
+      const chipCls = CATEGORIA_CHIP[sub] ?? "ppd-cat-chip ppd-cat-chip--default";
+      const label = CATEGORIA_LABELS[sub] ?? sub;
       return `
       <div class="ppd-comp-categoria rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -544,7 +581,7 @@ function renderCompetencias(competencias: Competencia[], grados: GradoPuesto[], 
     competencias.length,
     "edit-competencias",
     "Editar competencias",
-    `${gradoSelector}<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${sections}</div>`,
+    `<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${sections}</div>`,
     maxNivel >= 4 ? "ppd-section--highlight" : "",
   );
 }
@@ -700,49 +737,14 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
   }
 
   try {
-    const [puestoRaw, tareas, cualificaciones, grados, asignaciones, cursosAsignados] = await Promise.all([
-      fetchJson<Record<string, unknown>>(`/api/v1/puestos-perfil/${perfilId}`, token),
+    const [puesto, tareas, cualificaciones, competencias, asignaciones, cursosAsignados] = await Promise.all([
+      fetchJson<PuestoPerfilInfo>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
       fetchJson<Cualificacion[]>(`/api/v1/perfiles/${perfilId}/cualificaciones`, token),
-      getGradosPuesto({ page_size: 200 }).catch(() => [] as GradoPuesto[]),
+      fetchJson<Competencia[]>(`/api/v1/perfiles/${perfilId}/competencias`, token),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
       getCursosPuesto(perfilId),
     ]);
-
-    const gradoDefault =
-      grados.find((g) => g.orden === 1) ?? grados[0] ?? null;
-    if (
-      perfilDetalleGradoId == null ||
-      !grados.some((g) => g.id === perfilDetalleGradoId)
-    ) {
-      perfilDetalleGradoId = gradoDefault?.id ?? null;
-    }
-    const selectedGradoId = perfilDetalleGradoId ?? gradoDefault?.id ?? 0;
-    const selectedGrado = grados.find((g) => g.id === selectedGradoId) ?? null;
-
-    let competencias: Competencia[] = [];
-    if (selectedGradoId > 0) {
-      try {
-        competencias = await getPerfilCompetencias(perfilId, selectedGradoId);
-      } catch {
-        competencias = [];
-      }
-    }
-
-    const puesto: PuestoPerfilInfo | null = puestoRaw
-      ? {
-          id: puestoRaw.id as number,
-          codigo: (puestoRaw.codigo ?? "") as string,
-          nombre: (puestoRaw.nombre ?? "") as string,
-          area_nombre: (puestoRaw.area_nombre ?? "") as string,
-          nivel_id: puestoRaw.nivel_id as number,
-          nivel_nombre: (puestoRaw.nivel_nombre ?? "") as string,
-          descripcion: (puestoRaw.descripcion ?? null) as string | null,
-          version: puestoRaw.version as number,
-          activo: puestoRaw.activo as boolean,
-          updated_at: puestoRaw.updated_at as string | undefined,
-        }
-      : null;
 
     if (!puesto) {
       inner.innerHTML = `<div class="${RH_LISTADO_PAGE_OUTER}"><p class="text-sm text-red-600">Perfil no encontrado (ID: ${perfilId})</p></div>`;
@@ -761,6 +763,10 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
     inner.innerHTML = `
       <div class="${RH_LISTADO_PAGE_OUTER} ppd-page">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <a href="#/puestos" class="ppd-back-link inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-leoni-blue focus-visible:ring-2 focus-visible:ring-leoni-blue/40" aria-label="Volver a Perfiles de Puesto">
+            ${ICON_BACK}
+            Volver
+          </a>
           <nav class="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-text-muted" aria-label="Breadcrumb">
             <a href="#/puestos" class="font-medium transition hover:text-leoni-blue">Perfiles de Puesto</a>
             <svg class="size-3 shrink-0 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
@@ -777,7 +783,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             ${renderCualificaciones(cualifList)}
           </div>
           <div class="flex flex-col gap-4 sm:gap-5">
-            ${renderCompetencias(compList, grados, selectedGradoId)}
+            ${renderCompetencias(compList)}
             ${renderCursosAsignados(cursosList, perfilId)}
             ${renderEmpleadosResumen(asigList, perfilId)}
           </div>
@@ -792,11 +798,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
     const contentEl = inner;
 
-    if (canEditPerfilRequisitos()) {
-      perfilDetalleActionsAbort?.abort();
-      perfilDetalleActionsAbort = new AbortController();
-      const { signal } = perfilDetalleActionsAbort;
-
+    if (isRhUser()) {
       const reload = () => loadPerfilDetalle(container, perfilId);
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
@@ -806,25 +808,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       const cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
 
       const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
-      const compModal = mountEditarCompetenciasModal(compHost, {
-        perfilId,
-        gradoId: selectedGradoId,
-        gradoNombre: selectedGrado?.nombre,
-        onSuccess: reload,
-      });
-
-      const gradoSelectEl = contentEl.querySelector("#ppd-grado-select") as HTMLSelectElement | null;
-      gradoSelectEl?.addEventListener(
-        "change",
-        () => {
-          const next = Number(gradoSelectEl.value);
-          if (Number.isFinite(next) && next > 0) {
-            perfilDetalleGradoId = next;
-            void reload();
-          }
-        },
-        { signal },
-      );
+      const compModal = mountEditarCompetenciasModal(compHost, { perfilId, onSuccess: reload });
 
       contentEl.addEventListener("click", async (e) => {
         const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
@@ -840,16 +824,12 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             compModal.open();
             break;
           case "edit-base":
-            if (!isRhUser()) return;
-            void getNivelesPuesto({ page_size: 200 }).then((nivelesCatalog) => {
-              openEditBaseModal(
-                contentEl.querySelector("#modal-host-edit-base") as HTMLElement,
-                puesto,
-                perfilId,
-                nivelesCatalog,
-                reload,
-              );
-            });
+            openEditBaseModal(
+              contentEl.querySelector("#modal-host-edit-base") as HTMLElement,
+              puesto,
+              perfilId,
+              reload,
+            );
             break;
           case "add-curso":
             openAsignarCursoModal(
@@ -869,7 +849,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             break;
           }
         }
-      }, { signal });
+      });
     }
   } catch {
     inner.innerHTML = `
@@ -1054,7 +1034,6 @@ function openEditBaseModal(
   host: HTMLElement,
   puesto: PuestoPerfilInfo,
   perfilId: number,
-  nivelesCatalog: NivelPuesto[],
   onSuccess: () => void,
 ): void {
   const overlayId = "edit-base-overlay";
@@ -1083,14 +1062,9 @@ function openEditBaseModal(
               class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
           </div>
           <div>
-            <label for="eb-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
-            <div class="grid grid-cols-1">
-              <select id="eb-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-                <option value="" disabled>Selecciona un nivel…</option>
-                ${nivelesCatalog.map((n) => `<option value="${n.id}" ${puesto.nivel_id === n.id ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`).join("")}
-              </select>
-              ${SELECT_CHEVRON}
-            </div>
+            <label for="eb-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
+            <input id="eb-nivel" name="nivel" type="text" value="${escapeHtml(puesto.nivel)}"
+              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
             <button type="button" id="edit-base-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
@@ -1129,16 +1103,10 @@ function openEditBaseModal(
     ev.preventDefault();
     const fd = new FormData(form);
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
-    const nivelRaw = String(fd.get("nivel_id") ?? "").trim();
-    const nivel_id = Number(nivelRaw);
+    const nivel = String(fd.get("nivel") ?? "").trim();
 
     if (!nombre_puesto) {
       errorEl.textContent = "El nombre es requerido.";
-      errorEl.classList.remove("hidden");
-      return;
-    }
-    if (!nivelRaw || Number.isNaN(nivel_id)) {
-      errorEl.textContent = "Selecciona un nivel.";
       errorEl.classList.remove("hidden");
       return;
     }
@@ -1148,7 +1116,7 @@ function openEditBaseModal(
     submitBtn.textContent = "Guardando...";
 
     try {
-      await updatePerfil(perfilId, { nombre_puesto, nivel_id });
+      await updatePerfil(perfilId, { nombre_puesto, nivel: nivel || undefined });
       close();
       document.removeEventListener("keydown", escHandler);
       onSuccess();

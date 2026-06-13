@@ -142,9 +142,8 @@ test.describe("Cursos UI - QA Tests", () => {
     console.log("    BUG: Edit button in detail view does NOT open modal (renderDetailView lacks modal HTML)");
 
     // Go back to list view
-    await page.evaluate(() => {
-      window.location.hash = "#/cursos";
-    });
+    const backBtn = page.locator('[data-action="back-to-list"]');
+    await backBtn.click();
     await page.waitForTimeout(1500);
 
     // Search for our curso in the list

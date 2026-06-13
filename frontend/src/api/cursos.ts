@@ -290,7 +290,7 @@ export interface SesionGlobalItem {
   hora_inicio: string | null;
   hora_fin: string | null;
   ubicacion: string | null;
-  instructor: string | null;
+  instructor_nombre: string | null;
   cupo_max: number | null;
   inscritos_count: number;
   estado: string;
@@ -384,4 +384,72 @@ export async function getSesionEmpleadosElegibles(cursoId: number, sesionId: num
     throw { status: res.status, detail };
   }
   return res.json();
+}
+
+// ── Grupos asignados a un curso ──────────────────────────────────────────────
+
+export type CatalogoItem = { id: number; descripcion: string };
+
+export type CursoCatalogos = {
+  areas: CatalogoItem[];
+  subareas: CatalogoItem[];
+  puestos: CatalogoItem[];
+};
+
+export async function getCursoCatalogosAsignacion(cursoId: number, areaId?: number): Promise<CursoCatalogos> {
+  const params = new URLSearchParams();
+  if (areaId) params.set("area_id", String(areaId));
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/catalogos-asignacion?${params.toString()}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export type CursoGrupoEmpleado = {
+  empleado_id: number;
+  nombre: string | null;
+  no_empleado: string | null;
+};
+
+export type CursoGrupoItem = {
+  id: number;
+  tipo: string;
+  referencia_id: number;
+  nombre: string;
+  empleados_count: number;
+  empleados: CursoGrupoEmpleado[];
+};
+
+export async function getCursoGrupos(cursoId: number): Promise<CursoGrupoItem[]> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/grupos`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function agregarGrupoCurso(cursoId: number, tipo: string, referenciaId: number): Promise<CursoGrupoItem> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/grupos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo, referencia_id: referenciaId }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function quitarGrupoCurso(cursoId: number, grupoId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/grupos/${grupoId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
 }

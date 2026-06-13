@@ -46,6 +46,7 @@ import { mountComedorHub } from "./pages/comedorHub.ts";
 import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
+import { mountCursosAjustes } from "./pages/cursosAjustes.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import { destroyAllCharts } from "./charts/index.ts";
 import {
@@ -210,6 +211,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/capacidades")) {
       mountCapacidades(container, signal);
+      return;
+    }
+    if (h === "#/cursos/ajustes") {
+      mountCursosAjustes(container, signal);
       return;
     }
     if (h.startsWith("#/cursos")) {

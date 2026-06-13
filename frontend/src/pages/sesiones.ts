@@ -1,5 +1,4 @@
 import { mountAppShell } from "../layouts/appShell.ts";
-import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { BTN_SECONDARY, BTN_GHOST, FIELD_FOCUS, FILTER_FIELD_WRAP } from "../ui/uiTokens.ts";
 import { getAllSesiones } from "../api/cursos.ts";
@@ -70,7 +69,6 @@ export function mountSesiones(container: HTMLElement): void {
 
     return `
     <div class="flex flex-col gap-5">
-      ${renderLevelUpBackBar()}
       <!-- Encabezado -->
       <div class="flex items-center justify-between">
         <div>
@@ -173,7 +171,7 @@ export function mountSesiones(container: HTMLElement): void {
         <td class="px-4 py-3 text-sm text-text-primary font-medium whitespace-nowrap">${escapeHtml(fecha)}</td>
         <td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">${escapeHtml(horario)}</td>
         <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
-        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(s.instructor ?? "—")}</td>
+        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(s.instructor_nombre ?? "—")}</td>
         <td class="px-4 py-3 text-sm tabular-nums text-slate-600 text-center">${cupo}</td>
         <td class="px-4 py-3 text-center">
           <span class="inline-flex items-center rounded-full border ${estadoCls} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(label)}</span>

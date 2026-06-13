@@ -44,6 +44,13 @@ from app.models.horas_extra import (
     HorasExtraSolicitud,
     HorasExtraSolicitudDetalle,
 )
+from app.models.cursos_catalogo import (
+    CursoCategoria,
+    CursoClasificacion,
+    CursoInstructorExterno,
+    CursoProveedor,
+    CursoTipo,
+)
 from app.models.level_up import (
     Capacidad,
     CapacidadPuestoPerfil,
@@ -116,6 +123,11 @@ __all__ = [
     "HorasExtraSolicitudDetalle",
     "HorasExtraAprobacion",
     "HorasExtraAprobador",
+    "CursoCategoria",
+    "CursoTipo",
+    "CursoClasificacion",
+    "CursoInstructorExterno",
+    "CursoProveedor",
     "Capacidad",
     "CapacidadPuestoPerfil",
     "Habilidad",

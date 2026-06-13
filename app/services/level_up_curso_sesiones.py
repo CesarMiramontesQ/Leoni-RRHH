@@ -31,6 +31,15 @@ class CursoSesionService:
             raise NotFoundError(entidad="Sesión", id=sesion_id)
         return sesion
 
+    @staticmethod
+    def _resolve_instructor_nombre(sesion: CursoSesion) -> str | None:
+        if sesion.instructor_tipo == "interno" and sesion.instructor_empleado_rel:
+            emp = sesion.instructor_empleado_rel
+            return f"{emp.nombre} {emp.apellido_paterno or ''}".strip()
+        if sesion.instructor_tipo == "externo" and sesion.instructor_externo_rel:
+            return sesion.instructor_externo_rel.nombre
+        return None
+
     async def _to_response(self, sesion: CursoSesion) -> CursoSesionResponse:
         inscritos = await self.repo.count_inscritos(sesion.id)
         return CursoSesionResponse(
@@ -40,11 +49,16 @@ class CursoSesionService:
             fecha_fin=sesion.fecha_fin,
             hora_inicio=sesion.hora_inicio,
             hora_fin=sesion.hora_fin,
+            tipo=sesion.tipo,
             ubicacion=sesion.ubicacion,
-            instructor=sesion.instructor,
+            instructor_tipo=sesion.instructor_tipo,
+            instructor_empleado_id=sesion.instructor_empleado_id,
+            instructor_externo_id=sesion.instructor_externo_id,
+            instructor_nombre=self._resolve_instructor_nombre(sesion),
             cupo_max=sesion.cupo_max,
             notas=sesion.notas,
             estado=sesion.estado.value if hasattr(sesion.estado, "value") else sesion.estado,
+            costo=sesion.costo,
             inscritos_count=inscritos,
             created_at=sesion.created_at,
             updated_at=sesion.updated_at,
