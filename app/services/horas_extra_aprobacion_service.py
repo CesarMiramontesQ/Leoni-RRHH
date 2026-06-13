@@ -25,6 +25,7 @@ from app.models.horas_extra import HorasExtraAprobacion, HorasExtraSolicitud
 from app.repositories.horas_extra_aprobacion_repository import (
     HE_AUDIT_APPROVED,
     HE_AUDIT_REJECTED,
+    HE_AUDIT_VIEWED,
     HorasExtraAprobacionRepository,
 )
 from app.schemas.horas_extra_aprobacion import (
@@ -197,43 +198,61 @@ class HorasExtraAprobacionService:
             return nombre, puesto
         return f"{len(solicitud.detalle)} empleados", None
 
+    @staticmethod
+    def _rol_aprobacion_label(tipo_firma: str | None) -> str | None:
+        if not tipo_firma:
+            return None
+        return TIPO_FIRMA_LABELS.get(tipo_firma, tipo_firma)
+
     def _build_historial_eventos(
         self, solicitud: HorasExtraSolicitud, audit_entries
     ) -> list[HorasExtraHistorialEvento]:
         eventos: list[HorasExtraHistorialEvento] = []
         accion_labels = {
-            "HE_SOLICITUD_VIEWED": "Solicitud visualizada",
-            "HE_SOLICITUD_APPROVED": "Aprobado",
-            "HE_SOLICITUD_REJECTED": "Rechazado",
+            HE_AUDIT_VIEWED: "Solicitud visualizada",
+            HE_AUDIT_APPROVED: "Aprobado",
+            HE_AUDIT_REJECTED: "Rechazado",
         }
+        decisiones_audit: set[str] = set()
+
         for entry in audit_entries:
-            if entry.accion != "HE_SOLICITUD_VIEWED":
+            if entry.accion not in accion_labels:
                 continue
             datos = entry.datos_despues or {}
+            tipo_firma = datos.get("tipo_firma")
+
+            if entry.accion in (HE_AUDIT_APPROVED, HE_AUDIT_REJECTED):
+                if tipo_firma:
+                    decisiones_audit.add(tipo_firma)
+                rol = self._rol_aprobacion_label(tipo_firma) or datos.get("rol")
+            else:
+                rol = datos.get("rol") or self._rol_aprobacion_label(tipo_firma)
+
+            if not rol and entry.usuario and entry.usuario.rol:
+                rol = entry.usuario.rol.nombre
+
             eventos.append(
                 HorasExtraHistorialEvento(
                     usuario_nombre=(
                         datos.get("usuario_nombre")
                         or (entry.usuario.nombre if entry.usuario else "Sistema")
                     ),
-                    rol=datos.get("rol")
-                    or (
-                        entry.usuario.rol.nombre
-                        if entry.usuario and entry.usuario.rol
-                        else None
-                    ),
-                    accion=accion_labels.get(entry.accion, entry.accion),
+                    rol=rol,
+                    accion=accion_labels[entry.accion],
                     comentario=datos.get("comentario"),
                     fecha_hora=entry.timestamp,
                 )
             )
+
         for firma in solicitud.aprobaciones:
+            if firma.tipo_firma in decisiones_audit:
+                continue
             if firma.estado not in ("aprobado", "rechazado") or not firma.fecha_aprobacion:
                 continue
             eventos.append(
                 HorasExtraHistorialEvento(
                     usuario_nombre=firma.aprobador.nombre if firma.aprobador else "—",
-                    rol=firma.rol_aprobador_nombre,
+                    rol=self._rol_aprobacion_label(firma.tipo_firma),
                     accion="Aprobado" if firma.estado == "aprobado" else "Rechazado",
                     comentario=firma.comentario,
                     fecha_hora=firma.fecha_aprobacion,
@@ -441,8 +460,12 @@ class HorasExtraAprobacionService:
         await self.repo.registrar_visualizacion(
             usuario_id=current_user.id,
             solicitud_id=solicitud_id,
-            rol_nombre=current_user.rol.nombre if current_user.rol else None,
+            rol_nombre=self._rol_aprobacion_label(
+                mi_firma.tipo_firma if mi_firma else None
+            )
+            or (current_user.rol.nombre if current_user.rol else None),
             usuario_nombre=current_user.nombre,
+            tipo_firma=mi_firma.tipo_firma if mi_firma else None,
         )
         await self.db.commit()
 
@@ -553,9 +576,7 @@ class HorasExtraAprobacionService:
         firma.estado = "aprobado"
         firma.aprobador_id = current_user.id
         firma.rol_aprobador_id = current_user.rol_id
-        firma.rol_aprobador_nombre = (
-            current_user.rol.nombre if current_user.rol else None
-        )
+        firma.rol_aprobador_nombre = self._rol_aprobacion_label(firma.tipo_firma)
         firma.fecha_aprobacion = datetime.now(timezone.utc)
         firma.comentario = comentario
 
@@ -564,7 +585,7 @@ class HorasExtraAprobacionService:
             accion=HE_AUDIT_APPROVED,
             usuario_id=current_user.id,
             solicitud_id=solicitud_id,
-            rol_nombre=current_user.rol.nombre if current_user.rol else None,
+            rol_nombre=self._rol_aprobacion_label(firma.tipo_firma),
             usuario_nombre=current_user.nombre,
             comentario=comentario,
             tipo_firma=firma.tipo_firma,
@@ -596,9 +617,7 @@ class HorasExtraAprobacionService:
         firma.estado = "rechazado"
         firma.aprobador_id = current_user.id
         firma.rol_aprobador_id = current_user.rol_id
-        firma.rol_aprobador_nombre = (
-            current_user.rol.nombre if current_user.rol else None
-        )
+        firma.rol_aprobador_nombre = self._rol_aprobacion_label(firma.tipo_firma)
         firma.fecha_aprobacion = datetime.now(timezone.utc)
         firma.comentario = comentario.strip()
 
@@ -607,7 +626,7 @@ class HorasExtraAprobacionService:
             accion=HE_AUDIT_REJECTED,
             usuario_id=current_user.id,
             solicitud_id=solicitud_id,
-            rol_nombre=current_user.rol.nombre if current_user.rol else None,
+            rol_nombre=self._rol_aprobacion_label(firma.tipo_firma),
             usuario_nombre=current_user.nombre,
             comentario=comentario.strip(),
             tipo_firma=firma.tipo_firma,

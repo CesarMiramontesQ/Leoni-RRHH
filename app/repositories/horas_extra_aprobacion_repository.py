@@ -298,17 +298,21 @@ class HorasExtraAprobacionRepository:
         solicitud_id: int,
         rol_nombre: str | None,
         usuario_nombre: str,
+        tipo_firma: str | None = None,
     ) -> None:
+        datos: dict[str, object] = {
+            "rol": rol_nombre,
+            "usuario_nombre": usuario_nombre,
+            "solicitud_id": solicitud_id,
+        }
+        if tipo_firma:
+            datos["tipo_firma"] = tipo_firma
         entry = AuditLog(
             usuario_id=usuario_id,
             accion=HE_AUDIT_VIEWED,
             modulo=HE_AUDIT_MODULO,
             entidad_id=solicitud_id,
-            datos_despues={
-                "rol": rol_nombre,
-                "usuario_nombre": usuario_nombre,
-                "solicitud_id": solicitud_id,
-            },
+            datos_despues=datos,
         )
         self.db.add(entry)
         await self.db.flush()

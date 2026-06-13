@@ -361,9 +361,17 @@ async def test_estado_e_historial_para_rh(ciclo, client, db):
 
     hist = await client.get(f"{NOMINAS}/horas-extra/{sid}/historial", headers=rhh)
     assert hist.status_code == 200
-    firmas = {f["tipo_firma"]: f["estado"] for f in hist.json()["firmas"]}
+    hist_body = hist.json()
+    firmas = {f["tipo_firma"]: f["estado"] for f in hist_body["firmas"]}
     assert firmas["gerente_regional"] == "aprobado"
     assert firmas["director_planta"] == "pendiente"
+
+    aprobaciones = [
+        e for e in hist_body["eventos"] if e["accion"] == "Aprobado"
+    ]
+    assert len(aprobaciones) >= 1
+    assert aprobaciones[0]["usuario_nombre"] == ciclo["gerente"].nombre
+    assert aprobaciones[0]["rol"] == "Gerente regional"
 
 
 @pytest.mark.asyncio
