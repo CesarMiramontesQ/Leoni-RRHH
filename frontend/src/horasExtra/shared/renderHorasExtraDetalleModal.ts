@@ -1,3 +1,7 @@
+import type {
+  HorasExtraFirma,
+  HorasExtraHistorialEvento,
+} from "../../api/horasExtraAprobacion.ts";
 import type { HorasExtraSolicitudResponse } from "../../api/horasExtraSolicitud.ts";
 import {
   badgeApproved,
@@ -8,16 +12,29 @@ import {
 } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
+  renderHorasExtraAprobacionesSection,
+  renderHorasExtraHistorialSection,
+} from "./renderHorasExtraAprobacionesSection.ts";
+import {
   buildDiasColumnasHoras,
   formatHorasCaptura,
   tipoLabel,
   type DiaColumnaHoras,
 } from "../supervisor/renderHorasExtraSolicitudPage.ts";
 
+export type HorasExtraDetalleAprobacionesState = {
+  status: "idle" | "loading" | "error";
+  firmas?: HorasExtraFirma[];
+  historial?: HorasExtraHistorialEvento[];
+  error?: string;
+};
+
 export type HorasExtraDetalleModalState = {
   detalle: HorasExtraSolicitudResponse | null;
   status: "idle" | "loading" | "error";
   error?: string;
+  /** Presente en la vista RH para mostrar aprobaciones e historial de firmas. */
+  aprobaciones?: HorasExtraDetalleAprobacionesState;
 };
 
 export type HorasExtraDetalleModalConfig = {
@@ -241,6 +258,18 @@ export function renderDetalleHorasSection(det: HorasExtraSolicitudResponse): str
     </section>`;
 }
 
+function renderAprobacionesBlock(aprobaciones: HorasExtraDetalleAprobacionesState): string {
+  if (aprobaciones.status === "loading") {
+    return `<p class="text-sm text-text-secondary">Cargando aprobaciones…</p>`;
+  }
+  if (aprobaciones.status === "error") {
+    return `<p class="text-sm text-red-700">${escapeHtml(aprobaciones.error ?? "No se pudieron cargar las aprobaciones.")}</p>`;
+  }
+  return `
+    ${renderHorasExtraAprobacionesSection(aprobaciones.firmas ?? [])}
+    ${renderHorasExtraHistorialSection(aprobaciones.historial ?? [])}`;
+}
+
 function renderDetalleModalBody(state: HorasExtraDetalleModalState): string {
   if (state.status === "loading") {
     return `<p class="text-sm text-text-secondary">Cargando detalle…</p>`;
@@ -250,10 +279,12 @@ function renderDetalleModalBody(state: HorasExtraDetalleModalState): string {
   }
   const det = state.detalle;
   if (!det) return "";
+  const aprobacionesHtml = state.aprobaciones ? renderAprobacionesBlock(state.aprobaciones) : "";
   return `
     <div class="space-y-4">
       ${renderDetalleResumenCard(det)}
       ${renderDetalleHorasSection(det)}
+      ${aprobacionesHtml}
     </div>`;
 }
 

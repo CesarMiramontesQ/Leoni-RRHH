@@ -5,6 +5,7 @@ import {
   type HorasExtraFetchError,
   type HorasExtraTabFiltro,
 } from "../api/horasExtra.ts";
+import { getHorasExtraHistorial } from "../api/horasExtraAprobacion.ts";
 import type { HorasExtraDetalleModalState } from "../horasExtra/shared/renderHorasExtraDetalleModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { buildHorasExtraViewModel } from "../nominas/horasExtra/buildHorasExtraViewModel.ts";
@@ -39,6 +40,7 @@ const SHELL_OPTS = {
 const EMPTY_DETALLE_MODAL: HorasExtraDetalleModalState = {
   detalle: null,
   status: "idle",
+  aprobaciones: undefined,
 };
 
 function loadingViewModel(): HorasExtraPageViewModel {
@@ -208,17 +210,61 @@ export function mountHorasExtra(container: HTMLElement): void {
       if (verBtn) {
         const id = Number.parseInt(verBtn.dataset.heRhVerId ?? "0", 10);
         if (!id) return;
-        detalleModal = { detalle: null, status: "loading" };
+        detalleModal = {
+          detalle: null,
+          status: "loading",
+          aprobaciones: { status: "loading" },
+        };
         renderDetalleModal(pageRoot);
-        try {
-          const detalle = await getHorasExtraDetalle(id);
-          detalleModal = { detalle, status: "idle" };
-        } catch (err) {
-          const detail =
-            err && typeof err === "object" && "detail" in err
-              ? String((err as HorasExtraFetchError).detail)
-              : "No se pudo cargar el detalle.";
-          detalleModal = { detalle: null, status: "error", error: detail };
+        const [detalleResult, historialResult] = await Promise.allSettled([
+          getHorasExtraDetalle(id),
+          getHorasExtraHistorial(id),
+        ]);
+
+        const detalleError =
+          detalleResult.status === "rejected"
+            ? detalleResult.reason && typeof detalleResult.reason === "object" && "detail" in detalleResult.reason
+              ? String((detalleResult.reason as HorasExtraFetchError).detail)
+              : "No se pudo cargar el detalle."
+            : undefined;
+
+        const historialError =
+          historialResult.status === "rejected"
+            ? historialResult.reason && typeof historialResult.reason === "object" && "detail" in historialResult.reason
+              ? String((historialResult.reason as HorasExtraFetchError).detail)
+              : "No se pudieron cargar las aprobaciones."
+            : undefined;
+
+        const detalleOk = detalleResult.status === "fulfilled" ? detalleResult.value : null;
+        const historialOk = historialResult.status === "fulfilled" ? historialResult.value : null;
+
+        if (detalleError) {
+          detalleModal = {
+            detalle: null,
+            status: "error",
+            error: detalleError,
+            aprobaciones: historialError
+              ? { status: "error", error: historialError }
+              : historialOk
+                ? {
+                    status: "idle",
+                    firmas: historialOk.firmas,
+                    historial: historialOk.eventos,
+                  }
+                : { status: "error", error: historialError ?? "No se pudieron cargar las aprobaciones." },
+          };
+        } else {
+          detalleModal = {
+            detalle: detalleOk,
+            status: "idle",
+            aprobaciones: historialError
+              ? { status: "error", error: historialError }
+              : {
+                  status: "idle",
+                  firmas: historialOk?.firmas ?? [],
+                  historial: historialOk?.eventos ?? [],
+                },
+          };
         }
         renderDetalleModal(pageRoot);
         return;

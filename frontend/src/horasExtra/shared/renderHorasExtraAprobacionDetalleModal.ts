@@ -14,6 +14,10 @@ import {
   renderDetalleHorasGrid,
   renderDetalleResumenCard,
 } from "./renderHorasExtraDetalleModal.ts";
+import {
+  renderHorasExtraAprobacionesSection,
+  renderHorasExtraHistorialSection,
+} from "./renderHorasExtraAprobacionesSection.ts";
 
 export type HorasExtraAprobacionDetalleModalState = {
   status: "idle" | "loading" | "error";
@@ -38,18 +42,6 @@ function estadoBadge(estado: string): string {
   return badgePending("Pendiente");
 }
 
-function fmtFechaHora(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
 
 function mapAprobacionToSolicitud(det: HorasExtraAprobacionDetalle): HorasExtraSolicitudResponse {
   const estado =
@@ -128,36 +120,7 @@ function renderEmpleadosHorasPorDia(det: HorasExtraAprobacionDetalle): string {
 }
 
 function renderHistorial(eventos: HorasExtraHistorialEvento[]): string {
-  if (eventos.length === 0) {
-    return `<p class="text-sm text-slate-500">Sin eventos registrados.</p>`;
-  }
-  const rows = eventos
-    .map(
-      (ev) => `
-      <tr class="border-t border-slate-100">
-        <td class="px-3 py-2 text-slate-800">${escapeHtml(ev.usuario_nombre)}</td>
-        <td class="px-3 py-2 text-slate-600">${escapeHtml(ev.rol ?? "—")}</td>
-        <td class="px-3 py-2 text-slate-700">${escapeHtml(ev.accion)}</td>
-        <td class="px-3 py-2 text-slate-600">${escapeHtml(ev.comentario ?? "—")}</td>
-        <td class="px-3 py-2 text-slate-600">${fmtFechaHora(ev.fecha_hora)}</td>
-      </tr>`,
-    )
-    .join("");
-  return `
-    <div class="max-h-48 overflow-y-auto rounded-lg border border-slate-200">
-      <table class="min-w-full text-sm">
-        <thead class="sticky top-0 bg-slate-50">
-          <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <th class="px-3 py-2">Usuario</th>
-            <th class="px-3 py-2">Rol</th>
-            <th class="px-3 py-2">Acción</th>
-            <th class="px-3 py-2">Comentario</th>
-            <th class="px-3 py-2">Fecha</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+  return renderHorasExtraHistorialSection(eventos);
 }
 
 function renderAutorizacion(det: HorasExtraAprobacionDetalle): string {
@@ -209,11 +172,9 @@ function renderModalBody(state: HorasExtraAprobacionDetalleModalState): string {
         </div>
         <div class="space-y-4">${renderEmpleadosHorasPorDia(det)}</div>
       </section>
+      ${renderHorasExtraAprobacionesSection(det.firmas)}
       ${renderAutorizacion(det)}
-      <section class="${DETALLE_SECTION_CARD}">
-        <h3 class="text-sm font-semibold text-[#0A1628]">Historial</h3>
-        <div class="mt-3">${renderHistorial(det.historial)}</div>
-      </section>
+      ${renderHistorial(det.historial)}
     </div>`;
 }
 
