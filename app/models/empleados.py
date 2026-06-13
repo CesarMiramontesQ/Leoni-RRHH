@@ -75,6 +75,15 @@ class Empleado(Base):
     puede_administrar_permisos_rh: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    puede_registrar_horas_extra: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    horas_extra_autorizado_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    horas_extra_autorizado_por_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.id"), nullable=True
+    )
     modulos_rh: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -108,6 +117,11 @@ class Empleado(Base):
         "Empleado",
         foreign_keys=[lider_id],
         back_populates="lider",
+    )
+    horas_extra_autorizado_por: Mapped[Optional["Empleado"]] = relationship(
+        "Empleado",
+        remote_side="Empleado.id",
+        foreign_keys=[horas_extra_autorizado_por_id],
     )
     email_alterno: Mapped[Optional["Email"]] = relationship(
         "Email",

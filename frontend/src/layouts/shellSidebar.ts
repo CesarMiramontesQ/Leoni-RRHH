@@ -16,6 +16,10 @@ import {
   isLevelUpHubVisibleForRol,
   LEVEL_UP_SIDEBAR_ITEM,
 } from "../navigation/levelUpNav.ts";
+import {
+  isNominasHubVisibleForRol,
+  NOMINAS_SIDEBAR_ITEM,
+} from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
 import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
 import {
@@ -68,7 +72,13 @@ export type ShellNavKey =
   | "evidencias"
   | "sugerencias"
   | "encuestas"
-  | "level-up";
+  | "level-up"
+  | "nominas"
+  | "horas-extra"
+  | "horas-extra-aprobaciones"
+  | "horas-extra-solicitud"
+  | "conciliacion"
+  | "nominas-ajustes";
 
 type NavItemDef = {
   id: AppShellNavItemId;
@@ -141,6 +151,14 @@ const NAV_LEVEL_UP: NavItemDef = {
   svgPaths: LEVEL_UP_SIDEBAR_ITEM.svgPaths,
 };
 
+const NAV_NOMINAS: NavItemDef = {
+  id: NOMINAS_SIDEBAR_ITEM.id,
+  key: NOMINAS_SIDEBAR_ITEM.key,
+  hrefFor: () => NOMINAS_SIDEBAR_ITEM.href,
+  label: NOMINAS_SIDEBAR_ITEM.label,
+  svgPaths: NOMINAS_SIDEBAR_ITEM.svgPaths,
+};
+
 function navItemLi(
   activeNav: ShellNavKey | undefined,
   rol: string | null,
@@ -168,6 +186,7 @@ function buildModuleItems(rol: string | null): NavItemDef[] {
   if (isLaboralesHubVisibleForRol(rol)) items.push(NAV_LABORALES);
   if (isComedorHubVisibleForRol(rol)) items.push(NAV_COMEDOR);
   if (isLevelUpHubVisibleForRol(rol)) items.push(NAV_LEVEL_UP);
+  if (isNominasHubVisibleForRol(rol)) items.push(NAV_NOMINAS);
   return items;
 }
 

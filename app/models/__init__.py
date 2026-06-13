@@ -36,6 +36,14 @@ from app.models.talento import (
     TipoCualificacionCatalogo, MetodoCalificacion, OpcionCalificacion, CualificacionCatalogo,
     MetodoCalificacionCompetencia,
 )
+from app.models.horas_extra import (
+    CentroCosto,
+    HorasExtraAprobacion,
+    HorasExtraAprobador,
+    HorasExtraMotivo,
+    HorasExtraSolicitud,
+    HorasExtraSolicitudDetalle,
+)
 from app.models.cursos_catalogo import (
     CursoCategoria,
     CursoClasificacion,
@@ -109,6 +117,12 @@ __all__ = [
     "MetodoCalificacion",
     "OpcionCalificacion",
     "CualificacionCatalogo",
+    "CentroCosto",
+    "HorasExtraMotivo",
+    "HorasExtraSolicitud",
+    "HorasExtraSolicitudDetalle",
+    "HorasExtraAprobacion",
+    "HorasExtraAprobador",
     "CursoCategoria",
     "CursoTipo",
     "CursoClasificacion",

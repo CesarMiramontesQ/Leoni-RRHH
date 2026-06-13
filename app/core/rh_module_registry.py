@@ -32,8 +32,8 @@ RH_MODULES: dict[str, RhModuleDef] = {
         label="Dashboard",
         group="General",
         nav_item_ids=("dashboard",),
-        hash_prefixes=("#/",),
-        api_prefixes=("/api/v1/bono-productividad",),
+        hash_prefixes=("#/", "#/nominas/horas-extra"),
+        api_prefixes=("/api/v1/bono-productividad", "/api/v1/nominas"),
     ),
     "organigrama": RhModuleDef(
         key="organigrama",

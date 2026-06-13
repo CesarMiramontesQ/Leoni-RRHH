@@ -28,7 +28,7 @@ async def login(
 ):
     """Login con correo; sin @ intenta no_empleado y luego usuario."""
     empleado = await authenticate_user(form_data.username, form_data.password, db)
-    tokens = create_tokens(empleado)
+    tokens = await create_tokens(empleado, db)
     return tokens
 
 

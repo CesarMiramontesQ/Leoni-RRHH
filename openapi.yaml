@@ -388,6 +388,830 @@ components:
         page_size:
           type: integer
 
+    HorasExtraLiderResponse:
+      type: object
+      required: [empleado_id, nombre]
+      properties:
+        empleado_id:
+          type: integer
+        nombre:
+          type: string
+
+    HorasExtraEmpleadoResponse:
+      type: object
+      required: [id, empleado_id, no_empleado, nombre]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        puesto_nombre:
+          type: string
+          nullable: true
+        centrocosto_id:
+          type: integer
+          nullable: true
+        lider:
+          $ref: "#/components/schemas/HorasExtraLiderResponse"
+          nullable: true
+
+    HorasExtraSolicitudInfoResponse:
+      type: object
+      required:
+        - solicitud_id
+        - semana
+        - semana_inicio
+        - fecha_solicitud
+        - tipo
+        - centrocosto_id
+        - estado
+        - estado_consolidado
+        - total_horas
+      properties:
+        solicitud_id:
+          type: integer
+        semana:
+          type: integer
+        semana_inicio:
+          type: string
+          format: date
+        fecha_solicitud:
+          type: string
+          format: date
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        area_descripcion:
+          type: string
+          nullable: true
+        centrocosto_id:
+          type: integer
+        centrocosto_descripcion:
+          type: string
+          nullable: true
+        motivo:
+          type: string
+          nullable: true
+        estado:
+          type: string
+          enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        total_horas:
+          type: number
+        registrado_por_nombre:
+          type: string
+          nullable: true
+        aprobador_nombre:
+          type: string
+          nullable: true
+        fecha_aprobacion:
+          type: string
+          format: date
+          nullable: true
+
+    HorasExtraFilaResponse:
+      type: object
+      required: [empleado, solicitud]
+      properties:
+        empleado:
+          $ref: "#/components/schemas/HorasExtraEmpleadoResponse"
+        solicitud:
+          $ref: "#/components/schemas/HorasExtraSolicitudInfoResponse"
+
+    HorasExtraResumenResponse:
+      type: object
+      required:
+        - total_horas_extra
+        - colaboradores_con_registro
+        - empleados_con_horas_extra
+        - empleados_activos_planta
+        - solicitudes_total
+        - solicitudes_pendientes
+        - solicitudes_aprobadas
+        - solicitudes_rechazadas
+        - porcentaje_aprobacion
+      properties:
+        total_horas_extra:
+          type: number
+        colaboradores_con_registro:
+          type: integer
+        empleados_con_horas_extra:
+          type: integer
+        empleados_activos_planta:
+          type: integer
+        solicitudes_total:
+          type: integer
+        solicitudes_pendientes:
+          type: integer
+        solicitudes_aprobadas:
+          type: integer
+        solicitudes_rechazadas:
+          type: integer
+        porcentaje_aprobacion:
+          type: number
+
+    HorasExtraCentroCostoOption:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+
+    HorasExtraFilterOptionsResponse:
+      type: object
+      required: [centros_costo]
+      properties:
+        centros_costo:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraCentroCostoOption"
+
+    HorasExtraCatalogoOption:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+
+    HorasExtraSubareaOption:
+      type: object
+      required: [id, label, area_id]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        area_id:
+          type: integer
+
+    HorasExtraEmpleadoOption:
+      type: object
+      required: [id, no_empleado, nombre]
+      properties:
+        id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        centrocosto_id:
+          type: [integer, "null"]
+        area_id:
+          type: [integer, "null"]
+        subarea_id:
+          type: [integer, "null"]
+        area_descripcion:
+          type: [string, "null"]
+        centrocosto_descripcion:
+          type: [string, "null"]
+        turno:
+          type: [string, "null"]
+
+    HorasExtraSolicitudOpcionesResponse:
+      type: object
+      required: [empleados, semana_actual]
+      properties:
+        empleados:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraEmpleadoOption"
+        semana_actual:
+          type: integer
+          minimum: 1
+          maximum: 53
+
+    HorasExtraDetalleCreate:
+      type: object
+      required: [empleado_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo]
+      properties:
+        empleado_id:
+          type: integer
+        lunes:
+          type: number
+          minimum: 0
+        martes:
+          type: number
+          minimum: 0
+        miercoles:
+          type: number
+          minimum: 0
+        jueves:
+          type: number
+          minimum: 0
+        viernes:
+          type: number
+          minimum: 0
+        sabado:
+          type: number
+          minimum: 0
+        domingo:
+          type: number
+          minimum: 0
+
+    HorasExtraSolicitudCreate:
+      type: object
+      required:
+        - semana
+        - tipo
+        - motivo
+        - empleados
+      properties:
+        semana:
+          type: integer
+          minimum: 1
+          maximum: 53
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        motivo:
+          type: string
+          minLength: 1
+          maxLength: 500
+        empleados:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/HorasExtraDetalleCreate"
+
+    HorasExtraDetalleResponse:
+      type: object
+      required:
+        - id
+        - empleado_id
+        - no_empleado
+        - nombre_empleado
+        - lunes
+        - martes
+        - miercoles
+        - jueves
+        - viernes
+        - sabado
+        - domingo
+        - total_horas
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre_empleado:
+          type: string
+        lunes:
+          type: number
+        martes:
+          type: number
+        miercoles:
+          type: number
+        jueves:
+          type: number
+        viernes:
+          type: number
+        sabado:
+          type: number
+        domingo:
+          type: number
+        total_horas:
+          type: number
+
+    HorasExtraSolicitudResponse:
+      type: object
+      required:
+        - id
+        - fecha_solicitud
+        - semana
+        - semana_inicio
+        - tipo
+        - area_id
+        - area_descripcion
+        - subarea_id
+        - subarea_descripcion
+        - centrocosto_id
+        - centrocosto_descripcion
+        - motivo_id
+        - motivo_descripcion
+        - estado
+        - estado_consolidado
+        - total_horas_general
+        - total_empleados
+        - created_at
+        - detalle
+      properties:
+        id:
+          type: integer
+        fecha_solicitud:
+          type: string
+          format: date
+        semana:
+          type: integer
+          minimum: 1
+          maximum: 53
+        semana_inicio:
+          type: string
+          format: date
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        area_id:
+          type: integer
+        area_descripcion:
+          type: string
+        subarea_id:
+          type: integer
+        subarea_descripcion:
+          type: string
+        centrocosto_id:
+          type: integer
+        centrocosto_descripcion:
+          type: string
+        motivo_id:
+          type: integer
+        motivo_descripcion:
+          type: string
+        comentarios:
+          type: [string, "null"]
+        estado:
+          type: string
+          enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        total_horas_general:
+          type: number
+        total_empleados:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        detalle:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraDetalleResponse"
+
+    HorasExtraSolicitudListItem:
+      type: object
+      required:
+        - id
+        - fecha_solicitud
+        - semana
+        - semana_inicio
+        - area_descripcion
+        - tipo
+        - total_horas_general
+        - estado
+        - estado_consolidado
+        - created_at
+      properties:
+        id:
+          type: integer
+        fecha_solicitud:
+          type: string
+          format: date
+        semana:
+          type: integer
+          minimum: 1
+          maximum: 53
+        semana_inicio:
+          type: string
+          format: date
+        area_descripcion:
+          type: string
+        tipo:
+          type: string
+          enum: [planeado, espontaneo]
+        total_horas_general:
+          type: number
+        estado:
+          type: string
+          enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        created_at:
+          type: string
+          format: date-time
+
+    HorasExtraSolicitudListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraSolicitudListItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    HorasExtraSolicitudEstadisticasResponse:
+      type: object
+      required: [total_solicitudes, pendientes, aprobadas, total_horas]
+      properties:
+        total_solicitudes:
+          type: integer
+          minimum: 0
+        pendientes:
+          type: integer
+          minimum: 0
+        aprobadas:
+          type: integer
+          minimum: 0
+        total_horas:
+          type: number
+          minimum: 0
+
+    HorasExtraAutorizadoItem:
+      type: object
+      required: [id, no_empleado, nombre, rol, autorizado]
+      properties:
+        id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        rol:
+          type: string
+        email:
+          type: string
+          nullable: true
+        area_descripcion:
+          type: string
+          nullable: true
+        puesto_descripcion:
+          type: string
+          nullable: true
+        autorizado:
+          type: boolean
+        fecha_autorizacion:
+          type: string
+          format: date-time
+          nullable: true
+        autorizado_por:
+          type: string
+          nullable: true
+          description: Nombre del usuario RH que otorgó la autorización.
+
+    HorasExtraAutorizadosStats:
+      type: object
+      required:
+        [
+          total_autorizados,
+          autorizaciones_activas,
+          sin_autorizacion,
+          autorizaciones_recientes,
+          solicitudes_pendientes,
+        ]
+      properties:
+        total_autorizados:
+          type: integer
+          description: Empleados autorizados sin importar su estado laboral.
+        autorizaciones_activas:
+          type: integer
+          description: Empleados autorizados con estado laboral activo.
+        sin_autorizacion:
+          type: integer
+          description: Empleados activos sin autorización.
+        autorizaciones_recientes:
+          type: integer
+          description: Autorizaciones otorgadas en los últimos 7 días.
+        solicitudes_pendientes:
+          type: integer
+          description: Solicitudes de horas extra en estado pendiente.
+
+    HorasExtraAutorizadosListResponse:
+      type: object
+      required: [items, total, page, page_size, stats]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraAutorizadoItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        stats:
+          $ref: "#/components/schemas/HorasExtraAutorizadosStats"
+
+    HorasExtraAutorizacionUpdate:
+      type: object
+      required: [empleado_ids, autorizado]
+      properties:
+        empleado_ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+        autorizado:
+          type: boolean
+
+    HorasExtraAutorizacionUpdateResponse:
+      type: object
+      required: [actualizados, stats]
+      properties:
+        actualizados:
+          type: integer
+        stats:
+          $ref: "#/components/schemas/HorasExtraAutorizadosStats"
+
+    HorasExtraAprobadorItem:
+      type: object
+      required: [id, empleado_id, no_empleado, nombre, tipo, activo, created_at]
+      properties:
+        id:
+          type: integer
+          description: Id del registro de aprobador (no del empleado).
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: string
+          nullable: true
+        area_descripcion:
+          type: string
+          nullable: true
+        puesto_descripcion:
+          type: string
+          nullable: true
+        tipo:
+          type: string
+          enum: [gerente_regional, director]
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    HorasExtraAprobadoresListResponse:
+      type: object
+      required: [gerentes, directores]
+      properties:
+        gerentes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraAprobadorItem"
+        directores:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraAprobadorItem"
+
+    HorasExtraAprobadoresCreate:
+      type: object
+      required: [tipo, empleado_ids]
+      properties:
+        tipo:
+          type: string
+          enum: [gerente_regional, director]
+        empleado_ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+
+    HorasExtraAprobadorUpdate:
+      type: object
+      required: [activo]
+      properties:
+        activo:
+          type: boolean
+
+    HorasExtraFirmaResponse:
+      type: object
+      required: [tipo_firma, tipo_firma_label, estado]
+      properties:
+        tipo_firma:
+          type: string
+          enum: [gerente_area, gerente_regional, director_planta]
+        tipo_firma_label: { type: string }
+        estado:
+          type: string
+          enum: [pendiente, aprobado, rechazado]
+        aprobador_id: { type: integer, nullable: true }
+        aprobador_nombre: { type: string, nullable: true }
+        rol_aprobador_nombre: { type: string, nullable: true }
+        fecha_aprobacion: { type: string, format: date-time, nullable: true }
+        comentario: { type: string, nullable: true }
+
+    HorasExtraPendienteItem:
+      type: object
+      required:
+        [solicitud_id, semana, semana_inicio, fecha_solicitud, tipo, total_horas,
+         total_empleados, mi_tipo_firma, mi_tipo_firma_label, estado_consolidado, aprobado_parcial, created_at]
+      properties:
+        solicitud_id: { type: integer }
+        semana: { type: integer }
+        semana_inicio: { type: string, format: date }
+        fecha_solicitud: { type: string, format: date }
+        tipo: { type: string }
+        area_descripcion: { type: string, nullable: true }
+        subarea_descripcion: { type: string, nullable: true }
+        centrocosto_id: { type: integer, nullable: true }
+        centrocosto_descripcion: { type: string, nullable: true }
+        motivo: { type: string, nullable: true }
+        total_horas: { type: number }
+        total_empleados: { type: integer }
+        empleado_resumen: { type: string, nullable: true }
+        puesto_descripcion: { type: string, nullable: true }
+        registrado_por_nombre: { type: string, nullable: true }
+        mi_tipo_firma:
+          type: string
+          enum: [gerente_area, gerente_regional, director_planta]
+        mi_tipo_firma_label: { type: string }
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        aprobado_parcial: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    HorasExtraHistorialEvento:
+      type: object
+      required: [usuario_nombre, accion, fecha_hora]
+      properties:
+        usuario_nombre: { type: string }
+        rol: { type: string, nullable: true }
+        accion: { type: string }
+        comentario: { type: string, nullable: true }
+        fecha_hora: { type: string, format: date-time }
+
+    HorasExtraDetalleEmpleadoItem:
+      type: object
+      required:
+        [empleado_id, no_empleado, nombre, total_horas, lunes, martes, miercoles, jueves, viernes, sabado, domingo]
+      properties:
+        empleado_id: { type: integer }
+        no_empleado: { type: string }
+        nombre: { type: string }
+        puesto_descripcion: { type: string, nullable: true }
+        departamento_descripcion: { type: string, nullable: true }
+        centrocosto_descripcion: { type: string, nullable: true }
+        subarea_descripcion: { type: string, nullable: true }
+        jefe_nombre: { type: string, nullable: true }
+        total_horas: { type: number }
+        lunes: { type: number }
+        martes: { type: number }
+        miercoles: { type: number }
+        jueves: { type: number }
+        viernes: { type: number }
+        sabado: { type: number }
+        domingo: { type: number }
+
+    HorasExtraAprobadorAsignadoItem:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string }
+        email: { type: string, nullable: true }
+
+    HorasExtraAprobacionDetalleResponse:
+      type: object
+      required:
+        [solicitud_id, fecha_solicitud, semana, semana_inicio, tipo, total_horas, total_empleados,
+         created_at, estado_consolidado, estado_label, empleados, gerentes_regionales, firmas,
+         historial, puede_aprobar, puede_rechazar]
+      properties:
+        solicitud_id: { type: integer }
+        fecha_solicitud: { type: string, format: date }
+        semana: { type: integer }
+        semana_inicio: { type: string, format: date }
+        tipo: { type: string }
+        motivo: { type: string, nullable: true }
+        comentarios: { type: string, nullable: true }
+        total_horas: { type: number }
+        total_empleados: { type: integer }
+        created_at: { type: string, format: date-time }
+        registrado_por_nombre: { type: string, nullable: true }
+        area_descripcion: { type: string, nullable: true }
+        subarea_descripcion: { type: string, nullable: true }
+        centrocosto_descripcion: { type: string, nullable: true }
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        estado_label: { type: string }
+        empleados:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraDetalleEmpleadoItem" }
+        gerentes_regionales:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraAprobadorAsignadoItem" }
+        director_asignado:
+          nullable: true
+          allOf:
+            - { $ref: "#/components/schemas/HorasExtraAprobadorAsignadoItem" }
+        firmas:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraFirmaResponse" }
+        historial:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraHistorialEvento" }
+        mi_tipo_firma:
+          type: string
+          nullable: true
+          enum: [gerente_area, gerente_regional, director_planta]
+        mi_tipo_firma_label: { type: string, nullable: true }
+        puede_aprobar: { type: boolean }
+        puede_rechazar: { type: boolean }
+
+    HorasExtraPendientesListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraPendienteItem" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
+    HorasExtraAprobacionEstadisticasResponse:
+      type: object
+      required: [total_solicitudes, pendientes, aprobacion_parcial, aprobadas, rechazadas]
+      properties:
+        total_solicitudes: { type: integer, minimum: 0 }
+        pendientes: { type: integer, minimum: 0 }
+        aprobacion_parcial: { type: integer, minimum: 0 }
+        aprobadas: { type: integer, minimum: 0 }
+        rechazadas: { type: integer, minimum: 0 }
+
+    HorasExtraEstadoConsolidadoResponse:
+      type: object
+      required: [solicitud_id, estado, estado_label, aprobado_parcial, listo_para_nomina, firmas, faltantes]
+      properties:
+        solicitud_id: { type: integer }
+        estado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        estado_label: { type: string }
+        aprobado_parcial: { type: boolean }
+        listo_para_nomina: { type: boolean }
+        firmas:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraFirmaResponse" }
+        faltantes:
+          type: array
+          items: { type: string }
+        rechazado_por: { type: string, nullable: true }
+        comentario_rechazo: { type: string, nullable: true }
+
+    HorasExtraHistorialResponse:
+      type: object
+      required: [solicitud_id, estado, estado_label, firmas, eventos]
+      properties:
+        solicitud_id: { type: integer }
+        estado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
+        estado_label: { type: string }
+        firmas:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraFirmaResponse" }
+        eventos:
+          type: array
+          items: { $ref: "#/components/schemas/HorasExtraHistorialEvento" }
+
+    HorasExtraListResponse:
+      type: object
+      required: [semana_actual, resumen, tabs, filter_options, items, total, page, page_size]
+      properties:
+        semana_actual:
+          type: integer
+        resumen:
+          $ref: "#/components/schemas/HorasExtraResumenResponse"
+        tabs:
+          type: object
+          additionalProperties:
+            type: integer
+        filter_options:
+          $ref: "#/components/schemas/HorasExtraFilterOptionsResponse"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraFilaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
     EmpleadoDistribucionItem:
       type: object
       required: [label, total]
@@ -4181,6 +5005,580 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UsuarioPageResponse"
+
+  /api/v1/horas-extra/solicitudes/opciones:
+    get:
+      tags: [Horas Extra]
+      summary: Catálogos y empleados elegibles para solicitud (empleado autorizado por RH)
+      operationId: horas_extra_solicitud_opciones
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Opciones del formulario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudOpcionesResponse"
+        "403":
+          description: Sin autorización de RH para registrar horas extra
+
+  /api/v1/horas-extra/solicitudes/estadisticas:
+    get:
+      tags: [Horas Extra]
+      summary: Estadísticas de solicitudes del usuario autorizado autenticado
+      operationId: horas_extra_solicitud_estadisticas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Totales agregados de solicitudes propias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudEstadisticasResponse"
+        "403":
+          description: Sin autorización de RH para registrar horas extra
+
+  /api/v1/horas-extra/solicitudes:
+    get:
+      tags: [Horas Extra]
+      summary: Listado de solicitudes creadas por el usuario autorizado autenticado
+      operationId: horas_extra_solicitud_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Solicitudes propias del usuario autorizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudListResponse"
+        "403":
+          description: Sin autorización de RH para registrar horas extra
+    post:
+      tags: [Horas Extra]
+      summary: Crear solicitud de horas extra (empleado autorizado por RH)
+      operationId: horas_extra_solicitud_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraSolicitudCreate"
+      responses:
+        "201":
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudResponse"
+        "403":
+          description: Sin autorización de RH para registrar horas extra
+        "422":
+          description: Validación de negocio o payload
+
+  /api/v1/horas-extra/solicitudes/{solicitud_id}:
+    get:
+      tags: [Horas Extra]
+      summary: Detalle de solicitud propia del usuario autorizado
+      operationId: horas_extra_solicitud_detalle
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle de solicitud
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudResponse"
+        "403":
+          description: Sin autorización de RH para registrar horas extra
+        "404":
+          description: Solicitud no encontrada o no pertenece al usuario
+
+  /api/v1/nominas/horas-extra:
+    get:
+      tags: [Nóminas]
+      summary: Listado de solicitudes de horas extra registradas (una fila por empleado-solicitud)
+      operationId: nominas_horas_extra_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+        - name: tab
+          in: query
+          schema:
+            type: string
+            enum: [todos, pendientes, aprobados, rechazados]
+            default: todos
+        - name: q
+          in: query
+          schema:
+            type: string
+            nullable: true
+        - name: area_id
+          in: query
+          schema:
+            type: integer
+            nullable: true
+        - name: centrocosto_id
+          in: query
+          schema:
+            type: integer
+            nullable: true
+        - name: lider_empleado_id
+          in: query
+          schema:
+            type: integer
+            nullable: true
+        - name: semana_inicio
+          in: query
+          description: Lunes ISO (YYYY-MM-DD) de la semana a filtrar
+          schema:
+            type: string
+            format: date
+            nullable: true
+        - name: fecha_inicio
+          in: query
+          description: Fecha mínima de solicitud (inclusive)
+          schema:
+            type: string
+            format: date
+            nullable: true
+        - name: fecha_fin
+          in: query
+          description: Fecha máxima de solicitud (inclusive)
+          schema:
+            type: string
+            format: date
+            nullable: true
+      responses:
+        "200":
+          description: Filas de horas extra
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraListResponse"
+
+  /api/v1/nominas/horas-extra/{solicitud_id}:
+    get:
+      tags: [Nóminas]
+      summary: Detalle de una solicitud de horas extra (vista RH)
+      operationId: nominas_horas_extra_detalle
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitud_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle completo de la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraSolicitudResponse"
+        "403":
+          description: Sin acceso a Horas Extra
+        "404":
+          description: Solicitud no encontrada o fuera de alcance
+
+  /api/v1/nominas/horas-extra/aprobaciones/pendientes:
+    get:
+      tags: [Nóminas]
+      summary: Solicitudes de horas extra pendientes de la firma del usuario (gerente regional / director)
+      description: >-
+        Devuelve las solicitudes con una firma pendiente del tipo que el usuario
+        puede firmar según su designación activa en horas_extra_aprobadores.
+        Si el usuario no es aprobador, regresa lista vacía.
+      operationId: nominas_horas_extra_pendientes
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 12, minimum: 1, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: area_id, in: query, schema: { type: integer } }
+        - { name: centrocosto_id, in: query, schema: { type: integer } }
+        - { name: semana_inicio, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Pendientes del aprobador
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraPendientesListResponse"
+
+  /api/v1/nominas/horas-extra/aprobaciones/solicitudes:
+    get:
+      tags: [Nóminas]
+      summary: Solicitudes de horas extra asignadas al aprobador (gerente regional / director)
+      description: >-
+        Devuelve todas las solicitudes donde el usuario tiene una firma del tipo
+        que puede representar según horas_extra_aprobadores (pendientes, aprobadas,
+        rechazadas o en aprobación parcial).
+      operationId: nominas_horas_extra_aprobaciones_solicitudes
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 10, minimum: 1, maximum: 100 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: area_id, in: query, schema: { type: integer } }
+        - { name: centrocosto_id, in: query, schema: { type: integer } }
+        - { name: semana_inicio, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Solicitudes asignadas al aprobador
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraPendientesListResponse"
+
+  /api/v1/nominas/horas-extra/aprobaciones/estadisticas:
+    get:
+      tags: [Nóminas]
+      summary: Estadísticas de solicitudes asignadas al aprobador de horas extra
+      operationId: nominas_horas_extra_aprobaciones_estadisticas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Totales por estado consolidado de solicitudes asignadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobacionEstadisticasResponse"
+
+  /api/v1/nominas/horas-extra/aprobaciones/{solicitud_id}:
+    get:
+      tags: [Nóminas]
+      summary: Detalle de solicitud para aprobación (registra visualización en auditoría)
+      description: >-
+        Abre la vista de detalle que el aprobador debe consultar antes de aprobar o rechazar.
+        Registra el evento HE_SOLICITUD_VIEWED en audit_log.
+      operationId: nominas_horas_extra_aprobacion_detalle
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Detalle completo para decisión informada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobacionDetalleResponse"
+        "403":
+          description: Usuario no asignado como aprobador de la solicitud
+        "404":
+          description: Solicitud no encontrada
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/aprobar:
+    post:
+      tags: [Nóminas]
+      summary: Aprobar una solicitud de horas extra (firma del aprobador asignado)
+      operationId: nominas_horas_extra_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comentario: { type: string, nullable: true, maxLength: 500 }
+      responses:
+        "200":
+          description: Estado consolidado tras la aprobación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraEstadoConsolidadoResponse"
+        "403":
+          description: El usuario no está asignado como aprobador
+        "404":
+          description: Solicitud no encontrada
+        "422":
+          description: Solicitud ya aprobada/rechazada, firma duplicada o sin visualización previa del detalle
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/rechazar:
+    post:
+      tags: [Nóminas]
+      summary: Rechazar una solicitud de horas extra (cancela el ciclo, comentario obligatorio)
+      operationId: nominas_horas_extra_rechazar
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comentario]
+              properties:
+                comentario: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200":
+          description: Estado consolidado tras el rechazo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraEstadoConsolidadoResponse"
+        "403":
+          description: El usuario no está asignado como aprobador
+        "404":
+          description: Solicitud no encontrada
+        "422":
+          description: Comentario faltante, solicitud no accionable o sin visualización previa del detalle
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/estado:
+    get:
+      tags: [Nóminas]
+      summary: Estado consolidado de una solicitud de horas extra (RH o registrante autorizado)
+      operationId: nominas_horas_extra_estado
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Estado calculado a partir de las firmas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraEstadoConsolidadoResponse"
+        "403":
+          description: Sin acceso a Horas Extra
+        "404":
+          description: Solicitud no encontrada
+
+  /api/v1/nominas/horas-extra/{solicitud_id}/historial:
+    get:
+      tags: [Nóminas]
+      summary: Historial de firmas de una solicitud de horas extra
+      operationId: nominas_horas_extra_historial
+      security:
+        - BearerAuth: []
+      parameters:
+        - { name: solicitud_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Firmas y estado consolidado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraHistorialResponse"
+        "403":
+          description: Sin acceso a Horas Extra
+        "404":
+          description: Solicitud no encontrada
+
+  /api/v1/nominas/ajustes/horas-extra/autorizados:
+    get:
+      tags: [Nóminas]
+      summary: Listado de empleados activos con su autorización para registrar horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_autorizados_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: q
+          in: query
+          description: Búsqueda por nombre, número de empleado, correo, área o puesto.
+          schema:
+            type: string
+            nullable: true
+        - name: filtro
+          in: query
+          schema:
+            type: string
+            enum: [todos, autorizados, no_autorizados]
+            default: todos
+      responses:
+        "200":
+          description: Empleados con estado de autorización
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAutorizadosListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+    put:
+      tags: [Nóminas]
+      summary: Otorgar o retirar autorización para registrar horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_autorizados_update
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraAutorizacionUpdate"
+      responses:
+        "200":
+          description: Autorización actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAutorizacionUpdateResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "422":
+          description: Empleados inexistentes, inactivos o ya autorizados
+
+  /api/v1/nominas/ajustes/horas-extra/aprobadores:
+    get:
+      tags: [Nóminas]
+      summary: Listado de aprobadores de horas extra — gerentes regionales y director (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_list
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Aprobadores registrados, separados por tipo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+    post:
+      tags: [Nóminas]
+      summary: Registrar aprobadores de horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraAprobadoresCreate"
+      responses:
+        "201":
+          description: Aprobadores registrados; regresa el listado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "422":
+          description: >-
+            Empleados inexistentes/inactivos, ya registrados como aprobadores,
+            más de un director en la petición o ya existe un director activo.
+
+  /api/v1/nominas/ajustes/horas-extra/aprobadores/{aprobador_id}:
+    patch:
+      tags: [Nóminas]
+      summary: Activar o desactivar un aprobador de horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: aprobador_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HorasExtraAprobadorUpdate"
+      responses:
+        "200":
+          description: Aprobador actualizado; regresa el listado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "404":
+          description: Aprobador no encontrado
+        "422":
+          description: Ya existe otro director activo
+    delete:
+      tags: [Nóminas]
+      summary: Eliminar un aprobador de horas extra (solo RH)
+      operationId: nominas_ajustes_horas_extra_aprobadores_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: aprobador_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Aprobador eliminado; regresa el listado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadoresListResponse"
+        "403":
+          description: Solo usuarios con rol RH
+        "404":
+          description: Aprobador no encontrado
 
   /api/v1/empleados/{empleado_id}/vacaciones:
     get:
