@@ -30,16 +30,20 @@ export type HorasExtraPendiente = {
   fecha_solicitud: string;
   tipo: string;
   area_descripcion: string | null;
+  subarea_descripcion: string | null;
   centrocosto_id: number | null;
   centrocosto_descripcion: string | null;
   motivo: string | null;
   total_horas: number;
   total_empleados: number;
+  empleado_resumen: string | null;
+  puesto_descripcion: string | null;
   registrado_por_nombre: string | null;
   mi_tipo_firma: HorasExtraTipoFirma;
   mi_tipo_firma_label: string;
   estado_consolidado: HorasExtraEstadoConsolidado;
   aprobado_parcial: boolean;
+  created_at: string;
 };
 
 export type HorasExtraPendientesListResponse = {
@@ -66,6 +70,67 @@ export type HorasExtraHistorialResponse = {
   estado: HorasExtraEstadoConsolidado;
   estado_label: string;
   firmas: HorasExtraFirma[];
+  eventos: HorasExtraHistorialEvento[];
+};
+
+export type HorasExtraHistorialEvento = {
+  usuario_nombre: string;
+  rol: string | null;
+  accion: string;
+  comentario: string | null;
+  fecha_hora: string;
+};
+
+export type HorasExtraDetalleEmpleado = {
+  empleado_id: number;
+  no_empleado: string;
+  nombre: string;
+  puesto_descripcion: string | null;
+  departamento_descripcion: string | null;
+  centrocosto_descripcion: string | null;
+  subarea_descripcion: string | null;
+  jefe_nombre: string | null;
+  total_horas: number;
+  lunes: number;
+  martes: number;
+  miercoles: number;
+  jueves: number;
+  viernes: number;
+  sabado: number;
+  domingo: number;
+};
+
+export type HorasExtraAprobadorAsignado = {
+  nombre: string;
+  email: string | null;
+};
+
+export type HorasExtraAprobacionDetalle = {
+  solicitud_id: number;
+  fecha_solicitud: string;
+  semana: number;
+  semana_inicio: string;
+  tipo: string;
+  motivo: string | null;
+  comentarios: string | null;
+  total_horas: number;
+  total_empleados: number;
+  created_at: string;
+  registrado_por_nombre: string | null;
+  area_descripcion: string | null;
+  subarea_descripcion: string | null;
+  centrocosto_descripcion: string | null;
+  estado_consolidado: HorasExtraEstadoConsolidado;
+  estado_label: string;
+  empleados: HorasExtraDetalleEmpleado[];
+  gerentes_regionales: HorasExtraAprobadorAsignado[];
+  director_asignado: HorasExtraAprobadorAsignado | null;
+  firmas: HorasExtraFirma[];
+  historial: HorasExtraHistorialEvento[];
+  mi_tipo_firma: HorasExtraTipoFirma | null;
+  mi_tipo_firma_label: string | null;
+  puede_aprobar: boolean;
+  puede_rechazar: boolean;
 };
 
 export type HorasExtraAprobacionError = {
@@ -119,6 +184,15 @@ export async function getHorasExtraPendientes(
     `/api/v1/nominas/horas-extra/aprobaciones/pendientes?${sp.toString()}`,
   );
   return unwrap<HorasExtraPendientesListResponse>(res);
+}
+
+export async function getHorasExtraAprobacionDetalle(
+  solicitudId: number,
+): Promise<HorasExtraAprobacionDetalle> {
+  const res = await fetchWithAuth(
+    `/api/v1/nominas/horas-extra/aprobaciones/${solicitudId}`,
+  );
+  return unwrap<HorasExtraAprobacionDetalle>(res);
 }
 
 export async function aprobarHorasExtra(

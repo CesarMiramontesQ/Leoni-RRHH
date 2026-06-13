@@ -8,6 +8,7 @@ from app.models.empleados import Empleado
 from app.schemas.horas_extra import HorasExtraListResponse, HorasExtraTabFiltro
 from app.schemas.horas_extra_aprobacion import (
     HorasExtraAprobarRequest,
+    HorasExtraAprobacionDetalleResponse,
     HorasExtraEstadoConsolidadoResponse,
     HorasExtraHistorialResponse,
     HorasExtraPendientesListResponse,
@@ -119,6 +120,18 @@ async def list_horas_extra_pendientes(
         centrocosto_id=centrocosto_id,
         semana_inicio=semana_inicio,
     )
+
+
+@router.get(
+    "/horas-extra/aprobaciones/{solicitud_id}",
+    response_model=HorasExtraAprobacionDetalleResponse,
+)
+async def detalle_horas_extra_aprobacion(
+    solicitud_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: HorasExtraAprobacionService = Depends(_aprob_svc),
+):
+    return await svc.obtener_detalle_aprobacion(solicitud_id, current_user)
 
 
 @router.post(

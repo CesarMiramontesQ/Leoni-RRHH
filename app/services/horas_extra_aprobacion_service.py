@@ -23,13 +23,19 @@ from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundE
 from app.models.empleados import Empleado
 from app.models.horas_extra import HorasExtraAprobacion, HorasExtraSolicitud
 from app.repositories.horas_extra_aprobacion_repository import (
+    HE_AUDIT_APPROVED,
+    HE_AUDIT_REJECTED,
     HorasExtraAprobacionRepository,
 )
 from app.schemas.horas_extra_aprobacion import (
     ESTADO_CONSOLIDADO_LABELS,
     TIPO_FIRMA_LABELS,
+    HorasExtraAprobacionDetalleResponse,
+    HorasExtraAprobadorAsignadoItem,
+    HorasExtraDetalleEmpleadoItem,
     HorasExtraEstadoConsolidadoResponse,
     HorasExtraFirmaResponse,
+    HorasExtraHistorialEvento,
     HorasExtraHistorialResponse,
     HorasExtraPendienteItem,
     HorasExtraPendientesListResponse,
@@ -180,6 +186,141 @@ class HorasExtraAprobacionService:
         orden = {"gerente_regional": 0, "director_planta": 1, "gerente_area": 2}
         return sorted(aprobaciones, key=lambda a: orden.get(a.tipo_firma, 9))
 
+    @staticmethod
+    def _empleado_resumen(solicitud: HorasExtraSolicitud) -> tuple[str | None, str | None]:
+        if not solicitud.detalle:
+            return None, None
+        if len(solicitud.detalle) == 1:
+            emp = solicitud.detalle[0].empleado
+            nombre = emp.nombre if emp else None
+            puesto = emp.puesto.descripcion if emp and emp.puesto else None
+            return nombre, puesto
+        return f"{len(solicitud.detalle)} empleados", None
+
+    def _build_historial_eventos(
+        self, solicitud: HorasExtraSolicitud, audit_entries
+    ) -> list[HorasExtraHistorialEvento]:
+        eventos: list[HorasExtraHistorialEvento] = []
+        accion_labels = {
+            "HE_SOLICITUD_VIEWED": "Solicitud visualizada",
+            "HE_SOLICITUD_APPROVED": "Aprobado",
+            "HE_SOLICITUD_REJECTED": "Rechazado",
+        }
+        for entry in audit_entries:
+            if entry.accion != "HE_SOLICITUD_VIEWED":
+                continue
+            datos = entry.datos_despues or {}
+            eventos.append(
+                HorasExtraHistorialEvento(
+                    usuario_nombre=(
+                        datos.get("usuario_nombre")
+                        or (entry.usuario.nombre if entry.usuario else "Sistema")
+                    ),
+                    rol=datos.get("rol")
+                    or (
+                        entry.usuario.rol.nombre
+                        if entry.usuario and entry.usuario.rol
+                        else None
+                    ),
+                    accion=accion_labels.get(entry.accion, entry.accion),
+                    comentario=datos.get("comentario"),
+                    fecha_hora=entry.timestamp,
+                )
+            )
+        for firma in solicitud.aprobaciones:
+            if firma.estado not in ("aprobado", "rechazado") or not firma.fecha_aprobacion:
+                continue
+            eventos.append(
+                HorasExtraHistorialEvento(
+                    usuario_nombre=firma.aprobador.nombre if firma.aprobador else "—",
+                    rol=firma.rol_aprobador_nombre,
+                    accion="Aprobado" if firma.estado == "aprobado" else "Rechazado",
+                    comentario=firma.comentario,
+                    fecha_hora=firma.fecha_aprobacion,
+                )
+            )
+        eventos.sort(key=lambda e: e.fecha_hora, reverse=True)
+        return eventos
+
+    async def _require_visualizacion_previa(
+        self, solicitud_id: int, usuario_id: int
+    ) -> None:
+        if not await self.repo.usuario_visualizo_solicitud(usuario_id, solicitud_id):
+            raise DomainValidationError(
+                detail=(
+                    "Debes abrir y revisar la solicitud en el detalle "
+                    "antes de aprobar o rechazar."
+                )
+            )
+
+    async def _aprobadores_asignados(
+        self,
+    ) -> tuple[list[HorasExtraAprobadorAsignadoItem], HorasExtraAprobadorAsignadoItem | None]:
+        gerentes = await self.repo.empleados_aprobadores_por_tipo("gerente_regional")
+        directores = await self.repo.empleados_aprobadores_por_tipo("director")
+        gerentes_items = [
+            HorasExtraAprobadorAsignadoItem(nombre=g.nombre, email=g.email)
+            for g in gerentes
+        ]
+        director_item = (
+            HorasExtraAprobadorAsignadoItem(
+                nombre=directores[0].nombre, email=directores[0].email
+            )
+            if directores
+            else None
+        )
+        return gerentes_items, director_item
+
+    def _detalle_empleados(
+        self, solicitud: HorasExtraSolicitud
+    ) -> list[HorasExtraDetalleEmpleadoItem]:
+        cc_desc = (
+            solicitud.centro_costo.descripcion if solicitud.centro_costo else None
+        )
+        sub_desc = solicitud.subarea.descripcion if solicitud.subarea else None
+        area_desc = solicitud.area.descripcion if solicitud.area else None
+        rows: list[HorasExtraDetalleEmpleadoItem] = []
+        for det in sorted(solicitud.detalle, key=lambda d: (d.empleado.nombre if d.empleado else "")):
+            emp = det.empleado
+            if emp is None:
+                continue
+            rows.append(
+                HorasExtraDetalleEmpleadoItem(
+                    empleado_id=emp.id,
+                    no_empleado=emp.no_empleado,
+                    nombre=emp.nombre,
+                    puesto_descripcion=emp.puesto.descripcion if emp.puesto else None,
+                    departamento_descripcion=emp.area.descripcion if emp.area else area_desc,
+                    centrocosto_descripcion=cc_desc,
+                    subarea_descripcion=emp.subarea.descripcion if emp.subarea else sub_desc,
+                    jefe_nombre=emp.lider.nombre if emp.lider else None,
+                    total_horas=round(float(det.total_horas), 2),
+                    lunes=float(det.lunes),
+                    martes=float(det.martes),
+                    miercoles=float(det.miercoles),
+                    jueves=float(det.jueves),
+                    viernes=float(det.viernes),
+                    sabado=float(det.sabado),
+                    domingo=float(det.domingo),
+                )
+            )
+        return rows
+
+    async def _mi_firma_pendiente(
+        self, solicitud: HorasExtraSolicitud, current_user: Empleado
+    ) -> HorasExtraAprobacion | None:
+        tipos = await self.repo.tipos_firma_de_empleado(current_user.id)
+        if not tipos:
+            return None
+        return next(
+            (
+                a
+                for a in solicitud.aprobaciones
+                if a.tipo_firma in tipos and a.estado == "pendiente"
+            ),
+            None,
+        )
+
     async def _solicitud_o_404(self, solicitud_id: int) -> HorasExtraSolicitud:
         solicitud = await self.repo.get_solicitud_full(solicitud_id)
         if solicitud is None:
@@ -209,6 +350,9 @@ class HorasExtraAprobacionService:
             return HorasExtraPendientesListResponse(
                 items=[], total=0, page=page, page_size=page_size
             )
+
+        await self.repo.sincronizar_firmas_abiertas()
+        await self.db.commit()
 
         total = await self.repo.count_pendientes(
             tipos,
@@ -241,6 +385,7 @@ class HorasExtraAprobacionService:
             if mi_firma is None:
                 continue
             cons = estado_consolidado(s.aprobaciones)
+            empleado_resumen, puesto_desc = self._empleado_resumen(s)
             items.append(
                 HorasExtraPendienteItem(
                     solicitud_id=s.id,
@@ -249,6 +394,7 @@ class HorasExtraAprobacionService:
                     fecha_solicitud=s.fecha_solicitud,
                     tipo=s.tipo,
                     area_descripcion=s.area.descripcion if s.area else None,
+                    subarea_descripcion=s.subarea.descripcion if s.subarea else None,
                     centrocosto_id=s.centrocosto_id,
                     centrocosto_descripcion=(
                         s.centro_costo.descripcion if s.centro_costo else None
@@ -256,6 +402,8 @@ class HorasExtraAprobacionService:
                     motivo=s.motivo.descripcion if s.motivo else None,
                     total_horas=self._total_horas(s),
                     total_empleados=len(s.detalle),
+                    empleado_resumen=empleado_resumen,
+                    puesto_descripcion=puesto_desc,
                     registrado_por_nombre=(
                         s.registrado_por.nombre if s.registrado_por else None
                     ),
@@ -263,11 +411,86 @@ class HorasExtraAprobacionService:
                     mi_tipo_firma_label=TIPO_FIRMA_LABELS.get(mi_firma, mi_firma),
                     estado_consolidado=cons,
                     aprobado_parcial=cons == "aprobado_parcial",
+                    created_at=s.created_at,
                 )
             )
 
         return HorasExtraPendientesListResponse(
             items=items, total=total, page=page, page_size=page_size
+        )
+
+    async def obtener_detalle_aprobacion(
+        self, solicitud_id: int, current_user: Empleado
+    ) -> HorasExtraAprobacionDetalleResponse:
+        tipos = await self.repo.tipos_firma_de_empleado(current_user.id)
+        if not tipos:
+            raise ForbiddenError(
+                detail="No estás asignado como aprobador de horas extra."
+            )
+
+        await self.repo.sincronizar_firmas_abiertas()
+        await self.db.commit()
+
+        solicitud = await self._solicitud_o_404(solicitud_id)
+        mi_firma = await self._mi_firma_pendiente(solicitud, current_user)
+        if mi_firma is None and solicitud.estado == "pendiente":
+            raise ForbiddenError(
+                detail="No tienes una firma pendiente en esta solicitud."
+            )
+
+        await self.repo.registrar_visualizacion(
+            usuario_id=current_user.id,
+            solicitud_id=solicitud_id,
+            rol_nombre=current_user.rol.nombre if current_user.rol else None,
+            usuario_nombre=current_user.nombre,
+        )
+        await self.db.commit()
+
+        cons = estado_consolidado(solicitud.aprobaciones)
+        gerentes, director = await self._aprobadores_asignados()
+        audit_entries = await self.repo.list_eventos_auditoria(solicitud_id)
+        historial = self._build_historial_eventos(solicitud, audit_entries)
+        puede_actuar = mi_firma is not None and solicitud.estado == "pendiente"
+
+        return HorasExtraAprobacionDetalleResponse(
+            solicitud_id=solicitud.id,
+            fecha_solicitud=solicitud.fecha_solicitud,
+            semana=solicitud.semana_inicio.isocalendar()[1],
+            semana_inicio=solicitud.semana_inicio,
+            tipo=solicitud.tipo,
+            motivo=solicitud.motivo.descripcion if solicitud.motivo else None,
+            comentarios=solicitud.comentarios,
+            total_horas=self._total_horas(solicitud),
+            total_empleados=len(solicitud.detalle),
+            created_at=solicitud.created_at,
+            registrado_por_nombre=(
+                solicitud.registrado_por.nombre if solicitud.registrado_por else None
+            ),
+            area_descripcion=solicitud.area.descripcion if solicitud.area else None,
+            subarea_descripcion=(
+                solicitud.subarea.descripcion if solicitud.subarea else None
+            ),
+            centrocosto_descripcion=(
+                solicitud.centro_costo.descripcion if solicitud.centro_costo else None
+            ),
+            estado_consolidado=cons,
+            estado_label=ESTADO_CONSOLIDADO_LABELS[cons],
+            empleados=self._detalle_empleados(solicitud),
+            gerentes_regionales=gerentes,
+            director_asignado=director,
+            firmas=[
+                self._firma_response(a)
+                for a in self._firmas_ordenadas(solicitud.aprobaciones)
+            ],
+            historial=historial,
+            mi_tipo_firma=mi_firma.tipo_firma if mi_firma else None,
+            mi_tipo_firma_label=(
+                TIPO_FIRMA_LABELS.get(mi_firma.tipo_firma, mi_firma.tipo_firma)
+                if mi_firma
+                else None
+            ),
+            puede_aprobar=puede_actuar,
+            puede_rechazar=puede_actuar,
         )
 
     # ── Aprobar / Rechazar ──
@@ -325,6 +548,7 @@ class HorasExtraAprobacionService:
         solicitud = await self._solicitud_o_404(solicitud_id)
         self._validar_solicitud_accionable(solicitud)
         firma = await self._firma_objetivo(solicitud, current_user)
+        await self._require_visualizacion_previa(solicitud_id, current_user.id)
 
         firma.estado = "aprobado"
         firma.aprobador_id = current_user.id
@@ -336,6 +560,15 @@ class HorasExtraAprobacionService:
         firma.comentario = comentario
 
         solicitud.estado = calcular_estado(solicitud.aprobaciones)
+        await self.repo.registrar_decision_auditoria(
+            accion=HE_AUDIT_APPROVED,
+            usuario_id=current_user.id,
+            solicitud_id=solicitud_id,
+            rol_nombre=current_user.rol.nombre if current_user.rol else None,
+            usuario_nombre=current_user.nombre,
+            comentario=comentario,
+            tipo_firma=firma.tipo_firma,
+        )
         await self.db.commit()
 
         await self._notificar_aprobacion(
@@ -358,6 +591,7 @@ class HorasExtraAprobacionService:
         solicitud = await self._solicitud_o_404(solicitud_id)
         self._validar_solicitud_accionable(solicitud)
         firma = await self._firma_objetivo(solicitud, current_user)
+        await self._require_visualizacion_previa(solicitud_id, current_user.id)
 
         firma.estado = "rechazado"
         firma.aprobador_id = current_user.id
@@ -369,6 +603,15 @@ class HorasExtraAprobacionService:
         firma.comentario = comentario.strip()
 
         solicitud.estado = calcular_estado(solicitud.aprobaciones)
+        await self.repo.registrar_decision_auditoria(
+            accion=HE_AUDIT_REJECTED,
+            usuario_id=current_user.id,
+            solicitud_id=solicitud_id,
+            rol_nombre=current_user.rol.nombre if current_user.rol else None,
+            usuario_nombre=current_user.nombre,
+            comentario=comentario.strip(),
+            tipo_firma=firma.tipo_firma,
+        )
         await self.db.commit()
 
         await self._notificar_rechazo(
@@ -391,6 +634,7 @@ class HorasExtraAprobacionService:
         self._require_lectura(current_user)
         solicitud = await self._solicitud_o_404(solicitud_id)
         cons = estado_consolidado(solicitud.aprobaciones)
+        audit_entries = await self.repo.list_eventos_auditoria(solicitud_id)
         return HorasExtraHistorialResponse(
             solicitud_id=solicitud.id,
             estado=cons,
@@ -399,6 +643,7 @@ class HorasExtraAprobacionService:
                 self._firma_response(a)
                 for a in self._firmas_ordenadas(solicitud.aprobaciones)
             ],
+            eventos=self._build_historial_eventos(solicitud, audit_entries),
         )
 
     def _estado_response(
@@ -527,6 +772,12 @@ async def seed_firmas_solicitud(db: AsyncSession, solicitud_id: int) -> set[str]
     tipos = await repo.tipos_firma_para_seed()
     await repo.crear_firmas_pendientes(solicitud_id, tipos)
     return tipos
+
+
+async def sincronizar_firmas_abiertas(db: AsyncSession) -> None:
+    """Backfill de firmas faltantes (p. ej. director agregado después de crear solicitudes)."""
+    repo = HorasExtraAprobacionRepository(db)
+    await repo.sincronizar_firmas_abiertas()
 
 
 async def notificar_solicitud_creada(

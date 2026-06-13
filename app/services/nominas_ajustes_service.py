@@ -210,6 +210,9 @@ class NominasAjustesService:
             )
 
         await self.repo.add_aprobadores(ids, data.tipo, creado_por_id=current_user.id)
+        from app.services.horas_extra_aprobacion_service import sincronizar_firmas_abiertas
+
+        await sincronizar_firmas_abiertas(self.db)
         await self.db.commit()
         return await self.listar_aprobadores()
 
@@ -230,6 +233,10 @@ class NominasAjustesService:
             )
 
         aprobador.activo = data.activo
+        if data.activo:
+            from app.services.horas_extra_aprobacion_service import sincronizar_firmas_abiertas
+
+            await sincronizar_firmas_abiertas(self.db)
         await self.db.commit()
         return await self.listar_aprobadores()
 

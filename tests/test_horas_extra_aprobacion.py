@@ -136,17 +136,28 @@ async def test_crear_genera_firmas_pendientes(ciclo, db):
     assert tipos == {"gerente_regional": "pendiente", "director_planta": "pendiente"}
 
 
+async def _ver_detalle(client, usuario, solicitud_id: int):
+    headers = await auth_headers(client, usuario)
+    resp = await client.get(
+        f"{NOMINAS}/horas-extra/aprobaciones/{solicitud_id}", headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    return resp
+
+
 @pytest.mark.asyncio
 async def test_flujo_completo_aprobado(ciclo, client):
     sid = ciclo["solicitud_id"]
 
     gh = await auth_headers(client, ciclo["gerente"])
+    await _ver_detalle(client, ciclo["gerente"], sid)
     r1 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
     assert r1.status_code == 200, r1.text
     assert r1.json()["estado"] == "aprobado_parcial"
     assert r1.json()["listo_para_nomina"] is False
 
     dh = await auth_headers(client, ciclo["director"])
+    await _ver_detalle(client, ciclo["director"], sid)
     r2 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=dh, json={})
     assert r2.status_code == 200, r2.text
     body = r2.json()
@@ -158,6 +169,7 @@ async def test_flujo_completo_aprobado(ciclo, client):
 @pytest.mark.asyncio
 async def test_solo_gerente_no_es_aprobado(ciclo, client):
     sid = ciclo["solicitud_id"]
+    await _ver_detalle(client, ciclo["gerente"], sid)
     gh = await auth_headers(client, ciclo["gerente"])
     r = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
     assert r.status_code == 200
@@ -168,6 +180,7 @@ async def test_solo_gerente_no_es_aprobado(ciclo, client):
 @pytest.mark.asyncio
 async def test_solo_director_no_es_aprobado(ciclo, client):
     sid = ciclo["solicitud_id"]
+    await _ver_detalle(client, ciclo["director"], sid)
     dh = await auth_headers(client, ciclo["director"])
     r = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=dh, json={})
     assert r.status_code == 200
@@ -178,6 +191,7 @@ async def test_solo_director_no_es_aprobado(ciclo, client):
 @pytest.mark.asyncio
 async def test_rechazo_gerente_cancela(ciclo, client):
     sid = ciclo["solicitud_id"]
+    await _ver_detalle(client, ciclo["gerente"], sid)
     gh = await auth_headers(client, ciclo["gerente"])
     r = await client.post(
         f"{NOMINAS}/horas-extra/{sid}/rechazar",
@@ -216,6 +230,7 @@ async def test_usuario_no_asignado_no_puede_aprobar(ciclo, client, db):
 @pytest.mark.asyncio
 async def test_no_doble_aprobacion_mismo_tipo(ciclo, client, db):
     sid = ciclo["solicitud_id"]
+    await _ver_detalle(client, ciclo["gerente"], sid)
     gh = await auth_headers(client, ciclo["gerente"])
     r1 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
     assert r1.status_code == 200
@@ -236,13 +251,70 @@ async def test_basta_un_gerente_regional(ciclo, client, db):
     await _registrar_aprobador(db, gerente2, "gerente_regional")
 
     gh2 = await auth_headers(client, gerente2)
+    await _ver_detalle(client, gerente2, sid)
     r1 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh2, json={})
     assert r1.status_code == 200
     assert r1.json()["estado"] == "aprobado_parcial"
 
     dh = await auth_headers(client, ciclo["director"])
+    await _ver_detalle(client, ciclo["director"], sid)
     r2 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=dh, json={})
     assert r2.json()["estado"] == "aprobado"
+
+
+@pytest.mark.asyncio
+async def test_director_ve_solicitud_tras_aprobacion_parcial(ciclo, client):
+    sid = ciclo["solicitud_id"]
+
+    gh = await auth_headers(client, ciclo["gerente"])
+    await _ver_detalle(client, ciclo["gerente"], sid)
+    r1 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["estado"] == "aprobado_parcial"
+
+    dh = await auth_headers(client, ciclo["director"])
+    pend = await client.get(
+        f"{NOMINAS}/horas-extra/aprobaciones/pendientes", headers=dh
+    )
+    assert pend.status_code == 200, pend.text
+    body = pend.json()
+    assert body["total"] == 1
+    assert body["items"][0]["solicitud_id"] == sid
+    assert body["items"][0]["mi_tipo_firma"] == "director_planta"
+    assert body["items"][0]["estado_consolidado"] == "aprobado_parcial"
+
+
+@pytest.mark.asyncio
+async def test_director_agregado_despues_ve_solicitud_abierta(ciclo, client, db):
+    """Si la solicitud se creó sin director, al agregarlo debe aparecer en pendientes."""
+    from sqlalchemy import delete
+
+    sid = ciclo["solicitud_id"]
+    director = ciclo["director"]
+
+    # Simula solicitud creada antes de tener director configurado.
+    await db.execute(
+        delete(HorasExtraAprobacion).where(
+            HorasExtraAprobacion.solicitud_id == sid,
+            HorasExtraAprobacion.tipo_firma == "director_planta",
+        )
+    )
+    await db.flush()
+
+    gh = await auth_headers(client, ciclo["gerente"])
+    await _ver_detalle(client, ciclo["gerente"], sid)
+    r1 = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
+    assert r1.status_code == 200, r1.text
+
+    dh = await auth_headers(client, director)
+    pend = await client.get(
+        f"{NOMINAS}/horas-extra/aprobaciones/pendientes", headers=dh
+    )
+    assert pend.status_code == 200, pend.text
+    body = pend.json()
+    assert body["total"] == 1
+    assert body["items"][0]["solicitud_id"] == sid
+    assert body["items"][0]["mi_tipo_firma"] == "director_planta"
 
 
 @pytest.mark.asyncio
@@ -284,6 +356,7 @@ async def test_estado_e_historial_para_rh(ciclo, client, db):
 
     # Gerente aprueba; historial refleja la firma.
     gh = await auth_headers(client, ciclo["gerente"])
+    await _ver_detalle(client, ciclo["gerente"], sid)
     await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
 
     hist = await client.get(f"{NOMINAS}/horas-extra/{sid}/historial", headers=rhh)
@@ -332,9 +405,38 @@ async def test_aprobador_es_por_designacion_no_por_rol(ciclo, client, db):
     )
     assert pend.json()["total"] == 1
 
+    await _ver_detalle(client, aprobador_emp, sid)
     r = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=headers, json={})
     assert r.status_code == 200
     assert r.json()["estado"] == "aprobado_parcial"
+
+
+@pytest.mark.asyncio
+async def test_aprobar_sin_visualizar_previa_falla(ciclo, client):
+    sid = ciclo["solicitud_id"]
+    gh = await auth_headers(client, ciclo["gerente"])
+    r = await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
+    assert r.status_code == 422
+    assert "revisar" in r.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_detalle_registra_visualizacion(ciclo, client, db):
+    from sqlalchemy import select
+
+    from app.models.auditoria import AuditLog
+    from app.repositories.horas_extra_aprobacion_repository import HE_AUDIT_VIEWED
+
+    sid = ciclo["solicitud_id"]
+    await _ver_detalle(client, ciclo["gerente"], sid)
+    result = await db.execute(
+        select(AuditLog).where(
+            AuditLog.accion == HE_AUDIT_VIEWED,
+            AuditLog.entidad_id == sid,
+            AuditLog.usuario_id == ciclo["gerente"].id,
+        )
+    )
+    assert result.scalar_one_or_none() is not None
 
 
 @pytest.mark.asyncio

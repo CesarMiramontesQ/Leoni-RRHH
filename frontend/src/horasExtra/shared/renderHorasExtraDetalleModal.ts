@@ -120,7 +120,7 @@ function renderDetalleColaboradores(det: HorasExtraSolicitudResponse): string {
     .join("");
 }
 
-function renderDetalleResumenCard(det: HorasExtraSolicitudResponse): string {
+export function renderDetalleResumenCard(det: HorasExtraSolicitudResponse): string {
   return `
     <section class="${DETALLE_RESUMEN_CARD}">
       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -179,7 +179,7 @@ function renderDetalleResumenCard(det: HorasExtraSolicitudResponse): string {
     </section>`;
 }
 
-function renderDetalleHorasGrid(filas: DetalleFilaHoras[], diasColumnas: DiaColumnaHoras[]): string {
+export function renderDetalleHorasGrid(filas: DetalleFilaHoras[], diasColumnas: DiaColumnaHoras[]): string {
   if (!filas.length) return "";
 
   const body = filas
@@ -218,7 +218,7 @@ function renderDetalleHorasGrid(filas: DetalleFilaHoras[], diasColumnas: DiaColu
     </div>`;
 }
 
-function renderDetalleHorasSection(det: HorasExtraSolicitudResponse): string {
+export function renderDetalleHorasSection(det: HorasExtraSolicitudResponse): string {
   const filas = det.detalle.map((d) => ({
     lunes: String(d.lunes),
     martes: String(d.martes),

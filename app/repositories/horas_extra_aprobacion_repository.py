@@ -6,6 +6,7 @@ from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
 from app.models.horas_extra import (
     HorasExtraAprobacion,
@@ -19,6 +20,11 @@ APROBADOR_TIPO_A_FIRMA: dict[str, str] = {
     "gerente_regional": "gerente_regional",
     "director": "director_planta",
 }
+
+HE_AUDIT_MODULO = "horas_extra"
+HE_AUDIT_VIEWED = "HE_SOLICITUD_VIEWED"
+HE_AUDIT_APPROVED = "HE_SOLICITUD_APPROVED"
+HE_AUDIT_REJECTED = "HE_SOLICITUD_REJECTED"
 
 
 class HorasExtraAprobacionRepository:
@@ -103,7 +109,27 @@ class HorasExtraAprobacionRepository:
             await self.db.flush()
         return nuevas
 
+    async def list_solicitudes_abiertas_ids(self) -> list[int]:
+        """Solicitudes aún en flujo de aprobación (no aprobadas ni rechazadas)."""
+        result = await self.db.execute(
+            select(HorasExtraSolicitud.id).where(
+                HorasExtraSolicitud.estado == "pendiente"
+            )
+        )
+        return [row[0] for row in result.all()]
+
+    async def sincronizar_firmas_abiertas(self) -> None:
+        """Crea firmas faltantes en solicitudes abiertas según aprobadores activos."""
+        tipos = await self.tipos_firma_para_seed()
+        if not tipos:
+            return
+        for solicitud_id in await self.list_solicitudes_abiertas_ids():
+            await self.crear_firmas_pendientes(solicitud_id, tipos)
+
     async def get_solicitud_full(self, solicitud_id: int) -> HorasExtraSolicitud | None:
+        detalle_empleado = selectinload(HorasExtraSolicitud.detalle).selectinload(
+            HorasExtraSolicitudDetalle.empleado
+        )
         result = await self.db.execute(
             select(HorasExtraSolicitud)
             .options(
@@ -112,9 +138,10 @@ class HorasExtraAprobacionRepository:
                 selectinload(HorasExtraSolicitud.centro_costo),
                 selectinload(HorasExtraSolicitud.motivo),
                 selectinload(HorasExtraSolicitud.registrado_por),
-                selectinload(HorasExtraSolicitud.detalle).selectinload(
-                    HorasExtraSolicitudDetalle.empleado
-                ),
+                detalle_empleado.selectinload(Empleado.puesto),
+                detalle_empleado.selectinload(Empleado.area),
+                detalle_empleado.selectinload(Empleado.subarea),
+                detalle_empleado.selectinload(Empleado.lider),
                 selectinload(HorasExtraSolicitud.aprobaciones).selectinload(
                     HorasExtraAprobacion.aprobador
                 ),
@@ -227,9 +254,13 @@ class HorasExtraAprobacionRepository:
             select(HorasExtraSolicitud)
             .options(
                 selectinload(HorasExtraSolicitud.area),
+                selectinload(HorasExtraSolicitud.subarea),
                 selectinload(HorasExtraSolicitud.centro_costo),
                 selectinload(HorasExtraSolicitud.motivo),
                 selectinload(HorasExtraSolicitud.registrado_por),
+                selectinload(HorasExtraSolicitud.detalle).selectinload(
+                    HorasExtraSolicitudDetalle.empleado
+                ).selectinload(Empleado.puesto),
                 selectinload(HorasExtraSolicitud.detalle),
                 selectinload(HorasExtraSolicitud.aprobaciones),
             )
@@ -243,3 +274,87 @@ class HorasExtraAprobacionRepository:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().unique().all())
+
+    async def usuario_visualizo_solicitud(
+        self, usuario_id: int, solicitud_id: int
+    ) -> bool:
+        stmt = (
+            select(func.count())
+            .select_from(AuditLog)
+            .where(
+                AuditLog.modulo == HE_AUDIT_MODULO,
+                AuditLog.accion == HE_AUDIT_VIEWED,
+                AuditLog.entidad_id == solicitud_id,
+                AuditLog.usuario_id == usuario_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one() or 0) > 0
+
+    async def registrar_visualizacion(
+        self,
+        *,
+        usuario_id: int,
+        solicitud_id: int,
+        rol_nombre: str | None,
+        usuario_nombre: str,
+    ) -> None:
+        entry = AuditLog(
+            usuario_id=usuario_id,
+            accion=HE_AUDIT_VIEWED,
+            modulo=HE_AUDIT_MODULO,
+            entidad_id=solicitud_id,
+            datos_despues={
+                "rol": rol_nombre,
+                "usuario_nombre": usuario_nombre,
+                "solicitud_id": solicitud_id,
+            },
+        )
+        self.db.add(entry)
+        await self.db.flush()
+
+    async def registrar_decision_auditoria(
+        self,
+        *,
+        accion: str,
+        usuario_id: int,
+        solicitud_id: int,
+        rol_nombre: str | None,
+        usuario_nombre: str,
+        comentario: str | None,
+        tipo_firma: str,
+    ) -> None:
+        entry = AuditLog(
+            usuario_id=usuario_id,
+            accion=accion,
+            modulo=HE_AUDIT_MODULO,
+            entidad_id=solicitud_id,
+            datos_despues={
+                "rol": rol_nombre,
+                "usuario_nombre": usuario_nombre,
+                "tipo_firma": tipo_firma,
+                "comentario": comentario,
+            },
+        )
+        self.db.add(entry)
+        await self.db.flush()
+
+    async def list_eventos_auditoria(self, solicitud_id: int) -> list[AuditLog]:
+        stmt = (
+            select(AuditLog)
+            .options(selectinload(AuditLog.usuario).selectinload(Empleado.rol))
+            .where(
+                AuditLog.modulo == HE_AUDIT_MODULO,
+                AuditLog.entidad_id == solicitud_id,
+                AuditLog.accion.in_(
+                    [
+                        HE_AUDIT_VIEWED,
+                        HE_AUDIT_APPROVED,
+                        HE_AUDIT_REJECTED,
+                    ]
+                ),
+            )
+            .order_by(AuditLog.timestamp.asc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

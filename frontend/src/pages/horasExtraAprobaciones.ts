@@ -1,20 +1,23 @@
 /**
- * Vista de aprobación de horas extra para gerente regional y director.
- * El backend resuelve qué firma corresponde al usuario según su designación.
+ * Listado de solicitudes pendientes de aprobación (Ver solicitud abre modal estilo RH).
  */
 
 import {
   aprobarHorasExtra,
+  getHorasExtraAprobacionDetalle,
   getHorasExtraPendientes,
   rechazarHorasExtra,
   type HorasExtraAprobacionError,
   type HorasExtraPendiente,
 } from "../api/horasExtraAprobacion.ts";
+import {
+  renderHorasExtraAprobacionDetalleModalSlot,
+  renderHorasExtraAprobacionRechazoModal,
+  type HorasExtraAprobacionDetalleModalState,
+} from "../horasExtra/shared/renderHorasExtraAprobacionDetalleModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
-  BTN_DANGER,
   BTN_GHOST,
-  BTN_PRIMARY,
   BTN_SECONDARY,
   RH_LISTADO_SURFACE,
   badgeApproved,
@@ -26,6 +29,11 @@ const SHELL_OPTS = {
   pageTitle: "Aprobación de Horas Extra",
   activeNav: "horas-extra-aprobaciones" as const,
   mainClass: "py-6",
+};
+
+const EMPTY_DETALLE_MODAL: HorasExtraAprobacionDetalleModalState = {
+  status: "idle",
+  detalle: null,
 };
 
 type RechazoState = {
@@ -40,7 +48,7 @@ type PageState = {
   items: HorasExtraPendiente[];
   total: number;
   error?: string;
-  actingId: number | null;
+  detalleModal: HorasExtraAprobacionDetalleModalState;
   rechazo: RechazoState | null;
   toast?: { tone: "ok" | "error"; message: string };
 };
@@ -51,6 +59,25 @@ function esc(value: unknown): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function fmtFecha(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtFechaHora(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function estadoBadge(item: HorasExtraPendiente): string {
@@ -64,21 +91,20 @@ function estadoBadge(item: HorasExtraPendiente): string {
 
 function renderRow(item: HorasExtraPendiente): string {
   return `
-    <tr class="border-t border-slate-100">
-      <td class="px-4 py-3">
-        <div class="font-medium text-slate-800">${esc(item.registrado_por_nombre ?? "—")}</div>
-        <div class="text-xs text-slate-500">${item.total_empleados} empleado(s) · ${esc(item.motivo ?? "Sin motivo")}</div>
-      </td>
-      <td class="px-4 py-3 text-slate-700">Sem. ${item.semana}<div class="text-xs text-slate-500">${esc(item.semana_inicio)}</div></td>
-      <td class="px-4 py-3 text-slate-700">${esc(item.area_descripcion ?? "—")}<div class="text-xs text-slate-500">${esc(item.centrocosto_descripcion ?? "")}</div></td>
+    <tr class="border-t border-slate-100 hover:bg-slate-50/60">
+      <td class="px-4 py-3 font-medium text-slate-800">#${item.solicitud_id}</td>
+      <td class="px-4 py-3 text-slate-700">${esc(item.empleado_resumen ?? "—")}</td>
+      <td class="px-4 py-3 text-slate-700">${esc(item.puesto_descripcion ?? "—")}</td>
+      <td class="px-4 py-3 text-slate-700">${esc(item.area_descripcion ?? "—")}</td>
+      <td class="px-4 py-3 text-slate-700">${esc(item.subarea_descripcion ?? "—")}</td>
+      <td class="px-4 py-3 text-slate-700">${fmtFecha(item.fecha_solicitud)}</td>
       <td class="px-4 py-3 text-right font-semibold text-slate-800">${item.total_horas}</td>
-      <td class="px-4 py-3">${esc(item.mi_tipo_firma_label)}</td>
       <td class="px-4 py-3">${estadoBadge(item)}</td>
-      <td class="px-4 py-3">
-        <div class="flex justify-end gap-2">
-          <button type="button" class="${BTN_PRIMARY}" data-he-aprobar="${item.solicitud_id}">Aprobar</button>
-          <button type="button" class="${BTN_DANGER}" data-he-rechazar="${item.solicitud_id}">Rechazar</button>
-        </div>
+      <td class="px-4 py-3 text-slate-600">${fmtFechaHora(item.created_at)}</td>
+      <td class="px-4 py-3 text-right">
+        <button type="button" class="${BTN_SECONDARY}" data-he-aprob-ver-id="${item.solicitud_id}">
+          Ver solicitud
+        </button>
       </td>
     </tr>`;
 }
@@ -98,13 +124,16 @@ function renderContent(state: PageState): string {
       <table class="min-w-full text-sm">
         <thead>
           <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <th class="px-4 py-3">Registrado por</th>
-            <th class="px-4 py-3">Semana</th>
-            <th class="px-4 py-3">Área / Centro costo</th>
-            <th class="px-4 py-3 text-right">Horas</th>
-            <th class="px-4 py-3">Mi firma</th>
+            <th class="px-4 py-3">Folio</th>
+            <th class="px-4 py-3">Empleado</th>
+            <th class="px-4 py-3">Puesto</th>
+            <th class="px-4 py-3">Área</th>
+            <th class="px-4 py-3">Sucursal</th>
+            <th class="px-4 py-3">Fecha</th>
+            <th class="px-4 py-3 text-right">Horas extras</th>
             <th class="px-4 py-3">Estado</th>
-            <th class="px-4 py-3 text-right">Acciones</th>
+            <th class="px-4 py-3">Creación</th>
+            <th class="px-4 py-3 text-right">Acción</th>
           </tr>
         </thead>
         <tbody>${state.items.map(renderRow).join("")}</tbody>
@@ -112,43 +141,18 @@ function renderContent(state: PageState): string {
     </div>`;
 }
 
-function renderRechazoModal(state: PageState): string {
-  if (!state.rechazo) return "";
-  const r = state.rechazo;
-  return `
-    <div id="he-aprob-rechazo-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div class="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
-        <h3 class="text-base font-semibold text-slate-800">Rechazar solicitud</h3>
-        <p class="mt-1 text-sm text-slate-500">El comentario es obligatorio y se enviará a RH.</p>
-        <textarea id="he-aprob-rechazo-comentario" rows="4"
-          class="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-leoni-blue focus:outline-none focus:ring-1 focus:ring-leoni-blue"
-          placeholder="Motivo del rechazo…">${esc(r.comentario)}</textarea>
-        ${r.error ? `<div class="mt-2 text-sm text-red-600">${esc(r.error)}</div>` : ""}
-        <div class="mt-4 flex justify-end gap-2">
-          <button type="button" class="${BTN_SECONDARY}" data-he-rechazo-cancelar>Cancelar</button>
-          <button type="button" class="${BTN_DANGER}" data-he-rechazo-confirmar ${r.submitting ? "disabled" : ""}>
-            ${r.submitting ? "Enviando…" : "Confirmar rechazo"}
-          </button>
-        </div>
-      </div>
-    </div>`;
-}
-
 function renderToast(state: PageState): string {
   if (!state.toast) return "";
-  const tone =
-    state.toast.tone === "ok"
-      ? "bg-emerald-600"
-      : "bg-red-600";
-  return `<div class="fixed bottom-4 right-4 z-50 rounded-lg ${tone} px-4 py-2 text-sm font-medium text-white shadow-lg">${esc(state.toast.message)}</div>`;
+  const tone = state.toast.tone === "ok" ? "bg-emerald-600" : "bg-red-600";
+  return `<div class="fixed bottom-4 right-4 z-[70] rounded-lg ${tone} px-4 py-2 text-sm font-medium text-white shadow-lg">${esc(state.toast.message)}</div>`;
 }
 
 function renderPage(state: PageState): string {
   return `
-    <div id="he-aprob-page" class="mx-auto w-full max-w-6xl px-4">
+    <div id="he-aprob-page" class="mx-auto w-full max-w-7xl px-4">
       <header class="mb-5">
         <h1 class="text-xl font-semibold text-slate-900">Aprobación de Horas Extra</h1>
-        <p class="text-sm text-slate-500">Solicitudes pendientes de tu firma. Total: ${state.total}</p>
+        <p class="text-sm text-slate-500">Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${state.total}</p>
       </header>
       <section class="${RH_LISTADO_SURFACE}">
         <div id="he-aprob-content">${renderContent(state)}</div>
@@ -156,8 +160,9 @@ function renderPage(state: PageState): string {
       <div class="mt-4">
         <button type="button" class="${BTN_GHOST}" data-he-aprob-refrescar>Actualizar</button>
       </div>
-      <div id="he-aprob-modal-slot">${renderRechazoModal(state)}</div>
-      <div id="he-aprob-toast-slot">${renderToast(state)}</div>
+      ${renderHorasExtraAprobacionDetalleModalSlot(state.detalleModal)}
+      <div id="he-aprob-rechazo-modal">${state.rechazo ? renderHorasExtraAprobacionRechazoModal(state.rechazo) : ""}</div>
+      <div id="he-aprob-toast">${renderToast(state)}</div>
     </div>`;
 }
 
@@ -166,7 +171,7 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     status: "loading",
     items: [],
     total: 0,
-    actingId: null,
+    detalleModal: { ...EMPTY_DETALLE_MODAL },
     rechazo: null,
   };
 
@@ -174,35 +179,58 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
 
   const root = (): HTMLElement | null => container.querySelector("#he-aprob-page");
 
+  const errorDetail = (err: unknown, fallback: string): string =>
+    err && typeof err === "object" && "detail" in err
+      ? String((err as HorasExtraAprobacionError).detail)
+      : fallback;
+
   const rerenderContent = () => {
     const r = root();
     if (!r) return;
     const content = r.querySelector("#he-aprob-content");
     if (content) content.innerHTML = renderContent(state);
     const header = r.querySelector("header p");
-    if (header) header.textContent = `Solicitudes pendientes de tu firma. Total: ${state.total}`;
+    if (header) {
+      header.textContent = `Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${state.total}`;
+    }
   };
 
-  const rerenderModal = () => {
-    const slot = root()?.querySelector("#he-aprob-modal-slot");
-    if (slot) slot.innerHTML = renderRechazoModal(state);
+  const renderDetalleModal = () => {
+    const r = root();
+    if (!r) return;
+    const slot = r.querySelector("#he-aprob-detalle-modal");
+    if (slot) slot.outerHTML = renderHorasExtraAprobacionDetalleModalSlot(state.detalleModal);
+  };
+
+  const renderRechazoModal = () => {
+    const r = root();
+    if (!r) return;
+    const slot = r.querySelector("#he-aprob-rechazo-modal");
+    if (slot) {
+      slot.innerHTML = state.rechazo ? renderHorasExtraAprobacionRechazoModal(state.rechazo) : "";
+    }
+  };
+
+  const renderToastSlot = () => {
+    const r = root();
+    if (!r) return;
+    const slot = r.querySelector("#he-aprob-toast");
+    if (slot) slot.innerHTML = renderToast(state);
+  };
+
+  const closeDetalleModal = () => {
+    state.detalleModal = { ...EMPTY_DETALLE_MODAL };
+    renderDetalleModal();
   };
 
   const showToast = (tone: "ok" | "error", message: string) => {
     state.toast = { tone, message };
-    const slot = root()?.querySelector("#he-aprob-toast-slot");
-    if (slot) slot.innerHTML = renderToast(state);
+    renderToastSlot();
     window.setTimeout(() => {
       state.toast = undefined;
-      const s = root()?.querySelector("#he-aprob-toast-slot");
-      if (s) s.innerHTML = "";
+      renderToastSlot();
     }, 3200);
   };
-
-  const errorDetail = (err: unknown, fallback: string): string =>
-    err && typeof err === "object" && "detail" in err
-      ? String((err as HorasExtraAprobacionError).detail)
-      : fallback;
 
   const load = async () => {
     state.status = "loading";
@@ -219,46 +247,68 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     rerenderContent();
   };
 
-  const aprobar = async (solicitudId: number) => {
-    if (state.actingId) return;
-    state.actingId = solicitudId;
+  const openDetalle = async (solicitudId: number) => {
+    state.detalleModal = { status: "loading", detalle: null };
+    renderDetalleModal();
     try {
-      const res = await aprobarHorasExtra(solicitudId);
+      const detalle = await getHorasExtraAprobacionDetalle(solicitudId);
+      state.detalleModal = { status: "idle", detalle, acting: false };
+    } catch (err) {
+      state.detalleModal = {
+        status: "error",
+        detalle: null,
+        error: errorDetail(err, "No se pudo cargar el detalle."),
+      };
+    }
+    renderDetalleModal();
+  };
+
+  const aprobar = async () => {
+    const det = state.detalleModal.detalle;
+    if (!det || state.detalleModal.acting || !det.puede_aprobar) return;
+    state.detalleModal = { ...state.detalleModal, acting: true };
+    renderDetalleModal();
+    try {
+      const res = await aprobarHorasExtra(det.solicitud_id);
       const msg =
         res.estado === "aprobado"
           ? "Solicitud aprobada. Lista para nómina."
           : "Tu aprobación quedó registrada.";
+      closeDetalleModal();
       showToast("ok", msg);
-      await load();
+      void load();
     } catch (err) {
+      state.detalleModal = { ...state.detalleModal, acting: false };
+      renderDetalleModal();
       showToast("error", errorDetail(err, "No se pudo aprobar."));
-    } finally {
-      state.actingId = null;
     }
   };
 
   const confirmarRechazo = async () => {
-    if (!state.rechazo || state.rechazo.submitting) return;
-    const comentario = state.rechazo.comentario.trim();
+    const rechazo = state.rechazo;
+    if (!rechazo || rechazo.submitting) return;
+    const comentario = rechazo.comentario.trim();
     if (!comentario) {
-      state.rechazo.error = "El comentario es obligatorio.";
-      rerenderModal();
+      state.rechazo = { ...rechazo, error: "El comentario es obligatorio." };
+      renderRechazoModal();
       return;
     }
-    state.rechazo.submitting = true;
-    rerenderModal();
+    state.rechazo = { ...rechazo, submitting: true, error: undefined };
+    renderRechazoModal();
     try {
-      await rechazarHorasExtra(state.rechazo.solicitudId, comentario);
+      await rechazarHorasExtra(rechazo.solicitudId, comentario);
       state.rechazo = null;
-      rerenderModal();
+      renderRechazoModal();
+      closeDetalleModal();
       showToast("ok", "Solicitud rechazada.");
-      await load();
+      void load();
     } catch (err) {
-      if (state.rechazo) {
-        state.rechazo.submitting = false;
-        state.rechazo.error = errorDetail(err, "No se pudo rechazar.");
-      }
-      rerenderModal();
+      state.rechazo = {
+        ...rechazo,
+        submitting: false,
+        error: errorDetail(err, "No se pudo rechazar."),
+      };
+      renderRechazoModal();
     }
   };
 
@@ -270,37 +320,56 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
       const target = event.target;
       if (!(target instanceof Element)) return;
 
-      const aprobarBtn = target.closest<HTMLButtonElement>("[data-he-aprobar]");
-      if (aprobarBtn) {
-        void aprobar(Number.parseInt(aprobarBtn.dataset.heAprobar ?? "0", 10));
+      const verBtn = target.closest<HTMLButtonElement>("[data-he-aprob-ver-id]");
+      if (verBtn) {
+        const id = Number.parseInt(verBtn.dataset.heAprobVerId ?? "0", 10);
+        if (id) void openDetalle(id);
         return;
       }
-      const rechazarBtn = target.closest<HTMLButtonElement>("[data-he-rechazar]");
-      if (rechazarBtn) {
-        state.rechazo = {
-          solicitudId: Number.parseInt(rechazarBtn.dataset.heRechazar ?? "0", 10),
-          comentario: "",
-          submitting: false,
-        };
-        rerenderModal();
+
+      if (target.closest("[data-he-aprob-refrescar]")) {
+        void load();
         return;
       }
-      if (target.closest("[data-he-rechazo-cancelar]")) {
+
+      if (target.closest("[data-he-aprob-detalle-cerrar]")) {
+        closeDetalleModal();
+        return;
+      }
+
+      const detalleBackdrop = r.querySelector("#he-aprob-detalle-backdrop");
+      if (detalleBackdrop && target === detalleBackdrop) {
+        closeDetalleModal();
+        return;
+      }
+
+      if (target.closest("[data-he-aprob-aprobar]")) {
+        void aprobar();
+        return;
+      }
+
+      if (target.closest("[data-he-aprob-rechazar]")) {
+        const det = state.detalleModal.detalle;
+        if (!det) return;
+        state.rechazo = { solicitudId: det.solicitud_id, comentario: "", submitting: false };
+        renderRechazoModal();
+        return;
+      }
+
+      if (target.closest("[data-he-aprob-rechazo-cancelar]")) {
         state.rechazo = null;
-        rerenderModal();
+        renderRechazoModal();
         return;
       }
-      if (target.closest("[data-he-rechazo-confirmar]")) {
+
+      if (target.closest("[data-he-aprob-rechazo-confirmar]")) {
         void confirmarRechazo();
         return;
       }
+
       if (target.id === "he-aprob-rechazo-backdrop") {
         state.rechazo = null;
-        rerenderModal();
-        return;
-      }
-      if (target.closest("[data-he-aprob-refrescar]")) {
-        void load();
+        renderRechazoModal();
       }
     });
 
