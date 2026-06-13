@@ -15,20 +15,18 @@ import {
   renderHorasExtraAprobacionRechazoModal,
   type HorasExtraAprobacionDetalleModalState,
 } from "../horasExtra/shared/renderHorasExtraAprobacionDetalleModal.ts";
+import { renderHorasExtraAprobacionesTable } from "../horasExtra/shared/renderHorasExtraAprobacionesTable.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
-  BTN_GHOST,
-  BTN_SECONDARY,
-  RH_LISTADO_SURFACE,
-  badgeApproved,
-  badgePending,
-  badgeRejected,
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
 } from "../ui/uiTokens.ts";
 
 const SHELL_OPTS = {
   pageTitle: "Aprobación de Horas Extra",
   activeNav: "horas-extra-aprobaciones" as const,
-  mainClass: "py-6",
+  mainClass: "py-0",
 };
 
 const EMPTY_DETALLE_MODAL: HorasExtraAprobacionDetalleModalState = {
@@ -61,84 +59,25 @@ function esc(value: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-function fmtFecha(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function fmtFechaHora(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function estadoBadge(item: HorasExtraPendiente): string {
-  if (item.estado_consolidado === "aprobado_parcial") {
-    return badgePending("Aprobación parcial");
-  }
-  if (item.estado_consolidado === "aprobado") return badgeApproved();
-  if (item.estado_consolidado === "rechazado") return badgeRejected();
-  return badgePending("Pendiente");
-}
-
-function renderRow(item: HorasExtraPendiente): string {
+function renderPageHeader(total: number): string {
   return `
-    <tr class="border-t border-slate-100 hover:bg-slate-50/60">
-      <td class="px-4 py-3 font-medium text-slate-800">#${item.solicitud_id}</td>
-      <td class="px-4 py-3 text-slate-700">${esc(item.empleado_resumen ?? "—")}</td>
-      <td class="px-4 py-3 text-slate-700">${esc(item.puesto_descripcion ?? "—")}</td>
-      <td class="px-4 py-3 text-slate-700">${esc(item.area_descripcion ?? "—")}</td>
-      <td class="px-4 py-3 text-slate-700">${esc(item.subarea_descripcion ?? "—")}</td>
-      <td class="px-4 py-3 text-slate-700">${fmtFecha(item.fecha_solicitud)}</td>
-      <td class="px-4 py-3 text-right font-semibold text-slate-800">${item.total_horas}</td>
-      <td class="px-4 py-3">${estadoBadge(item)}</td>
-      <td class="px-4 py-3 text-slate-600">${fmtFechaHora(item.created_at)}</td>
-      <td class="px-4 py-3 text-right">
-        <button type="button" class="${BTN_SECONDARY}" data-he-aprob-ver-id="${item.solicitud_id}">
-          Ver solicitud
-        </button>
-      </td>
-    </tr>`;
+    <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div class="min-w-0">
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Aprobación de Horas Extra</h1>
+        <p class="mt-1 text-sm text-text-secondary">Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${total}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="${RH_LISTADO_BTN_GHOST}" data-he-aprob-refrescar>Actualizar</button>
+      </div>
+    </header>`;
 }
 
 function renderContent(state: PageState): string {
-  if (state.status === "loading") {
-    return `<div class="px-4 py-12 text-center text-slate-500">Cargando solicitudes…</div>`;
-  }
-  if (state.status === "error") {
-    return `<div class="px-4 py-12 text-center text-red-600">${esc(state.error ?? "Error al cargar.")}</div>`;
-  }
-  if (state.items.length === 0) {
-    return `<div class="px-4 py-12 text-center text-slate-500">No tienes solicitudes de horas extra pendientes de aprobación.</div>`;
-  }
-  return `
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <th class="px-4 py-3">Folio</th>
-            <th class="px-4 py-3">Empleado</th>
-            <th class="px-4 py-3">Puesto</th>
-            <th class="px-4 py-3">Área</th>
-            <th class="px-4 py-3">Sucursal</th>
-            <th class="px-4 py-3">Fecha</th>
-            <th class="px-4 py-3 text-right">Horas extras</th>
-            <th class="px-4 py-3">Estado</th>
-            <th class="px-4 py-3">Creación</th>
-            <th class="px-4 py-3 text-right">Acción</th>
-          </tr>
-        </thead>
-        <tbody>${state.items.map(renderRow).join("")}</tbody>
-      </table>
-    </div>`;
+  return renderHorasExtraAprobacionesTable({
+    status: state.status,
+    items: state.items,
+    error: state.error,
+  });
 }
 
 function renderToast(state: PageState): string {
@@ -149,16 +88,10 @@ function renderToast(state: PageState): string {
 
 function renderPage(state: PageState): string {
   return `
-    <div id="he-aprob-page" class="mx-auto w-full max-w-7xl px-4">
-      <header class="mb-5">
-        <h1 class="text-xl font-semibold text-slate-900">Aprobación de Horas Extra</h1>
-        <p class="text-sm text-slate-500">Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${state.total}</p>
-      </header>
-      <section class="${RH_LISTADO_SURFACE}">
+    <div id="he-aprob-page" class="${RH_DASHBOARD_PAGE_SHELL}">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+        ${renderPageHeader(state.total)}
         <div id="he-aprob-content">${renderContent(state)}</div>
-      </section>
-      <div class="mt-4">
-        <button type="button" class="${BTN_GHOST}" data-he-aprob-refrescar>Actualizar</button>
       </div>
       ${renderHorasExtraAprobacionDetalleModalSlot(state.detalleModal)}
       <div id="he-aprob-rechazo-modal">${state.rechazo ? renderHorasExtraAprobacionRechazoModal(state.rechazo) : ""}</div>
@@ -189,9 +122,9 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     if (!r) return;
     const content = r.querySelector("#he-aprob-content");
     if (content) content.innerHTML = renderContent(state);
-    const header = r.querySelector("header p");
-    if (header) {
-      header.textContent = `Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${state.total}`;
+    const subtitle = r.querySelector("header p");
+    if (subtitle) {
+      subtitle.textContent = `Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${state.total}`;
     }
   };
 

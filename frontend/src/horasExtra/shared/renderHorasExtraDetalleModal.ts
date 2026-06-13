@@ -27,6 +27,8 @@ export type HorasExtraDetalleAprobacionesState = {
   firmas?: HorasExtraFirma[];
   historial?: HorasExtraHistorialEvento[];
   error?: string;
+  /** Si es false, solo se muestran las tarjetas de aprobación (sin tabla de historial). */
+  showHistorial?: boolean;
 };
 
 export type HorasExtraDetalleModalState = {
@@ -265,9 +267,13 @@ function renderAprobacionesBlock(aprobaciones: HorasExtraDetalleAprobacionesStat
   if (aprobaciones.status === "error") {
     return `<p class="text-sm text-red-700">${escapeHtml(aprobaciones.error ?? "No se pudieron cargar las aprobaciones.")}</p>`;
   }
+  const historialHtml =
+    aprobaciones.showHistorial === false
+      ? ""
+      : renderHorasExtraHistorialSection(aprobaciones.historial ?? []);
   return `
     ${renderHorasExtraAprobacionesSection(aprobaciones.firmas ?? [])}
-    ${renderHorasExtraHistorialSection(aprobaciones.historial ?? [])}`;
+    ${historialHtml}`;
 }
 
 function renderDetalleModalBody(state: HorasExtraDetalleModalState): string {

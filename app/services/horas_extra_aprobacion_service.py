@@ -351,6 +351,19 @@ class HorasExtraAprobacionService:
         if rol not in _ROLES_LECTURA:
             raise ForbiddenError(detail="No tienes acceso a Horas Extra")
 
+    def _require_lectura_o_registrante(
+        self, current_user: Empleado, solicitud: HorasExtraSolicitud
+    ) -> None:
+        rol = current_user.rol.nombre if current_user.rol else "empleado"
+        if rol in _ROLES_LECTURA:
+            return
+        if (
+            getattr(current_user, "puede_registrar_horas_extra", False)
+            and solicitud.registrado_por_id == current_user.id
+        ):
+            return
+        raise ForbiddenError(detail="No tienes acceso a Horas Extra")
+
     # ── Pendientes para el aprobador ──
 
     async def listar_pendientes(
@@ -643,8 +656,8 @@ class HorasExtraAprobacionService:
     async def estado_consolidado(
         self, solicitud_id: int, current_user: Empleado
     ) -> HorasExtraEstadoConsolidadoResponse:
-        self._require_lectura(current_user)
         solicitud = await self._solicitud_o_404(solicitud_id)
+        self._require_lectura_o_registrante(current_user, solicitud)
         return self._estado_response(solicitud)
 
     async def historial(

@@ -342,6 +342,20 @@ async def test_pendientes_visibles_solo_para_aprobador(ciclo, client, db):
 
 
 @pytest.mark.asyncio
+async def test_registrante_consulta_estado_sin_historial(ciclo, client):
+    """Quien registró la solicitud puede ver firmas vía /estado, no el historial completo."""
+    sid = ciclo["solicitud_id"]
+    reg_h = await auth_headers(client, ciclo["registrante"])
+
+    estado = await client.get(f"{NOMINAS}/horas-extra/{sid}/estado", headers=reg_h)
+    assert estado.status_code == 200
+    assert len(estado.json()["firmas"]) == 2
+
+    hist = await client.get(f"{NOMINAS}/horas-extra/{sid}/historial", headers=reg_h)
+    assert hist.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_estado_e_historial_para_rh(ciclo, client, db):
     sid = ciclo["solicitud_id"]
     rh = await make_empleado(db, rol="rh", nombre="RH")

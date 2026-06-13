@@ -10,6 +10,7 @@ import {
   type HorasExtraSolicitudFetchError,
   type HorasExtraSolicitudOpciones,
 } from "../api/horasExtraSolicitud.ts";
+import { getHorasExtraEstado } from "../api/horasExtraAprobacion.ts";
 import {
   formatHorasCaptura,
   getSemanasPermitidas,
@@ -54,6 +55,7 @@ function initialState(): HorasExtraSolicitudPageState {
     submitting: false,
     detalleAbierto: null,
     detalleStatus: "idle",
+    detalleAprobaciones: undefined,
     empleadosFilas: [],
     selectedEmpleadoId: null,
     formSemana: 1,
@@ -656,11 +658,62 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
           detalleAbierto: null,
           detalleStatus: "loading",
           detalleError: undefined,
+          detalleAprobaciones: { status: "loading", showHistorial: false },
         };
         render();
         try {
-          const detalle = await getHorasExtraSolicitudDetalle(id);
-          state = { ...state, detalleAbierto: detalle, detalleStatus: "idle" };
+          const [detalleResult, estadoResult] = await Promise.allSettled([
+            getHorasExtraSolicitudDetalle(id),
+            getHorasExtraEstado(id),
+          ]);
+
+          const detalleError =
+            detalleResult.status === "rejected"
+              ? (detalleResult.reason as HorasExtraSolicitudFetchError).detail ??
+                "No se pudo cargar el detalle."
+              : undefined;
+
+          const aprobacionesError =
+            estadoResult.status === "rejected"
+              ? estadoResult.reason &&
+                  typeof estadoResult.reason === "object" &&
+                  "detail" in estadoResult.reason
+                ? String((estadoResult.reason as HorasExtraSolicitudFetchError).detail)
+                : "No se pudieron cargar las aprobaciones."
+              : undefined;
+
+          const detalleOk = detalleResult.status === "fulfilled" ? detalleResult.value : null;
+          const estadoOk = estadoResult.status === "fulfilled" ? estadoResult.value : null;
+
+          if (detalleError) {
+            state = {
+              ...state,
+              detalleStatus: "error",
+              detalleError,
+              detalleAprobaciones: aprobacionesError
+                ? { status: "error", error: aprobacionesError, showHistorial: false }
+                : estadoOk
+                  ? {
+                      status: "idle",
+                      firmas: estadoOk.firmas,
+                      showHistorial: false,
+                    }
+                  : { status: "error", error: aprobacionesError ?? "No se pudieron cargar las aprobaciones.", showHistorial: false },
+            };
+          } else {
+            state = {
+              ...state,
+              detalleAbierto: detalleOk,
+              detalleStatus: "idle",
+              detalleAprobaciones: aprobacionesError
+                ? { status: "error", error: aprobacionesError, showHistorial: false }
+                : {
+                    status: "idle",
+                    firmas: estadoOk?.firmas ?? [],
+                    showHistorial: false,
+                  },
+            };
+          }
         } catch (e) {
           const errObj = e as HorasExtraSolicitudFetchError;
           if (isAuthError(errObj)) {
@@ -672,6 +725,7 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
             ...state,
             detalleStatus: "error",
             detalleError: errObj.detail ?? "No se pudo cargar el detalle.",
+            detalleAprobaciones: { status: "error", error: "No se pudieron cargar las aprobaciones.", showHistorial: false },
           };
         }
         render();
@@ -680,13 +734,13 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
 
     root.querySelectorAll<HTMLButtonElement>("[data-he-detalle-cerrar]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state = { ...state, detalleAbierto: null, detalleStatus: "idle" };
+        state = { ...state, detalleAbierto: null, detalleStatus: "idle", detalleAprobaciones: undefined };
         render();
       });
     });
     root.querySelector("#he-sup-detalle-backdrop")?.addEventListener("click", (ev) => {
       if (ev.target === ev.currentTarget) {
-        state = { ...state, detalleAbierto: null, detalleStatus: "idle" };
+        state = { ...state, detalleAbierto: null, detalleStatus: "idle", detalleAprobaciones: undefined };
         render();
       }
     });

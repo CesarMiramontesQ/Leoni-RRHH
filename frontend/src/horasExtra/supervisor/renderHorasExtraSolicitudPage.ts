@@ -19,6 +19,7 @@ import {
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   renderHorasExtraDetalleModal,
+  type HorasExtraDetalleAprobacionesState,
   type HorasExtraDetalleModalState,
 } from "../shared/renderHorasExtraDetalleModal.ts";
 
@@ -61,6 +62,7 @@ export type HorasExtraSolicitudPageState = {
   detalleAbierto: HorasExtraSolicitudResponse | null;
   detalleStatus: "idle" | "loading" | "error";
   detalleError?: string;
+  detalleAprobaciones?: HorasExtraDetalleAprobacionesState;
   empleadosFilas: HorasExtraEmpleadoFilaForm[];
   selectedEmpleadoId: number | null;
   formSemana: number;
@@ -426,6 +428,7 @@ function toDetalleModalState(state: HorasExtraSolicitudPageState): HorasExtraDet
     detalle: state.detalleAbierto,
     status: state.detalleStatus,
     error: state.detalleError,
+    aprobaciones: state.detalleAprobaciones,
   };
 }
 

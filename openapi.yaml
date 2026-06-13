@@ -5314,7 +5314,7 @@ paths:
   /api/v1/nominas/horas-extra/{solicitud_id}/estado:
     get:
       tags: [Nóminas]
-      summary: Estado consolidado de una solicitud de horas extra (vista RH)
+      summary: Estado consolidado de una solicitud de horas extra (RH o registrante autorizado)
       operationId: nominas_horas_extra_estado
       security:
         - BearerAuth: []

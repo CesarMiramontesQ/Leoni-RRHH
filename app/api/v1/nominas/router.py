@@ -179,7 +179,7 @@ async def rechazar_horas_extra(
 )
 async def estado_horas_extra(
     solicitud_id: int,
-    current_user: Empleado = Depends(role_checker(_ROLES_HORAS_EXTRA)),
+    current_user: Empleado = Depends(get_current_user),
     svc: HorasExtraAprobacionService = Depends(_aprob_svc),
 ):
     return await svc.estado_consolidado(solicitud_id, current_user)
