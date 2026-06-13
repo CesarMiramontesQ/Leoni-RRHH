@@ -147,6 +147,14 @@ export type HorasExtraPendientesParams = {
   semana_inicio?: string;
 };
 
+export type HorasExtraAprobacionEstadisticas = {
+  total_solicitudes: number;
+  pendientes: number;
+  aprobacion_parcial: number;
+  aprobadas: number;
+  rechazadas: number;
+};
+
 async function readErrorDetail(res: Response): Promise<string> {
   const raw = await res.text();
   try {
@@ -184,6 +192,28 @@ export async function getHorasExtraPendientes(
     `/api/v1/nominas/horas-extra/aprobaciones/pendientes?${sp.toString()}`,
   );
   return unwrap<HorasExtraPendientesListResponse>(res);
+}
+
+export async function getHorasExtraAprobacionesSolicitudes(
+  params: HorasExtraPendientesParams = {},
+): Promise<HorasExtraPendientesListResponse> {
+  const sp = new URLSearchParams();
+  sp.set("page", String(params.page ?? 1));
+  sp.set("page_size", String(params.page_size ?? 10));
+  if (params.q?.trim()) sp.set("q", params.q.trim());
+  if (params.area_id != null) sp.set("area_id", String(params.area_id));
+  if (params.centrocosto_id != null) sp.set("centrocosto_id", String(params.centrocosto_id));
+  if (params.semana_inicio) sp.set("semana_inicio", params.semana_inicio);
+
+  const res = await fetchWithAuth(
+    `/api/v1/nominas/horas-extra/aprobaciones/solicitudes?${sp.toString()}`,
+  );
+  return unwrap<HorasExtraPendientesListResponse>(res);
+}
+
+export async function getHorasExtraAprobacionesEstadisticas(): Promise<HorasExtraAprobacionEstadisticas> {
+  const res = await fetchWithAuth("/api/v1/nominas/horas-extra/aprobaciones/estadisticas");
+  return unwrap<HorasExtraAprobacionEstadisticas>(res);
 }
 
 export async function getHorasExtraAprobacionDetalle(

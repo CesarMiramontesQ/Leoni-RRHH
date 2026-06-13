@@ -9,6 +9,7 @@ from app.schemas.horas_extra import HorasExtraListResponse, HorasExtraTabFiltro
 from app.schemas.horas_extra_aprobacion import (
     HorasExtraAprobarRequest,
     HorasExtraAprobacionDetalleResponse,
+    HorasExtraAprobacionEstadisticasResponse,
     HorasExtraEstadoConsolidadoResponse,
     HorasExtraHistorialResponse,
     HorasExtraPendientesListResponse,
@@ -120,6 +121,42 @@ async def list_horas_extra_pendientes(
         centrocosto_id=centrocosto_id,
         semana_inicio=semana_inicio,
     )
+
+
+@router.get(
+    "/horas-extra/aprobaciones/solicitudes",
+    response_model=HorasExtraPendientesListResponse,
+)
+async def list_horas_extra_aprobaciones_asignadas(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    q: str | None = Query(None),
+    area_id: int | None = Query(None),
+    centrocosto_id: int | None = Query(None),
+    semana_inicio: date | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    svc: HorasExtraAprobacionService = Depends(_aprob_svc),
+):
+    return await svc.listar_asignadas(
+        current_user,
+        page=page,
+        page_size=page_size,
+        q=q,
+        area_id=area_id,
+        centrocosto_id=centrocosto_id,
+        semana_inicio=semana_inicio,
+    )
+
+
+@router.get(
+    "/horas-extra/aprobaciones/estadisticas",
+    response_model=HorasExtraAprobacionEstadisticasResponse,
+)
+async def estadisticas_horas_extra_aprobador(
+    current_user: Empleado = Depends(get_current_user),
+    svc: HorasExtraAprobacionService = Depends(_aprob_svc),
+):
+    return await svc.obtener_estadisticas_aprobador(current_user)
 
 
 @router.get(

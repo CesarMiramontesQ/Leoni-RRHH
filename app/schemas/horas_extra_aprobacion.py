@@ -95,6 +95,14 @@ class HorasExtraPendientesListResponse(BaseModel):
     page_size: int
 
 
+class HorasExtraAprobacionEstadisticasResponse(BaseModel):
+    total_solicitudes: int = Field(ge=0)
+    pendientes: int = Field(ge=0)
+    aprobacion_parcial: int = Field(ge=0)
+    aprobadas: int = Field(ge=0)
+    rechazadas: int = Field(ge=0)
+
+
 class HorasExtraEstadoConsolidadoResponse(BaseModel):
     solicitud_id: int
     estado: HorasExtraEstadoConsolidado

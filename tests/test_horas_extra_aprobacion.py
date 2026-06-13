@@ -356,6 +356,35 @@ async def test_registrante_consulta_estado_sin_historial(ciclo, client):
 
 
 @pytest.mark.asyncio
+async def test_aprobador_lista_y_estadisticas_asignadas(ciclo, client):
+    sid = ciclo["solicitud_id"]
+    gh = await auth_headers(client, ciclo["gerente"])
+
+    stats = await client.get(f"{NOMINAS}/horas-extra/aprobaciones/estadisticas", headers=gh)
+    assert stats.status_code == 200
+    stats_body = stats.json()
+    assert stats_body["total_solicitudes"] == 1
+    assert stats_body["pendientes"] == 1
+
+    lista = await client.get(f"{NOMINAS}/horas-extra/aprobaciones/solicitudes", headers=gh)
+    assert lista.status_code == 200
+    lista_body = lista.json()
+    assert lista_body["total"] == 1
+    assert lista_body["items"][0]["solicitud_id"] == sid
+
+    await _ver_detalle(client, ciclo["gerente"], sid)
+    await client.post(f"{NOMINAS}/horas-extra/{sid}/aprobar", headers=gh, json={})
+
+    stats2 = await client.get(f"{NOMINAS}/horas-extra/aprobaciones/estadisticas", headers=gh)
+    assert stats2.status_code == 200
+    assert stats2.json()["aprobacion_parcial"] == 1
+    assert stats2.json()["pendientes"] == 0
+
+    detalle = await client.get(f"{NOMINAS}/horas-extra/aprobaciones/{sid}", headers=gh)
+    assert detalle.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_estado_e_historial_para_rh(ciclo, client, db):
     sid = ciclo["solicitud_id"]
     rh = await make_empleado(db, rol="rh", nombre="RH")

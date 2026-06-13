@@ -4,9 +4,6 @@ import {
   BTN_DANGER,
   BTN_PRIMARY,
   BTN_SECONDARY,
-  badgeApproved,
-  badgePending,
-  badgeRejected,
 } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { buildDiasColumnasHoras } from "../supervisor/renderHorasExtraSolicitudPage.ts";
@@ -34,14 +31,6 @@ const HE_APROB_DETALLE_MODAL_CONFIG = {
   titleId: "he-aprob-detalle-title",
   closeDataAttr: "he-aprob-detalle-cerrar",
 } as const;
-
-function estadoBadge(estado: string): string {
-  if (estado === "aprobado_parcial") return badgePending("Aprobación parcial");
-  if (estado === "aprobado") return badgeApproved();
-  if (estado === "rechazado") return badgeRejected();
-  return badgePending("Pendiente");
-}
-
 
 function mapAprobacionToSolicitud(det: HorasExtraAprobacionDetalle): HorasExtraSolicitudResponse {
   const estado =
@@ -123,33 +112,6 @@ function renderHistorial(eventos: HorasExtraHistorialEvento[]): string {
   return renderHorasExtraHistorialSection(eventos);
 }
 
-function renderAutorizacion(det: HorasExtraAprobacionDetalle): string {
-  const gerentes = det.gerentes_regionales.map((g) => escapeHtml(g.nombre)).join(", ") || "—";
-  const director = det.director_asignado ? escapeHtml(det.director_asignado.nombre) : "—";
-  return `
-    <section class="${DETALLE_SECTION_CARD}">
-      <h3 class="text-sm font-semibold text-[#0A1628]">Autorización</h3>
-      <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Gerente(s) regional(es)</dt>
-          <dd class="mt-0.5 font-medium text-[#0A1628]">${gerentes}</dd>
-        </div>
-        <div>
-          <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Director asignado</dt>
-          <dd class="mt-0.5 font-medium text-[#0A1628]">${director}</dd>
-        </div>
-        <div>
-          <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Tu firma</dt>
-          <dd class="mt-0.5 font-medium text-[#0A1628]">${escapeHtml(det.mi_tipo_firma_label ?? "—")}</dd>
-        </div>
-        <div>
-          <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Estado</dt>
-          <dd class="mt-1">${estadoBadge(det.estado_consolidado)}</dd>
-        </div>
-      </dl>
-    </section>`;
-}
-
 function renderModalBody(state: HorasExtraAprobacionDetalleModalState): string {
   if (state.status === "loading") {
     return `<p class="text-sm text-text-secondary">Cargando detalle…</p>`;
@@ -173,7 +135,6 @@ function renderModalBody(state: HorasExtraAprobacionDetalleModalState): string {
         <div class="space-y-4">${renderEmpleadosHorasPorDia(det)}</div>
       </section>
       ${renderHorasExtraAprobacionesSection(det.firmas)}
-      ${renderAutorizacion(det)}
       ${renderHistorial(det.historial)}
     </div>`;
 }

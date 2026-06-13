@@ -5,23 +5,21 @@
 import {
   aprobarHorasExtra,
   getHorasExtraAprobacionDetalle,
-  getHorasExtraPendientes,
+  getHorasExtraAprobacionesEstadisticas,
+  getHorasExtraAprobacionesSolicitudes,
   rechazarHorasExtra,
   type HorasExtraAprobacionError,
-  type HorasExtraPendiente,
 } from "../api/horasExtraAprobacion.ts";
+import {
+  renderHorasExtraAprobacionesPage,
+  type HorasExtraAprobacionesPageState,
+} from "../horasExtra/shared/renderHorasExtraAprobacionesPage.ts";
 import {
   renderHorasExtraAprobacionDetalleModalSlot,
   renderHorasExtraAprobacionRechazoModal,
   type HorasExtraAprobacionDetalleModalState,
 } from "../horasExtra/shared/renderHorasExtraAprobacionDetalleModal.ts";
-import { renderHorasExtraAprobacionesTable } from "../horasExtra/shared/renderHorasExtraAprobacionesTable.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import {
-  RH_DASHBOARD_PAGE_SHELL,
-  RH_LISTADO_BTN_GHOST,
-  RH_LISTADO_PAGE_OUTER_GRADIENT,
-} from "../ui/uiTokens.ts";
 
 const SHELL_OPTS = {
   pageTitle: "Aprobación de Horas Extra",
@@ -29,27 +27,26 @@ const SHELL_OPTS = {
   mainClass: "py-0",
 };
 
+const PAGE_SIZE = 10;
+
 const EMPTY_DETALLE_MODAL: HorasExtraAprobacionDetalleModalState = {
   status: "idle",
   detalle: null,
 };
 
-type RechazoState = {
-  solicitudId: number;
-  comentario: string;
-  submitting: boolean;
-  error?: string;
-};
-
-type PageState = {
-  status: "loading" | "ready" | "error";
-  items: HorasExtraPendiente[];
-  total: number;
-  error?: string;
-  detalleModal: HorasExtraAprobacionDetalleModalState;
-  rechazo: RechazoState | null;
-  toast?: { tone: "ok" | "error"; message: string };
-};
+function initialState(): HorasExtraAprobacionesPageState {
+  return {
+    listaStatus: "loading",
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: PAGE_SIZE,
+    estadisticasStatus: "loading",
+    estadisticas: null,
+    detalleModal: { ...EMPTY_DETALLE_MODAL },
+    rechazo: null,
+  };
+}
 
 function esc(value: unknown): string {
   return String(value ?? "")
@@ -59,56 +56,22 @@ function esc(value: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-function renderPageHeader(total: number): string {
-  return `
-    <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div class="min-w-0">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Aprobación de Horas Extra</h1>
-        <p class="mt-1 text-sm text-text-secondary">Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${total}</p>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="${RH_LISTADO_BTN_GHOST}" data-he-aprob-refrescar>Actualizar</button>
-      </div>
-    </header>`;
-}
-
-function renderContent(state: PageState): string {
-  return renderHorasExtraAprobacionesTable({
-    status: state.status,
-    items: state.items,
-    error: state.error,
-  });
-}
-
-function renderToast(state: PageState): string {
+function renderToast(state: HorasExtraAprobacionesPageState): string {
   if (!state.toast) return "";
   const tone = state.toast.tone === "ok" ? "bg-emerald-600" : "bg-red-600";
   return `<div class="fixed bottom-4 right-4 z-[70] rounded-lg ${tone} px-4 py-2 text-sm font-medium text-white shadow-lg">${esc(state.toast.message)}</div>`;
 }
 
-function renderPage(state: PageState): string {
-  return `
-    <div id="he-aprob-page" class="${RH_DASHBOARD_PAGE_SHELL}">
-      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderPageHeader(state.total)}
-        <div id="he-aprob-content">${renderContent(state)}</div>
-      </div>
-      ${renderHorasExtraAprobacionDetalleModalSlot(state.detalleModal)}
-      <div id="he-aprob-rechazo-modal">${state.rechazo ? renderHorasExtraAprobacionRechazoModal(state.rechazo) : ""}</div>
-      <div id="he-aprob-toast">${renderToast(state)}</div>
-    </div>`;
-}
-
 export function mountHorasExtraAprobaciones(container: HTMLElement): void {
-  const state: PageState = {
-    status: "loading",
-    items: [],
-    total: 0,
-    detalleModal: { ...EMPTY_DETALLE_MODAL },
-    rechazo: null,
-  };
+  let state = initialState();
 
-  mountAppShell(container, { ...SHELL_OPTS, mainHtml: renderPage(state) });
+  const render = () => {
+    mountAppShell(container, {
+      ...SHELL_OPTS,
+      mainHtml: renderHorasExtraAprobacionesPage(state),
+    });
+    bind();
+  };
 
   const root = (): HTMLElement | null => container.querySelector("#he-aprob-page");
 
@@ -116,17 +79,6 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     err && typeof err === "object" && "detail" in err
       ? String((err as HorasExtraAprobacionError).detail)
       : fallback;
-
-  const rerenderContent = () => {
-    const r = root();
-    if (!r) return;
-    const content = r.querySelector("#he-aprob-content");
-    if (content) content.innerHTML = renderContent(state);
-    const subtitle = r.querySelector("header p");
-    if (subtitle) {
-      subtitle.textContent = `Revisa cada solicitud en detalle antes de aprobar o rechazar. Total: ${state.total}`;
-    }
-  };
 
   const renderDetalleModal = () => {
     const r = root();
@@ -152,45 +104,69 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
   };
 
   const closeDetalleModal = () => {
-    state.detalleModal = { ...EMPTY_DETALLE_MODAL };
+    state = { ...state, detalleModal: { ...EMPTY_DETALLE_MODAL } };
     renderDetalleModal();
   };
 
   const showToast = (tone: "ok" | "error", message: string) => {
-    state.toast = { tone, message };
+    state = { ...state, toast: { tone, message } };
     renderToastSlot();
     window.setTimeout(() => {
-      state.toast = undefined;
+      state = { ...state, toast: undefined };
       renderToastSlot();
     }, 3200);
   };
 
   const load = async () => {
-    state.status = "loading";
-    rerenderContent();
+    state = { ...state, listaStatus: "loading", estadisticasStatus: "loading" };
+    render();
     try {
-      const data = await getHorasExtraPendientes({ page_size: 50 });
-      state.items = data.items;
-      state.total = data.total;
-      state.status = "ready";
+      const [estadisticas, data] = await Promise.all([
+        getHorasExtraAprobacionesEstadisticas(),
+        getHorasExtraAprobacionesSolicitudes({
+          page: state.page,
+          page_size: state.pageSize,
+        }),
+      ]);
+      state = {
+        ...state,
+        estadisticas,
+        estadisticasStatus: "ready",
+        estadisticasError: undefined,
+        items: data.items,
+        total: data.total,
+        page: data.page,
+        pageSize: data.page_size,
+        listaStatus: "ready",
+        listaError: undefined,
+      };
     } catch (err) {
-      state.status = "error";
-      state.error = errorDetail(err, "No se pudieron cargar las solicitudes.");
+      const message = errorDetail(err, "No se pudieron cargar las solicitudes.");
+      state = {
+        ...state,
+        estadisticasStatus: "error",
+        estadisticasError: message,
+        listaStatus: "error",
+        listaError: message,
+      };
     }
-    rerenderContent();
+    render();
   };
 
   const openDetalle = async (solicitudId: number) => {
-    state.detalleModal = { status: "loading", detalle: null };
+    state = { ...state, detalleModal: { status: "loading", detalle: null } };
     renderDetalleModal();
     try {
       const detalle = await getHorasExtraAprobacionDetalle(solicitudId);
-      state.detalleModal = { status: "idle", detalle, acting: false };
+      state = { ...state, detalleModal: { status: "idle", detalle, acting: false } };
     } catch (err) {
-      state.detalleModal = {
-        status: "error",
-        detalle: null,
-        error: errorDetail(err, "No se pudo cargar el detalle."),
+      state = {
+        ...state,
+        detalleModal: {
+          status: "error",
+          detalle: null,
+          error: errorDetail(err, "No se pudo cargar el detalle."),
+        },
       };
     }
     renderDetalleModal();
@@ -199,7 +175,7 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
   const aprobar = async () => {
     const det = state.detalleModal.detalle;
     if (!det || state.detalleModal.acting || !det.puede_aprobar) return;
-    state.detalleModal = { ...state.detalleModal, acting: true };
+    state = { ...state, detalleModal: { ...state.detalleModal, acting: true } };
     renderDetalleModal();
     try {
       const res = await aprobarHorasExtra(det.solicitud_id);
@@ -211,7 +187,7 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
       showToast("ok", msg);
       void load();
     } catch (err) {
-      state.detalleModal = { ...state.detalleModal, acting: false };
+      state = { ...state, detalleModal: { ...state.detalleModal, acting: false } };
       renderDetalleModal();
       showToast("error", errorDetail(err, "No se pudo aprobar."));
     }
@@ -222,24 +198,23 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     if (!rechazo || rechazo.submitting) return;
     const comentario = rechazo.comentario.trim();
     if (!comentario) {
-      state.rechazo = { ...rechazo, error: "El comentario es obligatorio." };
+      state = { ...state, rechazo: { ...rechazo, error: "El comentario es obligatorio." } };
       renderRechazoModal();
       return;
     }
-    state.rechazo = { ...rechazo, submitting: true, error: undefined };
+    state = { ...state, rechazo: { ...rechazo, submitting: true, error: undefined } };
     renderRechazoModal();
     try {
       await rechazarHorasExtra(rechazo.solicitudId, comentario);
-      state.rechazo = null;
+      state = { ...state, rechazo: null };
       renderRechazoModal();
       closeDetalleModal();
       showToast("ok", "Solicitud rechazada.");
       void load();
     } catch (err) {
-      state.rechazo = {
-        ...rechazo,
-        submitting: false,
-        error: errorDetail(err, "No se pudo rechazar."),
+      state = {
+        ...state,
+        rechazo: { ...rechazo, submitting: false, error: errorDetail(err, "No se pudo rechazar.") },
       };
       renderRechazoModal();
     }
@@ -284,13 +259,16 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
       if (target.closest("[data-he-aprob-rechazar]")) {
         const det = state.detalleModal.detalle;
         if (!det) return;
-        state.rechazo = { solicitudId: det.solicitud_id, comentario: "", submitting: false };
+        state = {
+          ...state,
+          rechazo: { solicitudId: det.solicitud_id, comentario: "", submitting: false },
+        };
         renderRechazoModal();
         return;
       }
 
       if (target.closest("[data-he-aprob-rechazo-cancelar]")) {
-        state.rechazo = null;
+        state = { ...state, rechazo: null };
         renderRechazoModal();
         return;
       }
@@ -301,7 +279,7 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
       }
 
       if (target.id === "he-aprob-rechazo-backdrop") {
-        state.rechazo = null;
+        state = { ...state, rechazo: null };
         renderRechazoModal();
       }
     });
@@ -309,11 +287,13 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     r.addEventListener("input", (event) => {
       const target = event.target;
       if (target instanceof HTMLTextAreaElement && target.id === "he-aprob-rechazo-comentario") {
-        if (state.rechazo) state.rechazo.comentario = target.value;
+        if (state.rechazo) {
+          state = { ...state, rechazo: { ...state.rechazo, comentario: target.value } };
+        }
       }
     });
   };
 
-  bind();
+  render();
   void load();
 }

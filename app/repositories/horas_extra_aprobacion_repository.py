@@ -153,7 +153,7 @@ class HorasExtraAprobacionRepository:
         )
         return result.scalar_one_or_none()
 
-    def _pendientes_base_query(
+    def _asignadas_base_query(
         self,
         tipos_firma: set[str],
         *,
@@ -161,6 +161,7 @@ class HorasExtraAprobacionRepository:
         area_id: int | None,
         centrocosto_id: int | None,
         semana_inicio,
+        solo_accion_pendiente: bool = False,
     ):
         stmt = (
             select(HorasExtraSolicitud.id)
@@ -168,12 +169,13 @@ class HorasExtraAprobacionRepository:
                 HorasExtraAprobacion,
                 HorasExtraAprobacion.solicitud_id == HorasExtraSolicitud.id,
             )
-            .where(
-                HorasExtraAprobacion.tipo_firma.in_(tipos_firma),
+            .where(HorasExtraAprobacion.tipo_firma.in_(tipos_firma))
+        )
+        if solo_accion_pendiente:
+            stmt = stmt.where(
                 HorasExtraAprobacion.estado == "pendiente",
                 HorasExtraSolicitud.estado == "pendiente",
             )
-        )
         if area_id is not None:
             stmt = stmt.where(HorasExtraSolicitud.area_id == area_id)
         if centrocosto_id is not None:
@@ -200,6 +202,48 @@ class HorasExtraAprobacionRepository:
             )
         return stmt
 
+    def _pendientes_base_query(
+        self,
+        tipos_firma: set[str],
+        *,
+        q: str | None,
+        area_id: int | None,
+        centrocosto_id: int | None,
+        semana_inicio,
+    ):
+        return self._asignadas_base_query(
+            tipos_firma,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            solo_accion_pendiente=True,
+        )
+
+    async def count_asignadas(
+        self,
+        tipos_firma: set[str],
+        *,
+        q: str | None = None,
+        area_id: int | None = None,
+        centrocosto_id: int | None = None,
+        semana_inicio=None,
+        solo_accion_pendiente: bool = False,
+    ) -> int:
+        if not tipos_firma:
+            return 0
+        base = self._asignadas_base_query(
+            tipos_firma,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            solo_accion_pendiente=solo_accion_pendiente,
+        )
+        stmt = select(func.count(distinct(base.subquery().c.id)))
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one() or 0)
+
     async def count_pendientes(
         self,
         tipos_firma: set[str],
@@ -209,20 +253,16 @@ class HorasExtraAprobacionRepository:
         centrocosto_id: int | None = None,
         semana_inicio=None,
     ) -> int:
-        if not tipos_firma:
-            return 0
-        base = self._pendientes_base_query(
+        return await self.count_asignadas(
             tipos_firma,
             q=q,
             area_id=area_id,
             centrocosto_id=centrocosto_id,
             semana_inicio=semana_inicio,
+            solo_accion_pendiente=True,
         )
-        stmt = select(func.count(distinct(base.subquery().c.id)))
-        result = await self.db.execute(stmt)
-        return int(result.scalar_one() or 0)
 
-    async def list_pendientes(
+    async def list_asignadas(
         self,
         tipos_firma: set[str],
         *,
@@ -232,19 +272,19 @@ class HorasExtraAprobacionRepository:
         semana_inicio=None,
         offset: int = 0,
         limit: int = 12,
+        solo_accion_pendiente: bool = False,
     ) -> list[HorasExtraSolicitud]:
         if not tipos_firma:
             return []
-        base = self._pendientes_base_query(
+        base = self._asignadas_base_query(
             tipos_firma,
             q=q,
             area_id=area_id,
             centrocosto_id=centrocosto_id,
             semana_inicio=semana_inicio,
+            solo_accion_pendiente=solo_accion_pendiente,
         )
-        ids_stmt = (
-            select(distinct(base.subquery().c.id))
-        )
+        ids_stmt = select(distinct(base.subquery().c.id))
         ids_result = await self.db.execute(ids_stmt)
         ids = [row[0] for row in ids_result.all()]
         if not ids:
@@ -274,6 +314,28 @@ class HorasExtraAprobacionRepository:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().unique().all())
+
+    async def list_pendientes(
+        self,
+        tipos_firma: set[str],
+        *,
+        q: str | None = None,
+        area_id: int | None = None,
+        centrocosto_id: int | None = None,
+        semana_inicio=None,
+        offset: int = 0,
+        limit: int = 12,
+    ) -> list[HorasExtraSolicitud]:
+        return await self.list_asignadas(
+            tipos_firma,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            offset=offset,
+            limit=limit,
+            solo_accion_pendiente=True,
+        )
 
     async def usuario_visualizo_solicitud(
         self, usuario_id: int, solicitud_id: int

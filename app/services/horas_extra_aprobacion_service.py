@@ -32,6 +32,7 @@ from app.schemas.horas_extra_aprobacion import (
     ESTADO_CONSOLIDADO_LABELS,
     TIPO_FIRMA_LABELS,
     HorasExtraAprobacionDetalleResponse,
+    HorasExtraAprobacionEstadisticasResponse,
     HorasExtraAprobadorAsignadoItem,
     HorasExtraDetalleEmpleadoItem,
     HorasExtraEstadoConsolidadoResponse,
@@ -340,6 +341,108 @@ class HorasExtraAprobacionService:
             None,
         )
 
+    @staticmethod
+    def _firma_usuario(
+        solicitud: HorasExtraSolicitud, tipos: set[str]
+    ) -> HorasExtraAprobacion | None:
+        firmas = [a for a in solicitud.aprobaciones if a.tipo_firma in tipos]
+        if not firmas:
+            return None
+        pendiente = next((a for a in firmas if a.estado == "pendiente"), None)
+        return pendiente or firmas[0]
+
+    def _build_pendiente_item(
+        self,
+        solicitud: HorasExtraSolicitud,
+        mi_firma: HorasExtraAprobacion,
+    ) -> HorasExtraPendienteItem:
+        cons = estado_consolidado(solicitud.aprobaciones)
+        empleado_resumen, puesto_desc = self._empleado_resumen(solicitud)
+        return HorasExtraPendienteItem(
+            solicitud_id=solicitud.id,
+            semana=solicitud.semana_inicio.isocalendar()[1],
+            semana_inicio=solicitud.semana_inicio,
+            fecha_solicitud=solicitud.fecha_solicitud,
+            tipo=solicitud.tipo,
+            area_descripcion=solicitud.area.descripcion if solicitud.area else None,
+            subarea_descripcion=solicitud.subarea.descripcion if solicitud.subarea else None,
+            centrocosto_id=solicitud.centrocosto_id,
+            centrocosto_descripcion=(
+                solicitud.centro_costo.descripcion if solicitud.centro_costo else None
+            ),
+            motivo=solicitud.motivo.descripcion if solicitud.motivo else None,
+            total_horas=self._total_horas(solicitud),
+            total_empleados=len(solicitud.detalle),
+            empleado_resumen=empleado_resumen,
+            puesto_descripcion=puesto_desc,
+            registrado_por_nombre=(
+                solicitud.registrado_por.nombre if solicitud.registrado_por else None
+            ),
+            mi_tipo_firma=mi_firma.tipo_firma,
+            mi_tipo_firma_label=TIPO_FIRMA_LABELS.get(
+                mi_firma.tipo_firma, mi_firma.tipo_firma
+            ),
+            estado_consolidado=cons,
+            aprobado_parcial=cons == "aprobado_parcial",
+            created_at=solicitud.created_at,
+        )
+
+    async def _listar_solicitudes_asignadas(
+        self,
+        current_user: Empleado,
+        *,
+        page: int = 1,
+        page_size: int = 12,
+        q: str | None = None,
+        area_id: int | None = None,
+        centrocosto_id: int | None = None,
+        semana_inicio=None,
+        solo_accion_pendiente: bool = False,
+    ) -> HorasExtraPendientesListResponse:
+        tipos = await self.repo.tipos_firma_de_empleado(current_user.id)
+        if not tipos:
+            return HorasExtraPendientesListResponse(
+                items=[], total=0, page=page, page_size=page_size
+            )
+
+        await self.repo.sincronizar_firmas_abiertas()
+        await self.db.commit()
+
+        total = await self.repo.count_asignadas(
+            tipos,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            solo_accion_pendiente=solo_accion_pendiente,
+        )
+        offset = (page - 1) * page_size
+        solicitudes = await self.repo.list_asignadas(
+            tipos,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            offset=offset,
+            limit=page_size,
+            solo_accion_pendiente=solo_accion_pendiente,
+        )
+
+        items: list[HorasExtraPendienteItem] = []
+        for solicitud in solicitudes:
+            mi_firma = self._firma_usuario(solicitud, tipos)
+            if mi_firma is None:
+                continue
+            if solo_accion_pendiente and (
+                mi_firma.estado != "pendiente" or solicitud.estado != "pendiente"
+            ):
+                continue
+            items.append(self._build_pendiente_item(solicitud, mi_firma))
+
+        return HorasExtraPendientesListResponse(
+            items=items, total=total, page=page, page_size=page_size
+        )
+
     async def _solicitud_o_404(self, solicitud_id: int) -> HorasExtraSolicitud:
         solicitud = await self.repo.get_solicitud_full(solicitud_id)
         if solicitud is None:
@@ -377,78 +480,81 @@ class HorasExtraAprobacionService:
         centrocosto_id: int | None = None,
         semana_inicio=None,
     ) -> HorasExtraPendientesListResponse:
+        return await self._listar_solicitudes_asignadas(
+            current_user,
+            page=page,
+            page_size=page_size,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            solo_accion_pendiente=True,
+        )
+
+    async def listar_asignadas(
+        self,
+        current_user: Empleado,
+        *,
+        page: int = 1,
+        page_size: int = 12,
+        q: str | None = None,
+        area_id: int | None = None,
+        centrocosto_id: int | None = None,
+        semana_inicio=None,
+    ) -> HorasExtraPendientesListResponse:
+        return await self._listar_solicitudes_asignadas(
+            current_user,
+            page=page,
+            page_size=page_size,
+            q=q,
+            area_id=area_id,
+            centrocosto_id=centrocosto_id,
+            semana_inicio=semana_inicio,
+            solo_accion_pendiente=False,
+        )
+
+    async def obtener_estadisticas_aprobador(
+        self, current_user: Empleado
+    ) -> HorasExtraAprobacionEstadisticasResponse:
         tipos = await self.repo.tipos_firma_de_empleado(current_user.id)
         if not tipos:
-            return HorasExtraPendientesListResponse(
-                items=[], total=0, page=page, page_size=page_size
+            return HorasExtraAprobacionEstadisticasResponse(
+                total_solicitudes=0,
+                pendientes=0,
+                aprobacion_parcial=0,
+                aprobadas=0,
+                rechazadas=0,
             )
 
         await self.repo.sincronizar_firmas_abiertas()
         await self.db.commit()
 
-        total = await self.repo.count_pendientes(
-            tipos,
-            q=q,
-            area_id=area_id,
-            centrocosto_id=centrocosto_id,
-            semana_inicio=semana_inicio,
-        )
-        offset = (page - 1) * page_size
-        solicitudes = await self.repo.list_pendientes(
-            tipos,
-            q=q,
-            area_id=area_id,
-            centrocosto_id=centrocosto_id,
-            semana_inicio=semana_inicio,
-            offset=offset,
-            limit=page_size,
-        )
+        total = await self.repo.count_asignadas(tipos)
+        pendientes = await self.repo.count_asignadas(tipos, solo_accion_pendiente=True)
 
-        items: list[HorasExtraPendienteItem] = []
-        for s in solicitudes:
-            mi_firma = next(
-                (
-                    a.tipo_firma
-                    for a in s.aprobaciones
-                    if a.tipo_firma in tipos and a.estado == "pendiente"
-                ),
-                None,
-            )
-            if mi_firma is None:
+        solicitudes = await self.repo.list_asignadas(
+            tipos, offset=0, limit=max(total, 1)
+        )
+        parcial = 0
+        aprobadas = 0
+        rechazadas = 0
+        for solicitud in solicitudes:
+            if self._firma_usuario(solicitud, tipos) is None:
                 continue
-            cons = estado_consolidado(s.aprobaciones)
-            empleado_resumen, puesto_desc = self._empleado_resumen(s)
-            items.append(
-                HorasExtraPendienteItem(
-                    solicitud_id=s.id,
-                    semana=s.semana_inicio.isocalendar()[1],
-                    semana_inicio=s.semana_inicio,
-                    fecha_solicitud=s.fecha_solicitud,
-                    tipo=s.tipo,
-                    area_descripcion=s.area.descripcion if s.area else None,
-                    subarea_descripcion=s.subarea.descripcion if s.subarea else None,
-                    centrocosto_id=s.centrocosto_id,
-                    centrocosto_descripcion=(
-                        s.centro_costo.descripcion if s.centro_costo else None
-                    ),
-                    motivo=s.motivo.descripcion if s.motivo else None,
-                    total_horas=self._total_horas(s),
-                    total_empleados=len(s.detalle),
-                    empleado_resumen=empleado_resumen,
-                    puesto_descripcion=puesto_desc,
-                    registrado_por_nombre=(
-                        s.registrado_por.nombre if s.registrado_por else None
-                    ),
-                    mi_tipo_firma=mi_firma,
-                    mi_tipo_firma_label=TIPO_FIRMA_LABELS.get(mi_firma, mi_firma),
-                    estado_consolidado=cons,
-                    aprobado_parcial=cons == "aprobado_parcial",
-                    created_at=s.created_at,
-                )
-            )
+            cons = estado_consolidado(solicitud.aprobaciones)
+            if cons == "aprobado_parcial":
+                parcial += 1
+            elif cons == "aprobado":
+                aprobadas += 1
+            elif cons == "rechazado":
+                rechazadas += 1
 
-        return HorasExtraPendientesListResponse(
-            items=items, total=total, page=page, page_size=page_size
+        return HorasExtraAprobacionEstadisticasResponse(
+            total_solicitudes=total,
+            pendientes=pendientes,
+            aprobacion_parcial=parcial,
+            aprobadas=aprobadas,
+            rechazadas=rechazadas,
         )
 
     async def obtener_detalle_aprobacion(
@@ -464,21 +570,20 @@ class HorasExtraAprobacionService:
         await self.db.commit()
 
         solicitud = await self._solicitud_o_404(solicitud_id)
-        mi_firma = await self._mi_firma_pendiente(solicitud, current_user)
-        if mi_firma is None and solicitud.estado == "pendiente":
+        firma_usuario = self._firma_usuario(solicitud, tipos)
+        if firma_usuario is None:
             raise ForbiddenError(
-                detail="No tienes una firma pendiente en esta solicitud."
+                detail="No estás asignado como aprobador de esta solicitud."
             )
+        mi_firma = await self._mi_firma_pendiente(solicitud, current_user)
 
         await self.repo.registrar_visualizacion(
             usuario_id=current_user.id,
             solicitud_id=solicitud_id,
-            rol_nombre=self._rol_aprobacion_label(
-                mi_firma.tipo_firma if mi_firma else None
-            )
+            rol_nombre=self._rol_aprobacion_label(firma_usuario.tipo_firma)
             or (current_user.rol.nombre if current_user.rol else None),
             usuario_nombre=current_user.nombre,
-            tipo_firma=mi_firma.tipo_firma if mi_firma else None,
+            tipo_firma=firma_usuario.tipo_firma,
         )
         await self.db.commit()
 
@@ -519,11 +624,9 @@ class HorasExtraAprobacionService:
                 for a in self._firmas_ordenadas(solicitud.aprobaciones)
             ],
             historial=historial,
-            mi_tipo_firma=mi_firma.tipo_firma if mi_firma else None,
-            mi_tipo_firma_label=(
-                TIPO_FIRMA_LABELS.get(mi_firma.tipo_firma, mi_firma.tipo_firma)
-                if mi_firma
-                else None
+            mi_tipo_firma=firma_usuario.tipo_firma,
+            mi_tipo_firma_label=TIPO_FIRMA_LABELS.get(
+                firma_usuario.tipo_firma, firma_usuario.tipo_firma
             ),
             puede_aprobar=puede_actuar,
             puede_rechazar=puede_actuar,
