@@ -429,6 +429,7 @@ components:
         - tipo
         - centrocosto_id
         - estado
+        - estado_consolidado
         - total_horas
       properties:
         solicitud_id:
@@ -458,6 +459,9 @@ components:
         estado:
           type: string
           enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
         total_horas:
           type: number
         registrado_por_nombre:
@@ -697,6 +701,7 @@ components:
         - motivo_id
         - motivo_descripcion
         - estado
+        - estado_consolidado
         - total_horas_general
         - total_empleados
         - created_at
@@ -738,6 +743,9 @@ components:
         estado:
           type: string
           enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
         total_horas_general:
           type: number
         total_empleados:
@@ -761,6 +769,7 @@ components:
         - tipo
         - total_horas_general
         - estado
+        - estado_consolidado
         - created_at
       properties:
         id:
@@ -785,6 +794,9 @@ components:
         estado:
           type: string
           enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+        estado_consolidado:
+          type: string
+          enum: [pendiente, aprobado_parcial, aprobado, rechazado]
         created_at:
           type: string
           format: date-time

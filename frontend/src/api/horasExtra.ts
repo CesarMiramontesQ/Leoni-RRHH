@@ -35,6 +35,7 @@ export type HorasExtraSolicitudInfo = {
   centrocosto_descripcion: string | null;
   motivo: string | null;
   estado: HorasExtraEstadoSolicitud;
+  estado_consolidado: "pendiente" | "aprobado_parcial" | "aprobado" | "rechazado";
   total_horas: number;
   registrado_por_nombre: string | null;
   aprobador_nombre: string | null;

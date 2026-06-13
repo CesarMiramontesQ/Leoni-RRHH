@@ -14,6 +14,7 @@ from app.models.empleados import Empleado
 from app.models.horas_extra import HorasExtraSolicitud, HorasExtraSolicitudDetalle
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.horas_extra_solicitud_repository import HorasExtraSolicitudRepository
+from app.services.horas_extra_aprobacion_service import estado_consolidado
 from app.services.horas_extra_aprobacion_service import (
     notificar_solicitud_creada,
     seed_firmas_solicitud,
@@ -371,6 +372,7 @@ class HorasExtraSolicitudService:
                 tipo=s.tipo,
                 total_horas_general=self._total_general(s),
                 estado=s.estado,
+                estado_consolidado=estado_consolidado(s.aprobaciones),
                 created_at=s.created_at,
             )
             for s in items_db
@@ -437,6 +439,7 @@ class HorasExtraSolicitudService:
             motivo_descripcion=solicitud.motivo.descripcion if solicitud.motivo else "",
             comentarios=solicitud.comentarios,
             estado=solicitud.estado,
+            estado_consolidado=estado_consolidado(solicitud.aprobaciones),
             total_horas_general=sum((d.total_horas for d in detalle), Decimal("0")),
             total_empleados=len(detalle),
             created_at=solicitud.created_at,

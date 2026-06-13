@@ -33,7 +33,7 @@ const HE_APROB_DETALLE_MODAL_CONFIG = {
 } as const;
 
 function mapAprobacionToSolicitud(det: HorasExtraAprobacionDetalle): HorasExtraSolicitudResponse {
-  const estado =
+  const estadoDb =
     det.estado_consolidado === "aprobado"
       ? "aprobado"
       : det.estado_consolidado === "rechazado"
@@ -55,7 +55,8 @@ function mapAprobacionToSolicitud(det: HorasExtraAprobacionDetalle): HorasExtraS
     motivo_id: 0,
     motivo_descripcion: det.motivo ?? "—",
     comentarios: det.comentarios,
-    estado,
+    estado: estadoDb,
+    estado_consolidado: det.estado_consolidado,
     total_horas_general: det.total_horas,
     total_empleados: det.total_empleados,
     created_at: det.created_at,
@@ -145,10 +146,10 @@ function renderModalFooter(state: HorasExtraAprobacionDetalleModalState): string
   const acciones =
     det && (det.puede_aprobar || det.puede_rechazar)
       ? `
-        <button type="button" class="${BTN_PRIMARY}" data-he-aprob-aprobar ${acting ? "disabled" : ""}>
+        ${det.puede_aprobar ? `<button type="button" class="${BTN_PRIMARY}" data-he-aprob-aprobar ${acting ? "disabled" : ""}>
           ${acting ? "Procesando…" : "Aprobar"}
-        </button>
-        <button type="button" class="${BTN_DANGER}" data-he-aprob-rechazar ${acting ? "disabled" : ""}>Rechazar</button>`
+        </button>` : ""}
+        ${det.puede_rechazar ? `<button type="button" class="${BTN_DANGER}" data-he-aprob-rechazar ${acting ? "disabled" : ""}>Rechazar</button>` : ""}`
       : "";
 
   return `

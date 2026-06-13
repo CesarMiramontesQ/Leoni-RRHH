@@ -4,13 +4,10 @@ import type {
 } from "../../api/horasExtraAprobacion.ts";
 import type { HorasExtraSolicitudResponse } from "../../api/horasExtraSolicitud.ts";
 import {
-  badgeApproved,
-  badgeCancelled,
-  badgePending,
-  badgeRejected,
   BTN_SECONDARY,
 } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import { renderHorasExtraEstadoBadge } from "./horasExtraTableUi.ts";
 import {
   renderHorasExtraAprobacionesSection,
   renderHorasExtraHistorialSection,
@@ -81,19 +78,13 @@ const DIAS_KEYS = [
   "domingo",
 ] as const;
 
-function estadoBadge(estado: string): string {
-  if (estado === "aprobado") return badgeApproved("Aprobado");
-  if (estado === "rechazado") return badgeRejected("Rechazado");
-  if (estado === "cancelado") return badgeCancelled("Cancelado");
-  if (estado === "borrador") return badgePending("Borrador");
-  return badgePending("Pendiente");
-}
-
-function estadoLabel(estado: string): string {
-  if (estado === "aprobado") return "Aprobado";
-  if (estado === "rechazado") return "Rechazado";
-  if (estado === "cancelado") return "Cancelado";
-  if (estado === "borrador") return "Borrador";
+function estadoLabel(estado: string, estadoConsolidado?: string | null): string {
+  const display = estadoConsolidado ?? estado;
+  if (display === "aprobado_parcial") return "Aprobación parcial";
+  if (display === "aprobado") return "Aprobado";
+  if (display === "rechazado") return "Rechazado";
+  if (display === "cancelado") return "Cancelado";
+  if (display === "borrador") return "Borrador";
   return "Pendiente";
 }
 
@@ -147,8 +138,8 @@ export function renderDetalleResumenCard(det: HorasExtraSolicitudResponse): stri
           <h3 class="text-base font-bold text-[#0A1628]">Solicitud #${det.id}</h3>
           <div class="mt-1.5 flex flex-wrap items-center gap-2 text-sm">
             <span class="${DETALLE_META_LABEL}">Estado:</span>
-            ${estadoBadge(det.estado)}
-            <span class="sr-only">${escapeHtml(estadoLabel(det.estado))}</span>
+            ${renderHorasExtraEstadoBadge(det.estado, det.estado_consolidado)}
+            <span class="sr-only">${escapeHtml(estadoLabel(det.estado, det.estado_consolidado))}</span>
           </div>
         </div>
         <div class="text-right">

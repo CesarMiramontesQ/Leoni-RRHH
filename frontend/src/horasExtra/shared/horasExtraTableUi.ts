@@ -1,4 +1,4 @@
-import { RH_LISTADO_BTN_GHOST, RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
+import { RH_LISTADO_BTN_GHOST, RH_LISTADO_SURFACE, badgeApproved, badgeCancelled, badgePending, badgeRejected } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 
 export const HE_TABLE_SECTION = `rh-sol-table-section ${RH_LISTADO_SURFACE} overflow-hidden`;
@@ -78,4 +78,24 @@ export function renderHorasExtraTableSection(opts: {
       ${renderHorasExtraTableScroll(opts.columns, opts.bodyRows)}
       ${opts.footer ?? ""}
     </section>`;
+}
+
+export type HorasExtraEstadoConsolidado =
+  | "pendiente"
+  | "aprobado_parcial"
+  | "aprobado"
+  | "rechazado";
+
+/** Badge de estado unificado para tablas y modales de horas extra. */
+export function renderHorasExtraEstadoBadge(
+  estado: string,
+  estadoConsolidado?: HorasExtraEstadoConsolidado | string | null,
+): string {
+  const display = estadoConsolidado ?? estado;
+  if (display === "aprobado_parcial") return badgePending("Aprobación parcial");
+  if (display === "aprobado") return badgeApproved("Aprobado");
+  if (display === "rechazado") return badgeRejected("Rechazado");
+  if (display === "cancelado") return badgeCancelled("Cancelado");
+  if (display === "borrador") return badgeCancelled("Borrador");
+  return badgePending("Pendiente");
 }

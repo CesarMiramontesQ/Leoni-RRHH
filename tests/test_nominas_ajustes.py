@@ -5,10 +5,18 @@ from httpx import AsyncClient
 
 from app.core.security import decode_token
 from app.models.catalogos import Area, Puesto
+from app.models.horas_extra import HorasExtraAprobador
 from tests.conftest import auth_headers, make_empleado
 
 AUTORIZADOS_URL = "/api/v1/nominas/ajustes/horas-extra/autorizados"
 APROBADORES_URL = "/api/v1/nominas/ajustes/horas-extra/aprobadores"
+
+
+async def _reset_aprobadores(db):
+    from sqlalchemy import delete
+
+    await db.execute(delete(HorasExtraAprobador))
+    await db.flush()
 
 
 @pytest.mark.asyncio
@@ -297,6 +305,7 @@ async def test_aprobadores_solo_rh(
 async def test_aprobadores_crear_listar_eliminar_gerentes(
     client: AsyncClient, db, empleado_rh
 ):
+    await _reset_aprobadores(db)
     gerente1 = await make_empleado(db, rol="gerente", nombre="Gerente Regional Uno")
     gerente2 = await make_empleado(db, rol="gerente", nombre="Gerente Regional Dos")
     headers = await auth_headers(client, empleado_rh)
@@ -362,6 +371,7 @@ async def test_aprobadores_rechaza_empleado_inexistente(
 
 @pytest.mark.asyncio
 async def test_aprobadores_director_unico_activo(client: AsyncClient, db, empleado_rh):
+    await _reset_aprobadores(db)
     director1 = await make_empleado(db, rol="director", nombre="Director Uno")
     director2 = await make_empleado(db, rol="director", nombre="Director Dos")
     headers = await auth_headers(client, empleado_rh)

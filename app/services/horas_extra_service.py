@@ -23,6 +23,7 @@ from app.schemas.horas_extra import (
     HorasExtraTabFiltro,
 )
 from app.schemas.horas_extra_solicitud import HorasExtraSolicitudResponse
+from app.services.horas_extra_aprobacion_service import estado_consolidado
 from app.services.horas_extra_solicitud_service import HorasExtraSolicitudService
 from app.utils.business_time import business_today
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,6 +112,7 @@ class HorasExtraService:
                 ),
                 motivo=solicitud.motivo.descripcion if solicitud.motivo else None,
                 estado=solicitud.estado,
+                estado_consolidado=estado_consolidado(solicitud.aprobaciones),
                 total_horas=float(detalle.total_horas),
                 registrado_por_nombre=(
                     solicitud.registrado_por.nombre if solicitud.registrado_por else None

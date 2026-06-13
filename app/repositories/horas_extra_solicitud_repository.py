@@ -140,6 +140,7 @@ class HorasExtraSolicitudRepository:
                 selectinload(HorasExtraSolicitud.subarea),
                 selectinload(HorasExtraSolicitud.centro_costo),
                 selectinload(HorasExtraSolicitud.motivo),
+                selectinload(HorasExtraSolicitud.aprobaciones),
                 selectinload(HorasExtraSolicitud.detalle).selectinload(
                     HorasExtraSolicitudDetalle.empleado
                 ),
@@ -159,6 +160,7 @@ class HorasExtraSolicitudRepository:
                 selectinload(HorasExtraSolicitud.subarea),
                 selectinload(HorasExtraSolicitud.centro_costo),
                 selectinload(HorasExtraSolicitud.motivo),
+                selectinload(HorasExtraSolicitud.aprobaciones),
                 selectinload(HorasExtraSolicitud.detalle).selectinload(
                     HorasExtraSolicitudDetalle.empleado
                 ),
@@ -178,6 +180,7 @@ class HorasExtraSolicitudRepository:
             select(HorasExtraSolicitud)
             .options(
                 selectinload(HorasExtraSolicitud.area),
+                selectinload(HorasExtraSolicitud.aprobaciones),
                 selectinload(HorasExtraSolicitud.detalle),
             )
             .where(HorasExtraSolicitud.registrado_por_id == registrado_por_id)

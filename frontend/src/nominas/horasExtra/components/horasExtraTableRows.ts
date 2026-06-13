@@ -1,17 +1,8 @@
-import type { HorasExtraFila, HorasExtraEstadoSolicitud } from "../../../api/horasExtra.ts";
-import { HE_TABLE_ROW, HE_TABLE_TD, renderHorasExtraTableStatusRow, renderHorasExtraVerButton } from "../../../horasExtra/shared/horasExtraTableUi.ts";
-import { badgeApproved, badgeCancelled, badgePending, badgeRejected } from "../../../ui/uiTokens.ts";
+import type { HorasExtraFila } from "../../../api/horasExtra.ts";
+import { HE_TABLE_ROW, HE_TABLE_TD, renderHorasExtraEstadoBadge, renderHorasExtraTableStatusRow, renderHorasExtraVerButton } from "../../../horasExtra/shared/horasExtraTableUi.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../../../utils/nombreEmpleadoDisplay.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import type { HorasExtraPageViewModel } from "../types.ts";
-
-function estadoBadge(estado: HorasExtraEstadoSolicitud): string {
-  if (estado === "aprobado") return badgeApproved("Aprobado");
-  if (estado === "rechazado") return badgeRejected("Rechazado");
-  if (estado === "cancelado") return badgeCancelled("Cancelado");
-  if (estado === "borrador") return badgeCancelled("Borrador");
-  return badgePending("Pendiente");
-}
 
 function formatFecha(iso: string | null): string {
   if (!iso) return "—";
@@ -76,7 +67,7 @@ function renderFila(fila: HorasExtraFila): string {
       <td class="max-w-[16rem] ${HE_TABLE_TD}">
         <p class="truncate text-sm text-text-primary" title="${escapeHtml(motivo)}">${escapeHtml(motivo)}</p>
       </td>
-      <td class="${HE_TABLE_TD} whitespace-nowrap">${estadoBadge(sol.estado)}</td>
+      <td class="${HE_TABLE_TD} whitespace-nowrap">${renderHorasExtraEstadoBadge(sol.estado, sol.estado_consolidado)}</td>
       <td class="${HE_TABLE_TD} whitespace-nowrap text-right">${renderAccionesCell(fila)}</td>
     </tr>`;
 }

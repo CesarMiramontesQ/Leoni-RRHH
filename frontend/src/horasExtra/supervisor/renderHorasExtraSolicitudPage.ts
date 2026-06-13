@@ -6,10 +6,6 @@ import type {
   HorasExtraTipoSolicitud,
 } from "../../api/horasExtraSolicitud.ts";
 import {
-  badgeApproved,
-  badgeCancelled,
-  badgePending,
-  badgeRejected,
   BTN_PRIMARY,
   BTN_SECONDARY,
   RH_DASHBOARD_PAGE_SHELL,
@@ -25,6 +21,7 @@ import {
   HE_TABLE_ROW,
   HE_TABLE_TD,
   HE_TABLE_SECTION,
+  renderHorasExtraEstadoBadge,
   renderHorasExtraTableScroll,
   renderHorasExtraTableStatusRow,
   renderHorasExtraVerButton,
@@ -180,14 +177,6 @@ export function buildDiasColumnasHoras(options: {
       diaMes,
     };
   });
-}
-
-function estadoBadge(estado: string): string {
-  if (estado === "aprobado") return badgeApproved("Aprobado");
-  if (estado === "rechazado") return badgeRejected("Rechazado");
-  if (estado === "cancelado") return badgeCancelled("Cancelado");
-  if (estado === "borrador") return badgePending("Borrador");
-  return badgePending("Pendiente");
 }
 
 export function tipoLabel(tipo: string): string {
@@ -714,7 +703,7 @@ function renderListaTable(state: HorasExtraSolicitudPageState): string {
                 <p class="truncate text-sm text-text-primary">${tipoLabel(row.tipo)}</p>
               </td>
               <td class="${HE_TABLE_TD} text-sm font-semibold tabular-nums text-text-primary whitespace-nowrap text-right">${Number(row.total_horas_general).toFixed(2)}</td>
-              <td class="${HE_TABLE_TD} whitespace-nowrap">${estadoBadge(row.estado)}</td>
+              <td class="${HE_TABLE_TD} whitespace-nowrap">${renderHorasExtraEstadoBadge(row.estado, row.estado_consolidado)}</td>
               <td class="${HE_TABLE_TD} text-sm tabular-nums text-text-secondary whitespace-nowrap">${formatDateTime(row.created_at)}</td>
               <td class="${HE_TABLE_TD} whitespace-nowrap text-right">${renderHorasExtraVerButton({ dataAttr: "he-ver-id", solicitudId: row.id })}</td>
             </tr>`,

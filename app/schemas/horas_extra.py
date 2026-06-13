@@ -5,6 +5,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.horas_extra_aprobacion import HorasExtraEstadoConsolidado
+
 HorasExtraEstadoSolicitudVista = Literal[
     "borrador", "pendiente", "aprobado", "rechazado", "cancelado"
 ]
@@ -39,6 +41,7 @@ class HorasExtraSolicitudInfoResponse(BaseModel):
     centrocosto_descripcion: Optional[str] = None
     motivo: Optional[str] = None
     estado: HorasExtraEstadoSolicitudVista
+    estado_consolidado: HorasExtraEstadoConsolidado
     total_horas: float
     registrado_por_nombre: Optional[str] = None
     aprobador_nombre: Optional[str] = None

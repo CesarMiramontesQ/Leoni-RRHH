@@ -6,6 +6,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
+from app.schemas.horas_extra_aprobacion import HorasExtraEstadoConsolidado
+
 HorasExtraTipoSolicitud = Literal["planeado", "espontaneo"]
 HorasExtraEstadoSolicitud = Literal[
     "borrador", "pendiente", "aprobado", "rechazado", "cancelado"
@@ -103,6 +105,7 @@ class HorasExtraSolicitudResponse(BaseModel):
     motivo_descripcion: str
     comentarios: Optional[str] = None
     estado: HorasExtraEstadoSolicitud
+    estado_consolidado: HorasExtraEstadoConsolidado
     total_horas_general: Decimal
     total_empleados: int
     created_at: datetime
@@ -122,6 +125,7 @@ class HorasExtraSolicitudListItem(BaseModel):
     tipo: HorasExtraTipoSolicitud
     total_horas_general: Decimal
     estado: HorasExtraEstadoSolicitud
+    estado_consolidado: HorasExtraEstadoConsolidado
     created_at: datetime
 
     @field_serializer("total_horas_general")

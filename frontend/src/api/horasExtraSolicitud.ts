@@ -61,6 +61,12 @@ export type HorasExtraDetalleResponse = HorasExtraDetalleCreate & {
   total_horas: number;
 };
 
+export type HorasExtraEstadoConsolidado =
+  | "pendiente"
+  | "aprobado_parcial"
+  | "aprobado"
+  | "rechazado";
+
 export type HorasExtraSolicitudResponse = {
   id: number;
   fecha_solicitud: string;
@@ -77,6 +83,7 @@ export type HorasExtraSolicitudResponse = {
   motivo_descripcion: string;
   comentarios: string | null;
   estado: HorasExtraEstadoSolicitud;
+  estado_consolidado: HorasExtraEstadoConsolidado;
   total_horas_general: number;
   total_empleados: number;
   created_at: string;
@@ -92,6 +99,7 @@ export type HorasExtraSolicitudListItem = {
   tipo: HorasExtraTipoSolicitud;
   total_horas_general: number;
   estado: HorasExtraEstadoSolicitud;
+  estado_consolidado: HorasExtraEstadoConsolidado;
   created_at: string;
 };
 

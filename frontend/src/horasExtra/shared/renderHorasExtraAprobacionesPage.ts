@@ -1,6 +1,6 @@
 import type { HorasExtraAprobacionEstadisticas, HorasExtraPendiente } from "../../api/horasExtraAprobacion.ts";
 import { RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
-import { escapeHtml } from "../../ui/uiUtils.ts";
+import { escapeHtml, paginationRange } from "../../ui/uiUtils.ts";
 import { HE_TABLE_SECTION } from "./horasExtraTableUi.ts";
 import {
   renderHorasExtraAprobacionDetalleModalSlot,
@@ -80,6 +80,43 @@ function renderToast(state: HorasExtraAprobacionesPageState): string {
   return `<div class="fixed bottom-4 right-4 z-[70] rounded-lg ${tone} px-4 py-2 text-sm font-medium text-white shadow-lg">${escapeHtml(state.toast.message)}</div>`;
 }
 
+function renderPagination(state: HorasExtraAprobacionesPageState): string {
+  if (state.listaStatus !== "ready" || state.items.length === 0) return "";
+
+  const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+  const start = (state.page - 1) * state.pageSize + 1;
+  const end = start + state.items.length - 1;
+  const pages = paginationRange(totalPages, state.page);
+  const prevDisabled = state.page <= 1;
+  const nextDisabled = state.page >= totalPages;
+
+  const pageButtons = pages
+    .map((entry) => {
+      if (entry === "ellipsis") {
+        return `<span class="inline-flex size-8 items-center justify-center text-xs text-text-muted">…</span>`;
+      }
+      const isActive = entry === state.page;
+      const cls = isActive
+        ? "border-leoni-blue bg-leoni-blue text-white"
+        : "cursor-pointer border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue";
+      return `<button type="button" data-he-aprob-page="${entry}" class="inline-flex size-8 items-center justify-center rounded-lg border text-xs font-semibold tabular-nums ${cls}" aria-label="Página ${entry}" ${isActive ? 'aria-current="page"' : ""}>${entry}</button>`;
+    })
+    .join("");
+
+  return `
+    <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <p class="text-xs text-text-secondary">
+        Mostrando <span class="font-semibold tabular-nums text-text-primary">${start}-${end}</span> de
+        <span class="font-semibold tabular-nums text-text-primary">${state.total}</span> solicitudes
+      </p>
+      <nav class="flex items-center gap-1" aria-label="Paginación">
+        <button type="button" data-he-aprob-page="${state.page - 1}" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40" aria-label="Página anterior" ${prevDisabled ? "disabled" : ""}>‹</button>
+        ${pageButtons}
+        <button type="button" data-he-aprob-page="${state.page + 1}" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-text-secondary transition hover:border-leoni-blue/40 hover:bg-slate-50 hover:text-leoni-blue disabled:cursor-not-allowed disabled:opacity-40" aria-label="Página siguiente" ${nextDisabled ? "disabled" : ""}>›</button>
+      </nav>
+    </div>`;
+}
+
 export function renderHorasExtraAprobacionesPage(state: HorasExtraAprobacionesPageState): string {
   const kpiState =
     state.estadisticasStatus === "loading"
@@ -119,6 +156,7 @@ export function renderHorasExtraAprobacionesPage(state: HorasExtraAprobacionesPa
             error: state.listaError,
           })}
         </div>
+        ${renderPagination(state)}
       </section>
 
       ${renderHorasExtraAprobacionDetalleModalSlot(state.detalleModal)}

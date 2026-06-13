@@ -117,14 +117,14 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
     }, 3200);
   };
 
-  const load = async () => {
-    state = { ...state, listaStatus: "loading", estadisticasStatus: "loading" };
+  const load = async (page = state.page) => {
+    state = { ...state, listaStatus: "loading", estadisticasStatus: "loading", page };
     render();
     try {
       const [estadisticas, data] = await Promise.all([
         getHorasExtraAprobacionesEstadisticas(),
         getHorasExtraAprobacionesSolicitudes({
-          page: state.page,
+          page,
           page_size: state.pageSize,
         }),
       ]);
@@ -236,7 +236,14 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
       }
 
       if (target.closest("[data-he-aprob-refrescar]")) {
-        void load();
+        void load(state.page);
+        return;
+      }
+
+      const pageBtn = target.closest<HTMLButtonElement>("[data-he-aprob-page]");
+      if (pageBtn && !pageBtn.disabled) {
+        const nextPage = Number.parseInt(pageBtn.dataset.heAprobPage ?? "0", 10);
+        if (nextPage >= 1) void load(nextPage);
         return;
       }
 
@@ -258,7 +265,7 @@ export function mountHorasExtraAprobaciones(container: HTMLElement): void {
 
       if (target.closest("[data-he-aprob-rechazar]")) {
         const det = state.detalleModal.detalle;
-        if (!det) return;
+        if (!det || !det.puede_rechazar) return;
         state = {
           ...state,
           rechazo: { solicitudId: det.solicitud_id, comentario: "", submitting: false },

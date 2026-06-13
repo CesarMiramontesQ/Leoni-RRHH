@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 
 from app.models.catalogos import Area, Subarea
@@ -17,6 +18,24 @@ from app.models.horas_extra import (
 from tests.conftest import auth_headers, make_empleado
 
 LISTADO_URL = "/api/v1/nominas/horas-extra"
+
+
+async def _reset_horas_extra(db):
+    """Limpia datos del módulo entre tests (commits vía API comparten SQLite en memoria)."""
+    from sqlalchemy import delete
+
+    for model in (
+        HorasExtraAprobacion,
+        HorasExtraSolicitudDetalle,
+        HorasExtraSolicitud,
+    ):
+        await db.execute(delete(model))
+    await db.flush()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_horas_extra_module(db):
+    await _reset_horas_extra(db)
 
 
 async def _seed_catalogo(db):
@@ -398,3 +417,48 @@ async def test_horas_extra_rechaza_empleado(client: AsyncClient, empleado_base):
     headers = await auth_headers(client, empleado_base)
     response = await client.get(LISTADO_URL, headers=headers)
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_horas_extra_lista_expone_estado_consolidado_parcial(
+    client: AsyncClient, db, empleado_rh
+):
+    area, sub, cc, motivo = await _seed_catalogo(db)
+    gerente = await make_empleado(db, rol="gerente", nombre="GR Parcial")
+    supervisor = await make_empleado(
+        db,
+        rol="supervisor",
+        nombre="Sup Parcial",
+        puede_registrar_horas_extra=True,
+    )
+    operativo = await make_empleado(
+        db, rol="empleado", nombre="Op Parcial", lider_id=supervisor.empleado_id
+    )
+    solicitud = await _crear_solicitud(
+        db,
+        area=area,
+        sub=sub,
+        cc=cc,
+        motivo=motivo,
+        registrado_por=supervisor,
+        empleados_horas=[(operativo.id, 2.0)],
+        estado="pendiente",
+    )
+    db.add(
+        HorasExtraAprobacion(
+            solicitud_id=solicitud.id,
+            tipo_firma="gerente_regional",
+            aprobador_id=gerente.id,
+            estado="aprobado",
+            fecha_aprobacion=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        )
+    )
+    await db.flush()
+
+    headers = await auth_headers(client, empleado_rh)
+    response = await client.get(LISTADO_URL, headers=headers)
+
+    assert response.status_code == 200
+    sol = response.json()["items"][0]["solicitud"]
+    assert sol["estado"] == "pendiente"
+    assert sol["estado_consolidado"] == "aprobado_parcial"

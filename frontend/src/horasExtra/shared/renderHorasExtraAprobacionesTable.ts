@@ -1,9 +1,9 @@
 import type { HorasExtraPendiente } from "../../api/horasExtraAprobacion.ts";
-import { badgeApproved, badgePending, badgeRejected } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   HE_TABLE_ROW,
   HE_TABLE_TD,
+  renderHorasExtraEstadoBadge,
   renderHorasExtraTableScroll,
   renderHorasExtraTableStatusRow,
   renderHorasExtraVerButton,
@@ -23,7 +23,7 @@ const TABLE_COLUMNS: readonly HorasExtraTableColumn[] = [
   { label: "Empleado" },
   { label: "Puesto" },
   { label: "Área" },
-  { label: "Sucursal" },
+  { label: "Subárea" },
   { label: "Fecha" },
   { label: "Horas extras", align: "right" },
   { label: "Estado" },
@@ -53,12 +53,7 @@ function fmtFechaHora(value: string): string {
 }
 
 function estadoBadge(item: HorasExtraPendiente): string {
-  if (item.estado_consolidado === "aprobado_parcial") {
-    return badgePending("Aprobación parcial");
-  }
-  if (item.estado_consolidado === "aprobado") return badgeApproved("Aprobado");
-  if (item.estado_consolidado === "rechazado") return badgeRejected("Rechazado");
-  return badgePending("Pendiente");
+  return renderHorasExtraEstadoBadge(item.estado, item.estado_consolidado);
 }
 
 function renderRow(item: HorasExtraPendiente): string {
