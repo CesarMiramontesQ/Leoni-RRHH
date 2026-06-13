@@ -80,13 +80,23 @@ class HorasExtraAprobacionRepository:
     async def crear_firmas_pendientes(
         self, solicitud_id: int, tipos_firma: set[str]
     ) -> list[HorasExtraAprobacion]:
+        if not tipos_firma:
+            return []
+        result = await self.db.execute(
+            select(HorasExtraAprobacion.tipo_firma).where(
+                HorasExtraAprobacion.solicitud_id == solicitud_id,
+                HorasExtraAprobacion.tipo_firma.in_(tipos_firma),
+            )
+        )
+        existentes = {row[0] for row in result.all()}
+        pendientes = sorted(tipos_firma - existentes)
         nuevas = [
             HorasExtraAprobacion(
                 solicitud_id=solicitud_id,
                 tipo_firma=tipo_firma,
                 estado="pendiente",
             )
-            for tipo_firma in sorted(tipos_firma)
+            for tipo_firma in pendientes
         ]
         if nuevas:
             self.db.add_all(nuevas)

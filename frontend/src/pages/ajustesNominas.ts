@@ -86,7 +86,8 @@ function toAprobadorCandidato(item: UsuarioListItem): AprobadorCandidato {
     .filter(Boolean)
     .join(" · ");
   return {
-    empleadoId: item.empleado_id,
+    // PK de empleados (el API espera empleado_ids = empleados.id, no empleado_id).
+    empleadoId: item.id,
     noEmpleado: item.no_empleado,
     nombre: item.nombre,
     email: item.email,

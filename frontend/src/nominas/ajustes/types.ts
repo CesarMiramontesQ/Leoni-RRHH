@@ -49,6 +49,7 @@ export type AprobadorItem = {
 
 /** Candidato encontrado en el buscador del modal de aprobadores. */
 export type AprobadorCandidato = {
+  /** PK de `empleados.id` (mismo valor que envía el API en `empleado_id` del aprobador). */
   empleadoId: number;
   noEmpleado: string;
   nombre: string;
