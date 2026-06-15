@@ -116,13 +116,7 @@ def role_checker(roles_requeridos: list[str]):
 async def require_rh_permisos_admin(
     current_user: Empleado = Depends(get_current_user),
 ) -> Empleado:
-    """Solo RH con flag puede_administrar_permisos_rh."""
-    rol = current_user.rol.nombre if current_user.rol else "empleado"
-    if rol != "rh":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo usuarios RH pueden administrar permisos de módulos.",
-        )
+    """Administrar permisos depende del flag `puede_administrar_permisos_rh`, no del rol."""
     if not current_user.puede_administrar_permisos_rh:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

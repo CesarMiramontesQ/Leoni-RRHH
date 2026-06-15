@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.vacaciones_repository import VacacionesRepository
@@ -18,7 +19,9 @@ class VacacionesService:
         self, current_user: Empleado, empleado_id: int
     ) -> None:
         rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol == "rh":
+        # Acceso global por permiso de módulo (RH con `solicitudes`, o no-RH inscrito
+        # con el módulo otorgado): puede ver vacaciones de cualquier empleado.
+        if user_has_module(current_user, "solicitudes"):
             return
         if empleado_id == current_user.id:
             return
@@ -57,9 +60,8 @@ class VacacionesService:
         data: VacacionesUpdate,
         current_user: Empleado,
     ) -> VacacionesResponse:
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol != "rh":
-            raise ForbiddenError(detail="Solo RH puede actualizar el saldo de vacaciones")
+        if not user_has_module(current_user, "solicitudes"):
+            raise ForbiddenError(detail="No tienes permiso para actualizar el saldo de vacaciones")
         await self.repo.ensure_empleado_exists(empleado_id)
         row = await self.repo.establecer(empleado_id, data.dias_disponibles)
         return VacacionesResponse.model_validate(row)

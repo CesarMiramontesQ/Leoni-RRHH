@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.repositories.organigrama_repository import OrganigramaRepository
 from app.schemas.organigrama import OrganigramaNodoResponse, OrganigramaResponse
@@ -19,8 +20,8 @@ class OrganigramaService:
         return user.rol.nombre if user.rol else "empleado"
 
     def _require_rh_only(self, current_user: Empleado) -> None:
-        if self._rol_nombre(current_user) != "rh":
-            raise ForbiddenError(detail="Solo el rol rh puede consultar el organigrama")
+        if not user_has_module(current_user, "organigrama"):
+            raise ForbiddenError(detail="No tienes acceso al módulo de organigrama")
 
     @staticmethod
     def _correo_preferente(empleado: Empleado) -> str | None:

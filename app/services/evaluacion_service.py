@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import Competencia, CompetenciaRequisito, EvaluacionCompetencia, PuestoPerfil
 from app.repositories.evaluacion_repository import EvaluacionRepository
@@ -57,7 +58,9 @@ class EvaluacionService:
 
     def _check_supervisor_permission(self, current_user: Empleado, target_empleado: Empleado):
         rol = current_user.rol.nombre if current_user.rol else None
-        if rol == "rh":
+        # Acceso por permiso de módulo (RH con `evaluaciones`, o no-RH inscrito con el
+        # módulo otorgado): puede evaluar a cualquiera, sin restricción de área.
+        if user_has_module(current_user, "evaluaciones"):
             return
         if rol == "supervisor":
             if current_user.area_id != target_empleado.area_id:

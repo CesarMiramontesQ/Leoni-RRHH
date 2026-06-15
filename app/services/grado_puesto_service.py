@@ -4,6 +4,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import GradoPuesto
 from app.repositories.grado_puesto_repository import GradoPuestoRepository
@@ -65,8 +66,7 @@ class GradoPuestoService:
     async def crear(
         self, data: GradoPuestoCreate, current_user: Empleado
     ) -> GradoPuestoResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear grados de puesto")
 
         if await self.repo.exists_by_nombre(data.nombre):
@@ -88,8 +88,7 @@ class GradoPuestoService:
     async def actualizar(
         self, id: int, data: GradoPuestoUpdate, current_user: Empleado
     ) -> GradoPuestoResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede actualizar grados de puesto")
 
         grado = await self.repo.get(id)
@@ -112,8 +111,7 @@ class GradoPuestoService:
         return self._to_response(grado)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede eliminar grados de puesto")
 
         grado = await self.repo.get(id)

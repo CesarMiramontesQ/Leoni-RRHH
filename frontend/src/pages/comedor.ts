@@ -11,6 +11,7 @@ import {
   getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
+import { hasExplicitModuleGrant } from "../auth/rhModulePermissions.ts";
 import { getAuthMe } from "../api/auth.ts";
 import { refreshAccessTokenSession } from "../api/http.ts";
 import { mountComedorAsignarComedorModal } from "../components/comedor/comedorAsignarComedorModal.ts";
@@ -141,6 +142,16 @@ import {
   reporteAreaFilterOptions,
   sumResumenDiario,
 } from "../comedor/reportes/reporteAggregations.ts";
+
+/**
+ * Viewer en capacidad RH para una vista de comedor: RH nativo o no‑RH con el módulo
+ * `comedor` otorgado. La página ya está gateada por `canAccessComedorRhPage`/`canAccessComedorReportePage`;
+ * esto sólo selecciona qué vista (resumen RH vs. comedor) mostrar. Se usa el grant `comedor`
+ * porque los datos RH del reporte viven bajo `/api/v1/comedor/rh` (módulo `comedor` en backend).
+ */
+function esViewerRhComedor(grantKey: "comedor"): boolean {
+  return getRolFromAccessToken() === "rh" || hasExplicitModuleGrant(grantKey);
+}
 
 /** Mismo contenedor visual que Solicitudes (`#rh-comedor-page` activa estilos en `style.css`). */
 const COMEDOR_DASHBOARD_PAGE_SHELL =
@@ -1101,7 +1112,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         getComedorEstadisticas(currentWeekStartIso),
         getComedorEstadisticas(nextWeekStartIso),
       ]);
-      const vistaComidasRh = getRolFromAccessToken() === "rh";
+      const vistaComidasRh = esViewerRhComedor("comedor");
       const rows = mapEstadisticasToRhKpis(estadisticasActual, estadisticasProxima, vistaComidasRh);
       if (signal.aborted) return;
       state.stats = rows;
@@ -1144,7 +1155,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       const weekStartIso = getCurrentWeekStartIso();
       const desde4SemanasIso = dateToIso(addDays(isoToDate(weekStartIso), -21));
       const weekEndIso = dateToIso(addDays(isoToDate(weekStartIso), 6));
-      const incluirResumenRh = getRolFromAccessToken() === "rh";
+      const incluirResumenRh = esViewerRhComedor("comedor");
       const [proyecciones, estadisticas, resumenSemanaRh] = await Promise.all([
         getComedorProyecciones(),
         getComedorEstadisticas(weekStartIso),
@@ -2793,7 +2804,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   const initialRange = dateRangeFromPreset("this_month");
   const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
-  const esRhReporte = getRolFromAccessToken() === "rh";
+  const esRhReporte = esViewerRhComedor("comedor");
   const state: ReporteComedorState = {
     filtersDataset: {
       departamentos: [{ id: "todos", label: "Todos los comedores" }],
@@ -2888,14 +2899,14 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   async function loadKpis(): Promise<void> {
     state.kpisState = "loading";
     state.kpisError = null;
-    state.kpisModo = getRolFromAccessToken() === "rh" ? "rh_resumen" : "comedor_semana";
-    if (getRolFromAccessToken() === "rh") {
+    state.kpisModo = esRhReporte ? "rh_resumen" : "comedor_semana";
+    if (esRhReporte) {
       state.rhAnalyticsState = "loading";
       state.rhAnalyticsError = null;
     }
     paint();
     try {
-      if (getRolFromAccessToken() === "rh") {
+      if (esRhReporte) {
         const desde = state.selectedFechaInicioIso.slice(0, 10);
         const hasta = state.selectedFechaFinIso.slice(0, 10);
         const [resumen, bulk] = await Promise.all([
@@ -2969,7 +2980,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
       state.kpis = null;
       state.kpisState = "error";
       state.kpisError = error instanceof Error ? error.message : "Error al cargar métricas.";
-      if (getRolFromAccessToken() === "rh") {
+      if (esRhReporte) {
         state.rhAnalyticsState = "error";
         state.rhAnalyticsError = state.kpisError;
         state.rhCodigosExternosRows = [];

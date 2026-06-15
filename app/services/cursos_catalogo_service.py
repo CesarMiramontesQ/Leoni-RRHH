@@ -3,6 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.repositories.cursos_catalogo_repository import (
     CursoCategoriaRepository,
@@ -41,7 +42,7 @@ class CursosCatalogoService:
         return user.rol.nombre if user.rol else "empleado"
 
     def _require_rh(self, user: Empleado) -> None:
-        if self._get_rol(user) != "rh":
+        if not user_has_module(user, "level-up"):
             raise ForbiddenError(detail="Solo RH puede administrar catálogos de cursos")
 
     # ── Categorías ─────────────────────────────────────────────────────────────

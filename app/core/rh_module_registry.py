@@ -148,6 +148,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/grados-puesto",
             "/api/v1/metodos-calificacion-competencia",
             "/api/v1/grupos-competencia",
+            "/api/v1/tipos-competencia",
         ),
     ),
     "tareas-catalogo": RhModuleDef(

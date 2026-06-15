@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.level_up import Habilidad
 from app.repositories.level_up_habilidades import HabilidadRepository
@@ -64,8 +65,7 @@ class HabilidadService:
     async def crear(
         self, data: HabilidadCreate, current_user: Empleado
     ) -> HabilidadResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "level-up"):
             raise ForbiddenError(detail="Solo RH puede crear habilidades")
 
         if await self.repo.exists_by_nombre(data.nombre):
@@ -85,8 +85,7 @@ class HabilidadService:
     async def actualizar(
         self, id: int, data: HabilidadUpdate, current_user: Empleado
     ) -> HabilidadResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "level-up"):
             raise ForbiddenError(detail="Solo RH puede actualizar habilidades")
 
         hab = await self.repo.get(id)
@@ -110,8 +109,7 @@ class HabilidadService:
         return self._to_response(hab)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "level-up"):
             raise ForbiddenError(detail="Solo RH puede eliminar habilidades")
 
         hab = await self.repo.get(id)

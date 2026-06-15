@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.repositories.comedor_repository import ComedorRepository
 from app.models.empleados import Empleado
 from app.models.roles import Rol
@@ -104,8 +105,8 @@ class UsuarioService:
         return current_user.rol.nombre if current_user.rol else "empleado"
 
     def _require_rh_only(self, current_user: Empleado) -> None:
-        if self._get_rol(current_user) != "rh":
-            raise ForbiddenError(detail="Solo el rol rh puede usar esta operacion")
+        if not user_has_module(current_user, "empleados"):
+            raise ForbiddenError(detail="No tienes acceso a esta operación de administración")
 
     def _require_directorio(
         self,
@@ -541,7 +542,7 @@ class UsuarioService:
         actas = list(result.scalars().all())
 
         turno_empleado: Vista360TurnoEmpleado | None = None
-        if self._get_rol(current_user) == "rh":
+        if user_has_module(current_user, "empleados"):
             r_te = await self.db.execute(
                 select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == usuario.no_empleado)
             )

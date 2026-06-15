@@ -4,6 +4,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import TipoCompetencia
 from app.repositories.tipo_competencia_repository import TipoCompetenciaRepository
@@ -70,8 +71,7 @@ class TipoCompetenciaService:
     async def crear(
         self, data: TipoCompetenciaCreate, current_user: Empleado
     ) -> TipoCompetenciaResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear tipos de competencia")
 
         grupo_service = GrupoCompetenciaService(self.db)
@@ -95,8 +95,7 @@ class TipoCompetenciaService:
     async def actualizar(
         self, id: int, data: TipoCompetenciaUpdate, current_user: Empleado
     ) -> TipoCompetenciaResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede actualizar tipos de competencia")
 
         tipo = await self.repo.get(id)
@@ -123,8 +122,7 @@ class TipoCompetenciaService:
         return self._to_response(tipo)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede eliminar tipos de competencia")
 
         tipo = await self.repo.get(id)

@@ -33,6 +33,7 @@ from app.core.exceptions import (
     NotFoundError,
     ServiceUnavailableError,
 )
+from app.core.rh_module_registry import user_has_module
 from app.integrations.tress.queue import encolar_tress
 from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.empleados import Empleado
@@ -1268,7 +1269,7 @@ class ActaService:
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
         rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede generar actas")
 
         result_emp = await self.db.execute(
@@ -1336,7 +1337,7 @@ class ActaService:
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
         rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede crear actas")
 
         result_emp = await self.db.execute(
@@ -1397,7 +1398,7 @@ class ActaService:
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
         rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede editar actas")
 
         acta = await self.repo.get(id)
@@ -1563,7 +1564,7 @@ class ActaService:
         current_user: Empleado,
     ) -> ActaResponse:
         rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede aprobar actas")
 
         acta = await self.repo.get_with_aprobaciones(id)
@@ -1630,7 +1631,7 @@ class ActaService:
         current_user: Empleado,
     ) -> ActaResponse:
         rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede anular actas")
 
         acta = await self.repo.get_with_aprobaciones(id)

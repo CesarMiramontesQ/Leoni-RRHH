@@ -91,8 +91,11 @@ export function isModulosRhEnrolled(): boolean {
   return state.enrolled;
 }
 
+/**
+ * Administración de permisos: depende del flag `puede_administrar_permisos_rh`
+ * (permiso), no del rol base. Cualquier usuario con el flag puede administrar.
+ */
 export function canAccessRhPermisosAdmin(): boolean {
-  if (getSessionRol() !== "rh") return false;
   if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
   return state.canAdminPermisos;
 }

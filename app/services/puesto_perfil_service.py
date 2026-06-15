@@ -23,6 +23,7 @@ from app.core.exceptions import (
     NotFoundError,
     ServiceUnavailableError,
 )
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import PuestoPerfil
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
@@ -121,8 +122,7 @@ class PuestoPerfilService:
     async def crear(
         self, data: PuestoPerfilCreate, current_user: Empleado
     ) -> PuestoPerfilResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear perfiles de puesto")
 
         # Verificar duplicado
@@ -157,8 +157,7 @@ class PuestoPerfilService:
     async def actualizar(
         self, id: int, data: PuestoPerfilUpdate, current_user: Empleado
     ) -> PuestoPerfilResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede actualizar perfiles de puesto")
 
         perfil = await self.repo.get_with_relations(id)
@@ -197,8 +196,7 @@ class PuestoPerfilService:
     # ── Eliminar ─────────────────────────────────────────────────────────────
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede eliminar perfiles de puesto")
 
         perfil = await self.repo.get_with_relations(id)
@@ -213,8 +211,7 @@ class PuestoPerfilService:
     async def generar_con_ia(
         self, id: int, data: GenerarPerfilIARequest, current_user: Empleado
     ) -> GenerarPerfilIAResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede generar perfiles con IA")
 
         # Verificar que el puesto existe
