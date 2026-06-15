@@ -17,7 +17,7 @@ import {
 } from "./levelUpNav.ts";
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
 import { getRolFromAccessToken, isHorasExtraAprobador, isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
-import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { isNonRhRhMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
 export const RH_SIN_PERMISOS_HASH = "#/sin-permisos-rh";
@@ -226,6 +226,12 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 }
 
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+  // No-RH en Modo RH: ver únicamente los módulos asignados (hoy Nóminas es el
+  // único cableado a hub). En modo base se cae al comportamiento normal de su rol.
+  if (isNonRhRhMode()) {
+    if (itemId === "nominas") return isNominasHubVisibleForRol(rol);
+    return hasExplicitModuleGrant(navItemIdToModuleKey(itemId));
+  }
   if (itemId === "level-up") {
     if (isRhStructuredNavRol(rol)) {
       return getVisibleLevelUpCategoriesForRhSidebar(rol).some((category) => category.items.length > 0);
@@ -251,9 +257,7 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
     }
     return byRole && moduleNavAllowed(rol, itemId);
   }
-  if (isModulosRhEnrolled()) {
-    return byRole || hasExplicitModuleGrant(navItemIdToModuleKey(itemId));
-  }
+  // No-RH en modo base (o sin permisos): solo la navegación de su rol.
   return byRole;
 }
 
@@ -303,7 +307,8 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   }
   if (h.startsWith("#/nominas")) {
     if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
-    const grant = rol !== "rh" && isModulosRhEnrolled() && hasExplicitModuleGrant("nominas");
+    // Para no-RH el acceso por grant solo aplica en Modo RH.
+    const grant = rol !== "rh" && isNonRhRhMode() && hasExplicitModuleGrant("nominas");
     if (h.startsWith("#/nominas/ajustes")) return rol === "rh" || grant;
     return NOMINAS_NAV_ROLES.has(rol ?? "") || grant;
   }
@@ -328,7 +333,9 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return hasRhModule(moduleKey);
   }
   if (isModulosRhEnrolled()) {
-    return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+    // Modo RH: rol base + grants; Modo base: solo rutas del rol.
+    if (isNonRhRhMode()) return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+    return hashAllowedByRole(rol, h);
   }
   return true;
 }

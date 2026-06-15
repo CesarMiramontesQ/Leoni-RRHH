@@ -27,6 +27,59 @@ function isRhFueraDeLista(): boolean {
   return getRolFromAccessToken() === "rh" && !inPermisosList;
 }
 
+// ── Modo para usuarios SIN rol RH con permisos RH asignados ──────────────────
+// Sistema paralelo (no toca la lógica RH de arriba): un no-RH con >=1 permiso
+// activo alterna entre su modo base (su rol) y el Modo RH (módulos asignados).
+
+const NON_RH_MODE_KEY = "leoni_non_rh_ui_mode";
+
+/** ¿El usuario (cualquier rol) tiene >=1 permiso RH activo? Lo empuja `rhModulePermissions`. */
+let rhPermisosActivos = false;
+
+export function setRhPermisosActivos(value: boolean): void {
+  rhPermisosActivos = value;
+}
+
+export function hasRhPermisosActivos(): boolean {
+  return rhPermisosActivos;
+}
+
+/** Usuario sin rol RH pero con permisos RH asignados (puede usar el toggle). */
+export function isNonRhPermisosUser(): boolean {
+  return getRolFromAccessToken() !== "rh" && rhPermisosActivos;
+}
+
+function readNonRhMode(): "base" | "rh" {
+  try {
+    const raw = sessionStorage.getItem(NON_RH_MODE_KEY);
+    if (raw === "rh" || raw === "base") return raw;
+  } catch {
+    /* ignore */
+  }
+  return "base";
+}
+
+/** No-RH viendo sus módulos RH asignados (Modo RH). Default: modo base. */
+export function isNonRhRhMode(): boolean {
+  return isNonRhPermisosUser() && readNonRhMode() === "rh";
+}
+
+export function setNonRhRhMode(active: boolean): void {
+  if (!isNonRhPermisosUser()) return;
+  try {
+    sessionStorage.setItem(NON_RH_MODE_KEY, active ? "rh" : "base");
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(RH_UI_MODE_CHANGE_EVENT));
+  }
+}
+
+export function toggleNonRhRhMode(): void {
+  setNonRhRhMode(!isNonRhRhMode());
+}
+
 function readStoredMode(): RhUiMode | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -141,8 +194,10 @@ export function getRhUiModeHeaderValue(): string | null {
 
 export function resetRhUiMode(): void {
   inPermisosList = true;
+  rhPermisosActivos = false;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(NON_RH_MODE_KEY);
   } catch {
     /* ignore */
   }

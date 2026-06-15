@@ -4,6 +4,7 @@ import {
   isRhGestorTeamUiMode,
   rhHasFullOperativoModules,
   setRhInPermisosList,
+  setRhPermisosActivos,
 } from "./rhUiMode.ts";
 import { getAccessToken } from "./session.ts";
 
@@ -47,6 +48,7 @@ export function resetRhModulePermissions(): void {
   state.canAdminPermisos = false;
   state.enListaPermisos = true;
   setRhInPermisosList(true);
+  setRhPermisosActivos(false);
 }
 
 export async function loadRhModulePermissions(): Promise<void> {
@@ -59,6 +61,7 @@ export async function loadRhModulePermissions(): Promise<void> {
       state.canAdminPermisos = false;
       state.enListaPermisos = true;
       setRhInPermisosList(true);
+      setRhPermisosActivos(false);
       return;
     }
     state.enrolled = data.inscrito;
@@ -66,6 +69,7 @@ export async function loadRhModulePermissions(): Promise<void> {
     state.canAdminPermisos = data.puede_administrar_permisos_rh;
     state.enListaPermisos = data.en_lista_permisos;
     setRhInPermisosList(data.en_lista_permisos);
+    setRhPermisosActivos(Object.values(state.modules).some(Boolean));
     state.loaded = true;
   } catch {
     state.loaded = true;
@@ -75,6 +79,7 @@ export async function loadRhModulePermissions(): Promise<void> {
     // Fail-open de UI: ante error transitorio no ocultamos el toggle.
     state.enListaPermisos = true;
     setRhInPermisosList(true);
+    setRhPermisosActivos(false);
   }
 }
 

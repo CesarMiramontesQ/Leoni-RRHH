@@ -4,7 +4,7 @@
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { hasExplicitModuleGrant, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
-import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { isNonRhRhMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import {
   isEmpleadoFlatNavRol,
   isShellNavItemVisibleForRol,
@@ -79,9 +79,9 @@ export function getVisibleNominasCategories(rol: string | null): ShellHubCategor
   return [{ id: "nominas", title: "Nóminas", items }];
 }
 
-/** Grant explícito de Nóminas para un usuario de otro rol inscrito por RH. */
+/** Grant explícito de Nóminas para un no-RH inscrito, visible solo en Modo RH. */
 export function hasNominasGrant(rol: string | null): boolean {
-  return rol !== "rh" && isModulosRhEnrolled() && hasExplicitModuleGrant("nominas");
+  return rol !== "rh" && isNonRhRhMode() && isModulosRhEnrolled() && hasExplicitModuleGrant("nominas");
 }
 
 export function isNominasHubVisibleForRol(rol: string | null): boolean {
