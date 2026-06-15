@@ -102,3 +102,55 @@ describe("separación Nóminas (Regla A) vs aprobar horas extra (Regla B)", () =
     expect(isShellNavItemVisibleForRol("gerente", "nominas-ajustes")).toBe(false);
   });
 });
+
+// Acceso a RUTAS de Nóminas tras el split granular (regresión: usaba el key obsoleto "nominas").
+describe("modulosMayAccessHash: rutas de Nóminas por página", () => {
+  beforeEach(() => {
+    storage.clear();
+    rol = "empleado";
+    heAprobador = false;
+    heAutorizado = false;
+    grants.clear();
+    rhModules.clear();
+    vi.resetModules();
+  });
+
+  it("no-RH con grant de Horas Extra en Modo RH entra a #/nominas/horas-extra", async () => {
+    const { modulosMayAccessHash, setRhPermisosActivos, setNonRhRhMode } = await imports();
+    grants.add("nominas-horas-extra");
+    setRhPermisosActivos(true);
+    setNonRhRhMode(true);
+    expect(modulosMayAccessHash("#/nominas/horas-extra", "empleado")).toBe(true);
+  });
+
+  it("no-RH sin el grant de Horas Extra queda bloqueado (bug reportado)", async () => {
+    const { modulosMayAccessHash, setRhPermisosActivos, setNonRhRhMode } = await imports();
+    grants.add("nominas-conciliacion"); // tiene otra página, no Horas Extra
+    setRhPermisosActivos(true);
+    setNonRhRhMode(true);
+    expect(modulosMayAccessHash("#/nominas/horas-extra", "empleado")).toBe(false);
+    expect(modulosMayAccessHash("#/nominas/conciliacion", "empleado")).toBe(true);
+  });
+
+  it("gerente conserva su superficie de rol en modo base (sin Modo RH)", async () => {
+    const { modulosMayAccessHash } = await imports();
+    expect(modulosMayAccessHash("#/nominas/horas-extra", "gerente")).toBe(true);
+  });
+
+  it("Ajustes de Nóminas es RH-exclusivo: no-RH solo con grant en Modo RH", async () => {
+    const { modulosMayAccessHash, setRhPermisosActivos, setNonRhRhMode } = await imports();
+    setRhPermisosActivos(true);
+    setNonRhRhMode(true);
+    expect(modulosMayAccessHash("#/nominas/ajustes", "gerente")).toBe(false);
+    grants.add("nominas-ajustes");
+    expect(modulosMayAccessHash("#/nominas/ajustes", "gerente")).toBe(true);
+  });
+
+  it("RH entra solo a las páginas de Nóminas que tiene otorgadas", async () => {
+    const { modulosMayAccessHash } = await imports();
+    rol = "rh";
+    rhModules.add("nominas-horas-extra");
+    expect(modulosMayAccessHash("#/nominas/horas-extra", "rh")).toBe(true);
+    expect(modulosMayAccessHash("#/nominas/conciliacion", "rh")).toBe(false);
+  });
+});

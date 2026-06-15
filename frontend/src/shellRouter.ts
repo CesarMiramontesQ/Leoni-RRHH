@@ -4,6 +4,7 @@ import {
   isRhHomeHash,
   modulosMayAccessHash,
   resolveRhOperativoLandingHash,
+  resolveRoutedHashForRol,
   RH_SIN_PERMISOS_HASH,
   rhMayAccessHash,
   supervisorMayAccessHash,
@@ -76,12 +77,19 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
   const go = (): void => {
     let rawHash = window.location.hash || "#/";
-    if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
-      history.replaceState(null, "", "#/");
-    }
-    const rolAtEntry = getRolFromAccessToken();
-    if (usesSupervisorRoutePolicy(rolAtEntry) && !supervisorMayAccessHash(rawHash)) {
-      history.replaceState(null, "", "#/");
+    // Para no-RH INSCRITOS en permisos RH, `modulosMayAccessHash` es la única
+    // autoridad de ruta (rol base + grants en Modo RH). Las redirecciones por rol
+    // de abajo no deben pisar el grant, o un inscrito con permiso de una página
+    // RH-exclusiva (ajustes, actas, reporte comedor, evaluación 360) sería enviado a #/.
+    const enrolledNonRh = getRolFromAccessToken() !== "rh" && isModulosRhEnrolled();
+    if (!enrolledNonRh) {
+      if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
+        history.replaceState(null, "", "#/");
+      }
+      const rolAtEntry = getRolFromAccessToken();
+      if (usesSupervisorRoutePolicy(rolAtEntry) && !supervisorMayAccessHash(rawHash)) {
+        history.replaceState(null, "", "#/");
+      }
     }
     const rol = getRolFromAccessToken();
     if (rol === "rh" && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
@@ -106,10 +114,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountRhModuleAccessDenied(container);
       return;
     }
-    const h =
-      rol === "empleado" && !empleadoMayAccessHash(rawHash) ? "#/"
-      : usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash) ? "#/"
-      : rawHash;
+    const h = resolveRoutedHashForRol(rol, rawHash, { enrolledNonRh });
 
     routeToHash(container, signal, h);
     if (shouldResetScrollOnRoute(window.location.hash || "#/")) {

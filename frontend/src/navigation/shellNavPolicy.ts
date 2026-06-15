@@ -294,6 +294,23 @@ function hashAllowedByRole(rol: string | null, hash: string): boolean {
   return true;
 }
 
+/**
+ * Hash final a enrutar aplicando las compuertas de ruta por rol (empleado/supervisor).
+ * Para un no-RH INSCRITO en permisos RH (`enrolledNonRh`), `modulosMayAccessHash` ya es
+ * la autoridad de acceso (rol base + grants en Modo RH), así que las compuertas por rol
+ * NO se aplican: respetar el grant de páginas RH-exclusivas en lugar de redirigir a `#/`.
+ */
+export function resolveRoutedHashForRol(
+  rol: string | null,
+  rawHash: string,
+  opts: { enrolledNonRh: boolean },
+): string {
+  if (opts.enrolledNonRh) return rawHash;
+  if (rol === "empleado" && !empleadoMayAccessHash(rawHash)) return "#/";
+  if (usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash)) return "#/";
+  return rawHash;
+}
+
 export function modulosMayAccessHash(hash: string, rol: string | null): boolean {
   const h = (hash || "#/").trim();
   if (h === "#/level-up") {
@@ -307,9 +324,14 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   }
   if (h.startsWith("#/nominas")) {
     if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
-    // Para no-RH el acceso por grant solo aplica en Modo RH.
-    const grant = rol !== "rh" && isNonRhRhMode() && hasExplicitModuleGrant("nominas");
-    if (h.startsWith("#/nominas/ajustes")) return rol === "rh" || grant;
+    // Permiso por PÁGINA tras el split granular de Nóminas
+    // (nominas-horas-extra | nominas-conciliacion | nominas-ajustes).
+    const pageModule = resolveModuleFromHash(h);
+    if (pageModule === null) return isNominasHubVisibleForRol(rol); // hub raíz #/nominas
+    if (rol === "rh") return hasRhModule(pageModule);
+    // No-RH: acceso por grant solo en Modo RH; en modo base, navegación por rol.
+    const grant = isNonRhRhMode() && hasExplicitModuleGrant(pageModule);
+    if (h.startsWith("#/nominas/ajustes")) return grant; // Ajustes es RH-exclusivo (no-RH solo por grant)
     return NOMINAS_NAV_ROLES.has(rol ?? "") || grant;
   }
   if (h.startsWith("#/notificaciones")) return true;
