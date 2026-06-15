@@ -424,7 +424,11 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
 
   const supervisorSidebar = isSupervisorStructuredNavRol(rol);
   const rhStructuredSidebar = isRhStructuredNavRol(rol);
-  const mainMenuLis = isEmpleadoFlatNavRol(rol)
+  // No-RH en Modo RH: usar el sidebar estructurado (que incluye el hub de Nóminas
+  // y demás módulos); los ítems se filtran por grant en navItemLi. Así un no-RH
+  // con permiso de Nóminas ve su sección al activar el toggle.
+  const nonRhRhMode = isNonRhRhMode();
+  const mainMenuLis = (!nonRhRhMode && isEmpleadoFlatNavRol(rol))
     ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
         navItemLi(sidebarActiveNav, rol, {
           id: d.id,
@@ -434,7 +438,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
           svgPaths: d.svgPaths,
         }),
       ).join("")
-    : supervisorSidebar
+    : (!nonRhRhMode && supervisorSidebar)
       ? renderSupervisorSidebarSections(sidebarActiveNav, rol)
       : (() => {
           const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
@@ -448,7 +452,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const navContent = rhStructuredSidebar
     ? renderRhStructuredSidebarSections(sidebarActiveNav as RhNavKey | undefined, rol)
     : (() => {
-        const mainMenuBlock = supervisorSidebar
+        const mainMenuBlock = (supervisorSidebar && !nonRhRhMode)
           ? mainMenuLis
           : `<li>
           <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>

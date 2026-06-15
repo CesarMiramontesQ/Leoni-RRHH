@@ -16,7 +16,8 @@ import {
   getVisibleLevelUpCategoriesForRhSidebar,
 } from "./levelUpNav.ts";
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
-import { getRolFromAccessToken, isHorasExtraAprobador, isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
+import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
 import { isNonRhRhMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
@@ -192,14 +193,8 @@ function effectiveShellNavRol(rol: string | null): string | null {
 function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): boolean {
   const navRol = effectiveShellNavRol(rol);
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
-  if (itemId === "horas-extra-solicitud") {
-    return isHorasExtraRegistroAutorizado();
-  }
-  // La vista de aprobación se muestra a quien RH designó como aprobador,
-  // sin importar su rol (gerente regional / director).
-  if (itemId === "horas-extra-aprobaciones") {
-    return isHorasExtraAprobador();
-  }
+  // `horas-extra-solicitud` y `horas-extra-aprobaciones` se resuelven antes de
+  // llegar aquí (Regla B, en isShellNavItemVisibleForRol).
   if (itemId === "nominas-ajustes") return navRol === "rh";
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
@@ -226,6 +221,11 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 }
 
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+  // Regla B (operativa): registrar/aprobar horas extra depende ÚNICAMENTE de la
+  // autorización explícita en Ajustes de Nómina, nunca del permiso RH de Nóminas
+  // (Regla A) ni del rol. Autoritativo en todos los caminos.
+  if (itemId === "horas-extra-aprobaciones") return canApproveOvertime();
+  if (itemId === "horas-extra-solicitud") return canRegisterOvertime();
   // No-RH en Modo RH: ver únicamente los módulos asignados (hoy Nóminas es el
   // único cableado a hub). En modo base se cae al comportamiento normal de su rol.
   if (isNonRhRhMode()) {
@@ -264,8 +264,8 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
 export function empleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h === "" || h === "#" || h === "#/") return true;
-  if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
-  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
+  if (h.startsWith("#/horas-extra/solicitud")) return canRegisterOvertime();
+  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
@@ -276,8 +276,8 @@ export function empleadoMayAccessHash(hash: string): boolean {
 
 export function supervisorMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
-  if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
-  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
+  if (h.startsWith("#/horas-extra/solicitud")) return canRegisterOvertime();
+  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/nominas/ajustes")) return false;
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
@@ -306,7 +306,7 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return isComedorHubVisibleForRol(rol);
   }
   if (h.startsWith("#/nominas")) {
-    if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
+    if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
     // Para no-RH el acceso por grant solo aplica en Modo RH.
     const grant = rol !== "rh" && isNonRhRhMode() && hasExplicitModuleGrant("nominas");
     if (h.startsWith("#/nominas/ajustes")) return rol === "rh" || grant;

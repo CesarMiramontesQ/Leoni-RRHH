@@ -20,6 +20,8 @@ import {
   type HorasExtraAprobacionDetalleModalState,
 } from "../horasExtra/shared/renderHorasExtraAprobacionDetalleModal.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { canApproveOvertime } from "../auth/payrollPermissions.ts";
+import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 const SHELL_OPTS = {
   pageTitle: "Aprobación de Horas Extra",
@@ -63,6 +65,20 @@ function renderToast(state: HorasExtraAprobacionesPageState): string {
 }
 
 export function mountHorasExtraAprobaciones(container: HTMLElement): void {
+  // Regla B: solo usuarios designados como aprobadores en Ajustes de Nómina.
+  // No depende del permiso RH de Nóminas (Regla A).
+  if (!canApproveOvertime()) {
+    mountAppShell(container, {
+      ...SHELL_OPTS,
+      mainHtml: htmlAccessDenied({
+        title: "Acceso restringido",
+        description:
+          "Esta página solo está disponible para usuarios designados como aprobadores de horas extra en Ajustes de Nóminas.",
+      }),
+    });
+    return;
+  }
+
   let state = initialState();
 
   const render = () => {

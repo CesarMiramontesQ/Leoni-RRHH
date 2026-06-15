@@ -4,6 +4,7 @@
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { hasExplicitModuleGrant, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
+import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
 import { isNonRhRhMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import {
   isEmpleadoFlatNavRol,
@@ -85,6 +86,11 @@ export function hasNominasGrant(rol: string | null): boolean {
 }
 
 export function isNominasHubVisibleForRol(rol: string | null): boolean {
+  // Regla B (operativa): un autorizado a registrar/aprobar horas extra ve su
+  // sección sin importar su rol ni el permiso RH de Nóminas (Regla A).
+  if (canApproveOvertime() || canRegisterOvertime()) {
+    if (getVisibleNominasCategories(rol).length > 0) return true;
+  }
   if (hasNominasGrant(rol)) return getVisibleNominasCategories(rol).length > 0;
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
   if (rol === "rh" && isRhOperativoUiMode()) return false;
