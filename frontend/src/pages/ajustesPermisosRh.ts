@@ -187,18 +187,20 @@ function renderModuleSummary(
   draft: Record<string, boolean>,
   catalogGroups: Map<string, RhModuloCatalogItem[]>,
 ): string {
-  const userFullAccess = !user.permisos_personalizados;
+  // Acceso completo (sin restricciones, o personalizado con todos los módulos activos):
+  // se prioriza un único badge "Permisos completos" y se ocultan los chips individuales.
+  const level = getAccessLevel(user, draft);
   const totalModules = countCatalogModules(catalogGroups);
-  const activeModules = userFullAccess ? totalModules : countActiveInGroups(draft, catalogGroups);
+  const activeModules = level === "full" ? totalModules : countActiveInGroups(draft, catalogGroups);
 
   const summary = `<span class="text-xs font-semibold text-[#334155]"><span class="tabular-nums text-[#0f172a]">${activeModules}</span> de <span class="tabular-nums">${totalModules}</span> módulos</span>`;
 
-  if (userFullAccess) {
+  if (level === "full") {
     return `
       <div class="flex flex-col gap-1.5">
         ${summary}
         <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
-          <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Todos los grupos
+          <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Permisos completos
         </span>
       </div>`;
   }
