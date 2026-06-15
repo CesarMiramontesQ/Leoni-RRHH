@@ -1,4 +1,5 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
@@ -42,7 +43,8 @@ interface State {
 
 export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): void {
   const rol = getRolFromAccessToken();
-  const canEvaluate = rol === "rh" || rol === "supervisor";
+  // Permiso de módulo (RH con grant o no-RH con el módulo otorgado) o superficie de supervisor.
+  const canEvaluate = hasRhModule("evaluaciones") || rol === "supervisor";
 
   const state: State = {
     evaluaciones: { items: [], total: 0, page: 1, page_size: 10 },

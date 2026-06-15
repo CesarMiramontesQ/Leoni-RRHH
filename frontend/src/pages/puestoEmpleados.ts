@@ -1,6 +1,6 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { getAccessToken } from "../auth/session.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
 import {
@@ -80,8 +80,9 @@ const ICON_PLUS = `<svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" 
 const ICON_CHEVRON = `<svg class="size-4 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>`;
 const ICON_SEARCH = `<svg class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607Z"/></svg>`;
 
-function isRh(): boolean {
-  return getRolFromAccessToken() === "rh";
+/** Gestión de puestos: RH con el módulo o no-RH con el módulo `puestos` otorgado. */
+function canGestionarPuestos(): boolean {
+  return hasRhModule("puestos");
 }
 
 function nivelLabel(nivel: string): string {
@@ -531,7 +532,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
   let asignaciones: AsignacionItem[] = [];
   let filters: FilterState = { search: "", estado: "all" };
   let listPage = 1;
-  const showRhActions = isRh();
+  const showRhActions = canGestionarPuestos();
 
   let asignarModal: { open: () => void } | null = null;
 

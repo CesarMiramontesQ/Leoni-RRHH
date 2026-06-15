@@ -50,6 +50,8 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "sesiones") return "cursos";
   if (navItemId === "comedor-menu") return "comedor";
   if (navItemId === "laborales") return "dashboard";
+  // Evaluación 360 vive bajo el módulo Level Up (no es un módulo propio).
+  if (navItemId === "evaluacion-360") return "level-up";
   // Nóminas: un módulo de navegación por página del submenú.
   if (navItemId === "horas-extra") return "nominas-horas-extra";
   if (navItemId === "conciliacion") return "nominas-conciliacion";

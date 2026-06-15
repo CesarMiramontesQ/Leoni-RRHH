@@ -1,4 +1,4 @@
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { canAccessActasPage } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import {
@@ -942,7 +942,7 @@ function renderDetalleHtml(
 }
 
 export function mountActaDetalle(container: HTMLElement, actaId: number, signal: AbortSignal): void {
-  if (getRolFromAccessToken() !== "rh") {
+  if (!canAccessActasPage()) {
     mountAppShell(container, {
       pageTitle: "Detalle de acta",
       activeNav: "actas",

@@ -636,3 +636,45 @@ async def test_user_has_module_with_explicit_denial(db):
     )
     assert user_has_module(rh, "actas") is False
     assert user_has_module(rh, "solicitudes") is True
+
+
+@pytest.mark.asyncio
+async def test_non_rh_granted_reaches_rh_exclusive_modules(db):
+    """Un no-RH inscrito y con el módulo otorgado accede a páginas antes
+    exclusivas de rol RH (actas, ajustes de nómina, talento); sin el módulo no.
+    Alinea el frontend (gating por permiso) con el enforcement del backend."""
+    from app.core.rh_module_registry import all_module_keys
+
+    modulos = {key: False for key in all_module_keys()}
+    for key in ("actas", "nominas-ajustes", "puestos", "competencias", "level-up"):
+        modulos[key] = True
+
+    emp = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_rh_exclusivo@test.com",
+        inscrito_modulos_rh=True,
+        modulos_rh=modulos,
+    )
+
+    # Otorgados → acceso, sin rol RH.
+    assert user_has_module(emp, "actas") is True
+    assert user_has_module(emp, "nominas-ajustes") is True
+    assert user_has_module(emp, "puestos") is True
+    assert user_has_module(emp, "competencias") is True
+    assert user_has_module(emp, "level-up") is True
+    # No otorgado → bloqueado aunque esté inscrito.
+    assert user_has_module(emp, "organigrama") is False
+
+
+@pytest.mark.asyncio
+async def test_non_rh_not_enrolled_has_no_rh_exclusive_modules(db):
+    """Sin inscripción no hay acceso a módulos RH, aunque el rol base no sea empleado."""
+    director = await make_empleado(
+        db,
+        rol="director",
+        email="dir_sin_inscripcion@test.com",
+    )
+    assert user_has_module(director, "actas") is False
+    assert user_has_module(director, "nominas-ajustes") is False
+    assert user_has_module(director, "puestos") is False

@@ -19,7 +19,7 @@ import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../utils/rhListadoTablaLayout.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { canAccessActasPage } from "../auth/jwt.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
 import {
@@ -756,7 +756,7 @@ export function mountActas(container: HTMLElement): void {
   const actasPageShellClass =
     "rh-dashboard-page relative flex min-h-[calc(100dvh-11rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";
 
-  if (getRolFromAccessToken() !== "rh") {
+  if (!canAccessActasPage()) {
     mountAppShell(container, {
       pageTitle: "Actas",
       activeNav: "actas",
