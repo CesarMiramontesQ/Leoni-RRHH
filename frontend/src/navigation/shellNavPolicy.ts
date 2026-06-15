@@ -302,9 +302,10 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return isComedorHubVisibleForRol(rol);
   }
   if (h.startsWith("#/nominas")) {
-    if (h.startsWith("#/nominas/ajustes")) return rol === "rh";
     if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
-    return NOMINAS_NAV_ROLES.has(rol ?? "");
+    const grant = rol !== "rh" && isModulosRhEnrolled() && hasExplicitModuleGrant("nominas");
+    if (h.startsWith("#/nominas/ajustes")) return rol === "rh" || grant;
+    return NOMINAS_NAV_ROLES.has(rol ?? "") || grant;
   }
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {

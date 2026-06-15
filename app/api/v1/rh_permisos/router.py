@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -81,5 +81,18 @@ async def actualizar_permisos_usuario(
     return await svc.update_usuario_permisos(
         empleado_id=empleado_id,
         body=body,
+        current_user=current_user,
+    )
+
+
+@router.delete("/usuarios/{empleado_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_usuario_permisos(
+    empleado_id: int,
+    current_user: Empleado = Depends(require_rh_permisos_admin),
+    svc: RhPermisosService = Depends(_svc),
+):
+    """Quita a un usuario (de rol distinto a RH) de la administración de permisos."""
+    await svc.remove_usuario_permisos(
+        empleado_id=empleado_id,
         current_user=current_user,
     )

@@ -189,6 +189,8 @@ async def make_empleado(
     puede_administrar_permisos_rh: bool = False,
     puede_registrar_horas_extra: bool = False,
     modulos_rh: dict | None = None,
+    inscrito_modulos_rh: bool = False,
+    acceso_rh_removido: bool = False,
     puesto_id: int | None = None,
 ):
     """
@@ -221,6 +223,8 @@ async def make_empleado(
         puede_administrar_permisos_rh=puede_administrar_permisos_rh,
         puede_registrar_horas_extra=puede_registrar_horas_extra,
         modulos_rh=modulos_rh or {},
+        inscrito_modulos_rh=inscrito_modulos_rh,
+        acceso_rh_removido=acceso_rh_removido,
         puesto_id=puesto_id,
     )
     db.add(empleado)

@@ -28,8 +28,10 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "evidencias", prefix: "#/evidencias" },
   { key: "sugerencias", prefix: "#/sugerencias" },
   { key: "encuestas", prefix: "#/encuestas" },
-  { key: "horas-extra", prefix: "#/nominas/horas-extra" },
-  { key: "conciliacion", prefix: "#/nominas/conciliacion" },
+  { key: "nominas", prefix: "#/nominas/horas-extra" },
+  { key: "nominas", prefix: "#/nominas/conciliacion" },
+  { key: "nominas", prefix: "#/nominas/ajustes" },
+  { key: "nominas", prefix: "#/nominas" },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 export function resolveModuleFromHash(hashValue: string): string | null {
@@ -49,9 +51,10 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "sesiones") return "cursos";
   if (navItemId === "comedor-menu") return "comedor";
   if (navItemId === "laborales") return "dashboard";
-  if (navItemId === "nominas") return "dashboard";
-  if (navItemId === "horas-extra") return "dashboard";
-  if (navItemId === "conciliacion") return "dashboard";
-  if (navItemId === "nominas-ajustes") return "dashboard";
+  if (navItemId === "nominas") return "nominas";
+  if (navItemId === "horas-extra") return "nominas";
+  if (navItemId === "horas-extra-aprobaciones") return "nominas";
+  if (navItemId === "conciliacion") return "nominas";
+  if (navItemId === "nominas-ajustes") return "nominas";
   return navItemId;
 }
