@@ -56,7 +56,7 @@ describe("separación Nóminas (Regla A) vs aprobar horas extra (Regla B)", () =
   it("permiso de Nóminas NO muestra 'Aprobar Horas Extra' (no aprobador)", async () => {
     const { isShellNavItemVisibleForRol, setRhPermisosActivos, setNonRhRhMode } = await imports();
     // No-RH con grant de Nóminas, en Modo RH, pero NO aprobador.
-    grants.add("nominas");
+    grants.add("nominas-horas-extra");
     setRhPermisosActivos(true);
     setNonRhRhMode(true);
     expect(isShellNavItemVisibleForRol("gerente", "horas-extra-aprobaciones")).toBe(false);
@@ -78,7 +78,7 @@ describe("separación Nóminas (Regla A) vs aprobar horas extra (Regla B)", () =
     rhModules.clear(); // sin módulo nominas
     expect(isShellNavItemVisibleForRol("rh", "horas-extra-aprobaciones")).toBe(true);
     heAprobador = false;
-    rhModules.add("nominas"); // con módulo nominas pero sin designación
+    rhModules.add("nominas-horas-extra"); // con módulo nominas pero sin designación
     expect(isShellNavItemVisibleForRol("rh", "horas-extra-aprobaciones")).toBe(false);
   });
 
@@ -88,7 +88,17 @@ describe("separación Nóminas (Regla A) vs aprobar horas extra (Regla B)", () =
     heAprobador = true; // ser aprobador no debe habilitar la lista
     rhModules.clear();
     expect(isShellNavItemVisibleForRol("rh", "horas-extra")).toBe(false);
-    rhModules.add("nominas");
+    rhModules.add("nominas-horas-extra");
     expect(isShellNavItemVisibleForRol("rh", "horas-extra")).toBe(true);
+  });
+
+  it("permisos por página: otorgar solo Conciliación no muestra Horas Extra", async () => {
+    const { isShellNavItemVisibleForRol, setRhPermisosActivos, setNonRhRhMode } = await imports();
+    grants.add("nominas-conciliacion"); // solo Conciliación
+    setRhPermisosActivos(true);
+    setNonRhRhMode(true);
+    expect(isShellNavItemVisibleForRol("gerente", "conciliacion")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "horas-extra")).toBe(false);
+    expect(isShellNavItemVisibleForRol("gerente", "nominas-ajustes")).toBe(false);
   });
 });

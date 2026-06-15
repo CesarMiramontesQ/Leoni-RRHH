@@ -109,7 +109,7 @@ async def test_admin_grants_module_to_non_rh_user(client: AsyncClient, db):
     from app.core.rh_module_registry import all_module_keys
 
     modulos = {key: False for key in all_module_keys()}
-    modulos["nominas"] = True
+    modulos["nominas-horas-extra"] = True
 
     put_res = await client.put(
         f"/api/v1/rh-permisos/usuarios/{director.empleado_id}",
@@ -117,7 +117,7 @@ async def test_admin_grants_module_to_non_rh_user(client: AsyncClient, db):
         json={"modulos": modulos},
     )
     assert put_res.status_code == 200
-    assert put_res.json()["modulos"]["nominas"] is True
+    assert put_res.json()["modulos"]["nominas-horas-extra"] is True
 
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -133,7 +133,7 @@ async def test_admin_grants_module_to_non_rh_user(client: AsyncClient, db):
     ).scalar_one()
     assert reloaded.inscrito_modulos_rh is True
     assert reloaded.rol.nombre == "director"  # el rol no cambia
-    assert user_has_module(reloaded, "nominas") is True
+    assert user_has_module(reloaded, "nominas-horas-extra") is True
     assert user_has_module(reloaded, "comedor") is False
 
     # El propio usuario ve su inscripción y módulos vía /me.
@@ -143,7 +143,7 @@ async def test_admin_grants_module_to_non_rh_user(client: AsyncClient, db):
     assert me.status_code == 200
     me_data = me.json()
     assert me_data["inscrito"] is True
-    assert me_data["modulos"]["nominas"] is True
+    assert me_data["modulos"]["nominas-horas-extra"] is True
 
 
 @pytest.mark.asyncio
@@ -154,7 +154,7 @@ async def test_enrolled_non_rh_keeps_base_role_access(client: AsyncClient, db):
         rol="supervisor",
         email="sup_enrolled@test.com",
         inscrito_modulos_rh=True,
-        modulos_rh={"nominas": True},
+        modulos_rh={"nominas-horas-extra": True},
     )
     res = await client.get(
         "/api/v1/solicitudes",
@@ -203,7 +203,7 @@ async def test_admin_can_remove_non_rh_from_permisos(client: AsyncClient, db):
         rol="gerente",
         email="gerente_del@test.com",
         inscrito_modulos_rh=True,
-        modulos_rh={"nominas": True},
+        modulos_rh={"nominas-horas-extra": True},
     )
     headers = await auth_headers(client, admin)
 
@@ -379,7 +379,7 @@ async def test_me_en_lista_permisos_flag(client: AsyncClient, db):
         rol="gerente",
         email="ger_lista@test.com",
         inscrito_modulos_rh=True,
-        modulos_rh={"nominas": True},
+        modulos_rh={"nominas-horas-extra": True},
     )
     data3 = (
         await client.get("/api/v1/rh-permisos/me", headers=await auth_headers(client, ger_inscrito))
@@ -431,7 +431,7 @@ async def test_catalog_includes_nominas_module(client: AsyncClient, db):
     )
     assert res.status_code == 200
     keys = {m["key"] for m in res.json()}
-    assert "nominas" in keys
+    assert "nominas-horas-extra" in keys
 
 
 @pytest.mark.asyncio

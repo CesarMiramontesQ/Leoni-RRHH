@@ -28,10 +28,9 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "evidencias", prefix: "#/evidencias" },
   { key: "sugerencias", prefix: "#/sugerencias" },
   { key: "encuestas", prefix: "#/encuestas" },
-  { key: "nominas", prefix: "#/nominas/horas-extra" },
-  { key: "nominas", prefix: "#/nominas/conciliacion" },
-  { key: "nominas", prefix: "#/nominas/ajustes" },
-  { key: "nominas", prefix: "#/nominas" },
+  { key: "nominas-horas-extra", prefix: "#/nominas/horas-extra" },
+  { key: "nominas-conciliacion", prefix: "#/nominas/conciliacion" },
+  { key: "nominas-ajustes", prefix: "#/nominas/ajustes" },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 export function resolveModuleFromHash(hashValue: string): string | null {
@@ -51,10 +50,12 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "sesiones") return "cursos";
   if (navItemId === "comedor-menu") return "comedor";
   if (navItemId === "laborales") return "dashboard";
-  if (navItemId === "nominas") return "nominas";
-  if (navItemId === "horas-extra") return "nominas";
-  if (navItemId === "horas-extra-aprobaciones") return "nominas";
-  if (navItemId === "conciliacion") return "nominas";
-  if (navItemId === "nominas-ajustes") return "nominas";
+  // Nóminas: un módulo de navegación por página del submenú.
+  if (navItemId === "horas-extra") return "nominas-horas-extra";
+  if (navItemId === "conciliacion") return "nominas-conciliacion";
+  if (navItemId === "nominas-ajustes") return "nominas-ajustes";
+  // El hub "nominas" se resuelve aparte (isNominasHubVisibleForRol) y
+  // "horas-extra-aprobaciones" es Regla B (canApproveOvertime), no un módulo.
+  if (navItemId === "nominas") return "nominas-horas-extra";
   return navItemId;
 }

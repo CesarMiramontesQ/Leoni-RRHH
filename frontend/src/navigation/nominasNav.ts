@@ -80,9 +80,14 @@ export function getVisibleNominasCategories(rol: string | null): ShellHubCategor
   return [{ id: "nominas", title: "Nóminas", items }];
 }
 
-/** Grant explícito de Nóminas para un no-RH inscrito, visible solo en Modo RH. */
+/** Permiso de alguna página de Nóminas para un no-RH inscrito, visible solo en Modo RH. */
 export function hasNominasGrant(rol: string | null): boolean {
-  return rol !== "rh" && isNonRhRhMode() && isModulosRhEnrolled() && hasExplicitModuleGrant("nominas");
+  if (rol === "rh" || !isNonRhRhMode() || !isModulosRhEnrolled()) return false;
+  return (
+    hasExplicitModuleGrant("nominas-horas-extra") ||
+    hasExplicitModuleGrant("nominas-conciliacion") ||
+    hasExplicitModuleGrant("nominas-ajustes")
+  );
 }
 
 export function isNominasHubVisibleForRol(rol: string | null): boolean {

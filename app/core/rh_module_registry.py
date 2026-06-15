@@ -108,19 +108,31 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/comedor/proyecciones",
         ),
     ),
-    "nominas": RhModuleDef(
-        key="nominas",
-        label="Nóminas",
+    # Nóminas: un permiso de NAVEGACIÓN por página del submenú. "Aprobación de
+    # Horas Extra" NO es un permiso aquí (es operativo/Regla B: claim he_aprobador).
+    "nominas-horas-extra": RhModuleDef(
+        key="nominas-horas-extra",
+        label="Horas Extra",
         group="Nóminas",
-        nav_item_ids=(
-            "nominas",
-            "horas-extra",
-            "horas-extra-aprobaciones",
-            "conciliacion",
-            "nominas-ajustes",
-        ),
-        hash_prefixes=("#/nominas",),
-        api_prefixes=("/api/v1/nominas",),
+        nav_item_ids=("horas-extra",),
+        hash_prefixes=("#/nominas/horas-extra",),
+        api_prefixes=("/api/v1/nominas/horas-extra",),
+    ),
+    "nominas-conciliacion": RhModuleDef(
+        key="nominas-conciliacion",
+        label="Conciliación",
+        group="Nóminas",
+        nav_item_ids=("conciliacion",),
+        hash_prefixes=("#/nominas/conciliacion",),
+        api_prefixes=("/api/v1/nominas/conciliacion",),
+    ),
+    "nominas-ajustes": RhModuleDef(
+        key="nominas-ajustes",
+        label="Ajustes de Nóminas",
+        group="Nóminas",
+        nav_item_ids=("nominas-ajustes",),
+        hash_prefixes=("#/nominas/ajustes",),
+        api_prefixes=("/api/v1/nominas/ajustes",),
     ),
     "puestos": RhModuleDef(
         key="puestos",
@@ -243,6 +255,9 @@ RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth",
     "/api/v1/notificaciones",
     "/api/v1/rh-permisos",
+    # Aprobación de Horas Extra = permiso operativo (Regla B, claim he_aprobador);
+    # el endpoint valida al aprobador. No debe gatearse por el permiso de Nóminas.
+    "/api/v1/nominas/horas-extra/aprobaciones",
 )
 
 # Autoservicio RH: siempre permitido sin módulo de gestión (modo empleado / uso personal)

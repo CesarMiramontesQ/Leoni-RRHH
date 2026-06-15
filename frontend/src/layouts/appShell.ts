@@ -20,6 +20,7 @@ import {
 } from "../navigation/levelUpNav.ts";
 import {
   isNominasHubVisibleForRol,
+  NOMINAS_NAV_ITEMS,
   NOMINAS_SIDEBAR_ITEM,
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
@@ -445,7 +446,20 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
           const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
           const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
           const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
-          const nominasLi = isNominasHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_NOMINAS) : "";
+          // En Modo RH (no-RH con permisos) se muestran los enlaces individuales
+          // del submenú de Nóminas (uno por página otorgada); en otros casos, el
+          // enlace único del hub. navItemLi filtra cada ítem por su permiso.
+          const nominasLi = nonRhRhMode
+            ? NOMINAS_NAV_ITEMS.map((item) =>
+                navItemLi(sidebarActiveNav, rol, {
+                  id: item.id,
+                  key: item.key,
+                  hrefFor: () => item.href,
+                  label: item.label,
+                  svgPaths: item.svgPaths,
+                }),
+              ).join("")
+            : isNominasHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_NOMINAS) : "";
           return [primaryLis, laboralesLi, comedorLi, levelUpLi, nominasLi].filter((li) => li.trim() !== "").join("");
         })();
 
