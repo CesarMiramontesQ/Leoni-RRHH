@@ -598,6 +598,34 @@ Patron unificado: pill con dot indicator. Definidos como funciones en `uiTokens.
 </article>
 ```
 
+**Variante C — Stat-filter card (stat que además filtra el listado):**
+
+Tarjeta-botón que unifica una métrica con su filtro: el conteo informa y el click
+aplica el filtro correspondiente. Sustituye el par redundante "stat cards + chips
+de filtro" cuando ambos representan los mismos segmentos. Usado en: Permisos RH.
+
+```html
+<section class="grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="Filtrar por {dimensión}">
+  <button type="button" data-filter="{value}" aria-pressed="{isActive}"
+    class="group flex flex-col gap-2 rounded-[14px] border p-4 text-left transition
+           {isActive
+             ? 'border-leoni-blue bg-[rgba(219,234,254,0.45)] shadow-[0_6px_18px_rgba(30,64,175,0.12)]'
+             : 'border-[rgba(148,163,184,0.24)] bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)] hover:border-leoni-blue/40 hover:bg-slate-50/70'}
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">
+    <span class="flex items-center gap-2">
+      <span class="size-2 shrink-0 rounded-full {dot-color}" aria-hidden="true"></span>
+      <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+    </span>
+    <span class="text-2xl font-bold tabular-nums text-text-primary">{count}</span>
+  </button>
+</section>
+```
+
+- **Estado activo**: borde + tinte `leoni-blue`, obligatorio `aria-pressed`. El segmento
+  "Total" representa el filtro vacío (sin filtro).
+- **Dot de color**: refuerza el significado del segmento reutilizando los tonos de los
+  status badges (emerald/amber/slate; `bg-leoni-blue` para "Total").
+
 ### 8.7 Form Field
 
 **Text input:**
