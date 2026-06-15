@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storage = new Map<string, string>();
 let gestorAlcance: "supervisor" | "gerente" | null = null;
+let rol: string | null = "rh";
 
 vi.stubGlobal("sessionStorage", {
   getItem: (key: string) => storage.get(key) ?? null,
@@ -14,7 +15,7 @@ vi.stubGlobal("sessionStorage", {
 });
 
 vi.mock("./jwt.ts", () => ({
-  getRolFromAccessToken: () => "rh",
+  getRolFromAccessToken: () => rol,
   getRhGestorAlcanceFromToken: () => gestorAlcance,
 }));
 
@@ -22,6 +23,7 @@ describe("rhUiMode", () => {
   beforeEach(() => {
     storage.clear();
     gestorAlcance = null;
+    rol = "rh";
     vi.resetModules();
   });
 
@@ -72,5 +74,41 @@ describe("rhUiMode", () => {
     expect(getRhUiMode()).toBe("operativo");
     setRhUiMode("empleado");
     expect(getRhUiMode()).toBe("operativo");
+  });
+});
+
+describe("rhUiMode — modo no-RH (usuarios con permisos asignados)", () => {
+  beforeEach(() => {
+    storage.clear();
+    gestorAlcance = null;
+    rol = "gerente";
+    vi.resetModules();
+  });
+
+  it("sin permisos activos no es usuario de permisos y no entra a Modo RH", async () => {
+    const mod = await import("./rhUiMode.ts");
+    expect(mod.isNonRhPermisosUser()).toBe(false);
+    mod.setNonRhRhMode(true); // no-op sin permisos
+    expect(mod.isNonRhRhMode()).toBe(false);
+  });
+
+  it("con permisos: default modo base, y el toggle alterna a Modo RH", async () => {
+    const mod = await import("./rhUiMode.ts");
+    mod.setRhPermisosActivos(true);
+    expect(mod.isNonRhPermisosUser()).toBe(true);
+    expect(mod.isNonRhRhMode()).toBe(false); // default = base
+
+    mod.toggleNonRhRhMode();
+    expect(mod.isNonRhRhMode()).toBe(true);
+    mod.toggleNonRhRhMode();
+    expect(mod.isNonRhRhMode()).toBe(false);
+  });
+
+  it("un usuario RH no se considera usuario no-RH de permisos", async () => {
+    rol = "rh";
+    const mod = await import("./rhUiMode.ts");
+    mod.setRhPermisosActivos(true);
+    expect(mod.isNonRhPermisosUser()).toBe(false);
+    expect(mod.isNonRhRhMode()).toBe(false);
   });
 });

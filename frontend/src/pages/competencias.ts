@@ -10,7 +10,7 @@ import {
 } from "../api/competencias.ts";
 import type { Competencia, CompetenciasTab, NivelMatriz } from "../dashboard/competencias/types.ts";
 import { clearAuth } from "../auth/session.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   applyPuestoNivelChange,
@@ -548,7 +548,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
   let errorMessage: string | null = null;
   let editingCompetencia: Competencia | null = null;
   let showModal = false;
-  const matrizModel: MatrizRequisitosModel = createMatrizRequisitosModel(getRolFromAccessToken() === "rh");
+  const matrizModel: MatrizRequisitosModel = createMatrizRequisitosModel(hasRhModule("competencias"));
 
   mountAppShell(container, {
     pageTitle: "Matriz de Competencias",

@@ -5,7 +5,7 @@ import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCurs
 import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
 
@@ -324,7 +324,7 @@ export function mountLevelUpDashboard(container: HTMLElement): void {
 }
 
 export function mountCursos(container: HTMLElement): void {
-  const isRH = getRolFromAccessToken() === "rh";
+  const isRH = hasRhModule("cursos");
 
   interface CursosState {
     cursos: CursoListResponse;

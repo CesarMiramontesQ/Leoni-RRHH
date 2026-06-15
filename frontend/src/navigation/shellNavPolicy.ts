@@ -16,8 +16,9 @@ import {
   getVisibleLevelUpCategoriesForRhSidebar,
 } from "./levelUpNav.ts";
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
-import { getRolFromAccessToken, isHorasExtraAprobador, isHorasExtraRegistroAutorizado } from "../auth/jwt.ts";
-import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { isNonRhRhMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
 export const RH_SIN_PERMISOS_HASH = "#/sin-permisos-rh";
@@ -192,14 +193,8 @@ function effectiveShellNavRol(rol: string | null): string | null {
 function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): boolean {
   const navRol = effectiveShellNavRol(rol);
   if (itemId === "organigrama" && !ORGANIGRAMA_MENU_VISIBLE) return false;
-  if (itemId === "horas-extra-solicitud") {
-    return isHorasExtraRegistroAutorizado();
-  }
-  // La vista de aprobación se muestra a quien RH designó como aprobador,
-  // sin importar su rol (gerente regional / director).
-  if (itemId === "horas-extra-aprobaciones") {
-    return isHorasExtraAprobador();
-  }
+  // `horas-extra-solicitud` y `horas-extra-aprobaciones` se resuelven antes de
+  // llegar aquí (Regla B, en isShellNavItemVisibleForRol).
   if (itemId === "nominas-ajustes") return navRol === "rh";
   if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
   if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
@@ -226,6 +221,17 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 }
 
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
+  // Regla B (operativa): registrar/aprobar horas extra depende ÚNICAMENTE de la
+  // autorización explícita en Ajustes de Nómina, nunca del permiso RH de Nóminas
+  // (Regla A) ni del rol. Autoritativo en todos los caminos.
+  if (itemId === "horas-extra-aprobaciones") return canApproveOvertime();
+  if (itemId === "horas-extra-solicitud") return canRegisterOvertime();
+  // No-RH en Modo RH: ver únicamente los módulos asignados (hoy Nóminas es el
+  // único cableado a hub). En modo base se cae al comportamiento normal de su rol.
+  if (isNonRhRhMode()) {
+    if (itemId === "nominas") return isNominasHubVisibleForRol(rol);
+    return hasExplicitModuleGrant(navItemIdToModuleKey(itemId));
+  }
   if (itemId === "level-up") {
     if (isRhStructuredNavRol(rol)) {
       return getVisibleLevelUpCategoriesForRhSidebar(rol).some((category) => category.items.length > 0);
@@ -251,17 +257,15 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
     }
     return byRole && moduleNavAllowed(rol, itemId);
   }
-  if (isModulosRhEnrolled()) {
-    return byRole || hasExplicitModuleGrant(navItemIdToModuleKey(itemId));
-  }
+  // No-RH en modo base (o sin permisos): solo la navegación de su rol.
   return byRole;
 }
 
 export function empleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
   if (h === "" || h === "#" || h === "#/") return true;
-  if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
-  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
+  if (h.startsWith("#/horas-extra/solicitud")) return canRegisterOvertime();
+  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/notificaciones")) return true;
@@ -272,8 +276,8 @@ export function empleadoMayAccessHash(hash: string): boolean {
 
 export function supervisorMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
-  if (h.startsWith("#/horas-extra/solicitud")) return isHorasExtraRegistroAutorizado();
-  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
+  if (h.startsWith("#/horas-extra/solicitud")) return canRegisterOvertime();
+  if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/nominas/ajustes")) return false;
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
@@ -290,6 +294,23 @@ function hashAllowedByRole(rol: string | null, hash: string): boolean {
   return true;
 }
 
+/**
+ * Hash final a enrutar aplicando las compuertas de ruta por rol (empleado/supervisor).
+ * Para un no-RH INSCRITO en permisos RH (`enrolledNonRh`), `modulosMayAccessHash` ya es
+ * la autoridad de acceso (rol base + grants en Modo RH), así que las compuertas por rol
+ * NO se aplican: respetar el grant de páginas RH-exclusivas en lugar de redirigir a `#/`.
+ */
+export function resolveRoutedHashForRol(
+  rol: string | null,
+  rawHash: string,
+  opts: { enrolledNonRh: boolean },
+): string {
+  if (opts.enrolledNonRh) return rawHash;
+  if (rol === "empleado" && !empleadoMayAccessHash(rawHash)) return "#/";
+  if (usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash)) return "#/";
+  return rawHash;
+}
+
 export function modulosMayAccessHash(hash: string, rol: string | null): boolean {
   const h = (hash || "#/").trim();
   if (h === "#/level-up") {
@@ -302,9 +323,16 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return isComedorHubVisibleForRol(rol);
   }
   if (h.startsWith("#/nominas")) {
-    if (h.startsWith("#/nominas/ajustes")) return rol === "rh";
-    if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return isHorasExtraAprobador();
-    return NOMINAS_NAV_ROLES.has(rol ?? "");
+    if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
+    // Permiso por PÁGINA tras el split granular de Nóminas
+    // (nominas-horas-extra | nominas-conciliacion | nominas-ajustes).
+    const pageModule = resolveModuleFromHash(h);
+    if (pageModule === null) return isNominasHubVisibleForRol(rol); // hub raíz #/nominas
+    if (rol === "rh") return hasRhModule(pageModule);
+    // No-RH: acceso por grant solo en Modo RH; en modo base, navegación por rol.
+    const grant = isNonRhRhMode() && hasExplicitModuleGrant(pageModule);
+    if (h.startsWith("#/nominas/ajustes")) return grant; // Ajustes es RH-exclusivo (no-RH solo por grant)
+    return NOMINAS_NAV_ROLES.has(rol ?? "") || grant;
   }
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
@@ -327,7 +355,9 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return hasRhModule(moduleKey);
   }
   if (isModulosRhEnrolled()) {
-    return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+    // Modo RH: rol base + grants; Modo base: solo rutas del rol.
+    if (isNonRhRhMode()) return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+    return hashAllowedByRole(rol, h);
   }
   return true;
 }

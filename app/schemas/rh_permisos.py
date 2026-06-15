@@ -13,6 +13,7 @@ class RhPermisosMeResponse(BaseModel):
     puede_administrar_permisos_rh: bool
     modulos: dict[str, bool]
     inscrito: bool
+    en_lista_permisos: bool
 
 
 class RhUsuarioPermisosItem(BaseModel):

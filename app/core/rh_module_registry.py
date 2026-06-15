@@ -32,8 +32,8 @@ RH_MODULES: dict[str, RhModuleDef] = {
         label="Dashboard",
         group="General",
         nav_item_ids=("dashboard",),
-        hash_prefixes=("#/", "#/nominas/horas-extra"),
-        api_prefixes=("/api/v1/bono-productividad", "/api/v1/nominas"),
+        hash_prefixes=("#/",),
+        api_prefixes=("/api/v1/bono-productividad",),
     ),
     "organigrama": RhModuleDef(
         key="organigrama",
@@ -107,6 +107,32 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/comedor/estadisticas",
             "/api/v1/comedor/proyecciones",
         ),
+    ),
+    # Nóminas: un permiso de NAVEGACIÓN por página del submenú. "Aprobación de
+    # Horas Extra" NO es un permiso aquí (es operativo/Regla B: claim he_aprobador).
+    "nominas-horas-extra": RhModuleDef(
+        key="nominas-horas-extra",
+        label="Horas Extra",
+        group="Nóminas",
+        nav_item_ids=("horas-extra",),
+        hash_prefixes=("#/nominas/horas-extra",),
+        api_prefixes=("/api/v1/nominas/horas-extra",),
+    ),
+    "nominas-conciliacion": RhModuleDef(
+        key="nominas-conciliacion",
+        label="Conciliación",
+        group="Nóminas",
+        nav_item_ids=("conciliacion",),
+        hash_prefixes=("#/nominas/conciliacion",),
+        api_prefixes=("/api/v1/nominas/conciliacion",),
+    ),
+    "nominas-ajustes": RhModuleDef(
+        key="nominas-ajustes",
+        label="Ajustes de Nóminas",
+        group="Nóminas",
+        nav_item_ids=("nominas-ajustes",),
+        hash_prefixes=("#/nominas/ajustes",),
+        api_prefixes=("/api/v1/nominas/ajustes",),
     ),
     "puestos": RhModuleDef(
         key="puestos",
@@ -219,6 +245,7 @@ RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
     "General",
     "Laborales",
     "Comedor",
+    "Nóminas",
     "Talento",
     "Level Up",
 )
@@ -228,6 +255,9 @@ RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth",
     "/api/v1/notificaciones",
     "/api/v1/rh-permisos",
+    # Aprobación de Horas Extra = permiso operativo (Regla B, claim he_aprobador);
+    # el endpoint valida al aprobador. No debe gatearse por el permiso de Nóminas.
+    "/api/v1/nominas/horas-extra/aprobaciones",
 )
 
 # Autoservicio RH: siempre permitido sin módulo de gestión (modo empleado / uso personal)
@@ -265,9 +295,15 @@ def has_personalized_modulos_rh(empleado: "Empleado") -> bool:
 
 
 def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
-    """Usuario incluido en el sistema de permisos por módulo (solo rol RH)."""
+    """Usuario incluido en el sistema de permisos por módulo.
+
+    RH siempre está inscrito; usuarios de otros roles quedan inscritos cuando RH
+    los agrega explícitamente (flag ``inscrito_modulos_rh``), sin cambiar su rol.
+    """
     rol = empleado.rol.nombre if empleado.rol else "empleado"
-    return rol == "rh"
+    if rol == "rh":
+        return True
+    return bool(getattr(empleado, "inscrito_modulos_rh", False))
 
 
 def effective_modules_for_display(empleado: "Empleado") -> dict[str, bool]:
@@ -293,6 +329,10 @@ def user_has_module(empleado: "Empleado", module_key: str) -> bool:
     if rol == "rh":
         if not modulos:
             return True
+        return bool(modulos.get(module_key, False))
+    # Roles distintos a RH: acceso aditivo sólo si fueron inscritos por RH y el
+    # módulo les fue otorgado explícitamente.
+    if is_modulos_rh_enrolled(empleado):
         return bool(modulos.get(module_key, False))
     return False
 

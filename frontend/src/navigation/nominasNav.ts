@@ -3,7 +3,9 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
-import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { hasExplicitModuleGrant, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
+import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
+import { isNonRhRhMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import {
   isEmpleadoFlatNavRol,
   isShellNavItemVisibleForRol,
@@ -78,7 +80,23 @@ export function getVisibleNominasCategories(rol: string | null): ShellHubCategor
   return [{ id: "nominas", title: "Nóminas", items }];
 }
 
+/** Permiso de alguna página de Nóminas para un no-RH inscrito, visible solo en Modo RH. */
+export function hasNominasGrant(rol: string | null): boolean {
+  if (rol === "rh" || !isNonRhRhMode() || !isModulosRhEnrolled()) return false;
+  return (
+    hasExplicitModuleGrant("nominas-horas-extra") ||
+    hasExplicitModuleGrant("nominas-conciliacion") ||
+    hasExplicitModuleGrant("nominas-ajustes")
+  );
+}
+
 export function isNominasHubVisibleForRol(rol: string | null): boolean {
+  // Regla B (operativa): un autorizado a registrar/aprobar horas extra ve su
+  // sección sin importar su rol ni el permiso RH de Nóminas (Regla A).
+  if (canApproveOvertime() || canRegisterOvertime()) {
+    if (getVisibleNominasCategories(rol).length > 0) return true;
+  }
+  if (hasNominasGrant(rol)) return getVisibleNominasCategories(rol).length > 0;
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
   if (rol === "rh" && isRhOperativoUiMode()) return false;
   return getVisibleNominasCategories(rol).length > 0;

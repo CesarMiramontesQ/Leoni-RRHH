@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,12 +20,21 @@ class RhPermisosRepository:
         return result.scalar_one_or_none()
 
     async def list_empleados_gestionados(self) -> list[Empleado]:
-        """Todos los usuarios con rol RH (activos e inactivos)."""
+        """Usuarios gestionados en permisos por módulo: RH no removidos (cualquier
+        estado) más empleados de otros roles inscritos explícitamente por RH."""
         result = await self.db.execute(
             select(Empleado)
             .join(Rol, Empleado.rol_id == Rol.id)
             .options(selectinload(Empleado.rol))
-            .where(Rol.nombre == "rh")
+            .where(
+                or_(
+                    and_(
+                        Rol.nombre == "rh",
+                        Empleado.acceso_rh_removido.is_(False),
+                    ),
+                    Empleado.inscrito_modulos_rh.is_(True),
+                )
+            )
             .order_by(Empleado.nombre.asc())
         )
         return list(result.scalars().all())
@@ -34,7 +43,7 @@ class RhPermisosRepository:
         self,
         *,
         q: str,
-        limit: int = 15,
+        limit: int = 50,
     ) -> list[Empleado]:
         term = (q or "").strip()
         if not term:
@@ -47,7 +56,6 @@ class RhPermisosRepository:
             .join(Rol, Empleado.rol_id == Rol.id)
             .options(selectinload(Empleado.rol))
             .where(
-                Rol.nombre == "rh",
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(
                     Empleado.nombre.ilike(pattern),
@@ -68,9 +76,40 @@ class RhPermisosRepository:
         )
         return result.scalar_one_or_none()
 
-    async def update_modulos_rh(self, empleado: Empleado, modulos: dict[str, bool]) -> Empleado:
+    async def update_modulos_rh(
+        self,
+        empleado: Empleado,
+        modulos: dict[str, bool],
+        inscrito: bool | None = None,
+    ) -> Empleado:
+        empleado.modulos_rh = modulos
+        attrs = ["modulos_rh"]
+        if inscrito is not None:
+            empleado.inscrito_modulos_rh = inscrito
+            attrs.append("inscrito_modulos_rh")
+        await self.db.flush()
+        await self.db.refresh(empleado, attribute_names=attrs)
+        refreshed = await self.get_by_empleado_id(empleado.empleado_id)
+        return refreshed or empleado
+
+    async def set_inscripcion(
+        self, empleado: Empleado, inscrito: bool, modulos: dict[str, bool]
+    ) -> Empleado:
+        empleado.inscrito_modulos_rh = inscrito
         empleado.modulos_rh = modulos
         await self.db.flush()
-        await self.db.refresh(empleado, attribute_names=["modulos_rh"])
+        await self.db.refresh(empleado, attribute_names=["inscrito_modulos_rh", "modulos_rh"])
+        refreshed = await self.get_by_empleado_id(empleado.empleado_id)
+        return refreshed or empleado
+
+    async def set_acceso_rh_removido(
+        self, empleado: Empleado, removido: bool, modulos: dict[str, bool]
+    ) -> Empleado:
+        """Marca/desmarca a un usuario RH como removido de la administración de
+        permisos y fija sus accesos (el rol nunca cambia)."""
+        empleado.acceso_rh_removido = removido
+        empleado.modulos_rh = modulos
+        await self.db.flush()
+        await self.db.refresh(empleado, attribute_names=["acceso_rh_removido", "modulos_rh"])
         refreshed = await self.get_by_empleado_id(empleado.empleado_id)
         return refreshed or empleado

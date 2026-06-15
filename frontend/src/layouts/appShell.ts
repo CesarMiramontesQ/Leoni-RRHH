@@ -5,7 +5,7 @@ import {
   getUserInitialsFromAccessToken,
 } from "../auth/jwt.ts";
 import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
-import { getRhUiModeLabel, isRhEmpleadoUiMode, isRhToggleOn, toggleRhUiMode } from "../auth/rhUiMode.ts";
+import { getRhUiModeLabel, isNonRhPermisosUser, isNonRhRhMode, isRhEmpleadoUiMode, isRhInPermisosList, isRhToggleOn, toggleNonRhRhMode, toggleRhUiMode } from "../auth/rhUiMode.ts";
 import {
   isComedorHubVisibleForRol,
   COMEDOR_SIDEBAR_ITEM,
@@ -20,6 +20,7 @@ import {
 } from "../navigation/levelUpNav.ts";
 import {
   isNominasHubVisibleForRol,
+  NOMINAS_NAV_ITEMS,
   NOMINAS_SIDEBAR_ITEM,
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
@@ -424,7 +425,11 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
 
   const supervisorSidebar = isSupervisorStructuredNavRol(rol);
   const rhStructuredSidebar = isRhStructuredNavRol(rol);
-  const mainMenuLis = isEmpleadoFlatNavRol(rol)
+  // No-RH en Modo RH: usar el sidebar estructurado (que incluye el hub de Nóminas
+  // y demás módulos); los ítems se filtran por grant en navItemLi. Así un no-RH
+  // con permiso de Nóminas ve su sección al activar el toggle.
+  const nonRhRhMode = isNonRhRhMode();
+  const mainMenuLis = (!nonRhRhMode && isEmpleadoFlatNavRol(rol))
     ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
         navItemLi(sidebarActiveNav, rol, {
           id: d.id,
@@ -434,21 +439,34 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
           svgPaths: d.svgPaths,
         }),
       ).join("")
-    : supervisorSidebar
+    : (!nonRhRhMode && supervisorSidebar)
       ? renderSupervisorSidebarSections(sidebarActiveNav, rol)
       : (() => {
           const primaryLis = NAV_PRIMARY.map((d) => navItemLi(sidebarActiveNav, rol, d)).join("");
           const laboralesLi = isLaboralesHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LABORALES) : "";
           const comedorLi = isComedorHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_COMEDOR) : "";
           const levelUpLi = isLevelUpHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_LEVEL_UP) : "";
-          const nominasLi = isNominasHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_NOMINAS) : "";
+          // En Modo RH (no-RH con permisos) se muestran los enlaces individuales
+          // del submenú de Nóminas (uno por página otorgada); en otros casos, el
+          // enlace único del hub. navItemLi filtra cada ítem por su permiso.
+          const nominasLi = nonRhRhMode
+            ? NOMINAS_NAV_ITEMS.map((item) =>
+                navItemLi(sidebarActiveNav, rol, {
+                  id: item.id,
+                  key: item.key,
+                  hrefFor: () => item.href,
+                  label: item.label,
+                  svgPaths: item.svgPaths,
+                }),
+              ).join("")
+            : isNominasHubVisibleForRol(rol) ? navItemLi(sidebarActiveNav, rol, NAV_NOMINAS) : "";
           return [primaryLis, laboralesLi, comedorLi, levelUpLi, nominasLi].filter((li) => li.trim() !== "").join("");
         })();
 
   const navContent = rhStructuredSidebar
     ? renderRhStructuredSidebarSections(sidebarActiveNav as RhNavKey | undefined, rol)
     : (() => {
-        const mainMenuBlock = supervisorSidebar
+        const mainMenuBlock = (supervisorSidebar && !nonRhRhMode)
           ? mainMenuLis
           : `<li>
           <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>
@@ -495,25 +513,37 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const userName = escapeHtmlText(getUserDisplayNameFromAccessToken());
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
   const rawRol = getRolFromAccessToken();
+  // Toggle Modo base / Modo RH: para usuarios RH (en lista) o cualquier usuario
+  // con permisos RH asignados. Estado/label según el tipo de usuario.
+  const isRhUser = rawRol === "rh";
+  const showRhToggle = (isRhUser && isRhInPermisosList()) || isNonRhPermisosUser();
+  const toggleOn = isRhUser ? isRhToggleOn() : isNonRhRhMode();
+  const toggleModeLabel = isRhUser
+    ? getRhUiModeLabel()
+    : isNonRhRhMode()
+      ? "Modo RH"
+      : `Modo ${formatRolLabel(rawRol ?? "")}`;
   const userRolLine =
-    rawRol === "rh" ?
+    isRhUser ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal text-text-muted xl:block">${escapeHtmlText(getRhUiModeLabel())}</span>`
+    : isNonRhPermisosUser() ?
+      `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal text-text-muted xl:block">${escapeHtmlText(toggleModeLabel)}</span>`
     : rawRol && !canAccessEmpleadoPersonalDashboard() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
     : "";
   const rhModeToggleHtml =
-    rawRol === "rh"
+    showRhToggle
       ? `<div class="hidden items-center gap-2 sm:flex" id="rh-ui-mode-toggle-wrap">
-          <span class="text-xs font-medium text-text-muted" id="rh-ui-mode-toggle-label">${escapeHtmlText(getRhUiModeLabel())}</span>
+          <span class="text-xs font-medium text-text-muted" id="rh-ui-mode-toggle-label">${escapeHtmlText(toggleModeLabel)}</span>
           <button
             type="button"
             id="rh-ui-mode-toggle"
             role="switch"
-            aria-checked="${isRhToggleOn() ? "true" : "false"}"
+            aria-checked="${toggleOn ? "true" : "false"}"
             aria-labelledby="rh-ui-mode-toggle-label"
-            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-surface transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 ${isRhToggleOn() ? "bg-accent" : ""}"
+            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-surface transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2 ${toggleOn ? "bg-accent" : ""}"
           >
-            <span class="pointer-events-none inline-block size-5 translate-x-0.5 rounded-full bg-white shadow ring-1 ring-black/5 transition-transform ${isRhToggleOn() ? "translate-x-[1.375rem]" : ""}"></span>
+            <span class="pointer-events-none inline-block size-5 translate-x-0.5 rounded-full bg-white shadow ring-1 ring-black/5 transition-transform ${toggleOn ? "translate-x-[1.375rem]" : ""}"></span>
           </button>
         </div>`
       : "";
@@ -671,7 +701,8 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   container.querySelector("#rh-ui-mode-toggle")?.addEventListener(
     "click",
     () => {
-      toggleRhUiMode();
+      if (getRolFromAccessToken() === "rh") toggleRhUiMode();
+      else toggleNonRhRhMode();
     },
     { signal },
   );

@@ -280,3 +280,21 @@ export function canAccessRhIncidenciasPage(): boolean {
   if (r === "rh") return hasRhModule("incidencias");
   return r === "director" || r === "gerente" || r === "supervisor";
 }
+
+/** Página de actas (`#/actas`): RH con módulo `actas` o no-RH con el módulo otorgado. */
+export function canAccessActasPage(): boolean {
+  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
+  if (hasExplicitModuleGrant("actas")) return true;
+  const r = getRolFromAccessToken();
+  if (r === "rh") return hasRhModule("actas");
+  return false;
+}
+
+/** Ajustes de Nóminas (`#/nominas/ajustes`): RH con módulo o no-RH con el módulo otorgado. */
+export function canAccessNominasAjustesPage(): boolean {
+  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
+  if (hasExplicitModuleGrant("nominas-ajustes")) return true;
+  const r = getRolFromAccessToken();
+  if (r === "rh") return hasRhModule("nominas-ajustes");
+  return false;
+}

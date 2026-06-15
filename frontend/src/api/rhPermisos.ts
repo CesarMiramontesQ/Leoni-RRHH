@@ -12,6 +12,7 @@ export type RhPermisosMeResponse = {
   puede_administrar_permisos_rh: boolean;
   modulos: Record<string, boolean>;
   inscrito: boolean;
+  en_lista_permisos: boolean;
 };
 
 export type RhUsuarioPermisosItem = {
@@ -70,6 +71,16 @@ export async function agregarEmpleadoPermisos(empleadoId: number): Promise<RhUsu
     throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}: ${res.status}`);
   }
   return (await res.json()) as RhUsuarioPermisosItem;
+}
+
+export async function deleteRhUsuarioPermisos(empleadoId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/rh-permisos/usuarios/${empleadoId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) {
+    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}: ${res.status}`);
+  }
 }
 
 export async function updateRhUsuarioPermisos(

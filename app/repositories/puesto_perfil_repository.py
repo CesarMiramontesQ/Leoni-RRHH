@@ -28,7 +28,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
     async def get_with_relations(self, id: int) -> PuestoPerfil | None:
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.area))
+            .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
             .where(PuestoPerfil.id == id, PuestoPerfil.activo.is_(True))
         )
         return result.scalar_one_or_none()
@@ -38,20 +38,20 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         offset: int,
         limit: int,
         area_id: int | None = None,
-        nivel: str | None = None,
+        nivel_id: int | None = None,
         busqueda: str | None = None,
     ) -> tuple[list[PuestoPerfil], int]:
         """Lista paginada con filtros opcionales. Retorna (items, total)."""
         query = (
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.area))
+            .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
             .where(PuestoPerfil.activo.is_(True))
         )
 
         if area_id is not None:
             query = query.where(PuestoPerfil.area_id == area_id)
-        if nivel is not None:
-            query = query.where(PuestoPerfil.nivel == nivel)
+        if nivel_id is not None:
+            query = query.where(PuestoPerfil.nivel_id == nivel_id)
         if busqueda:
             query = query.where(PuestoPerfil.nombre.ilike(f"%{busqueda}%"))
 
@@ -180,7 +180,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 PuestoPerfil.id,
                 PuestoPerfil.codigo,
                 PuestoPerfil.nombre,
-                PuestoPerfil.nivel,
+                PuestoPerfil.nivel_id,
                 func.coalesce(personas_sq.c.personas, 0).label("personas"),
                 func.coalesce(cualif_count_sq.c.total_cualif, 0).label("total_cualif"),
                 func.coalesce(comp_count_sq.c.total_comp, 0).label("total_comp"),
@@ -225,25 +225,27 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 "id": row.id,
                 "codigo": row.codigo,
                 "nombre": row.nombre,
-                "nivel": row.nivel,
+                "nivel_id": row.nivel_id,
+                "nivel_nombre": "",  # se completa en la segunda pasada
                 "personas": personas,
                 "cumplimiento_pct": cumplimiento_pct,
                 "brechas": brechas,
                 "cursos": row.cursos,
             })
 
-        # Cargar area_nombre en segunda pasada (selectinload no funciona con
-        # columnas explícitas, cargamos por separado)
+        # Cargar area_nombre y nivel_nombre en segunda pasada (selectinload no
+        # funciona con columnas explícitas, cargamos por separado)
         perfil_ids = [item["id"] for item in items]
         if perfil_ids:
             perfiles_result = await self.db.execute(
                 select(PuestoPerfil)
-                .options(selectinload(PuestoPerfil.area))
+                .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
                 .where(PuestoPerfil.id.in_(perfil_ids))
             )
             perfiles_map = {p.id: p for p in perfiles_result.scalars().all()}
             for item in items:
                 perfil = perfiles_map.get(item["id"])
                 item["area_nombre"] = perfil.area.descripcion if perfil and perfil.area else None
+                item["nivel_nombre"] = perfil.nivel.nombre if perfil and perfil.nivel else ""
 
         return items

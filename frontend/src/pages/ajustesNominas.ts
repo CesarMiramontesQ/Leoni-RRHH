@@ -11,7 +11,7 @@ import {
   type NominasAjustesFetchError,
 } from "../api/nominasAjustes.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { canAccessNominasAjustesPage } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderAjustesNominasPage } from "../nominas/ajustes/renderAjustesNominasPage.ts";
@@ -125,7 +125,7 @@ function isAuthError(err: NominasAjustesFetchError): boolean {
 }
 
 export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal): void {
-  if (getRolFromAccessToken() !== "rh") {
+  if (!canAccessNominasAjustesPage()) {
     mountAppShell(container, {
       ...SHELL_OPTS,
       mainHtml: htmlAccessDenied({

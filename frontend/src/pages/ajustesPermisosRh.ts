@@ -1,7 +1,11 @@
 import {
+  agregarEmpleadoPermisos,
+  buscarEmpleadosParaPermisos,
+  deleteRhUsuarioPermisos,
   fetchRhModulosCatalogo,
   fetchRhUsuariosPermisos,
   updateRhUsuarioPermisos,
+  type RhEmpleadoBusquedaItem,
   type RhModuloCatalogItem,
   type RhUsuarioPermisosItem,
 } from "../api/rhPermisos.ts";
@@ -9,6 +13,7 @@ import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
+  BTN_DANGER,
   BTN_GHOST,
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -45,6 +50,14 @@ type PageState = {
   pageSize: number;
   editingEmpleadoId: number | null;
   modalExpandedGroups: Set<string>;
+  addModalOpen: boolean;
+  addQuery: string;
+  addLoading: boolean;
+  addError: string | null;
+  addResults: RhEmpleadoBusquedaItem[];
+  addingId: number | null;
+  confirmDeleteId: number | null;
+  deletingId: number | null;
 };
 
 const CHEVRON_SVG = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-text-muted transition-transform duration-200"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>`;
@@ -89,7 +102,7 @@ function formatNoEmpleadoRh(noEmpleado: string): string {
 }
 
 function renderNombreSublinea(user: RhUsuarioPermisosItem): string {
-  const parts = ["RH"];
+  const parts = [formatRol(user.rol_nombre)];
   if (user.puede_administrar_permisos_rh) parts.push("Administrador de permisos");
   return `<p class="mt-0.5 text-xs text-[#64748b]">${escapeHtml(parts.join(" · "))}</p>`;
 }
@@ -257,7 +270,7 @@ function renderStatsHeader(state: PageState): string {
   const stats = computeStats(state.usuarios, state.draftByEmpleadoId);
   return `
     <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Estadísticas de permisos RH">
-      ${renderStatCard("Total usuarios RH", stats.total, "default")}
+      ${renderStatCard("Total usuarios", stats.total, "default")}
       ${renderStatCard("Acceso completo", stats.full, "success")}
       ${renderStatCard("Acceso parcial", stats.partial, "warning")}
       ${renderStatCard("Sin permisos", stats.none, "muted")}
@@ -286,26 +299,31 @@ function renderToolbar(state: PageState, visibleTotal: number): string {
             <span class="font-semibold text-[#0f172a]">${visibleTotal}</span> usuario${visibleTotal === 1 ? "" : "s"} visible${visibleTotal === 1 ? "" : "s"}
           </p>
         </div>
-        <div class="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
-          <label class="block min-w-[10rem]">
-            <span class="${RH_LISTADO_LABEL}">Ordenar por</span>
-            <div class="grid grid-cols-1">
-              <select id="rh-perm-sort-field" class="${FILTER_SELECT} ${FIELD_FOCUS}">
-                <option value="nombre" ${state.sortField === "nombre" ? "selected" : ""}>Nombre</option>
-                <option value="permisos" ${state.sortField === "permisos" ? "selected" : ""}>Cantidad de permisos</option>
-                <option value="updated_at" ${state.sortField === "updated_at" ? "selected" : ""}>Fecha de actualización</option>
-              </select>
-            </div>
-          </label>
-          <label class="block min-w-[8rem]">
-            <span class="${RH_LISTADO_LABEL}">Dirección</span>
-            <div class="grid grid-cols-1">
-              <select id="rh-perm-sort-dir" class="${FILTER_SELECT} ${FIELD_FOCUS}">
-                <option value="asc" ${state.sortDir === "asc" ? "selected" : ""}>Ascendente</option>
-                <option value="desc" ${state.sortDir === "desc" ? "selected" : ""}>Descendente</option>
-              </select>
-            </div>
-          </label>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <button type="button" id="rh-perm-add-open" class="${BTN_PRIMARY} h-[42px] shrink-0 self-stretch text-xs sm:self-end">
+            + Agregar empleado
+          </button>
+          <div class="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+            <label class="block min-w-[10rem]">
+              <span class="${RH_LISTADO_LABEL}">Ordenar por</span>
+              <div class="grid grid-cols-1">
+                <select id="rh-perm-sort-field" class="${FILTER_SELECT} ${FIELD_FOCUS}">
+                  <option value="nombre" ${state.sortField === "nombre" ? "selected" : ""}>Nombre</option>
+                  <option value="permisos" ${state.sortField === "permisos" ? "selected" : ""}>Cantidad de permisos</option>
+                  <option value="updated_at" ${state.sortField === "updated_at" ? "selected" : ""}>Fecha de actualización</option>
+                </select>
+              </div>
+            </label>
+            <label class="block min-w-[8rem]">
+              <span class="${RH_LISTADO_LABEL}">Dirección</span>
+              <div class="grid grid-cols-1">
+                <select id="rh-perm-sort-dir" class="${FILTER_SELECT} ${FIELD_FOCUS}">
+                  <option value="asc" ${state.sortDir === "asc" ? "selected" : ""}>Ascendente</option>
+                  <option value="desc" ${state.sortDir === "desc" ? "selected" : ""}>Descendente</option>
+                </select>
+              </div>
+            </label>
+          </div>
         </div>
       </div>
       <div class="relative">
@@ -377,6 +395,19 @@ function renderTableRow(
                 </button>`
               : badgeRejected("No editable")
           }
+          ${
+            user.editable && !user.puede_administrar_permisos_rh
+              ? `<button
+                  type="button"
+                  class="rh-permiso-eliminar ${BTN_DANGER} min-h-9 px-3 py-1.5 text-xs"
+                  data-empleado-id="${user.empleado_id}"
+                  ${saving ? "disabled" : ""}
+                  title="Quitar de la administración de permisos"
+                >
+                  Eliminar
+                </button>`
+              : ""
+          }
         </div>
       </td>
     </tr>`;
@@ -426,10 +457,10 @@ function renderTable(state: PageState, filtered: RhUsuarioPermisosItem[]): strin
   const pg = paginate(filtered, state.page, state.pageSize);
 
   if (state.usuarios.length === 0) {
-    return `<p class="text-sm text-text-muted">No hay usuarios con rol RH registrados en el sistema.</p>`;
+    return `<p class="text-sm text-text-muted">No hay usuarios en la administración de permisos. Usa “Agregar empleado” para registrar uno.</p>`;
   }
   if (filtered.length === 0) {
-    return `<p class="text-sm text-text-muted">Ningún usuario RH coincide con los filtros aplicados.</p>`;
+    return `<p class="text-sm text-text-muted">Ningún usuario coincide con los filtros aplicados.</p>`;
   }
 
   const rows = pg.items
@@ -601,6 +632,130 @@ function renderEditModal(state: PageState): string {
     </div>`;
 }
 
+function renderAddResultRow(emp: RhEmpleadoBusquedaItem, alreadyAdded: boolean, adding: boolean): string {
+  return `
+    <li class="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
+      <div class="min-w-0">
+        <p class="truncate text-sm font-semibold text-[#0f172a]">${escapeHtml(formatNombreCompletoRh(emp.nombre))}</p>
+        <p class="mt-0.5 truncate text-xs text-[#64748b]">
+          <span class="tabular-nums">${escapeHtml(formatNoEmpleadoRh(emp.no_empleado))}</span>
+          · ${escapeHtml(formatRol(emp.rol_nombre))}${emp.email ? ` · ${escapeHtml(emp.email)}` : ""}
+        </p>
+      </div>
+      ${
+        alreadyAdded
+          ? `<span class="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Ya agregado</span>`
+          : `<button
+              type="button"
+              class="rh-perm-add-confirm ${BTN_SECONDARY} shrink-0 px-3 py-1.5 text-xs"
+              data-empleado-id="${emp.empleado_id}"
+              ${adding ? "disabled" : ""}
+            >${adding ? "Agregando…" : "Agregar"}</button>`
+      }
+    </li>`;
+}
+
+function renderAddModalResults(state: PageState): string {
+  if (state.addLoading) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Buscando…</p>`;
+  }
+  if (state.addError) {
+    return `<p class="px-1 py-6 text-center text-sm text-red-600" role="alert">${escapeHtml(state.addError)}</p>`;
+  }
+  if (state.addQuery.trim().length < 2) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Escribe al menos 2 caracteres para buscar.</p>`;
+  }
+  if (state.addResults.length === 0) {
+    return `<p class="px-1 py-6 text-center text-sm text-text-muted">Sin coincidencias para “${escapeHtml(state.addQuery.trim())}”.</p>`;
+  }
+  const existing = new Set(state.usuarios.map((u) => u.empleado_id));
+  const rows = state.addResults
+    .map((emp) => renderAddResultRow(emp, existing.has(emp.empleado_id), state.addingId === emp.empleado_id))
+    .join("");
+  return `<ul class="space-y-2">${rows}</ul>`;
+}
+
+function renderAddModal(state: PageState): string {
+  if (!state.addModalOpen) return "";
+  return `
+    <div id="rh-perm-add-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div
+        id="rh-perm-add-panel"
+        class="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rh-perm-add-title"
+      >
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div>
+            <h2 id="rh-perm-add-title" class="text-lg font-semibold text-text-primary">Agregar empleado a permisos</h2>
+            <p class="mt-1 text-sm text-[#64748b]">Busca cualquier empleado activo por nombre, no. empleado o correo.</p>
+          </div>
+          <button type="button" id="rh-perm-add-close" class="${BTN_GHOST} shrink-0 px-2 py-1.5 text-xs" aria-label="Cerrar">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </header>
+        <div class="shrink-0 px-6 pt-4">
+          <div class="relative">
+            ${iconSearchInput()}
+            <input
+              id="rh-perm-add-input"
+              type="search"
+              class="${FILTER_INPUT} ${FIELD_FOCUS}"
+              placeholder="Nombre, no. empleado o correo"
+              value="${escapeHtml(state.addQuery)}"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          ${renderAddModalResults(state)}
+        </div>
+        <footer class="flex shrink-0 justify-end border-t border-slate-100 px-6 py-4">
+          <button type="button" id="rh-perm-add-done" class="${BTN_SECONDARY} text-xs">Cerrar</button>
+        </footer>
+      </div>
+    </div>`;
+}
+
+function renderConfirmDeleteModal(state: PageState): string {
+  if (state.confirmDeleteId === null) return "";
+  const user = state.usuarios.find((u) => u.empleado_id === state.confirmDeleteId);
+  if (!user) return "";
+  const deleting = state.deletingId === user.empleado_id;
+  const esRh = user.rol_nombre === "rh";
+  return `
+    <div id="rh-perm-del-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div
+        id="rh-perm-del-panel"
+        class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rh-perm-del-title"
+      >
+        <header class="border-b border-slate-100 px-6 py-4">
+          <h2 id="rh-perm-del-title" class="text-lg font-semibold text-text-primary">Eliminar de la administración de permisos</h2>
+        </header>
+        <div class="space-y-3 px-6 py-5">
+          <p class="text-sm leading-relaxed text-[#475569]">
+            Se quitará a <strong class="font-semibold text-[#0f172a]">${escapeHtml(formatNombreCompletoRh(user.nombre))}</strong>
+            de la administración de permisos y se eliminarán todos los accesos otorgados desde este módulo.
+          </p>
+          <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[#475569]">
+            No se elimina su cuenta ni se modifica su rol${user.rol_nombre ? ` (${escapeHtml(formatRol(user.rol_nombre))})` : ""}.
+            ${esRh ? "Conservará su rol RH pero pasará a la vista de empleado hasta que se le vuelva a otorgar acceso." : "Solo se retiran los permisos de este módulo."}
+          </p>
+        </div>
+        <footer class="flex flex-col-reverse gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end">
+          <button type="button" id="rh-perm-del-cancel" class="${BTN_SECONDARY} min-h-10 justify-center text-xs">Cancelar</button>
+          <button type="button" id="rh-perm-del-confirm" class="${BTN_DANGER} min-h-10 justify-center text-xs disabled:cursor-not-allowed disabled:opacity-70" ${deleting ? "disabled" : ""}>
+            ${deleting ? "Eliminando…" : "Eliminar permisos"}
+          </button>
+        </footer>
+      </div>
+    </div>`;
+}
+
 function renderPage(state: PageState): string {
   if (state.loading) {
     return `<p class="text-sm text-text-muted">Cargando permisos…</p>`;
@@ -616,7 +771,8 @@ function renderPage(state: PageState): string {
       <header class="${RH_LISTADO_SURFACE} p-4 sm:p-6">
         <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Permisos RH</h1>
         <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748b]">
-          Vista administrativa compacta de usuarios con rol RH. Los permisos aplican en <strong class="font-medium text-[#334155]">Modo RH</strong>;
+          Administra los accesos por módulo de usuarios RH y de cualquier empleado que agregues.
+          En usuarios RH los permisos aplican en <strong class="font-medium text-[#334155]">Modo RH</strong>;
           solicitudes y comedor personales siguen disponibles con el toggle <strong class="font-medium text-[#334155]">Modo empleado</strong>.
         </p>
       </header>
@@ -634,6 +790,8 @@ function renderPage(state: PageState): string {
       ${renderToolbar(state, filtered.length)}
       ${renderTable(state, filtered)}
       ${renderEditModal(state)}
+      ${renderAddModal(state)}
+      ${renderConfirmDeleteModal(state)}
     </div>`;
 }
 
@@ -667,6 +825,14 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     pageSize: 25,
     editingEmpleadoId: null,
     modalExpandedGroups: new Set<string>(),
+    addModalOpen: false,
+    addQuery: "",
+    addLoading: false,
+    addError: null,
+    addResults: [],
+    addingId: null,
+    confirmDeleteId: null,
+    deletingId: null,
   };
 
   const setBodyScrollLocked = (locked: boolean): void => {
@@ -675,7 +841,10 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
 
   signal?.addEventListener("abort", () => setBodyScrollLocked(false));
 
-  const paint = (opts?: { preserveFilterFocus?: boolean }): void => {
+  const anyModalOpen = (): boolean =>
+    state.editingEmpleadoId !== null || state.addModalOpen || state.confirmDeleteId !== null;
+
+  const paint = (opts?: { preserveFilterFocus?: boolean; focusAddInput?: boolean }): void => {
     mountAppShell(container, {
       mainHtml: renderPage(state),
       onSignOut: () => {
@@ -685,11 +854,19 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
         import("./login.ts").then((m) => m.mountLogin(container));
       },
     });
-    setBodyScrollLocked(state.editingEmpleadoId !== null);
+    setBodyScrollLocked(anyModalOpen());
     bindEvents();
     if (opts?.preserveFilterFocus) {
       const next = container.querySelector<HTMLInputElement>("#rh-perm-filter-input");
       next?.focus();
+    }
+    if (opts?.focusAddInput) {
+      const input = container.querySelector<HTMLInputElement>("#rh-perm-add-input");
+      if (input) {
+        input.focus();
+        const end = input.value.length;
+        input.setSelectionRange(end, end);
+      }
     }
   };
 
@@ -724,6 +901,112 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     state.editingEmpleadoId = empleadoId;
     state.modalExpandedGroups.clear();
     paint();
+  };
+
+  let addSearchTimer: ReturnType<typeof setTimeout> | undefined;
+  let addSearchSeq = 0;
+
+  const runAddSearch = async (): Promise<void> => {
+    const q = state.addQuery.trim();
+    if (q.length < 2) {
+      state.addLoading = false;
+      state.addError = null;
+      state.addResults = [];
+      paint({ focusAddInput: true });
+      return;
+    }
+    const seq = ++addSearchSeq;
+    state.addLoading = true;
+    state.addError = null;
+    paint({ focusAddInput: true });
+    try {
+      const results = await buscarEmpleadosParaPermisos(q);
+      if (seq !== addSearchSeq) return; // resultado obsoleto
+      state.addResults = results;
+    } catch (err) {
+      if (seq !== addSearchSeq) return;
+      state.addError = err instanceof Error ? err.message : "No se pudo realizar la búsqueda.";
+      state.addResults = [];
+    } finally {
+      if (seq === addSearchSeq) {
+        state.addLoading = false;
+        paint({ focusAddInput: true });
+      }
+    }
+  };
+
+  const openAddModal = (): void => {
+    state.addModalOpen = true;
+    state.addQuery = "";
+    state.addResults = [];
+    state.addError = null;
+    state.addLoading = false;
+    state.error = null;
+    state.success = null;
+    paint({ focusAddInput: true });
+  };
+
+  const closeAddModal = (): void => {
+    if (addSearchTimer) clearTimeout(addSearchTimer);
+    addSearchSeq += 1; // invalida búsquedas en vuelo
+    state.addModalOpen = false;
+    state.addingId = null;
+    paint();
+  };
+
+  const addEmpleado = async (empleadoId: number): Promise<void> => {
+    if (state.usuarios.some((u) => u.empleado_id === empleadoId)) return;
+    state.addingId = empleadoId;
+    state.addError = null;
+    paint({ focusAddInput: true });
+    try {
+      const nuevo = await agregarEmpleadoPermisos(empleadoId);
+      state.usuarios = [...state.usuarios, nuevo];
+      state.draftByEmpleadoId.set(nuevo.empleado_id, { ...nuevo.modulos });
+      state.lastUpdatedAtByEmpleadoId.set(nuevo.empleado_id, Date.now());
+      state.success = `${formatNombreTablaRh(nuevo.nombre)} se agregó a la administración de permisos.`;
+    } catch (err) {
+      state.addError = err instanceof Error ? err.message : "No se pudo agregar el empleado.";
+    } finally {
+      state.addingId = null;
+      paint({ focusAddInput: true });
+    }
+  };
+
+  const askDelete = (empleadoId: number): void => {
+    state.confirmDeleteId = empleadoId;
+    state.error = null;
+    state.success = null;
+    paint();
+  };
+
+  const cancelDelete = (): void => {
+    state.confirmDeleteId = null;
+    paint();
+  };
+
+  const confirmDelete = async (): Promise<void> => {
+    const empleadoId = state.confirmDeleteId;
+    if (empleadoId === null) return;
+    state.deletingId = empleadoId;
+    state.error = null;
+    paint();
+    try {
+      await deleteRhUsuarioPermisos(empleadoId);
+      const removed = state.usuarios.find((u) => u.empleado_id === empleadoId);
+      state.usuarios = state.usuarios.filter((u) => u.empleado_id !== empleadoId);
+      state.draftByEmpleadoId.delete(empleadoId);
+      state.lastUpdatedAtByEmpleadoId.delete(empleadoId);
+      state.confirmDeleteId = null;
+      state.success = removed
+        ? `${formatNombreTablaRh(removed.nombre)} se eliminó de la administración de permisos.`
+        : "Usuario eliminado de la administración de permisos.";
+    } catch (err) {
+      state.error = err instanceof Error ? err.message : "No se pudo eliminar al usuario.";
+    } finally {
+      state.deletingId = null;
+      paint();
+    }
   };
 
   const bindEvents = (): void => {
@@ -811,6 +1094,75 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
         { signal },
       );
     });
+
+    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-eliminar").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        () => {
+          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
+          if (!Number.isFinite(empleadoId)) return;
+          askDelete(empleadoId);
+        },
+        { signal },
+      );
+    });
+
+    // ── Modal: agregar empleado ──
+    container.querySelector("#rh-perm-add-open")?.addEventListener("click", openAddModal, { signal });
+
+    const addInput = container.querySelector<HTMLInputElement>("#rh-perm-add-input");
+    addInput?.addEventListener(
+      "input",
+      () => {
+        state.addQuery = addInput.value;
+        if (addSearchTimer) clearTimeout(addSearchTimer);
+        addSearchTimer = setTimeout(() => {
+          void runAddSearch();
+        }, 250);
+      },
+      { signal },
+    );
+
+    container.querySelectorAll<HTMLButtonElement>(".rh-perm-add-confirm").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        () => {
+          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
+          if (!Number.isFinite(empleadoId)) return;
+          void addEmpleado(empleadoId);
+        },
+        { signal },
+      );
+    });
+
+    container.querySelector("#rh-perm-add-close")?.addEventListener("click", closeAddModal, { signal });
+    container.querySelector("#rh-perm-add-done")?.addEventListener("click", closeAddModal, { signal });
+    const addBackdrop = container.querySelector("#rh-perm-add-backdrop");
+    addBackdrop?.addEventListener(
+      "click",
+      (ev) => {
+        if (ev.target === addBackdrop) closeAddModal();
+      },
+      { signal },
+    );
+
+    // ── Modal: confirmar eliminación ──
+    container.querySelector("#rh-perm-del-cancel")?.addEventListener("click", cancelDelete, { signal });
+    container.querySelector("#rh-perm-del-confirm")?.addEventListener(
+      "click",
+      () => {
+        void confirmDelete();
+      },
+      { signal },
+    );
+    const delBackdrop = container.querySelector("#rh-perm-del-backdrop");
+    delBackdrop?.addEventListener(
+      "click",
+      (ev) => {
+        if (ev.target === delBackdrop) cancelDelete();
+      },
+      { signal },
+    );
 
     const modalBackdrop = container.querySelector("#rh-perm-modal-backdrop");
     modalBackdrop?.addEventListener(
@@ -938,7 +1290,14 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     document.addEventListener(
       "keydown",
       (ev) => {
-        if (ev.key === "Escape" && state.editingEmpleadoId !== null) {
+        if (ev.key !== "Escape") return;
+        if (state.confirmDeleteId !== null) {
+          ev.preventDefault();
+          cancelDelete();
+        } else if (state.addModalOpen) {
+          ev.preventDefault();
+          closeAddModal();
+        } else if (state.editingEmpleadoId !== null) {
           ev.preventDefault();
           closeModal();
         }

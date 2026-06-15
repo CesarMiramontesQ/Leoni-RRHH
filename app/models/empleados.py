@@ -85,6 +85,15 @@ class Empleado(Base):
         ForeignKey("empleados.id"), nullable=True
     )
     modulos_rh: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    inscrito_modulos_rh: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # Solo aplica a usuarios con rol RH: marca que el admin los quitó de la
+    # administración de permisos (sin tocar su rol). Quedan ocultos de la lista
+    # y sin acceso a módulos RH (vista empleado vía toggle).
+    acceso_rh_removido: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

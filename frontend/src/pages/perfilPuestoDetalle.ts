@@ -14,7 +14,7 @@ import {
   badgeCancelled,
   badgeOpen,
 } from "../ui/uiTokens.ts";
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
 import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.ts";
@@ -131,8 +131,9 @@ const ICON_PENCIL = `<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke=
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-function isRhUser(): boolean {
-  return getRolFromAccessToken() === "rh";
+/** Edición del perfil de puesto: RH con el módulo o no-RH con el módulo `puestos` otorgado. */
+function canEditarPerfilPuesto(): boolean {
+  return hasRhModule("puestos");
 }
 
 function formatFecha(iso: string | undefined): string | null {
@@ -180,7 +181,7 @@ function nivelVisual(nivel: number): { cls: string; short: string; title: string
 }
 
 function sectionEditBtn(action: string, label: string): string {
-  if (!isRhUser()) return "";
+  if (!canEditarPerfilPuesto()) return "";
   return `<button type="button" data-action="${action}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
 }
 
@@ -259,7 +260,7 @@ function renderHeader(puesto: PuestoPerfilInfo, empleadosCount: number, perfilId
           </div>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row lg:flex-col lg:items-stretch xl:flex-row xl:items-center">
-          ${isRhUser() ? `<button type="button" data-action="edit-base" class="${RH_LISTADO_BTN_GHOST} ppd-hero-action justify-center">${ICON_PENCIL}<span>Editar perfil</span></button>` : ""}
+          ${canEditarPerfilPuesto() ? `<button type="button" data-action="edit-base" class="${RH_LISTADO_BTN_GHOST} ppd-hero-action justify-center">${ICON_PENCIL}<span>Editar perfil</span></button>` : ""}
           <a href="#/puestos/${perfilId}/empleados" class="${RH_LISTADO_BTN_PRIMARY} ppd-hero-action justify-center text-center">${ICON_USERS_SM}<span>Ver empleados</span></a>
         </div>
       </div>
@@ -369,7 +370,7 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
       "Editar tareas",
       emptyState(
         "Sin tareas registradas",
-        isRhUser() ? "Usa el botón de edición para agregar tareas principales y complementarias." : undefined,
+        canEditarPerfilPuesto() ? "Usa el botón de edición para agregar tareas principales y complementarias." : undefined,
       ),
     );
   }
@@ -437,7 +438,7 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
       "Editar calificaciones",
       emptyState(
         "Sin calificaciones registradas",
-        isRhUser() ? "Define estudios, experiencia y complementos desde la edición." : undefined,
+        canEditarPerfilPuesto() ? "Define estudios, experiencia y complementos desde la edición." : undefined,
       ),
     );
   }
@@ -528,7 +529,7 @@ function renderCompetencias(competencias: Competencia[]): string {
       "Editar competencias",
       emptyState(
         "Sin competencias registradas",
-        isRhUser() ? "Asocia competencias del catálogo y define el nivel mínimo requerido." : undefined,
+        canEditarPerfilPuesto() ? "Asocia competencias del catálogo y define el nivel mínimo requerido." : undefined,
       ),
     );
   }
@@ -665,7 +666,7 @@ function renderCursosAsignados(cursos: CursoPuestoItem[], _perfilId: number): st
       "Asignar curso",
       emptyState(
         "Sin cursos asignados",
-        isRhUser() ? "Asigna cursos del catálogo a este perfil de puesto." : undefined,
+        canEditarPerfilPuesto() ? "Asigna cursos del catálogo a este perfil de puesto." : undefined,
       ),
     );
   }
@@ -684,7 +685,7 @@ function renderCursosAsignados(cursos: CursoPuestoItem[], _perfilId: number): st
             ${cp.sesion_fecha ? `<span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(cp.sesion_fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>` : ""}
           </div>
         </div>
-        ${isRhUser() ? `<button type="button" data-action="remove-curso" data-curso-puesto-id="${cp.id}" class="opacity-0 group-hover:opacity-100 rounded-md p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600" title="Quitar curso" aria-label="Quitar curso"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>` : ""}
+        ${canEditarPerfilPuesto() ? `<button type="button" data-action="remove-curso" data-curso-puesto-id="${cp.id}" class="opacity-0 group-hover:opacity-100 rounded-md p-1 text-red-400 transition hover:bg-red-50 hover:text-red-600" title="Quitar curso" aria-label="Quitar curso"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>` : ""}
       </li>`,
     )
     .join("");
@@ -798,7 +799,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
     const contentEl = inner;
 
-    if (isRhUser()) {
+    if (canEditarPerfilPuesto()) {
       const reload = () => loadPerfilDetalle(container, perfilId);
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;

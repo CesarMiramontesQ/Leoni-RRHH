@@ -28,8 +28,9 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "evidencias", prefix: "#/evidencias" },
   { key: "sugerencias", prefix: "#/sugerencias" },
   { key: "encuestas", prefix: "#/encuestas" },
-  { key: "horas-extra", prefix: "#/nominas/horas-extra" },
-  { key: "conciliacion", prefix: "#/nominas/conciliacion" },
+  { key: "nominas-horas-extra", prefix: "#/nominas/horas-extra" },
+  { key: "nominas-conciliacion", prefix: "#/nominas/conciliacion" },
+  { key: "nominas-ajustes", prefix: "#/nominas/ajustes" },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 export function resolveModuleFromHash(hashValue: string): string | null {
@@ -49,9 +50,14 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "sesiones") return "cursos";
   if (navItemId === "comedor-menu") return "comedor";
   if (navItemId === "laborales") return "dashboard";
-  if (navItemId === "nominas") return "dashboard";
-  if (navItemId === "horas-extra") return "dashboard";
-  if (navItemId === "conciliacion") return "dashboard";
-  if (navItemId === "nominas-ajustes") return "dashboard";
+  // Evaluación 360 vive bajo el módulo Level Up (no es un módulo propio).
+  if (navItemId === "evaluacion-360") return "level-up";
+  // Nóminas: un módulo de navegación por página del submenú.
+  if (navItemId === "horas-extra") return "nominas-horas-extra";
+  if (navItemId === "conciliacion") return "nominas-conciliacion";
+  if (navItemId === "nominas-ajustes") return "nominas-ajustes";
+  // El hub "nominas" se resuelve aparte (isNominasHubVisibleForRol) y
+  // "horas-extra-aprobaciones" es Regla B (canApproveOvertime), no un módulo.
+  if (navItemId === "nominas") return "nominas-horas-extra";
   return navItemId;
 }

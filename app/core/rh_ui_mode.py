@@ -50,6 +50,12 @@ def validate_rh_ui_mode_for_user(user: "Empleado", mode: str) -> None:
     if rol != "rh":
         return
 
+    # RH removido de la administración de permisos: pasa a vista de empleado,
+    # se permite cualquier modo (el acceso a módulos RH ya está denegado por
+    # modulos_rh todo-falso). Evita 422 al enviar modo "empleado".
+    if getattr(user, "acceso_rh_removido", False):
+        return
+
     alcance = resolve_rh_gestor_alcance(user)
     if mode == RH_UI_MODE_LIDER:
         if alcance != "supervisor":
