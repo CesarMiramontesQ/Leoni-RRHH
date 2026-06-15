@@ -355,6 +355,69 @@ async def test_remove_non_enrolled_returns_404(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_me_en_lista_permisos_flag(client: AsyncClient, db):
+    """/me distingue 'en la lista' de 'inscrito' (RH removido sigue inscrito pero fuera de la lista)."""
+    rh = await make_empleado(db, rol="rh", email="rh_lista@test.com")
+    res = await client.get("/api/v1/rh-permisos/me", headers=await auth_headers(client, rh))
+    assert res.json()["en_lista_permisos"] is True
+
+    removido = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_removido_me@test.com",
+        acceso_rh_removido=True,
+        modulos_rh={},
+    )
+    data2 = (
+        await client.get("/api/v1/rh-permisos/me", headers=await auth_headers(client, removido))
+    ).json()
+    assert data2["en_lista_permisos"] is False
+    assert data2["inscrito"] is True  # sigue inscrito para denegar acceso
+
+    ger_inscrito = await make_empleado(
+        db,
+        rol="gerente",
+        email="ger_lista@test.com",
+        inscrito_modulos_rh=True,
+        modulos_rh={"nominas": True},
+    )
+    data3 = (
+        await client.get("/api/v1/rh-permisos/me", headers=await auth_headers(client, ger_inscrito))
+    ).json()
+    assert data3["en_lista_permisos"] is True
+
+    emp_no = await make_empleado(db, rol="empleado", email="emp_no_lista@test.com")
+    data4 = (
+        await client.get("/api/v1/rh-permisos/me", headers=await auth_headers(client, emp_no))
+    ).json()
+    assert data4["en_lista_permisos"] is False
+
+
+def test_validate_rh_ui_mode_relaxed_for_removed_rh(monkeypatch):
+    """Un RH removido puede usar modo empleado aunque tenga gestor alcance (sin 422)."""
+    import app.core.rh_ui_mode as uimod
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(uimod, "resolve_rh_gestor_alcance", lambda _user: "gerente")
+
+    class _Rol:
+        nombre = "rh"
+
+    class _User:
+        rol = _Rol()
+
+        def __init__(self, removido: bool) -> None:
+            self.acceso_rh_removido = removido
+
+    # Removido: no lanza, aunque tenga alcance gerente y pida modo empleado.
+    uimod.validate_rh_ui_mode_for_user(_User(removido=True), uimod.RH_UI_MODE_EMPLEADO)
+
+    # Control: el mismo usuario NO removido sí es rechazado (debe usar modo gerente).
+    with pytest.raises(HTTPException):
+        uimod.validate_rh_ui_mode_for_user(_User(removido=False), uimod.RH_UI_MODE_EMPLEADO)
+
+
+@pytest.mark.asyncio
 async def test_catalog_includes_nominas_module(client: AsyncClient, db):
     admin = await make_empleado(
         db,

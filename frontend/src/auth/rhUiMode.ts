@@ -7,6 +7,26 @@ export const RH_UI_MODE_CHANGE_EVENT = "rh-ui-mode-change";
 
 const ALL_MODES: readonly RhUiMode[] = ["operativo", "empleado", "lider", "gerente"];
 
+/**
+ * ¿El usuario RH está dentro de la lista de administración de permisos?
+ * Lo empuja `rhModulePermissions` tras cargar `/me`. Default `true` para no
+ * ocultar el toggle antes de saberlo (fail-open de UI; el backend enforza acceso).
+ */
+let inPermisosList = true;
+
+export function setRhInPermisosList(value: boolean): void {
+  inPermisosList = value;
+}
+
+export function isRhInPermisosList(): boolean {
+  return inPermisosList;
+}
+
+/** RH que ya no está en la lista (removido): pasa a vista de empleado. */
+function isRhFueraDeLista(): boolean {
+  return getRolFromAccessToken() === "rh" && !inPermisosList;
+}
+
 function readStoredMode(): RhUiMode | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -31,6 +51,9 @@ function sanitizeModeForUser(mode: RhUiMode): RhUiMode {
 /** Modo de UI para usuarios RH (default operativo). */
 export function getRhUiMode(): RhUiMode {
   if (getRolFromAccessToken() !== "rh") return "operativo";
+  // RH fuera de la lista de permisos: forzado a vista de empleado, sin importar
+  // lo guardado (no puede pasar manualmente a Modo RH).
+  if (!inPermisosList) return "empleado";
   const stored = readStoredMode() ?? "operativo";
   return sanitizeModeForUser(stored);
 }
@@ -70,6 +93,9 @@ export function getRhToggleLabels(): { off: string; on: string; active: string }
 }
 
 export function getRhUiModeLabel(mode: RhUiMode = getRhUiMode()): string {
+  // RH fuera de la lista: muestra el modo del rol base (empleado), evitando que
+  // un RH con gestor alcance muestre "Modo RH".
+  if (isRhFueraDeLista()) return "Modo empleado";
   const labels = getRhToggleLabels();
   if (mode === getRhToggleOnMode()) return labels.on;
   return labels.off;
@@ -114,6 +140,7 @@ export function getRhUiModeHeaderValue(): string | null {
 }
 
 export function resetRhUiMode(): void {
+  inPermisosList = true;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch {

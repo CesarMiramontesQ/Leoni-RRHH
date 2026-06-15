@@ -12,6 +12,7 @@ export type RhPermisosMeResponse = {
   puede_administrar_permisos_rh: boolean;
   modulos: Record<string, boolean>;
   inscrito: boolean;
+  en_lista_permisos: boolean;
 };
 
 export type RhUsuarioPermisosItem = {

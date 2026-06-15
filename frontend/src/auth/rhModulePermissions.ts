@@ -1,5 +1,10 @@
 import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
-import { isRhEmpleadoUiMode, isRhGestorTeamUiMode, rhHasFullOperativoModules } from "./rhUiMode.ts";
+import {
+  isRhEmpleadoUiMode,
+  isRhGestorTeamUiMode,
+  rhHasFullOperativoModules,
+  setRhInPermisosList,
+} from "./rhUiMode.ts";
 import { getAccessToken } from "./session.ts";
 
 function getSessionRol(): string | null {
@@ -24,6 +29,7 @@ type RhModulePermissionsState = {
   enrolled: boolean;
   modules: Record<string, boolean>;
   canAdminPermisos: boolean;
+  enListaPermisos: boolean;
 };
 
 const state: RhModulePermissionsState = {
@@ -31,6 +37,7 @@ const state: RhModulePermissionsState = {
   enrolled: false,
   modules: {},
   canAdminPermisos: false,
+  enListaPermisos: true,
 };
 
 export function resetRhModulePermissions(): void {
@@ -38,6 +45,8 @@ export function resetRhModulePermissions(): void {
   state.enrolled = false;
   state.modules = {};
   state.canAdminPermisos = false;
+  state.enListaPermisos = true;
+  setRhInPermisosList(true);
 }
 
 export async function loadRhModulePermissions(): Promise<void> {
@@ -48,18 +57,29 @@ export async function loadRhModulePermissions(): Promise<void> {
       state.enrolled = false;
       state.modules = {};
       state.canAdminPermisos = false;
+      state.enListaPermisos = true;
+      setRhInPermisosList(true);
       return;
     }
     state.enrolled = data.inscrito;
     state.modules = data.inscrito ? { ...data.modulos } : {};
     state.canAdminPermisos = data.puede_administrar_permisos_rh;
+    state.enListaPermisos = data.en_lista_permisos;
+    setRhInPermisosList(data.en_lista_permisos);
     state.loaded = true;
   } catch {
     state.loaded = true;
     state.enrolled = false;
     state.modules = {};
     state.canAdminPermisos = false;
+    // Fail-open de UI: ante error transitorio no ocultamos el toggle.
+    state.enListaPermisos = true;
+    setRhInPermisosList(true);
   }
+}
+
+export function isEnListaPermisos(): boolean {
+  return state.enListaPermisos;
 }
 
 export function isModulosRhEnrolled(): boolean {

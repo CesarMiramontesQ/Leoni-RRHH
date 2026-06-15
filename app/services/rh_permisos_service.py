@@ -57,11 +57,17 @@ class RhPermisosService:
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         inscrito = is_modulos_rh_enrolled(current_user)
         modulos = effective_modules_for_display(current_user) if inscrito else {}
+        # Pertenencia a la lista administrada: un RH removido (acceso_rh_removido)
+        # sigue "inscrito" para denegar acceso, pero NO está en la lista.
+        en_lista_permisos = (
+            rol == "rh" and not getattr(current_user, "acceso_rh_removido", False)
+        ) or bool(getattr(current_user, "inscrito_modulos_rh", False))
         return RhPermisosMeResponse(
             rol=rol,
             puede_administrar_permisos_rh=bool(current_user.puede_administrar_permisos_rh),
             modulos=modulos,
             inscrito=inscrito,
+            en_lista_permisos=en_lista_permisos,
         )
 
     def list_modulos_catalog(self, current_user: Empleado) -> list[dict]:

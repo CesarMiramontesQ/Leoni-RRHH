@@ -5,7 +5,7 @@ import {
   getUserInitialsFromAccessToken,
 } from "../auth/jwt.ts";
 import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
-import { getRhUiModeLabel, isRhEmpleadoUiMode, isRhToggleOn, toggleRhUiMode } from "../auth/rhUiMode.ts";
+import { getRhUiModeLabel, isRhEmpleadoUiMode, isRhInPermisosList, isRhToggleOn, toggleRhUiMode } from "../auth/rhUiMode.ts";
 import {
   isComedorHubVisibleForRol,
   COMEDOR_SIDEBAR_ITEM,
@@ -502,7 +502,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
     : "";
   const rhModeToggleHtml =
-    rawRol === "rh"
+    rawRol === "rh" && isRhInPermisosList()
       ? `<div class="hidden items-center gap-2 sm:flex" id="rh-ui-mode-toggle-wrap">
           <span class="text-xs font-medium text-text-muted" id="rh-ui-mode-toggle-label">${escapeHtmlText(getRhUiModeLabel())}</span>
           <button

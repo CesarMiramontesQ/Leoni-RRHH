@@ -182,7 +182,7 @@ components:
 
     RhPermisosMeResponse:
       type: object
-      required: [rol, puede_administrar_permisos_rh, modulos, inscrito]
+      required: [rol, puede_administrar_permisos_rh, modulos, inscrito, en_lista_permisos]
       properties:
         rol:
           type: string
@@ -194,6 +194,12 @@ components:
             type: boolean
         inscrito:
           type: boolean
+        en_lista_permisos:
+          type: boolean
+          description: >-
+            El usuario aparece en la lista de administración de permisos. Un RH
+            removido sigue inscrito pero queda fuera de la lista; el toggle
+            Modo RH/empleado solo se muestra cuando es true.
 
     RhUsuarioPermisosItem:
       type: object
