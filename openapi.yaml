@@ -4913,6 +4913,10 @@ paths:
     patch:
       tags: [Usuarios]
       summary: Actualizar asignacion de lider o rol
+      description: >-
+        Actualiza lider, comedor y/o rol del empleado. Modificar `rol_id`
+        requiere que el usuario autenticado tenga `puede_administrar_permisos_rh`;
+        en caso contrario la operacion responde 403.
       operationId: usuarios_patch
       security:
         - BearerAuth: []
@@ -4935,6 +4939,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UsuarioResponse"
+        "403":
+          description: >-
+            Sin permiso. Modificar el rol exige `puede_administrar_permisos_rh`.
 
   # ── Empleados ───────────────────────────────────────
   /api/v1/empleados/resumen:

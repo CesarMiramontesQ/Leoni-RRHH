@@ -63,7 +63,12 @@ async def test_patch_asignacion_rol_rh_retorna_200(client: AsyncClient, db):
 
     from app.models.roles import Rol
 
-    rh = await make_empleado(db, rol="rh", email="rh_rol@leoni.test")
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_rol@leoni.test",
+        puede_administrar_permisos_rh=True,
+    )
     empleado = await make_empleado(db, rol="empleado", email="emp_rol@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -84,6 +89,76 @@ async def test_patch_asignacion_rol_rh_retorna_200(client: AsyncClient, db):
     assert response.status_code == 200
     body = response.json()
     assert body["rol_id"] == rol_supervisor.id
+
+
+@pytest.mark.asyncio
+async def test_patch_asignacion_rol_sin_flag_retorna_403(client: AsyncClient, db):
+    """Cambiar rol exige puede_administrar_permisos_rh, aunque el actor sea RH."""
+    from sqlalchemy import select
+
+    from app.models.roles import Rol
+
+    rh_sin_flag = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_sin_flag@leoni.test",
+        puede_administrar_permisos_rh=False,
+    )
+    empleado = await make_empleado(db, rol="empleado", email="emp_sin_flag@leoni.test")
+    headers = await auth_headers(client, rh_sin_flag)
+
+    result = await db.execute(select(Rol).where(Rol.nombre == "supervisor"))
+    rol_supervisor = result.scalar_one_or_none()
+    if not rol_supervisor:
+        rol_supervisor = Rol(nombre="supervisor", permisos={})
+        db.add(rol_supervisor)
+        await db.flush()
+        await db.refresh(rol_supervisor)
+
+    rol_original = empleado.rol_id
+    response = await client.patch(
+        f"/api/v1/usuarios/{empleado.id}",
+        json={"rol_id": rol_supervisor.id},
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    await db.refresh(empleado)
+    assert empleado.rol_id == rol_original
+
+
+@pytest.mark.asyncio
+async def test_patch_asignacion_comedor_sin_flag_retorna_200(client: AsyncClient, db):
+    """Sin el flag se puede seguir editando comedor (solo el rol queda restringido)."""
+    from app.models.comedor import Comedor
+    from app.models.turnos_empleados import TurnoEmpleado
+    from sqlalchemy import select
+
+    rh_sin_flag = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_comedor_sin_flag@leoni.test",
+        puede_administrar_permisos_rh=False,
+    )
+    empleado = await make_empleado(db, rol="empleado", email="emp_comedor_sin_flag@leoni.test")
+    comedor = Comedor(nombre="Comedor Sin Flag Test", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    headers = await auth_headers(client, rh_sin_flag)
+    response = await client.patch(
+        f"/api/v1/usuarios/{empleado.id}",
+        json={"comedor_id": comedor.id},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+
+    result = await db.execute(
+        select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+    )
+    turno = result.scalar_one_or_none()
+    assert turno is not None
+    assert turno.comedor == comedor.id
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,7 @@ import {
   type ComedorAsignadoApi,
 } from "../../api/comedor.ts";
 import { fetchUsuariosRoles, patchUsuarioAsignacion } from "../../api/usuariosAdmin.ts";
+import { canAccessRhPermisosAdmin } from "../../auth/rhModulePermissions.ts";
 import type { RolBrief, UsuarioListItem } from "../../api/usuarios.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
@@ -232,6 +233,7 @@ function formBodyHtml(
   comedores: ComedorApiItem[],
   comedorAsignado: ComedorAsignadoApi | null,
   baseline: FormBaseline,
+  canEditRol: boolean,
 ): string {
   const rolActual = textoRolActual(empleado, roles);
   const comedorActual = textoComedorActual(comedorAsignado, comedores);
@@ -245,12 +247,14 @@ function formBodyHtml(
     )
     .join("");
 
+  // Un <select disabled> no se incluye en FormData: con rol bloqueado no se envía rol_id.
   const rolSelect = `<select
     id="ea-rol_id"
     name="rol_id"
     required
     data-ea-control="rol"
-    class="col-start-1 row-start-1 ${SELECT_CONTROL}"
+    ${canEditRol ? "" : "disabled"}
+    class="col-start-1 row-start-1 ${SELECT_CONTROL}${canEditRol ? "" : " cursor-not-allowed bg-slate-100 text-slate-500"}"
   >${roleOpts}</select>`;
 
   const comedorSelect = `<select
@@ -273,7 +277,9 @@ function formBodyHtml(
             ${fieldBlockHtml({
               id: "rol",
               label: "Rol del sistema",
-              description: "Define los permisos de acceso del empleado.",
+              description: canEditRol
+                ? "Define los permisos de acceso del empleado."
+                : "Solo administradores de permisos pueden cambiar el rol.",
               forId: "ea-rol_id",
               selectHtml: rolSelect,
             })}
@@ -438,11 +444,18 @@ export function mountEditarAsignacionModal(
 
         const fd = new FormData(form);
 
-        const rolRaw = String(fd.get("rol_id") ?? "");
-        const rol_id = Number.parseInt(rolRaw, 10);
-        if (Number.isNaN(rol_id)) {
-          showError("Selecciona un rol.");
-          return;
+        // Si el control de rol está deshabilitado (sin permiso), no se envía rol_id.
+        const rolControl = host.querySelector<HTMLSelectElement>('[data-ea-control="rol"]');
+        const canEditRol = !!rolControl && !rolControl.disabled;
+
+        let rol_id: number | undefined;
+        if (canEditRol) {
+          const rolRaw = String(fd.get("rol_id") ?? "");
+          rol_id = Number.parseInt(rolRaw, 10);
+          if (Number.isNaN(rol_id)) {
+            showError("Selecciona un rol.");
+            return;
+          }
         }
 
         const comRaw = String(fd.get("comedor_id") ?? "").trim();
@@ -456,7 +469,10 @@ export function mountEditarAsignacionModal(
         syncFormDirtyState(host, baseline, true);
 
         try {
-          await patchUsuarioAsignacion(empleado.id, { rol_id, comedor_id });
+          await patchUsuarioAsignacion(empleado.id, {
+            ...(rol_id !== undefined ? { rol_id } : {}),
+            comedor_id,
+          });
           showEmpleadosToast(options.toastContainer, "Asignación actualizada correctamente.", "success");
           close();
           await options.onSuccess();
@@ -521,7 +537,15 @@ export function mountEditarAsignacionModal(
         rolesCache = roles;
         comedoresCache = comedores;
         const baseline = buildBaseline(empleado, roles, comedorAsignado);
-        modalBody.innerHTML = formBodyHtml(empleado, roles, comedores, comedorAsignado, baseline);
+        const canEditRol = canAccessRhPermisosAdmin();
+        modalBody.innerHTML = formBodyHtml(
+          empleado,
+          roles,
+          comedores,
+          comedorAsignado,
+          baseline,
+          canEditRol,
+        );
         bindFormInteractions(baseline);
         bindFormSubmit(empleado, baseline);
         host.querySelector<HTMLElement>('[data-ea-control="rol"]')?.focus();
