@@ -186,7 +186,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (h.startsWith("#/organigrama")) {
       if (!canAccessOrganigramaPage()) {
         history.replaceState(null, "", "#/");
-        mountDashboardPlaceholder(container);
+        mountDashboardPlaceholder(container, signal);
         return;
       }
       mountOrganigrama(container, signal);
@@ -328,7 +328,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     } else if (h.startsWith("#/incidencias")) {
       mountIncidencias(container, signal);
     } else {
-      mountDashboardPlaceholder(container);
+      mountDashboardPlaceholder(container, signal);
     }
   };
 

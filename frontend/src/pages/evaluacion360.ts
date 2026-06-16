@@ -107,7 +107,11 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
 
   const pageRoot = container.querySelector<HTMLElement>("#eval360-page")!;
 
+  let paintSeq = 0;
+
   function paint(): void {
+    const seq = ++paintSeq;
+    const isStale = (): boolean => seq !== paintSeq || signal.aborted;
     destroyChartsIn(pageRoot);
     pageRoot.innerHTML = `
       <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
@@ -118,7 +122,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       </div>`;
     const content = pageRoot.querySelector("#eval360-content");
     if (content) {
-      runChartsAfterLayout(content, () => mountViewCharts(content as HTMLElement, state));
+      runChartsAfterLayout(content, () => mountViewCharts(content as HTMLElement, state), { isStale });
     }
     bindEvents();
   }
