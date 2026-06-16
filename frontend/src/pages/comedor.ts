@@ -1009,7 +1009,7 @@ function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): 
 
   mountAppShell(container, {
     pageTitle: "Gestión de comedores",
-    activeNav: "comedor",
+    activeNav: "comedor-gestion",
     mainClass: "py-5 sm:py-6",
     mainHtml: `${renderComedorBackBar()}<div id="comedor-admin-root">${renderComedorGestionAdmin(state)}</div><div id="comedor-admin-crear-host"></div><div id="comedor-admin-editar-host"></div>`,
   });
@@ -1273,14 +1273,6 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
     "click",
     (event) => {
       const target = event.target as HTMLElement;
-      if (target.closest("[data-comedor-gestionar]")) {
-        window.location.hash = "#/comedor/gestion";
-        return;
-      }
-      if (target.closest("[data-comedor-planear]")) {
-        window.location.hash = "#/comedor/planear";
-        return;
-      }
       const externalCodesRouteBtn = target.closest<HTMLButtonElement>("[data-comedor-external-codes-route]");
       if (externalCodesRouteBtn) {
         const route = externalCodesRouteBtn.getAttribute("data-comedor-external-codes-route");
@@ -1973,7 +1965,7 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 
   mountAppShell(container, {
     pageTitle: "Planeación de Menú",
-    activeNav: "comedor",
+    activeNav: "comedor-planear",
     mainClass: "py-5 sm:py-6",
     mainHtml: `${renderComedorBackBar()}<div id="comedor-plan-root">${renderComedorWeeklyPlanner(toPlannerViewState(state))}</div><div id="comedor-plan-import-host"></div><div id="comedor-plan-clear-host"></div>`,
   });

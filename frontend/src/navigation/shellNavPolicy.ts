@@ -103,6 +103,8 @@ export type AppShellNavItemId =
   | "actas"
   | "comedor"
   | "comedor-menu"
+  | "comedor-gestion"
+  | "comedor-planear"
   | "empleados"
   | "evaluaciones"
   | "evaluacion-360"
@@ -243,6 +245,15 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   }
   if (itemId === "comedor-menu") {
     return isComedorHubVisibleForRol(rol);
+  }
+  // Gestión de comedores y Planeación: mismas reglas de acceso que canAccessComedorRhPage
+  // (módulo `comedor`). Visibles solo para RH con el módulo o no-RH con grant explícito;
+  // ocultas para roles sin acceso y para RH en Modo empleado/gestor.
+  if (itemId === "comedor-gestion" || itemId === "comedor-planear") {
+    if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
+    if (hasExplicitModuleGrant("comedor")) return true;
+    if (rol === "rh") return hasRhModule("comedor");
+    return false;
   }
   if (itemId === "nominas") {
     return isNominasHubVisibleForRol(rol);

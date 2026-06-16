@@ -57,6 +57,8 @@ export type ShellNavKey =
   | "incidencias"
   | "actas"
   | "comedor"
+  | "comedor-gestion"
+  | "comedor-planear"
   | "reportes"
   | "puestos"
   | "puestos-ajustes"

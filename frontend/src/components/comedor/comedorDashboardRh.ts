@@ -8,7 +8,6 @@ import {
   RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   RH_SOLICITUDES_BTN_PRIMARY,
-  RH_SOLICITUDES_BTN_SECONDARY,
 } from "../../ui/uiTokens.ts";
 import { renderComedorAlerts } from "./comedorAlerts.ts";
 import { renderComedorCalendar } from "./comedorCalendar.ts";
@@ -39,22 +38,8 @@ function renderHeader(): string {
         <div class="rh-sol-header__toolbar rh-sol-header__toolbar--dual flex w-full shrink-0 flex-col gap-2.5 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:justify-end md:w-auto md:flex-nowrap md:items-center md:justify-end md:gap-2.5">
           <button
             type="button"
-            data-comedor-gestionar
-            class="rh-comedor-btn-gestionar order-3 inline-flex min-h-10 w-full min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[10px] px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]/45 focus-visible:ring-offset-2 min-[520px]:w-auto md:order-1"
-          >
-            Gestionar comedores
-          </button>
-          <button
-            type="button"
-            data-comedor-planear
-            class="${RH_SOLICITUDES_BTN_SECONDARY} order-2 w-full min-[520px]:w-auto"
-          >
-            Planear
-          </button>
-          <button
-            type="button"
             data-comedor-nuevo
-            class="${RH_SOLICITUDES_BTN_PRIMARY} order-1 w-full min-[520px]:w-auto md:order-3"
+            class="${RH_SOLICITUDES_BTN_PRIMARY} w-full min-[520px]:w-auto"
           >
             Nuevo registro
           </button>

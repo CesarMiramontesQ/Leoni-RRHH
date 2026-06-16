@@ -49,6 +49,7 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "cursos-ajustes") return "cursos";
   if (navItemId === "sesiones") return "cursos";
   if (navItemId === "comedor-menu") return "comedor";
+  if (navItemId === "comedor-gestion" || navItemId === "comedor-planear") return "comedor";
   if (navItemId === "laborales") return "dashboard";
   // Evaluación 360 vive bajo el módulo Level Up (no es un módulo propio).
   if (navItemId === "evaluacion-360") return "level-up";
