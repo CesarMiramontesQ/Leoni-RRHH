@@ -1406,7 +1406,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   }
 
   async function exportarEmpleadosListado(): Promise<void> {
-    if (!isRhAdmin || getRolFromAccessToken() !== "rh") return;
+    if (!isRhAdmin) return;
     if (exportandoListado) return;
     exportandoListado = true;
     const exportBtn = container.querySelector<HTMLButtonElement>("#rh-empleados-export");

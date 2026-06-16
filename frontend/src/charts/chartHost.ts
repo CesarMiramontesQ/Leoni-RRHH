@@ -16,6 +16,8 @@ export type MountChartOptions = {
 };
 
 const registry = new Map<string, Chart>();
+/** ResizeObserver por gráfica montada: redimensiona si el host pasa de 0 → tamaño. */
+const selfHealObservers = new Map<string, ResizeObserver>();
 type PendingChartMount = {
   cancel: () => void;
   retry: () => void;
@@ -179,6 +181,22 @@ function createChartInstance(
   });
   registry.set(chartId, chart);
   chart.resize();
+
+  // Auto-curación: si el host gana tamaño después (layout que asienta tras login,
+  // refoco de pestaña, ancestro que deja de estar oculto), reajustar la gráfica para
+  // que nunca quede pintada a 0px.
+  const host = chartHostElement(canvas);
+  if (host && typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => {
+      const rect = host.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        if (registry.get(chartId) === chart) chart.resize();
+      }
+    });
+    ro.observe(host);
+    selfHealObservers.set(chartId, ro);
+  }
+
   return chart;
 }
 
@@ -211,13 +229,18 @@ function scheduleChartMount(
       `[data-chart-canvas][data-chart-id="${CSS.escape(chartId)}"]`,
     );
 
+  // Camino preferente: montar cuando el host tiene dimensiones reales (sin parpadeo).
+  // Con `force=true` (presupuesto agotado / red de seguridad) se monta aunque no se
+  // detecten dimensiones, para GARANTIZAR que la instancia se crea en navegación SPA
+  // (donde el layout puede no estar listo en el momento del montaje). Si nace a 0px, el
+  // ResizeObserver de auto-curación de createChartInstance la reajusta al asentar layout.
   const tryMount = (force = false): Chart | null => {
     if (cancelled || options?.isStale?.()) {
       cleanup();
       return null;
     }
     const canvas = resolveCanvas();
-    if (!canvas) {
+    if (!canvas || !canvas.isConnected) {
       cleanup();
       return null;
     }
@@ -240,12 +263,13 @@ function scheduleChartMount(
       return;
     }
 
+    // Presupuesto de RAF agotado: montaje garantizado si el canvas sigue conectado.
+    rafId = 0;
     const canvas = resolveCanvas();
     if (!canvas || !canvas.isConnected) {
       cleanup();
       return;
     }
-
     tryMount(true);
   };
 
@@ -258,6 +282,9 @@ function scheduleChartMount(
     observer.observe(host);
   }
 
+  // Red de seguridad: montaje garantizado si nada lo montó antes (p. ej. entornos sin
+  // ResizeObserver o layout que nunca reporta tamaño). Si nace a 0px, la auto-curación
+  // lo reajusta al ganar dimensiones.
   forceMountTimer = setTimeout(() => {
     if (cancelled || registry.has(chartId) || options?.isStale?.()) return;
     tryMount(true);
@@ -305,6 +332,8 @@ export function updateChart(chartId: string, buildConfig: ChartConfigFactory): b
 /** Destruye una instancia registrada por id. */
 export function destroyChart(chartId: string): void {
   cancelPendingChartMount(chartId);
+  selfHealObservers.get(chartId)?.disconnect();
+  selfHealObservers.delete(chartId);
   const existing = registry.get(chartId);
   if (!existing) return;
   existing.destroy();

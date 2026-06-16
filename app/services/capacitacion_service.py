@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import Capacitacion, Inscripcion
 from app.repositories.capacitacion_repository import CapacitacionRepository, InscripcionRepository
@@ -163,9 +164,8 @@ class CapacitacionService:
     # ── Inscripciones ────────────────────────────────────────────────────────
 
     async def inscribir(self, capacitacion_id: int, empleado_id: int, current_user: Empleado) -> InscripcionResponse:
-        # Permission check: RH can inscribe anyone, others only themselves
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol != "rh" and empleado_id != current_user.id:
+        # Permission check: gestor de capacitaciones (módulo) puede inscribir a cualquiera; otros solo a sí mismos
+        if not user_has_module(current_user, "capacitaciones") and empleado_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo puedes inscribirte a ti mismo")
 
         # Lock row to prevent race condition on cupo_maximo check
@@ -247,8 +247,7 @@ class CapacitacionService:
         if insc.estado == "completado":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se puede cancelar una inscripcion completada")
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol != "rh" and insc.empleado_id != current_user.id:
+        if not user_has_module(current_user, "capacitaciones") and insc.empleado_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo puedes cancelar tus propias inscripciones")
 
         await self.inscripcion_repo.update(id, {"estado": "cancelado"})

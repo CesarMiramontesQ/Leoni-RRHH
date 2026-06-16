@@ -1,4 +1,5 @@
-import { getRolFromAccessToken, getEmpleadoIdFromAccessToken } from "../auth/jwt.ts";
+import { getEmpleadoIdFromAccessToken } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
@@ -177,8 +178,7 @@ interface State {
 }
 
 export function mountCapacitaciones(container: HTMLElement, signal: AbortSignal): void {
-  const rol = getRolFromAccessToken();
-  const isRH = rol === "rh";
+  const isRH = hasRhModule("capacitaciones");
 
   const state: State = {
     viewMode: "asignaciones",

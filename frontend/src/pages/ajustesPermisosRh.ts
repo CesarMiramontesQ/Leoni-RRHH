@@ -160,19 +160,73 @@ function groupBadgeClass(active: number, total: number, userFullAccess: boolean)
   return "border-amber-200 bg-amber-50 text-amber-900";
 }
 
-function renderModuleBadges(
+function countCatalogModules(catalogGroups: Map<string, RhModuloCatalogItem[]>): number {
+  let total = 0;
+  for (const items of catalogGroups.values()) total += items.length;
+  return total;
+}
+
+function countActiveInGroups(
+  draft: Record<string, boolean>,
+  catalogGroups: Map<string, RhModuloCatalogItem[]>,
+): number {
+  let active = 0;
+  for (const items of catalogGroups.values()) {
+    active += items.filter((m) => draft[m.key] === true).length;
+  }
+  return active;
+}
+
+/**
+ * Resumen de módulos por usuario: total "N de M módulos" + chips por grupo que
+ * envuelven (sin scroll horizontal interno). Los grupos parciales/sin acceso
+ * resaltan en ámbar/slate, de modo que un grupo como Nóminas salta a la vista.
+ */
+function renderModuleSummary(
   user: RhUsuarioPermisosItem,
   draft: Record<string, boolean>,
   catalogGroups: Map<string, RhModuloCatalogItem[]>,
 ): string {
-  const userFullAccess = !user.permisos_personalizados;
-  return [...catalogGroups.entries()]
+  // Acceso completo (sin restricciones, o personalizado con todos los módulos activos):
+  // se prioriza un único badge "Permisos completos" y se ocultan los chips individuales.
+  const level = getAccessLevel(user, draft);
+  const totalModules = countCatalogModules(catalogGroups);
+  const activeModules = level === "full" ? totalModules : countActiveInGroups(draft, catalogGroups);
+
+  const summary = `<span class="text-xs font-semibold text-[#334155]"><span class="tabular-nums text-[#0f172a]">${activeModules}</span> de <span class="tabular-nums">${totalModules}</span> módulos</span>`;
+
+  if (level === "full") {
+    return `
+      <div class="flex flex-col gap-1.5">
+        ${summary}
+        <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+          <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Permisos completos
+        </span>
+      </div>`;
+  }
+
+  // Solo grupos con al menos un módulo autorizado: evita saturar con los vacíos.
+  const chips = [...catalogGroups.entries()]
     .map(([group, items]) => {
       const active = items.filter((m) => draft[m.key] === true).length;
-      const cls = groupBadgeClass(active, items.length, userFullAccess);
-      return `<span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}" title="${escapeHtml(group)}">${escapeHtml(group)} (${active}/${items.length})</span>`;
+      return { group, active, total: items.length };
+    })
+    .filter((g) => g.active > 0)
+    .map(({ group, active, total }) => {
+      const cls = groupBadgeClass(active, total, false);
+      return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}" title="${escapeHtml(group)}: ${active}/${total}">${escapeHtml(group)} ${active}/${total}</span>`;
     })
     .join("");
+
+  const chipsHtml = chips
+    ? `<div class="flex flex-wrap gap-1">${chips}</div>`
+    : `<span class="text-xs text-text-muted">Sin módulos autorizados</span>`;
+
+  return `
+    <div class="flex flex-col gap-1.5">
+      ${summary}
+      ${chipsHtml}
+    </div>`;
 }
 
 function matchesSearch(user: RhUsuarioPermisosItem, query: string): boolean {
@@ -252,37 +306,50 @@ function iconSearchInput(): string {
   </span>`;
 }
 
-function renderStatCard(label: string, value: number, tone: "default" | "success" | "warning" | "muted"): string {
-  const tones: Record<typeof tone, string> = {
-    default: "border-[rgba(148,163,184,0.22)] from-white to-[#f8fbff]",
-    success: "border-emerald-200/80 from-emerald-50/40 to-white",
-    warning: "border-amber-200/80 from-amber-50/40 to-white",
-    muted: "border-slate-200/80 from-slate-50/60 to-white",
-  };
-  return `
-    <div class="rounded-[14px] border bg-linear-to-br p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)] ${tones[tone]}">
-      <p class="text-xs font-semibold uppercase tracking-wide text-[#64748b]">${escapeHtml(label)}</p>
-      <p class="mt-2 text-2xl font-bold tabular-nums text-[#0f172a]">${value}</p>
-    </div>`;
-}
+const STAT_DOT_TONE: Record<"default" | "success" | "warning" | "muted", string> = {
+  default: "bg-leoni-blue",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  muted: "bg-slate-400",
+};
 
-function renderStatsHeader(state: PageState): string {
-  const stats = computeStats(state.usuarios, state.draftByEmpleadoId);
-  return `
-    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Estadísticas de permisos RH">
-      ${renderStatCard("Total usuarios", stats.total, "default")}
-      ${renderStatCard("Acceso completo", stats.full, "success")}
-      ${renderStatCard("Acceso parcial", stats.partial, "warning")}
-      ${renderStatCard("Sin permisos", stats.none, "muted")}
-    </section>`;
-}
-
-function renderFilterChip(value: AccessFilter, label: string, active: AccessFilter): string {
+/**
+ * Tarjeta de estadística que además actúa como filtro de estado de acceso.
+ * Unifica las antiguas stat cards + chips de filtro en un solo control.
+ */
+function renderStatFilterCard(
+  value: AccessFilter,
+  label: string,
+  count: number,
+  tone: "default" | "success" | "warning" | "muted",
+  active: AccessFilter,
+): string {
   const isActive = value === active;
-  const cls = isActive
-    ? "border-[#2563eb] bg-[rgba(219,234,254,0.55)] text-[#1e40af]"
-    : "border-slate-200 bg-white text-slate-700 hover:border-[#2563eb]/35 hover:bg-slate-50";
-  return `<button type="button" data-rh-perm-access-filter="${value}" class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition ${cls}">${escapeHtml(label)}</button>`;
+  const base =
+    "group flex flex-col gap-2 rounded-[14px] border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2";
+  const stateCls = isActive
+    ? "border-leoni-blue bg-[rgba(219,234,254,0.45)] shadow-[0_6px_18px_rgba(30,64,175,0.12)]"
+    : "border-[rgba(148,163,184,0.24)] bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)] hover:border-leoni-blue/40 hover:bg-slate-50/70";
+  return `
+    <button type="button" data-rh-perm-access-filter="${value}" aria-pressed="${isActive}" class="${base} ${stateCls}">
+      <span class="flex items-center gap-2">
+        <span class="size-2 shrink-0 rounded-full ${STAT_DOT_TONE[tone]}" aria-hidden="true"></span>
+        <span class="text-xs font-semibold uppercase tracking-wide text-[#64748b]">${escapeHtml(label)}</span>
+      </span>
+      <span class="text-2xl font-bold tabular-nums text-[#0f172a]">${count}</span>
+    </button>`;
+}
+
+function renderAccessFilterCards(state: PageState): string {
+  const stats = computeStats(state.usuarios, state.draftByEmpleadoId);
+  const active = state.accessFilter;
+  return `
+    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="Filtrar usuarios por estado de acceso">
+      ${renderStatFilterCard("all", "Total usuarios", stats.total, "default", active)}
+      ${renderStatFilterCard("full", "Acceso completo", stats.full, "success", active)}
+      ${renderStatFilterCard("partial", "Acceso parcial", stats.partial, "warning", active)}
+      ${renderStatFilterCard("none", "Sin permisos", stats.none, "muted", active)}
+    </section>`;
 }
 
 function renderToolbar(state: PageState, visibleTotal: number): string {
@@ -292,65 +359,53 @@ function renderToolbar(state: PageState, visibleTotal: number): string {
 
   return `
     <section class="${RH_LISTADO_SURFACE} space-y-4 p-4 sm:p-5" aria-label="Filtros y búsqueda">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Administración de permisos</h2>
-          <p class="mt-1 text-sm text-[#64748b]">
-            <span class="font-semibold text-[#0f172a]">${visibleTotal}</span> usuario${visibleTotal === 1 ? "" : "s"} visible${visibleTotal === 1 ? "" : "s"}
-          </p>
-        </div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <button type="button" id="rh-perm-add-open" class="${BTN_PRIMARY} h-[42px] shrink-0 self-stretch text-xs sm:self-end">
-            + Agregar empleado
-          </button>
-          <div class="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
-            <label class="block min-w-[10rem]">
-              <span class="${RH_LISTADO_LABEL}">Ordenar por</span>
-              <div class="grid grid-cols-1">
-                <select id="rh-perm-sort-field" class="${FILTER_SELECT} ${FIELD_FOCUS}">
-                  <option value="nombre" ${state.sortField === "nombre" ? "selected" : ""}>Nombre</option>
-                  <option value="permisos" ${state.sortField === "permisos" ? "selected" : ""}>Cantidad de permisos</option>
-                  <option value="updated_at" ${state.sortField === "updated_at" ? "selected" : ""}>Fecha de actualización</option>
-                </select>
-              </div>
-            </label>
-            <label class="block min-w-[8rem]">
-              <span class="${RH_LISTADO_LABEL}">Dirección</span>
-              <div class="grid grid-cols-1">
-                <select id="rh-perm-sort-dir" class="${FILTER_SELECT} ${FIELD_FOCUS}">
-                  <option value="asc" ${state.sortDir === "asc" ? "selected" : ""}>Ascendente</option>
-                  <option value="desc" ${state.sortDir === "desc" ? "selected" : ""}>Descendente</option>
-                </select>
-              </div>
-            </label>
+      <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div class="relative">
+          <span class="${RH_LISTADO_LABEL}">Buscar</span>
+          <div class="relative mt-1">
+            ${iconSearchInput()}
+            <input
+              id="rh-perm-filter-input"
+              type="search"
+              class="${FILTER_INPUT} ${FIELD_FOCUS}"
+              placeholder="Nombre, no. empleado o correo"
+              value="${escapeHtml(state.filterQuery)}"
+              autocomplete="off"
+            />
           </div>
         </div>
-      </div>
-      <div class="relative">
-        <span class="${RH_LISTADO_LABEL}">Buscar</span>
-        <div class="relative mt-1">
-          ${iconSearchInput()}
-          <input
-            id="rh-perm-filter-input"
-            type="search"
-            class="${FILTER_INPUT} ${FIELD_FOCUS}"
-            placeholder="Nombre, no. empleado o correo"
-            value="${escapeHtml(state.filterQuery)}"
-            autocomplete="off"
-          />
+        <div class="grid grid-cols-2 gap-3 sm:flex sm:items-end">
+          <label class="block min-w-[9rem]">
+            <span class="${RH_LISTADO_LABEL}">Ordenar por</span>
+            <div class="grid grid-cols-1">
+              <select id="rh-perm-sort-field" class="${FILTER_SELECT} ${FIELD_FOCUS}">
+                <option value="nombre" ${state.sortField === "nombre" ? "selected" : ""}>Nombre</option>
+                <option value="permisos" ${state.sortField === "permisos" ? "selected" : ""}>Cantidad de permisos</option>
+                <option value="updated_at" ${state.sortField === "updated_at" ? "selected" : ""}>Fecha de actualización</option>
+              </select>
+            </div>
+          </label>
+          <label class="block min-w-[8rem]">
+            <span class="${RH_LISTADO_LABEL}">Dirección</span>
+            <div class="grid grid-cols-1">
+              <select id="rh-perm-sort-dir" class="${FILTER_SELECT} ${FIELD_FOCUS}">
+                <option value="asc" ${state.sortDir === "asc" ? "selected" : ""}>Ascendente</option>
+                <option value="desc" ${state.sortDir === "desc" ? "selected" : ""}>Descendente</option>
+              </select>
+            </div>
+          </label>
         </div>
       </div>
-      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filtros rápidos de acceso">
-        ${renderFilterChip("all", "Todos", state.accessFilter)}
-        ${renderFilterChip("full", "Acceso completo", state.accessFilter)}
-        ${renderFilterChip("partial", "Acceso parcial", state.accessFilter)}
-        ${renderFilterChip("none", "Sin permisos", state.accessFilter)}
-      </div>
-      <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-        <label for="rh-perm-page-size" class="text-xs font-medium text-[#64748b]">Registros por página</label>
-        <select id="rh-perm-page-size" class="min-h-[38px] rounded-[10px] border border-slate-200 bg-white py-1.5 pl-2.5 pr-7 text-sm font-medium text-slate-800 shadow-sm ${FIELD_FOCUS}">
-          ${pageSizeOpts}
-        </select>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+        <p class="text-sm text-[#64748b]">
+          <span class="font-semibold tabular-nums text-[#0f172a]">${visibleTotal}</span> usuario${visibleTotal === 1 ? "" : "s"} visible${visibleTotal === 1 ? "" : "s"}
+        </p>
+        <div class="flex items-center gap-2">
+          <label for="rh-perm-page-size" class="text-xs font-medium text-[#64748b]">Registros por página</label>
+          <select id="rh-perm-page-size" class="min-h-[38px] rounded-[10px] border border-slate-200 bg-white py-1.5 pl-2.5 pr-7 text-sm font-medium text-slate-800 shadow-sm ${FIELD_FOCUS}">
+            ${pageSizeOpts}
+          </select>
+        </div>
       </div>
     </section>`;
 }
@@ -379,7 +434,7 @@ function renderTableRow(
       <td class="${TABLE_TD} tabular-nums whitespace-nowrap text-[#334155]">${escapeHtml(formatNoEmpleadoRh(user.no_empleado))}</td>
       <td class="${TABLE_TD} whitespace-nowrap">${renderAccessBadge(level)}</td>
       <td class="${TABLE_TD} min-w-[18rem]">
-        <div class="flex flex-nowrap gap-1 overflow-x-auto pb-0.5">${renderModuleBadges(user, draft, catalogGroups)}</div>
+        ${renderModuleSummary(user, draft, catalogGroups)}
       </td>
       <td class="${TABLE_TD} text-right whitespace-nowrap">
         <div class="flex items-center justify-end gap-2">
@@ -533,7 +588,7 @@ function renderModalGroupCard(
         <span class="flex min-w-0 items-center gap-2">
           <span class="text-text-muted transition-transform duration-200 group-open/rh-modal-grp:rotate-180">${CHEVRON_SVG}</span>
           <span class="truncate text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(group)}</span>
-          <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold ${groupBadgeClass(groupActive, items.length, false)}">${groupActive}/${items.length}</span>
+          <span data-modal-group-badge="${escapeHtml(group)}" class="rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${groupBadgeClass(groupActive, items.length, false)}">${groupActive}/${items.length}</span>
         </span>
         ${
           disabled
@@ -608,7 +663,13 @@ function renderEditModal(state: PageState): string {
                   <dd class="mt-0.5 text-text-primary">${escapeHtml(formatRol(user.rol_nombre))}</dd>
                 </div>
               </dl>
-              <div class="mt-3">${renderAccessBadge(level)}</div>
+              <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+                ${renderAccessBadge(level)}
+                <span class="text-xs font-medium text-text-muted">
+                  <span id="rh-perm-modal-sel-count" class="tabular-nums font-semibold text-text-primary">${countActiveModules(draft)}</span>
+                  de ${countCatalogModules(catalogGroups)} módulos seleccionados
+                </span>
+              </div>
             </div>
             <button type="button" id="rh-perm-modal-close" class="${BTN_GHOST} shrink-0 px-2 py-1.5 text-xs" aria-label="Cerrar">
               <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -769,12 +830,20 @@ function renderPage(state: PageState): string {
   return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
       <header class="${RH_LISTADO_SURFACE} p-4 sm:p-6">
-        <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Permisos RH</h1>
-        <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748b]">
-          Administra los accesos por módulo de usuarios RH y de cualquier empleado que agregues.
-          En usuarios RH los permisos aplican en <strong class="font-medium text-[#334155]">Modo RH</strong>;
-          solicitudes y comedor personales siguen disponibles con el toggle <strong class="font-medium text-[#334155]">Modo empleado</strong>.
-        </p>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
+            <h1 class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Permisos RH</h1>
+            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748b]">
+              Administra los accesos por módulo de usuarios RH y de cualquier empleado que agregues.
+              En usuarios RH los permisos aplican en <strong class="font-medium text-[#334155]">Modo RH</strong>;
+              solicitudes y comedor personales siguen disponibles con el toggle <strong class="font-medium text-[#334155]">Modo empleado</strong>.
+            </p>
+          </div>
+          <button type="button" id="rh-perm-add-open" class="${BTN_PRIMARY} shrink-0 self-start">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10 5a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 10 5Z" /></svg>
+            Agregar empleado
+          </button>
+        </div>
       </header>
       ${
         state.error
@@ -786,7 +855,7 @@ function renderPage(state: PageState): string {
           ? `<p class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">${escapeHtml(state.success)}</p>`
           : ""
       }
-      ${renderStatsHeader(state)}
+      ${renderAccessFilterCards(state)}
       ${renderToolbar(state, filtered.length)}
       ${renderTable(state, filtered)}
       ${renderEditModal(state)}
@@ -889,6 +958,23 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     if (draft && state.editingEmpleadoId !== null) {
       state.draftByEmpleadoId.set(state.editingEmpleadoId, draft);
     }
+  };
+
+  /** Actualiza en vivo el contador y los badges de grupo del modal sin repintar. */
+  const updateModalCounters = (): void => {
+    if (state.editingEmpleadoId === null) return;
+    const draft = state.draftByEmpleadoId.get(state.editingEmpleadoId) ?? {};
+    const totalSel = countActiveModules(draft);
+    const counterEl = container.querySelector("#rh-perm-modal-sel-count");
+    if (counterEl) counterEl.textContent = String(totalSel);
+    container.querySelectorAll<HTMLElement>("[data-modal-group-badge]").forEach((el) => {
+      const group = el.dataset.modalGroupBadge;
+      if (!group) return;
+      const items = state.catalog.filter((m) => m.group === group);
+      const active = items.filter((m) => draft[m.key] === true).length;
+      el.textContent = `${active}/${items.length}`;
+      el.className = `rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${groupBadgeClass(active, items.length, false)}`;
+    });
   };
 
   const closeModal = (): void => {
@@ -1242,6 +1328,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
         "change",
         () => {
           syncDraftFromModal();
+          updateModalCounters();
         },
         { signal },
       );

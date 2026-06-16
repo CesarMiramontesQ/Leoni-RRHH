@@ -4,6 +4,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import TareaCatalogo
 from app.repositories.tarea_catalogo_repository import TareaCatalogoRepository
@@ -66,8 +67,7 @@ class TareaCatalogoService:
     async def crear(
         self, data: TareaCatalogoCreate, current_user: Empleado
     ) -> TareaCatalogoResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "tareas-catalogo"):
             raise ForbiddenError(detail="Solo RH puede crear tareas en el catalogo")
 
         if await self.repo.exists_by_nombre(data.nombre):
@@ -84,8 +84,7 @@ class TareaCatalogoService:
     async def actualizar(
         self, id: int, data: TareaCatalogoUpdate, current_user: Empleado
     ) -> TareaCatalogoResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "tareas-catalogo"):
             raise ForbiddenError(detail="Solo RH puede actualizar tareas del catalogo")
 
         tarea = await self.repo.get(id)
@@ -111,8 +110,7 @@ class TareaCatalogoService:
         return self._to_response(tarea)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "tareas-catalogo"):
             raise ForbiddenError(detail="Solo RH puede eliminar tareas del catalogo")
 
         tarea = await self.repo.get(id)

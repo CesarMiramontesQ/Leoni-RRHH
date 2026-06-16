@@ -25,12 +25,7 @@ class RhPermisosService:
         self.repo = repo
 
     def _require_admin_permisos(self, current_user: Empleado) -> None:
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol != "rh":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Solo usuarios RH pueden administrar permisos de módulos.",
-            )
+        # Administrar permisos depende del flag, no del rol base.
         if not current_user.puede_administrar_permisos_rh:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

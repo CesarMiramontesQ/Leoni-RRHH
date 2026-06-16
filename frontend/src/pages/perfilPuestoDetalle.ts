@@ -21,7 +21,8 @@ import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.t
 import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
-import { updatePerfil } from "../api/puestos.ts";
+import { getPerfilCompetencias, updatePerfil } from "../api/puestos.ts";
+import { getGradosPuesto } from "../api/gradosPuesto.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
 
@@ -31,8 +32,8 @@ interface PuestoPerfilInfo {
   id: number;
   codigo: string;
   nombre: string;
-  area_nombre: string;
-  nivel: string;
+  area_nombre: string | null;
+  nivel_nombre: string | null;
   descripcion: string | null;
   version: number;
   activo: boolean;
@@ -134,6 +135,38 @@ const ICON_PENCIL = `<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke=
 /** Edición del perfil de puesto: RH con el módulo o no-RH con el módulo `puestos` otorgado. */
 function canEditarPerfilPuesto(): boolean {
   return hasRhModule("puestos");
+}
+
+function safeText(value: string | null | undefined, fallback = "—"): string {
+  return escapeHtml(value?.trim() ? value : fallback);
+}
+
+async function loadCompetenciasPerfil(perfilId: number): Promise<Competencia[]> {
+  try {
+    const grados = (await getGradosPuesto()).filter((g) => g.activo);
+    if (grados.length === 0) return [];
+
+    const porGrado = await Promise.all(
+      grados.map(async (grado) => {
+        try {
+          return await getPerfilCompetencias(perfilId, grado.id);
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    return porGrado.flat().map((c) => ({
+      id: c.id,
+      competencia_id: c.competencia_id,
+      competencia_nombre: c.competencia_nombre,
+      subcategoria: c.tipo_nombre,
+      nivel_requerido: c.nivel_requerido,
+      orden: c.orden,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function formatFecha(iso: string | undefined): string | null {
@@ -254,7 +287,7 @@ function renderHeader(puesto: PuestoPerfilInfo, empleadosCount: number, perfilId
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(puesto.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(puesto.area_nombre)}</strong> · ${escapeHtml(puesto.nivel)}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${safeText(puesto.area_nombre)}</strong> · ${safeText(puesto.nivel_nombre)}</span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${empleadosCount}</strong> empleado${empleadosCount !== 1 ? "s" : ""} asignado${empleadosCount !== 1 ? "s" : ""}</span></span>
             ${fechaActualizacion ? `<span class="text-xs text-text-muted">Actualizado ${escapeHtml(fechaActualizacion)}</span>` : ""}
           </div>
@@ -738,14 +771,16 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
   }
 
   try {
-    const [puesto, tareas, cualificaciones, competencias, asignaciones, cursosAsignados] = await Promise.all([
+    const [puesto, tareas, cualificaciones, competencias, asignaciones, cursosAsignados, grados] = await Promise.all([
       fetchJson<PuestoPerfilInfo>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
       fetchJson<Cualificacion[]>(`/api/v1/perfiles/${perfilId}/cualificaciones`, token),
-      fetchJson<Competencia[]>(`/api/v1/perfiles/${perfilId}/competencias`, token),
+      loadCompetenciasPerfil(perfilId),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
-      getCursosPuesto(perfilId),
+      getCursosPuesto(perfilId).catch(() => [] as CursoPuestoItem[]),
+      getGradosPuesto().catch(() => []),
     ]);
+    const gradoEdicion = grados.find((g) => g.activo) ?? grados[0] ?? null;
 
     if (!puesto) {
       inner.innerHTML = `<div class="${RH_LISTADO_PAGE_OUTER}"><p class="text-sm text-red-600">Perfil no encontrado (ID: ${perfilId})</p></div>`;
@@ -809,7 +844,14 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       const cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
 
       const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
-      const compModal = mountEditarCompetenciasModal(compHost, { perfilId, onSuccess: reload });
+      const compModal = gradoEdicion
+        ? mountEditarCompetenciasModal(compHost, {
+            perfilId,
+            gradoId: gradoEdicion.id,
+            gradoNombre: gradoEdicion.nombre,
+            onSuccess: reload,
+          })
+        : null;
 
       contentEl.addEventListener("click", async (e) => {
         const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
@@ -822,7 +864,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             cualModal.open();
             break;
           case "edit-competencias":
-            compModal.open();
+            compModal?.open();
             break;
           case "edit-base":
             openEditBaseModal(
@@ -1064,7 +1106,7 @@ function openEditBaseModal(
           </div>
           <div>
             <label for="eb-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
-            <input id="eb-nivel" name="nivel" type="text" value="${escapeHtml(puesto.nivel)}"
+            <input id="eb-nivel" name="nivel" type="text" value="${safeText(puesto.nivel_nombre, "")}"
               class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
@@ -1104,7 +1146,6 @@ function openEditBaseModal(
     ev.preventDefault();
     const fd = new FormData(form);
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
-    const nivel = String(fd.get("nivel") ?? "").trim();
 
     if (!nombre_puesto) {
       errorEl.textContent = "El nombre es requerido.";
@@ -1117,7 +1158,7 @@ function openEditBaseModal(
     submitBtn.textContent = "Guardando...";
 
     try {
-      await updatePerfil(perfilId, { nombre_puesto, nivel: nivel || undefined });
+      await updatePerfil(perfilId, { nombre_puesto });
       close();
       document.removeEventListener("keydown", escHandler);
       onSuccess();

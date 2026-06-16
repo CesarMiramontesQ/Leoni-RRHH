@@ -31,6 +31,7 @@ from app.core.exceptions import (
     NotFoundError,
     UnauthorizedError,
 )
+from app.core.rh_module_registry import user_has_module
 from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
 from app.models.roles import Rol
@@ -383,7 +384,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorResponse:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede registrar comedores")
 
         ubic = (data.ubicacion or "").strip() or None
@@ -414,7 +415,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorResponse:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede editar comedores")
 
         comedor = await self.comedor_repo.get(comedor_id)
@@ -469,7 +470,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalResponse:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede publicar menus")
 
         payload = {
@@ -506,7 +507,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalDeleteResponse:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede eliminar menus")
 
         comedor = await self.comedor_repo.get(comedor_id)
@@ -734,7 +735,7 @@ class ComedorService:
         desde: date,
         hasta: date,
     ) -> list[ComedorResumenDiarioItem]:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede consultar resumen diario global")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -814,7 +815,7 @@ class ComedorService:
         *,
         semanas: int = 8,
     ) -> list[ComedorRhSemanaRegistrosFuturosItem]:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede consultar registros futuros por semana")
         hoy = date.today()
         limite = max(1, min(semanas, 16))
@@ -862,7 +863,7 @@ class ComedorService:
         buscar: str | None = None,
         filtro_estado: Literal["todos", "confirmado", "cancelado"] = "todos",
     ) -> ComedorRhProximosRegistrosPage:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede consultar próximos registros de comedor")
         if page_size not in (5, 10, 50):
             raise ConflictError(detail="page_size debe ser 5, 10 o 50")
@@ -925,7 +926,7 @@ class ComedorService:
         buscar: str | None = None,
         filtro_estado: Literal["todos", "confirmado", "cancelado"] = "todos",
     ) -> ComedorRhProximosRegistrosPage:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede consultar registros de reporte de comedor")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -1090,7 +1091,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorRhRegistroResponse:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede crear registros de este tipo")
         comedor = await self.comedor_repo.get(data.comedor_id)
         if not comedor:
@@ -1186,7 +1187,7 @@ class ComedorService:
         hasta: date | None = None,
         estatus: str | None = None,
     ) -> list[ComedorCodigoExternoItem]:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede consultar códigos externos")
         if desde and hasta and hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -1541,7 +1542,7 @@ class ComedorService:
         self,
         current_user: Empleado,
     ) -> ComedorRhEmpleadosSinComedorList:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede consultar empleados sin comedor asignado")
         empleados = await self.empleado_repo.list_activos_sin_comedor_asignado()
         items = [
@@ -1559,7 +1560,7 @@ class ComedorService:
         current_user: Empleado,
         data: ComedorRhAsignarComedorTurnosRequest,
     ) -> ComedorRhAsignarComedorTurnosResponse:
-        if await self._get_rol(current_user) != "rh":
+        if not user_has_module(current_user, "comedor"):
             raise ForbiddenError(detail="Solo RH puede asignar comedor en turnos")
         actualizados = 0
         vistos: set[int] = set()

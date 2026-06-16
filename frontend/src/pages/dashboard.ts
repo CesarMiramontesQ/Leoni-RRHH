@@ -213,12 +213,15 @@ function bindRhDashboardPeriodControls(
 async function loadRhOperationalDashboard(
   container: HTMLElement,
   periodDays: RhDashboardPeriodDays = readStoredRhDashboardPeriod(),
+  signal?: AbortSignal,
 ): Promise<void> {
+  if (signal?.aborted) return;
   const root = container.querySelector<HTMLElement>("#rh-dashboard-root");
   if (!root) return;
 
   const seq = ++rhDashLoadSeq;
-  const isStale = (): boolean => seq !== rhDashLoadSeq;
+  // Obsoleto si: se reentró al dashboard (seq) o se navegó fuera de la ruta (signal).
+  const isStale = (): boolean => seq !== rhDashLoadSeq || (signal?.aborted ?? false);
 
   destroyAllCharts();
   for (const id of RH_DASH_ANALYTICS_CHART_IDS) destroyChart(id);
@@ -299,7 +302,7 @@ async function loadRhOperationalDashboard(
   }
 }
 
-function mountRhOperationalDashboard(container: HTMLElement): void {
+function mountRhOperationalDashboard(container: HTMLElement, signal?: AbortSignal): void {
   const period = readStoredRhDashboardPeriod();
 
   mountAppShell(container, {
@@ -311,10 +314,10 @@ function mountRhOperationalDashboard(container: HTMLElement): void {
   });
 
   bindRhDashboardPeriodControls(container, (days) => {
-    void loadRhOperationalDashboard(container, days);
+    void loadRhOperationalDashboard(container, days, signal);
   });
 
-  void loadRhOperationalDashboard(container, period);
+  void loadRhOperationalDashboard(container, period, signal);
 }
 
 async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<void> {
@@ -505,7 +508,7 @@ function mountStandardDashboard(container: HTMLElement): void {
  * - `empleado` → dashboard personal
  * - resto (p. ej. `director`) → KPIs actuales
  */
-export function mountDashboardPlaceholder(container: HTMLElement): void {
+export function mountDashboardPlaceholder(container: HTMLElement, signal?: AbortSignal): void {
   if (canAccessEmpleadoPersonalDashboard()) {
     mountEmpleadoPersonalDashboardShell(container);
     return;
@@ -515,7 +518,7 @@ export function mountDashboardPlaceholder(container: HTMLElement): void {
     return;
   }
   if (canAccessRhOperationalDashboard()) {
-    mountRhOperationalDashboard(container);
+    mountRhOperationalDashboard(container, signal);
     return;
   }
   mountStandardDashboard(container);

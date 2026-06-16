@@ -22,6 +22,7 @@ from app.core.exceptions import (
     ForbiddenError,
     NotFoundError,
 )
+from app.core.rh_module_registry import user_has_module
 from app.models.catalogos import Area
 from app.models.empleados import Empleado
 from app.models.talento import (
@@ -174,8 +175,7 @@ class CompetenciaService:
     async def crear(
         self, data: CompetenciaCreate, current_user: Empleado
     ) -> CompetenciaResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "competencias"):
             raise ForbiddenError(detail="Solo RH puede crear competencias")
 
         tipo_service = TipoCompetenciaService(self.db)
@@ -204,8 +204,7 @@ class CompetenciaService:
     async def actualizar(
         self, id: int, data: CompetenciaUpdate, current_user: Empleado
     ) -> CompetenciaResponse:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "competencias"):
             raise ForbiddenError(detail="Solo RH puede actualizar competencias")
 
         comp = await self.repo.get_with_relations(id)
@@ -267,8 +266,7 @@ class CompetenciaService:
     # ── Eliminar ─────────────────────────────────────────────────────────────
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "competencias"):
             raise ForbiddenError(detail="Solo RH puede eliminar competencias")
 
         comp = await self.repo.get_with_relations(id)
@@ -356,8 +354,7 @@ class CompetenciaService:
         self, data: MatrizBulkUpdate, current_user: Empleado
     ) -> dict:
         """Actualiza en bulk los niveles de la matriz."""
-        rol = self._get_rol(current_user)
-        if rol != "rh":
+        if not user_has_module(current_user, "competencias"):
             raise ForbiddenError(detail="Solo RH puede actualizar la matriz de competencias")
 
         grado_default = await self.grado_repo.get_by_orden(1)

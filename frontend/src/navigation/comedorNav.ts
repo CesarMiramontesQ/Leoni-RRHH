@@ -7,7 +7,11 @@ import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import type { ShellHubAccessItem, ShellHubCategory } from "./shellHubPage.ts";
 
-export type ComedorNavKey = "comedor" | "reportes";
+export type ComedorNavKey = "comedor" | "reportes" | "comedor-gestion" | "comedor-planear";
+
+// Íconos heroicons (outline) para las nuevas entradas del menú de Comedor.
+const ICON_GESTION_COMEDORES = `<path d="M2.25 21h19.5M3.75 21V7.5l6-3.75v3.75m0 0 6-3.75V21m-6-13.5V21m-6-9.75h.008v.008H3.75v-.008Zm0 3h.008v.008H3.75v-.008Zm0 3h.008v.008H3.75v-.008Z" stroke-linecap="round" stroke-linejoin="round" />`;
+const ICON_PLANEACION = `<path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 12.75h.008v.008H12v-.008Zm0 3h.008v.008H12v-.008Zm-3 0h.008v.008H9v-.008Zm6 0h.008v.008H15v-.008Z" stroke-linecap="round" stroke-linejoin="round" />`;
 
 type ComedorAccessItem = ShellHubAccessItem & {
   id: AppShellNavItemId;
@@ -19,15 +23,29 @@ const COMEDOR_NAV_ITEMS: readonly ComedorAccessItem[] = [
     id: "comedor",
     key: "comedor",
     href: "#/comedor",
-    label: "Gestión Comedor",
+    label: "Registro Comedor",
     svgPaths: `<path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
     id: "reportes",
     key: "reportes",
     href: "#/comedor/reporte",
-    label: "Reporte de comedor",
+    label: "Reportes",
     svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "comedor-gestion",
+    key: "comedor-gestion",
+    href: "#/comedor/gestion",
+    label: "Comedores",
+    svgPaths: ICON_GESTION_COMEDORES,
+  },
+  {
+    id: "comedor-planear",
+    key: "comedor-planear",
+    href: "#/comedor/planear",
+    label: "Planeación",
+    svgPaths: ICON_PLANEACION,
   },
 ];
 
