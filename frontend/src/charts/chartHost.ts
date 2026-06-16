@@ -229,12 +229,12 @@ function scheduleChartMount(
       `[data-chart-canvas][data-chart-id="${CSS.escape(chartId)}"]`,
     );
 
-  // Monta SOLO cuando el host tiene dimensiones reales (>0). Nunca instancia a 0px:
-  // una gráfica creada a 0px se queda en blanco sin recuperación. Mientras no haya
-  // dimensiones, se conserva el pending + ResizeObserver, que dispararán el montaje en
-  // cuanto el contenedor crezca (layout que asienta, ancestro que deja de estar oculto).
-  // Solo se limpia si el canvas desaparece/se desconecta o el render quedó obsoleto.
-  const tryMount = (): Chart | null => {
+  // Camino preferente: montar cuando el host tiene dimensiones reales (sin parpadeo).
+  // Con `force=true` (presupuesto agotado / red de seguridad) se monta aunque no se
+  // detecten dimensiones, para GARANTIZAR que la instancia se crea en navegación SPA
+  // (donde el layout puede no estar listo en el momento del montaje). Si nace a 0px, el
+  // ResizeObserver de auto-curación de createChartInstance la reajusta al asentar layout.
+  const tryMount = (force = false): Chart | null => {
     if (cancelled || options?.isStale?.()) {
       cleanup();
       return null;
@@ -244,7 +244,7 @@ function scheduleChartMount(
       cleanup();
       return null;
     }
-    if (!chartCanvasHostHasDimensions(canvas)) return null;
+    if (!force && !chartCanvasHostHasDimensions(canvas)) return null;
     cleanup();
     return createChartInstance(canvas, chartId, buildConfig);
   };
@@ -263,11 +263,14 @@ function scheduleChartMount(
       return;
     }
 
-    // Presupuesto de RAF agotado: dejar de iterar por frame y delegar en el
-    // ResizeObserver (y en el forceMountTimer) para montar cuando lleguen dimensiones.
+    // Presupuesto de RAF agotado: montaje garantizado si el canvas sigue conectado.
     rafId = 0;
     const canvas = resolveCanvas();
-    if (!canvas || !canvas.isConnected) cleanup();
+    if (!canvas || !canvas.isConnected) {
+      cleanup();
+      return;
+    }
+    tryMount(true);
   };
 
   const canvas = resolveCanvas();
@@ -279,12 +282,12 @@ function scheduleChartMount(
     observer.observe(host);
   }
 
-  // Red de seguridad para entornos sin ResizeObserver: un intento tardío que respeta
-  // dimensiones. Si aún no hay tamaño, se deja el pending vivo (lo limpia la navegación
-  // vía destroyAllCharts / destroyChartsIn).
+  // Red de seguridad: montaje garantizado si nada lo montó antes (p. ej. entornos sin
+  // ResizeObserver o layout que nunca reporta tamaño). Si nace a 0px, la auto-curación
+  // lo reajusta al ganar dimensiones.
   forceMountTimer = setTimeout(() => {
     if (cancelled || registry.has(chartId) || options?.isStale?.()) return;
-    tryMount();
+    tryMount(true);
   }, FORCE_MOUNT_MS);
 
   pendingMounts.set(chartId, {
