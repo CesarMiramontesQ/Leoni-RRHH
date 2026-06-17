@@ -41,6 +41,12 @@ WHERE version_num IN (
 SELECT version_num FROM alembic_version ORDER BY 1;
 SQL
 
+echo "=== Si la BD está en prod v1.0 (n3), re-stamp a f36fc5feb45e ==="
+CURRENT_N3="$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1 FROM alembic_version WHERE version_num = 'n3o4p5q6r7s8' LIMIT 1" || true)"
+if [[ "${CURRENT_N3:-}" == "1" ]]; then
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic stamp f36fc5feb45e
+fi
+
 echo "=== Validar un solo head de Alembic ==="
 python3 scripts/check_alembic_heads.py
 
@@ -49,5 +55,8 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps back
 
 echo "=== Aplicar migraciones ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic upgrade head
+
+echo "=== Alinear alembic_version con head del repo ==="
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic stamp head
 
 echo "=== Listo. Reinicia: docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d ==="

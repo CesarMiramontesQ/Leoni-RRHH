@@ -64,5 +64,7 @@ git push origin prod-v2.0
 1. Backup de BD.
 2. `git fetch && git checkout prod-v2.0 && git pull`
 3. Verificar que `.env` tenga `DB_*` y `BONO_DB_*` (sin cambios respecto a v1.0).
-4. `./scripts/prod-migrate.sh`
+4. `./scripts/prod-migrate.sh` — si la BD está en `n3o4p5q6r7s8` (prod v1.0), el script hace stamp a `f36fc5feb45e` y luego aplica migraciones hasta head.
 5. `docker compose -f docker-compose.prod.yml --env-file .env up -d`
+
+Si falla *Can't locate revision identified by 'n3o4p5q6r7s8'*: asegúrate de tener el último `prod-v2.0` (incluye migraciones `a0b1`, `n3` y merge `p2q3`).
