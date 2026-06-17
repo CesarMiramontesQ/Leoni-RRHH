@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from pydantic import field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -119,28 +119,40 @@ class Settings(BaseSettings):
         r"\\leoni.local\dfsroot\MX1\groups\LCMNews\RH\Images"
     )
 
-    # Estados que se consideran "empleado activo" — ajustar en producción
-    ESTADOS_ACTIVOS_IDS: List[int] = [1]
-    # Estados mostrados como "Permiso" en filtros de líderes (p. ej. Suspendido)
-    ESTADOS_PERMISO_IDS: List[int] = [3]
+    # Estados empleado — string en env (Docker/compose); expuesto como list[int] vía property.
+    estados_activos_ids_env: str = Field(default="1", validation_alias="ESTADOS_ACTIVOS_IDS")
+    estados_permiso_ids_env: str = Field(default="3", validation_alias="ESTADOS_PERMISO_IDS")
 
-    @field_validator("ESTADOS_ACTIVOS_IDS", mode="before")
-    @classmethod
-    def parse_estados_activos(cls, v):
+    @staticmethod
+    def _parse_estado_ids(v, default: list[int]) -> list[int]:
+        """Acepta lista, entero escalar, string '1,5' o '[1]' (env Docker/compose)."""
+        if v is None:
+            return default
+        if isinstance(v, int):
+            return [v]
+        if isinstance(v, list):
+            return [int(x) for x in v]
         if isinstance(v, str):
             if not v.strip():
-                return [1]
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
+                return default
+            stripped = v.strip()
+            if stripped.startswith("["):
+                import json
 
-    @field_validator("ESTADOS_PERMISO_IDS", mode="before")
-    @classmethod
-    def parse_estados_permiso(cls, v):
-        if isinstance(v, str):
-            if not v.strip():
-                return [3]
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
+                parsed = json.loads(stripped)
+                if isinstance(parsed, int):
+                    return [parsed]
+                return [int(x) for x in parsed]
+            return [int(x.strip()) for x in stripped.split(",") if x.strip()]
+        return default
+
+    @property
+    def ESTADOS_ACTIVOS_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.estados_activos_ids_env, [1])
+
+    @property
+    def ESTADOS_PERMISO_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.estados_permiso_ids_env, [3])
 
     # App
     APP_ENV: str = "development"
