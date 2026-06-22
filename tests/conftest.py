@@ -32,6 +32,7 @@ from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -77,6 +78,19 @@ async def engine():
         poolclass=StaticPool,
         echo=False,
     )
+
+    # SQLite no trae `translate` (la usa la búsqueda de empleados, _normalized_sql
+    # en usuario_repository). La registramos para que las búsquedas insensibles a
+    # acentos sean ejecutables en los tests.
+    def _sqlite_translate(value, from_chars, to_chars):
+        if value is None:
+            return None
+        table = {ord(f): t for f, t in zip(from_chars, to_chars)}
+        return value.translate(table)
+
+    @event.listens_for(_engine.sync_engine, "connect")
+    def _register_sqlite_functions(dbapi_connection, _record):  # noqa: ANN001
+        dbapi_connection.create_function("translate", 3, _sqlite_translate)
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

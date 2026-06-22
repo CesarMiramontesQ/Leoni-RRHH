@@ -264,16 +264,16 @@ components:
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
       type: object
-      required: [id, empleado_id, no_empleado, nombre, rol_id, created_at]
+      required: [id, empleado_id, no_empleado, nombre]
       properties:
         id:
           type: integer
         empleado_id:
           type: integer
         no_empleado:
-          type: string
+          type: integer
         no_sap:
-          type: [string, "null"]
+          type: [integer, "null"]
         nombre:
           type: string
         email:
@@ -281,7 +281,8 @@ components:
         usuario:
           type: [string, "null"]
         rol_id:
-          type: integer
+          type: [integer, "null"]
+          description: Rol del proyecto (levelup_empleados_core); null si el empleado de Bono no tiene cuenta.
         categoria:
           $ref: "#/components/schemas/CategoriaResponse"
         subarea:
@@ -305,31 +306,33 @@ components:
           type: [string, "null"]
         registro:
           type: [string, "null"]
-          format: date
+          description: Texto de alta tal como vive en Bono (columna String, no necesariamente fecha ISO).
         a_restringido:
-          type: [boolean, "null"]
+          type: [string, "null"]
+          description: Valor 'S'/'N' tal como vive en Bono.
         requiere_cambio_password:
           type: [boolean, "null"]
         created_at:
-          type: string
+          type: [string, "null"]
           format: date-time
 
     UsuarioResponse:
       type: object
-      required: [id, empleado_id, no_empleado, nombre, rol_id, created_at]
+      required: [id, empleado_id, no_empleado, nombre]
       properties:
         id:
           type: integer
         empleado_id:
           type: integer
         no_empleado:
-          type: string
+          type: integer
         nombre:
           type: string
         email:
           type: [string, "null"]
         rol_id:
-          type: integer
+          type: [integer, "null"]
+          description: Rol del proyecto (levelup_empleados_core); null si el empleado de Bono no tiene cuenta.
         rol:
           $ref: "#/components/schemas/RolBrief"
         estado:
@@ -353,9 +356,9 @@ components:
           type: [string, "null"]
         registro:
           type: [string, "null"]
-          format: date
+          description: Texto de alta tal como vive en Bono (columna String, no necesariamente fecha ISO).
         created_at:
-          type: string
+          type: [string, "null"]
           format: date-time
 
     UsuarioListItem:

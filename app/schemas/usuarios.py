@@ -41,7 +41,7 @@ class UsuarioResponse(BaseModel):
     no_empleado: int
     nombre: str
     email: Optional[str] = None
-    rol_id: int
+    rol_id: Optional[int] = None
     rol: Optional[RolBrief] = None
     estado: Optional[EstadoEmpleadoResponse] = None
     area: Optional[AreaResponse] = None
@@ -52,8 +52,8 @@ class UsuarioResponse(BaseModel):
     lider_id: Optional[int] = None
     centrocosto_id: Optional[int] = None
     foto: Optional[str] = None
-    registro: Optional[date] = None
-    created_at: datetime
+    registro: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class UsuarioListItem(UsuarioResponse):

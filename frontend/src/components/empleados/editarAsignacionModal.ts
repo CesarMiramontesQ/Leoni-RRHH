@@ -32,18 +32,20 @@ type FormBaseline = {
 };
 
 function rolIdSeleccionado(empleado: UsuarioListItem, roles: RolBrief[]): number {
-  const tieneRol = empleado.rol_id > 0 && roles.some((r) => r.id === empleado.rol_id);
-  if (tieneRol) return empleado.rol_id;
+  const rolId = empleado.rol_id ?? 0;
+  const tieneRol = rolId > 0 && roles.some((r) => r.id === rolId);
+  if (tieneRol) return rolId;
   const def = roles.find((r) => r.nombre.trim().toLowerCase() === "empleado");
-  return def?.id ?? roles[0]?.id ?? empleado.rol_id;
+  return def?.id ?? roles[0]?.id ?? rolId;
 }
 
 function textoRolActual(empleado: UsuarioListItem, roles: RolBrief[]): string {
   const desdeEmpleado = empleado.rol?.nombre?.trim();
   if (desdeEmpleado) return desdeEmpleado;
-  const enCatalogo = roles.find((r) => r.id === empleado.rol_id);
+  const rolId = empleado.rol_id ?? 0;
+  const enCatalogo = roles.find((r) => r.id === rolId);
   if (enCatalogo?.nombre?.trim()) return enCatalogo.nombre.trim();
-  if (empleado.rol_id > 0) return `Rol #${empleado.rol_id}`;
+  if (rolId > 0) return `Rol #${rolId}`;
   return "Sin asignar";
 }
 

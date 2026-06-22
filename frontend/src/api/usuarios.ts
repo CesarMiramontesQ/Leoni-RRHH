@@ -62,7 +62,7 @@ export type UsuarioListItem = {
   no_empleado: string;
   nombre: string;
   email: string | null;
-  rol_id: number;
+  rol_id: number | null;
   rol: RolBrief | null;
   estado: EstadoEmpleadoResponse | null;
   area: AreaResponse | null;
@@ -77,7 +77,7 @@ export type UsuarioListItem = {
   /** Solo en GET /empleados (listado). */
   lider_nombre?: string | null;
   registro: string | null;
-  created_at: string;
+  created_at: string | null;
 };
 
 export type UsuarioPage = {

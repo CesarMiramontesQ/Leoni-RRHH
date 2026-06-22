@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -45,11 +45,11 @@ class EmpleadoResponse(BaseModel):
     id: int
     empleado_id: int
     no_empleado: int
-    no_sap: Optional[str] = None
+    no_sap: Optional[int] = None
     nombre: str
     email: Optional[str] = None
     usuario: Optional[str] = None
-    rol_id: int
+    rol_id: Optional[int] = None
     categoria: Optional[CategoriaResponse] = None
     subarea: Optional[SubareaResponse] = None
     puesto: Optional[PuestoResponse] = None
@@ -60,7 +60,7 @@ class EmpleadoResponse(BaseModel):
     centrocosto_id: Optional[int] = None
     recibe_bono: Optional[bool] = None
     brigada: Optional[str] = None
-    registro: Optional[date] = None
-    a_restringido: Optional[bool] = None
+    registro: Optional[str] = None
+    a_restringido: Optional[str] = None
     requiere_cambio_password: Optional[bool] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
