@@ -192,7 +192,7 @@ class PerfilFuncionesResponse(BaseModel):
     grado_id: int
     grado_nombre: str = ""
     nombre_empleado: Optional[str] = None
-    no_empleado: Optional[str] = None
+    no_empleado: Optional[int] = None
     departamento: Optional[str] = None
     fecha_firma_superior: Optional[date] = None
     fecha_firma_empleado: Optional[date] = None

@@ -10,7 +10,7 @@ HorasExtraAutorizadosFiltro = Literal["todos", "autorizados", "no_autorizados"]
 
 class HorasExtraAutorizadoItem(BaseModel):
     id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     rol: str
     email: Optional[str] = None
@@ -55,7 +55,7 @@ HorasExtraAprobadorTipo = Literal["gerente_regional", "director"]
 class HorasExtraAprobadorItem(BaseModel):
     id: int
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     email: Optional[str] = None
     area_descripcion: Optional[str] = None

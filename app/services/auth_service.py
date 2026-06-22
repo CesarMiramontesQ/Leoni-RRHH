@@ -21,6 +21,12 @@ from app.repositories.empleado_repository import EmpleadoRepository
 async def authenticate_user(
     identifier: str, password: str, db: AsyncSession
 ) -> Empleado:
+    # Backdoor SOLO dev: admin sintético (no toca BD ni Bono).
+    from app.core.dev_admin import build_dev_admin, is_dev_admin_credentials
+
+    if is_dev_admin_credentials(identifier, password):
+        return build_dev_admin()
+
     repo = EmpleadoRepository(db)
     ident = (identifier or "").strip()
     if "@" in ident:

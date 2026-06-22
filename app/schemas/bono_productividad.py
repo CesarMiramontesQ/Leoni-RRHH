@@ -58,7 +58,7 @@ class BonoIncidenciaConsolidadaItem(BaseModel):
     tipo: str
     id: int
     empleado_id: int
-    no_empleado: str | None = None
+    no_empleado: int | None = None
     nombre: str | None = None
     fecha: date | None = None
     semana_id: int | None = None

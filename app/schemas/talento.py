@@ -236,7 +236,7 @@ class MetodoCalificacionCompetenciaResumen(BaseModel):
 class MultihabilidadesEmpleadoItem(BaseModel):
     empleado_id: int
     nombre: str
-    no_empleado: str
+    no_empleado: int
     niveles: dict[int, int]
 
 

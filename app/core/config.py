@@ -156,6 +156,10 @@ class Settings(BaseSettings):
     def ESTADOS_PERMISO_IDS(self) -> List[int]:
         return self._parse_estado_ids(self.estados_permiso_ids_env, [3])
 
+    # Admin de desarrollo (login sintético; solo activo si APP_ENV=development)
+    DEV_ADMIN_EMAIL: str = "admin.rh@leoni.com"
+    DEV_ADMIN_PASSWORD: str = "DevAdmin2026!"
+
     # App
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"

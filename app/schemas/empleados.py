@@ -44,7 +44,7 @@ class EmpleadoResponse(BaseModel):
 
     id: int
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     no_sap: Optional[str] = None
     nombre: str
     email: Optional[str] = None

@@ -138,7 +138,7 @@ class HorasExtraAprobadorAsignadoItem(BaseModel):
 
 class HorasExtraDetalleEmpleadoItem(BaseModel):
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     puesto_descripcion: Optional[str] = None
     departamento_descripcion: Optional[str] = None

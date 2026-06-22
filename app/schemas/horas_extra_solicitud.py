@@ -16,7 +16,7 @@ HorasExtraEstadoSolicitud = Literal[
 
 class HorasExtraEmpleadoOption(BaseModel):
     id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     centrocosto_id: Optional[int] = None
     area_id: Optional[int] = None
@@ -62,7 +62,7 @@ class HorasExtraDetalleResponse(BaseModel):
 
     id: int
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre_empleado: str
     lunes: Decimal
     martes: Decimal

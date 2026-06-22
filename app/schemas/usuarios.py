@@ -38,7 +38,7 @@ class UsuarioResponse(BaseModel):
 
     id: int
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     email: Optional[str] = None
     rol_id: int
