@@ -81,11 +81,33 @@ def _levelup_tables():
     ]
 
 
+_DROP_CROSS_FKS = """
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN
+    SELECT tc.table_name, tc.constraint_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.constraint_column_usage ccu
+      ON tc.constraint_name = ccu.constraint_name
+    WHERE tc.constraint_type = 'FOREIGN KEY'
+      AND tc.table_name LIKE 'levelup_%'
+      AND ccu.table_name NOT LIKE 'levelup_%'
+  LOOP
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', r.table_name, r.constraint_name);
+  END LOOP;
+END $$;
+"""
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     from app.core.database import Base
 
     Base.metadata.create_all(bind=bind, tables=_levelup_tables())
+    # No acoplar tablas de Bono: quitar FKs de levelup_* que apunten a tablas
+    # existentes de Bono (empleados, catálogos). La integridad se valida en app.
+    op.execute(_DROP_CROSS_FKS)
     op.execute(_CREATE_VIEW)
 
 

@@ -14,16 +14,14 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         super().__init__(Empleado, db)
 
     @staticmethod
-    def _no_empleado_variantes(no_empleado: str) -> list[str]:
-        valor = (no_empleado or "").strip()
-        if not valor:
-            return []
-        variantes = {valor}
-        if valor.isdigit():
-            variantes.add(f"{valor}.0")
-        if valor.endswith(".0") and valor[:-2].isdigit():
-            variantes.add(valor[:-2])
-        return list(variantes)
+    def _no_empleado_int(no_empleado) -> int | None:
+        """no_empleado es entero en Bono. Acepta '25', '25.0', 25 → 25."""
+        if no_empleado is None:
+            return None
+        try:
+            return int(str(no_empleado).strip().split(".")[0])
+        except (ValueError, TypeError):
+            return None
 
     async def get_by_email(self, email: str) -> Empleado | None:
         normalized_email = (email or "").strip().lower()
@@ -58,37 +56,31 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         return result.scalar_one_or_none()
 
     async def get_by_no_empleado(self, no_empleado: str) -> Empleado | None:
-        variantes = self._no_empleado_variantes(no_empleado)
-        if not variantes:
+        val = self._no_empleado_int(no_empleado)
+        if val is None:
             return None
-        variantes_lower = [v.lower() for v in variantes]
         result = await self.db.execute(
             select(Empleado)
             .options(
                 selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
-            .where(
-                func.lower(Empleado.no_empleado).in_(variantes_lower),
-            )
+            .where(Empleado.no_empleado == val)
         )
         return result.scalar_one_or_none()
 
     async def get_by_no_empleado_con_puesto_y_lider(self, no_empleado: str) -> Empleado | None:
         """Mismo criterio de búsqueda que `get_by_no_empleado`, con puesto y líder cargados."""
-        variantes = self._no_empleado_variantes(no_empleado)
-        if not variantes:
+        val = self._no_empleado_int(no_empleado)
+        if val is None:
             return None
-        variantes_lower = [v.lower() for v in variantes]
         result = await self.db.execute(
             select(Empleado)
             .options(
                 selectinload(Empleado.puesto),
                 selectinload(Empleado.lider),
             )
-            .where(
-                func.lower(Empleado.no_empleado).in_(variantes_lower),
-            )
+            .where(Empleado.no_empleado == val)
         )
         return result.scalar_one_or_none()
 

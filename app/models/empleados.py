@@ -37,9 +37,11 @@ class Empleado(Base):
 
     __tablename__ = "empleados"
 
+    # Tipos alineados con Bono.empleados (sin vista): no_empleado/no_sap enteros;
+    # a_restringido 'S'/'N'; registro texto; recibe_bono 0/1.
     empleado_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
-    no_empleado: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    no_sap: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    no_empleado: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    no_sap: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     usuario: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
@@ -68,10 +70,10 @@ class Empleado(Base):
 
     centrocosto_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     foto: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    recibe_bono: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    recibe_bono: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     brigada: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    registro: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    a_restringido: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    registro: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    a_restringido: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     requiere_cambio_password: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     # ── Relaciones a catálogos de Bono (por id; read-only) ──
@@ -140,11 +142,17 @@ class Empleado(Base):
         "Email",
         back_populates="empleado",
         uselist=False,
+        primaryjoin="Empleado.no_empleado == Email.no_empleado",
+        foreign_keys="Email.no_empleado",
+        viewonly=True,
     )
     turno_empleado: Mapped[Optional["TurnoEmpleado"]] = relationship(
         "TurnoEmpleado",
         back_populates="empleado",
         uselist=False,
+        primaryjoin="Empleado.no_empleado == TurnoEmpleado.no_empleado",
+        foreign_keys="TurnoEmpleado.no_empleado",
+        viewonly=True,
     )
     vacaciones: Mapped[Optional["Vacaciones"]] = relationship(
         "Vacaciones",
