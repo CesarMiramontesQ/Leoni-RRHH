@@ -116,21 +116,12 @@ class UsuarioRepository(BaseRepository[Empleado]):
             tokens = [tok for tok in normalized_q.split(" ") if tok]
             for token in tokens:
                 term = f"%{token}%"
+                # Búsqueda de empleado solo por nombre o no_empleado (decisión de
+                # producto). No se busca por email/empleado_id/no_sap/usuario para
+                # evitar coincidencias ruidosas (p. ej. un número que matchea ids ajenos).
                 token_like = [
                     UsuarioRepository._normalized_sql(Empleado.nombre).ilike(term),
                     UsuarioRepository._normalized_sql(cast(Empleado.no_empleado, String)).ilike(term),
-                    UsuarioRepository._normalized_sql(EmpleadoCore.email).ilike(term),
-                    cast(Empleado.empleado_id, String).ilike(term),
-                    and_(
-                        Empleado.no_sap.isnot(None),
-                        UsuarioRepository._normalized_sql(
-                            cast(Empleado.no_sap, String)
-                        ).ilike(term),
-                    ),
-                    and_(
-                        Empleado.usuario.isnot(None),
-                        UsuarioRepository._normalized_sql(Empleado.usuario).ilike(term),
-                    ),
                 ]
                 # Cada token debe existir en alguno de los campos (AND entre tokens).
                 conditions.append(or_(*token_like))

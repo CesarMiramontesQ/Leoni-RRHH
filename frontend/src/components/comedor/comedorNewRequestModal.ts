@@ -250,6 +250,12 @@ export function mountComedorNewRequestModal(
 
   function renderForm(): void {
     if (!catalog) return;
+    // Preservar foco + cursor del buscador de empleados: renderForm reemplaza todo
+    // el HTML (innerHTML), y al re-renderizar durante la búsqueda (debounce) el input
+    // se recrea y el usuario pierde el foco a mitad de escritura.
+    const active = document.activeElement as HTMLInputElement | null;
+    const searchWasFocused = active?.matches?.("[data-comedor-modal-employee-search]") ?? false;
+    const caret = searchWasFocused ? active?.selectionStart ?? null : null;
     bodyEl.innerHTML = buildComedorNewRequestFormHtml({
       state: formState,
       allowExternalPeople,
@@ -274,6 +280,20 @@ export function mountComedorNewRequestModal(
       menuDelDiaFechaIso,
     });
     bindInteractions();
+    if (searchWasFocused) {
+      const nextInput = bodyEl.querySelector<HTMLInputElement>(
+        "[data-comedor-modal-employee-search]",
+      );
+      if (nextInput) {
+        nextInput.focus();
+        const pos = caret ?? nextInput.value.length;
+        try {
+          nextInput.setSelectionRange(pos, pos);
+        } catch {
+          /* setSelectionRange no aplica a algunos tipos de input */
+        }
+      }
+    }
   }
 
   async function refreshMenuDelDia(fechaIso: string): Promise<void> {

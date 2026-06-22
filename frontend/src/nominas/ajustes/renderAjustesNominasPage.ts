@@ -383,7 +383,7 @@ function renderAutorizadosFiltros(state: AjustesNominasState): string {
             id="aj-he-busqueda"
             type="search"
             value="${escapeHtml(state.q)}"
-            placeholder="Buscar por nombre, no. empleado, correo, área o puesto"
+            placeholder="Buscar por nombre o número de empleado"
             aria-label="Buscar en empleados autorizados"
             autocomplete="off"
             class="${SEARCH_INPUT_CLS} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING} w-full"
