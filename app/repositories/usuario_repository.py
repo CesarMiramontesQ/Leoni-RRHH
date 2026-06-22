@@ -308,6 +308,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = (
             select(func.count())
             .select_from(Empleado)
+            .outerjoin(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
             .where(
                 Empleado.clasificacion_id.in_(clasificacion_admin_ids),
                 Empleado.estado_id.in_(estados_activos),

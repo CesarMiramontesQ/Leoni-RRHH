@@ -212,6 +212,40 @@ async def test_resumen_rh_incluye_sin_email_administrativo(
 
 
 @pytest.mark.asyncio
+async def test_resumen_rh_sin_email_administrativo_no_infla_por_cross_join(
+    client: AsyncClient, db, empleado_rh
+):
+    """El KPI no debe multiplicar filas core sin email (join explícito empleado↔core)."""
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    for i, eid in enumerate((88100, 88101)):
+        await make_empleado(
+            db,
+            rol="empleado",
+            email=" " * (i + 1),
+            estado_id=1,
+            empleado_id=eid,
+            no_empleado=7000100 + i,
+            clasificacion_id=cl_admin.clasificacion_id,
+        )
+    # Otros activos sin email (no administrativos): no deben sumar al KPI ni inflarlo.
+    await make_empleado(
+        db,
+        rol="empleado",
+        email="   ",
+        estado_id=1,
+        empleado_id=88102,
+        no_empleado=7000102,
+    )
+
+    headers = await auth_headers(client, empleado_rh)
+    resumen = await client.get("/api/v1/empleados/resumen", headers=headers)
+    assert resumen.status_code == 200
+    assert resumen.json()["sin_email_administrativo"] == 2
+
+
+@pytest.mark.asyncio
 async def test_list_empleados_rh_solo_sin_email_administrativo(
     client: AsyncClient, db, empleado_rh
 ):
