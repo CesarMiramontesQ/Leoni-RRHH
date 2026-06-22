@@ -104,18 +104,6 @@ class Settings(BaseSettings):
 
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
-    IT_SYNC_INTERVAL_MINUTES: int = 30
-
-    # Importación nocturna bono_productividad.calidad_historico → incidencias
-    BONO_CALIDAD_HISTORICO_IMPORT_ENABLED: bool = True
-    BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: int = 2
-    BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: int = 0
-
-    # Sincronización periódica bono_productividad.empleados → empleados.
-    # DESACTIVADA: el proyecto ahora usa una sola BD (Bono) y lee empleados en vivo
-    # desde `empleados`; ya no hay copia local que sincronizar.
-    BONO_EMPLEADOS_IMPORT_ENABLED: bool = False
-    BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES: int = 30
 
     # Fotografías RH (share de red; en Docker montar el volumen en esta ruta)
     RH_EMPLEADO_FOTOS_DIR: str = (

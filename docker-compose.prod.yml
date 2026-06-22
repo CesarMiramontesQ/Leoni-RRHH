@@ -19,18 +19,13 @@ services:
     environment:
       # BD única = Bono. DATABASE_URL explícita tiene prioridad; si no, se arma con BONO_DB_* (ver .env.prod.example).
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER}:${BONO_DB_PASSWORD}@${BONO_DB_HOST}:${BONO_DB_PORT:-5432}/${BONO_DB_NAME}}
-      # Bono (BD principal y, para imports históricos, lectura): scheduler nocturno e imports (ver .env.prod.example)
+      # Bono (BD principal y lectura para imports históricos manuales; ver .env.prod.example)
       BONO_DB_HOST: ${BONO_DB_HOST:-}
       BONO_DB_PORT: ${BONO_DB_PORT:-5432}
       BONO_DB_NAME: ${BONO_DB_NAME:-}
       BONO_DB_USER: ${BONO_DB_USER:-}
       BONO_DB_PASSWORD: ${BONO_DB_PASSWORD:-}
       BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
-      BONO_CALIDAD_HISTORICO_IMPORT_ENABLED: ${BONO_CALIDAD_HISTORICO_IMPORT_ENABLED:-true}
-      BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: ${BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR:-2}
-      BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: ${BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE:-0}
-      BONO_EMPLEADOS_IMPORT_ENABLED: ${BONO_EMPLEADOS_IMPORT_ENABLED:-false}
-      BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES: ${BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES:-30}
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-15}
@@ -40,7 +35,6 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       IT_MIRROR_DB_URL: ${IT_MIRROR_DB_URL:-}
-      IT_SYNC_INTERVAL_MINUTES: ${IT_SYNC_INTERVAL_MINUTES:-30}
       HUELLA_WHITELIST_IPS: ${HUELLA_WHITELIST_IPS:-}
       COMEDOR_TERMINAL_IPS: ${COMEDOR_TERMINAL_IPS:-}
       COMEDOR_ACCESO_HORA_INICIO: ${COMEDOR_ACCESO_HORA_INICIO:-}
