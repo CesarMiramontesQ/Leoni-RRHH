@@ -15,7 +15,7 @@ async def test_resumen_rh_devuelve_inactivos(client: AsyncClient, db, empleado_r
         email="rh_sum_act@leoni.test",
         estado_id=1,
         empleado_id=88001,
-        no_empleado="RH-S-A1",
+        no_empleado=7000018,
     )
     await make_empleado(
         db,
@@ -23,7 +23,7 @@ async def test_resumen_rh_devuelve_inactivos(client: AsyncClient, db, empleado_r
         email="rh_sum_ina@leoni.test",
         estado_id=2,
         empleado_id=88002,
-        no_empleado="RH-S-I1",
+        no_empleado=7000006,
     )
 
     headers = await auth_headers(client, empleado_rh)
@@ -61,7 +61,7 @@ async def test_list_empleados_rh_activo_true_excluye_inactivos(
         email="rh_f_act@leoni.test",
         estado_id=1,
         empleado_id=88010,
-        no_empleado="RH-F-A",
+        no_empleado=7000008,
     )
     inactivo = await make_empleado(
         db,
@@ -69,7 +69,7 @@ async def test_list_empleados_rh_activo_true_excluye_inactivos(
         email="rh_f_ina@leoni.test",
         estado_id=2,
         empleado_id=88011,
-        no_empleado="RH-F-I",
+        no_empleado=7000013,
     )
 
     headers = await auth_headers(client, empleado_rh)
@@ -94,7 +94,7 @@ async def test_list_empleados_rh_activo_false_solo_inactivos(
         email="rh_g_act@leoni.test",
         estado_id=1,
         empleado_id=88020,
-        no_empleado="RH-G-A",
+        no_empleado=7000009,
     )
     inactivo = await make_empleado(
         db,
@@ -102,7 +102,7 @@ async def test_list_empleados_rh_activo_false_solo_inactivos(
         email="rh_g_ina@leoni.test",
         estado_id=2,
         empleado_id=88021,
-        no_empleado="RH-G-I",
+        no_empleado=7000017,
     )
 
     headers = await auth_headers(client, empleado_rh)
@@ -129,7 +129,7 @@ async def test_list_empleados_rh_solo_sin_lider_coincide_con_resumen(
         email="rh_sl_1@leoni.test",
         estado_id=1,
         empleado_id=88030,
-        no_empleado="RH-SL-1",
+        no_empleado=7000016,
         lider_id=None,
     )
     con_lider = await make_empleado(
@@ -138,7 +138,7 @@ async def test_list_empleados_rh_solo_sin_lider_coincide_con_resumen(
         email="rh_sl_sup@leoni.test",
         estado_id=1,
         empleado_id=88031,
-        no_empleado="RH-SL-S",
+        no_empleado=7000004,
     )
     await make_empleado(
         db,
@@ -146,7 +146,7 @@ async def test_list_empleados_rh_solo_sin_lider_coincide_con_resumen(
         email="rh_sl_2@leoni.test",
         estado_id=1,
         empleado_id=88032,
-        no_empleado="RH-SL-2",
+        no_empleado=7000007,
         lider_id=con_lider.empleado_id,
     )
     inactivo_sin_lider = await make_empleado(
@@ -155,7 +155,7 @@ async def test_list_empleados_rh_solo_sin_lider_coincide_con_resumen(
         email="rh_sl_ina@leoni.test",
         estado_id=2,
         empleado_id=88033,
-        no_empleado="RH-SL-I",
+        no_empleado=7000010,
         lider_id=None,
     )
 
@@ -191,7 +191,7 @@ async def test_resumen_rh_incluye_sin_email_administrativo(
         email="   ",
         estado_id=1,
         empleado_id=88040,
-        no_empleado="RH-SE-1",
+        no_empleado=7000014,
         clasificacion_id=cl_admin.clasificacion_id,
     )
     await make_empleado(
@@ -200,7 +200,7 @@ async def test_resumen_rh_incluye_sin_email_administrativo(
         email="rh_se_ok@leoni.test",
         estado_id=1,
         empleado_id=88041,
-        no_empleado="RH-SE-2",
+        no_empleado=7000015,
         clasificacion_id=cl_admin.clasificacion_id,
     )
 
@@ -224,7 +224,7 @@ async def test_list_empleados_rh_solo_sin_email_administrativo(
         email="  ",
         estado_id=1,
         empleado_id=88050,
-        no_empleado="RH-SE-F1",
+        no_empleado=7000011,
         clasificacion_id=cl_admin.clasificacion_id,
     )
     con_email = await make_empleado(
@@ -233,7 +233,7 @@ async def test_list_empleados_rh_solo_sin_email_administrativo(
         email="rh_se_f_ok@leoni.test",
         estado_id=1,
         empleado_id=88051,
-        no_empleado="RH-SE-F2",
+        no_empleado=7000003,
         clasificacion_id=cl_admin.clasificacion_id,
     )
     inactivo_sin_email = await make_empleado(
@@ -242,7 +242,7 @@ async def test_list_empleados_rh_solo_sin_email_administrativo(
         email="    ",
         estado_id=2,
         empleado_id=88054,
-        no_empleado="RH-SE-F4",
+        no_empleado=7000005,
         clasificacion_id=cl_admin.clasificacion_id,
     )
     directo_sin_email = await make_empleado(
@@ -251,7 +251,7 @@ async def test_list_empleados_rh_solo_sin_email_administrativo(
         email=" ",
         estado_id=1,
         empleado_id=88052,
-        no_empleado="RH-SE-F3",
+        no_empleado=7000012,
     )
 
     headers = await auth_headers(client, empleado_rh)

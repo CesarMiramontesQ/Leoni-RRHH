@@ -1,3 +1,4 @@
+from sqlalchemy import String, cast
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -73,7 +74,7 @@ class RhPermisosRepository:
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(
                     Empleado.nombre.ilike(pattern),
-                    Empleado.no_empleado.ilike(pattern),
+                    cast(Empleado.no_empleado, String).ilike(pattern),
                     EmpleadoCore.email.ilike(pattern),
                 ),
             )

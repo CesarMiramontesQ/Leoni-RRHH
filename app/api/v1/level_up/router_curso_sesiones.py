@@ -1,3 +1,4 @@
+from sqlalchemy import String, cast
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select, union_all, func as sa_func
@@ -441,14 +442,14 @@ async def listar_empleados_elegibles(
     if q.strip():
         search = f"%{q.strip()}%"
         from_puestos = from_puestos.where(
-            Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
         )
         from_extras = from_extras.where(
-            Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
         )
         if from_grupos is not None:
             from_grupos = from_grupos.where(
-                Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+                Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
             )
 
     queries = [from_puestos, from_extras]

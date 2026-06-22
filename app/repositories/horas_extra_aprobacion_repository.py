@@ -1,6 +1,7 @@
 """Acceso a datos del ciclo de aprobación de horas extra."""
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -198,7 +199,7 @@ class HorasExtraAprobacionRepository:
                 .where(
                     or_(
                         Empleado.nombre.ilike(patron),
-                        Empleado.no_empleado.ilike(patron),
+                        cast(Empleado.no_empleado, String).ilike(patron),
                     )
                 )
             )

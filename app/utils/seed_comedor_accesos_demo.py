@@ -22,6 +22,7 @@ Empleado×fecha únicos (uq). REPETIDO no suma en % asistencia del resumen (solo
 """
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 import argparse
 import asyncio
@@ -134,7 +135,7 @@ async def _find_demo_empleados(session) -> list[Empleado]:
             .where(
                 EmpleadoCore.email.isnot(None),
                 EmpleadoCore.email.like(f"{DEMO_EMAIL_PREFIX}%{DEMO_EMAIL_DOMAIN}"),
-                Empleado.no_empleado.like(f"{DEMO_NO_EMPLEADO_PREFIX}%"),
+                cast(Empleado.no_empleado, String).like(f"{DEMO_NO_EMPLEADO_PREFIX}%"),
             )
         )
     ).scalars()

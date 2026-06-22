@@ -1,6 +1,7 @@
 """Acceso a datos para Ajustes de Nóminas (autorización de horas extra)."""
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 from datetime import datetime
 
@@ -43,7 +44,7 @@ class NominasAjustesRepository:
                 .where(
                     or_(
                         Empleado.nombre.ilike(patron),
-                        Empleado.no_empleado.ilike(patron),
+                        cast(Empleado.no_empleado, String).ilike(patron),
                         EmpleadoCore.email.ilike(patron),
                         Area.descripcion.ilike(patron),
                         Puesto.descripcion.ilike(patron),

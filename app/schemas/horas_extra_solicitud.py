@@ -62,7 +62,7 @@ class HorasExtraDetalleResponse(BaseModel):
 
     id: int
     empleado_id: int
-    no_empleado: int
+    no_empleado: Optional[int] = None
     nombre_empleado: str
     lunes: Decimal
     martes: Decimal

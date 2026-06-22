@@ -18,6 +18,7 @@ Uso:
 """
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 import argparse
 import asyncio
@@ -187,7 +188,7 @@ async def _cargar_empleados_por_no_empleado(
         return {}
     result = await db.execute(
         select(Empleado.id, Empleado.no_empleado).where(
-            func.lower(Empleado.no_empleado).in_(list(claves_busqueda))
+            func.lower(cast(Empleado.no_empleado, String)).in_(list(claves_busqueda))
         )
     )
     index: dict[str, int] = {}

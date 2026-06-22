@@ -20,7 +20,7 @@ async def test_resumen_supervisor_colaboradores_y_contratos_en_equipo(
         rol="supervisor",
         email="sup_resumen@leoni.test",
         empleado_id=91001,
-        no_empleado="SUP-R-01",
+        no_empleado=7000048,
         estado_id=1,
     )
     await make_empleado(
@@ -28,7 +28,7 @@ async def test_resumen_supervisor_colaboradores_y_contratos_en_equipo(
         rol="empleado",
         email="sub_resumen@leoni.test",
         empleado_id=91002,
-        no_empleado="SUB-R-01",
+        no_empleado=7000047,
         estado_id=1,
         lider_id=sup.empleado_id,
         fecha_fin_contrato=fin_contrato,
@@ -38,7 +38,7 @@ async def test_resumen_supervisor_colaboradores_y_contratos_en_equipo(
         rol="empleado",
         email="otro_resumen@leoni.test",
         empleado_id=91003,
-        no_empleado="OTR-R-01",
+        no_empleado=7000052,
         estado_id=1,
         lider_id=None,
         fecha_fin_contrato=fin_contrato,
@@ -60,7 +60,7 @@ async def test_list_directorio_filtro_estatus_permiso_supervisor(client: AsyncCl
         rol="supervisor",
         email="sup_perm@leoni.test",
         empleado_id=92001,
-        no_empleado="SUP-P-01",
+        no_empleado=7000049,
         estado_id=1,
     )
     suspendido = await make_empleado(
@@ -68,7 +68,7 @@ async def test_list_directorio_filtro_estatus_permiso_supervisor(client: AsyncCl
         rol="empleado",
         email="sub_perm@leoni.test",
         empleado_id=92002,
-        no_empleado="SUB-P-01",
+        no_empleado=7000050,
         estado_id=3,
         lider_id=sup.empleado_id,
     )
@@ -77,7 +77,7 @@ async def test_list_directorio_filtro_estatus_permiso_supervisor(client: AsyncCl
         rol="empleado",
         email="sub_act@leoni.test",
         empleado_id=92003,
-        no_empleado="SUB-P-A",
+        no_empleado=7000051,
         estado_id=1,
         lider_id=sup.empleado_id,
     )

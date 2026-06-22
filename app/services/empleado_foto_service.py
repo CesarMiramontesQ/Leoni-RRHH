@@ -23,8 +23,9 @@ _MIME_BY_EXT = {
 _UNSAFE_NAME = re.compile(r"[\\/]|^\.\.?$")
 
 
-def _normalize_no_empleado_key(no_empleado: str) -> str:
-    s = (no_empleado or "").strip()
+def _normalize_no_empleado_key(no_empleado) -> str:
+    # no_empleado puede venir como int (Bono) o str (path param).
+    s = str(no_empleado).strip() if no_empleado is not None else ""
     if not s:
         return ""
     try:

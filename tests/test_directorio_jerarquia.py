@@ -9,14 +9,14 @@ from tests.conftest import auth_headers, make_empleado
 
 @pytest.mark.asyncio
 async def test_directorio_gerente_cuenta_subarbol_completo(client: AsyncClient, db):
-    gerente = await make_empleado(db, rol="gerente", nombre="Ger Test", empleado_id=91001, no_empleado="DIR-G-1")
+    gerente = await make_empleado(db, rol="gerente", nombre="Ger Test", empleado_id=91001, no_empleado=7000038)
     sup = await make_empleado(
         db,
         rol="supervisor",
         nombre="Sup Test",
         lider_id=gerente.empleado_id,
         empleado_id=91002,
-        no_empleado="DIR-S-1",
+        no_empleado=7000043,
     )
     emp = await make_empleado(
         db,
@@ -24,9 +24,9 @@ async def test_directorio_gerente_cuenta_subarbol_completo(client: AsyncClient, 
         nombre="Emp Test",
         lider_id=sup.empleado_id,
         empleado_id=91003,
-        no_empleado="DIR-E-1",
+        no_empleado=7000044,
     )
-    await make_empleado(db, rol="empleado", nombre="Otro", empleado_id=91004, no_empleado="DIR-X-1")
+    await make_empleado(db, rol="empleado", nombre="Otro", empleado_id=91004, no_empleado=7000040)
 
     headers = await auth_headers(client, gerente)
     response = await client.get(
@@ -43,14 +43,14 @@ async def test_directorio_gerente_cuenta_subarbol_completo(client: AsyncClient, 
 
 @pytest.mark.asyncio
 async def test_directorio_supervisor_cuenta_solo_directos(client: AsyncClient, db):
-    gerente = await make_empleado(db, rol="gerente", nombre="Ger2", empleado_id=91011, no_empleado="DIR2-G")
+    gerente = await make_empleado(db, rol="gerente", nombre="Ger2", empleado_id=91011, no_empleado=7000041)
     sup = await make_empleado(
         db,
         rol="supervisor",
         nombre="Sup2",
         lider_id=gerente.empleado_id,
         empleado_id=91012,
-        no_empleado="DIR2-S",
+        no_empleado=7000039,
     )
     await make_empleado(
         db,
@@ -58,7 +58,7 @@ async def test_directorio_supervisor_cuenta_solo_directos(client: AsyncClient, d
         nombre="Emp2",
         lider_id=sup.empleado_id,
         empleado_id=91013,
-        no_empleado="DIR2-E",
+        no_empleado=7000042,
     )
 
     headers = await auth_headers(client, sup)

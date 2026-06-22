@@ -365,7 +365,7 @@ class ComedorService:
         return [
             ComedorEquipoBeneficiarioItem(
                 empleado_id=row.id,
-                no_empleado=row.no_empleado or "",
+                no_empleado=row.no_empleado,
                 nombre=row.nombre or "Sin nombre",
                 nombre_corto=self._nombre_corto(row.nombre),
             )

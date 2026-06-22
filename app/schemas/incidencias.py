@@ -16,7 +16,7 @@ class IncidenciaCreate(BaseModel):
 
     tipo: str
     empleado_id: int
-    no_empleado: Optional[int] = None
+    no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     fecha: Optional[date] = None
     categoria: Optional[str] = None
@@ -30,7 +30,7 @@ class IncidenciaUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     tipo: Optional[str] = None
-    no_empleado: Optional[int] = None
+    no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     fecha: Optional[date] = None
     categoria: Optional[str] = None
@@ -46,7 +46,7 @@ class IncidenciaResponse(BaseModel):
     tipo: str
     subtipo: Optional[str] = None
     empleado_id: int
-    no_empleado: Optional[int] = None
+    no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     fecha: Optional[date] = None
     categoria: Optional[str] = None
@@ -113,7 +113,7 @@ class IncidenciaSubareaTotalItem(BaseModel):
 
 class IncidenciaEmpleadoTotalItem(BaseModel):
     empleado_id: int
-    no_empleado: int | None = None
+    no_empleado: str | None = None
     nombre: str | None = None
     total: int
 

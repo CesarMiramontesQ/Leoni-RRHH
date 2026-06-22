@@ -138,7 +138,7 @@ async def test_login_no_empleado_exitoso_retorna_tokens(client: AsyncClient, db)
         db,
         rol="empleado",
         email="por_numero@leoni.test",
-        no_empleado="1234.0",
+        no_empleado=1234,
     )
 
     response = await client.post(
@@ -162,7 +162,7 @@ async def test_login_por_email_empleado_exitoso_y_me_retorna_email(
         db,
         rol="empleado",
         email="alterno@leoni.test",
-        no_empleado="EMP-ALT-01",
+        no_empleado=7000001,
     )
 
     login_resp = await client.post(

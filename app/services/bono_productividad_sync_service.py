@@ -1,6 +1,7 @@
 """Sincronización manual de incidencias desde bono_productividad hacia BD principal."""
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 import logging
 from datetime import date, datetime, timezone
@@ -150,7 +151,7 @@ class BonoProductividadSyncService:
         if no_empleados:
             result = await self.db.execute(
                 select(Empleado.id, Empleado.no_empleado).where(
-                    func.lower(Empleado.no_empleado).in_(no_empleados)
+                    func.lower(cast(Empleado.no_empleado, String)).in_(no_empleados)
                 )
             )
             for local_id, no_emp in result.all():

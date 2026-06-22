@@ -122,7 +122,7 @@ async def test_horas_extra_solicitud_empleado_autorizado_puede_crear(
         rol="empleado",
         email="he_op_aut@leoni.test",
         empleado_id=88107,
-        no_empleado="HE-OP-AUT-01",
+        no_empleado=7000029,
         nombre="Operativo Autorizado",
         lider_id=registrante.empleado_id,
     )
@@ -152,7 +152,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         rol="empleado",
         email="he_op@leoni.test",
         empleado_id=88101,
-        no_empleado="HE-OP-01",
+        no_empleado=7000031,
         nombre="Operativo Uno",
         lider_id=registrante_autorizado.empleado_id,
     )
@@ -167,7 +167,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         rol="empleado",
         email="he_admin@leoni.test",
         empleado_id=88102,
-        no_empleado="HE-ADM-01",
+        no_empleado=7000025,
         nombre="Admin Uno",
         lider_id=registrante_autorizado.empleado_id,
         clasificacion_id=admin_cl.clasificacion_id,
@@ -182,7 +182,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
         rol="supervisor",
         email="he_sup2@leoni.test",
         empleado_id=88103,
-        no_empleado="HE-SUP-02",
+        no_empleado=7000026,
         nombre="Supervisor Dos",
     )
 
@@ -207,8 +207,8 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     assert opciones.status_code == 200
     opciones_body = opciones.json()
     empleados = {e["no_empleado"] for e in opciones_body["empleados"]}
-    assert "HE-OP-01" in empleados
-    assert "HE-ADM-01" not in empleados
+    assert 7000031 in empleados
+    assert 7000025 not in empleados
     assert 1 <= opciones_body["semana_actual"] <= 53
 
     payload = _payload_base(operativo.id)
@@ -250,7 +250,7 @@ async def test_horas_extra_solicitud_estadisticas_supervisor(
         rol="empleado",
         email="he_op_stats@leoni.test",
         empleado_id=88106,
-        no_empleado="HE-OP-ST-01",
+        no_empleado=7000030,
         nombre="Operativo Stats",
         lider_id=registrante_autorizado.empleado_id,
     )
@@ -298,7 +298,7 @@ async def test_horas_extra_solicitud_crea_centro_costo_si_falta_en_catalogo(
         rol="empleado",
         email="he_op_cc@leoni.test",
         empleado_id=88105,
-        no_empleado="HE-OP-CC-01",
+        no_empleado=7000027,
         nombre="Operativo Centro Costo",
         lider_id=registrante_autorizado.empleado_id,
     )
@@ -329,7 +329,7 @@ async def test_horas_extra_solicitud_no_expone_otro_supervisor(
         rol="supervisor",
         email="he_sup3@leoni.test",
         empleado_id=88104,
-        no_empleado="HE-SUP-03",
+        no_empleado=7000028,
         nombre="Supervisor Tres",
     )
     solicitud = HorasExtraSolicitud(

@@ -118,7 +118,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 term = f"%{token}%"
                 token_like = [
                     UsuarioRepository._normalized_sql(Empleado.nombre).ilike(term),
-                    UsuarioRepository._normalized_sql(Empleado.no_empleado).ilike(term),
+                    UsuarioRepository._normalized_sql(cast(Empleado.no_empleado, String)).ilike(term),
                     UsuarioRepository._normalized_sql(EmpleadoCore.email).ilike(term),
                     cast(Empleado.empleado_id, String).ilike(term),
                     and_(

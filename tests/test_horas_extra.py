@@ -106,19 +106,19 @@ async def test_horas_extra_lista_solicitudes_reales(
         db,
         rol="supervisor",
         nombre="Fernando Aguirre Lozano",
-        no_empleado="HE-LIDER",
+        no_empleado=7000022,
         puede_registrar_horas_extra=True,
     )
     operativo = await make_empleado(
         db,
         rol="empleado",
         nombre="María López García",
-        no_empleado="HE-001",
+        no_empleado=7000023,
         lider_id=supervisor.empleado_id,
     )
 
     aprobador = await make_empleado(
-        db, rol="gerente", nombre="Gerente Aprobador", no_empleado="HE-GTE"
+        db, rol="gerente", nombre="Gerente Aprobador", no_empleado=7000019
     )
 
     pendiente = await _crear_solicitud(
@@ -182,7 +182,7 @@ async def test_horas_extra_lista_solicitudes_reales(
     # Orden: fecha_solicitud desc → primero la pendiente (9 jun)
     fila_pendiente, fila_aprobada = data["items"]
 
-    assert fila_pendiente["empleado"]["no_empleado"] == "HE-001"
+    assert fila_pendiente["empleado"]["no_empleado"] == 7000023
     assert fila_pendiente["empleado"]["nombre"] == "María López García"
     assert fila_pendiente["empleado"]["lider"]["nombre"] == "Fernando Aguirre Lozano"
     sol = fila_pendiente["solicitud"]
@@ -216,7 +216,7 @@ async def test_horas_extra_filtra_por_tab_y_centro_costo(
         db, rol="supervisor", nombre="Sup Filtros", puede_registrar_horas_extra=True
     )
     operativo = await make_empleado(
-        db, rol="empleado", nombre="Op Filtros", no_empleado="HE-FIL-01"
+        db, rol="empleado", nombre="Op Filtros", no_empleado=7000020
     )
 
     await _crear_solicitud(
@@ -258,7 +258,7 @@ async def test_horas_extra_filtra_por_tab_y_centro_costo(
     assert otro_cc.json()["total"] == 0
 
     por_nombre = await client.get(
-        LISTADO_URL, headers=headers, params={"q": "HE-FIL-01"}
+        LISTADO_URL, headers=headers, params={"q": 7000020}
     )
     assert por_nombre.status_code == 200
     assert por_nombre.json()["total"] == 2
@@ -290,14 +290,14 @@ async def test_horas_extra_detalle_rh(client: AsyncClient, db, empleado_rh):
         db,
         rol="supervisor",
         nombre="Lider Detalle",
-        no_empleado="HE-DET-L",
+        no_empleado=7000021,
         puede_registrar_horas_extra=True,
     )
     operativo = await make_empleado(
         db,
         rol="empleado",
         nombre="Operativo Detalle",
-        no_empleado="HE-DET-001",
+        no_empleado=7000024,
         lider_id=supervisor.empleado_id,
     )
     solicitud = await _crear_solicitud(

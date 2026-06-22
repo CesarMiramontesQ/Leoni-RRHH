@@ -178,7 +178,7 @@ async def make_empleado(
     rol: str = "empleado",
     email: str | None = None,
     usuario: str | None = None,
-    no_empleado: str | None = None,
+    no_empleado: int | None = None,
     empleado_id: int | None = None,
     nombre: str = "Test Usuario",
     password: str = "Passw0rd!Seguro",
@@ -204,8 +204,9 @@ async def make_empleado(
 
     uid = str(uuid.uuid4())[:8]
     _email = email or f"emp_{uid}@leoni.test"
-    _no_empleado = no_empleado or f"EMP-{uid}"
+    # no_empleado es entero (alineado con Bono.empleados).
     _empleado_id = empleado_id or abs(hash(uid)) % 100000
+    _no_empleado = no_empleado if no_empleado is not None else (abs(hash(uid)) % 9000000 + 1000000)
 
     rol_obj = await _get_or_create_rol(db, rol)
 

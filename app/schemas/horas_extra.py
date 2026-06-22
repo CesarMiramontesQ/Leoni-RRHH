@@ -21,7 +21,7 @@ class HorasExtraLiderResponse(BaseModel):
 class HorasExtraEmpleadoResponse(BaseModel):
     id: int
     empleado_id: int
-    no_empleado: int
+    no_empleado: Optional[int] = None
     nombre: str
     puesto_nombre: Optional[str] = None
     centrocosto_id: Optional[int] = None
