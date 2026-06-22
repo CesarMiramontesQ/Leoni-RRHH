@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.core.config import settings
-from app.core.security import hash_password
 from app.models.empleados import Empleado
 from app.models.empleados_rh import EmpleadoCore, EmpleadoRhConfig, EmpleadoRhPermisos
 from app.models.roles import Rol
@@ -20,6 +19,9 @@ from app.models.roles import Rol
 # empleado_id sentinela, improbable en Bono.
 DEV_ADMIN_EMPLEADO_ID = 9_999_999
 DEV_ADMIN_SUB = str(DEV_ADMIN_EMPLEADO_ID)
+# Hash placeholder NO verificable (el login dev compara la contraseña en texto).
+# Evita correr bcrypt en cada request (get_current_user reconstruye el admin).
+_DEV_ADMIN_PASSWORD_HASH = "!dev-admin-no-login-via-hash"
 
 
 def dev_login_enabled() -> bool:
@@ -56,7 +58,7 @@ def build_dev_admin() -> Empleado:
         empleado_id=DEV_ADMIN_EMPLEADO_ID,
         rol_id=0,
         email=settings.DEV_ADMIN_EMAIL,
-        password_hash=hash_password(settings.DEV_ADMIN_PASSWORD or "x"),
+        password_hash=_DEV_ADMIN_PASSWORD_HASH,
         created_at=now,
         updated_at=now,
     )
