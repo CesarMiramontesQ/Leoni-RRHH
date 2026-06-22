@@ -11,13 +11,13 @@ main  ──merge periódico──►  prod-v2.0  ──deploy──►  servido
 | `main` | Desarrollo e integración |
 | `prod-v2.0` | Código de `main` + `docker-compose.prod.yml` y scripts de despliegue (heredados de prod v1.0) |
 
-El servidor usa **PostgreSQL externo** (`DB_*` + `BONO_DB_*`). No hay contenedor Postgres en Docker.
+El servidor usa **PostgreSQL externo Bono** (`BONO_DB_*`) como BD única. No hay contenedor Postgres en Docker.
 
 ## `.env` en el servidor
 
-Tu `.env` actual de prod v1.0 **sigue siendo válido**. Referencia: `.env.prod.example`.
+Referencia: `.env.prod.example`. **BD única = Bono:** si vienes de prod v1.0, migra las variables `DB_*` a `BONO_DB_*` (la app ahora apunta su `DATABASE_URL` a la BD Bono).
 
-Variables obligatorias: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`.
+Variables obligatorias: `BONO_DB_HOST`, `BONO_DB_NAME`, `BONO_DB_USER`, `BONO_DB_PASSWORD`, `JWT_SECRET`.
 
 ## Despliegue inicial
 
@@ -63,7 +63,7 @@ git push origin prod-v2.0
 
 1. Backup de BD.
 2. `git fetch && git checkout prod-v2.0 && git pull`
-3. Verificar que `.env` tenga `DB_*` y `BONO_DB_*` (sin cambios respecto a v1.0).
+3. Verificar que `.env` tenga `BONO_DB_*` (BD única = Bono). Si vienes de v1.0, migra las antiguas `DB_*` a `BONO_DB_*`.
 4. `./scripts/prod-migrate.sh` — si la BD está en `n3o4p5q6r7s8` (prod v1.0), el script hace stamp a `f36fc5feb45e` y luego aplica migraciones hasta head.
 5. `docker compose -f docker-compose.prod.yml --env-file .env up -d`
 

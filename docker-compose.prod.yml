@@ -1,5 +1,5 @@
 # Producción V2.0 (branch prod-v2.0): código de main + infra de prod v1.0.
-# PostgreSQL principal (leoni_rh) y bono_productividad son externos (cliente); sin contenedor de BD.
+# BD única = Bono (PostgreSQL externo del cliente); sin contenedor de BD en Docker.
 #
 # Proyecto Compose: leoni-rh-prod (aislado de leoni-rh-dev).
 # Uso en servidor:
@@ -17,16 +17,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # DATABASE_URL explícita tiene prioridad; si no, se arma con DB_* (ver .env.prod.example).
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_WAIT_MAX_RETRIES: ${DB_WAIT_MAX_RETRIES:-30}
-      DB_WAIT_DELAY_SECONDS: ${DB_WAIT_DELAY_SECONDS:-2}
-      # Bono productividad (solo lectura): scheduler nocturno e imports históricos (ver .env.prod.example)
+      # BD única = Bono. DATABASE_URL explícita tiene prioridad; si no, se arma con BONO_DB_* (ver .env.prod.example).
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER}:${BONO_DB_PASSWORD}@${BONO_DB_HOST}:${BONO_DB_PORT:-5432}/${BONO_DB_NAME}}
+      # Bono (BD principal y, para imports históricos, lectura): scheduler nocturno e imports (ver .env.prod.example)
       BONO_DB_HOST: ${BONO_DB_HOST:-}
       BONO_DB_PORT: ${BONO_DB_PORT:-5432}
       BONO_DB_NAME: ${BONO_DB_NAME:-}
@@ -36,7 +29,7 @@ services:
       BONO_CALIDAD_HISTORICO_IMPORT_ENABLED: ${BONO_CALIDAD_HISTORICO_IMPORT_ENABLED:-true}
       BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: ${BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR:-2}
       BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: ${BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE:-0}
-      BONO_EMPLEADOS_IMPORT_ENABLED: ${BONO_EMPLEADOS_IMPORT_ENABLED:-true}
+      BONO_EMPLEADOS_IMPORT_ENABLED: ${BONO_EMPLEADOS_IMPORT_ENABLED:-false}
       BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES: ${BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES:-30}
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET}
