@@ -22,8 +22,9 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    # Database
-    DATABASE_URL: str = "postgresql+asyncpg://leoni:leoni_dev_pass@localhost:5432/leoni_rh"
+    # Database — BD única = Bono (PostgreSQL externo). En Docker, docker-compose arma
+    # DATABASE_URL desde BONO_DB_*; este default es solo fallback fuera de Docker.
+    DATABASE_URL: str = "postgresql+asyncpg://bono_user:bono_password@localhost:5433/bono_productividad"
 
     # PostgreSQL bono_productividad (solo lectura; independiente de DATABASE_URL)
     BONO_DB_HOST: str = ""

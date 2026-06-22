@@ -16,7 +16,7 @@ Everything runs in Docker — no Python or Node installed locally.
 
 ### Development (levantar todo)
 ```bash
-docker-compose up -d              # postgres + backend + frontend
+docker-compose up -d              # backend + frontend (BD = Bono externo, sin Postgres local)
 docker-compose logs -f backend    # ver logs del backend
 ```
 - Backend: http://localhost:8000 (con reload automático)
