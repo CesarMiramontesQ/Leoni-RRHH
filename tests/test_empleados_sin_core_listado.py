@@ -82,3 +82,27 @@ async def test_buscar_empleado_sin_core_por_nombre(client: AsyncClient, db):
     assert response.status_code == 200, response.text
     ids = {item["empleado_id"] for item in response.json()["items"]}
     assert 93011 in ids
+
+
+@pytest.mark.asyncio
+async def test_buscar_empleado_por_numero(client: AsyncClient, db):
+    """Búsqueda numérica: ejercita las ramas que castean enteros (no_empleado,
+    no_sap, empleado_id). En Bono `no_sap` es Integer y debe castearse a texto
+    antes de normalizar (coalesce(integer, '') falla en PostgreSQL)."""
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_num@leoni.test",
+        empleado_id=93020,
+        no_empleado=7100020,
+        estado_id=1,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        "/api/v1/empleados",
+        params={"q": "7100020"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    ids = {item["empleado_id"] for item in response.json()["items"]}
+    assert 93020 in ids

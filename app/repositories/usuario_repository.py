@@ -123,7 +123,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
                     cast(Empleado.empleado_id, String).ilike(term),
                     and_(
                         Empleado.no_sap.isnot(None),
-                        UsuarioRepository._normalized_sql(Empleado.no_sap).ilike(term),
+                        UsuarioRepository._normalized_sql(
+                            cast(Empleado.no_sap, String)
+                        ).ilike(term),
                     ),
                     and_(
                         Empleado.usuario.isnot(None),

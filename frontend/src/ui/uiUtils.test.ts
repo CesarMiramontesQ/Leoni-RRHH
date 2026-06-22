@@ -14,6 +14,13 @@ describe("escapeHtml", () => {
   it("escapa comilla simple", () => {
     expect(escapeHtml("it's")).toBe("it&#x27;s");
   });
+  it("coacciona número sin lanzar (no_empleado de Bono es Integer)", () => {
+    expect(escapeHtml(123 as unknown as string)).toBe("123");
+  });
+  it("coacciona null/undefined a cadena vacía", () => {
+    expect(escapeHtml(null as unknown as string)).toBe("");
+    expect(escapeHtml(undefined as unknown as string)).toBe("");
+  });
 });
 
 describe("fmtFechaCorta", () => {
