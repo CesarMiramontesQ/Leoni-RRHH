@@ -15,6 +15,7 @@ import {
 } from "../components/actas/nuevaActaModal.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
+import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import {
   rhListadoTablaClasesLayoutScroll,
   rhListadoTablaUsaScrollVerticalViewport,
@@ -233,7 +234,7 @@ function badgeEstado(estado: ActaEstadoCodigo): string {
 function mapUsuarioToNuevaActaEmpleado(item: UsuarioListItem): NuevaActaEmpleadoOption {
   const empleadoId = String(item.id);
   const nombre = formatNombreEmpleadoUi(item.nombre) || item.nombre || empleadoId;
-  const numeroEmpleado = item.no_empleado?.trim() || empleadoId;
+  const numeroEmpleado = formatNoEmpleadoDisplay(item.no_empleado) || empleadoId;
   const areaDepartamento = item.area?.descripcion?.trim() || "Sin área";
   const supervisorDirecto = item.lider_nombre?.trim() || "Sin supervisor";
   return {
