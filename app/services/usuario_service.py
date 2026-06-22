@@ -28,6 +28,7 @@ from app.models.incidencias import Incidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.comedor import Comedor
 from app.models.turnos_empleados import TurnoEmpleado
+from app.utils.turno_empleado_match import turno_no_empleado_matches
 from app.repositories.usuario_repository import ModoEstadoListado, UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.vacaciones_repository import VacacionesRepository
@@ -559,7 +560,7 @@ class UsuarioService:
         turno_empleado: Vista360TurnoEmpleado | None = None
         if user_has_module(current_user, "empleados"):
             r_te = await self.db.execute(
-                select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == usuario.no_empleado)
+                select(TurnoEmpleado).where(turno_no_empleado_matches(usuario.no_empleado))
             )
             te = r_te.scalar_one_or_none()
             comedor_txt: str | None = None

@@ -293,10 +293,11 @@ async def link_turno_comedor_empleado(
 ) -> None:
     """Vincula empleado con código de comedor en `turnos_empleados` (reservas automáticas)."""
     from app.models.turnos_empleados import TurnoEmpleado
+    from app.utils.turno_empleado_match import no_empleado_as_turno_str
 
     db.add(
         TurnoEmpleado(
-            no_empleado=empleado.no_empleado,
+            no_empleado=no_empleado_as_turno_str(empleado.no_empleado),
             nombre=empleado.nombre,
             clasificacion=clasificacion,
             comedor=comedor_id,

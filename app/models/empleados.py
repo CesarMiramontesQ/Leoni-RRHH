@@ -150,7 +150,7 @@ class Empleado(Base):
         "TurnoEmpleado",
         back_populates="empleado",
         uselist=False,
-        primaryjoin="Empleado.no_empleado == TurnoEmpleado.no_empleado",
+        primaryjoin="cast(Empleado.no_empleado, String) == TurnoEmpleado.no_empleado",
         foreign_keys="TurnoEmpleado.no_empleado",
         viewonly=True,
     )

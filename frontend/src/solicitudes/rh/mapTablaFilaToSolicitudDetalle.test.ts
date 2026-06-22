@@ -31,7 +31,7 @@ describe("mapTablaFilaToSolicitudDetallePendiente", () => {
 
 it("soloLectura: prioriza número de empleado y puesto desde la fila/API", () => {
     const vm = mapTablaFilaToSolicitudDetallePendiente(filaBase, { soloLectura: true });
-    expect(vm?.empleado.id_empleado).toBe("00042");
+    expect(vm?.empleado.id_empleado).toBe("42");
     expect(vm?.empleado.puesto).toBe("Operador general");
   });
 

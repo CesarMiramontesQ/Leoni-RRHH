@@ -7,6 +7,7 @@ from app.models.empleados import Empleado
 from app.models.empleados_rh import EmpleadoCore
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
+from app.utils.turno_empleado_match import no_empleado_as_turno_str, turno_empleado_join_on, turno_no_empleado_matches
 
 
 class EmpleadoRepository(BaseRepository[Empleado]):
@@ -236,7 +237,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(func.count())
             .select_from(Empleado)
-            .outerjoin(TurnoEmpleado, TurnoEmpleado.no_empleado == Empleado.no_empleado)
+            .outerjoin(TurnoEmpleado, turno_empleado_join_on())
             .where(
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(TurnoEmpleado.id.is_(None), TurnoEmpleado.comedor.is_(None)),
@@ -248,7 +249,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         """Empleados activos sin comedor en turnos (sin fila o `comedor` nulo)."""
         result = await self.db.execute(
             select(Empleado)
-            .outerjoin(TurnoEmpleado, TurnoEmpleado.no_empleado == Empleado.no_empleado)
+            .outerjoin(TurnoEmpleado, turno_empleado_join_on())
             .where(
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(TurnoEmpleado.id.is_(None), TurnoEmpleado.comedor.is_(None)),
@@ -266,14 +267,18 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         clasificacion: str | None = None,
     ) -> None:
         """Crea o actualiza `turnos_empleados` con el comedor indicado."""
+        no_int = self._no_empleado_int(no_empleado)
+        if no_int is None:
+            raise ValueError(f"no_empleado inválido: {no_empleado!r}")
+        no_turno = no_empleado_as_turno_str(no_int)
         result = await self.db.execute(
-            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == no_empleado)
+            select(TurnoEmpleado).where(turno_no_empleado_matches(no_int))
         )
         turno = result.scalar_one_or_none()
         if turno is None:
             self.db.add(
                 TurnoEmpleado(
-                    no_empleado=no_empleado,
+                    no_empleado=no_turno,
                     nombre=nombre,
                     clasificacion=clasificacion,
                     comedor=comedor_id,

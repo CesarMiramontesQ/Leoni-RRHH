@@ -36,6 +36,7 @@ from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.turnos_empleados import TurnoEmpleado
+from app.utils.turno_empleado_match import turno_no_empleado_matches
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
@@ -293,7 +294,7 @@ class ComedorService:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
 
         result = await self.db.execute(
-            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+            select(TurnoEmpleado).where(turno_no_empleado_matches(empleado.no_empleado))
         )
         turno = result.scalar_one_or_none()
         if turno is None or turno.comedor is None:
@@ -1533,7 +1534,7 @@ class ComedorService:
         if not empleado or empleado.estado_id not in settings.ESTADOS_ACTIVOS_IDS:
             return False
         result = await self.db.execute(
-            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+            select(TurnoEmpleado).where(turno_no_empleado_matches(empleado.no_empleado))
         )
         turno = result.scalar_one_or_none()
         return turno is None or turno.comedor is None
