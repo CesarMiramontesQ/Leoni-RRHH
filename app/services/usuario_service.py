@@ -487,10 +487,20 @@ class UsuarioService:
                 clasificacion=None,
             )
 
+        # rol_id es propio del proyecto: vive en levelup_empleados_core, no en empleados (Bono).
+        if "rol_id" in cambios:
+            from app.models.empleados_rh import ensure_core
+
+            core = ensure_core(self.db, usuario)
+            core.rol_id = cambios.pop("rol_id")
+            await self.db.flush()
+
         if cambios:
             await self.repo.update(id, cambios)
 
         datos_despues = dict(cambios)
+        if "rol_id" not in datos_despues and usuario.core is not None:
+            datos_despues["rol_id"] = usuario.core.rol_id
         if tiene_comedor:
             datos_despues["comedor_id"] = comedor_id
 

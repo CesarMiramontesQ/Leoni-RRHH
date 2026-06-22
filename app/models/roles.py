@@ -7,11 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.empleados import Empleado
+    from app.models.empleados_rh import EmpleadoCore
 
 
 class Rol(Base):
-    __tablename__ = "roles"
+    __tablename__ = "levelup_roles"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -20,8 +20,10 @@ class Rol(Base):
 
     __table_args__ = (UniqueConstraint("nombre", name="uq_roles_nombre"),)
 
-    # Relationships
-    empleados: Mapped[list["Empleado"]] = relationship("Empleado", back_populates="rol")
+    # El rol del empleado vive en levelup_empleados_core (no en empleados de Bono).
+    empleados: Mapped[list["EmpleadoCore"]] = relationship(
+        "EmpleadoCore", back_populates="rol"
+    )
 
     def __repr__(self) -> str:
         return f"<Rol id={self.id} nombre={self.nombre}>"

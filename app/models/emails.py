@@ -7,7 +7,7 @@ from app.core.database import Base
 
 
 class Email(Base):
-    __tablename__ = "emails"
+    __tablename__ = "levelup_emails"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     no_empleado: Mapped[str] = mapped_column(

@@ -20,7 +20,7 @@ class OrganigramaRepository(BaseRepository[Empleado]):
             selectinload(Empleado.estado),
             selectinload(Empleado.lider),
             selectinload(Empleado.categoria),
-            selectinload(Empleado.rol),
+            selectinload(Empleado.core),
         )
 
         if estados_activos:

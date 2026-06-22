@@ -31,8 +31,10 @@ services:
     volumes:
       - .:/app
     environment:
-      DATABASE_URL: postgresql+asyncpg://leoni:leoni_dev_pass@postgres:5432/leoni_rh
-      # Bono productividad (solo lectura): crear `.env` en la raíz con BONO_DB_* reales (compose sustituye ${BONO_DB_*})
+      # BD única = Bono. El proyecto usa `empleados` (Bono) como fuente y sus
+      # propias tablas levelup_* en la misma BD. Definir BONO_DB_* en `.env`.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER:-bono_user}:${BONO_DB_PASSWORD:-bono_password}@${BONO_DB_HOST:-host.docker.internal}:${BONO_DB_PORT:-5433}/${BONO_DB_NAME:-bono_productividad}}
+      # BONO_DB_* se conservan para otras importaciones histórico (calidad, etc.).
       BONO_DB_HOST: ${BONO_DB_HOST:-host.docker.internal}
       BONO_DB_PORT: ${BONO_DB_PORT:-5433}
       BONO_DB_NAME: ${BONO_DB_NAME:-bono_productividad}

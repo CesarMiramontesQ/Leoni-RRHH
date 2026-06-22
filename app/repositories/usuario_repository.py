@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.empleados import Empleado
+from app.models.empleados_rh import EmpleadoCore, EmpleadoRhConfig
 from app.models.catalogos import Area, ClasificacionEmpleado, Puesto
 from app.repositories.base import BaseRepository
 
@@ -24,8 +25,8 @@ class UsuarioRepository(BaseRepository[Empleado]):
 
     @staticmethod
     def _sin_email_condition():
-        """Sin correo registrado en empleado.email."""
-        return or_(Empleado.email.is_(None), func.trim(Empleado.email) == "")
+        """Sin correo registrado en levelup_empleados_core.email."""
+        return or_(EmpleadoCore.email.is_(None), func.trim(EmpleadoCore.email) == "")
 
     @staticmethod
     def _normalized_sql(expr):
@@ -44,7 +45,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(Empleado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.estado),
                 selectinload(Empleado.area),
                 selectinload(Empleado.puesto),
@@ -118,8 +119,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 token_like = [
                     UsuarioRepository._normalized_sql(Empleado.nombre).ilike(term),
                     UsuarioRepository._normalized_sql(Empleado.no_empleado).ilike(term),
-                    UsuarioRepository._normalized_sql(Empleado.email).ilike(term),
-                    cast(Empleado.id, String).ilike(term),
+                    UsuarioRepository._normalized_sql(EmpleadoCore.email).ilike(term),
                     cast(Empleado.empleado_id, String).ilike(term),
                     and_(
                         Empleado.no_sap.isnot(None),
@@ -136,9 +136,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
             hasta = hoy_contrato + timedelta(days=dias_ventana_contrato)
             conditions.extend(
                 [
-                    Empleado.fecha_fin_contrato.isnot(None),
-                    Empleado.fecha_fin_contrato >= hoy_contrato,
-                    Empleado.fecha_fin_contrato <= hasta,
+                    EmpleadoRhConfig.fecha_fin_contrato.isnot(None),
+                    EmpleadoRhConfig.fecha_fin_contrato >= hoy_contrato,
+                    EmpleadoRhConfig.fecha_fin_contrato <= hasta,
                 ]
             )
         if solo_sin_lider:
@@ -186,7 +186,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
             clasificacion_admin_ids=clasificacion_admin_ids,
         )
         query = select(Empleado).options(
-            selectinload(Empleado.rol),
+            selectinload(Empleado.core),
             selectinload(Empleado.lider),
             selectinload(Empleado.estado),
             selectinload(Empleado.area),
@@ -195,6 +195,14 @@ class UsuarioRepository(BaseRepository[Empleado]):
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
         )
+        query = query.outerjoin(
+            EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id
+        )
+        if solo_contrato_por_vencer:
+            query = query.join(
+                EmpleadoRhConfig,
+                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
+            )
         for cond in conditions:
             query = query.where(cond)
         query = query.order_by(Empleado.id).offset(offset).limit(limit)
@@ -235,7 +243,15 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = (
             select(func.count())
             .select_from(Empleado)
+            .outerjoin(
+                EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id
+            )
         )
+        if solo_contrato_por_vencer:
+            query = query.join(
+                EmpleadoRhConfig,
+                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
+            )
         for cond in conditions:
             query = query.where(cond)
         result = await self.db.execute(query)
@@ -245,7 +261,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(Empleado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
             )
             .where(
                 Empleado.lider_id == lider_id,
@@ -355,14 +371,22 @@ class UsuarioRepository(BaseRepository[Empleado]):
         hasta = hoy + timedelta(days=dias_ventana)
         conditions = [
             Empleado.estado_id.in_(estados_activos),
-            Empleado.fecha_fin_contrato.isnot(None),
-            Empleado.fecha_fin_contrato >= hoy,
-            Empleado.fecha_fin_contrato <= hasta,
+            EmpleadoRhConfig.fecha_fin_contrato.isnot(None),
+            EmpleadoRhConfig.fecha_fin_contrato >= hoy,
+            EmpleadoRhConfig.fecha_fin_contrato <= hasta,
         ]
         if ids_permitidos is not None:
             if not ids_permitidos:
                 return 0
             conditions.append(Empleado.id.in_(ids_permitidos))
-        query = select(func.count()).select_from(Empleado).where(*conditions)
+        query = (
+            select(func.count())
+            .select_from(Empleado)
+            .join(
+                EmpleadoRhConfig,
+                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
+            )
+            .where(*conditions)
+        )
         result = await self.db.execute(query)
         return result.scalar_one()

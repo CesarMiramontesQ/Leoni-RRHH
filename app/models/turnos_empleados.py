@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class TurnoEmpleado(Base):
     """Turno/comedor por número de empleado (`empleados.no_empleado`), sincronizado con listados RH."""
 
-    __tablename__ = "turnos_empleados"
+    __tablename__ = "levelup_turnos_empleados"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     no_empleado: Mapped[str] = mapped_column(

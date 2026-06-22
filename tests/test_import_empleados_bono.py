@@ -1,4 +1,15 @@
-"""Tests unitarios de import_empleados_bono (sin BD externa)."""
+"""Tests unitarios de import_empleados_bono (sin BD externa).
+
+DESACTIVADO: el proyecto migró a una sola BD (Bono) y lee `empleados` en vivo;
+ya no hay sincronización Bono→copia local. El flujo de importación quedó
+deshabilitado (ver BONO_EMPLEADOS_IMPORT_ENABLED=False) y estas pruebas, que
+validaban el copiado de columnas (incluidas email/password_hash, hoy en
+levelup_empleados_core), ya no aplican.
+"""
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Import Bono→local deshabilitado: BD única Bono")
 
 from app.scripts.import_empleados_bono import (
     _aplicar_payload,

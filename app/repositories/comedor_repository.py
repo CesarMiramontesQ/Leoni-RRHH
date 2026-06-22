@@ -171,7 +171,7 @@ class ComedorRegistroRepository(BaseRepository[ComedorRegistro]):
 
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(
                 Empleado.no_empleado == num_empleado,
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),

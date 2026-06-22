@@ -127,7 +127,7 @@ async def test_admin_grants_module_to_non_rh_user(client: AsyncClient, db):
     reloaded = (
         await db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.empleado_id == director.empleado_id)
         )
     ).scalar_one()
@@ -226,7 +226,7 @@ async def test_admin_can_remove_non_rh_from_permisos(client: AsyncClient, db):
     reloaded = (
         await db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.empleado_id == gerente.empleado_id)
         )
     ).scalar_one()
@@ -268,7 +268,7 @@ async def test_can_remove_rh_user_keeps_role_drops_access(client: AsyncClient, d
     reloaded = (
         await db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.empleado_id == rh_target.empleado_id)
         )
     ).scalar_one()

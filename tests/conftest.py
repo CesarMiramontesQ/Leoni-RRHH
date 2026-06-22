@@ -38,6 +38,7 @@ from sqlalchemy.pool import StaticPool
 # Forzar importacion de todos los modelos para poblar Base.metadata
 import app.models.catalogos  # noqa: F401
 import app.models.empleados  # noqa: F401
+import app.models.empleados_rh  # noqa: F401
 import app.models.solicitudes  # noqa: F401
 import app.models.auditoria  # noqa: F401
 import app.models.roles  # noqa: F401
@@ -208,35 +209,59 @@ async def make_empleado(
 
     rol_obj = await _get_or_create_rol(db, rol)
 
+    # empleados (Bono) solo tiene identidad + atributos de Bono (sin id/rol/email/password).
     empleado = Empleado(
         empleado_id=_empleado_id,
         no_empleado=_no_empleado,
         nombre=nombre,
-        email=_email,
         usuario=usuario,
-        password_hash=hash_password(password),
-        rol_id=rol_obj.id,
         lider_id=lider_id,
         estado_id=estado_id,
         clasificacion_id=clasificacion_id,
-        fecha_fin_contrato=fecha_fin_contrato,
-        puede_administrar_permisos_rh=puede_administrar_permisos_rh,
-        puede_registrar_horas_extra=puede_registrar_horas_extra,
-        modulos_rh=modulos_rh or {},
-        inscrito_modulos_rh=inscrito_modulos_rh,
-        acceso_rh_removido=acceso_rh_removido,
         puesto_id=puesto_id,
     )
     db.add(empleado)
     await db.flush()
+
+    # Datos propios del proyecto en tablas hijas levelup_empleados_*.
+    from app.models.empleados_rh import (
+        EmpleadoCore,
+        EmpleadoRhConfig,
+        EmpleadoRhPermisos,
+    )
+
+    core = EmpleadoCore(
+        empleado_id=_empleado_id,
+        rol_id=rol_obj.id,
+        password_hash=hash_password(password),
+        email=_email,
+    )
+    config = EmpleadoRhConfig(
+        empleado_id=_empleado_id,
+        fecha_fin_contrato=fecha_fin_contrato,
+        modulos_rh=modulos_rh or {},
+        inscrito_modulos_rh=inscrito_modulos_rh,
+        acceso_rh_removido=acceso_rh_removido,
+    )
+    permisos = EmpleadoRhPermisos(
+        empleado_id=_empleado_id,
+        puede_administrar_permisos_rh=puede_administrar_permisos_rh,
+        puede_registrar_horas_extra=puede_registrar_horas_extra,
+    )
+    db.add_all([core, config, permisos])
+    await db.flush()
+
     await db.refresh(empleado)
-    empleado.rol = rol_obj
+    empleado.core = core
+    empleado.rh_config = config
+    empleado.rh_permisos = permisos
+    core.rol = rol_obj
 
     if dias_vacaciones is not None:
         from app.models.vacaciones import Vacaciones
 
         db.add(
-            Vacaciones(empleado_id=empleado.id, dias_disponibles=dias_vacaciones)
+            Vacaciones(empleado_id=empleado.empleado_id, dias_disponibles=dias_vacaciones)
         )
         await db.flush()
 

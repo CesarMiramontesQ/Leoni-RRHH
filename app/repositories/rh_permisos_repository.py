@@ -4,6 +4,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models.empleados import Empleado
+from app.models.empleados_rh import (
+    EmpleadoCore,
+    EmpleadoRhConfig,
+    ensure_rh_config,
+)
 from app.models.roles import Rol
 
 
@@ -14,7 +19,7 @@ class RhPermisosRepository:
     async def get_empleado_by_id(self, empleado_pk: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.id == empleado_pk)
         )
         return result.scalar_one_or_none()
@@ -24,15 +29,23 @@ class RhPermisosRepository:
         estado) más empleados de otros roles inscritos explícitamente por RH."""
         result = await self.db.execute(
             select(Empleado)
-            .join(Rol, Empleado.rol_id == Rol.id)
-            .options(selectinload(Empleado.rol))
+            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
+            .join(Rol, EmpleadoCore.rol_id == Rol.id)
+            .outerjoin(
+                EmpleadoRhConfig,
+                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
+            )
+            .options(selectinload(Empleado.core))
             .where(
                 or_(
                     and_(
                         Rol.nombre == "rh",
-                        Empleado.acceso_rh_removido.is_(False),
+                        or_(
+                            EmpleadoRhConfig.acceso_rh_removido.is_(False),
+                            EmpleadoRhConfig.empleado_id.is_(None),
+                        ),
                     ),
-                    Empleado.inscrito_modulos_rh.is_(True),
+                    EmpleadoRhConfig.inscrito_modulos_rh.is_(True),
                 )
             )
             .order_by(Empleado.nombre.asc())
@@ -53,14 +66,15 @@ class RhPermisosRepository:
 
         result = await self.db.execute(
             select(Empleado)
-            .join(Rol, Empleado.rol_id == Rol.id)
-            .options(selectinload(Empleado.rol))
+            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
+            .join(Rol, EmpleadoCore.rol_id == Rol.id)
+            .options(selectinload(Empleado.core))
             .where(
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(
                     Empleado.nombre.ilike(pattern),
                     Empleado.no_empleado.ilike(pattern),
-                    Empleado.email.ilike(pattern),
+                    EmpleadoCore.email.ilike(pattern),
                 ),
             )
             .order_by(Empleado.nombre.asc())
@@ -71,7 +85,7 @@ class RhPermisosRepository:
     async def get_by_empleado_id(self, empleado_id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.empleado_id == empleado_id)
         )
         return result.scalar_one_or_none()
@@ -82,23 +96,21 @@ class RhPermisosRepository:
         modulos: dict[str, bool],
         inscrito: bool | None = None,
     ) -> Empleado:
-        empleado.modulos_rh = modulos
-        attrs = ["modulos_rh"]
+        config = ensure_rh_config(self.db, empleado)
+        config.modulos_rh = modulos
         if inscrito is not None:
-            empleado.inscrito_modulos_rh = inscrito
-            attrs.append("inscrito_modulos_rh")
+            config.inscrito_modulos_rh = inscrito
         await self.db.flush()
-        await self.db.refresh(empleado, attribute_names=attrs)
         refreshed = await self.get_by_empleado_id(empleado.empleado_id)
         return refreshed or empleado
 
     async def set_inscripcion(
         self, empleado: Empleado, inscrito: bool, modulos: dict[str, bool]
     ) -> Empleado:
-        empleado.inscrito_modulos_rh = inscrito
-        empleado.modulos_rh = modulos
+        config = ensure_rh_config(self.db, empleado)
+        config.inscrito_modulos_rh = inscrito
+        config.modulos_rh = modulos
         await self.db.flush()
-        await self.db.refresh(empleado, attribute_names=["inscrito_modulos_rh", "modulos_rh"])
         refreshed = await self.get_by_empleado_id(empleado.empleado_id)
         return refreshed or empleado
 
@@ -107,9 +119,9 @@ class RhPermisosRepository:
     ) -> Empleado:
         """Marca/desmarca a un usuario RH como removido de la administración de
         permisos y fija sus accesos (el rol nunca cambia)."""
-        empleado.acceso_rh_removido = removido
-        empleado.modulos_rh = modulos
+        config = ensure_rh_config(self.db, empleado)
+        config.acceso_rh_removido = removido
+        config.modulos_rh = modulos
         await self.db.flush()
-        await self.db.refresh(empleado, attribute_names=["acceso_rh_removido", "modulos_rh"])
         refreshed = await self.get_by_empleado_id(empleado.empleado_id)
         return refreshed or empleado

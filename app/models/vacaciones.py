@@ -13,11 +13,11 @@ if TYPE_CHECKING:
 class Vacaciones(Base):
     """Saldo de días de vacaciones por empleado (fuente local, no TRESS)."""
 
-    __tablename__ = "vacaciones"
+    __tablename__ = "levelup_vacaciones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     empleado_id: Mapped[int] = mapped_column(
-        ForeignKey("empleados.id"),
+        ForeignKey("empleados.empleado_id"),
         unique=True,
         nullable=False,
     )

@@ -9,6 +9,12 @@ from app.models.catalogos import (
     Subarea,
 )
 from app.models.empleados import Empleado
+from app.models.empleados_rh import (
+    EmpleadoCore,
+    EmpleadoRhConfig,
+    EmpleadoRhHorasExtra,
+    EmpleadoRhPermisos,
+)
 from app.models.turnos_empleados import TurnoEmpleado
 from app.models.vacaciones import Vacaciones
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
@@ -80,6 +86,10 @@ __all__ = [
     "EstadoEmpleado",
     "ClasificacionEmpleado",
     "Empleado",
+    "EmpleadoCore",
+    "EmpleadoRhConfig",
+    "EmpleadoRhPermisos",
+    "EmpleadoRhHorasExtra",
     "TurnoEmpleado",
     "Vacaciones",
     "Solicitud",

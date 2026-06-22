@@ -9,7 +9,7 @@ from app.core.database import Base
 
 
 class TressRobotQueue(Base):
-    __tablename__ = "tress_robot_queue"
+    __tablename__ = "levelup_tress_robot_queue"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     accion: Mapped[str] = mapped_column(String(100), nullable=False)

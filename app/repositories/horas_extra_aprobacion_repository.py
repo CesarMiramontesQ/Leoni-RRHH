@@ -72,11 +72,13 @@ class HorasExtraAprobacionRepository:
         return list(result.scalars().unique().all())
 
     async def empleados_por_rol(self, rol_nombre: str) -> list[Empleado]:
+        from app.models.empleados_rh import EmpleadoCore
         from app.models.roles import Rol
 
         result = await self.db.execute(
             select(Empleado)
-            .join(Rol, Rol.id == Empleado.rol_id)
+            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
+            .join(Rol, Rol.id == EmpleadoCore.rol_id)
             .where(Rol.nombre == rol_nombre)
         )
         return list(result.scalars().unique().all())
@@ -408,7 +410,7 @@ class HorasExtraAprobacionRepository:
     async def list_eventos_auditoria(self, solicitud_id: int) -> list[AuditLog]:
         stmt = (
             select(AuditLog)
-            .options(selectinload(AuditLog.usuario).selectinload(Empleado.rol))
+            .options(selectinload(AuditLog.usuario).selectinload(Empleado.core))
             .where(
                 AuditLog.modulo == HE_AUDIT_MODULO,
                 AuditLog.entidad_id == solicitud_id,

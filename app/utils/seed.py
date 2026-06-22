@@ -384,46 +384,45 @@ async def seed_roles(db) -> dict[str, int]:
 
 
 async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
-    """Crea un usuario si no existe."""
-    result = await db.execute(
-        select(Empleado).where(Empleado.email == user_data["email"])
-    )
-    existing = result.scalar_one_or_none()
+    """Crea/asegura un usuario. rol, email y password viven en levelup_empleados_core;
+    `empleados` (Bono) solo guarda identidad. En Bono real el empleado ya existe; en
+    dev/local se crea para conveniencia."""
+    from app.models.empleados_rh import ensure_core, ensure_rh_permisos
 
     admin_flag = bool(user_data.get("puede_administrar_permisos_rh", False))
 
-    if existing:
-        if admin_flag and not existing.puede_administrar_permisos_rh:
-            existing.puede_administrar_permisos_rh = True
-            await db.flush()
-            logger.info(
-                "  %s actualizado — puede_administrar_permisos_rh=True (id=%d)",
-                label,
-                existing.id,
-            )
-        else:
-            logger.info(
-                "  %s ya existe (id=%d, email=%s) — sin cambios",
-                label,
-                existing.id,
-                existing.email,
-            )
-        return
-
-    emp = Empleado(
-        empleado_id=user_data["empleado_id"],
-        no_empleado=user_data["no_empleado"],
-        nombre=user_data["nombre"],
-        email=user_data["email"],
-        usuario=user_data["usuario"],
-        password_hash=hash_password(user_data["password"]),
-        rol_id=rol_id,
-        estado_id=user_data["estado_id"],
-        puede_administrar_permisos_rh=admin_flag,
+    existing = await db.execute(
+        select(Empleado).where(Empleado.empleado_id == user_data["empleado_id"])
     )
-    db.add(emp)
+    emp = existing.scalar_one_or_none()
+
+    if emp is None:
+        # Dev/local: no hay Bono, se crea la fila identidad.
+        emp = Empleado(
+            empleado_id=user_data["empleado_id"],
+            no_empleado=user_data["no_empleado"],
+            nombre=user_data["nombre"],
+            usuario=user_data["usuario"],
+            estado_id=user_data["estado_id"],
+        )
+        db.add(emp)
+        await db.flush()
+
+    core = ensure_core(db, emp)
+    if core.rol_id is None:
+        core.rol_id = rol_id
+    if not core.password_hash:
+        core.password_hash = hash_password(user_data["password"])
+    if not core.email:
+        core.email = user_data["email"]
     await db.flush()
-    logger.info("  %s creado (id=%d, email=%s)", label, emp.id, emp.email)
+
+    if admin_flag:
+        permisos = ensure_rh_permisos(db, emp)
+        permisos.puede_administrar_permisos_rh = True
+        await db.flush()
+
+    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, core.email)
 
 
 async def seed_level_up(db) -> None:

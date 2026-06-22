@@ -185,7 +185,7 @@ async def test_login_por_email_empleado_exitoso_y_me_retorna_email(
 async def test_login_legacy_password_texto_plano_en_columna(client: AsyncClient, db):
     """BD legada: `password_hash` puede ser la contraseña inicial en claro (p. ej. no_empleado)."""
     empleado = await make_empleado(db, rol="empleado", email="legacy_plain@leoni.test")
-    empleado.password_hash = "RH-7777"
+    empleado.core.password_hash = "RH-7777"
     await db.flush()
 
     response = await client.post(
@@ -201,7 +201,7 @@ async def test_login_legacy_password_texto_plano_en_columna(client: AsyncClient,
 @pytest.mark.asyncio
 async def test_login_legacy_texto_plano_incorrecto_retorna_401(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", email="legacy_wrong@leoni.test")
-    empleado.password_hash = "solo_esto"
+    empleado.core.password_hash = "solo_esto"
     await db.flush()
 
     response = await client.post(
@@ -350,7 +350,7 @@ async def test_refresh_sincroniza_rol_desde_bd(client: AsyncClient, db):
     refresh_token = login_resp.json()["refresh_token"]
 
     sup = await make_empleado(db, rol="supervisor", email="rolsync-sup2@leoni.test")
-    empleado.rol_id = sup.rol_id
+    empleado.core.rol_id = sup.rol_id
     await db.flush()
 
     response = await client.post(
@@ -382,7 +382,7 @@ async def test_refresh_tras_cambio_rol_permite_mis_reservas_si_vuelve_a_empleado
     assert decode_token(login_resp.json()["access_token"]).get("rol") == "supervisor"
 
     emp = await make_empleado(db, rol="empleado", email="rolback-emp@leoni.test")
-    empleado.rol_id = emp.rol_id
+    empleado.core.rol_id = emp.rol_id
     await db.flush()
 
     refresh_resp = await client.post(

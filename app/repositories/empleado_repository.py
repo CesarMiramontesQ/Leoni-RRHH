@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.empleados import Empleado
+from app.models.empleados_rh import EmpleadoCore
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
 
@@ -30,11 +31,12 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             return None
         result = await self.db.execute(
             select(Empleado)
+            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
-            .where(func.lower(Empleado.email) == normalized_email)
+            .where(func.lower(EmpleadoCore.email) == normalized_email)
         )
         return result.scalar_one_or_none()
 
@@ -45,7 +47,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(Empleado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
             .where(
@@ -63,7 +65,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(Empleado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
             .where(
@@ -99,7 +101,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_with_rol(self, id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol), selectinload(Empleado.puesto))
+            .options(selectinload(Empleado.core), selectinload(Empleado.puesto))
             .where(Empleado.id == id)
         )
         return result.scalar_one_or_none()
@@ -128,7 +130,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_with_rol_by_empleado_id(self, empleado_id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.empleado_id == empleado_id)
         )
         return result.scalar_one_or_none()

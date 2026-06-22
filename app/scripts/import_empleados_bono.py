@@ -30,9 +30,15 @@ from app.core.database import AsyncSessionLocal, engine as main_engine
 from app.core.security import SYNC_PLACEHOLDER_PASSWORD_HASH
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
 from app.models.empleados import Empleado
+from app.models.empleados_rh import ensure_rh_config, ensure_rh_permisos
 from app.models.roles import Rol
 
 logger = logging.getLogger(__name__)
+
+# Columnas exclusivas de RRHH: viven en empleados_rh_* (no en bono.empleados ni
+# en la intersección de columnas). _columnas_locales() deriva del modelo, así que
+# al no estar mapeadas en Empleado ya quedan fuera del payload de sincronización;
+# la sync nunca las lee ni las escribe.
 
 _COLUMNA_PK_LOCAL = "id"
 _COLUMNA_PASSWORD_BONO = "password"
@@ -380,6 +386,9 @@ async def ejecutar_importacion(*, execute: bool, limit: int | None) -> ImportSta
                 db.add(nuevo)
                 await db.flush()
                 await db.refresh(nuevo)
+                # Filas RH propias con defaults; nunca provienen de Bono.
+                ensure_rh_config(db, nuevo)
+                ensure_rh_permisos(db, nuevo)
                 by_empleado_id[int(nuevo.empleado_id)] = nuevo
                 stats.creados += 1
                 continue
