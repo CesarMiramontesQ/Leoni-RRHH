@@ -189,3 +189,67 @@ async def test_eliminar_menu_semana(client: AsyncClient, db):
     )
     assert listed.status_code == 200, listed.text
     assert listed.json() == []
+
+
+@pytest.mark.asyncio
+async def test_publicar_menu_no_rh_con_modulo_comedor(client: AsyncClient, db):
+    """Usuario inscrito con módulo comedor (RH Admin) puede registrar planeación sin rol RH."""
+    rh = await make_empleado(db, rol="rh", email="rh_menu_setup@test.leoni", password="RhSetUp1!")
+    rh_hdrs = await auth_headers(client, rh, password="RhSetUp1!")
+    comedor_id = await _crear_comedor(client, rh_hdrs)
+
+    operador = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_menu_planeacion@test.leoni",
+        password="EmpPl4n!",
+        inscrito_modulos_rh=True,
+        modulos_rh={"comedor": True},
+    )
+    hdrs = await auth_headers(client, operador, password="EmpPl4n!")
+    semana = date(2026, 5, 4)
+
+    r = await client.post(
+        MENU_URL,
+        json={
+            "comedor_id": comedor_id,
+            "semana": semana.isoformat(),
+            "dia": "lunes",
+            "tipo": "normal",
+            "descripcion": "Menú operador",
+        },
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["descripcion"] == "Menú operador"
+
+
+@pytest.mark.asyncio
+async def test_publicar_menu_no_rh_sin_modulo_comedor(client: AsyncClient, db):
+    """Usuario sin módulo comedor no puede registrar planeación aunque esté autenticado."""
+    rh = await make_empleado(db, rol="rh", email="rh_menu_deny@test.leoni", password="RhDeny1!")
+    rh_hdrs = await auth_headers(client, rh, password="RhDeny1!")
+    comedor_id = await _crear_comedor(client, rh_hdrs)
+
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_sin_comedor@test.leoni",
+        password="EmpSin1!",
+    )
+    hdrs = await auth_headers(client, empleado, password="EmpSin1!")
+
+    r = await client.post(
+        MENU_URL,
+        json={
+            "comedor_id": comedor_id,
+            "semana": date(2026, 5, 11).isoformat(),
+            "dia": "martes",
+            "tipo": "normal",
+            "descripcion": "No permitido",
+        },
+        headers=hdrs,
+    )
+    assert r.status_code == 403, r.text
+    assert "rh" not in r.json()["detail"].lower()
+    assert "módulo" in r.json()["detail"].lower() or "comedor" in r.json()["detail"].lower()

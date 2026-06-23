@@ -101,7 +101,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/comedor/rh",
             "/api/v1/comedor/accesos/rh",
             "/api/v1/comedor/comedores",
-            "/api/v1/comedor/menus",
+            "/api/v1/comedor/menu",
             "/api/v1/comedor/codigos-externos",
         ),
     ),

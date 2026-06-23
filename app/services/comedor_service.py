@@ -479,7 +479,7 @@ class ComedorService:
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalResponse:
         if not user_has_module(current_user, "comedor"):
-            raise ForbiddenError(detail="Solo RH puede publicar menus")
+            raise ForbiddenError(detail="No tienes acceso al módulo de comedor.")
 
         payload = {
             **data.model_dump(),
@@ -516,7 +516,7 @@ class ComedorService:
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalDeleteResponse:
         if not user_has_module(current_user, "comedor"):
-            raise ForbiddenError(detail="Solo RH puede eliminar menus")
+            raise ForbiddenError(detail="No tienes acceso al módulo de comedor.")
 
         comedor = await self.comedor_repo.get(comedor_id)
         if comedor is None:
