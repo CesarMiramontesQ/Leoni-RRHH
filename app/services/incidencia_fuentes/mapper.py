@@ -1,17 +1,14 @@
 """
 Transformación centralizada de filas de fuentes externas al contrato IncidenciaResponse.
 
-Supuestos de mapeo (calidad_historico):
-- ``origen_id`` ← ``calidad_historico.id`` (identificador en bono).
-- ``id`` ← ``origen_id`` (la UI usa el id de la fuente; no hay fila en levelup_incidencias).
-- ``tipo_incidencia`` ← siempre ``Calidad`` en esta fase.
-- ``tipo`` ← ``Calidad`` (compatibilidad con filtros y analítica existentes).
-- ``categoria`` ← ``incidencia_categoria.nombre`` (subclasificación de negocio en bono).
-- ``detalle`` ← ``calidad_historico.motivo``.
-- ``fecha`` ← ``calidad_historico.fecha``.
-- ``area`` / ``subarea`` ← descripciones de catálogo (``areas`` / ``subareas``), no los IDs crudos.
-- ``origen`` ← ``calidad_historico``.
-- ``created_at`` / ``updated_at`` ← derivados de ``fecha`` (sin timestamps en la fuente).
+Mapeo calidad_historico:
+- ``detalle`` ← ``motivo``; ``categoria`` ← ``incidencia_categoria.nombre``
+
+Mapeo seguridad_historico:
+- ``detalle`` ← ``observaciones``; ``categoria`` ← ``ponderacion_seguridad.descripcion``
+
+Ambas fuentes exponen ``origen``, ``origen_id`` y ``tipo_incidencia`` en la consulta unificada.
+El ``id`` de respuesta es sintético (offset por origen) para evitar colisiones entre tablas.
 """
 
 from __future__ import annotations
@@ -22,8 +19,21 @@ from typing import Any
 from app.schemas.incidencias import IncidenciaResponse
 from app.services.incidencia_fuentes.constants import (
     ORIGEN_CALIDAD_HISTORICO,
+    ORIGEN_SEGURIDAD_HISTORICO,
     TIPO_INCIDENCIA_CALIDAD,
+    TIPO_INCIDENCIA_SEGURIDAD,
 )
+
+_ORIGEN_ID_OFFSET: dict[str, int] = {
+    ORIGEN_CALIDAD_HISTORICO: 1_000_000_000,
+    ORIGEN_SEGURIDAD_HISTORICO: 2_000_000_000,
+}
+
+
+def synthetic_incidencia_id(origen: str, origen_id: int) -> int:
+    """ID estable y único entre fuentes históricas de bono."""
+    base = _ORIGEN_ID_OFFSET.get(origen, 0)
+    return base + int(origen_id)
 
 
 def _epoch_from_fecha(fecha: date | None) -> datetime:
@@ -37,6 +47,7 @@ def map_fuente_row_to_incidencia_response(
     *,
     tipo_incidencia: str,
     origen: str,
+    response_id: int | None = None,
 ) -> IncidenciaResponse:
     """Normaliza una fila de repositorio de fuente al schema de respuesta de incidencias."""
     origen_id = int(row["origen_id"])
@@ -53,9 +64,10 @@ def map_fuente_row_to_incidencia_response(
     ts = _epoch_from_fecha(fecha)
     categoria = row.get("categoria")
     cat_txt = str(categoria).strip() if categoria is not None and str(categoria).strip() else None
+    api_id = response_id if response_id is not None else synthetic_incidencia_id(origen, origen_id)
 
     return IncidenciaResponse(
-        id=origen_id,
+        id=api_id,
         empleado_id=empleado_id,
         tipo=tipo_incidencia,
         tipo_incidencia=tipo_incidencia,
@@ -78,10 +90,30 @@ def map_fuente_row_to_incidencia_response(
     )
 
 
+def map_historico_row(row: dict[str, Any]) -> IncidenciaResponse:
+    """Mapea una fila de la consulta unificada (calidad + seguridad)."""
+    origen = str(row["origen"])
+    tipo_incidencia = str(row["tipo_incidencia"])
+    return map_fuente_row_to_incidencia_response(
+        row,
+        tipo_incidencia=tipo_incidencia,
+        origen=origen,
+    )
+
+
 def map_calidad_historico_row(row: dict[str, Any]) -> IncidenciaResponse:
     """Atajo para filas de ``calidad_historico``."""
     return map_fuente_row_to_incidencia_response(
         row,
         tipo_incidencia=TIPO_INCIDENCIA_CALIDAD,
         origen=ORIGEN_CALIDAD_HISTORICO,
+    )
+
+
+def map_seguridad_historico_row(row: dict[str, Any]) -> IncidenciaResponse:
+    """Atajo para filas de ``seguridad_historico``."""
+    return map_fuente_row_to_incidencia_response(
+        row,
+        tipo_incidencia=TIPO_INCIDENCIA_SEGURIDAD,
+        origen=ORIGEN_SEGURIDAD_HISTORICO,
     )

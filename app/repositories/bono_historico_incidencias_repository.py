@@ -1,7 +1,7 @@
 """
-Repositorio de solo lectura: incidencias desde ``calidad_historico`` (bono_productividad).
+Repositorio unificado de incidencias históricas (calidad_historico + seguridad_historico).
 
-La consulta base vive en ``sql/calidad_historico_incidencias_base.sql``.
+La consulta base vive en ``sql/incidencias_historico_unificado_base.sql``.
 """
 
 from __future__ import annotations
@@ -13,99 +13,111 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.services.incidencia_fuentes.constants import TIPO_INCIDENCIA_CALIDAD
+from app.services.incidencia_fuentes.constants import (
+    TIPO_INCIDENCIA_CALIDAD,
+    TIPO_INCIDENCIA_SEGURIDAD,
+)
 from app.services.incidencia_fuentes.types import IncidenciaFuenteFilters
 
 _SQL_BASE_FILE = (
-    Path(__file__).resolve().parent / "sql" / "calidad_historico_incidencias_base.sql"
+    Path(__file__).resolve().parent / "sql" / "incidencias_historico_unificado_base.sql"
 )
 _SIN_AREA = "(sin área)"
 _SIN_SUBAREA = "(sin subárea)"
 
 
-def load_calidad_historico_incidencias_base_sql() -> str:
+def load_incidencias_historico_unificado_base_sql() -> str:
     return _SQL_BASE_FILE.read_text(encoding="utf-8")
 
 
-def _tipo_incluye_calidad(tipo: str | None) -> bool:
+def _tipos_incluidos(tipo: str | None) -> set[str] | None:
+    """None = ambos tipos; set vacío = ningún resultado."""
     if not tipo or not tipo.strip():
-        return True
+        return None
     t = tipo.strip().lower()
-    return t in ("calidad", TIPO_INCIDENCIA_CALIDAD.lower())
+    if t in ("calidad", TIPO_INCIDENCIA_CALIDAD.lower()):
+        return {TIPO_INCIDENCIA_CALIDAD}
+    if t in ("seguridad", TIPO_INCIDENCIA_SEGURIDAD.lower()):
+        return {TIPO_INCIDENCIA_SEGURIDAD}
+    return set()
 
 
-class CalidadHistoricoIncidenciasRepository:
-    """Ejecuta listados y agregados sobre ``calidad_historico`` con parámetros enlazados."""
+class BonoHistoricoIncidenciasRepository:
+    """Listados y agregados sobre fuentes históricas de bono con filtros compartidos."""
 
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
-        self._base_sql = load_calidad_historico_incidencias_base_sql()
+        self._base_sql = load_incidencias_historico_unificado_base_sql()
 
     def _build_where(self, filters: IncidenciaFuenteFilters) -> tuple[str, dict[str, Any]]:
-        if not _tipo_incluye_calidad(filters.tipo):
+        tipos = _tipos_incluidos(filters.tipo)
+        if tipos is not None and not tipos:
             return "WHERE 1=0", {}
 
-        clauses = [
-            "ch.motivo IS NOT NULL",
-            "TRIM(ch.motivo) <> ''",
-            "ch.id_empleado IS NOT NULL",
-            "ch.fecha IS NOT NULL",
-            "EXTRACT(YEAR FROM ch.fecha) BETWEEN 1900 AND 2100",
-        ]
+        clauses: list[str] = []
         params: dict[str, Any] = {}
+
+        if tipos is not None:
+            clauses.append("tipo_incidencia = ANY(:f_tipos_incidencia)")
+            params["f_tipos_incidencia"] = list(tipos)
 
         if filters.empleado_ids_scope is not None:
             if not filters.empleado_ids_scope:
                 return "WHERE 1=0", {}
-            clauses.append("ch.id_empleado = ANY(:f_empleado_ids_scope)")
+            clauses.append("empleado_id = ANY(:f_empleado_ids_scope)")
             params["f_empleado_ids_scope"] = filters.empleado_ids_scope
 
         if filters.empleado_id is not None:
-            clauses.append("ch.id_empleado = :f_empleado_id")
+            clauses.append("empleado_id = :f_empleado_id")
             params["f_empleado_id"] = filters.empleado_id
 
         if filters.no_empleado and filters.no_empleado.strip():
-            clauses.append("CAST(e.no_empleado AS text) ILIKE :f_no_empleado")
+            clauses.append("no_empleado ILIKE :f_no_empleado")
             params["f_no_empleado"] = f"%{filters.no_empleado.strip()}%"
 
         if filters.nombre and filters.nombre.strip():
-            clauses.append("e.nombre ILIKE :f_nombre")
+            clauses.append("nombre ILIKE :f_nombre")
             params["f_nombre"] = f"%{filters.nombre.strip()}%"
 
         if filters.fecha is not None:
-            clauses.append("CAST(ch.fecha AS date) = :f_fecha")
+            clauses.append("fecha = :f_fecha")
             params["f_fecha"] = filters.fecha
 
         if filters.categoria and filters.categoria.strip():
-            clauses.append("cat.nombre ILIKE :f_categoria")
+            clauses.append("categoria ILIKE :f_categoria")
             params["f_categoria"] = f"%{filters.categoria.strip()}%"
 
         if filters.area and filters.area.strip():
             clauses.append(
-                "COALESCE(NULLIF(TRIM(a.descripcion), ''), :f_sin_area) = :f_area"
+                "COALESCE(NULLIF(TRIM(area), ''), :f_sin_area) = :f_area"
             )
             params["f_sin_area"] = _SIN_AREA
             params["f_area"] = filters.area.strip()
 
         if filters.subarea and filters.subarea.strip():
             clauses.append(
-                "COALESCE(NULLIF(TRIM(s.descripcion), ''), :f_sin_subarea) = :f_subarea"
+                "COALESCE(NULLIF(TRIM(subarea), ''), :f_sin_subarea) = :f_subarea"
             )
             params["f_sin_subarea"] = _SIN_SUBAREA
             params["f_subarea"] = filters.subarea.strip()
 
         if filters.fecha_inicio is not None:
-            clauses.append("CAST(ch.fecha AS date) >= :f_fecha_inicio")
+            clauses.append("fecha >= :f_fecha_inicio")
             params["f_fecha_inicio"] = filters.fecha_inicio
 
         if filters.fecha_fin is not None:
-            clauses.append("CAST(ch.fecha AS date) <= :f_fecha_fin")
+            clauses.append("fecha <= :f_fecha_fin")
             params["f_fecha_fin"] = filters.fecha_fin
 
+        if not clauses:
+            return "", params
         return "WHERE " + " AND ".join(clauses), params
 
     def _from_sql(self, where_sql: str) -> str:
-        return f"{self._base_sql}\n{where_sql}"
+        base = f"SELECT * FROM ({self._base_sql}) AS historico"
+        if where_sql:
+            return f"{base}\n{where_sql}"
+        return base
 
     async def count(self, filters: IncidenciaFuenteFilters) -> int:
         where_sql, params = self._build_where(filters)
@@ -114,6 +126,23 @@ class CalidadHistoricoIncidenciasRepository:
             result = await conn.execute(text(sql), params)
             row = result.mappings().first()
             return int(row["cnt"]) if row else 0
+
+    async def count_por_tipo_incidencia(
+        self, filters: IncidenciaFuenteFilters
+    ) -> dict[str, int]:
+        where_sql, params = self._build_where(filters)
+        sql = (
+            f"SELECT tipo_incidencia, COUNT(*) AS cnt "
+            f"FROM ({self._from_sql(where_sql)}) AS sub "
+            "GROUP BY tipo_incidencia"
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            out = {TIPO_INCIDENCIA_CALIDAD: 0, TIPO_INCIDENCIA_SEGURIDAD: 0}
+            for row in result.mappings().all():
+                t = str(row["tipo_incidencia"])
+                out[t] = int(row["cnt"])
+            return out
 
     async def list_offset(
         self,
@@ -124,7 +153,7 @@ class CalidadHistoricoIncidenciasRepository:
         where_sql, params = self._build_where(filters)
         sql = (
             f"SELECT * FROM ({self._from_sql(where_sql)}) AS sub "
-            "ORDER BY fecha DESC NULLS LAST, origen_id DESC "
+            "ORDER BY fecha DESC NULLS LAST, origen ASC, origen_id DESC "
             "OFFSET :f_offset LIMIT :f_limit"
         )
         params = {**params, "f_offset": max(0, offset), "f_limit": limit}
@@ -247,6 +276,19 @@ class CalidadHistoricoIncidenciasRepository:
                 )
             return out
 
+    async def aggregate_tipos_con_totales(
+        self, filters: IncidenciaFuenteFilters
+    ) -> list[tuple[str, int]]:
+        where_sql, params = self._build_where(filters)
+        sql = (
+            f"SELECT tipo_incidencia AS tipo, COUNT(*) AS cnt "
+            f"FROM ({self._from_sql(where_sql)}) AS sub "
+            "GROUP BY tipo_incidencia ORDER BY cnt DESC"
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            return [(str(r["tipo"]), int(r["cnt"])) for r in result.mappings().all()]
+
     async def aggregate_totales_por_mes(
         self,
         filters: IncidenciaFuenteFilters,
@@ -286,11 +328,11 @@ class CalidadHistoricoIncidenciasRepository:
         periodo_max = f"{hoy.year:04d}-{hoy.month:02d}"
         where_sql, params = self._build_where(filters)
         sql = (
-            f"SELECT to_char(fecha, 'YYYY-MM') AS periodo, "
-            f"'{TIPO_INCIDENCIA_CALIDAD}' AS tipo, COUNT(*) AS cnt "
+            "SELECT to_char(fecha, 'YYYY-MM') AS periodo, "
+            "tipo_incidencia AS tipo, COUNT(*) AS cnt "
             f"FROM ({self._from_sql(where_sql)}) AS sub "
             "WHERE fecha IS NOT NULL AND fecha <= :f_hoy "
-            "GROUP BY periodo ORDER BY periodo ASC"
+            "GROUP BY periodo, tipo_incidencia ORDER BY periodo ASC"
         )
         params = {**params, "f_hoy": hoy}
         async with self._engine.connect() as conn:
@@ -303,7 +345,7 @@ class CalidadHistoricoIncidenciasRepository:
                 ps = str(p).strip()
                 if len(ps) != 7 or ps[4] != "-" or ps > periodo_max:
                     continue
-                out.append((ps, TIPO_INCIDENCIA_CALIDAD, int(r["cnt"])))
+                out.append((ps, str(r["tipo"]), int(r["cnt"])))
             return out
 
     async def aggregate_totales_por_periodo_y_tipo(
@@ -322,10 +364,10 @@ class CalidadHistoricoIncidenciasRepository:
         where_sql, params = self._build_where(filters)
         sql = (
             f"SELECT {period_expr} AS periodo, "
-            f"'{TIPO_INCIDENCIA_CALIDAD}' AS tipo, COUNT(*) AS cnt "
+            "tipo_incidencia AS tipo, COUNT(*) AS cnt "
             f"FROM ({self._from_sql(where_sql)}) AS sub "
             "WHERE fecha IS NOT NULL "
-            "GROUP BY periodo ORDER BY periodo ASC"
+            "GROUP BY periodo, tipo_incidencia ORDER BY periodo ASC"
         )
         async with self._engine.connect() as conn:
             result = await conn.execute(text(sql), params)
@@ -337,5 +379,5 @@ class CalidadHistoricoIncidenciasRepository:
                 ps = str(p).strip()
                 if not ps:
                     continue
-                out.append((ps, TIPO_INCIDENCIA_CALIDAD, int(r["cnt"])))
+                out.append((ps, str(r["tipo"]), int(r["cnt"])))
             return out

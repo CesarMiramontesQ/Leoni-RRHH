@@ -1,8 +1,7 @@
 """
 Servicio agregador de fuentes de incidencias por tipo.
 
-Fase actual: solo ``calidad_historico``. Futuro: añadir ``seguridad_historico``
-sin refactorizar el contrato de salida.
+Fuentes activas: ``calidad_historico`` y ``seguridad_historico`` (consulta unificada).
 """
 
 from __future__ import annotations
@@ -17,8 +16,8 @@ from app.core.data_scope import effective_data_scope_rol
 from app.core.exceptions import ServiceUnavailableError
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
 from app.models.empleados import Empleado
-from app.repositories.calidad_historico_incidencias_repository import (
-    CalidadHistoricoIncidenciasRepository,
+from app.repositories.bono_historico_incidencias_repository import (
+    BonoHistoricoIncidenciasRepository,
 )
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.incidencias import (
@@ -36,9 +35,10 @@ from app.schemas.incidencias import (
 )
 from app.services.incidencia_fuentes.constants import (
     TIPO_INCIDENCIA_CALIDAD,
+    TIPO_INCIDENCIA_SEGURIDAD,
     TIPOS_INCIDENCIA_REGISTRADOS,
 )
-from app.services.incidencia_fuentes.mapper import map_calidad_historico_row
+from app.services.incidencia_fuentes.mapper import map_historico_row
 from app.services.incidencia_fuentes.types import IncidenciaFuenteFilters
 
 
@@ -101,13 +101,13 @@ class IncidenciaFuentesService:
             empleado_ids_scope=empleado_ids_scope,
         )
 
-    async def _with_calidad_repo(self):
+    async def _with_bono_repo(self):
         engine = BonoProductividadReadClient.create_read_engine()
         if engine is None:
             raise ServiceUnavailableError(
                 "Base bono_productividad no configurada (variables BONO_DB_*)."
             )
-        return engine, CalidadHistoricoIncidenciasRepository(engine)
+        return engine, BonoHistoricoIncidenciasRepository(engine)
 
     async def _enriquecer_response(self, item: IncidenciaResponse) -> None:
         emp = None
@@ -162,7 +162,7 @@ class IncidenciaFuentesService:
             empleado_ids_scope=scope_ids,
         )
 
-        engine, repo = await self._with_calidad_repo()
+        engine, repo = await self._with_bono_repo()
         try:
             total = await repo.count(filters)
             offset = (page - 1) * page_size
@@ -175,7 +175,7 @@ class IncidenciaFuentesService:
             rows = await repo.list_offset(offset, page_size, filters)
             response_items: list[IncidenciaResponse] = []
             for row in rows:
-                r = map_calidad_historico_row(row)
+                r = map_historico_row(row)
                 await self._enriquecer_response(r)
                 response_items.append(r)
 
@@ -193,7 +193,7 @@ class IncidenciaFuentesService:
             )
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
-                f"Error al consultar calidad_historico: {type(exc).__name__}: {exc}"
+                f"Error al consultar incidencias históricas en bono: {type(exc).__name__}: {exc}"
             ) from exc
         finally:
             await engine.dispose()
@@ -232,26 +232,26 @@ class IncidenciaFuentesService:
             empleado_ids_scope=scope_ids,
         )
 
-        engine, repo = await self._with_calidad_repo()
+        engine, repo = await self._with_bono_repo()
         try:
             total_incidencias = await repo.count(filters)
-            incidencias_seguridad = 0
-            incidencias_calidad = total_incidencias if total_incidencias > 0 else 0
+            conteos = await repo.count_por_tipo_incidencia(filters)
+            incidencias_calidad = conteos.get(TIPO_INCIDENCIA_CALIDAD, 0)
+            incidencias_seguridad = conteos.get(TIPO_INCIDENCIA_SEGURIDAD, 0)
 
             areas_raw = await repo.aggregate_areas_top(filters, limit=10)
             subareas_raw = await repo.aggregate_subareas_top_with_area(filters, limit=10)
             empleados_raw = await repo.aggregate_empleados_top(filters, limit=10)
+            tipos_raw = await repo.aggregate_tipos_con_totales(filters)
             mes_rows = await repo.aggregate_totales_por_mes(filters)
             mes_tipo_rows = await repo.aggregate_totales_por_mes_y_tipo(filters)
 
+            total_tipos = sum(c for _, c in tipos_raw)
             incidencias_por_tipo: list[IncidenciaTipoDistribucionItem] = []
-            if total_incidencias > 0:
+            for tipo_str, cnt in tipos_raw:
+                pct = round(100.0 * cnt / total_tipos, 2) if total_tipos > 0 else 0.0
                 incidencias_por_tipo.append(
-                    IncidenciaTipoDistribucionItem(
-                        tipo=TIPO_INCIDENCIA_CALIDAD,
-                        total=total_incidencias,
-                        porcentaje=100.0,
-                    )
+                    IncidenciaTipoDistribucionItem(tipo=tipo_str, total=cnt, porcentaje=pct)
                 )
 
             incidencias_por_mes = [
@@ -332,7 +332,7 @@ class IncidenciaFuentesService:
             )
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
-                f"Error al consultar calidad_historico: {type(exc).__name__}: {exc}"
+                f"Error al consultar incidencias históricas en bono: {type(exc).__name__}: {exc}"
             ) from exc
         finally:
             await engine.dispose()
@@ -351,12 +351,12 @@ class IncidenciaFuentesService:
             rh_ui_mode=rh_ui_mode,
             empleado_ids_scope=scope_ids,
         )
-        engine, repo = await self._with_calidad_repo()
+        engine, repo = await self._with_bono_repo()
         try:
             return await repo.distinct_areas(filters)
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
-                f"Error al consultar calidad_historico: {type(exc).__name__}: {exc}"
+                f"Error al consultar incidencias históricas en bono: {type(exc).__name__}: {exc}"
             ) from exc
         finally:
             await engine.dispose()
@@ -375,12 +375,12 @@ class IncidenciaFuentesService:
             empleado_ids_scope=scope_ids,
         )
         area_val = area.strip() if area and area.strip() else None
-        engine, repo = await self._with_calidad_repo()
+        engine, repo = await self._with_bono_repo()
         try:
             return await repo.distinct_subareas(filters, area=area_val)
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
-                f"Error al consultar calidad_historico: {type(exc).__name__}: {exc}"
+                f"Error al consultar incidencias históricas en bono: {type(exc).__name__}: {exc}"
             ) from exc
         finally:
             await engine.dispose()
