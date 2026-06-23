@@ -17,11 +17,12 @@ import {
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
-import { escolaridadLabel, esTipoEscolaridad } from "../ui/catalogoEscolaridad.ts";
+import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
 import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
-import { getPerfilCompetencias, updatePerfil } from "../api/puestos.ts";
+import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, type PerfilCualificacion } from "../api/puestos.ts";
+import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
@@ -45,14 +46,6 @@ interface Tarea {
   orden: number;
   descripcion: string;
   es_complemento: boolean;
-}
-
-interface Cualificacion {
-  id: number;
-  tipo: string;
-  situacion_deseada: string;
-  comentarios: string | null;
-  anios_minimos: number | null;
 }
 
 interface Competencia {
@@ -83,27 +76,6 @@ type ExecutiveSummary = {
 };
 
 // ── Constantes de etiquetas ─────────────────────────────────────────────
-
-const TIPO_LABELS: Record<string, string> = {
-  estudios_finalizados: "Nivel de estudios finalizados",
-  formacion_profesional: "Formación profesional/ especialización (académica)/ diplomas",
-  ampliacion_formacion: "Ampliación de la formación profesional/especialización (académica)/diplomas",
-  estudios_universitarios: "Estudios universitarios / especialización (académica)/ diplomas",
-  experiencia_profesional: "Experiencia profesional",
-  experiencia_direccion: "Experiencia de dirección/ gerencia",
-  complementos: "Complementos individuales",
-};
-
-const CUALIF_GROUPS: { key: string; label: string; tipos: string[] }[] = [
-  { key: "educacion", label: "Educación", tipos: ["estudios_finalizados", "estudios_universitarios"] },
-  {
-    key: "formacion",
-    label: "Formación y especialización",
-    tipos: ["formacion_profesional", "ampliacion_formacion"],
-  },
-  { key: "experiencia", label: "Experiencia", tipos: ["experiencia_profesional", "experiencia_direccion"] },
-  { key: "complementos", label: "Complementos", tipos: ["complementos"] },
-];
 
 const CATEGORIA_LABELS: Record<string, string> = {
   ...TIPO_COMPETENCIA_LABELS,
@@ -184,7 +156,7 @@ function formatFecha(iso: string | undefined): string | null {
 
 function computeExecutiveSummary(
   tareas: Tarea[],
-  cualificaciones: Cualificacion[],
+  cualificaciones: PerfilCualificacion[],
   competencias: Competencia[],
   empleados: number,
 ): ExecutiveSummary {
@@ -450,17 +422,15 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
   );
 }
 
-function renderCualificacionValor(c: Cualificacion): string {
-  const isNA = c.situacion_deseada === "N/A";
-  if (isNA) return badgeCancelled("No aplica");
-  if (esTipoEscolaridad(c.tipo)) return escapeHtml(escolaridadLabel(c.situacion_deseada));
-  if (c.tipo === "complementos") {
-    return `<span class="whitespace-pre-line text-sm leading-relaxed">${escapeHtml(c.situacion_deseada)}</span>`;
-  }
-  return escapeHtml(c.situacion_deseada);
+function renderCriterioDisplay(c: PerfilCualificacion): string {
+  const criterio = c.criterio_requerido as CriterioRequerido | null;
+  if (criterio?.na) return badgeCancelled("No aplica");
+  const label = labelCriterio(criterio, c.opciones);
+  if (label === "—") return `<span class="text-sm font-normal text-text-muted">Sin criterio definido</span>`;
+  return `<span class="whitespace-pre-line text-sm leading-relaxed">${escapeHtml(label)}</span>`;
 }
 
-function renderCualificaciones(cualificaciones: Cualificacion[]): string {
+function renderCualificaciones(cualificaciones: PerfilCualificacion[]): string {
   if (cualificaciones.length === 0) {
     return sectionShell(
       "ppd-cualificaciones",
@@ -476,69 +446,34 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
     );
   }
 
-  const byTipo = new Map<string, Cualificacion[]>();
+  const byTipo = new Map<string, PerfilCualificacion[]>();
   for (const c of cualificaciones) {
-    const list = byTipo.get(c.tipo) ?? [];
+    const key = c.tipo_nombre?.trim() || "Otros requisitos";
+    const list = byTipo.get(key) ?? [];
     list.push(c);
-    byTipo.set(c.tipo, list);
+    byTipo.set(key, list);
   }
 
-  const assigned = new Set<string>();
-  const groupBlocks = CUALIF_GROUPS.map((group) => {
-    const items: Cualificacion[] = [];
-    for (const tipo of group.tipos) {
-      const list = byTipo.get(tipo);
-      if (list) {
-        items.push(...list);
-        assigned.add(tipo);
-      }
-    }
-    if (items.length === 0) return "";
-    return `
+  const groupBlocks = Array.from(byTipo.entries())
+    .map(
+      ([tipoNombre, items]) => `
     <div class="ppd-cualif-group rounded-xl border border-slate-200/90 bg-gradient-to-br from-slate-50/50 to-white p-4">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(group.label)}</h3>
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(tipoNombre)}</h3>
       <div class="mt-3 flex flex-col gap-2">
         ${items
-          .map((c) => {
-            const aniosInfo =
-              c.anios_minimos != null
-                ? `<span class="ml-1 text-xs font-medium text-text-muted">(${c.anios_minimos} años mín.)</span>`
-                : "";
-            return `
+          .map(
+            (c) => `
           <article class="rounded-lg border border-slate-200/80 bg-white p-3 shadow-sm">
-            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</p>
-            <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}${aniosInfo}</div>
+            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(c.cualificacion_nombre || "Cualificación")}</p>
+            <div class="mt-1.5 font-semibold text-text-primary">${renderCriterioDisplay(c)}</div>
             ${c.comentarios ? `<p class="mt-1.5 text-xs leading-relaxed text-text-muted">${escapeHtml(c.comentarios)}</p>` : ""}
-          </article>`;
-          })
-          .join("")}
-      </div>
-    </div>`;
-  }).join("");
-
-  const otrosTipos = Array.from(byTipo.entries()).filter(([tipo]) => !assigned.has(tipo));
-  const otrosBlock =
-    otrosTipos.length === 0
-      ? ""
-      : `
-    <div class="ppd-cualif-group rounded-xl border border-slate-200/90 bg-slate-50/50 p-4">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Otros requisitos</h3>
-      <div class="mt-3 flex flex-col gap-2">
-        ${otrosTipos
-          .map(([, items]) =>
-            items
-              .map(
-                (c) => `
-          <article class="rounded-lg border border-slate-200/80 bg-white p-3">
-            <p class="text-[10px] font-medium text-text-muted">${escapeHtml(TIPO_LABELS[c.tipo] ?? c.tipo)}</p>
-            <div class="mt-1.5 text-sm font-semibold text-text-primary">${renderCualificacionValor(c)}</div>
           </article>`,
-              )
-              .join(""),
           )
           .join("")}
       </div>
-    </div>`;
+    </div>`,
+    )
+    .join("");
 
   return sectionShell(
     "ppd-cualificaciones",
@@ -547,7 +482,7 @@ function renderCualificaciones(cualificaciones: Cualificacion[]): string {
     cualificaciones.length,
     "edit-cualificaciones",
     "Editar calificaciones",
-    `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${groupBlocks}${otrosBlock}</div>`,
+    `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${groupBlocks}</div>`,
   );
 }
 
@@ -774,7 +709,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
     const [puesto, tareas, cualificaciones, competencias, asignaciones, cursosAsignados, grados] = await Promise.all([
       fetchJson<PuestoPerfilInfo>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
-      fetchJson<Cualificacion[]>(`/api/v1/perfiles/${perfilId}/cualificaciones`, token),
+      getPerfilCualificaciones(perfilId).catch(() => [] as PerfilCualificacion[]),
       loadCompetenciasPerfil(perfilId),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
       getCursosPuesto(perfilId).catch(() => [] as CursoPuestoItem[]),
