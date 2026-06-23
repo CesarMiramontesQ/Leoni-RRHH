@@ -75,3 +75,10 @@ export const AJUSTES_METODOS_CALIFICACION_CHANGED = "ajustes:metodos-calificacio
 export function notifyAjustesMetodosCalificacionChanged(): void {
   document.dispatchEvent(new CustomEvent(AJUSTES_METODOS_CALIFICACION_CHANGED));
 }
+
+/** Disparado cuando cambia el catálogo de grupos de competencia. */
+export const AJUSTES_GRUPOS_COMPETENCIA_CHANGED = "ajustes:grupos-competencia-changed";
+
+export function notifyAjustesGruposCompetenciaChanged(): void {
+  document.dispatchEvent(new CustomEvent(AJUSTES_GRUPOS_COMPETENCIA_CHANGED));
+}
