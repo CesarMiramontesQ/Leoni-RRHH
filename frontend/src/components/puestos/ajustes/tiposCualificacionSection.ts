@@ -39,6 +39,7 @@ import {
   ajustesModalError,
   ajustesSectionCard,
   ajustesTableWrap,
+  AJUSTES_METODOS_CALIFICACION_CHANGED,
 } from "./ajustesSectionUi.ts";
 
 type ModalMode = "create" | "edit" | "delete" | null;
@@ -168,6 +169,10 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
       }) + renderModal();
   }
 
+  async function loadMetodos(): Promise<void> {
+    metodos = await getMetodosCalificacion();
+  }
+
   async function load(): Promise<void> {
     loading = true;
     error = "";
@@ -181,6 +186,38 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
       error = (e as CatalogoFetchError).detail ?? "Error al cargar.";
       paint();
     }
+  }
+
+  async function openCreateModal(): Promise<void> {
+    modalMode = "create";
+    editingNombre = "";
+    editingDescripcion = "";
+    modalError = "";
+    paint();
+    try {
+      await loadMetodos();
+      editingMetodoId = metodos[0]?.id ?? null;
+    } catch (e) {
+      modalError = (e as CatalogoFetchError).detail ?? "Error al cargar métodos de calificación.";
+      editingMetodoId = null;
+    }
+    paint();
+  }
+
+  async function openEditModal(item: TipoCualificacion): Promise<void> {
+    modalMode = "edit";
+    editingId = item.id;
+    editingNombre = item.nombre;
+    editingDescripcion = item.descripcion ?? "";
+    editingMetodoId = item.metodo_calificacion_id;
+    modalError = "";
+    paint();
+    try {
+      await loadMetodos();
+    } catch (e) {
+      modalError = (e as CatalogoFetchError).detail ?? "Error al cargar métodos de calificación.";
+    }
+    paint();
   }
 
   function closeModal(): void {
@@ -204,22 +241,11 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
         const action = btn.dataset.tipoCualAction;
         const id = Number(btn.dataset.id);
         if (action === "create") {
-          modalMode = "create";
-          editingNombre = "";
-          editingDescripcion = "";
-          editingMetodoId = metodos[0]?.id ?? null;
-          modalError = "";
-          paint();
+          void openCreateModal();
         } else if (action === "edit") {
           const item = items.find((i) => i.id === id);
           if (!item) return;
-          modalMode = "edit";
-          editingId = id;
-          editingNombre = item.nombre;
-          editingDescripcion = item.descripcion ?? "";
-          editingMetodoId = item.metodo_calificacion_id;
-          modalError = "";
-          paint();
+          void openEditModal(item);
         } else if (action === "delete") {
           deletingItem = items.find((i) => i.id === id) ?? null;
           if (!deletingItem) return;
@@ -289,6 +315,16 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
       paint();
     }
   }
+
+  document.addEventListener(
+    AJUSTES_METODOS_CALIFICACION_CHANGED,
+    () => {
+      void loadMetodos().then(() => {
+        if (modalMode === "create" || modalMode === "edit") paint();
+      });
+    },
+    { signal },
+  );
 
   void load();
 }

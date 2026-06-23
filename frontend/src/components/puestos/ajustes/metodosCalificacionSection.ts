@@ -53,6 +53,7 @@ import {
   ajustesModalError,
   ajustesSectionCard,
   ajustesTableWrap,
+  notifyAjustesMetodosCalificacionChanged,
 } from "./ajustesSectionUi.ts";
 
 type MetodoModalMode = "create" | "edit" | null;
@@ -546,6 +547,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
       else await createMetodoCalificacion(body);
       closeMetodoModal();
       await load();
+      notifyAjustesMetodosCalificacionChanged();
     } catch (e) {
       modalSaving = false;
       modalError = (e as CatalogoFetchError).detail ?? "Error al guardar.";
@@ -566,6 +568,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
       }
       closeDeleteMetodoModal();
       await load();
+      notifyAjustesMetodosCalificacionChanged();
     } catch (e) {
       modalSaving = false;
       modalError = (e as CatalogoFetchError).detail ?? "No se pudo eliminar.";
