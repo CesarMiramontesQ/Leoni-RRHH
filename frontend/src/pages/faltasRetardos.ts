@@ -1,6 +1,7 @@
 import { fetchAllEmpleadosForExport } from "../api/empleados.ts";
 import {
   createFaltaRetardo,
+  getFaltasRetardosEstadisticas,
   getFaltasRetardosPage,
   type FaltasRetardosPageResponse,
 } from "../api/faltasRetardos.ts";
@@ -23,6 +24,7 @@ import {
 } from "../faltasRetardos/rh/faltasRetardosFilterHelpers.ts";
 import type {
   FaltasRetardosAdminViewModel,
+  FaltasRetardosEstadisticasData,
   FaltasRetardosListFilters,
 } from "../faltasRetardos/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
@@ -43,13 +45,44 @@ function forbiddenHtml(): string {
   });
 }
 
+type EstadisticasHold =
+  | { kind: "ready"; data: FaltasRetardosEstadisticasData }
+  | { kind: "error"; message: string };
+
+function estadisticasFields(hold?: EstadisticasHold): Pick<
+  FaltasRetardosAdminViewModel,
+  "estadisticas" | "estadisticasStatus" | "estadisticasErrorMessage"
+> {
+  if (!hold) {
+    return {
+      estadisticas: null,
+      estadisticasStatus: "loading",
+      estadisticasErrorMessage: undefined,
+    };
+  }
+  if (hold.kind === "error") {
+    return {
+      estadisticas: null,
+      estadisticasStatus: "error",
+      estadisticasErrorMessage: hold.message,
+    };
+  }
+  return {
+    estadisticas: hold.data,
+    estadisticasStatus: "ready",
+    estadisticasErrorMessage: undefined,
+  };
+}
+
 function loadingViewModel(
   filterDraft: FaltasRetardosListFilters,
   appliedFilters: FaltasRetardosListFilters,
+  kpisHold?: EstadisticasHold,
 ): FaltasRetardosAdminViewModel {
   return {
     filterDraft: cloneFaltasRetardosListFilters(filterDraft),
     appliedFilters: cloneFaltasRetardosListFilters(appliedFilters),
+    ...estadisticasFields(kpisHold),
     tableStatus: "loading",
     table: null,
   };
@@ -59,6 +92,9 @@ function viewModelFromPage(
   pageData: FaltasRetardosPageResponse,
   filterDraft: FaltasRetardosListFilters,
   appliedFilters: FaltasRetardosListFilters,
+  estadisticas: FaltasRetardosEstadisticasData | null,
+  estadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"],
+  estadisticasErrorMessage?: string,
 ): FaltasRetardosAdminViewModel {
   const table = {
     items: pageData.items,
@@ -69,6 +105,9 @@ function viewModelFromPage(
   return {
     filterDraft: cloneFaltasRetardosListFilters(filterDraft),
     appliedFilters: cloneFaltasRetardosListFilters(appliedFilters),
+    estadisticas,
+    estadisticasStatus,
+    estadisticasErrorMessage,
     tableStatus: pageData.total === 0 ? "empty" : "ready",
     table,
   };
@@ -78,10 +117,12 @@ function errorViewModel(
   message: string,
   filterDraft: FaltasRetardosListFilters,
   appliedFilters: FaltasRetardosListFilters,
+  kpisHold?: EstadisticasHold,
 ): FaltasRetardosAdminViewModel {
   return {
     filterDraft: cloneFaltasRetardosListFilters(filterDraft),
     appliedFilters: cloneFaltasRetardosListFilters(appliedFilters),
+    ...estadisticasFields(kpisHold),
     tableStatus: "error",
     table: null,
     tableErrorMessage: message,
@@ -106,6 +147,18 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let page = 1;
   let loadSeq = 0;
   let empleadoOptions: FaltaRetardoEmpleadoOption[] = [];
+  let lastEstadisticas: FaltasRetardosEstadisticasData | null = null;
+  let lastEstadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"] = "loading";
+  let lastEstadisticasError: string | undefined;
+
+  function queryFromAppliedFilters() {
+    return {
+      busqueda: appliedFilters.busqueda || undefined,
+      tipo: appliedFilters.tipo || undefined,
+      fecha_inicio: appliedFilters.fecha_inicio || undefined,
+      fecha_fin: appliedFilters.fecha_fin || undefined,
+    };
+  }
 
   function paintVm(vm: FaltasRetardosAdminViewModel): void {
     const inner = container.querySelector("#rh-faltas-retardos-inner");
@@ -132,7 +185,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           onSubmit: async (payload) => {
             await createFaltaRetardo(payload);
             page = 1;
-            await load();
+            await load(true);
           },
         })
       : null;
@@ -153,7 +206,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           onSubmit: async (payload) => {
             await createFaltaRetardo(payload);
             page = 1;
-            await load();
+            await load(true);
           },
         });
       }
@@ -162,21 +215,56 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
     }
   }
 
-  async function load(): Promise<void> {
+  async function load(refreshEstadisticas = true): Promise<void> {
     const seq = ++loadSeq;
     const isStale = (): boolean => seq !== loadSeq;
-    paintVm(loadingViewModel(filterDraft, appliedFilters));
+
+    let kpisHold: EstadisticasHold | undefined;
+    if (!refreshEstadisticas) {
+      if (lastEstadisticasStatus === "ready" && lastEstadisticas !== null) {
+        kpisHold = { kind: "ready", data: lastEstadisticas };
+      } else if (lastEstadisticasStatus === "error") {
+        kpisHold = {
+          kind: "error",
+          message: lastEstadisticasError || FR_COPY.errorEstadisticas,
+        };
+      }
+    }
+
+    paintVm(loadingViewModel(filterDraft, appliedFilters, kpisHold));
     try {
+      const filters = queryFromAppliedFilters();
       const pageData = await getFaltasRetardosPage({
         page,
         page_size: PAGE_SIZE,
-        busqueda: appliedFilters.busqueda || undefined,
-        tipo: appliedFilters.tipo || undefined,
-        fecha_inicio: appliedFilters.fecha_inicio || undefined,
-        fecha_fin: appliedFilters.fecha_fin || undefined,
+        ...filters,
       });
       if (isStale()) return;
-      paintVm(viewModelFromPage(pageData, filterDraft, appliedFilters));
+
+      if (refreshEstadisticas) {
+        try {
+          lastEstadisticas = await getFaltasRetardosEstadisticas(filters);
+          lastEstadisticasStatus = "ready";
+          lastEstadisticasError = undefined;
+        } catch (error: unknown) {
+          const fetchError = error as { detail?: string };
+          lastEstadisticas = null;
+          lastEstadisticasStatus = "error";
+          lastEstadisticasError = fetchError?.detail || FR_COPY.errorEstadisticas;
+        }
+      }
+
+      if (isStale()) return;
+      paintVm(
+        viewModelFromPage(
+          pageData,
+          filterDraft,
+          appliedFilters,
+          lastEstadisticas,
+          lastEstadisticasStatus,
+          lastEstadisticasError,
+        ),
+      );
     } catch (error: unknown) {
       if (isStale()) return;
       const fetchError = error as { status?: number; detail?: string };
@@ -193,6 +281,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           fetchError?.detail || "Error inesperado al cargar los eventos.",
           filterDraft,
           appliedFilters,
+          kpisHold,
         ),
       );
     }
@@ -228,7 +317,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
         const n = raw ? Number.parseInt(raw, 10) : NaN;
         if (!Number.isNaN(n) && n >= 1) {
           page = n;
-          void load();
+          void load(false);
         }
       }
     },
@@ -280,6 +369,6 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
 
   void (async () => {
     await refreshEmpleadoOptions();
-    await load();
+    await load(true);
   })();
 }

@@ -16,9 +16,21 @@ export type FaltasRetardosTableData = {
   page_size: number;
 };
 
+export type FaltasRetardosEstadisticasData = {
+  total_eventos: number;
+  falta_justificada: number;
+  falta_injustificada: number;
+  retardo: number;
+  incapacidad: number;
+  suspension: number;
+};
+
 export type FaltasRetardosAdminViewModel = {
   filterDraft: FaltasRetardosListFilters;
   appliedFilters: FaltasRetardosListFilters;
+  estadisticas: FaltasRetardosEstadisticasData | null;
+  estadisticasStatus: "loading" | "ready" | "error";
+  estadisticasErrorMessage?: string;
   tableStatus: "loading" | "ready" | "empty" | "error";
   table: FaltasRetardosTableData | null;
   tableErrorMessage?: string;

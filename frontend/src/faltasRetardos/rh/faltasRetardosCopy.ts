@@ -50,6 +50,21 @@ export const FR_COPY = {
   accesoDenegadoTexto:
     "La vista de faltas y retardos está disponible solo para usuarios con rol Recursos Humanos, director, gerente o supervisor.",
 
+  estadisticasAria: "Estadísticas de faltas y retardos",
+  errorEstadisticas: "No se pudieron cargar las estadísticas.",
+  kpiTotal: "Total de eventos",
+  kpiTotalSub: "Registros con los filtros aplicados",
+  kpiFaltaJustificada: "Faltas justificadas",
+  kpiFaltaJustificadaSub: "Ausencias con justificación",
+  kpiFaltaInjustificada: "Faltas injustificadas",
+  kpiFaltaInjustificadaSub: "Ausencias sin justificación",
+  kpiRetardo: "Retardos",
+  kpiRetardoSub: "Llegadas tarde registradas",
+  kpiIncapacidad: "Incapacidades",
+  kpiIncapacidadSub: "Bajas por incapacidad",
+  kpiSuspension: "Suspensiones",
+  kpiSuspensionSub: "Suspensiones laborales",
+
   modalTitulo: "Nuevo registro",
   modalCerrar: "Cerrar",
   modalGuardar: "Registrar evento",

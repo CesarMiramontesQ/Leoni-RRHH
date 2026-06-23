@@ -139,3 +139,35 @@ class BonoFaltasRetardosRepository:
         async with self._engine.connect() as conn:
             result = await conn.execute(text(sql), params)
             return [dict(row) for row in result.mappings().all()]
+
+    async def aggregate_por_tipo_codigo(
+        self,
+        *,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+        empleado_ids_scope: list[int] | None = None,
+    ) -> dict[str, int]:
+        where_sql, params = self._build_where(
+            empleado_id=empleado_id,
+            tipo=tipo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            busqueda=busqueda,
+            empleado_ids_scope=empleado_ids_scope,
+        )
+        sql = (
+            "SELECT tipo_codigo, COUNT(*) AS cnt "
+            f"FROM ({self._from_sql(where_sql)}) AS sub "
+            "GROUP BY tipo_codigo"
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            out: dict[str, int] = {}
+            for row in result.mappings().all():
+                codigo = str(row["tipo_codigo"] or "").strip().upper()
+                if codigo:
+                    out[codigo] = int(row["cnt"])
+            return out

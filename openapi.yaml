@@ -2225,6 +2225,29 @@ components:
           items:
             $ref: "#/components/schemas/FaltaRetardoTipo"
 
+    FaltasRetardosEstadisticasResponse:
+      type: object
+      required:
+        - total_eventos
+        - falta_justificada
+        - falta_injustificada
+        - retardo
+        - incapacidad
+        - suspension
+      properties:
+        total_eventos:
+          type: integer
+        falta_justificada:
+          type: integer
+        falta_injustificada:
+          type: integer
+        retardo:
+          type: integer
+        incapacidad:
+          type: integer
+        suspension:
+          type: integer
+
     # ── Comedor ───────────────────────────────────────
     ComedorResponse:
       type: object
@@ -6603,6 +6626,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltasRetardosTiposResponse"
+
+  /api/v1/faltas-retardos/estadisticas:
+    get:
+      tags: [Faltas y retardos]
+      summary: Estadísticas de eventos de asistencia
+      operationId: faltas_retardos_estadisticas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: tipo
+          in: query
+          schema:
+            $ref: "#/components/schemas/FaltaRetardoTipo"
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: busqueda
+          in: query
+          description: Nombre o número de empleado
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Totales por tipo con filtros aplicados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosEstadisticasResponse"
 
   # ── Actas Administrativas ──────────────────────────
   /api/v1/actas:

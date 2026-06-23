@@ -48,6 +48,20 @@ export type FaltasRetardosListParams = {
   busqueda?: string;
 };
 
+export type FaltasRetardosEstadisticasParams = Omit<
+  FaltasRetardosListParams,
+  "page" | "page_size"
+>;
+
+export type FaltasRetardosEstadisticasResponse = {
+  total_eventos: number;
+  falta_justificada: number;
+  falta_injustificada: number;
+  retardo: number;
+  incapacidad: number;
+  suspension: number;
+};
+
 async function readErrorDetail(res: Response): Promise<string> {
   const raw = await res.text();
   try {
@@ -87,6 +101,32 @@ export async function getFaltasRetardosPage(
     throw { status: res.status, detail: await readErrorDetail(res) };
   }
   return (await res.json()) as FaltasRetardosPageResponse;
+}
+
+function buildFaltasRetardosQueryParams(
+  params: FaltasRetardosEstadisticasParams,
+): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (params.empleado_id != null) sp.set("empleado_id", String(params.empleado_id));
+  if (params.tipo) sp.set("tipo", params.tipo);
+  if (params.fecha_inicio?.trim()) sp.set("fecha_inicio", params.fecha_inicio.trim());
+  if (params.fecha_fin?.trim()) sp.set("fecha_fin", params.fecha_fin.trim());
+  if (params.busqueda?.trim()) sp.set("busqueda", params.busqueda.trim());
+  return sp;
+}
+
+export async function getFaltasRetardosEstadisticas(
+  params: FaltasRetardosEstadisticasParams,
+): Promise<FaltasRetardosEstadisticasResponse> {
+  const sp = buildFaltasRetardosQueryParams(params);
+  const qs = sp.toString();
+  const res = await fetchWithAuth(
+    `/api/v1/faltas-retardos/estadisticas${qs ? `?${qs}` : ""}`,
+  );
+  if (!res.ok) {
+    throw { status: res.status, detail: await readErrorDetail(res) };
+  }
+  return (await res.json()) as FaltasRetardosEstadisticasResponse;
 }
 
 export async function createFaltaRetardo(

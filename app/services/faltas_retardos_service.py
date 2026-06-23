@@ -15,9 +15,10 @@ from app.repositories.faltas_retardos_repository import FaltasRetardosRepository
 from app.schemas.faltas_retardos import (
     FaltaRetardoCreateRequest,
     FaltaRetardoResponse,
+    FaltasRetardosEstadisticasResponse,
     FaltasRetardosPageResponse,
 )
-from app.services.faltas_retardos.constants import ORIGEN_MANUAL
+from app.services.faltas_retardos.constants import CODIGO_PONDERACION_A_TIPO, ORIGEN_MANUAL
 from app.services.faltas_retardos.mapper import map_bono_row
 
 
@@ -155,6 +156,51 @@ class FaltasRetardosService:
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
                 f"Error al consultar faltas y retardos en bono: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            await engine.dispose()
+
+    def _map_estadisticas(self, por_codigo: dict[str, int]) -> FaltasRetardosEstadisticasResponse:
+        por_tipo: dict[str, int] = {t: 0 for t in FALTA_RETARDO_TIPOS}
+        for codigo, count in por_codigo.items():
+            api_tipo = CODIGO_PONDERACION_A_TIPO.get(codigo.upper())
+            if api_tipo:
+                por_tipo[api_tipo] = por_tipo.get(api_tipo, 0) + int(count)
+        return FaltasRetardosEstadisticasResponse(
+            total_eventos=sum(por_tipo.values()),
+            falta_justificada=por_tipo["falta_justificada"],
+            falta_injustificada=por_tipo["falta_injustificada"],
+            retardo=por_tipo["retardo"],
+            incapacidad=por_tipo["incapacidad"],
+            suspension=por_tipo["suspension"],
+        )
+
+    async def estadisticas_eventos(
+        self,
+        current_user: Empleado,
+        *,
+        rh_ui_mode: str | None = None,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+    ) -> FaltasRetardosEstadisticasResponse:
+        scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
+        engine, repo = await self._with_bono_repo()
+        try:
+            por_codigo = await repo.aggregate_por_tipo_codigo(
+                empleado_id=empleado_id,
+                tipo=tipo,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                busqueda=busqueda,
+                empleado_ids_scope=scope_ids,
+            )
+            return self._map_estadisticas(por_codigo)
+        except SQLAlchemyError as exc:
+            raise ServiceUnavailableError(
+                f"Error al consultar estadísticas en bono: {type(exc).__name__}: {exc}"
             ) from exc
         finally:
             await engine.dispose()

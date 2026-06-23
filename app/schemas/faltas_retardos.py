@@ -69,3 +69,12 @@ class FaltasRetardosPageResponse(BaseModel):
 
 class FaltasRetardosTiposResponse(BaseModel):
     items: list[FaltaRetardoTipo]
+
+
+class FaltasRetardosEstadisticasResponse(BaseModel):
+    total_eventos: int
+    falta_justificada: int
+    falta_injustificada: int
+    retardo: int
+    incapacidad: int
+    suspension: int

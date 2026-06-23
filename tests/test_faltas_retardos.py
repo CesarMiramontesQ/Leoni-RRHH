@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.schemas.faltas_retardos import FaltaRetardoResponse, FaltasRetardosPageResponse
+from app.schemas.faltas_retardos import FaltaRetardoResponse, FaltasRetardosEstadisticasResponse, FaltasRetardosPageResponse
 from tests.conftest import auth_headers, make_empleado
 
 
@@ -50,6 +50,29 @@ async def test_list_faltas_retardos_desde_bono(client: AsyncClient, db):
     assert body["total"] == 1
     assert body["items"][0]["tipo"] == "retardo"
     assert body["items"][0]["origen"] == "importadas_historico"
+
+
+@pytest.mark.asyncio
+async def test_estadisticas_faltas_retardos(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", nombre="RH Stats")
+    headers = await auth_headers(client, rh)
+    with patch(
+        "app.services.faltas_retardos_service.FaltasRetardosService.estadisticas_eventos",
+        new_callable=AsyncMock,
+        return_value=FaltasRetardosEstadisticasResponse(
+            total_eventos=10,
+            falta_justificada=3,
+            falta_injustificada=2,
+            retardo=4,
+            incapacidad=1,
+            suspension=0,
+        ),
+    ):
+        res = await client.get("/api/v1/faltas-retardos/estadisticas", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_eventos"] == 10
+    assert data["retardo"] == 4
 
 
 @pytest.mark.asyncio

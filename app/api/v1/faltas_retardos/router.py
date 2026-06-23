@@ -9,6 +9,7 @@ from app.models.empleados import Empleado
 from app.schemas.faltas_retardos import (
     FaltaRetardoCreateRequest,
     FaltaRetardoResponse,
+    FaltasRetardosEstadisticasResponse,
     FaltasRetardosPageResponse,
     FaltasRetardosTiposResponse,
 )
@@ -62,6 +63,30 @@ async def list_tipos_faltas_retardos(
     svc: FaltasRetardosService = Depends(_svc),
 ):
     return FaltasRetardosTiposResponse(items=svc.list_tipos())
+
+
+@router.get("/estadisticas", response_model=FaltasRetardosEstadisticasResponse)
+async def estadisticas_faltas_retardos(
+    current_user: Empleado = Depends(
+        role_checker(["rh", "gerente", "supervisor", "director"])
+    ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    svc: FaltasRetardosService = Depends(_svc),
+    empleado_id: int | None = Query(None),
+    tipo: str | None = Query(None),
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
+    busqueda: str | None = Query(None, description="Nombre o número de empleado"),
+):
+    return await svc.estadisticas_eventos(
+        current_user,
+        rh_ui_mode=rh_ui_mode,
+        empleado_id=empleado_id,
+        tipo=tipo.strip() if tipo and tipo.strip() else None,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        busqueda=busqueda.strip() if busqueda and busqueda.strip() else None,
+    )
 
 
 @router.post("", response_model=FaltaRetardoResponse, status_code=status.HTTP_201_CREATED)
