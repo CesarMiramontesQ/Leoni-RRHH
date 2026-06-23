@@ -1,0 +1,111 @@
+import { fetchWithAuth } from "./http.ts";
+
+export type FaltaRetardoTipo =
+  | "falta_justificada"
+  | "falta_injustificada"
+  | "retardo"
+  | "incapacidad"
+  | "suspension";
+
+export type FaltaRetardoListItem = {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string | null;
+  numero_empleado: string | null;
+  tipo: FaltaRetardoTipo;
+  fecha_evento: string;
+  fecha_fin: string | null;
+  observaciones: string | null;
+  registrado_por_id: number;
+  registrado_por_nombre: string | null;
+  created_at: string;
+};
+
+export type FaltasRetardosPageResponse = {
+  items: FaltaRetardoListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type FaltaRetardoCreatePayload = {
+  empleado_id: number;
+  tipo: FaltaRetardoTipo;
+  fecha_evento: string;
+  fecha_fin?: string | null;
+  observaciones?: string | null;
+};
+
+export type FaltasRetardosListParams = {
+  page: number;
+  page_size: number;
+  empleado_id?: number;
+  tipo?: FaltaRetardoTipo | "";
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  busqueda?: string;
+};
+
+async function readErrorDetail(res: Response): Promise<string> {
+  const raw = await res.text();
+  try {
+    const j = JSON.parse(raw) as { detail?: unknown };
+    if (typeof j.detail === "string") return j.detail;
+    if (Array.isArray(j.detail)) {
+      return j.detail
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (item && typeof item === "object" && "msg" in item) {
+            return String((item as { msg: unknown }).msg);
+          }
+          return JSON.stringify(item);
+        })
+        .join("; ");
+    }
+  } catch {
+    /* ignore */
+  }
+  return raw || res.statusText || "Error";
+}
+
+export async function getFaltasRetardosPage(
+  params: FaltasRetardosListParams,
+): Promise<FaltasRetardosPageResponse> {
+  const sp = new URLSearchParams();
+  sp.set("page", String(params.page));
+  sp.set("page_size", String(params.page_size));
+  if (params.empleado_id != null) sp.set("empleado_id", String(params.empleado_id));
+  if (params.tipo) sp.set("tipo", params.tipo);
+  if (params.fecha_inicio?.trim()) sp.set("fecha_inicio", params.fecha_inicio.trim());
+  if (params.fecha_fin?.trim()) sp.set("fecha_fin", params.fecha_fin.trim());
+  if (params.busqueda?.trim()) sp.set("busqueda", params.busqueda.trim());
+
+  const res = await fetchWithAuth(`/api/v1/faltas-retardos?${sp.toString()}`);
+  if (!res.ok) {
+    throw { status: res.status, detail: await readErrorDetail(res) };
+  }
+  return (await res.json()) as FaltasRetardosPageResponse;
+}
+
+export async function createFaltaRetardo(
+  payload: FaltaRetardoCreatePayload,
+): Promise<FaltaRetardoListItem> {
+  const res = await fetchWithAuth("/api/v1/faltas-retardos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw { status: res.status, detail: await readErrorDetail(res) };
+  }
+  return (await res.json()) as FaltaRetardoListItem;
+}
+
+export async function getFaltasRetardosTipos(): Promise<FaltaRetardoTipo[]> {
+  const res = await fetchWithAuth("/api/v1/faltas-retardos/tipos");
+  if (!res.ok) {
+    throw { status: res.status, detail: await readErrorDetail(res) };
+  }
+  const data = (await res.json()) as { items: FaltaRetardoTipo[] };
+  return data.items;
+}

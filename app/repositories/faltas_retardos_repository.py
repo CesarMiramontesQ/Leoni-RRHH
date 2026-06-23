@@ -1,0 +1,111 @@
+from datetime import date
+
+from sqlalchemy import Select, String, cast, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.empleados import Empleado
+from app.models.faltas_retardos import FaltaRetardoEvento
+from app.repositories.base import BaseRepository
+
+
+class FaltasRetardosRepository(BaseRepository[FaltaRetardoEvento]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(FaltaRetardoEvento, db)
+
+    def _base_query(self) -> Select:
+        return select(FaltaRetardoEvento).options(
+            selectinload(FaltaRetardoEvento.empleado),
+            selectinload(FaltaRetardoEvento.registrado_por),
+        )
+
+    def _apply_filters(
+        self,
+        query: Select,
+        *,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+        empleado_ids_scope: list[int] | None = None,
+    ) -> Select:
+        if empleado_ids_scope is not None:
+            query = query.where(FaltaRetardoEvento.empleado_id.in_(empleado_ids_scope))
+        if empleado_id is not None:
+            query = query.where(FaltaRetardoEvento.empleado_id == empleado_id)
+        if tipo:
+            query = query.where(FaltaRetardoEvento.tipo == tipo)
+        if fecha_inicio is not None:
+            query = query.where(
+                or_(
+                    FaltaRetardoEvento.fecha_fin.is_(None),
+                    FaltaRetardoEvento.fecha_fin >= fecha_inicio,
+                )
+            ).where(FaltaRetardoEvento.fecha_evento <= (fecha_fin or fecha_inicio))
+        if fecha_fin is not None and fecha_inicio is None:
+            query = query.where(FaltaRetardoEvento.fecha_evento <= fecha_fin)
+        if busqueda:
+            term = f"%{busqueda.strip()}%"
+            query = query.join(
+                Empleado, Empleado.empleado_id == FaltaRetardoEvento.empleado_id
+            ).where(
+                or_(
+                    Empleado.nombre.ilike(term),
+                    cast(Empleado.no_empleado, String).ilike(term),
+                )
+            )
+        return query
+
+    async def get_with_relations(self, evento_id: int) -> FaltaRetardoEvento | None:
+        result = await self.db.execute(
+            self._base_query().where(FaltaRetardoEvento.id == evento_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+        empleado_ids_scope: list[int] | None = None,
+    ) -> tuple[list[FaltaRetardoEvento], int]:
+        filters_applied = self._apply_filters(
+            self._base_query(),
+            empleado_id=empleado_id,
+            tipo=tipo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            busqueda=busqueda,
+            empleado_ids_scope=empleado_ids_scope,
+        )
+        count_q = select(func.count(func.distinct(FaltaRetardoEvento.id))).select_from(
+            FaltaRetardoEvento
+        )
+        count_q = self._apply_filters(
+            count_q,
+            empleado_id=empleado_id,
+            tipo=tipo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            busqueda=busqueda,
+            empleado_ids_scope=empleado_ids_scope,
+        )
+        total = int((await self.db.execute(count_q)).scalar_one())
+
+        offset = (page - 1) * page_size
+        items_q = (
+            filters_applied.order_by(
+                FaltaRetardoEvento.fecha_evento.desc(),
+                FaltaRetardoEvento.id.desc(),
+            )
+            .offset(offset)
+            .limit(page_size)
+        )
+        result = await self.db.execute(items_q)
+        return list(result.scalars().unique().all()), total

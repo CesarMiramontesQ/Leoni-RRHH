@@ -106,6 +106,7 @@ export type ShellNavKey =
   | "solicitudes"
   | "incidencias"
   | "actas"
+  | "faltas-retardos"
   | "comedor"
   | "comedor-gestion"
   | "comedor-planear"

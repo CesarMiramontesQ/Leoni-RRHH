@@ -281,6 +281,15 @@ export function canAccessRhIncidenciasPage(): boolean {
   return r === "director" || r === "gerente" || r === "supervisor";
 }
 
+/** Página de faltas y retardos (`#/faltas-retardos`). */
+export function canAccessFaltasRetardosPage(): boolean {
+  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
+  if (hasExplicitModuleGrant("faltas-retardos")) return true;
+  const r = getRolFromAccessToken();
+  if (r === "rh") return hasRhModule("faltas-retardos");
+  return r === "director" || r === "gerente" || r === "supervisor";
+}
+
 /** Página de actas (`#/actas`): RH con módulo `actas` o no-RH con el módulo otorgado. */
 export function canAccessActasPage(): boolean {
   if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;

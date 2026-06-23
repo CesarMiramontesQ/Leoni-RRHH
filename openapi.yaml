@@ -2134,6 +2134,94 @@ components:
         total:
           type: integer
 
+    FaltaRetardoTipo:
+      type: string
+      enum:
+        - falta_justificada
+        - falta_injustificada
+        - retardo
+        - incapacidad
+        - suspension
+
+    FaltaRetardoCreateRequest:
+      type: object
+      required: [empleado_id, tipo, fecha_evento]
+      properties:
+        empleado_id:
+          type: integer
+          minimum: 1
+        tipo:
+          $ref: "#/components/schemas/FaltaRetardoTipo"
+        fecha_evento:
+          type: string
+          format: date
+        fecha_fin:
+          type: [string, "null"]
+          format: date
+        observaciones:
+          type: [string, "null"]
+          maxLength: 4000
+
+    FaltaRetardoResponse:
+      type: object
+      required:
+        - id
+        - empleado_id
+        - tipo
+        - fecha_evento
+        - registrado_por_id
+        - created_at
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: [string, "null"]
+        numero_empleado:
+          type: [string, "null"]
+        tipo:
+          $ref: "#/components/schemas/FaltaRetardoTipo"
+        fecha_evento:
+          type: string
+          format: date
+        fecha_fin:
+          type: [string, "null"]
+          format: date
+        observaciones:
+          type: [string, "null"]
+        registrado_por_id:
+          type: integer
+        registrado_por_nombre:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    FaltasRetardosPageResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaltaRetardoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    FaltasRetardosTiposResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaltaRetardoTipo"
+
     # ── Comedor ───────────────────────────────────────
     ComedorResponse:
       type: object
@@ -6419,6 +6507,99 @@ paths:
                     type: integer
                   evidencia_id:
                     type: integer
+
+  # ── Faltas y retardos ──────────────────────────────
+  /api/v1/faltas-retardos:
+    get:
+      tags: [Faltas y retardos]
+      summary: Listar eventos de asistencia
+      operationId: faltas_retardos_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: tipo
+          in: query
+          schema:
+            $ref: "#/components/schemas/FaltaRetardoTipo"
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: busqueda
+          in: query
+          description: Nombre o número de empleado
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página de eventos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosPageResponse"
+    post:
+      tags: [Faltas y retardos]
+      summary: Registrar evento de asistencia
+      operationId: faltas_retardos_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FaltaRetardoCreateRequest"
+      responses:
+        "201":
+          description: Evento creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltaRetardoResponse"
+        "422":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/faltas-retardos/tipos:
+    get:
+      tags: [Faltas y retardos]
+      summary: Catálogo de tipos de evento
+      operationId: faltas_retardos_tipos
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tipos disponibles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosTiposResponse"
 
   # ── Actas Administrativas ──────────────────────────
   /api/v1/actas:

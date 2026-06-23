@@ -179,6 +179,7 @@ from app.api.v1.cualificaciones_catalogo.router import router as cualificaciones
 from app.api.v1.rh_permisos.router import router as rh_permisos_router
 from app.api.v1.nominas.router import router as nominas_router
 from app.api.v1.horas_extra.router import router as horas_extra_router
+from app.api.v1.faltas_retardos.router import router as faltas_retardos_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -211,6 +212,7 @@ app.include_router(cualificaciones_catalogo_router)
 app.include_router(rh_permisos_router)
 app.include_router(nominas_router)
 app.include_router(horas_extra_router)
+app.include_router(faltas_retardos_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

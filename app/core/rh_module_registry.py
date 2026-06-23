@@ -83,6 +83,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/actas",),
         api_prefixes=("/api/v1/actas",),
     ),
+    "faltas-retardos": RhModuleDef(
+        key="faltas-retardos",
+        label="Faltas y retardos",
+        group="Laborales",
+        nav_item_ids=("faltas-retardos",),
+        hash_prefixes=("#/faltas-retardos",),
+        api_prefixes=("/api/v1/faltas-retardos",),
+    ),
     "comedor": RhModuleDef(
         key="comedor",
         label="Comedor (gestión RH)",
