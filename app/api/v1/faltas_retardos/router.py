@@ -77,6 +77,7 @@ async def estadisticas_faltas_retardos(
     fecha_inicio: date | None = Query(None),
     fecha_fin: date | None = Query(None),
     busqueda: str | None = Query(None, description="Nombre o número de empleado"),
+    area: str | None = Query(None, description="Nombre de área"),
 ):
     return await svc.estadisticas_eventos(
         current_user,
@@ -86,6 +87,7 @@ async def estadisticas_faltas_retardos(
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
         busqueda=busqueda.strip() if busqueda and busqueda.strip() else None,
+        area=area.strip() if area and area.strip() else None,
     )
 
 

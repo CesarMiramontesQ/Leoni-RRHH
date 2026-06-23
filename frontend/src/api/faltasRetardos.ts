@@ -48,10 +48,14 @@ export type FaltasRetardosListParams = {
   busqueda?: string;
 };
 
-export type FaltasRetardosEstadisticasParams = Omit<
-  FaltasRetardosListParams,
-  "page" | "page_size"
->;
+export type FaltasRetardosEstadisticasParams = {
+  empleado_id?: number;
+  tipo?: FaltaRetardoTipo | "";
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  busqueda?: string;
+  area?: string;
+};
 
 export type FaltasRetardosEstadisticasResponse = {
   total_eventos: number;
@@ -60,6 +64,14 @@ export type FaltasRetardosEstadisticasResponse = {
   retardo: number;
   incapacidad: number;
   suspension: number;
+  eventos_por_mes: { periodo: string; total: number }[];
+  eventos_por_tipo: { tipo: FaltaRetardoTipo; total: number; porcentaje: number }[];
+  empleados_con_mas_eventos: {
+    empleado_id: number;
+    no_empleado: string | null;
+    nombre: string | null;
+    total: number;
+  }[];
 };
 
 async function readErrorDetail(res: Response): Promise<string> {
@@ -112,6 +124,7 @@ function buildFaltasRetardosQueryParams(
   if (params.fecha_inicio?.trim()) sp.set("fecha_inicio", params.fecha_inicio.trim());
   if (params.fecha_fin?.trim()) sp.set("fecha_fin", params.fecha_fin.trim());
   if (params.busqueda?.trim()) sp.set("busqueda", params.busqueda.trim());
+  if (params.area?.trim()) sp.set("area", params.area.trim());
   return sp;
 }
 

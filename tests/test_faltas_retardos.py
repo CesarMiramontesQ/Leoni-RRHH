@@ -66,6 +66,16 @@ async def test_estadisticas_faltas_retardos(client: AsyncClient, db):
             retardo=4,
             incapacidad=1,
             suspension=0,
+            eventos_por_mes=[{"periodo": "2026-06", "total": 5}],
+            eventos_por_tipo=[{"tipo": "retardo", "total": 4, "porcentaje": 40.0}],
+            empleados_con_mas_eventos=[
+                {
+                    "empleado_id": 1,
+                    "no_empleado": "100",
+                    "nombre": "JUAN",
+                    "total": 3,
+                }
+            ],
         ),
     ):
         res = await client.get("/api/v1/faltas-retardos/estadisticas", headers=headers)

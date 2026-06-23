@@ -23,6 +23,20 @@ export type FaltasRetardosEstadisticasData = {
   retardo: number;
   incapacidad: number;
   suspension: number;
+  eventos_por_mes: { periodo: string; total: number }[];
+  eventos_por_tipo: { tipo: FaltaRetardoTipo; total: number; porcentaje: number }[];
+  empleados_con_mas_eventos: {
+    empleado_id: number;
+    no_empleado: string | null;
+    nombre: string | null;
+    total: number;
+  }[];
+};
+
+export type FaltasRetardosMetricasViewModel = {
+  estadisticas: FaltasRetardosEstadisticasData | null;
+  estadisticasStatus: "loading" | "ready" | "error";
+  estadisticasErrorMessage?: string;
 };
 
 export type FaltasRetardosAdminViewModel = {

@@ -160,19 +160,50 @@ class FaltasRetardosService:
         finally:
             await engine.dispose()
 
-    def _map_estadisticas(self, por_codigo: dict[str, int]) -> FaltasRetardosEstadisticasResponse:
+    def _build_estadisticas_response(
+        self,
+        por_codigo: dict[str, int],
+        por_mes: list[tuple[str, int]],
+        empleados_top: list[tuple[int, str | None, str | None, int]],
+    ) -> FaltasRetardosEstadisticasResponse:
         por_tipo: dict[str, int] = {t: 0 for t in FALTA_RETARDO_TIPOS}
         for codigo, count in por_codigo.items():
             api_tipo = CODIGO_PONDERACION_A_TIPO.get(codigo.upper())
             if api_tipo:
                 por_tipo[api_tipo] = por_tipo.get(api_tipo, 0) + int(count)
+
+        total = sum(por_tipo.values())
+        eventos_por_tipo = [
+            {
+                "tipo": tipo,
+                "total": por_tipo[tipo],
+                "porcentaje": round((por_tipo[tipo] / total) * 100, 1) if total else 0.0,
+            }
+            for tipo in FALTA_RETARDO_TIPOS
+            if por_tipo[tipo] > 0
+        ]
+        eventos_por_tipo.sort(key=lambda x: x["total"], reverse=True)
+
         return FaltasRetardosEstadisticasResponse(
-            total_eventos=sum(por_tipo.values()),
+            total_eventos=total,
             falta_justificada=por_tipo["falta_justificada"],
             falta_injustificada=por_tipo["falta_injustificada"],
             retardo=por_tipo["retardo"],
             incapacidad=por_tipo["incapacidad"],
             suspension=por_tipo["suspension"],
+            eventos_por_mes=[
+                {"periodo": periodo, "total": count} for periodo, count in por_mes
+            ],
+            eventos_por_tipo=eventos_por_tipo,
+            empleados_con_mas_eventos=[
+                {
+                    "empleado_id": empleado_id,
+                    "no_empleado": no_empleado,
+                    "nombre": nombre,
+                    "total": count,
+                }
+                for empleado_id, no_empleado, nombre, count in empleados_top
+            ],
         )
 
     async def estadisticas_eventos(
@@ -185,19 +216,24 @@ class FaltasRetardosService:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         busqueda: str | None = None,
+        area: str | None = None,
     ) -> FaltasRetardosEstadisticasResponse:
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
         engine, repo = await self._with_bono_repo()
         try:
-            por_codigo = await repo.aggregate_por_tipo_codigo(
-                empleado_id=empleado_id,
-                tipo=tipo,
-                fecha_inicio=fecha_inicio,
-                fecha_fin=fecha_fin,
-                busqueda=busqueda,
-                empleado_ids_scope=scope_ids,
-            )
-            return self._map_estadisticas(por_codigo)
+            filters = {
+                "empleado_id": empleado_id,
+                "tipo": tipo,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+                "busqueda": busqueda,
+                "area": area,
+                "empleado_ids_scope": scope_ids,
+            }
+            por_codigo = await repo.aggregate_por_tipo_codigo(**filters)
+            por_mes = await repo.aggregate_por_mes(**filters)
+            empleados_top = await repo.aggregate_empleados_top(limit=10, **filters)
+            return self._build_estadisticas_response(por_codigo, por_mes, empleados_top)
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
                 f"Error al consultar estadísticas en bono: {type(exc).__name__}: {exc}"

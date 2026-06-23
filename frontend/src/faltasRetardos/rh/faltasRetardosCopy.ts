@@ -65,6 +65,15 @@ export const FR_COPY = {
   kpiSuspension: "Suspensiones",
   kpiSuspensionSub: "Suspensiones laborales",
 
+  metricasVacia: "No hay eventos de asistencia con los filtros seleccionados.",
+  metricasSinDatos: "Sin datos de analítica disponibles.",
+  metricasTendenciaTitulo: "Tendencia mensual",
+  metricasTendenciaSub: "Eventos registrados por mes",
+  metricasTipoTitulo: "Distribución por tipo",
+  metricasTipoSub: "Composición de faltas y retardos",
+  metricasEmpleadosTitulo: "Empleados con más eventos",
+  metricasEmpleadosSub: "Top 10 según filtros aplicados",
+
   modalTitulo: "Nuevo registro",
   modalCerrar: "Cerrar",
   modalGuardar: "Registrar evento",

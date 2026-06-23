@@ -2234,6 +2234,9 @@ components:
         - retardo
         - incapacidad
         - suspension
+        - eventos_por_mes
+        - eventos_por_tipo
+        - empleados_con_mas_eventos
       properties:
         total_eventos:
           type: integer
@@ -2247,6 +2250,42 @@ components:
           type: integer
         suspension:
           type: integer
+        eventos_por_mes:
+          type: array
+          items:
+            type: object
+            required: [periodo, total]
+            properties:
+              periodo:
+                type: string
+              total:
+                type: integer
+        eventos_por_tipo:
+          type: array
+          items:
+            type: object
+            required: [tipo, total, porcentaje]
+            properties:
+              tipo:
+                $ref: "#/components/schemas/FaltaRetardoTipo"
+              total:
+                type: integer
+              porcentaje:
+                type: number
+        empleados_con_mas_eventos:
+          type: array
+          items:
+            type: object
+            required: [empleado_id, total]
+            properties:
+              empleado_id:
+                type: integer
+              no_empleado:
+                type: [string, "null"]
+              nombre:
+                type: [string, "null"]
+              total:
+                type: integer
 
     # ── Comedor ───────────────────────────────────────
     ComedorResponse:
@@ -6656,6 +6695,11 @@ paths:
         - name: busqueda
           in: query
           description: Nombre o número de empleado
+          schema:
+            type: string
+        - name: area
+          in: query
+          description: Nombre de área
           schema:
             type: string
       responses:

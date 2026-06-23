@@ -71,6 +71,24 @@ class FaltasRetardosTiposResponse(BaseModel):
     items: list[FaltaRetardoTipo]
 
 
+class FaltaRetardoTipoTotalItem(BaseModel):
+    tipo: FaltaRetardoTipo
+    total: int
+    porcentaje: float
+
+
+class FaltaRetardoMesTotalItem(BaseModel):
+    periodo: str
+    total: int
+
+
+class FaltaRetardoEmpleadoTotalItem(BaseModel):
+    empleado_id: int
+    no_empleado: Optional[str] = None
+    nombre: Optional[str] = None
+    total: int
+
+
 class FaltasRetardosEstadisticasResponse(BaseModel):
     total_eventos: int
     falta_justificada: int
@@ -78,3 +96,6 @@ class FaltasRetardosEstadisticasResponse(BaseModel):
     retardo: int
     incapacidad: int
     suspension: int
+    eventos_por_mes: list[FaltaRetardoMesTotalItem]
+    eventos_por_tipo: list[FaltaRetardoTipoTotalItem]
+    empleados_con_mas_eventos: list[FaltaRetardoEmpleadoTotalItem]

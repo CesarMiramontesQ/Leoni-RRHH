@@ -29,6 +29,7 @@ class BonoFaltasRetardosRepository:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         busqueda: str | None = None,
+        area: str | None = None,
         empleado_ids_scope: list[int] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         clauses: list[str] = []
@@ -76,6 +77,10 @@ class BonoFaltasRetardosRepository:
             )
             params["f_busqueda"] = term
 
+        if area and area.strip():
+            clauses.append("area = :f_area")
+            params["f_area"] = area.strip()
+
         if not clauses:
             return "", params
         return "WHERE " + " AND ".join(clauses), params
@@ -94,6 +99,7 @@ class BonoFaltasRetardosRepository:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         busqueda: str | None = None,
+        area: str | None = None,
         empleado_ids_scope: list[int] | None = None,
     ) -> int:
         where_sql, params = self._build_where(
@@ -102,6 +108,7 @@ class BonoFaltasRetardosRepository:
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             busqueda=busqueda,
+            area=area,
             empleado_ids_scope=empleado_ids_scope,
         )
         sql = f"SELECT COUNT(*) AS cnt FROM ({self._from_sql(where_sql)}) AS sub"
@@ -120,6 +127,7 @@ class BonoFaltasRetardosRepository:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         busqueda: str | None = None,
+        area: str | None = None,
         empleado_ids_scope: list[int] | None = None,
     ) -> list[dict[str, Any]]:
         where_sql, params = self._build_where(
@@ -128,6 +136,7 @@ class BonoFaltasRetardosRepository:
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             busqueda=busqueda,
+            area=area,
             empleado_ids_scope=empleado_ids_scope,
         )
         sql = (
@@ -148,6 +157,7 @@ class BonoFaltasRetardosRepository:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         busqueda: str | None = None,
+        area: str | None = None,
         empleado_ids_scope: list[int] | None = None,
     ) -> dict[str, int]:
         where_sql, params = self._build_where(
@@ -156,6 +166,7 @@ class BonoFaltasRetardosRepository:
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             busqueda=busqueda,
+            area=area,
             empleado_ids_scope=empleado_ids_scope,
         )
         sql = (
@@ -170,4 +181,88 @@ class BonoFaltasRetardosRepository:
                 codigo = str(row["tipo_codigo"] or "").strip().upper()
                 if codigo:
                     out[codigo] = int(row["cnt"])
+            return out
+
+    async def aggregate_por_mes(
+        self,
+        *,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+        area: str | None = None,
+        empleado_ids_scope: list[int] | None = None,
+    ) -> list[tuple[str, int]]:
+        where_sql, params = self._build_where(
+            empleado_id=empleado_id,
+            tipo=tipo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            busqueda=busqueda,
+            area=area,
+            empleado_ids_scope=empleado_ids_scope,
+        )
+        sql = (
+            "SELECT to_char(fecha_evento, 'YYYY-MM') AS periodo, COUNT(*) AS cnt "
+            f"FROM ({self._from_sql(where_sql)}) AS sub "
+            "WHERE fecha_evento IS NOT NULL "
+            "GROUP BY periodo ORDER BY periodo ASC"
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            out: list[tuple[str, int]] = []
+            for row in result.mappings().all():
+                periodo = row["periodo"]
+                if periodo is None:
+                    continue
+                ps = str(periodo).strip()
+                if len(ps) == 7 and ps[4] == "-":
+                    out.append((ps, int(row["cnt"])))
+            return out
+
+    async def aggregate_empleados_top(
+        self,
+        *,
+        limit: int = 10,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+        area: str | None = None,
+        empleado_ids_scope: list[int] | None = None,
+    ) -> list[tuple[int, str | None, str | None, int]]:
+        where_sql, params = self._build_where(
+            empleado_id=empleado_id,
+            tipo=tipo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            busqueda=busqueda,
+            area=area,
+            empleado_ids_scope=empleado_ids_scope,
+        )
+        sql = (
+            "SELECT empleado_id, "
+            "MAX(no_empleado) AS no_empleado, "
+            "MAX(nombre) AS nombre, "
+            "COUNT(*) AS cnt "
+            f"FROM ({self._from_sql(where_sql)}) AS sub "
+            "GROUP BY empleado_id ORDER BY cnt DESC LIMIT :f_limit"
+        )
+        params = {**params, "f_limit": limit}
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            out: list[tuple[int, str | None, str | None, int]] = []
+            for row in result.mappings().all():
+                no = row["no_empleado"]
+                nom = row["nombre"]
+                out.append(
+                    (
+                        int(row["empleado_id"]),
+                        str(no).strip() if no is not None and str(no).strip() else None,
+                        str(nom).strip() if nom is not None and str(nom).strip() else None,
+                        int(row["cnt"]),
+                    )
+                )
             return out
