@@ -2169,7 +2169,6 @@ components:
         - empleado_id
         - tipo
         - fecha_evento
-        - registrado_por_id
         - created_at
       properties:
         id:
@@ -2191,12 +2190,16 @@ components:
         observaciones:
           type: [string, "null"]
         registrado_por_id:
-          type: integer
+          type: [integer, "null"]
         registrado_por_nombre:
           type: [string, "null"]
         created_at:
           type: string
           format: date-time
+        origen:
+          type: [string, "null"]
+        origen_id:
+          type: [integer, "null"]
 
     FaltasRetardosPageResponse:
       type: object

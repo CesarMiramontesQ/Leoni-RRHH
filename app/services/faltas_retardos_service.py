@@ -1,12 +1,15 @@
 from datetime import date
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.data_scope import effective_data_scope_rol
-from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError
+from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError, ServiceUnavailableError
+from app.integrations.bono_productividad_db import BonoProductividadReadClient
 from app.models.empleados import Empleado
 from app.models.faltas_retardos import FALTA_RETARDO_TIPOS, FaltaRetardoEvento
+from app.repositories.bono_faltas_retardos_repository import BonoFaltasRetardosRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.faltas_retardos_repository import FaltasRetardosRepository
 from app.schemas.faltas_retardos import (
@@ -14,6 +17,8 @@ from app.schemas.faltas_retardos import (
     FaltaRetardoResponse,
     FaltasRetardosPageResponse,
 )
+from app.services.faltas_retardos.constants import ORIGEN_MANUAL
+from app.services.faltas_retardos.mapper import map_bono_row
 
 
 def _empleado_display_nombre(empleado: Empleado | None) -> str | None:
@@ -66,7 +71,7 @@ class FaltasRetardosService:
             raise ForbiddenError("No tiene permiso para registrar eventos de este empleado")
         return empleado
 
-    def _to_response(self, evento: FaltaRetardoEvento) -> FaltaRetardoResponse:
+    def _to_response_manual(self, evento: FaltaRetardoEvento) -> FaltaRetardoResponse:
         return FaltaRetardoResponse(
             id=evento.id,
             empleado_id=evento.empleado_id,
@@ -79,7 +84,17 @@ class FaltasRetardosService:
             registrado_por_id=evento.registrado_por_id,
             registrado_por_nombre=_empleado_display_nombre(evento.registrado_por),
             created_at=evento.created_at,
+            origen=ORIGEN_MANUAL,
+            origen_id=evento.id,
         )
+
+    async def _with_bono_repo(self) -> tuple:
+        engine = BonoProductividadReadClient.create_read_engine()
+        if engine is None:
+            raise ServiceUnavailableError(
+                "Base bono_productividad no configurada (variables BONO_DB_*)."
+            )
+        return engine, BonoFaltasRetardosRepository(engine)
 
     async def list_eventos(
         self,
@@ -95,22 +110,54 @@ class FaltasRetardosService:
         busqueda: str | None = None,
     ) -> FaltasRetardosPageResponse:
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
-        items, total = await self.repo.list_page(
-            page=page,
-            page_size=page_size,
-            empleado_id=empleado_id,
-            tipo=tipo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            busqueda=busqueda,
-            empleado_ids_scope=scope_ids,
-        )
-        return FaltasRetardosPageResponse(
-            items=[self._to_response(item) for item in items],
-            total=total,
-            page=page,
-            page_size=page_size,
-        )
+        page = max(1, page)
+        page_size = min(100, max(1, page_size))
+
+        engine, repo = await self._with_bono_repo()
+        try:
+            total = await repo.count(
+                empleado_id=empleado_id,
+                tipo=tipo,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                busqueda=busqueda,
+                empleado_ids_scope=scope_ids,
+            )
+            offset = (page - 1) * page_size
+            if total == 0:
+                page = 1
+            elif offset >= total:
+                page = max(1, (total + page_size - 1) // page_size)
+                offset = (page - 1) * page_size
+
+            rows = await repo.list_offset(
+                offset,
+                page_size,
+                empleado_id=empleado_id,
+                tipo=tipo,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                busqueda=busqueda,
+                empleado_ids_scope=scope_ids,
+            )
+            items: list[FaltaRetardoResponse] = []
+            for row in rows:
+                mapped = map_bono_row(row)
+                if mapped is not None:
+                    items.append(mapped)
+
+            return FaltasRetardosPageResponse(
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+            )
+        except SQLAlchemyError as exc:
+            raise ServiceUnavailableError(
+                f"Error al consultar faltas y retardos en bono: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            await engine.dispose()
 
     async def crear_evento(
         self,
@@ -136,7 +183,7 @@ class FaltasRetardosService:
         refreshed = await self.repo.get_with_relations(evento.id)
         if refreshed is None:
             raise DomainValidationError("No se pudo recuperar el registro creado")
-        return self._to_response(refreshed)
+        return self._to_response_manual(refreshed)
 
     def list_tipos(self) -> list[str]:
         return list(FALTA_RETARDO_TIPOS)

@@ -16,9 +16,11 @@ export type FaltaRetardoListItem = {
   fecha_evento: string;
   fecha_fin: string | null;
   observaciones: string | null;
-  registrado_por_id: number;
+  registrado_por_id: number | null;
   registrado_por_nombre: string | null;
   created_at: string;
+  origen?: string | null;
+  origen_id?: number | null;
 };
 
 export type FaltasRetardosPageResponse = {

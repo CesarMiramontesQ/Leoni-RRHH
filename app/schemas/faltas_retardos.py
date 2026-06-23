@@ -53,9 +53,11 @@ class FaltaRetardoResponse(BaseModel):
     fecha_evento: date
     fecha_fin: Optional[date] = None
     observaciones: Optional[str] = None
-    registrado_por_id: int
+    registrado_por_id: Optional[int] = None
     registrado_por_nombre: Optional[str] = None
     created_at: datetime
+    origen: Optional[str] = None
+    origen_id: Optional[int] = None
 
 
 class FaltasRetardosPageResponse(BaseModel):

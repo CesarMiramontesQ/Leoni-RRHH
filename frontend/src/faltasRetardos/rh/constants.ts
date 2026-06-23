@@ -28,17 +28,17 @@ export function labelFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
 export function badgeClassFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
   switch (tipo) {
     case "falta_justificada":
-      return "bg-amber-50 text-amber-800 ring-amber-200/80";
+      return "rh-inc-type-pill--tiempo";
     case "falta_injustificada":
-      return "bg-red-50 text-red-800 ring-red-200/80";
+      return "rh-inc-type-pill--seguridad";
     case "retardo":
-      return "bg-orange-50 text-orange-800 ring-orange-200/80";
+      return "rh-inc-type-pill--tiempo";
     case "incapacidad":
-      return "bg-sky-50 text-sky-800 ring-sky-200/80";
+      return "rh-inc-type-pill--evaluacion";
     case "suspension":
-      return "bg-violet-50 text-violet-800 ring-violet-200/80";
+      return "rh-inc-type-pill--default";
     default:
-      return "bg-slate-50 text-slate-700 ring-slate-200/80";
+      return "rh-inc-type-pill--default";
   }
 }
 

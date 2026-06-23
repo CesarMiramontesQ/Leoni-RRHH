@@ -4,9 +4,15 @@ import {
   FALTA_RETARDO_TIPOS_RANGO,
   labelFaltaRetardoTipo,
 } from "../../faltasRetardos/rh/constants.ts";
+import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import {
+  RH_LISTADO_LABEL,
+  RH_LISTADO_SELECT,
+  RH_SOLICITUDES_BTN_PRIMARY,
+} from "./rhFaltasRetardosPageStyles.ts";
 
 export type FaltaRetardoEmpleadoOption = {
   empleado_id: number;
@@ -49,8 +55,11 @@ export type NuevaFaltaRetardoModalHandle = {
   destroy: () => void;
 };
 
-const FILTER_INPUT =
-  "rh-sol-filter-input min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-slate-400";
+const FR_FILTER_CONTROL =
+  "rh-sol-filter-input min-h-11 w-full rounded-[12px] border border-[rgba(148,163,184,0.34)] bg-white px-3 py-2.5 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(37,99,235,0.38)] hover:bg-[#fafbfc]";
+
+const SELECT_FILTER_EXTRA =
+  "rh-sol-filter-select min-h-11 rounded-[12px] border-[rgba(148,163,184,0.34)] py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]";
 
 function initialFormData(): NuevaFaltaRetardoFormData {
   return {
@@ -110,47 +119,53 @@ function buildFormHtml(
 
   return `
     <form id="fr-nueva-form" class="space-y-4" novalidate>
-      ${errors.form ? `<p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">${escapeHtml(errors.form)}</p>` : ""}
+      ${errors.form ? `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">${escapeHtml(errors.form)}</p>` : ""}
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700" for="fr-form-empleado-search">Buscar empleado</label>
-        <input id="fr-form-empleado-search" type="search" class="${FILTER_INPUT} ${FIELD_FOCUS}" placeholder="Nombre o número…" value="${escapeHtml(empleadoSearch)}" />
+        <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado-search">${escapeHtml(FR_COPY.filtroBusqueda)}</label>
+        <input id="fr-form-empleado-search" type="search" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}" value="${escapeHtml(empleadoSearch)}" />
       </div>
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700" for="fr-form-empleado">Empleado *</label>
-        <select id="fr-form-empleado" class="${FILTER_INPUT} ${SELECT_CHEVRON} ${FIELD_FOCUS}" required>
-          <option value="">Seleccionar…</option>
-          ${empleadoOptions}
-        </select>
+        <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado">Empleado *</label>
+        <div class="grid grid-cols-1">
+          <select id="fr-form-empleado" class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}" required>
+            <option value="">Seleccionar…</option>
+            ${empleadoOptions}
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
         ${errors.empleadoId ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.empleadoId)}</p>` : ""}
       </div>
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700" for="fr-form-tipo">Tipo de evento *</label>
-        <select id="fr-form-tipo" class="${FILTER_INPUT} ${SELECT_CHEVRON} ${FIELD_FOCUS}" required>
-          <option value="">Seleccionar…</option>
-          ${tipoOptions}
-        </select>
+        <label class="${RH_LISTADO_LABEL}" for="fr-form-tipo">${escapeHtml(FR_COPY.filtroTipo)} *</label>
+        <div class="grid grid-cols-1">
+          <select id="fr-form-tipo" class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}" required>
+            <option value="">Seleccionar…</option>
+            ${tipoOptions}
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
         ${errors.tipo ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.tipo)}</p>` : ""}
       </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700" for="fr-form-fecha">${rango ? "Fecha inicio *" : "Fecha del evento *"}</label>
-          <input id="fr-form-fecha" type="date" class="${FILTER_INPUT} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaEvento)}" required />
+          <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha">${rango ? "Fecha inicio *" : "Fecha del evento *"}</label>
+          <input id="fr-form-fecha" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaEvento)}" required />
           ${errors.fechaEvento ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaEvento)}</p>` : ""}
         </div>
         <div id="fr-form-fecha-fin-wrap" class="${rango ? "" : "hidden"}">
-          <label class="mb-1 block text-sm font-medium text-slate-700" for="fr-form-fecha-fin">Fecha fin *</label>
-          <input id="fr-form-fecha-fin" type="date" class="${FILTER_INPUT} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} />
+          <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha-fin">Fecha fin *</label>
+          <input id="fr-form-fecha-fin" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} />
           ${errors.fechaFin ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
         </div>
       </div>
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700" for="fr-form-obs">Observaciones</label>
-        <textarea id="fr-form-obs" rows="3" class="${FILTER_INPUT} ${FIELD_FOCUS} resize-y" placeholder="Comentarios u observaciones…">${escapeHtml(data.observaciones)}</textarea>
+        <label class="${RH_LISTADO_LABEL}" for="fr-form-obs">${escapeHtml(FR_COPY.colObservaciones)}</label>
+        <textarea id="fr-form-obs" rows="3" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} resize-y" placeholder="Comentarios u observaciones…">${escapeHtml(data.observaciones)}</textarea>
       </div>
-      <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
-        <button type="button" id="fr-form-cancel" class="rh-sol-btn-secondary min-h-[42px] rounded px-4 text-sm font-medium" ${isSubmitting ? "disabled" : ""}>Cancelar</button>
-        <button type="submit" id="fr-form-submit" class="rh-sol-btn-primary min-h-[42px] rounded px-4 text-sm font-semibold" ${isSubmitting ? "disabled" : ""}>
-          ${isSubmitting ? "Guardando…" : "Registrar evento"}
+      <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <button type="button" id="fr-form-cancel" class="rh-sol-btn-secondary min-h-11 rounded px-4 text-sm font-medium" ${isSubmitting ? "disabled" : ""}>Cancelar</button>
+        <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-4 text-sm font-semibold" ${isSubmitting ? "disabled" : ""}>
+          ${isSubmitting ? escapeHtml(FR_COPY.modalGuardando) : escapeHtml(FR_COPY.modalGuardar)}
         </button>
       </div>
     </form>
@@ -162,14 +177,16 @@ export function mountNuevaFaltaRetardoModal(
   options: NuevaFaltaRetardoModalOptions,
 ): NuevaFaltaRetardoModalHandle {
   host.innerHTML = `
-    <div id="fr-nueva-modal-overlay" class="fixed inset-0 z-[80] hidden items-center justify-center bg-[rgba(15,23,42,0.45)] p-4">
+    <div id="fr-nueva-modal-overlay" class="fixed inset-0 z-[61] hidden items-center justify-center bg-slate-900/45 p-3 sm:p-6 backdrop-blur-[2px]" role="presentation">
       <div id="fr-nueva-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fr-nueva-modal-title"
-        class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
-        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 id="fr-nueva-modal-title" class="text-lg font-semibold text-slate-900">Nuevo registro</h2>
-          <button type="button" id="fr-nueva-modal-close" class="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">✕</button>
-        </div>
-        <div id="fr-nueva-modal-body" class="px-5 py-4"></div>
+        class="flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_64px_-20px_rgba(15,23,42,0.25)] [color-scheme:light]">
+        <header class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+          <h2 id="fr-nueva-modal-title" class="text-base font-bold text-slate-900 sm:text-lg">${escapeHtml(FR_COPY.modalTitulo)}</h2>
+          <button type="button" id="fr-nueva-modal-close" class="-m-1 flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" aria-label="${escapeHtml(FR_COPY.modalCerrar)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+        </header>
+        <div id="fr-nueva-modal-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"></div>
       </div>
     </div>
   `;
@@ -229,7 +246,7 @@ export function mountNuevaFaltaRetardoModal(
         payload.fecha_fin = formData.fechaFin;
       }
       await options.onSubmit(payload);
-      showEmpleadosToast(options.toastContainer, "El evento laboral se registró correctamente.", "success");
+      showEmpleadosToast(options.toastContainer, FR_COPY.modalExito, "success");
       close();
     } catch (err: unknown) {
       const detail =
