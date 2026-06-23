@@ -20,6 +20,7 @@ export type IncidenciaApiItem = {
   id: number;
   empleado_id: number;
   tipo: string;
+  tipo_incidencia?: string | null;
   subtipo?: string | null;
   no_empleado?: string | null;
   nombre?: string | null;
@@ -188,8 +189,10 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
   const nombre = item.nombre?.trim();
   const supervisorDirecto = item.supervisor_directo?.trim();
   const puestoApi = item.puesto?.trim();
+  const tipoIncidencia =
+    strCampoIncidencia(item.tipo_incidencia) || strCampoIncidencia(item.tipo) || item.tipo;
   const tipoTexto = strCampoIncidencia(item.tipo) || item.tipo;
-  const subtipoTexto = strCampoIncidencia(item.subtipo) || null;
+  const subtipoTexto = strCampoIncidencia(item.subtipo) || strCampoIncidencia(item.categoria) || null;
   return {
     id: item.id,
     empleado_id: String(item.empleado_id),
@@ -199,8 +202,9 @@ export function incidenciaApiItemToTablaFila(item: IncidenciaApiItem): RhInciden
     area: strCampoIncidencia(item.area),
     supervisor_id: "",
     supervisor_nombre: supervisorDirecto || "—",
-    tipo: inferTipoCodigo(tipoTexto),
-    tipo_texto: tipoTexto,
+    tipo: inferTipoCodigo(tipoIncidencia),
+    tipo_incidencia: tipoIncidencia,
+    tipo_texto: tipoIncidencia,
     subtipo: subtipoTexto,
     fecha: fechaDisplay,
     estado: "abierto",

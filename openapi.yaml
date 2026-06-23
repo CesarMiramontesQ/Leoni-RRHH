@@ -1664,6 +1664,10 @@ components:
           type: integer
         tipo:
           type: string
+        tipo_incidencia:
+          type: [string, "null"]
+          description: >
+            Categoría de alto nivel (Calidad, Seguridad). Distinto de `categoria` (subtipo en bono).
         subtipo:
           type: [string, "null"]
         no_empleado:

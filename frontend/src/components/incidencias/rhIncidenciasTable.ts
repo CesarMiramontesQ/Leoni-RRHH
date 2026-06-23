@@ -40,18 +40,21 @@ function celdaTextoTruncado(val: string, maxLen = 48): string {
   return `<span class="block max-w-[14rem] truncate sm:max-w-[18rem]" title="${escapeIncHtml(raw)}">${escapeIncHtml(t)}</span>`;
 }
 
-function tipoBadge(tipoUi: string): string {
+function tipoIncidenciaBadge(tipoIncidencia: string): string {
+  const tipoUi = labelTipoIncidenciaUi(tipoIncidencia.trim() || "—");
   const lower = tipoUi.toLowerCase();
-  const cls = lower.includes("evaluacion") || lower.includes("evaluación")
-    ? "rh-inc-type-pill--evaluacion"
-    : lower.includes("seguridad")
+  const cls = lower.includes("seguridad")
     ? "rh-inc-type-pill--seguridad"
     : lower.includes("calidad")
       ? "rh-inc-type-pill--calidad"
-      : lower.includes("retardo") || lower.includes("tard")
-        ? "rh-inc-type-pill--tiempo"
-        : "rh-inc-type-pill--default";
+      : "rh-inc-type-pill--default";
   return `<span class="rh-inc-type-pill ${cls}" title="${escapeIncHtml(tipoUi)}">${escapeIncHtml(tipoUi)}</span>`;
+}
+
+function categoriaBadge(categoria: string): string {
+  const raw = fmtTablaCelda(categoria);
+  if (raw === "—") return escapeIncHtml("—");
+  return `<span class="block max-w-[10rem] truncate text-slate-700" title="${escapeIncHtml(raw)}">${escapeIncHtml(raw)}</span>`;
 }
 
 /** Nombre colaborador en listado incidencias: título y orden natural (APELLIDOS, NOMBRE → Nombre Apellidos). */
@@ -80,7 +83,8 @@ function renderIncidenciasEmptyState(vm: RhIncidenciasAdminViewModel): string {
 const COLS = [
   INC_COPY.colNoEmpleado,
   INC_COPY.colNombre,
-  INC_COPY.colTipo,
+  INC_COPY.colTipoIncidencia,
+  INC_COPY.colCategoria,
   INC_COPY.colDetalle,
   INC_COPY.colArea,
   INC_COPY.colSubarea,
@@ -135,12 +139,16 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
 
   const rows = tbl.items
     .map((row) => {
-      const tipoUi = labelTipoIncidenciaUi((row.tipo_texto ?? row.tipo).trim() || String(row.tipo));
+      const tipoIncidenciaUi = labelTipoIncidenciaUi(
+        (row.tipo_incidencia ?? row.tipo_texto ?? row.tipo).trim() || String(row.tipo),
+      );
+      const categoriaUi = fmtTablaCelda(row.categoria ?? row.subtipo);
       return `
     <tr class="rh-sol-data-row transition-colors">
       <td class="whitespace-nowrap px-2 py-3 align-middle text-sm text-slate-700 sm:px-3"><span class="rh-inc-noempleado-pill">${escapeIncHtml(fmtTablaCelda(row.no_empleado))}</span></td>
       <td class="max-w-[12rem] px-2 py-3 align-middle text-sm font-semibold text-slate-900 sm:px-3">${celdaTextoTruncado(nombreEmpleadoIncidenciaTabla(row.empleado_nombre_raw), 36)}</td>
-      <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-800 sm:px-3">${tipoBadge(tipoUi)}</td>
+      <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-800 sm:px-3">${tipoIncidenciaBadge(tipoIncidenciaUi)}</td>
+      <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${categoriaBadge(categoriaUi)}</td>
       <td class="max-w-[14rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.detalle), 80)}</td>
       <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.area), 32)}</td>
       <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(fmtTablaCelda(row.subarea), 32)}</td>
@@ -200,17 +208,21 @@ export function renderRhIncidenciasTable(vm: RhIncidenciasAdminViewModel): strin
 
   const mobileCards = tbl.items
     .map((row) => {
-      const tipoUi = labelTipoIncidenciaUi((row.tipo_texto ?? row.tipo).trim() || String(row.tipo));
+      const tipoIncidenciaUi = labelTipoIncidenciaUi(
+        (row.tipo_incidencia ?? row.tipo_texto ?? row.tipo).trim() || String(row.tipo),
+      );
+      const categoriaUi = fmtTablaCelda(row.categoria ?? row.subtipo);
       return `
       <article
         class="rh-inc-mobile-card rounded-2xl border border-[rgba(148,163,184,0.22)] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-[rgba(100,116,139,0.35)]"
       >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <p class="min-w-0 flex-1 truncate text-sm font-bold text-[#0f172a]">${escapeIncHtml(nombreEmpleadoIncidenciaTabla(row.empleado_nombre_raw))}</p>
-          ${tipoBadge(tipoUi)}
+          ${tipoIncidenciaBadge(tipoIncidenciaUi)}
         </div>
         <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-[#667085]">
           <div><dt>${escapeIncHtml(INC_COPY.colNoEmpleado)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.no_empleado))}</dd></div>
+          <div><dt>${escapeIncHtml(INC_COPY.colCategoria)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(categoriaUi)}</dd></div>
           <div class="col-span-2"><dt>${escapeIncHtml(INC_COPY.colDetalle)}</dt><dd class="mt-0.5 line-clamp-2 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.detalle))}</dd></div>
           <div><dt>${escapeIncHtml(INC_COPY.colArea)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.area))}</dd></div>
           <div><dt>${escapeIncHtml(INC_COPY.colSubarea)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeIncHtml(fmtTablaCelda(row.subarea))}</dd></div>

@@ -1,13 +1,14 @@
-"""Alcance de incidencias por rol: gerente ve subárbol completo; supervisor solo reportes directos."""
+"""Alcance de incidencias por rol en la capa de fuentes (sin conectar a bono)."""
 
 import pytest
-from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import auth_headers, make_empleado, make_incidencia
+from app.services.incidencia_fuentes_service import IncidenciaFuentesService
+from tests.conftest import make_empleado
 
 
 @pytest.mark.asyncio
-async def test_listar_incidencias_gerente_incluye_subarbol(client: AsyncClient, db):
+async def test_scope_gerente_incluye_subarbol(db: AsyncSession):
     gerente = await make_empleado(db, rol="gerente", email="inc_jer_g@leoni.test")
     supervisor = await make_empleado(
         db, rol="supervisor", email="inc_jer_s@leoni.test", lider_id=gerente.empleado_id
@@ -15,17 +16,16 @@ async def test_listar_incidencias_gerente_incluye_subarbol(client: AsyncClient, 
     empleado = await make_empleado(
         db, rol="empleado", email="inc_jer_e@leoni.test", lider_id=supervisor.empleado_id
     )
-    incidencia = await make_incidencia(db, empleado_id=empleado.id)
-
-    headers = await auth_headers(client, gerente)
-    response = await client.get("/api/v1/incidencias", headers=headers)
-    assert response.status_code == 200
-    ids = {item["id"] for item in response.json()["items"]}
-    assert incidencia.id in ids
+    svc = IncidenciaFuentesService(db)
+    scope = await svc._empleado_ids_scope(gerente, None)
+    assert scope is not None
+    assert empleado.empleado_id in scope
+    assert supervisor.empleado_id in scope
+    assert gerente.empleado_id in scope
 
 
 @pytest.mark.asyncio
-async def test_listar_incidencias_supervisor_solo_reportes_directos(client: AsyncClient, db):
+async def test_scope_supervisor_solo_reportes_directos(db: AsyncSession):
     gerente = await make_empleado(db, rol="gerente", email="inc_jer2_g@leoni.test")
     supervisor = await make_empleado(
         db, rol="supervisor", email="inc_jer2_s@leoni.test", lider_id=gerente.empleado_id
@@ -33,48 +33,23 @@ async def test_listar_incidencias_supervisor_solo_reportes_directos(client: Asyn
     otro_supervisor = await make_empleado(
         db, rol="supervisor", email="inc_jer2_s2@leoni.test", lider_id=gerente.empleado_id
     )
-    empleado_indirecto = await make_empleado(
-        db, rol="empleado", email="inc_jer2_e@leoni.test", lider_id=otro_supervisor.empleado_id
+    empleado_directo = await make_empleado(
+        db, rol="empleado", email="inc_jer2_ed@leoni.test", lider_id=supervisor.empleado_id
     )
-    incidencia_indirecta = await make_incidencia(db, empleado_id=empleado_indirecto.id)
-
-    headers = await auth_headers(client, supervisor)
-    response = await client.get("/api/v1/incidencias", headers=headers)
-    assert response.status_code == 200
-    ids = {item["id"] for item in response.json()["items"]}
-    assert incidencia_indirecta.id not in ids
+    empleado_indirecto = await make_empleado(
+        db, rol="empleado", email="inc_jer2_ei@leoni.test", lider_id=otro_supervisor.empleado_id
+    )
+    svc = IncidenciaFuentesService(db)
+    scope = await svc._empleado_ids_scope(supervisor, None)
+    assert scope is not None
+    assert empleado_directo.empleado_id in scope
+    assert supervisor.empleado_id in scope
+    assert empleado_indirecto.empleado_id not in scope
 
 
 @pytest.mark.asyncio
-async def test_estadisticas_incidencias_supervisor_solo_reportes_directos(
-    client: AsyncClient, db
-):
-    """GET /estadisticas acota agregados al supervisor y su equipo directo."""
-    gerente = await make_empleado(db, rol="gerente", email="inc_est_g@leoni.test")
-    supervisor = await make_empleado(
-        db, rol="supervisor", email="inc_est_s@leoni.test", lider_id=gerente.empleado_id
-    )
-    otro_supervisor = await make_empleado(
-        db, rol="supervisor", email="inc_est_s2@leoni.test", lider_id=gerente.empleado_id
-    )
-    subordinado = await make_empleado(
-        db, rol="empleado", email="inc_est_e@leoni.test", lider_id=supervisor.empleado_id
-    )
-    empleado_indirecto = await make_empleado(
-        db, rol="empleado", email="inc_est_e2@leoni.test", lider_id=otro_supervisor.empleado_id
-    )
-
-    await make_incidencia(db, empleado_id=subordinado.id, tipo="tardanza")
-    await make_incidencia(db, empleado_id=subordinado.id, tipo="tardanza")
-    await make_incidencia(db, empleado_id=empleado_indirecto.id, tipo="tardanza")
-    await make_incidencia(db, empleado_id=supervisor.id, tipo="retardo")
-
-    headers = await auth_headers(client, supervisor)
-    response = await client.get("/api/v1/incidencias/estadisticas", headers=headers)
-    assert response.status_code == 200, response.text
-    data = response.json()
-    assert data["total_incidencias"] == 3
-    ranking_ids = {item["empleado_id"] for item in data["empleados_con_mas_incidencias"]}
-    assert subordinado.id in ranking_ids
-    assert supervisor.id in ranking_ids
-    assert empleado_indirecto.id not in ranking_ids
+async def test_scope_rh_sin_restriccion(db: AsyncSession):
+    rh = await make_empleado(db, rol="rh", email="inc_rh_scope@leoni.test")
+    svc = IncidenciaFuentesService(db)
+    scope = await svc._empleado_ids_scope(rh, None)
+    assert scope is None

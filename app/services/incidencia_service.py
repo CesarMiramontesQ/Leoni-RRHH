@@ -6,7 +6,7 @@ Subida de evidencias: almacena en /data/evidencias/incidencias/{year}/{month}/{u
 
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import BackgroundTasks
@@ -24,20 +24,13 @@ from app.repositories.incidencia_repository import (
     build_incidencia_query_filters,
     filtro_tipos_visibles_en_listados,
 )
+from app.services.incidencia_fuentes_service import IncidenciaFuentesService
 from app.schemas import PaginatedResponse
 from app.schemas.incidencias import (
     EvidenciaResponse,
-    IncidenciaAreaTotalItem,
     IncidenciaCreate,
-    IncidenciaEmpleadoTotalItem,
-    IncidenciaMesTipoItem,
-    IncidenciaPeriodoTipoItem,
     IncidenciaResponse,
-    IncidenciaSerieMensualItem,
-    IncidenciaSubareaTotalItem,
-    IncidenciaTipoDistribucionItem,
     IncidenciasEstadisticasResponse,
-    IncidenciasKpiResumen,
     IncidenciasListPageResponse,
 )
 from app.utils.audit_logger import audit_background
@@ -53,6 +46,7 @@ class IncidenciaService:
         self.repo = IncidenciaRepository(db)
         self.evidencia_repo = EvidenciaRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
+        self.fuentes_svc = IncidenciaFuentesService(db)
         self.db = db
 
     @staticmethod
@@ -190,12 +184,11 @@ class IncidenciaService:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
     ) -> IncidenciasListPageResponse:
-        """Listado paginado desde la tabla interna `incidencias`."""
-        page_size = min(10, max(1, page_size))
-        page = max(1, page)
-
-        filters_arg = await self._build_list_filters(
+        """Listado paginado desde fuentes tipadas (fase actual: ``calidad_historico``)."""
+        return await self.fuentes_svc.list_incidencias_paginated(
             current_user,
+            page,
+            page_size,
             rh_ui_mode=rh_ui_mode,
             tipo=tipo,
             empleado_id=empleado_id,
@@ -207,38 +200,6 @@ class IncidenciaService:
             subarea=subarea,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
-        )
-
-        total = await self.repo.count(filters=filters_arg)
-        offset = (page - 1) * page_size
-        if total == 0:
-            page = 1
-        elif offset >= total:
-            page = max(1, (total + page_size - 1) // page_size)
-            offset = (page - 1) * page_size
-
-        items = await self.repo.list_offset(offset, page_size, filters_arg)
-        abiertas, en_inv, resueltas, criticas = await self.repo.aggregate_kpis(filters_arg)
-
-        response_items: list[IncidenciaResponse] = []
-        for item in items:
-            count = await self.repo.count_evidencias(item.id)
-            r = IncidenciaResponse.model_validate(item)
-            r.evidencias_count = count
-            await self._enriquecer_incidencia_response(item, r)
-            response_items.append(r)
-
-        return IncidenciasListPageResponse(
-            items=response_items,
-            total=total,
-            page=page,
-            page_size=page_size,
-            resumen=IncidenciasKpiResumen(
-                abiertas=abiertas,
-                en_investigacion=en_inv,
-                resueltas=resueltas,
-                criticas=criticas,
-            ),
         )
 
     async def estadisticas_incidencias(
@@ -258,8 +219,8 @@ class IncidenciaService:
         fecha_fin: date | None = None,
         tendencia_agrupacion: str | None = None,
     ) -> IncidenciasEstadisticasResponse:
-        """Agregados desde la tabla interna `incidencias` (mismos filtros que el listado)."""
-        filters_arg = await self._build_list_filters(
+        """Agregados desde fuentes tipadas (mismos filtros que el listado)."""
+        return await self.fuentes_svc.estadisticas_incidencias(
             current_user,
             rh_ui_mode=rh_ui_mode,
             tipo=tipo,
@@ -272,100 +233,7 @@ class IncidenciaService:
             subarea=subarea,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
-        )
-
-        total_incidencias, incidencias_seguridad, incidencias_calidad = (
-            await self.repo.aggregate_total_y_seguridad_calidad(filters_arg)
-        )
-        areas_raw = await self.repo.aggregate_areas_top(filters_arg, limit=10)
-        subareas_raw = await self.repo.aggregate_subareas_top_with_area(filters_arg, limit=10)
-        empleados_raw = await self.repo.aggregate_empleados_top(filters_arg, limit=10)
-        tipos_raw = await self.repo.aggregate_tipos_con_totales(filters_arg)
-        mes_rows = await self.repo.aggregate_totales_por_mes(filters_arg)
-        mes_tipo_rows = await self.repo.aggregate_totales_por_mes_y_tipo(filters_arg)
-
-        total_tipos = sum(c for _, c in tipos_raw)
-        incidencias_por_tipo: list[IncidenciaTipoDistribucionItem] = []
-        for tipo_str, cnt in tipos_raw:
-            pct = round(100.0 * cnt / total_tipos, 2) if total_tipos > 0 else 0.0
-            incidencias_por_tipo.append(
-                IncidenciaTipoDistribucionItem(tipo=tipo_str, total=cnt, porcentaje=pct)
-            )
-
-        incidencias_por_mes = [
-            IncidenciaSerieMensualItem(periodo=p, total=c) for p, c in mes_rows
-        ]
-        incidencias_por_mes_y_tipo = [
-            IncidenciaMesTipoItem(periodo=p, tipo=t, total=c)
-            for p, t, c in mes_tipo_rows
-        ]
-
-        periodo_y_tipo: list[IncidenciaPeriodoTipoItem] = []
-        agr = tendencia_agrupacion if tendencia_agrupacion in ("dia", "semana", "mes") else None
-        if agr:
-            periodo_rows = await self.repo.aggregate_totales_por_periodo_y_tipo(
-                filters_arg, agrupacion=agr
-            )
-            periodo_y_tipo = [
-                IncidenciaPeriodoTipoItem(periodo=p, tipo=t, total=c)
-                for p, t, c in periodo_rows
-            ]
-
-        total_periodo_anterior: int | None = None
-        variacion_total_pct: float | None = None
-        if fecha_inicio is not None and fecha_fin is not None:
-            span_days = (fecha_fin - fecha_inicio).days + 1
-            prev_end = fecha_inicio - timedelta(days=1)
-            prev_start = prev_end - timedelta(days=span_days - 1)
-            prev_filters = await self._build_list_filters(
-                current_user,
-                rh_ui_mode=rh_ui_mode,
-                tipo=tipo,
-                empleado_id=empleado_id,
-                no_empleado=no_empleado,
-                nombre=nombre,
-                fecha=fecha,
-                categoria=categoria,
-                area=area,
-                subarea=subarea,
-                fecha_inicio=prev_start,
-                fecha_fin=prev_end,
-            )
-            total_prev = await self.repo.count_incidencias(prev_filters)
-            total_periodo_anterior = total_prev
-            if total_prev > 0:
-                variacion_total_pct = round(
-                    100.0 * (total_incidencias - total_prev) / total_prev,
-                    1,
-                )
-
-        return IncidenciasEstadisticasResponse(
-            total_incidencias=total_incidencias,
-            incidencias_seguridad=incidencias_seguridad,
-            incidencias_calidad=incidencias_calidad,
-            areas_con_mas_incidencias=[
-                IncidenciaAreaTotalItem(area=a, total=t) for a, t in areas_raw
-            ],
-            subareas_con_mas_incidencias=[
-                IncidenciaSubareaTotalItem(subarea=s, total=t, area=ar)
-                for s, ar, t in subareas_raw
-            ],
-            empleados_con_mas_incidencias=[
-                IncidenciaEmpleadoTotalItem(
-                    empleado_id=eid,
-                    no_empleado=no,
-                    nombre=nom,
-                    total=cnt,
-                )
-                for eid, no, nom, cnt in empleados_raw
-            ],
-            incidencias_por_tipo=incidencias_por_tipo,
-            incidencias_por_mes=incidencias_por_mes,
-            incidencias_por_mes_y_tipo=incidencias_por_mes_y_tipo,
-            tendencia_agrupacion=agr,
-            incidencias_por_periodo_y_tipo=periodo_y_tipo,
-            total_periodo_anterior=total_periodo_anterior,
-            variacion_total_pct=variacion_total_pct,
+            tendencia_agrupacion=tendencia_agrupacion,
         )
 
     async def list_tipos_registrados(
@@ -373,10 +241,10 @@ class IncidenciaService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> list[str]:
-        """Tipos distintos en incidencias visibles para el rol del usuario."""
-        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
-        tipos_filters = [*scope, filtro_tipos_visibles_en_listados()]
-        return await self.repo.distinct_tipos(filters=tipos_filters)
+        """Tipos de incidencia disponibles (Calidad; futuro Seguridad)."""
+        _ = current_user
+        _ = rh_ui_mode
+        return await self.fuentes_svc.list_tipos_registrados()
 
     async def list_areas_registradas(
         self,
@@ -384,9 +252,9 @@ class IncidenciaService:
         rh_ui_mode: str | None = None,
     ) -> list[str]:
         """Áreas distintas en incidencias visibles para el rol del usuario."""
-        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
-        catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
-        return await self.repo.distinct_areas(filters=catalog_filters)
+        return await self.fuentes_svc.list_areas_registradas(
+            current_user, rh_ui_mode=rh_ui_mode
+        )
 
     async def list_subareas_registradas(
         self,
@@ -396,12 +264,10 @@ class IncidenciaService:
         area: str | None = None,
     ) -> list[str]:
         """Subáreas distintas; si `area` viene definida, solo las de esa área."""
-        scope = await self._scope_filters_for_list(current_user, rh_ui_mode)
-        catalog_filters = [*scope, filtro_tipos_visibles_en_listados()]
-        area_val = area.strip() if area and area.strip() else None
-        return await self.repo.distinct_subareas(
-            catalog_filters,
-            area=area_val,
+        return await self.fuentes_svc.list_subareas_registradas(
+            current_user,
+            rh_ui_mode=rh_ui_mode,
+            area=area,
         )
 
     # ── Obtener uno ──────────────────────────────────────────────────────────

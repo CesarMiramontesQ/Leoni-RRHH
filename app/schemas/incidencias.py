@@ -44,6 +44,10 @@ class IncidenciaResponse(BaseModel):
 
     id: int
     tipo: str
+    tipo_incidencia: Optional[str] = Field(
+        default=None,
+        description="Categoría de alto nivel (Calidad, Seguridad). Distinto de `categoria` (subtipo en bono).",
+    )
     subtipo: Optional[str] = None
     empleado_id: int
     no_empleado: Optional[str] = None
