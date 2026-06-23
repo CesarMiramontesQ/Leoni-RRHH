@@ -21,9 +21,13 @@ import { labelCriterio } from "../components/puestos/cualificacionCriterioFields
 import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
 import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
+import type { EditarCompetenciasModalHandle } from "../components/puestos/editarCompetenciasMultiSelect.ts";
+import type { EditarCualificacionesModalHandle } from "../components/puestos/editarCualificacionesModal.ts";
+import type { EditarTareasModalHandle } from "../components/puestos/editarTareasModal.ts";
 import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, type PerfilCualificacion } from "../api/puestos.ts";
 import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
 
@@ -673,6 +677,137 @@ function renderCursosAsignados(cursos: CursoPuestoItem[], _perfilId: number): st
 
 // ── Mount y carga ───────────────────────────────────────────────────────
 
+type PerfilDetalleController = {
+  perfilId: number;
+  reload: () => void;
+  puesto: PuestoPerfilInfo | null;
+  cursosList: CursoPuestoItem[];
+  gradoEdicion: GradoPuesto | null;
+  tareasModal: EditarTareasModalHandle | null;
+  cualModal: EditarCualificacionesModalHandle | null;
+  compModal: EditarCompetenciasModalHandle | null;
+};
+
+const perfilDetalleControllers = new WeakMap<HTMLElement, PerfilDetalleController>();
+
+function resolveGradoEdicion(grados: GradoPuesto[]): GradoPuesto | null {
+  return grados.find((g) => g.activo) ?? grados[0] ?? null;
+}
+
+async function fetchGradoEdicion(): Promise<GradoPuesto | null> {
+  try {
+    return resolveGradoEdicion(await getGradosPuesto());
+  } catch {
+    return null;
+  }
+}
+
+function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
+  const overlayId = "perfil-detalle-notice-overlay";
+  host.innerHTML = `
+    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-modal="true" aria-labelledby="perfil-detalle-notice-title">
+        <h2 id="perfil-detalle-notice-title" class="text-lg font-semibold text-text-primary">No se puede editar competencias</h2>
+        <p class="mt-2 text-sm text-text-secondary">${escapeHtml(message)}</p>
+        <div class="mt-6 flex justify-end">
+          <button type="button" data-perfil-detalle-notice-close class="${BTN_PRIMARY}">Entendido</button>
+        </div>
+      </div>
+    </div>`;
+
+  const overlay = host.querySelector(`#${overlayId}`) as HTMLElement;
+  const close = () => {
+    host.innerHTML = "";
+    document.body.style.overflow = "";
+  };
+  document.body.style.overflow = "hidden";
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  host.querySelector("[data-perfil-detalle-notice-close]")?.addEventListener("click", close);
+}
+
+async function openEditarCompetenciasModal(ctrl: PerfilDetalleController, host: HTMLElement | null): Promise<void> {
+  if (!host) return;
+  if (ctrl.compModal) {
+    ctrl.compModal.open();
+    return;
+  }
+
+  let grado = ctrl.gradoEdicion;
+  if (!grado) {
+    grado = await fetchGradoEdicion();
+    ctrl.gradoEdicion = grado;
+  }
+  if (!grado) {
+    showPerfilDetalleNotice(
+      host,
+      "Configura al menos un grado de puesto en Ajustes de perfiles → Grados en puestos antes de asignar competencias.",
+    );
+    return;
+  }
+
+  ctrl.compModal = mountEditarCompetenciasModal(host, {
+    perfilId: ctrl.perfilId,
+    gradoId: grado.id,
+    gradoNombre: grado.nombre,
+    onSuccess: ctrl.reload,
+  });
+  ctrl.compModal.open();
+}
+
+async function handlePerfilDetalleClick(container: HTMLElement, ev: Event): Promise<void> {
+  const ctrl = perfilDetalleControllers.get(container);
+  if (!ctrl) return;
+
+  const inner = container.querySelector("#perfil-detalle-inner");
+  if (!inner) return;
+
+  const btn = (ev.target as HTMLElement).closest<HTMLElement>("[data-action]");
+  if (!btn) return;
+
+  switch (btn.dataset.action) {
+    case "edit-tareas":
+      ctrl.tareasModal?.open();
+      break;
+    case "edit-cualificaciones":
+      ctrl.cualModal?.open();
+      break;
+    case "edit-competencias":
+      await openEditarCompetenciasModal(ctrl, inner.querySelector("#modal-host-competencias") as HTMLElement | null);
+      break;
+    case "edit-base":
+      if (ctrl.puesto) {
+        openEditBaseModal(
+          inner.querySelector("#modal-host-edit-base") as HTMLElement,
+          ctrl.puesto,
+          ctrl.perfilId,
+          ctrl.reload,
+        );
+      }
+      break;
+    case "add-curso":
+      openAsignarCursoModal(
+        inner.querySelector("#modal-host-cursos") as HTMLElement,
+        ctrl.perfilId,
+        ctrl.cursosList,
+        ctrl.reload,
+      );
+      break;
+    case "remove-curso": {
+      const cpId = Number(btn.dataset.cursoPuestoId);
+      if (!cpId || !confirm("¿Quitar este curso del puesto?")) break;
+      try {
+        await eliminarCursoPuesto(ctrl.perfilId, cpId);
+        ctrl.reload();
+      } catch {
+        /* noop */
+      }
+      break;
+    }
+  }
+}
+
 export function mountPerfilPuestoDetalle(container: HTMLElement, id: number): void {
   mountAppShell(container, {
     pageTitle: "Detalle del Puesto",
@@ -682,6 +817,23 @@ export function mountPerfilPuestoDetalle(container: HTMLElement, id: number): vo
       <div id="perfil-detalle-root" class="flex min-h-0 flex-1 flex-col">
         <div id="perfil-detalle-inner"></div>
       </div>`,
+  });
+
+  const reload = () => loadPerfilDetalle(container, id);
+  perfilDetalleControllers.set(container, {
+    perfilId: id,
+    reload,
+    puesto: null,
+    cursosList: [],
+    gradoEdicion: null,
+    tareasModal: null,
+    cualModal: null,
+    compModal: null,
+  });
+
+  const root = container.querySelector("#perfil-detalle-root");
+  root?.addEventListener("click", (ev) => {
+    void handlePerfilDetalleClick(container, ev);
   });
 
   void loadPerfilDetalle(container, id);
@@ -715,7 +867,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       getCursosPuesto(perfilId).catch(() => [] as CursoPuestoItem[]),
       getGradosPuesto().catch(() => []),
     ]);
-    const gradoEdicion = grados.find((g) => g.activo) ?? grados[0] ?? null;
+    const gradoEdicion = resolveGradoEdicion(grados);
 
     if (!puesto) {
       inner.innerHTML = `<div class="${RH_LISTADO_PAGE_OUTER}"><p class="text-sm text-red-600">Perfil no encontrado (ID: ${perfilId})</p></div>`;
@@ -768,66 +920,31 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       </div>`;
 
     const contentEl = inner;
+    const ctrl = perfilDetalleControllers.get(container);
 
-    if (canEditarPerfilPuesto()) {
-      const reload = () => loadPerfilDetalle(container, perfilId);
+    if (canEditarPerfilPuesto() && ctrl) {
+      const reload = ctrl.reload;
+
+      ctrl.puesto = puesto;
+      ctrl.cursosList = cursosList;
+      ctrl.gradoEdicion = gradoEdicion;
+      ctrl.compModal = null;
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
-      const tareasModal = mountEditarTareasModal(tareasHost, { perfilId, onSuccess: reload });
+      ctrl.tareasModal = mountEditarTareasModal(tareasHost, { perfilId, onSuccess: reload });
 
       const cualHost = contentEl.querySelector("#modal-host-cualificaciones") as HTMLElement;
-      const cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
+      ctrl.cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
 
-      const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
-      const compModal = gradoEdicion
-        ? mountEditarCompetenciasModal(compHost, {
-            perfilId,
-            gradoId: gradoEdicion.id,
-            gradoNombre: gradoEdicion.nombre,
-            onSuccess: reload,
-          })
-        : null;
-
-      contentEl.addEventListener("click", async (e) => {
-        const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
-        if (!btn) return;
-        switch (btn.dataset.action) {
-          case "edit-tareas":
-            tareasModal.open();
-            break;
-          case "edit-cualificaciones":
-            cualModal.open();
-            break;
-          case "edit-competencias":
-            compModal?.open();
-            break;
-          case "edit-base":
-            openEditBaseModal(
-              contentEl.querySelector("#modal-host-edit-base") as HTMLElement,
-              puesto,
-              perfilId,
-              reload,
-            );
-            break;
-          case "add-curso":
-            openAsignarCursoModal(
-              contentEl.querySelector("#modal-host-cursos") as HTMLElement,
-              perfilId,
-              cursosList,
-              reload,
-            );
-            break;
-          case "remove-curso": {
-            const cpId = Number(btn.dataset.cursoPuestoId);
-            if (!cpId || !confirm("¿Quitar este curso del puesto?")) break;
-            try {
-              await eliminarCursoPuesto(perfilId, cpId);
-              reload();
-            } catch { /* noop */ }
-            break;
-          }
-        }
-      });
+      if (gradoEdicion) {
+        const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
+        ctrl.compModal = mountEditarCompetenciasModal(compHost, {
+          perfilId,
+          gradoId: gradoEdicion.id,
+          gradoNombre: gradoEdicion.nombre,
+          onSuccess: reload,
+        });
+      }
     }
   } catch {
     inner.innerHTML = `

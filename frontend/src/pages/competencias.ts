@@ -552,7 +552,7 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
 
   mountAppShell(container, {
     pageTitle: "Matriz de Competencias",
-    activeNav: "empleados",
+    activeNav: "competencias",
     mainClass: "py-5 sm:py-6",
     mainHtml: `<div id="competencias-page-root" class="flex min-h-0 flex-1 flex-col">
       <div id="competencias-inner"></div>
