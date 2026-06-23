@@ -230,7 +230,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/cursos")) {
-      mountCursos(container);
+      mountCursos(container, signal);
       return;
     }
     if (h.startsWith("#/opls")) {

@@ -323,7 +323,7 @@ export function mountLevelUpDashboard(container: HTMLElement): void {
   });
 }
 
-export function mountCursos(container: HTMLElement): void {
+export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   const isRH = hasRhModule("cursos");
 
   interface CursosState {
@@ -1894,14 +1894,16 @@ export function mountCursos(container: HTMLElement): void {
   }
 
   render();
-  container.addEventListener("click", handleClick);
-  container.addEventListener("change", handleChange);
-  container.addEventListener("input", handleInput);
-  container.addEventListener("submit", handleSubmit);
-  document.addEventListener("keydown", handleKeydown);
+  const listenerOpts = { signal };
+  container.addEventListener("click", handleClick, listenerOpts);
+  container.addEventListener("change", handleChange, listenerOpts);
+  container.addEventListener("input", handleInput, listenerOpts);
+  container.addEventListener("submit", handleSubmit, listenerOpts);
+  document.addEventListener("keydown", handleKeydown, listenerOpts);
 
   (async () => {
     await loadCursos();
+    if (signal.aborted) return;
     state.loading = false;
     render();
 
@@ -1910,6 +1912,7 @@ export function mountCursos(container: HTMLElement): void {
       const cursoId = Number(hashMatch[1]);
       try {
         const curso = await getCursoById(cursoId);
+        if (signal.aborted) return;
         navigateToDetail(curso);
       } catch {}
     }
