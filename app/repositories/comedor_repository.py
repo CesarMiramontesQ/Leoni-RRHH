@@ -787,9 +787,10 @@ class ComedorExternoCorrelativoRepository:
     async def reservar_siguientes(self, cantidad: int) -> list[int]:
         if cantidad <= 0:
             return []
+        tabla = ComedorExternoCorrelativo.__tablename__
         await self.db.execute(
             text(
-                "INSERT INTO comedor_externo_correlativo (id, siguiente) "
+                f"INSERT INTO {tabla} (id, siguiente) "
                 "VALUES (1, 0) ON CONFLICT (id) DO NOTHING",
             ),
         )

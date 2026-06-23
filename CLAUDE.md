@@ -129,6 +129,13 @@ Layered architecture: **router → service → repository → models/schemas**
 - Minimal, targeted changes; avoid unrequested refactors
 - If functional ambiguity exists, ask before proceeding
 
+### Database — `levelup_` prefix (mandatory)
+- Every **new** table owned by this project must be named `levelup_<name>` (`__tablename__` in SQLAlchemy models).
+- **Do not** create, alter, or drop tables without the `levelup_` prefix in models, repositories, or Alembic migrations.
+- Legacy Bono tables (`empleados`, `areas`, `puestos`, etc.) are **read-only** from this project: query and FK-reference only; no schema migrations or DDL on them.
+- In raw SQL, always derive the table name from the model (`Model.__tablename__`); never hardcode unprefixed table names.
+- New Alembic revisions may only `create_table` / `alter_column` / `drop_table` on `levelup_*` tables. If a change requires touching an unprefixed table, stop and ask for clarification.
+
 ### OpenAPI spec (`openapi.yaml`)
 - When adding, removing, or modifying any backend endpoint (routers, schemas, models), update `openapi.yaml` at the project root to reflect the change.
 - This includes: new paths, changed request/response schemas, new query/path parameters, modified enums, and security requirements.

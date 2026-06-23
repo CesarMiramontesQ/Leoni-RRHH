@@ -2,6 +2,14 @@
  * Alineado con `primera_fecha_reserva_comedor_permitida` en backend.
  * Regla: si ya pasó el jueves 23:59:59, bloquea toda la semana siguiente.
  */
+export function hoyReservaComedorIso(ref: Date = new Date()): string {
+  const hoy = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  const y = String(hoy.getFullYear()).padStart(4, "0");
+  const m = String(hoy.getMonth() + 1).padStart(2, "0");
+  const day = String(hoy.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function primerLunesReservaComedorPermitido(ref: Date = new Date()): Date {
   const hoy = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   const weekday = (hoy.getDay() + 6) % 7;

@@ -101,6 +101,7 @@ _MENSAJE_FECHA_LIMITE_COMEDOR = (
     "La fecha límite para modificar este servicio de comedor ya venció "
     "(jueves de la semana anterior)."
 )
+_MENSAJE_FECHA_PASADA_RH = "No se pueden registrar comidas para días pasados."
 
 
 class ComedorService:
@@ -240,6 +241,12 @@ class ComedorService:
                 fecha_servicio=fecha,
                 fecha_transaccion=transaccion,
             )
+
+    def _validar_fechas_servicio_rh(self, fechas_servicio: list[date]) -> None:
+        hoy = business_today()
+        for fecha in fechas_servicio:
+            if fecha < hoy:
+                raise DomainValidationError(detail=_MENSAJE_FECHA_PASADA_RH)
 
     async def _resolver_beneficiario_reserva(
         self,
@@ -1021,8 +1028,11 @@ class ComedorService:
         comedor_id: int,
         fechas: list[date],
         tipo_enum: ComedorTipoComida,
+        *,
+        validar_ventana_modificacion: bool = True,
     ) -> int:
-        self._validar_ventana_modificacion_reservas(fechas)
+        if validar_ventana_modificacion:
+            self._validar_ventana_modificacion_reservas(fechas)
         creados = 0
         for empleado_id in empleado_ids:
             semanas = sorted({f - timedelta(days=f.weekday()) for f in fechas})
@@ -1102,6 +1112,8 @@ class ComedorService:
         if not fechas:
             raise ConflictError(detail="Debes enviar al menos una fecha")
 
+        self._validar_fechas_servicio_rh(fechas)
+
         tipo_enum = ComedorTipoComida(data.tipo_comida)
         if data.person_type == "interno":
             if not data.target_user_id:
@@ -1116,6 +1128,7 @@ class ComedorService:
                 comedor_id=comedor_id,
                 fechas=fechas,
                 tipo_enum=tipo_enum,
+                validar_ventana_modificacion=False,
             )
             audit_background(
                 background_tasks,

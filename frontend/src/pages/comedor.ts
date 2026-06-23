@@ -22,6 +22,7 @@ import { mountComedorNewRequestModal } from "../components/comedor/comedorNewReq
 import {
   addYearsToIsoString,
   etiquetaTipoComida,
+  hoyReservaComedorIso,
   primerLunesReservaComedorPermitidoIso,
 } from "../utils/comedorReservaFechas.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
@@ -1222,6 +1223,9 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         toastContainer: container,
         allowExternalPeople: true,
         allowEmployeeSearch: true,
+        fechaMinReservaIso: hoyReservaComedorIso(),
+        fechaServicioMinMensaje: "No se pueden registrar comidas para días pasados.",
+        fechaMinHint: "Solo fechas de hoy en adelante.",
         menuFieldLabel: "Tipo de comida",
         loadMenuOptions: async () => {
           return [

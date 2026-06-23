@@ -24,6 +24,7 @@ def _fijar_business_now(monkeypatch):
         "business_now",
         lambda: datetime(2026, 4, 23, 12, 0, 0, tzinfo=timezone.utc),
     )
+    monkeypatch.setattr(cs, "business_today", lambda: date(2026, 4, 23))
 
 
 @pytest.mark.asyncio
@@ -719,3 +720,80 @@ async def test_rh_puede_crear_registro_interno_fin_de_semana(client: AsyncClient
     assert data["modo"] == "interno"
     assert data["total_registros_creados"] == 3
     assert data.get("credenciales_temporales") is None
+
+
+@pytest.mark.asyncio
+async def test_rh_puede_registrar_misma_semana_sin_ventana_jueves(client: AsyncClient, db):
+    from app.models.comedor import Comedor
+
+    comedor = Comedor(nombre="Comedor RH semana actual", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        nombre="RH, Semana",
+        email="rh_semana_actual@test.leoni",
+        password="RhSemana1!",
+    )
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Colaborador Semana",
+        email="colab_semana@test.leoni",
+        password="ColabSemana1!",
+    )
+    await link_turno_comedor_empleado(db, empleado, comedor.id)
+    headers_rh = await auth_headers(client, rh, password="RhSemana1!")
+    response = await client.post(
+        REGISTRO_RH_URL,
+        json={
+            "person_type": "interno",
+            "comedor_id": comedor.id,
+            "fechas_servicio": ["2026-04-27"],
+            "tipo_comida": "casera",
+            "target_user_id": empleado.id,
+        },
+        headers=headers_rh,
+    )
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.asyncio
+async def test_rh_rechaza_registro_dia_pasado(client: AsyncClient, db):
+    from app.models.comedor import Comedor
+
+    comedor = Comedor(nombre="Comedor RH pasado", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        nombre="RH, Pasado",
+        email="rh_pasado@test.leoni",
+        password="RhPasado1!",
+    )
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Colaborador Pasado",
+        email="colab_pasado@test.leoni",
+        password="ColabPasado1!",
+    )
+    await link_turno_comedor_empleado(db, empleado, comedor.id)
+    headers_rh = await auth_headers(client, rh, password="RhPasado1!")
+    response = await client.post(
+        REGISTRO_RH_URL,
+        json={
+            "person_type": "interno",
+            "comedor_id": comedor.id,
+            "fechas_servicio": ["2026-04-22"],
+            "tipo_comida": "casera",
+            "target_user_id": empleado.id,
+        },
+        headers=headers_rh,
+    )
+    assert response.status_code == 422, response.text
+    assert "días pasados" in response.json()["detail"].lower()

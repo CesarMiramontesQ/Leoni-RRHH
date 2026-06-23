@@ -38,6 +38,10 @@ export type ComedorNewRequestModalOptions = {
   fixedEmployee?: ComedorEmployeeOption | null;
   /** ISO yyyy-mm-dd para `min` del date input y validación. */
   fechaMinReservaIso?: string | null;
+  /** Mensaje cuando la fecha elegida es anterior al mínimo. */
+  fechaServicioMinMensaje?: string;
+  /** Texto de ayuda bajo el selector de fecha (sustituye el hint de ventana jueves). */
+  fechaMinHint?: string | null;
   /**
    * Fechas (ISO yyyy-mm-dd) con reserva activa: validación y mensaje al elegir el día.
    * El input nativo no deshabilita días sueltos; se bloquea por feedback y 409 en backend.
@@ -93,6 +97,7 @@ function validateForm(
   fechasBloqueadas: ReadonlySet<string> | null,
   supervisorBeneficiaryConfig: ComedorSupervisorBeneficiaryModalConfig | undefined,
   teamEmployeeIds: ReadonlySet<string>,
+  fechaServicioMinMensaje: string | undefined,
 ): ComedorNewRequestFormErrors {
   const errors: ComedorNewRequestFormErrors = {};
   if (state.personType !== "interno" && state.personType !== "externo") {
@@ -138,6 +143,7 @@ function validateForm(
     errors.fechaServicio = "Selecciona la fecha del servicio.";
   } else if (fechaMinReservaIso && state.fechaServicio < fechaMinReservaIso) {
     errors.fechaServicio =
+      fechaServicioMinMensaje ??
       "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
   } else if (fechasBloqueadas?.has(state.fechaServicio)) {
     errors.fechaServicio = "Ya tienes un registro para este día.";
@@ -190,6 +196,8 @@ export function mountComedorNewRequestModal(
   const defaultEmployeeId = options.defaultEmployeeId ?? fixedEmployee?.id ?? null;
   const fixedEmployeeId = fixedEmployee?.id ?? null;
   const fechaMinReservaIso = options.fechaMinReservaIso ?? null;
+  const fechaServicioMinMensaje = options.fechaServicioMinMensaje;
+  const fechaMinHint = options.fechaMinHint ?? null;
   const menuFieldLabel = options.menuFieldLabel;
   const loadFechasBloqueadas = options.loadFechasBloqueadas;
   const loadMenuDelDia = options.loadMenuDelDia;
@@ -266,6 +274,7 @@ export function mountComedorNewRequestModal(
       menuOptions: catalog.menus,
       menuFieldLabel,
       fechaMinIso: fechaMinReservaIso,
+      fechaMinHint,
       fechasBloqueadasCount: fechasBloqueadasSet?.size ?? 0,
       searchResults,
       employeeOptions,
@@ -594,6 +603,7 @@ export function mountComedorNewRequestModal(
         fechasBloqueadasSet,
         supervisorBeneficiaryConfig,
         new Set(teamOnlyEmployeeOptions.map((row) => row.id)),
+        fechaServicioMinMensaje,
       );
       if (Object.keys(errors).length > 0) {
         renderForm();
