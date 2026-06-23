@@ -30,6 +30,7 @@ export type FaltasRetardosEstadisticasData = {
     no_empleado: string | null;
     nombre: string | null;
     total: number;
+    por_tipo: { tipo: FaltaRetardoTipo; total: number }[];
   }[];
 };
 

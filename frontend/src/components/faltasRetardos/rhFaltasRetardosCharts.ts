@@ -164,12 +164,105 @@ export function renderFaltasRetardosEmpleadosBarChart(hasData: boolean): string 
     return `<div class="flex min-h-[260px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">Sin empleados con eventos en el periodo</div>`;
   }
   return `
-    <div class="flex min-h-[260px] w-full min-w-0 flex-1 flex-col justify-center">
+    <div class="flex min-h-[300px] w-full min-w-0 flex-1 flex-col justify-center">
       ${renderChartCanvas({
         chartId: RH_FR_EMPLEADOS_BAR_CHART_ID,
-        ariaLabel: "Empleados con más eventos de asistencia",
-        heightClass: "h-[260px]",
+        ariaLabel: "Empleados con más eventos de asistencia por tipo",
+        heightClass: "h-[300px]",
         className: "relative w-full min-w-0",
       })}
     </div>`;
+}
+
+export type FaltaRetardoEmpleadoChartRow = {
+  label: string;
+  total: number;
+  byTipo: Partial<Record<FaltaRetardoTipo, number>>;
+};
+
+function tiposPresentesEnEmpleados(
+  rows: readonly FaltaRetardoEmpleadoChartRow[],
+): FaltaRetardoTipo[] {
+  const present = new Set<FaltaRetardoTipo>();
+  for (const row of rows) {
+    for (const [tipo, count] of Object.entries(row.byTipo)) {
+      if ((count ?? 0) > 0) present.add(tipo as FaltaRetardoTipo);
+    }
+  }
+  const ordered: FaltaRetardoTipo[] = [
+    "falta_justificada",
+    "falta_injustificada",
+    "retardo",
+    "incapacidad",
+    "suspension",
+  ];
+  return ordered.filter((t) => present.has(t));
+}
+
+export function mountFaltasRetardosEmpleadosStackedBarChart(
+  root: ParentNode,
+  rows: readonly FaltaRetardoEmpleadoChartRow[],
+): void {
+  if (rows.length === 0) return;
+  const tipos = tiposPresentesEnEmpleados(rows);
+  if (tipos.length === 0) return;
+  const labels = rows.map((r) => r.label);
+  mountChart(root, RH_FR_EMPLEADOS_BAR_CHART_ID, ({ colors }) => ({
+    type: "bar",
+    data: {
+      labels,
+      datasets: tipos.map((tipo) => {
+        const border = colorForTipo(tipo);
+        return {
+          label: labelFaltaRetardoTipo(tipo),
+          data: rows.map((row) => row.byTipo[tipo] ?? 0),
+          backgroundColor: colorConAlpha(border, BAR_FILL_ALPHA),
+          borderColor: border,
+          borderWidth: 1,
+          stack: "eventos",
+          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 4, bottomRight: 4 },
+          borderSkipped: false,
+        };
+      }),
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", axis: "y", intersect: false },
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 12, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const value = typeof ctx.parsed.x === "number" ? ctx.parsed.x : 0;
+              if (value <= 0) return "";
+              return ` ${ctx.dataset.label}: ${value}`;
+            },
+            footer: (items) => {
+              const idx = items[0]?.dataIndex ?? -1;
+              const row = rows[idx];
+              if (!row) return "";
+              return `Total: ${row.total}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: { color: colors.textMuted, font: { size: 10 }, precision: 0 },
+          grid: { color: colors.border },
+          border: { color: colors.border },
+        },
+        y: {
+          stacked: true,
+          ticks: { color: colors.textMuted, font: { size: 10 } },
+          grid: { display: false },
+          border: { color: colors.border },
+        },
+      },
+    },
+  }));
 }

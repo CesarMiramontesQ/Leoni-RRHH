@@ -1,6 +1,7 @@
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
 import type { FaltasRetardosMetricasViewModel } from "../../faltasRetardos/rh/types.ts";
 import type { FaltasRetardosEstadisticasData } from "../../faltasRetardos/rh/types.ts";
+import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { RH_LISTADO_SURFACE } from "./rhFaltasRetardosPageStyles.ts";
 import {
@@ -11,16 +12,15 @@ import {
 import {
   mountFaltasRetardosTendenciaChart,
   mountFaltasRetardosTipoBarChart,
+  mountFaltasRetardosEmpleadosStackedBarChart,
   renderFaltasRetardosEmpleadosBarChart,
   renderFaltasRetardosTipoBarChart,
   renderFaltasRetardosTendenciaChart,
   RH_FR_EMPLEADOS_BAR_CHART_ID,
   RH_FR_TENDENCIA_CHART_ID,
   RH_FR_TIPO_BAR_CHART_ID,
+  type FaltaRetardoEmpleadoChartRow,
 } from "./rhFaltasRetardosCharts.ts";
-import { cssVar } from "../../charts/chartTokens.ts";
-import { mountRankingHorizontalBar } from "../solicitudes/rhSolicitudesAnalyticsCharts.ts";
-import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 
 const CARD = `${RH_LISTADO_SURFACE} flex min-h-0 flex-col rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm sm:p-4`;
 
@@ -71,13 +71,20 @@ function buildKpiCards(data: FaltasRetardosEstadisticasData): HorasExtraKpiCard[
   ];
 }
 
-function empleadosRankingRows(data: FaltasRetardosEstadisticasData): SolicitudRankingRow[] {
+function empleadosChartRows(data: FaltasRetardosEstadisticasData): FaltaRetardoEmpleadoChartRow[] {
   return (data.empleados_con_mas_eventos ?? [])
     .filter((e) => e.total > 0)
-    .map((e) => ({
-      label: e.nombre?.trim() || e.no_empleado?.trim() || "Sin nombre",
-      total: e.total,
-    }))
+    .map((e) => {
+      const byTipo: Partial<Record<FaltaRetardoTipo, number>> = {};
+      for (const item of e.por_tipo ?? []) {
+        if (item.total > 0) byTipo[item.tipo] = item.total;
+      }
+      return {
+        label: e.nombre?.trim() || e.no_empleado?.trim() || "Sin nombre",
+        total: e.total,
+        byTipo,
+      };
+    })
     .slice(0, 10);
 }
 
@@ -105,7 +112,7 @@ function renderChartsContent(data: FaltasRetardosEstadisticasData): string {
   if (data.total_eventos <= 0) {
     return `<div class="${CARD} items-center py-10 text-center text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasVacia)}</div>`;
   }
-  const ranking = empleadosRankingRows(data);
+  const ranking = empleadosChartRows(data);
   return `
     <div class="flex flex-col gap-4 sm:gap-5">
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
@@ -180,14 +187,8 @@ export function mountRhFaltasRetardosMetricasCharts(
   const data = vm.estadisticas;
   mountFaltasRetardosTendenciaChart(root, data.eventos_por_mes ?? []);
   mountFaltasRetardosTipoBarChart(root, data.eventos_por_tipo ?? []);
-  const ranking = empleadosRankingRows(data);
-  if (ranking.length > 0) {
-    mountRankingHorizontalBar(
-      root,
-      RH_FR_EMPLEADOS_BAR_CHART_ID,
-      ranking,
-      cssVar("--color-accent", "#2563EB"),
-      "Eventos",
-    );
+  const rows = empleadosChartRows(data);
+  if (rows.length > 0) {
+    mountFaltasRetardosEmpleadosStackedBarChart(root, rows);
   }
 }

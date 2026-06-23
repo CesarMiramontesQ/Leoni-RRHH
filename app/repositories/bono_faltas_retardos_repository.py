@@ -221,7 +221,7 @@ class BonoFaltasRetardosRepository:
                     out.append((ps, int(row["cnt"])))
             return out
 
-    async def aggregate_empleados_top(
+    async def aggregate_empleados_top_por_tipo(
         self,
         *,
         limit: int = 10,
@@ -232,7 +232,7 @@ class BonoFaltasRetardosRepository:
         busqueda: str | None = None,
         area: str | None = None,
         empleado_ids_scope: list[int] | None = None,
-    ) -> list[tuple[int, str | None, str | None, int]]:
+    ) -> list[tuple[int, str | None, str | None, int, dict[str, int]]]:
         where_sql, params = self._build_where(
             empleado_id=empleado_id,
             tipo=tipo,
@@ -243,26 +243,53 @@ class BonoFaltasRetardosRepository:
             empleado_ids_scope=empleado_ids_scope,
         )
         sql = (
-            "SELECT empleado_id, "
-            "MAX(no_empleado) AS no_empleado, "
-            "MAX(nombre) AS nombre, "
-            "COUNT(*) AS cnt "
-            f"FROM ({self._from_sql(where_sql)}) AS sub "
-            "GROUP BY empleado_id ORDER BY cnt DESC LIMIT :f_limit"
+            "WITH base AS ("
+            f"  SELECT empleado_id, no_empleado, nombre, tipo_codigo "
+            f"  FROM ({self._from_sql(where_sql)}) AS sub"
+            "), totals AS ("
+            "  SELECT empleado_id, "
+            "  MAX(no_empleado) AS no_empleado, "
+            "  MAX(nombre) AS nombre, "
+            "  COUNT(*) AS cnt "
+            "  FROM base GROUP BY empleado_id "
+            "  ORDER BY cnt DESC LIMIT :f_limit"
+            "), by_tipo AS ("
+            "  SELECT b.empleado_id, b.tipo_codigo, COUNT(*) AS tipo_cnt "
+            "  FROM base b "
+            "  INNER JOIN totals t ON t.empleado_id = b.empleado_id "
+            "  GROUP BY b.empleado_id, b.tipo_codigo"
+            ") "
+            "SELECT t.empleado_id, t.no_empleado, t.nombre, t.cnt, "
+            "bt.tipo_codigo, bt.tipo_cnt "
+            "FROM totals t "
+            "LEFT JOIN by_tipo bt ON bt.empleado_id = t.empleado_id "
+            "ORDER BY t.cnt DESC, t.empleado_id"
         )
         params = {**params, "f_limit": limit}
         async with self._engine.connect() as conn:
             result = await conn.execute(text(sql), params)
-            out: list[tuple[int, str | None, str | None, int]] = []
+            grouped: dict[int, tuple[str | None, str | None, int, dict[str, int]]] = {}
+            order: list[int] = []
             for row in result.mappings().all():
-                no = row["no_empleado"]
-                nom = row["nombre"]
-                out.append(
-                    (
-                        int(row["empleado_id"]),
+                emp_id = int(row["empleado_id"])
+                if emp_id not in grouped:
+                    no = row["no_empleado"]
+                    nom = row["nombre"]
+                    grouped[emp_id] = (
                         str(no).strip() if no is not None and str(no).strip() else None,
                         str(nom).strip() if nom is not None and str(nom).strip() else None,
                         int(row["cnt"]),
+                        {},
                     )
-                )
-            return out
+                    order.append(emp_id)
+                codigo = row["tipo_codigo"]
+                tipo_cnt = row["tipo_cnt"]
+                if codigo is not None and tipo_cnt is not None:
+                    code = str(codigo).strip().upper()
+                    if code:
+                        _, _, _, por_codigo = grouped[emp_id]
+                        por_codigo[code] = por_codigo.get(code, 0) + int(tipo_cnt)
+            return [
+                (emp_id, grouped[emp_id][0], grouped[emp_id][1], grouped[emp_id][2], grouped[emp_id][3])
+                for emp_id in order
+            ]

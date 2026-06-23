@@ -74,6 +74,10 @@ async def test_estadisticas_faltas_retardos(client: AsyncClient, db):
                     "no_empleado": "100",
                     "nombre": "JUAN",
                     "total": 3,
+                    "por_tipo": [
+                        {"tipo": "retardo", "total": 2},
+                        {"tipo": "falta_justificada", "total": 1},
+                    ],
                 }
             ],
         ),

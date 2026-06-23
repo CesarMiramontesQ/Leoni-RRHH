@@ -82,11 +82,17 @@ class FaltaRetardoMesTotalItem(BaseModel):
     total: int
 
 
+class FaltaRetardoEmpleadoTipoCountItem(BaseModel):
+    tipo: FaltaRetardoTipo
+    total: int
+
+
 class FaltaRetardoEmpleadoTotalItem(BaseModel):
     empleado_id: int
     no_empleado: Optional[str] = None
     nombre: Optional[str] = None
     total: int
+    por_tipo: list[FaltaRetardoEmpleadoTipoCountItem] = Field(default_factory=list)
 
 
 class FaltasRetardosEstadisticasResponse(BaseModel):

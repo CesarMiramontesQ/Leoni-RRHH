@@ -2276,7 +2276,7 @@ components:
           type: array
           items:
             type: object
-            required: [empleado_id, total]
+            required: [empleado_id, total, por_tipo]
             properties:
               empleado_id:
                 type: integer
@@ -2286,6 +2286,16 @@ components:
                 type: [string, "null"]
               total:
                 type: integer
+              por_tipo:
+                type: array
+                items:
+                  type: object
+                  required: [tipo, total]
+                  properties:
+                    tipo:
+                      $ref: "#/components/schemas/FaltaRetardoTipo"
+                    total:
+                      type: integer
 
     # ── Comedor ───────────────────────────────────────
     ComedorResponse:

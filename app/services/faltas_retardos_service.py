@@ -160,17 +160,21 @@ class FaltasRetardosService:
         finally:
             await engine.dispose()
 
-    def _build_estadisticas_response(
-        self,
-        por_codigo: dict[str, int],
-        por_mes: list[tuple[str, int]],
-        empleados_top: list[tuple[int, str | None, str | None, int]],
-    ) -> FaltasRetardosEstadisticasResponse:
+    def _map_por_codigo_a_tipo(self, por_codigo: dict[str, int]) -> dict[str, int]:
         por_tipo: dict[str, int] = {t: 0 for t in FALTA_RETARDO_TIPOS}
         for codigo, count in por_codigo.items():
             api_tipo = CODIGO_PONDERACION_A_TIPO.get(codigo.upper())
             if api_tipo:
                 por_tipo[api_tipo] = por_tipo.get(api_tipo, 0) + int(count)
+        return por_tipo
+
+    def _build_estadisticas_response(
+        self,
+        por_codigo: dict[str, int],
+        por_mes: list[tuple[str, int]],
+        empleados_top: list[tuple[int, str | None, str | None, int, dict[str, int]]],
+    ) -> FaltasRetardosEstadisticasResponse:
+        por_tipo = self._map_por_codigo_a_tipo(por_codigo)
 
         total = sum(por_tipo.values())
         eventos_por_tipo = [
@@ -184,6 +188,23 @@ class FaltasRetardosService:
         ]
         eventos_por_tipo.sort(key=lambda x: x["total"], reverse=True)
 
+        empleados_con_mas_eventos = []
+        for empleado_id, no_empleado, nombre, count, por_codigo_emp in empleados_top:
+            por_tipo_emp = self._map_por_codigo_a_tipo(por_codigo_emp)
+            empleados_con_mas_eventos.append(
+                {
+                    "empleado_id": empleado_id,
+                    "no_empleado": no_empleado,
+                    "nombre": nombre,
+                    "total": count,
+                    "por_tipo": [
+                        {"tipo": tipo, "total": por_tipo_emp[tipo]}
+                        for tipo in FALTA_RETARDO_TIPOS
+                        if por_tipo_emp[tipo] > 0
+                    ],
+                }
+            )
+
         return FaltasRetardosEstadisticasResponse(
             total_eventos=total,
             falta_justificada=por_tipo["falta_justificada"],
@@ -195,15 +216,7 @@ class FaltasRetardosService:
                 {"periodo": periodo, "total": count} for periodo, count in por_mes
             ],
             eventos_por_tipo=eventos_por_tipo,
-            empleados_con_mas_eventos=[
-                {
-                    "empleado_id": empleado_id,
-                    "no_empleado": no_empleado,
-                    "nombre": nombre,
-                    "total": count,
-                }
-                for empleado_id, no_empleado, nombre, count in empleados_top
-            ],
+            empleados_con_mas_eventos=empleados_con_mas_eventos,
         )
 
     async def estadisticas_eventos(
@@ -232,7 +245,7 @@ class FaltasRetardosService:
             }
             por_codigo = await repo.aggregate_por_tipo_codigo(**filters)
             por_mes = await repo.aggregate_por_mes(**filters)
-            empleados_top = await repo.aggregate_empleados_top(limit=10, **filters)
+            empleados_top = await repo.aggregate_empleados_top_por_tipo(limit=10, **filters)
             return self._build_estadisticas_response(por_codigo, por_mes, empleados_top)
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(

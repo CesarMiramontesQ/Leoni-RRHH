@@ -72,7 +72,7 @@ export const FR_COPY = {
   metricasTipoTitulo: "Distribución por tipo",
   metricasTipoSub: "Composición de faltas y retardos",
   metricasEmpleadosTitulo: "Empleados con más eventos",
-  metricasEmpleadosSub: "Top 10 según filtros aplicados",
+  metricasEmpleadosSub: "Top 10 por tipo de evento según filtros aplicados",
 
   modalTitulo: "Nuevo registro",
   modalCerrar: "Cerrar",
