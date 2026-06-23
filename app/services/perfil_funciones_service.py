@@ -22,6 +22,7 @@ from app.models.talento import (
     CompetenciaRequisito,
     PerfilCualificacion,
     PerfilFunciones,
+    PerfilTarea,
     PuestoPerfil,
     TareaCatalogo,
 )
@@ -124,6 +125,41 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PuestoPerfil", id=perfil_id)
         return perfil
 
+    @staticmethod
+    def _tarea_to_response(t: PerfilTarea) -> PerfilTareaResponse:
+        """Si la tarea viene del catálogo, la descripción y tipo se resuelven desde ahí."""
+        catalogo = t.tarea_catalogo
+        if catalogo and t.tarea_catalogo_id:
+            descripcion = catalogo.nombre
+            es_complemento = catalogo.es_complemento
+            catalogo_nombre = catalogo.nombre
+        else:
+            descripcion = t.descripcion
+            es_complemento = t.es_complemento
+            catalogo_nombre = None
+
+        return PerfilTareaResponse(
+            id=t.id,
+            puesto_perfil_id=t.puesto_perfil_id,
+            orden=t.orden,
+            descripcion=descripcion,
+            es_complemento=es_complemento,
+            tarea_catalogo_id=t.tarea_catalogo_id,
+            tarea_catalogo_nombre=catalogo_nombre,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+
+    async def _get_tarea_with_catalogo(self, tarea_id: int) -> PerfilTarea | None:
+        from sqlalchemy.orm import selectinload
+
+        result = await self.db.execute(
+            select(PerfilTarea)
+            .options(selectinload(PerfilTarea.tarea_catalogo))
+            .where(PerfilTarea.id == tarea_id)
+        )
+        return result.scalar_one_or_none()
+
     # ══════════════════════════════════════════════════════════════════════════
     # TAREAS
     # ══════════════════════════════════════════════════════════════════════════
@@ -131,20 +167,7 @@ class PerfilFuncionesService:
     async def listar_tareas(self, perfil_id: int) -> list[PerfilTareaResponse]:
         await self._get_perfil_or_404(perfil_id)
         items = await self.tarea_repo.list_by_perfil(perfil_id)
-        return [
-            PerfilTareaResponse(
-                id=t.id,
-                puesto_perfil_id=t.puesto_perfil_id,
-                orden=t.orden,
-                descripcion=t.descripcion,
-                es_complemento=t.es_complemento,
-                tarea_catalogo_id=t.tarea_catalogo_id,
-                tarea_catalogo_nombre=t.tarea_catalogo.nombre if t.tarea_catalogo else None,
-                created_at=t.created_at,
-                updated_at=t.updated_at,
-            )
-            for t in items
-        ]
+        return [self._tarea_to_response(t) for t in items]
 
     async def crear_tarea(
         self, perfil_id: int, data: PerfilTareaCreate, current_user: Empleado
@@ -179,17 +202,9 @@ class PerfilFuncionesService:
             "es_complemento": es_complemento,
             "tarea_catalogo_id": data.tarea_catalogo_id,
         })
-        return PerfilTareaResponse(
-            id=tarea.id,
-            puesto_perfil_id=tarea.puesto_perfil_id,
-            orden=tarea.orden,
-            descripcion=tarea.descripcion,
-            es_complemento=tarea.es_complemento,
-            tarea_catalogo_id=tarea.tarea_catalogo_id,
-            tarea_catalogo_nombre=descripcion if data.tarea_catalogo_id else None,
-            created_at=tarea.created_at,
-            updated_at=tarea.updated_at,
-        )
+        tarea = await self._get_tarea_with_catalogo(tarea.id)
+        assert tarea is not None
+        return self._tarea_to_response(tarea)
 
     async def actualizar_tarea(
         self, perfil_id: int, tarea_id: int, data: PerfilTareaUpdate, current_user: Empleado
@@ -213,9 +228,11 @@ class PerfilFuncionesService:
             update_data["es_complemento"] = data.es_complemento
 
         if update_data:
-            tarea = await self.tarea_repo.update(tarea_id, update_data)
+            await self.tarea_repo.update(tarea_id, update_data)
 
-        return PerfilTareaResponse.model_validate(tarea)
+        tarea = await self._get_tarea_with_catalogo(tarea_id)
+        assert tarea is not None
+        return self._tarea_to_response(tarea)
 
     async def eliminar_tarea(
         self, perfil_id: int, tarea_id: int, current_user: Empleado
