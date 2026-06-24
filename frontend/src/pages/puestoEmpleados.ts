@@ -199,6 +199,10 @@ function restoreActionMenu(menu: HTMLElement, root: HTMLElement): void {
   delete menu.dataset.ppeActionsWrapId;
 }
 
+function findActionMenuForWrap(root: HTMLElement, wrapId: string): HTMLElement | null {
+  return collectActionMenus(root).find((menu) => menu.dataset.ppeActionsWrapId === wrapId) ?? null;
+}
+
 function ensurePpeModalHost(hostId: string): HTMLElement {
   let root = document.getElementById(PPE_MODAL_ROOT_ID);
   if (!root) {
@@ -700,11 +704,14 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
 
     if (action === "toggle-menu") {
       const wrap = btn.closest(".ppe-actions-wrap");
-      const menu = wrap?.querySelector(".ppe-actions-menu");
+      const wrapId = wrap?.dataset.asignacionId ?? "";
+      const menu =
+        (wrapId ? findActionMenuForWrap(pageRoot, wrapId) : null) ??
+        (wrap?.querySelector(".ppe-actions-menu") as HTMLElement | null);
       const wasOpen = menu && !menu.classList.contains("hidden");
       closeAllActionMenus(pageRoot);
       if (menu && wrap && !wasOpen) {
-        positionAndShowActionsMenu(btn, menu as HTMLElement, pageRoot);
+        positionAndShowActionsMenu(btn, menu, pageRoot);
         btn.setAttribute("aria-expanded", "true");
       }
       return;
@@ -729,9 +736,19 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
       const cursosHost = ensurePpeModalHost("modal-host-cursos-extra");
       mountCursosExtraModal(cursosHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "evaluar-cual") {
-      mountEvaluarCualificacionesModal(cualHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      mountEvaluarCualificacionesModal(cualHost, {
+        perfilId,
+        asignacionId,
+        empleadoNombre: nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
     } else if (action === "evaluar-comp") {
-      mountEvaluarCompetenciasModal(compHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      mountEvaluarCompetenciasModal(compHost, {
+        perfilId,
+        asignacionId,
+        nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
     } else if (action === "desasignar") {
       void handleDesasignar(asignacionId);
     }
@@ -785,9 +802,19 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
   });
 
   document.addEventListener("click", (e) => {
-    const t = e.target as HTMLElement;
-    if (t.closest(".ppe-actions-wrap") || t.closest(".ppe-actions-menu")) return;
-    if (pageRoot.isConnected) closeAllActionMenus(pageRoot);
+    const target = e.target as HTMLElement;
+    if (!pageRoot.isConnected) return;
+
+    const menuPortal = document.getElementById(PPE_ACTIONS_MENU_PORTAL_ID);
+    const portalActionBtn = target.closest<HTMLElement>("[data-ppe-action]");
+    if (portalActionBtn && menuPortal?.contains(portalActionBtn)) {
+      handleMenuAction(portalActionBtn);
+      return;
+    }
+
+    if (!target.closest(".ppe-actions-wrap") && !target.closest(".ppe-actions-menu")) {
+      closeAllActionMenus(pageRoot);
+    }
   });
 
   document.addEventListener("keydown", (e) => {
