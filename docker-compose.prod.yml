@@ -43,6 +43,8 @@ services:
       APP_TIMEZONE: ${APP_TIMEZONE:-America/Mexico_City}
       ESTADOS_ACTIVOS_IDS: ${ESTADOS_ACTIVOS_IDS:-1}
       ESTADOS_PERMISO_IDS: ${ESTADOS_PERMISO_IDS:-3}
+      # Seed inicial (./scripts/prod-seed.sh): empleado_id real de Bono.empleados
+      SEED_ADMIN_EMPLEADO_ID: ${SEED_ADMIN_EMPLEADO_ID:-}
     restart: always
 
   frontend:
