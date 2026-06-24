@@ -50,6 +50,7 @@ def build_dev_admin() -> Empleado:
         no_empleado=DEV_ADMIN_EMPLEADO_ID,
         nombre="Admin RH (dev)",
         usuario="admin.rh",
+        email=settings.DEV_ADMIN_EMAIL,
         estado_id=(settings.ESTADOS_ACTIVOS_IDS[0] if settings.ESTADOS_ACTIVOS_IDS else 1),
     )
     rol = Rol(id=0, nombre="rh", permisos={})
@@ -57,7 +58,6 @@ def build_dev_admin() -> Empleado:
     emp.core = EmpleadoCore(
         empleado_id=DEV_ADMIN_EMPLEADO_ID,
         rol_id=0,
-        email=settings.DEV_ADMIN_EMAIL,
         password_hash=_DEV_ADMIN_PASSWORD_HASH,
         created_at=now,
         updated_at=now,

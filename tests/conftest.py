@@ -252,7 +252,6 @@ async def make_empleado(
         empleado_id=_empleado_id,
         rol_id=rol_obj.id,
         password_hash=hash_password(password),
-        email=_email,
     )
     config = EmpleadoRhConfig(
         empleado_id=_empleado_id,

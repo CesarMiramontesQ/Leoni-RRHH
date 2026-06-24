@@ -4,14 +4,15 @@
 Bono. Todo lo que el proyecto necesita y Bono NO tiene vive aquí, 1:1 con el
 empleado y keyed por ``empleado_id`` (PK de Bono):
 
-- ``levelup_empleados_core``       rol, credenciales y email del proyecto.
+- ``levelup_empleados_core``       rol y credenciales del proyecto.
 - ``levelup_empleados_config``     fecha fin contrato + permisos por módulo RH.
 - ``levelup_empleados_permisos``   flags de administración RH / horas extra.
 - ``levelup_empleados_horas_extra`` auditoría de autorización de horas extra.
 
-El modelo ``Empleado`` expone propiedades de compatibilidad (``rol``, ``email``,
-``password_hash``, ``modulos_rh``, etc.) que delegan a estas tablas; las
-escrituras se hacen vía los helpers ``ensure_*``.
+El modelo ``Empleado`` expone propiedades de compatibilidad (``rol``,
+``password_hash``, ``modulos_rh``, etc.) que delegan a estas tablas; el correo
+oficial se lee de ``empleados.email`` (Bono). Las escrituras RH se hacen vía
+los helpers ``ensure_*``.
 """
 
 from __future__ import annotations
