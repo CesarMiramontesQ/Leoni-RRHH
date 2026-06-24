@@ -467,25 +467,19 @@ async def seed_level_up(db) -> None:
     cursos = [
         {
             "nombre": "CNC Básico",
-            "proveedor": "FANUC México",
             "duracion_horas": 40,
-            "categoria": CategoriaCurso.tecnico,
             "modalidad": "presencial",
             "sesiones_anio": 4,
         },
         {
             "nombre": "ISO 9001:2015 Auditor Interno",
-            "proveedor": "TÜV Rheinland",
             "duracion_horas": 24,
-            "categoria": CategoriaCurso.calidad,
             "modalidad": "mixta",
             "sesiones_anio": 2,
         },
         {
             "nombre": "LOTO y Seguridad Eléctrica",
-            "proveedor": "Leoni Internal",
             "duracion_horas": 8,
-            "categoria": CategoriaCurso.seguridad,
             "modalidad": "presencial",
             "sesiones_anio": 12,
         },
@@ -532,8 +526,11 @@ async def seed() -> None:
             if settings.APP_ENV != "production":
                 await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
 
-            logger.info("Seeding Level Up...")
-            await seed_level_up(db)
+            if settings.APP_ENV == "production":
+                logger.info("Seeding Level Up omitido (producción)")
+            else:
+                logger.info("Seeding Level Up...")
+                await seed_level_up(db)
 
             await db.commit()
             logger.info("=== Seed completado exitosamente ===")
