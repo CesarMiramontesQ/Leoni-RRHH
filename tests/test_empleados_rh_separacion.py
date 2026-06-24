@@ -187,8 +187,8 @@ async def test_contratos_por_vencer_filtra_via_join_tabla_hija(db):
 
 async def test_empleados_no_tiene_columnas_del_proyecto():
     """`empleados` (Bono) no debe cargar columnas propias del proyecto: rol/email/
-    password/id viven en levelup_empleados_core. Garantiza que Bono.empleados no se
-    modifica para meter datos del proyecto."""
+    password_hash/id viven en levelup_empleados_core. `password` es columna legada de
+    Bono (solo lectura en login)."""
     from app.models.empleados import Empleado
     from app.models.empleados_rh import EmpleadoCore
 
@@ -196,6 +196,7 @@ async def test_empleados_no_tiene_columnas_del_proyecto():
     for prohibida in ("id", "rol_id", "email", "password_hash", "created_at",
                        "modulos_rh", "fecha_fin_contrato"):
         assert prohibida not in cols_empleados, prohibida
+    assert "password" in cols_empleados
 
     cols_core = set(EmpleadoCore.__table__.columns.keys())
     for esperada in ("empleado_id", "rol_id", "email", "password_hash"):

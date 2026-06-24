@@ -36,7 +36,7 @@ async def authenticate_user(
         if not empleado:
             empleado = await repo.get_by_usuario(ident)
 
-    if not empleado or not verify_password(password, empleado.password_hash):
+    if not empleado or not verify_password(password, empleado.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",

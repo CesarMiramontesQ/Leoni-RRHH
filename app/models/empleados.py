@@ -75,6 +75,8 @@ class Empleado(Base):
     registro: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     a_restringido: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     requiere_cambio_password: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    # Credencial legada en Bono (solo lectura desde esta app; no migrar ni escribir aquí).
+    password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # ── Relaciones a catálogos de Bono (por id; read-only) ──
     categoria: Mapped[Optional["Categoria"]] = relationship(
