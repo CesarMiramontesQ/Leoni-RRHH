@@ -1,6 +1,20 @@
 import { mountAppShell } from "../layouts/appShell.ts";
-import { escapeHtml } from "../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_SECONDARY, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
+import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
+import {
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  FIELD_FOCUS,
+  FILTER_FIELD_WRAP,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_FOCUS_RING,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
+  RH_LISTADO_SURFACE,
+  SELECT_CHEVRON,
+} from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
 import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
@@ -326,6 +340,17 @@ export function mountLevelUpDashboard(container: HTMLElement): void {
 export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   const isRH = hasRhModule("cursos");
 
+  const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>`;
+  const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
+  const ICON_BOOK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0118 18a8.967 8.967 0 016 2.292m0-14.25v14.25"/></svg>`;
+  const ICON_SHIELD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>`;
+  const ICON_BUILDING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"/></svg>`;
+  const ICON_GLOBE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></svg>`;
+  const ICON_CLIPBOARD_EMPTY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto size-12 text-slate-300" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`;
+
+  const FILTER_SELECT_CLS = `${RH_LISTADO_SELECT} col-start-1 row-start-1 appearance-none ${RH_LISTADO_FOCUS_RING}`;
+  const FILTER_INPUT_CLS = `block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}`;
+
   interface CursosState {
     cursos: CursoListResponse;
     loading: boolean;
@@ -450,30 +475,99 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     return `<span class="inline-flex items-center rounded-full border ${cls} px-2 py-0.5 text-[10px] font-semibold">${TIPO_LABELS[tipo] ?? tipo}</span>`;
   }
 
+  function kpiSkeletonCard(): string {
+    return `<article class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
+      <div class="h-3 w-24 rounded bg-slate-200/90"></div>
+      <div class="mt-4 h-8 w-16 rounded bg-slate-200/90"></div>
+      <div class="mt-2 h-3 w-32 rounded bg-slate-100/90"></div>
+    </article>`;
+  }
+
+  function renderCursosPageHeader(): string {
+    return `
+    <header class="cc-page-header flex flex-col gap-3">
+      <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
+        <ol class="flex flex-wrap items-center gap-1">
+          <li><a href="#/" class="font-medium transition hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">Inicio</a></li>
+          <li class="text-slate-300" aria-hidden="true">/</li>
+          <li class="font-semibold text-text-primary" aria-current="page">Catálogo de cursos</li>
+        </ol>
+      </nav>
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">Catálogo de cursos</h1>
+          <p class="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
+            Consulta, filtra y administra los cursos disponibles para capacitación y asignación a puestos.
+          </p>
+        </div>
+        ${isRH ? `<button type="button" data-action="open-create-curso" class="${RH_LISTADO_BTN_PRIMARY} cc-btn-nueva w-full shrink-0 sm:w-auto sm:self-start">
+          ${ICON_PLUS}<span>Nuevo curso</span>
+        </button>` : ""}
+      </div>
+    </header>`;
+  }
+
+  function renderCursosLoading(): string {
+    return `
+    <div class="${RH_LISTADO_PAGE_OUTER} cc-page" aria-busy="true" aria-label="Cargando catálogo de cursos">
+      ${renderLevelUpBackBar()}
+      <div class="h-6 w-56 animate-pulse rounded-md bg-slate-200/90"></div>
+      <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
+      <div class="h-36 animate-pulse rounded-2xl border border-slate-200/80 bg-white"></div>
+      <div class="h-64 animate-pulse rounded-2xl border border-slate-200/80 bg-white"></div>
+    </div>`;
+  }
+
   function renderCursosKpis(): string {
     const total = state.cursos.total;
     const items = state.cursos.items;
     const obligatorios = items.filter(c => c.obligatorio).length;
     const internos = items.filter(c => c.tipo_nombre === "interno").length;
     const externos = items.filter(c => c.tipo_nombre === "externo").length;
+
+    const kpis = [
+      {
+        label: "Total catálogo",
+        value: String(total),
+        sub: "Cursos registrados",
+        icon: ICON_BOOK,
+        iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
+      },
+      {
+        label: "Obligatorios",
+        value: String(obligatorios),
+        sub: "En la página actual",
+        icon: ICON_SHIELD,
+        iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
+      },
+      {
+        label: "Internos",
+        value: String(internos),
+        sub: "Impartidos en planta",
+        icon: ICON_BUILDING,
+        iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
+      },
+      {
+        label: "Externos",
+        value: String(externos),
+        sub: "Con proveedor externo",
+        icon: ICON_GLOBE,
+        iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
+      },
+    ];
+
     return `
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <p class="text-xs font-medium text-text-muted">Total catálogo</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${total}</p>
-      </div>
-      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <p class="text-xs font-medium text-text-muted">Obligatorios</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-blue-600">${obligatorios}</p>
-      </div>
-      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <p class="text-xs font-medium text-text-muted">Internos</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-600">${internos}</p>
-      </div>
-      <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <p class="text-xs font-medium text-text-muted">Externos</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-purple-600">${externos}</p>
-      </div>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Resumen del catálogo">
+      ${kpis.map((k) => `
+      <article class="rh-dash-kpi-card rounded-[18px] p-5">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
+          <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
+        </div>
+        <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${k.value}</p>
+        <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
+      </article>`).join("")}
     </div>`;
   }
 
@@ -486,10 +580,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     const hasFilters = hasActiveFilters();
     const resultsLine = hasFilters
       ? `Mostrando <strong class="font-semibold text-text-primary tabular-nums">${total}</strong> cursos`
-      : `${total} cursos en catálogo`;
+      : `<strong class="font-semibold text-text-primary tabular-nums">${total}</strong> cursos en catálogo`;
 
     return `
-    <section class="rounded-2xl border border-border bg-white p-5 shadow-sm" aria-label="Filtros de cursos">
+    <section class="${RH_LISTADO_SURFACE} cc-filters p-4 sm:p-5" aria-label="Filtros de cursos">
       <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 class="text-sm font-semibold text-text-primary">Buscar y filtrar</h2>
@@ -497,18 +591,18 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         </div>
         <p class="text-xs text-text-muted" aria-live="polite">${resultsLine}</p>
       </div>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
-        <div class="min-w-0 sm:col-span-2 lg:col-span-1">
-          <label class="mb-1 block text-xs font-medium text-slate-600">Buscar</label>
-          <div class="relative">
-            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg></span>
-            <input data-action="cursos-search" type="search" autocomplete="off" placeholder="Nombre del curso…" value="${escapeHtml(state.filters.busqueda)}" class="block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-text-primary shadow-sm placeholder:text-text-muted ${FIELD_FOCUS}" />
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-3 sm:gap-x-3">
+        <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
+          <label for="cursos-search" class="${RH_LISTADO_LABEL}">Buscar</label>
+          <div class="relative mt-1">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ICON_SEARCH}</span>
+            <input id="cursos-search" data-action="cursos-search" type="search" autocomplete="off" placeholder="Nombre del curso…" value="${escapeHtml(state.filters.busqueda)}" class="${FILTER_INPUT_CLS}" />
           </div>
         </div>
-        <div class="min-w-0">
-          <label class="mb-1 block text-xs font-medium text-slate-600">Tipo</label>
-          <div class="grid grid-cols-1">
-            <select data-action="cursos-filter-tipo" class="col-start-1 row-start-1 w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm shadow-sm appearance-none ${FIELD_FOCUS}">
+        <div class="${FILTER_FIELD_WRAP}">
+          <label for="cursos-filter-tipo" class="${RH_LISTADO_LABEL}">Tipo</label>
+          <div class="relative mt-1 grid grid-cols-1">
+            <select id="cursos-filter-tipo" data-action="cursos-filter-tipo" class="${FILTER_SELECT_CLS}">
               <option value="">Todos los tipos</option>
               <option value="interno" ${state.filters.tipo === "interno" ? "selected" : ""}>Interno</option>
               <option value="externo" ${state.filters.tipo === "externo" ? "selected" : ""}>Externo</option>
@@ -516,10 +610,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${SELECT_CHEVRON}
           </div>
         </div>
-        <div class="min-w-0">
-          <label class="mb-1 block text-xs font-medium text-slate-600">Clasificación</label>
-          <div class="grid grid-cols-1">
-            <select data-action="cursos-filter-clasificacion" class="col-start-1 row-start-1 w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm shadow-sm appearance-none ${FIELD_FOCUS}">
+        <div class="${FILTER_FIELD_WRAP}">
+          <label for="cursos-filter-clasificacion" class="${RH_LISTADO_LABEL}">Clasificación</label>
+          <div class="relative mt-1 grid grid-cols-1">
+            <select id="cursos-filter-clasificacion" data-action="cursos-filter-clasificacion" class="${FILTER_SELECT_CLS}">
               <option value="">Todas</option>
               <option value="adicional" ${state.filters.clasificacion === "adicional" ? "selected" : ""}>Adicional</option>
               <option value="contemplado" ${state.filters.clasificacion === "contemplado" ? "selected" : ""}>Contemplado</option>
@@ -527,10 +621,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${SELECT_CHEVRON}
           </div>
         </div>
-        <div class="min-w-0">
-          <label class="mb-1 block text-xs font-medium text-slate-600">Categoría</label>
-          <div class="grid grid-cols-1">
-            <select data-action="cursos-filter-categoria" class="col-start-1 row-start-1 w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm shadow-sm appearance-none ${FIELD_FOCUS}">
+        <div class="${FILTER_FIELD_WRAP}">
+          <label for="cursos-filter-categoria" class="${RH_LISTADO_LABEL}">Categoría</label>
+          <div class="relative mt-1 grid grid-cols-1">
+            <select id="cursos-filter-categoria" data-action="cursos-filter-categoria" class="${FILTER_SELECT_CLS}">
               <option value="">Todas</option>
               <option value="tecnico" ${state.filters.categoria === "tecnico" ? "selected" : ""}>Técnico</option>
               <option value="calidad" ${state.filters.categoria === "calidad" ? "selected" : ""}>Calidad</option>
@@ -541,10 +635,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${SELECT_CHEVRON}
           </div>
         </div>
-        <div class="min-w-0">
-          <label class="mb-1 block text-xs font-medium text-slate-600">Obligatorio</label>
-          <div class="grid grid-cols-1">
-            <select data-action="cursos-filter-obligatorio" class="col-start-1 row-start-1 w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm shadow-sm appearance-none ${FIELD_FOCUS}">
+        <div class="${FILTER_FIELD_WRAP}">
+          <label for="cursos-filter-obligatorio" class="${RH_LISTADO_LABEL}">Obligatorio</label>
+          <div class="relative mt-1 grid grid-cols-1">
+            <select id="cursos-filter-obligatorio" data-action="cursos-filter-obligatorio" class="${FILTER_SELECT_CLS}">
               <option value="">Todos</option>
               <option value="true" ${state.filters.obligatorio === "true" ? "selected" : ""}>Sí</option>
               <option value="false" ${state.filters.obligatorio === "false" ? "selected" : ""}>No</option>
@@ -552,89 +646,135 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${SELECT_CHEVRON}
           </div>
         </div>
+        ${hasFilters ? `
+        <div class="w-full shrink-0 sm:w-auto xl:ml-1">
+          <button type="button" data-action="cursos-clear-filters" class="${RH_LISTADO_BTN_GHOST} w-full text-xs sm:w-auto">Limpiar filtros</button>
+        </div>` : ""}
       </div>
-      ${hasFilters ? `
-      <div class="mt-4 flex items-center gap-3 border-t border-slate-100 pt-3">
-        <button type="button" data-action="cursos-clear-filters" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition">
-          <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          Limpiar filtros
-        </button>
-      </div>` : ""}
     </section>`;
   }
 
   function renderCursoCard(c: Curso): string {
     const horas = c.duracion_horas != null ? `${c.duracion_horas}h` : "—";
     return `
-    <div class="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm transition hover:shadow-md">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2 flex-wrap">
+    <article class="cc-curso-card flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition hover:border-slate-300/90 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           ${cursoCatBadge(c.categoria_nombre)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
         </div>
         ${cursoTipoBadge(c.tipo_nombre)}
       </div>
-      <div>
-        <button data-action="view-curso" data-id="${c.id}" class="text-left text-sm font-semibold leading-tight text-text-primary line-clamp-2 hover:text-blue-600 hover:underline transition">${escapeHtml(c.nombre)}</button>
-        <p class="mt-1 text-xs text-text-muted">${escapeHtml(c.proveedor_nombre ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
+      <div class="min-w-0 flex-1">
+        <button data-action="view-curso" data-id="${c.id}" class="text-left text-sm font-semibold leading-snug text-text-primary line-clamp-2 transition hover:text-leoni-blue hover:underline">${escapeHtml(c.nombre)}</button>
+        <p class="mt-1.5 text-xs text-text-muted">${escapeHtml(c.proveedor_nombre ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
       </div>
       ${c.instructor_nombre ? `
       <div class="flex items-center gap-2">
-        <span class="flex size-6 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${c.instructor_nombre.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</span>
-        <span class="text-xs text-slate-600">${escapeHtml(c.instructor_nombre)}</span>
+        <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-[10px] font-bold text-white">${c.instructor_nombre.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</span>
+        <span class="truncate text-xs text-slate-600">${escapeHtml(c.instructor_nombre)}</span>
       </div>` : ""}
-      <div class="mt-auto border-t border-slate-100 pt-3 flex items-center justify-between text-[11px]">
+      <div class="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px]">
         <span class="text-slate-500">${CLASIFICACION_LABELS[c.clasificacion_nombre ?? ""] ?? "—"}</span>
         ${isRH ? `
-        <div class="flex items-center gap-2">
-          <button data-action="edit-curso" data-id="${c.id}" class="text-xs font-medium text-blue-600 hover:text-blue-800">Editar</button>
-          <button data-action="delete-curso" data-id="${c.id}" class="text-xs font-medium text-red-600 hover:text-red-800">Eliminar</button>
+        <div class="flex shrink-0 items-center gap-2">
+          <button data-action="edit-curso" data-id="${c.id}" class="${RH_LISTADO_BTN_GHOST} !px-2 !py-1 text-xs">Editar</button>
+          <button data-action="delete-curso" data-id="${c.id}" class="text-xs font-semibold text-red-600 transition hover:text-red-800">Eliminar</button>
         </div>` : ""}
       </div>
+    </article>`;
+  }
+
+  function renderEmptyState(): string {
+    const hasFilters = hasActiveFilters();
+    return `
+    <div class="${RH_LISTADO_SURFACE} cc-empty px-6 py-14 text-center">
+      ${ICON_CLIPBOARD_EMPTY}
+      <p class="mt-4 text-base font-semibold text-text-primary">${hasFilters ? "Sin resultados" : "Catálogo vacío"}</p>
+      <p class="mt-2 text-sm text-text-secondary">${hasFilters ? "Prueba ajustando los filtros de búsqueda." : "Aún no hay cursos registrados en el catálogo."}</p>
+      ${hasFilters ? `<button type="button" data-action="cursos-clear-filters" class="${RH_LISTADO_BTN_GHOST} mx-auto mt-5 text-xs">Limpiar filtros</button>` : isRH ? `<button type="button" data-action="open-create-curso" class="${RH_LISTADO_BTN_PRIMARY} cc-btn-nueva mx-auto mt-6">${ICON_PLUS}<span>Crear primer curso</span></button>` : ""}
     </div>`;
   }
 
   function renderPagination(): string {
-    const totalPages = Math.ceil(state.cursos.total / 20);
-    if (totalPages <= 1) return "";
+    const pageSize = state.cursos.page_size || 20;
+    const totalPages = Math.max(1, Math.ceil(state.cursos.total / pageSize));
+    if (totalPages <= 1 && state.cursos.total <= pageSize) return "";
+
+    const from = (state.page - 1) * pageSize + 1;
+    const to = Math.min(state.page * pageSize, state.cursos.total);
+
+    const pageButtons = paginationRange(totalPages, state.page)
+      .map((x) => {
+        if (x === "ellipsis") {
+          return `<span class="flex min-h-8 items-center px-1.5 text-xs text-slate-500" aria-hidden="true">…</span>`;
+        }
+        const active = x === state.page;
+        const cls = active
+          ? "cc-page-btn cc-page-btn--active min-h-8 min-w-8 rounded-lg px-2 text-xs font-bold sm:px-2.5 sm:text-sm"
+          : "cc-page-btn min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 sm:px-2.5 sm:text-sm";
+        return `<button type="button" data-action="cursos-goto-page" data-page="${x}" class="${cls}" aria-current="${active ? "page" : "false"}">${x}</button>`;
+      })
+      .join("");
+
     return `
-    <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
-      <span>Página ${state.page} de ${totalPages} (${state.cursos.total} cursos)</span>
-      <div class="flex gap-2">
-        <button data-action="cursos-prev" ${state.page <= 1 ? "disabled" : ""} class="rounded border px-3 py-1 disabled:opacity-40 ${BTN_SECONDARY}">Anterior</button>
-        <button data-action="cursos-next" ${state.page >= totalPages ? "disabled" : ""} class="rounded border px-3 py-1 disabled:opacity-40 ${BTN_SECONDARY}">Siguiente</button>
-      </div>
-    </div>`;
+    <footer class="cc-table-footer flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
+      <p class="text-xs font-medium text-slate-600 sm:text-sm">
+        Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${state.cursos.total}</span>
+      </p>
+      <nav class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end" aria-label="Paginación del catálogo">
+        <button type="button" data-action="cursos-prev" ${state.page <= 1 ? "disabled" : ""}
+          class="cc-page-nav inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm disabled:cursor-not-allowed disabled:opacity-40">
+          <span class="sr-only">Página anterior</span>
+          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+        </button>
+        ${pageButtons}
+        <button type="button" data-action="cursos-next" ${state.page >= totalPages ? "disabled" : ""}
+          class="cc-page-nav inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm disabled:cursor-not-allowed disabled:opacity-40">
+          <span class="sr-only">Página siguiente</span>
+          <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+        </button>
+      </nav>
+    </footer>`;
   }
 
   function renderCreateEditModal(): string {
     const c = state.editingCurso;
-    const title = c ? "Editar Curso" : "Nuevo Curso";
+    const isEdit = !!c;
+    const title = isEdit ? "Editar curso" : "Nuevo curso";
+    const subtitle = isEdit
+      ? "Los cambios se reflejan en el catálogo y en las asignaciones existentes."
+      : "Registra un curso reutilizable para sesiones y asignación a puestos.";
+    const modalFieldCls = `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}`;
+
     return `
-    <div id="curso-modal-backdrop" data-action="close-curso-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div data-modal-inner class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">${title}</h2>
-        <form data-action="submit-curso" class="space-y-4">
+    <div id="curso-modal-backdrop" data-action="close-curso-modal" class="cc-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+      <div data-modal-inner class="cc-modal-panel w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="curso-modal-title">
+        <div class="border-b border-slate-100 px-6 py-5">
+          <h2 id="curso-modal-title" class="text-lg font-semibold text-text-primary">${title}</h2>
+          <p class="mt-1 text-sm text-text-muted">${subtitle}</p>
+        </div>
+        <form data-action="submit-curso" class="flex flex-col gap-4 px-6 py-5">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-            <input type="text" name="nombre" required value="${escapeHtml(c?.nombre ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+            <label class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input type="text" name="nombre" required value="${escapeHtml(c?.nombre ?? "")}" class="${modalFieldCls}" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Clasificación</label>
-            <select name="clasificacion" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <label class="${RH_LISTADO_LABEL}">Clasificación</label>
+            <select name="clasificacion" class="${modalFieldCls}">
               <option value="">—</option>
               <option value="adicional" ${c?.clasificacion_nombre === "adicional" ? "selected" : ""}>Adicional</option>
               <option value="contemplado" ${c?.clasificacion_nombre === "contemplado" ? "selected" : ""}>Contemplado</option>
             </select>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Duración (horas)</label>
-              <input type="number" name="duracion_horas" step="0.5" min="0.5" value="${c?.duracion_horas ?? ""}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+              <label class="${RH_LISTADO_LABEL}">Duración (horas)</label>
+              <input type="number" name="duracion_horas" step="0.5" min="0.5" value="${c?.duracion_horas ?? ""}" class="${modalFieldCls}" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-              <select name="categoria" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <label class="${RH_LISTADO_LABEL}">Categoría</label>
+              <select name="categoria" class="${modalFieldCls}">
                 <option value="">—</option>
                 <option value="tecnico" ${c?.categoria_nombre === "tecnico" ? "selected" : ""}>Técnico</option>
                 <option value="calidad" ${c?.categoria_nombre === "calidad" ? "selected" : ""}>Calidad</option>
@@ -644,31 +784,32 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
               </select>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="${RH_LISTADO_LABEL}">Proveedor</label>
+            <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor_nombre ?? "")}" class="${modalFieldCls} disabled:bg-slate-50 disabled:text-slate-500" placeholder="Se asigna desde catálogo" disabled />
+          </div>
+          <div>
+            <label class="${RH_LISTADO_LABEL}">Centro de costos</label>
+            <input type="number" name="centro_costos" value="${c?.centro_costos ?? ""}" class="${modalFieldCls}" />
+          </div>
+          <div>
+            <label class="${RH_LISTADO_LABEL}">Descripción</label>
+            <textarea name="descripcion" rows="3" class="${modalFieldCls}">${escapeHtml(c?.descripcion ?? "")}</textarea>
+          </div>
+          <div>
+            <label class="${RH_LISTADO_LABEL}">Requisitos</label>
+            <textarea name="requisitos" rows="3" class="${modalFieldCls}">${escapeHtml(c?.requisitos ?? "")}</textarea>
+          </div>
+          <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
+            <input type="checkbox" name="obligatorio" id="curso-obligatorio" ${c?.obligatorio ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-              <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor_nombre ?? "")}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" placeholder="Se asigna desde catálogo" disabled />
+              <label for="curso-obligatorio" class="text-sm font-medium text-text-primary">Obligatorio</label>
+              <p class="mt-0.5 text-xs text-text-muted">Marca el curso como requisito obligatorio para los puestos asignados.</p>
             </div>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Centro de costos</label>
-            <input type="number" name="centro_costos" value="${c?.centro_costos ?? ""}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea name="descripcion" rows="3" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}">${escapeHtml(c?.descripcion ?? "")}</textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Requisitos</label>
-            <textarea name="requisitos" rows="3" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}">${escapeHtml(c?.requisitos ?? "")}</textarea>
-          </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" name="obligatorio" id="curso-obligatorio" ${c?.obligatorio ? "checked" : ""} class="rounded border-gray-300" />
-            <label for="curso-obligatorio" class="text-sm text-gray-700">Obligatorio</label>
-          </div>
-          <div class="flex justify-end gap-3 pt-2">
-            <button type="button" data-action="close-curso-modal" class="${BTN_SECONDARY}">Cancelar</button>
-            <button type="submit" class="${BTN_PRIMARY}">${c ? "Guardar cambios" : "Crear"}</button>
+          <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+            <button type="button" data-action="close-curso-modal" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto">${isEdit ? "Guardar cambios" : "Crear curso"}</button>
           </div>
         </form>
       </div>
@@ -679,7 +820,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     const puestos = state.detailPuestos;
     if (puestos.length === 0) {
       return `
-      <div class="rounded-2xl border border-border bg-white shadow-sm p-6">
+      <div class="${RH_LISTADO_SURFACE} p-6">
         <h3 class="text-sm font-semibold text-text-primary mb-2">Puestos asignados</h3>
         <p class="text-xs text-slate-400 italic">Sin puestos asignados a este curso.</p>
       </div>`;
@@ -722,7 +863,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }).join("");
 
     return `
-    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+    <div class="${RH_LISTADO_SURFACE} overflow-hidden">
       <div class="border-b border-slate-100 px-6 py-4">
         <h3 class="text-sm font-semibold text-text-primary">Puestos asignados</h3>
         <p class="text-xs text-slate-500 mt-0.5">${puestos.length} puesto${puestos.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total</p>
@@ -735,7 +876,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     const emps = state.detailEmpleadosExtra;
     if (emps.length === 0) {
       return `
-      <div class="rounded-2xl border border-border bg-white shadow-sm p-6">
+      <div class="${RH_LISTADO_SURFACE} p-6">
         <h3 class="text-sm font-semibold text-text-primary mb-2">Empleados extra (individuales)</h3>
         <p class="text-xs text-slate-400 italic">Sin empleados extra asignados individualmente.</p>
       </div>`;
@@ -755,7 +896,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }).join("");
 
     return `
-    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+    <div class="${RH_LISTADO_SURFACE} overflow-hidden">
       <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between cursor-pointer" data-action="toggle-extras-expand">
         <div class="flex items-center gap-2">
           <svg class="size-4 text-slate-400 transition-transform ${state.expandedExtras ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
@@ -790,16 +931,18 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
 
     return `
-    <div class="flex flex-col gap-5">
-      <div class="flex items-center gap-3">
-        <button data-action="back-to-list" class="${BTN_SECONDARY} gap-1.5">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-          Volver
+    <div class="${RH_LISTADO_PAGE_OUTER} cc-page cc-detail">
+      ${renderLevelUpBackBar()}
+      <div class="flex flex-col gap-5">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <button data-action="back-to-list" class="${BTN_SECONDARY} w-full shrink-0 gap-1.5 sm:w-auto">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+          Volver al catálogo
         </button>
-        <h2 class="text-lg font-bold text-text-primary truncate">${escapeHtml(c.nombre)}</h2>
+        <h2 class="min-w-0 text-xl font-bold tracking-tight text-text-primary sm:text-2xl truncate">${escapeHtml(c.nombre)}</h2>
       </div>
 
-      <div class="rounded-2xl border border-border bg-white shadow-sm">
+      <div class="${RH_LISTADO_SURFACE} overflow-hidden">
         <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-6 py-4">
           ${cursoCatBadge(c.categoria_nombre)}
           ${c.obligatorio ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Obligatorio</span>` : ""}
@@ -853,6 +996,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       ${renderSelectionBar()}
       ${state.showAssignSesionPicker ? renderAssignSesionPicker() : ""}
       ${state.showAsignacionMasivaModal ? renderAsignacionMasivaModal() : ""}
+      </div>
     </div>`;
   }
 
@@ -905,7 +1049,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }).join("");
 
     return `
-    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+    <div class="${RH_LISTADO_SURFACE} overflow-hidden">
       <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
         <div>
           <h3 class="text-sm font-semibold text-text-primary">Grupos asignados</h3>
@@ -1014,7 +1158,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
     if (sesiones.length === 0 && !isRH) {
       return `
-      <div class="rounded-2xl border border-border bg-white shadow-sm p-6">
+      <div class="${RH_LISTADO_SURFACE} p-6">
         <h3 class="text-sm font-semibold text-text-primary mb-2">Sesiones programadas</h3>
         <p class="text-xs text-slate-400 italic">Sin sesiones programadas para este curso.</p>
       </div>`;
@@ -1048,7 +1192,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }).join("");
 
     return `
-    <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+    <div class="${RH_LISTADO_SURFACE} overflow-hidden">
       <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
         <div>
           <h3 class="text-sm font-semibold text-text-primary">Sesiones programadas</h3>
@@ -1184,52 +1328,53 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   function renderViewToggle(): string {
     const btnCls = (active: boolean) => active
-      ? "rounded-md bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
-      : "rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer";
+      ? "cc-view-btn cc-view-btn--active rounded-[10px] bg-[#1e40af] px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+      : "cc-view-btn rounded-[10px] px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-[#1e40af]";
     return `
-    <div class="inline-flex items-center gap-1 rounded-lg border border-border bg-slate-50 p-1" role="group" aria-label="Modo de vista">
-      <button type="button" data-action="view-tarjetas" class="${btnCls(state.viewMode === "tarjetas")}">Tarjetas</button>
-      <button type="button" data-action="view-tabla" class="${btnCls(state.viewMode === "tabla")}">Tabla</button>
+    <div class="inline-flex items-center gap-0.5 rounded-[12px] border border-slate-200 bg-slate-50/90 p-1" role="group" aria-label="Modo de vista">
+      <button type="button" data-action="view-tarjetas" aria-pressed="${state.viewMode === "tarjetas"}" class="${btnCls(state.viewMode === "tarjetas")}">Tarjetas</button>
+      <button type="button" data-action="view-tabla" aria-pressed="${state.viewMode === "tabla"}" class="${btnCls(state.viewMode === "tabla")}">Tabla</button>
     </div>`;
   }
 
   function renderCursosTable(): string {
     const items = state.cursos.items;
-    if (items.length === 0) {
-      return `<p class="py-10 text-center text-sm text-slate-500">No se encontraron cursos con los filtros actuales.</p>`;
-    }
+    if (items.length === 0) return "";
+
     return `
     <div class="overflow-x-auto">
-      <table class="w-full text-left text-sm">
-        <thead class="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <table class="cc-catalogo-table min-w-[960px] w-full text-left text-sm">
+        <thead class="border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           <tr>
-            <th class="px-4 py-3">Nombre</th>
-            <th class="px-4 py-3">Categoría</th>
-            <th class="px-4 py-3">Tipo</th>
-            <th class="px-4 py-3">Clasificación</th>
-            <th class="px-4 py-3">Instructor</th>
-            <th class="px-4 py-3">Horas</th>
-            <th class="px-4 py-3">Modalidad</th>
-            <th class="px-4 py-3">Obligatorio</th>
-            ${isRH ? `<th class="px-4 py-3 text-right">Acciones</th>` : ""}
+            <th class="px-4 py-3.5">Nombre</th>
+            <th class="px-4 py-3.5">Categoría</th>
+            <th class="px-4 py-3.5">Tipo</th>
+            <th class="px-4 py-3.5">Clasificación</th>
+            <th class="px-4 py-3.5">Instructor</th>
+            <th class="px-4 py-3.5">Horas</th>
+            <th class="px-4 py-3.5">Modalidad</th>
+            <th class="px-4 py-3.5">Obligatorio</th>
+            ${isRH ? `<th class="px-4 py-3.5 text-right">Acciones</th>` : ""}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
           ${items.map(c => `
-          <tr class="hover:bg-slate-50/60 transition">
-            <td class="px-4 py-3 font-medium max-w-[280px] truncate"><button data-action="view-curso" data-id="${c.id}" class="text-left text-text-primary hover:text-blue-600 hover:underline transition">${escapeHtml(c.nombre)}</button></td>
-            <td class="px-4 py-3">${c.categoria_nombre ? cursoCatBadge(c.categoria_nombre) : `<span class="text-slate-400">—</span>`}</td>
-            <td class="px-4 py-3 text-slate-600">${c.tipo_nombre ? escapeHtml(TIPO_LABELS[c.tipo_nombre] ?? c.tipo_nombre) : "—"}</td>
-            <td class="px-4 py-3 text-slate-600">${c.clasificacion_nombre ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion_nombre] ?? c.clasificacion_nombre) : "—"}</td>
-            <td class="px-4 py-3 text-slate-600 max-w-[180px] truncate">${c.instructor_nombre ? escapeHtml(c.instructor_nombre) : "—"}</td>
-            <td class="px-4 py-3 tabular-nums text-slate-600">${c.duracion_horas ?? "—"}</td>
-            <td class="px-4 py-3 text-slate-600">${c.modalidad ? escapeHtml(c.modalidad) : "—"}</td>
-            <td class="px-4 py-3">${c.obligatorio
-              ? `<span class="inline-flex items-center rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Sí</span>`
+          <tr class="cc-catalogo-row transition hover:bg-slate-50/70">
+            <td class="px-4 py-3.5 align-middle">
+              <button data-action="view-curso" data-id="${c.id}" class="max-w-[280px] truncate text-left text-sm font-semibold text-text-primary transition hover:text-leoni-blue hover:underline" title="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</button>
+            </td>
+            <td class="px-4 py-3.5 align-middle">${c.categoria_nombre ? cursoCatBadge(c.categoria_nombre) : `<span class="text-slate-400">—</span>`}</td>
+            <td class="px-4 py-3.5 align-middle text-slate-600">${c.tipo_nombre ? escapeHtml(TIPO_LABELS[c.tipo_nombre] ?? c.tipo_nombre) : "—"}</td>
+            <td class="px-4 py-3.5 align-middle text-slate-600">${c.clasificacion_nombre ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion_nombre] ?? c.clasificacion_nombre) : "—"}</td>
+            <td class="px-4 py-3.5 align-middle max-w-[180px] truncate text-slate-600" title="${escapeHtml(c.instructor_nombre ?? "")}">${c.instructor_nombre ? escapeHtml(c.instructor_nombre) : "—"}</td>
+            <td class="px-4 py-3.5 align-middle tabular-nums text-slate-600">${c.duracion_horas ?? "—"}</td>
+            <td class="px-4 py-3.5 align-middle text-slate-600">${c.modalidad ? escapeHtml(c.modalidad) : "—"}</td>
+            <td class="px-4 py-3.5 align-middle">${c.obligatorio
+              ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Sí</span>`
               : `<span class="text-slate-400">No</span>`}</td>
-            ${isRH ? `<td class="px-4 py-3 text-right">
-              <button data-action="edit-curso" data-id="${c.id}" class="text-blue-600 hover:text-blue-800 text-xs font-medium mr-2">Editar</button>
-              <button data-action="delete-curso" data-id="${c.id}" class="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>
+            ${isRH ? `<td class="px-4 py-3.5 align-middle text-right whitespace-nowrap">
+              <button data-action="edit-curso" data-id="${c.id}" class="${RH_LISTADO_BTN_GHOST} !px-2 !py-1 text-xs">Editar</button>
+              <button data-action="delete-curso" data-id="${c.id}" class="ml-1 text-xs font-semibold text-red-600 transition hover:text-red-800">Eliminar</button>
             </td>` : ""}
           </tr>`).join("")}
         </tbody>
@@ -1237,39 +1382,78 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     </div>`;
   }
 
-  function renderPage(): string {
+  function renderListToolbar(): string {
+    return `
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+      <div>
+        <h2 class="text-sm font-semibold text-text-primary">Resultados</h2>
+        <p class="text-xs text-text-muted">${state.cursos.total} curso${state.cursos.total !== 1 ? "s" : ""}</p>
+      </div>
+      ${renderViewToggle()}
+    </div>`;
+  }
+
+  function renderListContent(): string {
     const items = state.cursos.items;
 
-    const content = state.loading
-      ? `<p class="py-10 text-center text-sm text-slate-500">Cargando...</p>`
-      : state.viewMode === "tabla"
-        ? renderCursosTable()
-        : items.length === 0
-          ? `<p class="col-span-full py-10 text-center text-sm text-slate-500">No se encontraron cursos con los filtros actuales.</p>`
-          : `<div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">${items.map(c => renderCursoCard(c)).join("")}</div>`;
+    if (state.loading && items.length === 0) {
+      return `
+      <section class="${RH_LISTADO_SURFACE} cc-table-wrap flex min-h-[240px] flex-col overflow-hidden p-0" aria-busy="true" aria-label="Cargando cursos">
+        <div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-14">
+          <div class="size-8 animate-spin rounded-full border-2 border-slate-200 border-t-leoni-blue" aria-hidden="true"></div>
+          <p class="text-sm text-text-secondary">Cargando catálogo…</p>
+        </div>
+      </section>`;
+    }
+
+    if (items.length === 0) {
+      return renderEmptyState();
+    }
+
+    if (state.viewMode === "tarjetas") {
+      return `
+      <section class="${RH_LISTADO_SURFACE} cc-cards-wrap flex flex-col overflow-hidden p-0" aria-label="Cursos en tarjetas">
+        ${renderListToolbar()}
+        <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3 2xl:grid-cols-4">
+          ${items.map(c => renderCursoCard(c)).join("")}
+        </div>
+        ${renderPagination()}
+      </section>`;
+    }
 
     return `
-    <div class="flex flex-col gap-5">
-      ${renderFilterSection()}
-      ${renderCursosKpis()}
-      <div class="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
-          ${renderViewToggle()}
-          ${isRH ? `<button data-action="open-create-curso" class="${BTN_PRIMARY}">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
-            Nuevo curso
-          </button>` : ""}
-        </div>
-        ${content}
-        ${!state.loading ? `<div class="px-5 pb-4">${renderPagination()}</div>` : ""}
+    <section class="${RH_LISTADO_SURFACE} cc-table-wrap flex flex-col overflow-hidden p-0" aria-label="Listado de cursos">
+      ${renderListToolbar()}
+      ${renderCursosTable()}
+      ${renderPagination()}
+    </section>`;
+  }
+
+  function renderPage(): string {
+    if (state.loading && state.cursos.items.length === 0 && !hasActiveFilters()) {
+      return renderCursosLoading();
+    }
+
+    const items = state.cursos.items;
+    const showKpis = !state.loading || items.length > 0;
+
+    return `
+    <div class="${RH_LISTADO_PAGE_OUTER} cc-page">
+      ${renderLevelUpBackBar()}
+      ${renderCursosPageHeader()}
+      ${showKpis ? renderCursosKpis() : `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>`}
+      <div class="cc-content-stack flex flex-col gap-4 sm:gap-5">
+        ${renderFilterSection()}
+        ${renderListContent()}
       </div>
     </div>`;
   }
 
   function render(): void {
     mountAppShell(container, {
-      pageTitle: "Manejo de Cursos",
+      pageTitle: "Catálogo de cursos",
       activeNav: "cursos",
+      mainClass: "py-0",
       mainHtml: (state.detailCurso ? renderDetailView() : renderPage()) + (state.showCreateModal || state.editingCurso ? renderCreateEditModal() : ""),
     });
   }
@@ -1666,13 +1850,33 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
+    const gotoPageBtn = t.closest<HTMLElement>("[data-action='cursos-goto-page']");
+    if (gotoPageBtn) {
+      const targetPage = Number(gotoPageBtn.dataset.page);
+      const pageSize = state.cursos.page_size || 20;
+      const totalPages = Math.max(1, Math.ceil(state.cursos.total / pageSize));
+      if (targetPage >= 1 && targetPage <= totalPages && targetPage !== state.page) {
+        state.page = targetPage;
+        state.loading = true;
+        render();
+        await loadCursos();
+        state.loading = false;
+        render();
+      }
+      return;
+    }
+
     if (t.closest("[data-action='cursos-next']")) {
-      state.page++;
-      state.loading = true;
-      render();
-      await loadCursos();
-      state.loading = false;
-      render();
+      const pageSize = state.cursos.page_size || 20;
+      const totalPages = Math.max(1, Math.ceil(state.cursos.total / pageSize));
+      if (state.page < totalPages) {
+        state.page++;
+        state.loading = true;
+        render();
+        await loadCursos();
+        state.loading = false;
+        render();
+      }
       return;
     }
   }

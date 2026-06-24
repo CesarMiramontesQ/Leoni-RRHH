@@ -3160,3 +3160,93 @@ body {
     animation: none;
   }
 }
+
+/* ── Catálogo de Cursos (.cc-page) ─────────────────────────────────────── */
+.cc-page .cc-page-header {
+  padding-bottom: 0.25rem;
+}
+
+.cc-page .cc-btn-nueva:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+.cc-page .cc-catalogo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.cc-page .cc-catalogo-row {
+  transition: background-color 140ms ease;
+}
+
+.cc-page .cc-catalogo-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.cc-page .cc-catalogo-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+.cc-page .cc-curso-card {
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.cc-page .cc-page-btn {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.cc-page .cc-page-btn:hover:not(.cc-page-btn--active) {
+  color: #1e40af;
+  background: #f1f5f9;
+}
+
+.cc-page .cc-page-btn--active {
+  background: #1e40af;
+  color: #fff;
+}
+
+.cc-page .cc-page-btn:focus-visible,
+.cc-page .cc-page-nav:focus-visible,
+.cc-page .cc-view-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.cc-page .cc-page-nav {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.cc-page .cc-page-nav:hover:not(:disabled) {
+  color: #1e40af;
+  background: #f8fafc;
+}
+
+.cc-page .cc-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+.cc-page .cc-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-page .cc-catalogo-row,
+  .cc-page .cc-curso-card,
+  .cc-page .cc-page-btn,
+  .cc-page .cc-modal-backdrop,
+  .cc-page .cc-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
