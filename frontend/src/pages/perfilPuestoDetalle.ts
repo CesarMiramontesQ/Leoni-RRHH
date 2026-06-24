@@ -293,6 +293,7 @@ function renderExecutiveSummary(summary: ExecutiveSummary): string {
     icon: string;
     iconWrap: string;
     valueClass?: string;
+    valueId?: string;
   }[] = [
     {
       label: "Empleados asignados",
@@ -307,6 +308,7 @@ function renderExecutiveSummary(summary: ExecutiveSummary): string {
       sub: "Definidas en el perfil",
       icon: ICON_CLIPBOARD,
       iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
+      valueId: "ppd-kpi-tareas-value",
     },
     {
       label: "Competencias",
@@ -347,7 +349,7 @@ function renderExecutiveSummary(summary: ExecutiveSummary): string {
             <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
             <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
           </div>
-          <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary ${k.valueClass ?? ""}">${k.value}</p>
+          <p${k.valueId ? ` id="${k.valueId}"` : ""} class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary ${k.valueClass ?? ""}">${k.value}</p>
           <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
         </article>`,
         )
@@ -845,9 +847,39 @@ async function fetchJson<T>(url: string, token: string): Promise<T | null> {
   return res.json() as Promise<T>;
 }
 
+async function refreshTareasEnPagina(container: HTMLElement, perfilId: number): Promise<void> {
+  const inner = container.querySelector("#perfil-detalle-inner");
+  if (!inner) return;
+
+  const section = inner.querySelector("#ppd-tareas");
+  if (!section) return;
+
+  const ctrl = perfilDetalleControllers.get(container);
+  const updatedAt = ctrl?.puesto?.updated_at ? formatFecha(ctrl.puesto.updated_at) : null;
+
+  try {
+    const token = getAccessToken();
+    if (!token) return;
+    const tareas = await fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token);
+    const tareasList = tareas ?? [];
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = renderTareas(tareasList, updatedAt);
+    const newSection = wrapper.firstElementChild;
+    if (newSection) section.replaceWith(newSection);
+
+    const kpiValue = inner.querySelector("#ppd-kpi-tareas-value");
+    if (kpiValue) kpiValue.textContent = String(tareasList.length);
+  } catch {
+    /* noop */
+  }
+}
+
 async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Promise<void> {
   const inner = container.querySelector("#perfil-detalle-inner");
   if (!inner) return;
+
+  document.body.style.overflow = "";
 
   inner.innerHTML = renderLoadingSkeleton();
 
@@ -931,7 +963,10 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       ctrl.compModal = null;
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
-      ctrl.tareasModal = mountEditarTareasModal(tareasHost, { perfilId, onSuccess: reload });
+      ctrl.tareasModal = mountEditarTareasModal(tareasHost, {
+        perfilId,
+        onSuccess: () => void refreshTareasEnPagina(container, perfilId),
+      });
 
       const cualHost = contentEl.querySelector("#modal-host-cualificaciones") as HTMLElement;
       ctrl.cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
