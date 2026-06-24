@@ -1,6 +1,6 @@
 from sqlalchemy import String, cast
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, union_all, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -30,6 +30,13 @@ all_sesiones_router = APIRouter(
     prefix="/api/v1/level-up/sesiones",
     tags=["Level Up - Todas las Sesiones"],
 )
+
+
+def _coerce_no_empleado(v: object) -> str | None:
+    """empleados.no_empleado es integer en Bono; la API expone string."""
+    if v is None:
+        return None
+    return str(v)
 
 
 # ── Todas las sesiones (cross-curso) ────────────────────────────────────────
@@ -204,6 +211,11 @@ class SesionPuestoEmpleado(BaseModel):
     nombre: str | None = None
     no_empleado: str | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        return _coerce_no_empleado(v)
+
 
 class SesionPuestoResponse(BaseModel):
     id: int
@@ -344,6 +356,11 @@ class SesionEmpleadoResponse(BaseModel):
     no_empleado: str | None = None
     asistio: bool | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        return _coerce_no_empleado(v)
+
 
 @router.get("/{sesion_id}/empleados", response_model=list[SesionEmpleadoResponse])
 async def listar_empleados_sesion(
@@ -382,6 +399,11 @@ class EmpleadoElegibleResponse(BaseModel):
     nombre: str | None = None
     no_empleado: str | None = None
     origen: str
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        return _coerce_no_empleado(v)
 
 
 @router.get("/{sesion_id}/empleados-elegibles", response_model=list[EmpleadoElegibleResponse])
