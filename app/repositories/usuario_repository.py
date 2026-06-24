@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.empleados import Empleado
-from app.models.empleados_rh import EmpleadoCore, EmpleadoRhConfig
+from app.models.empleados_rh import EmpleadoRhConfig
 from app.models.catalogos import Area, ClasificacionEmpleado, Puesto
 from app.repositories.base import BaseRepository
 
@@ -25,8 +25,8 @@ class UsuarioRepository(BaseRepository[Empleado]):
 
     @staticmethod
     def _sin_email_condition():
-        """Sin correo registrado en levelup_empleados_core.email."""
-        return or_(EmpleadoCore.email.is_(None), func.trim(EmpleadoCore.email) == "")
+        """Sin correo registrado en empleados.email."""
+        return or_(Empleado.email.is_(None), func.trim(Empleado.email) == "")
 
     @staticmethod
     def _normalized_sql(expr):
@@ -188,9 +188,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
         )
-        query = query.outerjoin(
-            EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id
-        )
         if solo_contrato_por_vencer:
             query = query.join(
                 EmpleadoRhConfig,
@@ -233,13 +230,7 @@ class UsuarioRepository(BaseRepository[Empleado]):
             solo_sin_email=solo_sin_email,
             clasificacion_admin_ids=clasificacion_admin_ids,
         )
-        query = (
-            select(func.count())
-            .select_from(Empleado)
-            .outerjoin(
-                EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id
-            )
-        )
+        query = select(func.count()).select_from(Empleado)
         if solo_contrato_por_vencer:
             query = query.join(
                 EmpleadoRhConfig,
@@ -308,7 +299,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = (
             select(func.count())
             .select_from(Empleado)
-            .outerjoin(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
             .where(
                 Empleado.clasificacion_id.in_(clasificacion_admin_ids),
                 Empleado.estado_id.in_(estados_activos),

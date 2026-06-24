@@ -225,7 +225,7 @@ async def make_empleado(
 
     rol_obj = await _get_or_create_rol(db, rol)
 
-    # empleados (Bono): identidad + password legado (solo lectura en login).
+    # empleados (Bono): identidad + email/password legados (solo lectura en login).
     empleado = Empleado(
         empleado_id=_empleado_id,
         no_empleado=_no_empleado,
@@ -235,6 +235,7 @@ async def make_empleado(
         estado_id=estado_id,
         clasificacion_id=clasificacion_id,
         puesto_id=puesto_id,
+        email=_email,
         password=password,
     )
     db.add(empleado)

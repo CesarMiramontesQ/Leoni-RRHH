@@ -12,7 +12,6 @@ from sqlalchemy.orm import selectinload
 from app.models.catalogos import Area, Puesto
 from app.models.empleados import Empleado
 from app.models.empleados_rh import (
-    EmpleadoCore,
     EmpleadoRhHorasExtra,
     EmpleadoRhPermisos,
     ensure_rh_horas_extra,
@@ -38,14 +37,11 @@ class NominasAjustesRepository:
             stmt = (
                 stmt.outerjoin(Area, Empleado.area_id == Area.area_id)
                 .outerjoin(Puesto, Empleado.puesto_id == Puesto.puesto_id)
-                .outerjoin(
-                    EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id
-                )
                 .where(
                     or_(
                         Empleado.nombre.ilike(patron),
                         cast(Empleado.no_empleado, String).ilike(patron),
-                        EmpleadoCore.email.ilike(patron),
+                        Empleado.email.ilike(patron),
                         Area.descripcion.ilike(patron),
                         Puesto.descripcion.ilike(patron),
                     )

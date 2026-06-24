@@ -1,7 +1,7 @@
 def test_empleado_nuevo_schema():
     from app.models.empleados import Empleado
 
-    # rol_id/email/password_hash viven en levelup_empleados_core (no en empleados).
+    # rol_id/email/password_hash viven en levelup_empleados_core; email también en empleados (Bono).
     e = Empleado(
         empleado_id=100,
         no_empleado="EMP-001",

@@ -88,7 +88,7 @@ async def test_empleado_sin_filas_hijas_usa_defaults(db):
         db.add(rol)
         await db.flush()
 
-    # empleados (Bono) ya no tiene rol/email/password (viven en core); este empleado
+    # empleados (Bono) ya no tiene rol/password_hash (viven en core); este empleado
     # se crea SIN ninguna fila hija para validar los defaults de las propiedades.
     emp = Empleado(
         empleado_id=77777,
@@ -186,17 +186,18 @@ async def test_contratos_por_vencer_filtra_via_join_tabla_hija(db):
 
 
 async def test_empleados_no_tiene_columnas_del_proyecto():
-    """`empleados` (Bono) no debe cargar columnas propias del proyecto: rol/email/
-    password_hash/id viven en levelup_empleados_core. `password` es columna legada de
-    Bono (solo lectura en login)."""
+    """`empleados` (Bono) no debe cargar columnas propias del proyecto: rol/
+    password_hash/id viven en levelup_empleados_core. `email` y `password` son
+    columnas legadas de Bono (solo lectura en login y listados)."""
     from app.models.empleados import Empleado
     from app.models.empleados_rh import EmpleadoCore
 
     cols_empleados = set(Empleado.__table__.columns.keys())
-    for prohibida in ("id", "rol_id", "email", "password_hash", "created_at",
+    for prohibida in ("id", "rol_id", "password_hash", "created_at",
                        "modulos_rh", "fecha_fin_contrato"):
         assert prohibida not in cols_empleados, prohibida
     assert "password" in cols_empleados
+    assert "email" in cols_empleados
 
     cols_core = set(EmpleadoCore.__table__.columns.keys())
     for esperada in ("empleado_id", "rol_id", "email", "password_hash"):

@@ -384,9 +384,9 @@ async def seed_roles(db) -> dict[str, int]:
 
 
 async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
-    """Crea/asegura un usuario. rol, email y password viven en levelup_empleados_core;
-    `empleados` (Bono) solo guarda identidad. En Bono real el empleado ya existe; en
-    dev/local se crea para conveniencia."""
+    """Crea/asegura un usuario. rol y password_hash viven en levelup_empleados_core;
+    email y password legados viven en empleados (Bono). En Bono real el empleado ya
+    existe; en dev/local se crea para conveniencia."""
     from app.models.empleados_rh import ensure_core
 
     existing = await db.execute(
@@ -407,6 +407,7 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
             nombre=user_data["nombre"],
             usuario=user_data["usuario"],
             estado_id=user_data["estado_id"],
+            email=user_data["email"],
         )
         db.add(emp)
         await db.flush()
@@ -416,11 +417,11 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
         core.rol_id = rol_id
     if not core.password_hash:
         core.password_hash = hash_password(user_data["password"])
-    if not core.email:
-        core.email = user_data["email"]
+    if not emp.email:
+        emp.email = user_data["email"]
     await db.flush()
 
-    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, core.email)
+    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, emp.email)
 
 
 async def seed_rh_permisos_admins(db) -> None:

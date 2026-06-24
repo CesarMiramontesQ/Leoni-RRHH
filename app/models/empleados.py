@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class Empleado(Base):
     """Empleado: identidad y atributos provenientes de ``Bono.empleados`` (PK
     ``empleado_id``, sin ``id``, tabla intacta de Bono). Lo propio del proyecto
-    (rol, credenciales, email, datos RH) vive en las tablas ``levelup_empleados_*``
+    (rol, credenciales, datos RH) vive en las tablas ``levelup_empleados_*``
     y se expone aquí vía propiedades de compatibilidad (ver app/models/empleados_rh.py).
     """
 
@@ -75,7 +75,8 @@ class Empleado(Base):
     registro: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     a_restringido: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     requiere_cambio_password: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    # Credencial legada en Bono (solo lectura desde esta app; no migrar ni escribir aquí).
+    # Credenciales legadas en Bono (solo lectura desde esta app; no migrar ni escribir aquí).
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # ── Relaciones a catálogos de Bono (por id; read-only) ──
@@ -185,10 +186,6 @@ class Empleado(Base):
     @property
     def rol_id(self) -> Optional[int]:
         return self.core.rol_id if self.core else None
-
-    @property
-    def email(self) -> Optional[str]:
-        return self.core.email if self.core else None
 
     @property
     def password_hash(self) -> Optional[str]:
