@@ -897,3 +897,56 @@ class PerfilFuncionesTarea(Base):
             f"<PerfilFuncionesTarea id={self.id} "
             f"perfil_funciones_id={self.perfil_funciones_id} tarea_catalogo_id={self.tarea_catalogo_id}>"
         )
+
+
+class PlanDesarrolloIndividual(Base):
+    """Acción de desarrollo individual vinculada a una competencia con brecha."""
+
+    __tablename__ = "levelup_plan_desarrollo_individual"
+    __table_args__ = (
+        Index("ix_levelup_pdi_empleado_id", "empleado_id"),
+        Index("ix_levelup_pdi_competencia_id", "competencia_id"),
+        CheckConstraint(
+            "fecha_fin >= fecha_inicio",
+            name="ck_levelup_pdi_fechas",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    empleado_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("empleados.empleado_id"), nullable=False
+    )
+    competencia_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("levelup_competencias.id"), nullable=False
+    )
+    accion: Mapped[str] = mapped_column(String(300), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    duracion_horas: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
+    responsable: Mapped[str] = mapped_column(String(200), nullable=False)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="pendiente")
+    creado_por: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    empleado: Mapped["Empleado"] = relationship(
+        "Empleado", foreign_keys=[empleado_id], lazy="selectin"
+    )
+    competencia: Mapped["Competencia"] = relationship(
+        "Competencia", lazy="selectin"
+    )
+    creador: Mapped[Optional["Empleado"]] = relationship(
+        "Empleado",
+        primaryjoin="foreign(PlanDesarrolloIndividual.creado_por) == Empleado.empleado_id",
+        lazy="selectin",
+        viewonly=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<PlanDesarrolloIndividual id={self.id} empleado={self.empleado_id} comp={self.competencia_id}>"

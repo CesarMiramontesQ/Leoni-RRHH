@@ -26,7 +26,9 @@ from app.schemas.evaluaciones import (
     EvaluacionResponse,
     EvaluacionUpdate,
 )
+from app.schemas.pdi import PDICreate, PDIListResponse, PDIResponse, PDIUpdate
 from app.services.evaluacion_service import EvaluacionService
+from app.services.pdi_service import PDIService
 
 router = APIRouter(prefix="/api/v1/evaluaciones", tags=["Evaluaciones"])
 
@@ -58,6 +60,72 @@ async def resumen_empleado(
     return await service.resumen_empleado(
         empleado_id=empleado_id, current_user=current_user
     )
+
+
+# ── PDI (Plan de Desarrollo Individual) ────────────────────────────────────
+
+
+@router.get("/empleado/{empleado_id}/pdi", response_model=PDIListResponse)
+async def listar_pdi(
+    empleado_id: int,
+    estado: str | None = Query(None),
+    competencia_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar acciones PDI de un empleado."""
+    service = PDIService(db)
+    return await service.listar(
+        empleado_id=empleado_id,
+        current_user=current_user,
+        estado=estado,
+        competencia_id=competencia_id,
+    )
+
+
+@router.post(
+    "/empleado/{empleado_id}/pdi",
+    response_model=PDIResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def crear_pdi(
+    empleado_id: int,
+    body: PDICreate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear acción PDI. Solo RH."""
+    service = PDIService(db)
+    return await service.crear(empleado_id=empleado_id, data=body, current_user=current_user)
+
+
+@router.put("/empleado/{empleado_id}/pdi/{pdi_id}", response_model=PDIResponse)
+async def actualizar_pdi(
+    empleado_id: int,
+    pdi_id: int,
+    body: PDIUpdate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar acción PDI. Solo RH."""
+    service = PDIService(db)
+    return await service.actualizar(
+        empleado_id=empleado_id, pdi_id=pdi_id, data=body, current_user=current_user
+    )
+
+
+@router.delete(
+    "/empleado/{empleado_id}/pdi/{pdi_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def eliminar_pdi(
+    empleado_id: int,
+    pdi_id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar acción PDI. Solo RH."""
+    service = PDIService(db)
+    await service.eliminar(empleado_id=empleado_id, pdi_id=pdi_id)
 
 
 @router.post("/bulk", status_code=status.HTTP_200_OK)

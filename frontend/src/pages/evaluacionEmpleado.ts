@@ -3,11 +3,21 @@ import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getEmpleadoResumen,
   getNivelLabels,
+  getPDI,
+  createPDI,
+  updatePDI,
+  deletePDI,
   type EmpleadoResumen,
   type CompetenciaResumenItem,
   type Severidad,
+  type PDIAccion,
+  type EstadoPDI,
+  type PDICreatePayload,
+  type PDIUpdatePayload,
 } from "../api/evaluaciones.ts";
 import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
+import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
 
 const SEVERIDAD_CONFIG: Record<Severidad, { dot: string; bg: string; text: string; label: string }> = {
   alineado: { dot: "bg-green-500", bg: "bg-green-50", text: "text-green-700", label: "Alineado" },
@@ -29,6 +39,22 @@ const BAR_COLORS: Record<Severidad, string> = {
   alta: "bg-orange-500",
   critica: "bg-red-500",
 };
+
+const PDI_ESTADO_BADGE: Record<EstadoPDI, string> = {
+  pendiente: "bg-amber-50 text-amber-700 border-amber-200",
+  en_proceso: "bg-blue-50 text-blue-700 border-blue-200",
+  completado: "bg-green-50 text-green-700 border-green-200",
+  cancelado: "bg-gray-100 text-gray-500 border-gray-200",
+};
+
+const PDI_ESTADO_LABEL: Record<EstadoPDI, string> = {
+  pendiente: "Pendiente",
+  en_proceso: "En Proceso",
+  completado: "Completado",
+  cancelado: "Cancelado",
+};
+
+const PDI_TIPOS = ["E-Learning", "Presencial", "Mentoring", "Coaching", "Certificación", "Rotación"];
 
 function renderCircularGauge(value: number, maxValue: number, color: string, size = 48): string {
   const radius = (size - 8) / 2;
@@ -264,7 +290,148 @@ export function mountEvaluacionEmpleado(
       </div>`;
   }
 
-  function renderResumen(data: EmpleadoResumen): string {
+  function renderPDIBadge(estado: EstadoPDI): string {
+    const cls = PDI_ESTADO_BADGE[estado] ?? PDI_ESTADO_BADGE.pendiente;
+    const label = PDI_ESTADO_LABEL[estado] ?? estado;
+    return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}">${label}</span>`;
+  }
+
+  function renderPDISection(pdiItems: PDIAccion[], _competencias: CompetenciaResumenItem[]): string {
+    const isRH = getRolFromAccessToken() === "rh";
+    const estadoOptions = ["", "pendiente", "en_proceso", "completado", "cancelado"];
+    const estadoLabels = ["Todos", "Pendiente", "En Proceso", "Completado", "Cancelado"];
+
+    const filterHtml = `
+      <div class="flex items-center gap-3">
+        <div class="relative">
+          <select id="pdi-filter-estado" class="appearance-none rounded-md border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-gray-700 ${FIELD_FOCUS}">
+            ${estadoOptions.map((v, i) => `<option value="${v}">${estadoLabels[i]}</option>`).join("")}
+          </select>
+          <div class="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none">${SELECT_CHEVRON}</div>
+        </div>
+        ${isRH ? `<button id="pdi-btn-add" class="${BTN_PRIMARY} text-xs px-3 py-1.5">+ Agregar acción</button>` : ""}
+      </div>`;
+
+    const rows = pdiItems.length > 0
+      ? pdiItems.map(item => `
+        <tr class="border-b border-gray-100 hover:bg-gray-50/50 ${isRH ? "cursor-pointer" : ""}" data-pdi-id="${item.id}">
+          <td class="px-4 py-3 text-sm text-gray-900">${item.competencia_nombre}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 max-w-[200px] truncate">${item.accion}</td>
+          <td class="px-4 py-3 text-xs text-gray-600">${item.tipo}</td>
+          <td class="px-4 py-3 text-xs text-gray-600 text-center">${item.duracion_horas ?? "—"}</td>
+          <td class="px-4 py-3 text-xs text-gray-600">${item.fecha_inicio} / ${item.fecha_fin}</td>
+          <td class="px-4 py-3 text-xs text-gray-600">${item.responsable}</td>
+          <td class="px-4 py-3">${renderPDIBadge(item.estado)}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">Sin acciones de desarrollo registradas.</td></tr>`;
+
+    return `
+      <div class="mt-8">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-gray-900 uppercase">Plan de Acción de Desarrollo (PDI)</h2>
+          ${filterHtml}
+        </div>
+        <div class="overflow-hidden rounded-lg border border-gray-200">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hrs</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio / Fin</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsable</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 bg-white" id="pdi-tbody">
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function renderPDIModal(
+    competencias: CompetenciaResumenItem[],
+    existing?: PDIAccion,
+  ): string {
+    const isEdit = !!existing;
+    const title = isEdit ? "Editar Acción PDI" : "Nueva Acción PDI";
+
+    const compOptions = competencias.map(c =>
+      `<option value="${c.competencia_id}" ${existing && existing.competencia_id === c.competencia_id ? "selected" : ""}>${c.competencia_nombre}</option>`
+    ).join("");
+
+    const tipoOptions = PDI_TIPOS.map(t =>
+      `<option value="${t}" ${existing && existing.tipo === t ? "selected" : ""}>${t}</option>`
+    ).join("");
+
+    const estadoField = isEdit ? `
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">Estado</label>
+        <select id="pdi-modal-estado" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}">
+          ${(["pendiente", "en_proceso", "completado", "cancelado"] as EstadoPDI[]).map(e =>
+            `<option value="${e}" ${existing!.estado === e ? "selected" : ""}>${PDI_ESTADO_LABEL[e]}</option>`
+          ).join("")}
+        </select>
+      </div>` : "";
+
+    return `
+      <div id="pdi-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
+          <h3 class="text-base font-semibold text-gray-900 mb-4">${title}</h3>
+          <form id="pdi-modal-form" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Competencia</label>
+                <select id="pdi-modal-competencia" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" ${isEdit ? "disabled" : ""}>
+                  ${compOptions}
+                </select>
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Acción</label>
+                <input id="pdi-modal-accion" type="text" maxlength="300" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" value="${existing?.accion ?? ""}">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                <select id="pdi-modal-tipo" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}">
+                  ${tipoOptions}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Duración (hrs)</label>
+                <input id="pdi-modal-duracion" type="number" min="1" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" value="${existing?.duracion_horas ?? ""}">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Fecha inicio</label>
+                <input id="pdi-modal-inicio" type="date" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" value="${existing?.fecha_inicio ?? ""}">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Fecha fin</label>
+                <input id="pdi-modal-fin" type="date" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" value="${existing?.fecha_fin ?? ""}">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Responsable</label>
+                <input id="pdi-modal-responsable" type="text" maxlength="200" required class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" value="${existing?.responsable ?? ""}">
+              </div>
+              ${estadoField}
+            </div>
+            <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+              <div>
+                ${isEdit ? `<button type="button" id="pdi-modal-delete" class="${BTN_DANGER} text-xs px-3 py-1.5">Eliminar</button>` : ""}
+              </div>
+              <div class="flex gap-2">
+                <button type="button" id="pdi-modal-cancel" class="${BTN_SECONDARY} text-xs px-3 py-1.5">Cancelar</button>
+                <button type="submit" class="${BTN_PRIMARY} text-xs px-3 py-1.5">${isEdit ? "Guardar" : "Crear"}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>`;
+  }
+
+  function renderResumen(data: EmpleadoResumen, pdiItems: PDIAccion[]): string {
     return `
       <div class="px-6 py-6 max-w-6xl mx-auto">
         ${renderLevelUpBackBar()}
@@ -273,19 +440,140 @@ export function mountEvaluacionEmpleado(
           ${renderKPIs(data)}
           ${renderComparisonTable(data)}
           ${renderBreachBars(data)}
+          ${renderPDISection(pdiItems, data.competencias)}
         </div>
       </div>`;
+  }
+
+  let resumenData: EmpleadoResumen | null = null;
+  let pdiData: PDIAccion[] = [];
+
+  async function loadPDI(estado?: string) {
+    const params = estado ? { estado } : undefined;
+    const resp = await getPDI(empleadoId, params);
+    pdiData = resp.items;
+  }
+
+  function openModal(existing?: PDIAccion) {
+    if (!resumenData) return;
+    const html = renderPDIModal(resumenData.competencias, existing);
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper.firstElementChild!);
+
+    const overlay = document.getElementById("pdi-modal-overlay")!;
+    const form = document.getElementById("pdi-modal-form") as HTMLFormElement;
+    const cancelBtn = document.getElementById("pdi-modal-cancel")!;
+    const deleteBtn = document.getElementById("pdi-modal-delete");
+
+    function closeModal() { overlay.remove(); }
+
+    cancelBtn.addEventListener("click", closeModal);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+
+    if (deleteBtn && existing) {
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm("¿Eliminar esta acción?")) return;
+        await deletePDI(empleadoId, existing.id);
+        closeModal();
+        await refreshPDI();
+      });
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const compEl = document.getElementById("pdi-modal-competencia") as HTMLSelectElement;
+      const accionEl = document.getElementById("pdi-modal-accion") as HTMLInputElement;
+      const tipoEl = document.getElementById("pdi-modal-tipo") as HTMLSelectElement;
+      const duracionEl = document.getElementById("pdi-modal-duracion") as HTMLInputElement;
+      const inicioEl = document.getElementById("pdi-modal-inicio") as HTMLInputElement;
+      const finEl = document.getElementById("pdi-modal-fin") as HTMLInputElement;
+      const responsableEl = document.getElementById("pdi-modal-responsable") as HTMLInputElement;
+      const estadoEl = document.getElementById("pdi-modal-estado") as HTMLSelectElement | null;
+
+      if (existing) {
+        const payload: PDIUpdatePayload = {};
+        if (accionEl.value !== existing.accion) payload.accion = accionEl.value;
+        if (tipoEl.value !== existing.tipo) payload.tipo = tipoEl.value;
+        const dur = duracionEl.value ? Number(duracionEl.value) : null;
+        if (dur !== existing.duracion_horas) payload.duracion_horas = dur;
+        if (inicioEl.value !== existing.fecha_inicio) payload.fecha_inicio = inicioEl.value;
+        if (finEl.value !== existing.fecha_fin) payload.fecha_fin = finEl.value;
+        if (responsableEl.value !== existing.responsable) payload.responsable = responsableEl.value;
+        if (estadoEl && estadoEl.value !== existing.estado) payload.estado = estadoEl.value as EstadoPDI;
+        await updatePDI(empleadoId, existing.id, payload);
+      } else {
+        const payload: PDICreatePayload = {
+          competencia_id: Number(compEl.value),
+          accion: accionEl.value,
+          tipo: tipoEl.value,
+          duracion_horas: duracionEl.value ? Number(duracionEl.value) : undefined,
+          fecha_inicio: inicioEl.value,
+          fecha_fin: finEl.value,
+          responsable: responsableEl.value,
+        };
+        await createPDI(empleadoId, payload);
+      }
+      closeModal();
+      await refreshPDI();
+    });
+  }
+
+  async function refreshPDI() {
+    const filterEl = document.getElementById("pdi-filter-estado") as HTMLSelectElement | null;
+    const estado = filterEl?.value || undefined;
+    await loadPDI(estado);
+    const tbody = document.getElementById("pdi-tbody");
+    if (tbody && resumenData) {
+      const section = root.querySelector(".mt-8:last-child");
+      if (section) {
+        const parent = section.parentElement!;
+        section.remove();
+        const tmp = document.createElement("div");
+        tmp.innerHTML = renderPDISection(pdiData, resumenData.competencias);
+        parent.appendChild(tmp.firstElementChild!);
+        bindPDIEvents();
+      }
+    }
+  }
+
+  function bindPDIEvents() {
+    const isRH = getRolFromAccessToken() === "rh";
+    const addBtn = document.getElementById("pdi-btn-add");
+    if (addBtn) addBtn.addEventListener("click", () => openModal());
+
+    const filterEl = document.getElementById("pdi-filter-estado") as HTMLSelectElement | null;
+    if (filterEl) {
+      filterEl.addEventListener("change", () => refreshPDI());
+    }
+
+    if (isRH) {
+      const rows = root.querySelectorAll<HTMLElement>("[data-pdi-id]");
+      rows.forEach(row => {
+        row.addEventListener("click", () => {
+          const id = Number(row.dataset.pdiId);
+          const item = pdiData.find(p => p.id === id);
+          if (item) openModal(item);
+        });
+      });
+    }
   }
 
   async function load() {
     root.innerHTML = renderLoading();
     await ensureMetodosCalificacionCompetenciaLoaded();
-    const data = await getEmpleadoResumen(empleadoId);
+    const [data, pdiResp] = await Promise.all([
+      getEmpleadoResumen(empleadoId),
+      getPDI(empleadoId),
+    ]);
     if (!data) {
       root.innerHTML = renderError();
       return;
     }
-    root.innerHTML = renderResumen(data);
+    resumenData = data;
+    pdiData = pdiResp.items;
+    root.innerHTML = renderResumen(data, pdiData);
+    bindPDIEvents();
   }
 
   load();
