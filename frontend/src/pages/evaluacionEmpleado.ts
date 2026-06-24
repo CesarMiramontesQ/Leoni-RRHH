@@ -296,7 +296,7 @@ export function mountEvaluacionEmpleado(
     return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}">${label}</span>`;
   }
 
-  function renderPDISection(pdiItems: PDIAccion[], _competencias: CompetenciaResumenItem[]): string {
+  function renderPDISection(pdiItems: PDIAccion[], _competencias: CompetenciaResumenItem[], currentEstado?: string): string {
     const isRH = getRolFromAccessToken() === "rh";
     const estadoOptions = ["", "pendiente", "en_proceso", "completado", "cancelado"];
     const estadoLabels = ["Todos", "Pendiente", "En Proceso", "Completado", "Cancelado"];
@@ -305,7 +305,7 @@ export function mountEvaluacionEmpleado(
       <div class="flex items-center gap-3">
         <div class="relative">
           <select id="pdi-filter-estado" class="appearance-none rounded-md border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-gray-700 ${FIELD_FOCUS}">
-            ${estadoOptions.map((v, i) => `<option value="${v}">${estadoLabels[i]}</option>`).join("")}
+            ${estadoOptions.map((v, i) => `<option value="${v}" ${v === (currentEstado ?? "") ? "selected" : ""}>${estadoLabels[i]}</option>`).join("")}
           </select>
           <div class="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none">${SELECT_CHEVRON}</div>
         </div>
@@ -326,7 +326,7 @@ export function mountEvaluacionEmpleado(
       : `<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">Sin acciones de desarrollo registradas.</td></tr>`;
 
     return `
-      <div class="mt-8">
+      <div class="mt-8" id="pdi-section">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-semibold text-gray-900 uppercase">Plan de Acción de Desarrollo (PDI)</h2>
           ${filterHtml}
@@ -431,6 +431,119 @@ export function mountEvaluacionEmpleado(
       </div>`;
   }
 
+  function renderGanttTimeline(pdiItems: PDIAccion[]): string {
+    const active = pdiItems.filter(p => p.estado !== "cancelado");
+    if (active.length === 0) return "";
+
+    const today = new Date();
+    const startMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const months: { label: string; start: Date; end: Date }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const m = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+      const mEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0);
+      months.push({
+        label: m.toLocaleString("es-MX", { month: "short" }).toUpperCase(),
+        start: m,
+        end: mEnd,
+      });
+    }
+
+    const timelineStart = months[0].start.getTime();
+    const timelineEnd = months[11].end.getTime();
+    const totalDuration = timelineEnd - timelineStart;
+
+    const GANTT_COLORS: Record<string, string> = {
+      en_proceso: "bg-blue-500",
+      completado: "bg-green-500",
+      pendiente: "bg-gray-400",
+    };
+
+    const grouped: Record<string, PDIAccion[]> = {};
+    for (const item of active) {
+      const key = item.competencia_nombre;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    }
+
+    const rows = Object.entries(grouped).map(([comp, items]) => {
+      const bars = items.map(item => {
+        const iStart = new Date(item.fecha_inicio).getTime();
+        const iEnd = new Date(item.fecha_fin).getTime();
+
+        const clampedStart = Math.max(iStart, timelineStart);
+        const clampedEnd = Math.min(iEnd, timelineEnd);
+        if (clampedStart >= timelineEnd || clampedEnd <= timelineStart) return "";
+
+        const leftPct = ((clampedStart - timelineStart) / totalDuration) * 100;
+        const widthPct = ((clampedEnd - clampedStart) / totalDuration) * 100;
+        const displayWidth = Math.max(widthPct, 2.5);
+        const color = GANTT_COLORS[item.estado] ?? GANTT_COLORS.pendiente;
+        const showLabel = displayWidth > 5;
+
+        const tooltip = `${item.accion} (${item.tipo}) — ${PDI_ESTADO_LABEL[item.estado]}`;
+        const tooltipBg: Record<string, string> = {
+          en_proceso: "bg-blue-600",
+          completado: "bg-green-600",
+          pendiente: "bg-gray-600",
+        };
+        const tipBg = tooltipBg[item.estado] ?? tooltipBg.pendiente;
+        return `<div class="absolute h-5 rounded ${color} opacity-80 flex items-center px-1 cursor-default group/bar"
+          style="left:${leftPct}%;width:${displayWidth}%;top:2px;z-index:1">
+          ${showLabel ? `<span class="text-[9px] text-white font-medium truncate">${item.tipo}</span>` : ""}
+          <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/bar:block z-50 pointer-events-none">
+            <div class="whitespace-nowrap rounded ${tipBg} px-2 py-1 text-[10px] text-white shadow-lg">${tooltip}</div>
+          </div>
+        </div>`;
+      }).join("");
+
+      return `
+        <div class="flex items-stretch border-b border-gray-100 last:border-0">
+          <div class="w-36 shrink-0 px-3 py-2 text-xs font-medium text-gray-700 truncate flex items-center">${comp}</div>
+          <div class="flex-1 relative h-9 border-l border-gray-100">
+            ${bars}
+          </div>
+        </div>`;
+    }).join("");
+
+    const monthHeaders = months.map(m =>
+      `<div class="flex-1 text-center text-[10px] font-medium text-gray-500 py-1.5 border-l border-gray-100 first:border-l-0">${m.label}</div>`
+    ).join("");
+
+    const gridLines = months.map((_, i) => {
+      const leftPct = (i / 12) * 100;
+      return i > 0 ? `<div class="absolute top-0 bottom-0 border-l border-gray-100" style="left:${leftPct}%"></div>` : "";
+    }).join("");
+
+    const todayPct = ((today.getTime() - timelineStart) / totalDuration) * 100;
+    const todayLine = todayPct > 0 && todayPct < 100
+      ? `<div class="absolute top-0 bottom-0 border-l-2 border-red-400 z-10" style="left:${todayPct}%" title="Hoy"></div>`
+      : "";
+
+    return `
+      <div class="mt-8" id="gantt-section">
+        <h2 class="text-sm font-semibold text-gray-900 uppercase mb-3">Proyección de Cierre de Brechas (Próximos 12 meses)</h2>
+        <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <div class="flex border-b border-gray-200 bg-gray-50">
+            <div class="w-36 shrink-0 px-3 py-1.5 text-[10px] font-medium text-gray-500 uppercase">Competencia</div>
+            <div class="flex-1 flex">
+              ${monthHeaders}
+            </div>
+          </div>
+          <div class="relative">
+            ${gridLines}
+            ${todayLine}
+            ${rows}
+          </div>
+          <div class="flex items-center gap-4 px-3 py-2 border-t border-gray-100 bg-gray-50">
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-500"></span><span class="text-[10px] text-gray-600">En Proceso</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-gray-400"></span><span class="text-[10px] text-gray-600">Pendiente</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-green-500"></span><span class="text-[10px] text-gray-600">Completado</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-0.5 h-3 border-l-2 border-red-400"></span><span class="text-[10px] text-gray-600">Hoy</span></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function renderResumen(data: EmpleadoResumen, pdiItems: PDIAccion[]): string {
     return `
       <div class="px-6 py-6 max-w-6xl mx-auto">
@@ -441,6 +554,7 @@ export function mountEvaluacionEmpleado(
           ${renderComparisonTable(data)}
           ${renderBreachBars(data)}
           ${renderPDISection(pdiItems, data.competencias)}
+          ${renderGanttTimeline(pdiItems)}
         </div>
       </div>`;
   }
@@ -523,18 +637,39 @@ export function mountEvaluacionEmpleado(
     const filterEl = document.getElementById("pdi-filter-estado") as HTMLSelectElement | null;
     const estado = filterEl?.value || undefined;
     await loadPDI(estado);
-    const tbody = document.getElementById("pdi-tbody");
-    if (tbody && resumenData) {
-      const section = root.querySelector(".mt-8:last-child");
-      if (section) {
-        const parent = section.parentElement!;
-        section.remove();
+    if (!resumenData) return;
+
+    const pdiSection = document.getElementById("pdi-section");
+    if (pdiSection) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderPDISection(pdiData, resumenData.competencias, estado);
+      pdiSection.replaceWith(tmp.firstElementChild!);
+    }
+
+    const allResp = await getPDI(empleadoId);
+    const ganttSection = document.getElementById("gantt-section");
+    if (ganttSection) {
+      const ganttHtml = renderGanttTimeline(allResp.items);
+      if (ganttHtml) {
         const tmp = document.createElement("div");
-        tmp.innerHTML = renderPDISection(pdiData, resumenData.competencias);
-        parent.appendChild(tmp.firstElementChild!);
-        bindPDIEvents();
+        tmp.innerHTML = ganttHtml;
+        ganttSection.replaceWith(tmp.firstElementChild!);
+      } else {
+        ganttSection.remove();
+      }
+    } else {
+      const ganttHtml = renderGanttTimeline(allResp.items);
+      if (ganttHtml) {
+        const pdiNew = document.getElementById("pdi-section");
+        if (pdiNew) {
+          const tmp = document.createElement("div");
+          tmp.innerHTML = ganttHtml;
+          pdiNew.insertAdjacentElement("afterend", tmp.firstElementChild!);
+        }
       }
     }
+
+    bindPDIEvents();
   }
 
   function bindPDIEvents() {
