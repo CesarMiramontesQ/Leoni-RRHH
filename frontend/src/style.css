@@ -3316,3 +3316,45 @@ body {
     transition: none;
   }
 }
+
+/* ── Detalle de sesión (.ss-page.ss-detail) ─────────────────────────────── */
+.ss-page.ss-detail .ss-detail-breadcrumb {
+  padding-top: 0.125rem;
+}
+
+.ss-page.ss-detail .ss-detail-header {
+  padding-bottom: 0.25rem;
+}
+
+.ss-page.ss-detail .ss-empleados-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.ss-page.ss-detail .ss-empleado-row {
+  transition: background-color 140ms ease;
+}
+
+.ss-page.ss-detail .ss-empleado-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.ss-page.ss-detail .ss-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+.ss-page.ss-detail .ss-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-page.ss-detail .ss-empleado-row,
+  .ss-page.ss-detail .ss-modal-backdrop,
+  .ss-page.ss-detail .ss-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
