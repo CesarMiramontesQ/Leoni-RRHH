@@ -3250,3 +3250,69 @@ body {
     animation: none;
   }
 }
+
+/* ── Sesiones de cursos (.ss-page) ──────────────────────────────────────── */
+.ss-page .ss-page-header {
+  padding-bottom: 0.25rem;
+}
+
+.ss-page .ss-sesiones-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.ss-page .ss-sesion-row {
+  transition: background-color 140ms ease;
+}
+
+.ss-page .ss-sesion-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.ss-page .ss-sesion-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+.ss-page .ss-page-btn {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.ss-page .ss-page-btn:hover:not(.ss-page-btn--active) {
+  color: #1e40af;
+  background: #f1f5f9;
+}
+
+.ss-page .ss-page-btn--active {
+  background: #1e40af;
+  color: #fff;
+}
+
+.ss-page .ss-page-btn:focus-visible,
+.ss-page .ss-page-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.ss-page .ss-page-nav {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.ss-page .ss-page-nav:hover:not(:disabled) {
+  color: #1e40af;
+  background: #f8fafc;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-page .ss-sesion-row,
+  .ss-page .ss-page-btn {
+    transition: none;
+  }
+}
