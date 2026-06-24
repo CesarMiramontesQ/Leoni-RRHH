@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -152,6 +152,13 @@ class Settings(BaseSettings):
 
     # Seed en producción: empleado_id real de Bono.empleados para el admin RH inicial.
     SEED_ADMIN_EMPLEADO_ID: int | None = None
+
+    @field_validator("SEED_ADMIN_EMPLEADO_ID", mode="before")
+    @classmethod
+    def _seed_admin_empleado_id_empty_as_none(cls, value: object) -> object | None:
+        if value is None or value == "":
+            return None
+        return value
 
     # App
     APP_ENV: str = "development"
