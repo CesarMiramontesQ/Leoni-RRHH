@@ -159,3 +159,90 @@ export const NIVEL_COLORS: Record<number, string> = {
   3: "bg-blue-100 text-blue-700",
   4: "bg-green-100 text-green-700",
 };
+
+// ── PDI (Plan de Desarrollo Individual) ──────────────────────────────────────
+
+export type EstadoPDI = "pendiente" | "en_proceso" | "completado" | "cancelado";
+
+export interface PDIAccion {
+  id: number;
+  empleado_id: number;
+  competencia_id: number;
+  competencia_nombre: string;
+  accion: string;
+  tipo: string;
+  duracion_horas: number | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  responsable: string;
+  estado: EstadoPDI;
+  creado_por: number | null;
+  creado_por_nombre: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PDIListResponse {
+  items: PDIAccion[];
+  total: number;
+}
+
+export interface PDICreatePayload {
+  competencia_id: number;
+  accion: string;
+  tipo: string;
+  duracion_horas?: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  responsable: string;
+}
+
+export interface PDIUpdatePayload {
+  accion?: string;
+  tipo?: string;
+  duracion_horas?: number | null;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  responsable?: string;
+  estado?: EstadoPDI;
+}
+
+export async function getPDI(
+  empleadoId: number,
+  params?: { estado?: string; competencia_id?: number },
+): Promise<PDIListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.estado) qs.set("estado", params.estado);
+  if (params?.competencia_id) qs.set("competencia_id", String(params.competencia_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi${suffix}`);
+  if (!res.ok) return { items: [], total: 0 };
+  return res.json();
+}
+
+export async function createPDI(empleadoId: number, payload: PDICreatePayload): Promise<PDIAccion | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function updatePDI(empleadoId: number, pdiId: number, payload: PDIUpdatePayload): Promise<PDIAccion | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi/${pdiId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deletePDI(empleadoId: number, pdiId: number): Promise<boolean> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi/${pdiId}`, {
+    method: "DELETE",
+  });
+  return res.status === 204;
+}
