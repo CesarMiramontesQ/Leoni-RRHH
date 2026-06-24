@@ -3,14 +3,16 @@
 from datetime import date
 from typing import Optional
 
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
-from app.models.talento import PlanDesarrolloIndividual
+from app.models.talento import PlanDesarrolloIndividual, PerfilFunciones, CompetenciaRequisito, EvaluacionCompetencia
 from app.repositories.pdi_repository import PDIRepository
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEmpleadoItem, PDIProgresoEquipoResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEmpleadoItem, PDIProgresoEquipoResponse, EquipoResumenBrechaItem, EquipoResumenEmpleadoItem, EquipoResumenResponse
 
 
 VALID_TRANSITIONS = {
@@ -256,6 +258,153 @@ class PDIService:
                 progreso_pct=round(pct, 1),
             ))
         return PDIProgresoEquipoResponse(items=items, total=len(items))
+
+    async def equipo_resumen(
+        self,
+        current_user: Empleado,
+        area_id: int | None = None,
+    ) -> EquipoResumenResponse:
+        area_ids = self._resolve_area_scope(current_user)
+        pdi_rows = await self.repo.equipo_pdi_aggregates(area_ids=area_ids, area_id=area_id)
+        if not pdi_rows:
+            return EquipoResumenResponse(items=[], total=0)
+
+        empleado_ids = [row.empleado_id for row in pdi_rows]
+
+        emp_stmt = (
+            select(Empleado)
+            .options(selectinload(Empleado.area))
+            .where(Empleado.empleado_id.in_(empleado_ids))
+        )
+        emp_result = await self.db.execute(emp_stmt)
+        emp_map = {e.empleado_id: e for e in emp_result.scalars().all()}
+
+        pf_stmt = (
+            select(PerfilFunciones)
+            .options(selectinload(PerfilFunciones.puesto_perfil))
+            .where(
+                PerfilFunciones.empleado_id.in_(empleado_ids),
+                PerfilFunciones.activo.is_(True),
+            )
+        )
+        pf_result = await self.db.execute(pf_stmt)
+        pf_map = {pf.empleado_id: pf for pf in pf_result.scalars().all()}
+
+        pf_keys = set()
+        for pf in pf_map.values():
+            if pf.puesto_perfil_id and pf.grado_id:
+                pf_keys.add((pf.puesto_perfil_id, pf.grado_id))
+
+        all_requisitos: list = []
+        if pf_keys:
+            req_conditions = [
+                and_(
+                    CompetenciaRequisito.puesto_perfil_id == pp_id,
+                    CompetenciaRequisito.grado_id == g_id,
+                )
+                for pp_id, g_id in pf_keys
+            ]
+            req_stmt = (
+                select(CompetenciaRequisito)
+                .options(selectinload(CompetenciaRequisito.competencia))
+                .where(or_(*req_conditions))
+            )
+            req_result = await self.db.execute(req_stmt)
+            all_requisitos = list(req_result.scalars().all())
+
+        req_by_key: dict[tuple[int, int], list] = {}
+        for req in all_requisitos:
+            key = (req.puesto_perfil_id, req.grado_id)
+            req_by_key.setdefault(key, []).append(req)
+
+        eval_stmt = select(EvaluacionCompetencia).where(
+            EvaluacionCompetencia.empleado_id.in_(empleado_ids)
+        )
+        eval_result = await self.db.execute(eval_stmt)
+        eval_by_emp: dict[int, dict[int, int]] = {}
+        for ev in eval_result.scalars().all():
+            eval_by_emp.setdefault(ev.empleado_id, {})[ev.competencia_id] = ev.nivel_actual
+
+        items = []
+        for pdi_row in pdi_rows:
+            emp = emp_map.get(pdi_row.empleado_id)
+            if not emp:
+                continue
+
+            if pdi_row.vencidas > 0:
+                estatus = "vencido"
+            elif pdi_row.en_proceso > 0:
+                estatus = "en_proceso"
+            elif pdi_row.pendientes > 0:
+                estatus = "pendiente"
+            elif pdi_row.completadas > 0:
+                estatus = "completado"
+            else:
+                estatus = "sin_acciones"
+
+            pf = pf_map.get(pdi_row.empleado_id)
+            brechas_criticas: list[EquipoResumenBrechaItem] = []
+            total_competencias = 0
+            evaluadas_count = 0
+            cumplimiento_sum = 0.0
+            puesto_nombre = None
+
+            if pf:
+                puesto_nombre = pf.puesto_perfil.nombre if pf.puesto_perfil else None
+                key = (pf.puesto_perfil_id, pf.grado_id)
+                requisitos = req_by_key.get(key, [])
+                eval_map = eval_by_emp.get(pdi_row.empleado_id, {})
+
+                comp_reqs: dict[int, tuple[str, int]] = {}
+                for req in requisitos:
+                    comp = req.competencia
+                    if not comp:
+                        continue
+                    existing = comp_reqs.get(comp.id)
+                    if existing is None or req.nivel_requerido > existing[1]:
+                        comp_reqs[comp.id] = (comp.nombre, req.nivel_requerido)
+
+                total_competencias = len(comp_reqs)
+                for comp_id, (comp_nombre, nivel_req) in comp_reqs.items():
+                    nivel_act = eval_map.get(comp_id, 0)
+                    if comp_id in eval_map:
+                        evaluadas_count += 1
+                    gap = max(0, nivel_req - nivel_act)
+                    if nivel_req > 0:
+                        cumplimiento_sum += min(nivel_act / nivel_req, 1.0)
+                    else:
+                        cumplimiento_sum += 1.0
+                    if gap >= 1.5:
+                        brechas_criticas.append(EquipoResumenBrechaItem(
+                            competencia_id=comp_id,
+                            competencia_nombre=comp_nombre,
+                            gap=float(gap),
+                        ))
+
+            evaluacion_prom = (cumplimiento_sum / total_competencias * 100) if total_competencias > 0 else 0.0
+            score_str = f"{evaluadas_count}/{total_competencias}"
+            progreso_pct = (pdi_row.completadas / pdi_row.total * 100) if pdi_row.total > 0 else 0.0
+
+            items.append(EquipoResumenEmpleadoItem(
+                empleado_id=pdi_row.empleado_id,
+                nombre=emp.nombre,
+                no_empleado=emp.no_empleado or 0,
+                puesto_nombre=puesto_nombre,
+                area_nombre=emp.area.descripcion if emp.area else None,
+                estatus_pdi=estatus,
+                brechas_criticas=sorted(brechas_criticas, key=lambda b: -b.gap)[:5],
+                ultima_actualizacion=pdi_row.ultima_actualizacion.isoformat() if pdi_row.ultima_actualizacion else None,
+                score_competencias=score_str,
+                evaluacion_general_prom=round(evaluacion_prom, 1),
+                pdi_total=pdi_row.total,
+                pdi_completadas=pdi_row.completadas,
+                progreso_pct=round(progreso_pct, 1),
+            ))
+
+        status_order = {"vencido": 0, "pendiente": 1, "en_proceso": 2, "completado": 3, "sin_acciones": 4}
+        items.sort(key=lambda x: (status_order.get(x.estatus_pdi, 5), x.nombre))
+
+        return EquipoResumenResponse(items=items, total=len(items))
 
     def _to_response(self, item: PlanDesarrolloIndividual) -> PDIResponse:
         comp_nombre = item.competencia.nombre if item.competencia else "—"

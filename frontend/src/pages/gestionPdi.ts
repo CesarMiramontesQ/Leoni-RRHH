@@ -5,10 +5,16 @@ import {
   getPDIResumen,
   patchPDIEstado,
   getPDIProgresoEquipo,
+  getPDIEquipoResumen,
+  getEmpleadoResumen,
   type PDIGestionItem,
   type PDIGestionListResponse,
   type PDIResumenResponse,
   type PDIProgresoEquipoResponse,
+  type EquipoResumenResponse,
+  type EquipoResumenEmpleadoItem,
+  type EmpleadoResumen,
+  type CompetenciaResumenItem,
 } from "../api/evaluaciones.ts";
 
 interface AreaOption {
@@ -25,8 +31,11 @@ interface State {
   loading: boolean;
   activeKpi: string;
   soloVencidas: boolean;
-  viewMode: "actions" | "employees";
+  viewMode: "actions" | "employees" | "team";
   progresoEquipo: PDIProgresoEquipoResponse;
+  equipoResumen: EquipoResumenResponse;
+  expandedEmployeeId: number | null;
+  expandedData: EmpleadoResumen | null;
 }
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -48,6 +57,21 @@ const VALID_NEXT: Record<string, string[]> = {
   en_proceso: ["completado", "cancelado"],
   completado: [],
   cancelado: [],
+};
+
+const ESTATUS_PDI: Record<string, { cls: string; label: string }> = {
+  vencido: { cls: "bg-red-50 text-red-700 border-red-200", label: "Vencido" },
+  pendiente: { cls: "bg-amber-50 text-amber-700 border-amber-200", label: "Pendiente" },
+  en_proceso: { cls: "bg-blue-50 text-blue-700 border-blue-200", label: "En Desarrollo" },
+  completado: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "Completado" },
+  sin_acciones: { cls: "bg-slate-50 text-slate-500 border-slate-200", label: "Sin Acciones" },
+};
+
+const BAR_COLORS: Record<string, string> = {
+  alineado: "bg-emerald-500",
+  media: "bg-yellow-500",
+  alta: "bg-orange-500",
+  critica: "bg-red-500",
 };
 
 function badgeHtml(item: PDIGestionItem): string {
@@ -87,6 +111,9 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     soloVencidas: false,
     viewMode: "actions",
     progresoEquipo: { items: [], total: 0 },
+    equipoResumen: { items: [], total: 0 },
+    expandedEmployeeId: null,
+    expandedData: null,
   };
 
   mountAppShell(container, {
@@ -280,6 +307,151 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     render();
   }
 
+  async function loadEquipoResumen() {
+    state.loading = true;
+    state.expandedEmployeeId = null;
+    state.expandedData = null;
+    render();
+    const params: { area_id?: number } = {};
+    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
+    state.equipoResumen = await getPDIEquipoResumen(params);
+    state.loading = false;
+    render();
+  }
+
+  function renderCircleProgress(pct: number, size: number = 48): string {
+    const r = (size - 6) / 2;
+    const circ = 2 * Math.PI * r;
+    const offset = circ * (1 - pct / 100);
+    const color = pct >= 80 ? "#10b981" : pct >= 50 ? "#3b82f6" : "#f59e0b";
+    return `<svg width="${size}" height="${size}" class="shrink-0">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="4"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"
+        stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+      <text x="50%" y="50%" text-anchor="middle" dy=".35em" class="fill-slate-700" style="font-size:${size < 50 ? 9 : 10}px;font-weight:700">${Math.round(pct)}%</text>
+    </svg>`;
+  }
+
+  function renderBrechasChart(competencias: CompetenciaResumenItem[]): string {
+    const sorted = [...competencias].filter(c => c.gap > 0).sort((a, b) => b.brecha_pct - a.brecha_pct);
+    if (sorted.length === 0) return `<p class="text-xs text-slate-400 italic">Sin brechas identificadas — todas las competencias alineadas</p>`;
+    return `
+      <div class="flex items-center gap-3 mb-2 text-[10px] text-slate-500">
+        <span class="flex items-center gap-1"><span class="inline-block w-3 h-2 rounded bg-slate-300/60"></span>Requerido</span>
+        <span class="flex items-center gap-1"><span class="inline-block w-3 h-2 rounded bg-blue-500"></span>Actual</span>
+      </div>
+      <div class="space-y-1.5">
+      ${sorted.slice(0, 8).map(c => {
+        const reqPct = (c.nivel_requerido / 4) * 100;
+        const actPct = (c.nivel_actual / 4) * 100;
+        const color = BAR_COLORS[c.severidad] ?? "bg-slate-400";
+        return `<div class="flex items-center gap-2">
+          <span class="text-[11px] text-slate-600 w-36 truncate" title="${c.competencia_nombre}">${c.competencia_nombre}</span>
+          <div class="flex-1 relative h-3 rounded bg-slate-100">
+            <div class="absolute inset-y-0 left-0 rounded bg-slate-300/60" style="width:${reqPct}%"></div>
+            <div class="absolute inset-y-0 left-0 rounded ${color}" style="width:${actPct}%"></div>
+          </div>
+          <span class="text-[10px] font-medium w-14 text-right ${c.gap > 0 ? "text-red-600" : "text-slate-500"}">Gap: ${c.gap > 0 ? "-" : ""}${c.gap.toFixed(1)}</span>
+        </div>`;
+      }).join("")}
+      </div>`;
+  }
+
+  function renderExpandedCard(emp: EquipoResumenEmpleadoItem): string {
+    const initials = emp.nombre.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+    const loadingOrData = state.expandedData && state.expandedData.empleado_id === emp.empleado_id;
+    return `
+      <div class="mx-3 my-2 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="size-12 shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700">${initials}</div>
+          <div class="flex-1 min-w-0">
+            <h3 class="text-sm font-bold text-slate-900">${emp.nombre}</h3>
+            <p class="text-xs text-slate-500">${emp.puesto_nombre ?? "—"} · No. ${emp.no_empleado}</p>
+          </div>
+          ${renderCircleProgress(emp.progreso_pct, 52)}
+          <div class="text-right shrink-0">
+            <p class="text-[10px] uppercase tracking-wide text-slate-400">Competencias</p>
+            <p class="text-sm font-bold text-slate-900">${emp.score_competencias}</p>
+            <p class="text-[10px] uppercase tracking-wide text-slate-400 mt-1">Cumplimiento</p>
+            <p class="text-sm font-bold text-slate-900">${emp.evaluacion_general_prom}%</p>
+          </div>
+        </div>
+        <div class="border-t border-slate-100 pt-3">
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Analisis de Brechas Competenciales</h4>
+          ${loadingOrData ? renderBrechasChart(state.expandedData!.competencias) : '<div class="flex items-center justify-center py-4 text-xs text-slate-400">Cargando brechas...</div>'}
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-100 text-right">
+          <a href="#/evaluaciones/empleado/${emp.empleado_id}" class="text-xs font-medium text-blue-600 hover:text-blue-800">Ver perfil completo →</a>
+        </div>
+      </div>`;
+  }
+
+  function renderTeamSummary(): string {
+    const { equipoResumen } = state;
+    if (state.loading) return `<div class="flex items-center justify-center py-12 text-sm text-slate-500">Cargando...</div>`;
+    if (equipoResumen.items.length === 0) return `<div class="px-3 py-8 text-center text-sm text-slate-400">Sin datos de equipo</div>`;
+    return `
+      <div class="overflow-x-auto rounded-lg border border-slate-200">
+        <table class="min-w-[900px] w-full text-left">
+          <thead class="border-b border-slate-200 shadow-sm">
+            <tr>
+              <th class="sticky top-0 z-20 bg-[#0A1628] px-3 py-2 text-left text-xs font-semibold uppercase text-white">Colaborador</th>
+              <th class="sticky top-0 z-20 bg-[#0A1628] px-3 py-2 text-left text-xs font-semibold uppercase text-white">Estatus PDI</th>
+              <th class="sticky top-0 z-20 bg-[#0A1628] px-3 py-2 text-left text-xs font-semibold uppercase text-white">Brechas Criticas</th>
+              <th class="sticky top-0 z-20 bg-[#0A1628] px-3 py-2 text-left text-xs font-semibold uppercase text-white">Ultima Actualizacion</th>
+              <th class="sticky top-0 z-20 bg-[#0A1628] px-3 py-2 text-center text-xs font-semibold uppercase text-white">Score</th>
+              <th class="sticky top-0 z-20 bg-[#0A1628] px-3 py-2 text-center text-xs font-semibold uppercase text-white w-12"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            ${equipoResumen.items.map(emp => {
+              const initials = emp.nombre.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+              const estCfg = ESTATUS_PDI[emp.estatus_pdi] ?? ESTATUS_PDI.sin_acciones;
+              const isExpanded = state.expandedEmployeeId === emp.empleado_id;
+              return `
+            <tr class="hover:bg-blue-50/40 ${isExpanded ? "bg-blue-50/30" : ""}">
+              <td class="px-3 py-2.5">
+                <div class="flex items-center gap-2.5">
+                  <div class="size-8 shrink-0 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">${initials}</div>
+                  <div>
+                    <p class="text-sm font-medium text-blue-700 cursor-pointer" data-action="go-empleado" data-id="${emp.empleado_id}">${emp.nombre}</p>
+                    <p class="text-[11px] text-slate-500">${emp.puesto_nombre ?? emp.area_nombre ?? "—"}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-3 py-2.5">
+                <span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${estCfg.cls}">
+                  <span class="size-1.5 rounded-full ${emp.estatus_pdi === "vencido" ? "bg-red-500" : emp.estatus_pdi === "en_proceso" ? "bg-blue-500" : emp.estatus_pdi === "completado" ? "bg-emerald-500" : emp.estatus_pdi === "pendiente" ? "bg-amber-500" : "bg-slate-400"}"></span>
+                  ${estCfg.label}
+                </span>
+              </td>
+              <td class="px-3 py-2.5">
+                <div class="flex flex-wrap gap-1">
+                  ${emp.brechas_criticas.length === 0
+                    ? '<span class="text-[11px] text-slate-400 italic">Sin brechas criticas</span>'
+                    : emp.brechas_criticas.slice(0, 3).map(b =>
+                      `<span class="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${b.gap >= 2 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"}">${b.competencia_nombre.length > 12 ? b.competencia_nombre.slice(0, 12) + "…" : b.competencia_nombre}</span>`
+                    ).join("") + (emp.brechas_criticas.length > 3 ? `<span class="text-[10px] text-slate-400">+${emp.brechas_criticas.length - 3}</span>` : "")}
+                </div>
+              </td>
+              <td class="px-3 py-2.5 text-xs text-slate-600">${emp.ultima_actualizacion ? new Date(emp.ultima_actualizacion).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+              <td class="px-3 py-2.5 text-center">
+                <span class="text-xs font-semibold tabular-nums">${emp.score_competencias}</span>
+              </td>
+              <td class="px-3 py-2.5 text-center">
+                <button type="button" data-action="expand-team-card" data-empleado-id="${emp.empleado_id}"
+                  class="inline-flex items-center justify-center size-7 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition">
+                  <svg class="size-4 transition ${isExpanded ? "rotate-180" : ""}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+              </td>
+            </tr>
+            ${isExpanded ? `<tr class="team-detail-row"><td colspan="6" class="p-0">${renderExpandedCard(emp)}</td></tr>` : ""}`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
   function render() {
     const { resumen } = state;
 
@@ -309,9 +481,14 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
             class="rounded-md px-3 py-1.5 text-xs font-semibold transition ${state.viewMode === "employees" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}">
             Por empleado
           </button>
+          <button type="button" role="tab" data-action="toggle-view" data-view="team"
+            aria-selected="${state.viewMode === "team"}"
+            class="rounded-md px-3 py-1.5 text-xs font-semibold transition ${state.viewMode === "team" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}">
+            Resumen del Equipo
+          </button>
         </div>
 
-        ${state.viewMode === "actions" ? renderActionsTable() : renderEmployeeView()}
+        ${state.viewMode === "actions" ? renderActionsTable() : state.viewMode === "employees" ? renderEmployeeView() : renderTeamSummary()}
       </div>
     `;
   }
@@ -361,14 +538,35 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     }
 
     if (action === "toggle-view") {
-      const view = target.dataset.view as "actions" | "employees";
+      const view = target.dataset.view as "actions" | "employees" | "team";
       if (view && view !== state.viewMode) {
         state.viewMode = view;
         if (view === "employees") {
           void loadProgresoEquipo();
+        } else if (view === "team") {
+          void loadEquipoResumen();
         } else {
           render();
         }
+      }
+    }
+
+    if (action === "expand-team-card") {
+      const empId = Number(target.dataset.empleadoId);
+      if (state.expandedEmployeeId === empId) {
+        state.expandedEmployeeId = null;
+        state.expandedData = null;
+        render();
+      } else {
+        state.expandedEmployeeId = empId;
+        state.expandedData = null;
+        render();
+        void getEmpleadoResumen(empId).then(data => {
+          if (data && state.expandedEmployeeId === empId) {
+            state.expandedData = data;
+            render();
+          }
+        });
       }
     }
   }, { signal });

@@ -224,3 +224,34 @@ class PDIRepository:
         stmt = stmt.order_by(Empleado.nombre)
         result = await self.db.execute(stmt)
         return list(result.all())
+
+    async def equipo_pdi_aggregates(
+        self,
+        area_ids: list[int] | None = None,
+        area_id: int | None = None,
+    ) -> list:
+        today = date.today()
+        stmt = (
+            select(
+                PlanDesarrolloIndividual.empleado_id,
+                func.count().label("total"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "completado").label("completadas"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "en_proceso").label("en_proceso"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "pendiente").label("pendientes"),
+                func.count().filter(
+                    and_(
+                        PlanDesarrolloIndividual.fecha_fin < today,
+                        PlanDesarrolloIndividual.estado.notin_(["completado", "cancelado"]),
+                    )
+                ).label("vencidas"),
+                func.max(PlanDesarrolloIndividual.updated_at).label("ultima_actualizacion"),
+            )
+            .join(PlanDesarrolloIndividual.empleado)
+            .group_by(PlanDesarrolloIndividual.empleado_id)
+        )
+        if area_ids is not None:
+            stmt = stmt.where(Empleado.area_id.in_(area_ids))
+        if area_id is not None:
+            stmt = stmt.where(Empleado.area_id == area_id)
+        result = await self.db.execute(stmt)
+        return list(result.all())

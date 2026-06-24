@@ -124,3 +124,30 @@ class PDIProgresoEmpleadoItem(BaseModel):
 class PDIProgresoEquipoResponse(BaseModel):
     items: list[PDIProgresoEmpleadoItem]
     total: int
+
+
+class EquipoResumenBrechaItem(BaseModel):
+    competencia_id: int
+    competencia_nombre: str
+    gap: float
+
+
+class EquipoResumenEmpleadoItem(BaseModel):
+    empleado_id: int
+    nombre: str
+    no_empleado: int
+    puesto_nombre: str | None = None
+    area_nombre: str | None = None
+    estatus_pdi: str
+    brechas_criticas: list[EquipoResumenBrechaItem]
+    ultima_actualizacion: str | None = None
+    score_competencias: str
+    evaluacion_general_prom: float
+    pdi_total: int
+    pdi_completadas: int
+    progreso_pct: float
+
+
+class EquipoResumenResponse(BaseModel):
+    items: list[EquipoResumenEmpleadoItem]
+    total: int

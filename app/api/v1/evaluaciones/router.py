@@ -28,7 +28,7 @@ from app.schemas.evaluaciones import (
     EvaluacionResponse,
     EvaluacionUpdate,
 )
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse, EquipoResumenResponse
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
 
@@ -82,6 +82,16 @@ async def progreso_equipo_pdi(
 ):
     service = PDIService(db)
     return await service.progreso_equipo(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/equipo-resumen", response_model=EquipoResumenResponse)
+async def equipo_resumen_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.equipo_resumen(current_user=current_user, area_id=area_id)
 
 
 @router.patch("/pdi/{pdi_id}/estado", response_model=PDIGestionItem)

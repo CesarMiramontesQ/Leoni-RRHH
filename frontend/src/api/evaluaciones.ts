@@ -360,3 +360,43 @@ export async function getPDIProgresoEquipo(params?: {
   if (!res.ok) return { items: [], total: 0 };
   return res.json();
 }
+
+// ── Equipo Resumen ───────────────────────────────────────────────────────────
+
+export interface EquipoResumenBrechaItem {
+  competencia_id: number;
+  competencia_nombre: string;
+  gap: number;
+}
+
+export interface EquipoResumenEmpleadoItem {
+  empleado_id: number;
+  nombre: string;
+  no_empleado: number;
+  puesto_nombre: string | null;
+  area_nombre: string | null;
+  estatus_pdi: string;
+  brechas_criticas: EquipoResumenBrechaItem[];
+  ultima_actualizacion: string | null;
+  score_competencias: string;
+  evaluacion_general_prom: number;
+  pdi_total: number;
+  pdi_completadas: number;
+  progreso_pct: number;
+}
+
+export interface EquipoResumenResponse {
+  items: EquipoResumenEmpleadoItem[];
+  total: number;
+}
+
+export async function getPDIEquipoResumen(params?: {
+  area_id?: number;
+}): Promise<EquipoResumenResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/equipo-resumen${suffix}`);
+  if (!res.ok) return { items: [], total: 0 };
+  return res.json();
+}
