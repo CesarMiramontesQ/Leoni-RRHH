@@ -28,7 +28,7 @@ from app.schemas.evaluaciones import (
     EvaluacionResponse,
     EvaluacionUpdate,
 )
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIResumenResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
 
@@ -72,6 +72,31 @@ async def resumen_pdi(
 ):
     service = PDIService(db)
     return await service.obtener_resumen(current_user=current_user)
+
+
+@router.get("/pdi/progreso-equipo", response_model=PDIProgresoEquipoResponse)
+async def progreso_equipo_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.progreso_equipo(current_user=current_user, area_id=area_id)
+
+
+@router.patch("/pdi/{pdi_id}/estado", response_model=PDIGestionItem)
+async def patch_pdi_estado(
+    pdi_id: int,
+    body: PDIEstadoPatch,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.cambiar_estado(
+        pdi_id=pdi_id,
+        nuevo_estado=body.estado,
+        current_user=current_user,
+    )
 
 
 @router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])

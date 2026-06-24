@@ -315,3 +315,48 @@ export async function getPDIResumen(): Promise<PDIResumenResponse> {
     return { total_acciones: 0, completadas: 0, en_proceso: 0, pendientes: 0, vencidas: 0 };
   return res.json();
 }
+
+// ── PDI Estado PATCH ─────────────────────────────────────────────────────────
+
+export async function patchPDIEstado(
+  pdiId: number,
+  estado: string,
+): Promise<PDIGestionItem | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/${pdiId}/estado`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ estado }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// ── PDI Progreso Equipo ──────────────────────────────────────────────────────
+
+export interface PDIProgresoEmpleadoItem {
+  empleado_id: number;
+  empleado_nombre: string;
+  area_nombre: string | null;
+  total: number;
+  completadas: number;
+  en_proceso: number;
+  pendientes: number;
+  vencidas: number;
+  progreso_pct: number;
+}
+
+export interface PDIProgresoEquipoResponse {
+  items: PDIProgresoEmpleadoItem[];
+  total: number;
+}
+
+export async function getPDIProgresoEquipo(params?: {
+  area_id?: number;
+}): Promise<PDIProgresoEquipoResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/progreso-equipo${suffix}`);
+  if (!res.ok) return { items: [], total: 0 };
+  return res.json();
+}

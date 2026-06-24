@@ -7,6 +7,7 @@ from sqlalchemy import and_, select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.catalogos import Area
 from app.models.empleados import Empleado
 from app.models.talento import PlanDesarrolloIndividual
 
@@ -173,3 +174,53 @@ class PDIRepository:
             "pendientes": row.pendientes,
             "vencidas": row.vencidas,
         }
+
+    async def get_with_empleado(self, pdi_id: int) -> Optional[PlanDesarrolloIndividual]:
+        stmt = (
+            select(PlanDesarrolloIndividual)
+            .options(
+                selectinload(PlanDesarrolloIndividual.competencia),
+                selectinload(PlanDesarrolloIndividual.empleado).selectinload(Empleado.area),
+            )
+            .where(PlanDesarrolloIndividual.id == pdi_id)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def progreso_por_empleado(
+        self,
+        area_ids: list[int] | None = None,
+        area_id: int | None = None,
+    ) -> list:
+        today = date.today()
+
+        stmt = (
+            select(
+                PlanDesarrolloIndividual.empleado_id,
+                Empleado.nombre.label("empleado_nombre"),
+                Area.descripcion.label("area_nombre"),
+                func.count().label("total"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "completado").label("completadas"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "en_proceso").label("en_proceso"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "pendiente").label("pendientes"),
+                func.count().filter(
+                    and_(
+                        PlanDesarrolloIndividual.fecha_fin < today,
+                        PlanDesarrolloIndividual.estado.notin_(["completado", "cancelado"]),
+                    )
+                ).label("vencidas"),
+            )
+            .join(PlanDesarrolloIndividual.empleado)
+            .outerjoin(Area, Empleado.area_id == Area.area_id)
+            .group_by(PlanDesarrolloIndividual.empleado_id, Empleado.nombre, Area.descripcion)
+        )
+
+        if area_ids is not None:
+            stmt = stmt.where(Empleado.area_id.in_(area_ids))
+
+        if area_id is not None:
+            stmt = stmt.where(Empleado.area_id == area_id)
+
+        stmt = stmt.order_by(Empleado.nombre)
+        result = await self.db.execute(stmt)
+        return list(result.all())
