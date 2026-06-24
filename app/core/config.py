@@ -150,6 +150,9 @@ class Settings(BaseSettings):
     DEV_ADMIN_EMAIL: str = "admin.rh@leoni.com"
     DEV_ADMIN_PASSWORD: str = "DevAdmin2026!"
 
+    # Seed en producción: empleado_id real de Bono.empleados para el admin RH inicial.
+    SEED_ADMIN_EMPLEADO_ID: int | None = None
+
     # App
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"

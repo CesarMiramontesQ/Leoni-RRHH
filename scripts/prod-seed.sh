@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Seed inicial en producción (roles + admin). Idempotente.
 #
+# Requiere en .env:
+#   SEED_ADMIN_EMPLEADO_ID=<empleado_id real de Bono.empleados>
+#
 # Uso:
 #   ./scripts/prod-seed.sh
 set -euo pipefail

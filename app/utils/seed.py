@@ -19,6 +19,7 @@ import logging
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.catalogos import (
@@ -397,6 +398,11 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
     emp = existing.scalar_one_or_none()
 
     if emp is None:
+        if settings.APP_ENV == "production":
+            raise RuntimeError(
+                f"No existe empleado_id={user_data['empleado_id']} en Bono.empleados. "
+                "Configure SEED_ADMIN_EMPLEADO_ID en .env con un empleado activo existente."
+            )
         # Dev/local: no hay Bono, se crea la fila identidad.
         emp = Empleado(
             empleado_id=user_data["empleado_id"],
@@ -502,8 +508,13 @@ async def seed() -> None:
 
     async with AsyncSessionLocal() as db:
         try:
-            logger.info("Seeding catálogos...")
-            await seed_catalogos(db)
+            if settings.APP_ENV == "production":
+                logger.info(
+                    "Seeding catálogos omitido (producción: tablas Bono son solo lectura)"
+                )
+            else:
+                logger.info("Seeding catálogos...")
+                await seed_catalogos(db)
 
             logger.info("Seeding roles...")
             created_roles = await seed_roles(db)
@@ -512,8 +523,14 @@ async def seed() -> None:
             rol_rh_id = created_roles.get("rh")
             if not rol_rh_id:
                 raise RuntimeError("El rol 'rh' no fue creado correctamente")
-            await seed_user(db, ADMIN_RH, rol_rh_id, "Admin RH")
-            await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
+
+            admin_data = dict(ADMIN_RH)
+            if settings.SEED_ADMIN_EMPLEADO_ID is not None:
+                admin_data["empleado_id"] = settings.SEED_ADMIN_EMPLEADO_ID
+            await seed_user(db, admin_data, rol_rh_id, "Admin RH")
+
+            if settings.APP_ENV != "production":
+                await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
 
             logger.info("Seeding Level Up...")
             await seed_level_up(db)
