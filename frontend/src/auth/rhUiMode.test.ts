@@ -75,6 +75,15 @@ describe("rhUiMode", () => {
     setRhUiMode("empleado");
     expect(getRhUiMode()).toBe("operativo");
   });
+
+  it("RH fuera de la lista de permisos conserva el modo de UI elegido", async () => {
+    const { getRhUiMode, setRhInPermisosList, setRhUiMode } = await import("./rhUiMode.ts");
+    setRhInPermisosList(false);
+    setRhUiMode("empleado");
+    expect(getRhUiMode()).toBe("empleado");
+    setRhUiMode("operativo");
+    expect(getRhUiMode()).toBe("operativo");
+  });
 });
 
 describe("rhUiMode — modo no-RH (usuarios con permisos asignados)", () => {
