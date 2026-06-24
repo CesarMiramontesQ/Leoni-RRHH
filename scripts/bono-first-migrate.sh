@@ -22,28 +22,34 @@ source "$(dirname "$0")/lib/docker-prod-backend.sh"
 STAMP_SKIP_LEGACY="p2q3r4s5t6u7"
 BASELINE_REV="v1l2u3p0base"
 
-echo "=== Build backend ==="
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
+echo "=== Build backend (sin caché: asegura migraciones nuevas en la imagen) ==="
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend --no-cache
 
-echo "=== Validar un solo head de Alembic ==="
+echo "=== Verificar migración baseline en la imagen Docker ==="
+require_alembic_revision "$BASELINE_REV"
 python3 scripts/check_alembic_heads.py
 
 CURRENT_OUT="$(alembic_run current 2>&1 || true)"
 echo "=== Revisión actual en BD ==="
 echo "$CURRENT_OUT"
 
-if echo "$CURRENT_OUT" | grep -qE '[a-f0-9]{12}'; then
-  echo ""
-  echo "ERROR: La BD ya tiene una revisión Alembic registrada." >&2
-  echo "  bono-first-migrate.sh es solo para la primera carga sobre Bono." >&2
-  echo "  Si vienes de prod v1.0, usa: ./scripts/prod-migrate.sh" >&2
-  echo "  Si quedó a medias tras un fallo, revisa alembic_version y tablas huérfanas." >&2
-  exit 1
+if echo "$CURRENT_OUT" | grep -qE 'v1l2u3p0base|37a743fada1c'; then
+  echo "=== Ya en baseline/head. Nada que migrar. ==="
+  exit 0
 fi
 
-echo ""
-echo "=== Bono first: stamp cadena legacy (sin DDL) → $STAMP_SKIP_LEGACY ==="
-alembic_run stamp "$STAMP_SKIP_LEGACY"
+if echo "$CURRENT_OUT" | grep -q 'p2q3r4s5t6u7'; then
+  echo "=== Reanudando desde p2q3r4s5t6u7 (stamp previo) ==="
+elif echo "$CURRENT_OUT" | grep -qE '[a-f0-9]{12}'; then
+  echo ""
+  echo "ERROR: Revisión Alembic inesperada (no es primera carga Bono)." >&2
+  echo "$CURRENT_OUT" >&2
+  exit 1
+else
+  echo ""
+  echo "=== Bono first: stamp cadena legacy (sin DDL) → $STAMP_SKIP_LEGACY ==="
+  alembic_run stamp "$STAMP_SKIP_LEGACY"
+fi
 
 echo "=== Bono first: crear tablas levelup_* → upgrade $BASELINE_REV ==="
 alembic_run upgrade "$BASELINE_REV"
@@ -55,6 +61,8 @@ echo ""
 echo "=== Migración Bono completada ==="
 alembic_run current
 echo ""
+echo "=== Recrear backend con imagen nueva ==="
+recreate_backend
+echo ""
 echo "Siguiente:"
 echo "  ./scripts/prod-seed.sh"
-echo "  docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d"
