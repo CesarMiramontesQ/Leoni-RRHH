@@ -682,9 +682,10 @@ class PerfilFuncionesService:
         # Verificar que el empleado existe
         from sqlalchemy import select
         result = await self.db.execute(
-            select(Empleado).where(Empleado.id == data.empleado_id)
+            select(Empleado).where(Empleado.empleado_id == data.empleado_id)
         )
-        if not result.scalar_one_or_none():
+        empleado = result.scalar_one_or_none()
+        if not empleado:
             raise NotFoundError(entidad="Empleado", id=data.empleado_id)
 
         # Verificar duplicado activo
@@ -706,6 +707,7 @@ class PerfilFuncionesService:
             "activo": True,
         })
         asignacion.grado = grado
+        asignacion.empleado = empleado
         return self._to_asignacion_response(asignacion)
 
     async def actualizar_asignacion(
