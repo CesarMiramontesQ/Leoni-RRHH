@@ -708,6 +708,22 @@ class PerfilCualificacion(Base):
         )
 
 
+class AccionRecomendada(Base):
+    """Catalogo de acciones recomendadas por rango de brecha."""
+
+    __tablename__ = "levelup_acciones_recomendadas"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    brecha_min: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    brecha_max: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    etiqueta: Mapped[str] = mapped_column(String(100), nullable=False)
+    color: Mapped[str] = mapped_column(String(20), nullable=False)
+    orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<AccionRecomendada id={self.id} etiqueta={self.etiqueta} [{self.brecha_min}-{self.brecha_max}%]>"
+
+
 class PerfilFunciones(Base):
     """Asignacion individual empleado-puesto (perfil de funciones firmado)."""
 

@@ -96,6 +96,8 @@ export async function bulkCreateEvaluaciones(
   return res.json();
 }
 
+export type Severidad = "alineado" | "media" | "alta" | "critica";
+
 export interface CompetenciaResumenItem {
   competencia_id: number;
   competencia_nombre: string;
@@ -103,12 +105,25 @@ export interface CompetenciaResumenItem {
   nivel_requerido: number;
   nivel_actual: number;
   gap: number;
+  brecha_pct: number;
+  severidad: Severidad;
+  accion_recomendada: string | null;
+  accion_color: string | null;
 }
 
 export interface EmpleadoResumen {
   empleado_id: number;
   empleado_nombre: string;
   area_nombre: string | null;
+  puesto_nombre: string | null;
+  nivel_puesto: string | null;
+  departamento: string | null;
+  evaluador_nombre: string | null;
+  competencias_alineadas: number;
+  brechas_identificadas: number;
+  brecha_promedio: number;
+  severidad_promedio: string;
+  readiness_score: number;
   competencias: CompetenciaResumenItem[];
   cumplimiento_pct: number;
   total_competencias: number;
