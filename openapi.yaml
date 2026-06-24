@@ -3499,6 +3499,26 @@ components:
           type: array
           items:
             type: object
+            required: [empleado_id, nombre, no_empleado, grado_id, niveles]
+            properties:
+              empleado_id:
+                type: integer
+              nombre:
+                type: string
+              no_empleado:
+                type: integer
+              grado_id:
+                type: integer
+              grado_nombre:
+                type: string
+              niveles:
+                type: object
+                additionalProperties:
+                  type: integer
+              requisitos:
+                type: object
+                additionalProperties:
+                  type: integer
         metodos_calificacion:
           type: array
           items:

@@ -12,7 +12,7 @@ Responsabilidades:
 
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -631,7 +631,7 @@ class CompetenciaService:
                 PuestoPerfil.id,
                 PuestoPerfil.codigo,
                 PuestoPerfil.nombre,
-                func.count(CompetenciaRequisito.id.distinct()).label("num_competencias"),
+                func.count(distinct(CompetenciaRequisito.competencia_id)).label("num_competencias"),
                 func.count(PerfilFunciones.id.distinct()).label("num_empleados"),
             )
             .join(
@@ -695,47 +695,62 @@ class CompetenciaService:
                 if filtro in a.empleado.nombre.lower()
             ]
 
-        # Map competencia_requisito.id → competencia_id for result mapping
-        req_id_to_comp_id = {r.id: r.competencia_id for r in requisitos}
+        req_by_id = {r.id: r for r in requisitos}
+        req_by_grado_comp: dict[tuple[int, int], CompetenciaRequisito] = {
+            (r.grado_id, r.competencia_id): r for r in requisitos
+        }
 
-        # Read evaluations from perfil_funciones_competencia (where the modal saves)
-        eval_map: dict[int, dict[int, int]] = {}
+        seen_comp_ids: set[int] = set()
+        competencias_out: list[MultihabilidadesCompetenciaItem] = []
+        for r in requisitos:
+            if r.competencia_id in seen_comp_ids:
+                continue
+            seen_comp_ids.add(r.competencia_id)
+            competencias_out.append(
+                MultihabilidadesCompetenciaItem(
+                    competencia_id=r.competencia_id,
+                    competencia_nombre=r.competencia.nombre,
+                    tipo_competencia_id=r.competencia.tipo_competencia_id,
+                    tipo_nombre=(
+                        r.competencia.tipo_competencia.nombre
+                        if r.competencia and r.competencia.tipo_competencia
+                        else ""
+                    ),
+                    nivel_requerido=0,
+                )
+            )
+
+        empleados_out: list[MultihabilidadesEmpleadoItem] = []
         for asig in asignaciones:
             evals = await self.pf_comp_repo.list_by_asignacion(asig.id)
             niveles: dict[int, int] = {}
+            requisitos_emp: dict[int, int] = {}
+
+            for comp_id in seen_comp_ids:
+                req = req_by_grado_comp.get((asig.grado_id, comp_id))
+                if req:
+                    requisitos_emp[comp_id] = req.nivel_requerido
+
             for ev in evals:
-                comp_id = req_id_to_comp_id.get(ev.competencia_requisito_id)
-                if comp_id is not None:
-                    try:
-                        niveles[comp_id] = int(ev.situacion_actual)
-                    except (ValueError, TypeError):
-                        pass
-            eval_map[asig.empleado_id] = niveles
+                req = req_by_id.get(ev.competencia_requisito_id)
+                if req is None or req.grado_id != asig.grado_id:
+                    continue
+                try:
+                    niveles[req.competencia_id] = int(ev.situacion_actual)
+                except (ValueError, TypeError):
+                    pass
 
-        competencias_out = [
-            MultihabilidadesCompetenciaItem(
-                competencia_id=r.competencia_id,
-                competencia_nombre=r.competencia.nombre,
-                tipo_competencia_id=r.competencia.tipo_competencia_id,
-                tipo_nombre=(
-                    r.competencia.tipo_competencia.nombre
-                    if r.competencia and r.competencia.tipo_competencia
-                    else ""
-                ),
-                nivel_requerido=r.nivel_requerido,
+            empleados_out.append(
+                MultihabilidadesEmpleadoItem(
+                    empleado_id=asig.empleado_id,
+                    nombre=asig.empleado.nombre,
+                    no_empleado=asig.empleado.no_empleado,
+                    grado_id=asig.grado_id,
+                    grado_nombre=asig.grado.nombre if asig.grado else "",
+                    niveles=niveles,
+                    requisitos=requisitos_emp,
+                )
             )
-            for r in requisitos
-        ]
-
-        empleados_out = [
-            MultihabilidadesEmpleadoItem(
-                empleado_id=a.empleado_id,
-                nombre=a.empleado.nombre,
-                no_empleado=a.empleado.no_empleado,
-                niveles=eval_map.get(a.empleado_id, {}),
-            )
-            for a in asignaciones
-        ]
 
         metodos = await MetodoCalificacionCompetenciaService(self.db).listar_resumen()
 

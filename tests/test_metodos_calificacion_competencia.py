@@ -155,3 +155,47 @@ async def test_multihabilidades_incluye_metodos_calificacion(client: AsyncClient
     assert len(data["metodos_calificacion"]) == 4
     certificado = next(m for m in data["metodos_calificacion"] if m["valor"] == 3)
     assert certificado["nombre"] == "Certificado Plus"
+
+
+@pytest.mark.asyncio
+async def test_multihabilidades_dedup_competencias_por_grado(client: AsyncClient, db):
+    """La matriz muestra una columna por competencia, no una por grado."""
+    from tests.conftest_talento import get_default_grado, make_grado_puesto
+
+    rh = await make_empleado(db, rol="rh", email="mcc_dedup@leoni.test")
+    await ensure_metodos_calificacion_competencia(db)
+
+    perfil = await make_puesto_perfil(db, nombre="Perfil Dedup MCC")
+    comp_a = await make_competencia(db, nombre="MS Office", categoria="tecnica")
+    comp_b = await make_competencia(db, nombre="Ingles", categoria="tecnica")
+
+    grado1 = await get_default_grado(db)
+    grado2 = await make_grado_puesto(db, nombre="Grado 2 Dedup", orden=2)
+    grado3 = await make_grado_puesto(db, nombre="Grado 3 Dedup", orden=3)
+
+    for grado in (grado1, grado2, grado3):
+        await make_competencia_requisito(
+            db,
+            competencia_id=comp_a.id,
+            puesto_perfil_id=perfil.id,
+            grado_id=grado.id,
+            nivel_requerido=3,
+        )
+        await make_competencia_requisito(
+            db,
+            competencia_id=comp_b.id,
+            puesto_perfil_id=perfil.id,
+            grado_id=grado.id,
+            nivel_requerido=2,
+        )
+
+    headers = await auth_headers(client, rh)
+    response = await client.get(
+        f"/api/v1/competencias/multihabilidades?puesto_perfil_id={perfil.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    nombres = [c["competencia_nombre"] for c in data["competencias"]]
+    assert nombres == ["MS Office", "Ingles"]
