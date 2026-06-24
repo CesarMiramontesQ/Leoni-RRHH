@@ -1,11 +1,13 @@
 """Repository para Plan de Desarrollo Individual (PDI)."""
 
+from datetime import date
 from typing import Optional
 
-from sqlalchemy import select, func, delete
+from sqlalchemy import and_, select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.empleados import Empleado
 from app.models.talento import PlanDesarrolloIndividual
 
 
@@ -69,3 +71,105 @@ class PDIRepository:
         stmt = delete(PlanDesarrolloIndividual).where(PlanDesarrolloIndividual.id == pdi_id)
         await self.db.execute(stmt)
         await self.db.flush()
+
+    async def list_consolidated(
+        self,
+        offset: int,
+        limit: int,
+        area_id: int | None = None,
+        area_ids: list[int] | None = None,
+        estado: str | None = None,
+        fecha_inicio_desde: date | None = None,
+        fecha_fin_hasta: date | None = None,
+        search: str | None = None,
+        solo_vencidas: bool = False,
+    ) -> tuple[list[PlanDesarrolloIndividual], int]:
+        base = (
+            select(PlanDesarrolloIndividual)
+            .join(PlanDesarrolloIndividual.empleado)
+            .options(
+                selectinload(PlanDesarrolloIndividual.empleado).selectinload(Empleado.area),
+                selectinload(PlanDesarrolloIndividual.competencia),
+            )
+        )
+        count_base = (
+            select(func.count())
+            .select_from(PlanDesarrolloIndividual)
+            .join(PlanDesarrolloIndividual.empleado)
+        )
+
+        if area_ids is not None:
+            base = base.where(Empleado.area_id.in_(area_ids))
+            count_base = count_base.where(Empleado.area_id.in_(area_ids))
+
+        if area_id is not None:
+            base = base.where(Empleado.area_id == area_id)
+            count_base = count_base.where(Empleado.area_id == area_id)
+
+        if estado:
+            base = base.where(PlanDesarrolloIndividual.estado == estado)
+            count_base = count_base.where(PlanDesarrolloIndividual.estado == estado)
+
+        if fecha_inicio_desde:
+            base = base.where(PlanDesarrolloIndividual.fecha_inicio >= fecha_inicio_desde)
+            count_base = count_base.where(PlanDesarrolloIndividual.fecha_inicio >= fecha_inicio_desde)
+
+        if fecha_fin_hasta:
+            base = base.where(PlanDesarrolloIndividual.fecha_fin <= fecha_fin_hasta)
+            count_base = count_base.where(PlanDesarrolloIndividual.fecha_fin <= fecha_fin_hasta)
+
+        if search:
+            pattern = f"%{search}%"
+            base = base.where(Empleado.nombre.ilike(pattern))
+            count_base = count_base.where(Empleado.nombre.ilike(pattern))
+
+        if solo_vencidas:
+            today = date.today()
+            overdue_cond = and_(
+                PlanDesarrolloIndividual.fecha_fin < today,
+                PlanDesarrolloIndividual.estado.notin_(["completado", "cancelado"]),
+            )
+            base = base.where(overdue_cond)
+            count_base = count_base.where(overdue_cond)
+
+        total_result = await self.db.execute(count_base)
+        total = total_result.scalar_one()
+
+        stmt = base.order_by(
+            PlanDesarrolloIndividual.fecha_fin.asc()
+        ).offset(offset).limit(limit)
+
+        result = await self.db.execute(stmt)
+        items = list(result.scalars().all())
+
+        return items, total
+
+    async def resumen(self, area_ids: list[int] | None = None) -> dict:
+        today = date.today()
+        base = select(
+            func.count().label("total"),
+            func.count().filter(PlanDesarrolloIndividual.estado == "completado").label("completadas"),
+            func.count().filter(PlanDesarrolloIndividual.estado == "en_proceso").label("en_proceso"),
+            func.count().filter(PlanDesarrolloIndividual.estado == "pendiente").label("pendientes"),
+            func.count().filter(
+                and_(
+                    PlanDesarrolloIndividual.fecha_fin < today,
+                    PlanDesarrolloIndividual.estado.notin_(["completado", "cancelado"]),
+                )
+            ).label("vencidas"),
+        ).select_from(PlanDesarrolloIndividual)
+
+        if area_ids is not None:
+            base = base.join(PlanDesarrolloIndividual.empleado).where(
+                Empleado.area_id.in_(area_ids)
+            )
+
+        result = await self.db.execute(base)
+        row = result.one()
+        return {
+            "total_acciones": row.total,
+            "completadas": row.completadas,
+            "en_proceso": row.en_proceso,
+            "pendientes": row.pendientes,
+            "vencidas": row.vencidas,
+        }

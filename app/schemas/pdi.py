@@ -66,3 +66,40 @@ class PDIResponse(BaseModel):
 class PDIListResponse(BaseModel):
     items: list[PDIResponse]
     total: int
+
+
+class PDIGestionItem(BaseModel):
+    id: int
+    empleado_id: int
+    empleado_nombre: str
+    area_nombre: str | None = None
+    puesto_nombre: str | None = None
+    competencia_id: int
+    competencia_nombre: str
+    accion: str
+    tipo: str
+    duracion_horas: int | None = None
+    fecha_inicio: date
+    fecha_fin: date
+    responsable: str
+    estado: str
+    vencida: bool = False
+    created_at: str
+    updated_at: str
+
+    model_config = {"from_attributes": True}
+
+
+class PDIGestionListResponse(BaseModel):
+    items: list[PDIGestionItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class PDIResumenResponse(BaseModel):
+    total_acciones: int
+    completadas: int
+    en_proceso: int
+    pendientes: int
+    vencidas: int

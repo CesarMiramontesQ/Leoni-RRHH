@@ -61,6 +61,7 @@ import { mountAjustesNominas } from "./pages/ajustesNominas.ts";
 import { mountHorasExtra } from "./pages/horasExtra.ts";
 import { mountHorasExtraAprobaciones } from "./pages/horasExtraAprobaciones.ts";
 import { mountHorasExtraSolicitud } from "./pages/horasExtraSolicitud.ts";
+import { mountGestionPdi } from "./pages/gestionPdi.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -307,6 +308,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
         mountEmployeeVista360(container, id, signal, { initialTab: parseVista360InitialTabFromHash(h) });
         return;
       }
+    }
+    if (h.startsWith("#/pdi-gestion")) {
+      mountGestionPdi(container, signal);
+      return;
     }
     const evalEmpMatch = h.match(/^#\/evaluaciones\/empleado\/(\d+)/);
     if (evalEmpMatch) {
