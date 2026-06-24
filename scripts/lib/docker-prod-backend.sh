@@ -33,12 +33,9 @@ alembic_run() {
 }
 
 # Revisión en alembic_version (vacío si la BD nunca fue migrada).
-# Ignora líneas de Docker Compose (IDs de contenedor parecen revisiones hex).
+# Alembic escribe la revisión en stdout; logs INFO van a stderr.
 alembic_current_revision() {
-  alembic_run current 2>&1 \
-    | grep -vE 'Container |level=warning|orphan containers|Found orphan' \
-    | grep -vE '^\s*INFO \[alembic' \
-    | awk 'NF { print $1; exit }'
+  alembic_run current 2>/dev/null | awk 'NF { print $1; exit }'
 }
 
 # Falla con mensaje claro si la imagen no incluye una revisión Alembic.
