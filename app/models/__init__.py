@@ -43,6 +43,7 @@ from app.models.talento import (
     PerfilFuncionesTarea, NivelPuesto, GradoPuesto, TipoCompetencia, GrupoCompetencia,
     TipoCualificacionCatalogo, MetodoCalificacion, OpcionCalificacion, CualificacionCatalogo,
     MetodoCalificacionCompetencia,
+    PlanDesarrolloIndividual,
 )
 from app.models.horas_extra import (
     CentroCosto,
@@ -159,4 +160,5 @@ __all__ = [
     "SugerenciaCapacitacion",
     "PlanDesarrollo",
     "PlanEtapa",
+    "PlanDesarrolloIndividual",
 ]
