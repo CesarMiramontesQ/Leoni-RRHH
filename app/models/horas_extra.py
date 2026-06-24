@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 
 class CentroCosto(Base):
-    __tablename__ = "centros_costo"
+    __tablename__ = "levelup_centros_costo"
 
     centrocosto_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
@@ -46,7 +46,7 @@ class CentroCosto(Base):
 
 
 class HorasExtraMotivo(Base):
-    __tablename__ = "horas_extra_motivos"
+    __tablename__ = "levelup_horas_extra_motivos"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
@@ -62,7 +62,7 @@ class HorasExtraMotivo(Base):
 
 
 class HorasExtraSolicitud(Base):
-    __tablename__ = "horas_extra_solicitudes"
+    __tablename__ = "levelup_horas_extra_solicitudes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     fecha_solicitud: Mapped[date] = mapped_column(Date, nullable=False)
@@ -74,9 +74,9 @@ class HorasExtraSolicitud(Base):
     area_id: Mapped[int] = mapped_column(ForeignKey("areas.area_id"), nullable=False)
     subarea_id: Mapped[int] = mapped_column(ForeignKey("subareas.subarea_id"), nullable=False)
     centrocosto_id: Mapped[int] = mapped_column(
-        ForeignKey("centros_costo.centrocosto_id"), nullable=False
+        ForeignKey("levelup_centros_costo.centrocosto_id"), nullable=False
     )
-    motivo_id: Mapped[int] = mapped_column(ForeignKey("horas_extra_motivos.id"), nullable=False)
+    motivo_id: Mapped[int] = mapped_column(ForeignKey("levelup_horas_extra_motivos.id"), nullable=False)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estado: Mapped[str] = mapped_column(
         Enum(
@@ -91,7 +91,7 @@ class HorasExtraSolicitud(Base):
         default="pendiente",
         server_default="pendiente",
     )
-    registrado_por_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    registrado_por_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -129,7 +129,7 @@ class HorasExtraSolicitud(Base):
 
 
 class HorasExtraSolicitudDetalle(Base):
-    __tablename__ = "horas_extra_solicitud_detalle"
+    __tablename__ = "levelup_horas_extra_solicitud_detalle"
     __table_args__ = (
         UniqueConstraint("solicitud_id", "empleado_id", name="uq_he_detalle_solicitud_empleado"),
         CheckConstraint("lunes >= 0", name="chk_he_detalle_lunes_nonneg"),
@@ -143,9 +143,9 @@ class HorasExtraSolicitudDetalle(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     solicitud_id: Mapped[int] = mapped_column(
-        ForeignKey("horas_extra_solicitudes.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_horas_extra_solicitudes.id", ondelete="CASCADE"), nullable=False
     )
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     lunes: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), nullable=False, default=0, server_default="0"
     )
@@ -188,7 +188,7 @@ class HorasExtraSolicitudDetalle(Base):
 class HorasExtraAprobador(Base):
     """Configuración de aprobadores de horas extra (gerentes regionales y director)."""
 
-    __tablename__ = "horas_extra_aprobadores"
+    __tablename__ = "levelup_horas_extra_aprobadores"
     __table_args__ = (
         UniqueConstraint("empleado_id", "tipo", name="uq_he_aprobador_empleado_tipo"),
         # Solo puede existir un director activo a la vez.
@@ -202,7 +202,7 @@ class HorasExtraAprobador(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     tipo: Mapped[str] = mapped_column(
         Enum("gerente_regional", "director", name="horas_extra_aprobador_tipo_enum"),
         nullable=False,
@@ -211,7 +211,7 @@ class HorasExtraAprobador(Base):
         Boolean, nullable=False, default=True, server_default="true"
     )
     creado_por_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -233,7 +233,7 @@ class HorasExtraAprobador(Base):
 
 
 class HorasExtraAprobacion(Base):
-    __tablename__ = "horas_extra_aprobaciones"
+    __tablename__ = "levelup_horas_extra_aprobaciones"
     __table_args__ = (
         UniqueConstraint("solicitud_id", "tipo_firma", name="uq_he_aprobacion_solicitud_tipo"),
         CheckConstraint(
@@ -246,7 +246,7 @@ class HorasExtraAprobacion(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     solicitud_id: Mapped[int] = mapped_column(
-        ForeignKey("horas_extra_solicitudes.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_horas_extra_solicitudes.id", ondelete="CASCADE"), nullable=False
     )
     tipo_firma: Mapped[str] = mapped_column(
         Enum(
@@ -258,10 +258,10 @@ class HorasExtraAprobacion(Base):
         nullable=False,
     )
     aprobador_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     rol_aprobador_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("roles.id"), nullable=True
+        ForeignKey("levelup_roles.id"), nullable=True
     )
     rol_aprobador_nombre: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     estado: Mapped[str] = mapped_column(

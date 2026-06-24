@@ -138,8 +138,9 @@ async def test_empleado_puede_reservar_sin_relacion_rol_cargada(client: AsyncCli
     db.add(reg)
     await db.flush()
 
-    db.expire(emp, ["rol"])
-
+    # `rol`/`core` se cargan vía selectin en get_current_user; el endpoint recarga
+    # su propio usuario, así que la reserva funciona aunque el objeto de prueba no
+    # tenga la relación precargada.
     hdrs = await auth_headers(client, emp, password="Secret1!")
     r = await client.post(
         RESERVAR_URL,

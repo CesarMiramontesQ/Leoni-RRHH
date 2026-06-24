@@ -36,6 +36,7 @@ from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.turnos_empleados import TurnoEmpleado
+from app.utils.turno_empleado_match import turno_no_empleado_matches
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
@@ -100,6 +101,7 @@ _MENSAJE_FECHA_LIMITE_COMEDOR = (
     "La fecha límite para modificar este servicio de comedor ya venció "
     "(jueves de la semana anterior)."
 )
+_MENSAJE_FECHA_PASADA_RH = "No se pueden registrar comidas para días pasados."
 
 
 class ComedorService:
@@ -240,6 +242,12 @@ class ComedorService:
                 fecha_transaccion=transaccion,
             )
 
+    def _validar_fechas_servicio_rh(self, fechas_servicio: list[date]) -> None:
+        hoy = business_today()
+        for fecha in fechas_servicio:
+            if fecha < hoy:
+                raise DomainValidationError(detail=_MENSAJE_FECHA_PASADA_RH)
+
     async def _resolver_beneficiario_reserva(
         self,
         current_user: Empleado,
@@ -293,7 +301,7 @@ class ComedorService:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
 
         result = await self.db.execute(
-            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+            select(TurnoEmpleado).where(turno_no_empleado_matches(empleado.no_empleado))
         )
         turno = result.scalar_one_or_none()
         if turno is None or turno.comedor is None:
@@ -365,7 +373,7 @@ class ComedorService:
         return [
             ComedorEquipoBeneficiarioItem(
                 empleado_id=row.id,
-                no_empleado=row.no_empleado or "",
+                no_empleado=row.no_empleado,
                 nombre=row.nombre or "Sin nombre",
                 nombre_corto=self._nombre_corto(row.nombre),
             )
@@ -471,7 +479,7 @@ class ComedorService:
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalResponse:
         if not user_has_module(current_user, "comedor"):
-            raise ForbiddenError(detail="Solo RH puede publicar menus")
+            raise ForbiddenError(detail="No tienes acceso al módulo de comedor.")
 
         payload = {
             **data.model_dump(),
@@ -508,7 +516,7 @@ class ComedorService:
         background_tasks: BackgroundTasks,
     ) -> MenuSemanalDeleteResponse:
         if not user_has_module(current_user, "comedor"):
-            raise ForbiddenError(detail="Solo RH puede eliminar menus")
+            raise ForbiddenError(detail="No tienes acceso al módulo de comedor.")
 
         comedor = await self.comedor_repo.get(comedor_id)
         if comedor is None:
@@ -1020,8 +1028,11 @@ class ComedorService:
         comedor_id: int,
         fechas: list[date],
         tipo_enum: ComedorTipoComida,
+        *,
+        validar_ventana_modificacion: bool = True,
     ) -> int:
-        self._validar_ventana_modificacion_reservas(fechas)
+        if validar_ventana_modificacion:
+            self._validar_ventana_modificacion_reservas(fechas)
         creados = 0
         for empleado_id in empleado_ids:
             semanas = sorted({f - timedelta(days=f.weekday()) for f in fechas})
@@ -1101,6 +1112,8 @@ class ComedorService:
         if not fechas:
             raise ConflictError(detail="Debes enviar al menos una fecha")
 
+        self._validar_fechas_servicio_rh(fechas)
+
         tipo_enum = ComedorTipoComida(data.tipo_comida)
         if data.person_type == "interno":
             if not data.target_user_id:
@@ -1115,6 +1128,7 @@ class ComedorService:
                 comedor_id=comedor_id,
                 fechas=fechas,
                 tipo_enum=tipo_enum,
+                validar_ventana_modificacion=False,
             )
             audit_background(
                 background_tasks,
@@ -1533,7 +1547,7 @@ class ComedorService:
         if not empleado or empleado.estado_id not in settings.ESTADOS_ACTIVOS_IDS:
             return False
         result = await self.db.execute(
-            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+            select(TurnoEmpleado).where(turno_no_empleado_matches(empleado.no_empleado))
         )
         turno = result.scalar_one_or_none()
         return turno is None or turno.comedor is None

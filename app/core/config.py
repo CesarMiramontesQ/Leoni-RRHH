@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from pydantic import field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,10 +20,12 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
-    # Database
-    DATABASE_URL: str = "postgresql+asyncpg://leoni:leoni_dev_pass@localhost:5432/leoni_rh"
+    # Database — BD única = Bono (PostgreSQL externo). En Docker, docker-compose arma
+    # DATABASE_URL desde BONO_DB_*; este default es solo fallback fuera de Docker.
+    DATABASE_URL: str = "postgresql+asyncpg://bono_user:bono_password@localhost:5433/bono_productividad"
 
     # PostgreSQL bono_productividad (solo lectura; independiente de DATABASE_URL)
     BONO_DB_HOST: str = ""
@@ -103,44 +105,50 @@ class Settings(BaseSettings):
 
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
-    IT_SYNC_INTERVAL_MINUTES: int = 30
-
-    # Importación nocturna bono_productividad.calidad_historico → incidencias
-    BONO_CALIDAD_HISTORICO_IMPORT_ENABLED: bool = True
-    BONO_CALIDAD_HISTORICO_IMPORT_CRON_HOUR: int = 2
-    BONO_CALIDAD_HISTORICO_IMPORT_CRON_MINUTE: int = 0
-
-    # Sincronización periódica bono_productividad.empleados → empleados
-    BONO_EMPLEADOS_IMPORT_ENABLED: bool = True
-    BONO_EMPLEADOS_IMPORT_INTERVAL_MINUTES: int = 30
 
     # Fotografías RH (share de red; en Docker montar el volumen en esta ruta)
     RH_EMPLEADO_FOTOS_DIR: str = (
         r"\\leoni.local\dfsroot\MX1\groups\LCMNews\RH\Images"
     )
 
-    # Estados que se consideran "empleado activo" — ajustar en producción
-    ESTADOS_ACTIVOS_IDS: List[int] = [1]
-    # Estados mostrados como "Permiso" en filtros de líderes (p. ej. Suspendido)
-    ESTADOS_PERMISO_IDS: List[int] = [3]
+    # Estados empleado — string en env (Docker/compose); expuesto como list[int] vía property.
+    estados_activos_ids_env: str = Field(default="1", validation_alias="ESTADOS_ACTIVOS_IDS")
+    estados_permiso_ids_env: str = Field(default="3", validation_alias="ESTADOS_PERMISO_IDS")
 
-    @field_validator("ESTADOS_ACTIVOS_IDS", mode="before")
-    @classmethod
-    def parse_estados_activos(cls, v):
+    @staticmethod
+    def _parse_estado_ids(v, default: list[int]) -> list[int]:
+        """Acepta lista, entero escalar, string '1,5' o '[1]' (env Docker/compose)."""
+        if v is None:
+            return default
+        if isinstance(v, int):
+            return [v]
+        if isinstance(v, list):
+            return [int(x) for x in v]
         if isinstance(v, str):
             if not v.strip():
-                return [1]
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
+                return default
+            stripped = v.strip()
+            if stripped.startswith("["):
+                import json
 
-    @field_validator("ESTADOS_PERMISO_IDS", mode="before")
-    @classmethod
-    def parse_estados_permiso(cls, v):
-        if isinstance(v, str):
-            if not v.strip():
-                return [3]
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
+                parsed = json.loads(stripped)
+                if isinstance(parsed, int):
+                    return [parsed]
+                return [int(x) for x in parsed]
+            return [int(x.strip()) for x in stripped.split(",") if x.strip()]
+        return default
+
+    @property
+    def ESTADOS_ACTIVOS_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.estados_activos_ids_env, [1])
+
+    @property
+    def ESTADOS_PERMISO_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.estados_permiso_ids_env, [3])
+
+    # Admin de desarrollo (login sintético; solo activo si APP_ENV=development)
+    DEV_ADMIN_EMAIL: str = "admin.rh@leoni.com"
+    DEV_ADMIN_PASSWORD: str = "DevAdmin2026!"
 
     # App
     APP_ENV: str = "development"

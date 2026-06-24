@@ -3,7 +3,7 @@
 Integración IT Mirror — Plataforma RH Leoni Cable.
 
 La BD de IT es la fuente de verdad para empleados y catálogos.
-Este módulo sincroniza cada IT_SYNC_INTERVAL_MINUTES hacia la BD local.
+Este módulo sincroniza hacia la BD local (invocación manual o script).
 
 Invariantes de seguridad:
   - NUNCA sobreescribir: rol_id, password_hash

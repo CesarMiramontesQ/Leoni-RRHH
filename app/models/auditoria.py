@@ -9,11 +9,11 @@ from app.core.database import Base
 
 
 class AuditLog(Base):
-    __tablename__ = "audit_log"
+    __tablename__ = "levelup_audit_log"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     usuario_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     accion: Mapped[str] = mapped_column(String(100), nullable=False)
     modulo: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -33,7 +33,7 @@ class AuditLog(Base):
 
 
 class ItSyncLog(Base):
-    __tablename__ = "it_sync_log"
+    __tablename__ = "levelup_it_sync_log"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     operacion: Mapped[str] = mapped_column(
@@ -57,7 +57,7 @@ class ItSyncLog(Base):
 
 
 class TokenBlacklist(Base):
-    __tablename__ = "token_blacklist"
+    __tablename__ = "levelup_token_blacklist"
 
     jti: Mapped[str] = mapped_column(String(36), primary_key=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

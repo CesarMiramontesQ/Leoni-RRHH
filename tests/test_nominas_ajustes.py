@@ -45,34 +45,34 @@ async def test_ajustes_autorizados_lista_busqueda_y_filtro(
         db,
         rol="supervisor",
         nombre="Zulema Autorizada",
-        no_empleado="AJ-HE-01",
+        no_empleado=7000036,
         puede_registrar_horas_extra=True,
     )
     await make_empleado(
         db,
         rol="supervisor",
         nombre="Zacarías Pendiente",
-        no_empleado="AJ-HE-02",
+        no_empleado=7000032,
     )
     inactivo = await make_empleado(
         db,
         rol="empleado",
         nombre="Zoe Inactiva",
-        no_empleado="AJ-HE-03",
+        no_empleado=7000037,
         estado_id=99,
     )
 
     headers = await auth_headers(client, empleado_rh)
 
-    lista = await client.get(AUTORIZADOS_URL, headers=headers, params={"q": "AJ-HE"})
+    lista = await client.get(AUTORIZADOS_URL, headers=headers, params={"q": "700003"})
     assert lista.status_code == 200
     body = lista.json()
     nos = {item["no_empleado"] for item in body["items"]}
-    assert nos == {"AJ-HE-01", "AJ-HE-02"}
+    assert nos == {7000036, 7000032}
     assert inactivo.no_empleado not in nos
     por_no = {item["no_empleado"]: item for item in body["items"]}
-    assert por_no["AJ-HE-01"]["autorizado"] is True
-    assert por_no["AJ-HE-02"]["autorizado"] is False
+    assert por_no[7000036]["autorizado"] is True
+    assert por_no[7000032]["autorizado"] is False
     assert body["stats"]["total_autorizados"] >= 1
     assert {
         "total_autorizados",
@@ -84,17 +84,17 @@ async def test_ajustes_autorizados_lista_busqueda_y_filtro(
     solo_autorizados = await client.get(
         AUTORIZADOS_URL,
         headers=headers,
-        params={"q": "AJ-HE", "filtro": "autorizados"},
+        params={"q": "700003", "filtro": "autorizados"},
     )
     assert solo_autorizados.status_code == 200
     items = solo_autorizados.json()["items"]
-    assert {item["no_empleado"] for item in items} == {"AJ-HE-01"}
+    assert {item["no_empleado"] for item in items} == {7000036}
 
     por_nombre = await client.get(
         AUTORIZADOS_URL, headers=headers, params={"q": "Zacarías"}
     )
     assert por_nombre.status_code == 200
-    assert {item["no_empleado"] for item in por_nombre.json()["items"]} == {"AJ-HE-02"}
+    assert {item["no_empleado"] for item in por_nombre.json()["items"]} == {7000032}
 
     assert autorizado.puede_registrar_horas_extra is True
 
@@ -237,21 +237,21 @@ async def test_ajustes_busqueda_por_correo_area_y_puesto(
         db,
         rol="empleado",
         nombre="Búsqueda Por Área",
-        no_empleado="AJ-BUSQ-01",
+        no_empleado=7000033,
     )
     con_area.area_id = area.area_id
     con_correo = await make_empleado(
         db,
         rol="empleado",
         nombre="Búsqueda Por Correo",
-        no_empleado="AJ-BUSQ-02",
+        no_empleado=7000034,
         email="busqueda.correo@leoni.test",
     )
     con_puesto = await make_empleado(
         db,
         rol="empleado",
         nombre="Búsqueda Por Puesto",
-        no_empleado="AJ-BUSQ-03",
+        no_empleado=7000035,
         puesto_id=puesto.puesto_id,
     )
     await db.flush()

@@ -143,6 +143,47 @@ async def test_actualizar_tarea_catalogo(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_actualizar_tarea_catalogo_propaga_a_perfiles(client: AsyncClient, db):
+    """Al editar el catálogo, los perfiles vinculados reflejan el nuevo nombre y tipo."""
+    from app.models.talento import PerfilTarea
+
+    area = await make_area(db, descripcion="TC Propaga Area")
+    rh = await make_empleado(db, rol="rh", email="tc_propaga_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    tarea_cat = await make_tarea_catalogo(
+        db, nombre="Nombre viejo en perfil", es_complemento=False
+    )
+
+    tarea = PerfilTarea(
+        puesto_perfil_id=perfil.id,
+        orden=1,
+        descripcion="Nombre viejo en perfil",
+        es_complemento=False,
+        tarea_catalogo_id=tarea_cat.id,
+    )
+    db.add(tarea)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/tareas-catalogo/{tarea_cat.id}",
+        json={"nombre": "Nombre nuevo en catálogo", "es_complemento": True},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    list_response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas", headers=headers
+    )
+    assert list_response.status_code == 200
+    data = list_response.json()
+    assert len(data) == 1
+    assert data[0]["descripcion"] == "Nombre nuevo en catálogo"
+    assert data[0]["tarea_catalogo_nombre"] == "Nombre nuevo en catálogo"
+    assert data[0]["es_complemento"] is True
+
+
+@pytest.mark.asyncio
 async def test_eliminar_tarea_catalogo_soft_delete(client: AsyncClient, db):
     """DELETE /tareas-catalogo/{id} hace soft delete (activo=False)."""
     rh = await make_empleado(db, rol="rh", email="tc_del_rh@leoni.test")

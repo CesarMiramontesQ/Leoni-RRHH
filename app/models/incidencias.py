@@ -21,10 +21,10 @@ ORIGEN_INCIDENCIA_BONO = "bono"
 
 
 class Incidencia(Base):
-    __tablename__ = "incidencias"
+    __tablename__ = "levelup_incidencias"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     no_empleado: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     nombre: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     tipo: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -58,7 +58,7 @@ class Incidencia(Base):
 
 
 class Evidencia(Base):
-    __tablename__ = "evidencias"
+    __tablename__ = "levelup_evidencias"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     entidad_tipo: Mapped[str] = mapped_column(
@@ -70,7 +70,7 @@ class Evidencia(Base):
     nombre_original: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
     tamano_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-    subido_por: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    subido_por: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

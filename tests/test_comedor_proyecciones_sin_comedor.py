@@ -27,7 +27,7 @@ async def test_proyecciones_empleados_sin_comedor_asignado(client: AsyncClient, 
     await link_turno_comedor_empleado(db, con_turno, comedor.id)
     db.add(
         TurnoEmpleado(
-            no_empleado=turno_nulo.no_empleado,
+            no_empleado=str(turno_nulo.no_empleado),
             nombre=turno_nulo.nombre,
             clasificacion="A",
             comedor=None,

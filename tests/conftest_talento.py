@@ -108,6 +108,8 @@ async def get_default_grado(db: AsyncSession) -> GradoPuesto:
     """Obtiene o crea el Grado 1 por defecto para tests."""
     from sqlalchemy import select
 
+    await ensure_metodos_calificacion_competencia(db)
+
     result = await db.execute(
         select(GradoPuesto).where(GradoPuesto.orden == 1, GradoPuesto.activo.is_(True))
     )
@@ -189,6 +191,8 @@ async def make_puesto_perfil(
     if nivel_id is None:
         nivel = await make_nivel_puesto(db)
         nivel_id = nivel.id
+
+    await ensure_metodos_calificacion_competencia(db)
 
     perfil = PuestoPerfil(
         codigo=_codigo,

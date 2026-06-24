@@ -1,0 +1,40 @@
+---
+description: Convención levelup_ para tablas propias y restricciones de migraciones
+globs: app/models/**/*.py,app/repositories/**/*.py,alembic/**/*.py
+alwaysApply: true
+---
+
+# Tablas propias — prefijo `levelup_`
+
+Este proyecto vive en la BD **Bono** junto a tablas legacy. Solo las tablas **propias** del proyecto llevan prefijo `levelup_`.
+
+## Reglas
+
+1. **Tablas nuevas**: `__tablename__ = "levelup_<nombre>"` en todo modelo SQLAlchemy nuevo.
+2. **Migraciones Alembic**: solo DDL sobre tablas `levelup_*` (`create_table`, `alter_column`, `add_column`, `drop_table`, índices, FKs entre tablas `levelup_*`).
+3. **Prohibido** en migraciones o código: crear, alterar o eliminar tablas sin prefijo `levelup_`.
+4. **Tablas Bono** (`empleados`, catálogos, etc.): lectura y FKs permitidos; **sin** migraciones ni cambios de esquema desde este repo.
+5. **SQL crudo**: usar `Model.__tablename__`, nunca strings fijos sin prefijo.
+
+## Ejemplos
+
+```python
+# ✅ BIEN — modelo
+class ComedorExternoCorrelativo(Base):
+    __tablename__ = "levelup_comedor_externo_correlativo"
+
+# ✅ BIEN — SQL crudo
+tabla = ComedorExternoCorrelativo.__tablename__
+await db.execute(text(f"INSERT INTO {tabla} (id, siguiente) VALUES (1, 0) ON CONFLICT (id) DO NOTHING"))
+
+# ❌ MAL — tabla sin prefijo
+__tablename__ = "comedor_externo_correlativo"
+
+# ❌ MAL — migración sobre tabla Bono
+op.add_column("empleados", sa.Column("nuevo_campo", sa.String()))
+
+# ❌ MAL — migración con nombre sin prefijo
+op.create_table("comedor_codigos_externos", ...)
+```
+
+Si un cambio requiere tocar una tabla sin `levelup_`, detenerse y pedir aclaración al equipo antes de continuar.

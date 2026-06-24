@@ -264,16 +264,16 @@ components:
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
       type: object
-      required: [id, empleado_id, no_empleado, nombre, rol_id, created_at]
+      required: [id, empleado_id, no_empleado, nombre]
       properties:
         id:
           type: integer
         empleado_id:
           type: integer
         no_empleado:
-          type: string
+          type: integer
         no_sap:
-          type: [string, "null"]
+          type: [integer, "null"]
         nombre:
           type: string
         email:
@@ -281,7 +281,8 @@ components:
         usuario:
           type: [string, "null"]
         rol_id:
-          type: integer
+          type: [integer, "null"]
+          description: Rol del proyecto (levelup_empleados_core); null si el empleado de Bono no tiene cuenta.
         categoria:
           $ref: "#/components/schemas/CategoriaResponse"
         subarea:
@@ -305,31 +306,33 @@ components:
           type: [string, "null"]
         registro:
           type: [string, "null"]
-          format: date
+          description: Texto de alta tal como vive en Bono (columna String, no necesariamente fecha ISO).
         a_restringido:
-          type: [boolean, "null"]
+          type: [string, "null"]
+          description: Valor 'S'/'N' tal como vive en Bono.
         requiere_cambio_password:
           type: [boolean, "null"]
         created_at:
-          type: string
+          type: [string, "null"]
           format: date-time
 
     UsuarioResponse:
       type: object
-      required: [id, empleado_id, no_empleado, nombre, rol_id, created_at]
+      required: [id, empleado_id, no_empleado, nombre]
       properties:
         id:
           type: integer
         empleado_id:
           type: integer
         no_empleado:
-          type: string
+          type: integer
         nombre:
           type: string
         email:
           type: [string, "null"]
         rol_id:
-          type: integer
+          type: [integer, "null"]
+          description: Rol del proyecto (levelup_empleados_core); null si el empleado de Bono no tiene cuenta.
         rol:
           $ref: "#/components/schemas/RolBrief"
         estado:
@@ -353,9 +356,9 @@ components:
           type: [string, "null"]
         registro:
           type: [string, "null"]
-          format: date
+          description: Texto de alta tal como vive en Bono (columna String, no necesariamente fecha ISO).
         created_at:
-          type: string
+          type: [string, "null"]
           format: date-time
 
     UsuarioListItem:
@@ -1661,6 +1664,10 @@ components:
           type: integer
         tipo:
           type: string
+        tipo_incidencia:
+          type: [string, "null"]
+          description: >
+            Categoría de alto nivel (Calidad, Seguridad). Distinto de `categoria` (subtipo en bono).
         subtipo:
           type: [string, "null"]
         no_empleado:
@@ -2126,6 +2133,169 @@ components:
           type: [integer, "null"]
         total:
           type: integer
+
+    FaltaRetardoTipo:
+      type: string
+      enum:
+        - falta_justificada
+        - falta_injustificada
+        - retardo
+        - incapacidad
+        - suspension
+
+    FaltaRetardoCreateRequest:
+      type: object
+      required: [empleado_id, tipo, fecha_evento]
+      properties:
+        empleado_id:
+          type: integer
+          minimum: 1
+        tipo:
+          $ref: "#/components/schemas/FaltaRetardoTipo"
+        fecha_evento:
+          type: string
+          format: date
+        fecha_fin:
+          type: [string, "null"]
+          format: date
+        observaciones:
+          type: [string, "null"]
+          maxLength: 4000
+
+    FaltaRetardoResponse:
+      type: object
+      required:
+        - id
+        - empleado_id
+        - tipo
+        - fecha_evento
+        - created_at
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: [string, "null"]
+        numero_empleado:
+          type: [string, "null"]
+        tipo:
+          $ref: "#/components/schemas/FaltaRetardoTipo"
+        fecha_evento:
+          type: string
+          format: date
+        fecha_fin:
+          type: [string, "null"]
+          format: date
+        observaciones:
+          type: [string, "null"]
+        registrado_por_id:
+          type: [integer, "null"]
+        registrado_por_nombre:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        origen:
+          type: [string, "null"]
+        origen_id:
+          type: [integer, "null"]
+
+    FaltasRetardosPageResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaltaRetardoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    FaltasRetardosTiposResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaltaRetardoTipo"
+
+    FaltasRetardosEstadisticasResponse:
+      type: object
+      required:
+        - total_eventos
+        - falta_justificada
+        - falta_injustificada
+        - retardo
+        - incapacidad
+        - suspension
+        - eventos_por_mes
+        - eventos_por_tipo
+        - empleados_con_mas_eventos
+      properties:
+        total_eventos:
+          type: integer
+        falta_justificada:
+          type: integer
+        falta_injustificada:
+          type: integer
+        retardo:
+          type: integer
+        incapacidad:
+          type: integer
+        suspension:
+          type: integer
+        eventos_por_mes:
+          type: array
+          items:
+            type: object
+            required: [periodo, total]
+            properties:
+              periodo:
+                type: string
+              total:
+                type: integer
+        eventos_por_tipo:
+          type: array
+          items:
+            type: object
+            required: [tipo, total, porcentaje]
+            properties:
+              tipo:
+                $ref: "#/components/schemas/FaltaRetardoTipo"
+              total:
+                type: integer
+              porcentaje:
+                type: number
+        empleados_con_mas_eventos:
+          type: array
+          items:
+            type: object
+            required: [empleado_id, total, por_tipo]
+            properties:
+              empleado_id:
+                type: integer
+              no_empleado:
+                type: [string, "null"]
+              nombre:
+                type: [string, "null"]
+              total:
+                type: integer
+              por_tipo:
+                type: array
+                items:
+                  type: object
+                  required: [tipo, total]
+                  properties:
+                    tipo:
+                      $ref: "#/components/schemas/FaltaRetardoTipo"
+                    total:
+                      type: integer
 
     # ── Comedor ───────────────────────────────────────
     ComedorResponse:
@@ -3241,6 +3411,19 @@ components:
         page_size:
           type: integer
 
+    MetodoCalificacionCompetenciaCreate:
+      type: object
+      required: [nombre, orden]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 1
+          maximum: 99
+
     MetodoCalificacionCompetenciaUpdate:
       type: object
       required: [nombre, orden]
@@ -3252,7 +3435,9 @@ components:
         orden:
           type: integer
           minimum: 1
-          maximum: 4
+          maximum: 99
+        activo:
+          type: boolean
 
     MetodoCalificacionCompetenciaResponse:
       type: object
@@ -3263,7 +3448,6 @@ components:
         valor:
           type: integer
           minimum: 1
-          maximum: 4
         nombre:
           type: string
         orden:
@@ -3315,6 +3499,26 @@ components:
           type: array
           items:
             type: object
+            required: [empleado_id, nombre, no_empleado, grado_id, niveles]
+            properties:
+              empleado_id:
+                type: integer
+              nombre:
+                type: string
+              no_empleado:
+                type: integer
+              grado_id:
+                type: integer
+              grado_nombre:
+                type: string
+              niveles:
+                type: object
+                additionalProperties:
+                  type: integer
+              requisitos:
+                type: object
+                additionalProperties:
+                  type: integer
         metodos_calificacion:
           type: array
           items:
@@ -6413,6 +6617,143 @@ paths:
                   evidencia_id:
                     type: integer
 
+  # ── Faltas y retardos ──────────────────────────────
+  /api/v1/faltas-retardos:
+    get:
+      tags: [Faltas y retardos]
+      summary: Listar eventos de asistencia
+      operationId: faltas_retardos_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: tipo
+          in: query
+          schema:
+            $ref: "#/components/schemas/FaltaRetardoTipo"
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: busqueda
+          in: query
+          description: Nombre o número de empleado
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página de eventos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosPageResponse"
+    post:
+      tags: [Faltas y retardos]
+      summary: Registrar evento de asistencia
+      operationId: faltas_retardos_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FaltaRetardoCreateRequest"
+      responses:
+        "201":
+          description: Evento creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltaRetardoResponse"
+        "422":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/faltas-retardos/tipos:
+    get:
+      tags: [Faltas y retardos]
+      summary: Catálogo de tipos de evento
+      operationId: faltas_retardos_tipos
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tipos disponibles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosTiposResponse"
+
+  /api/v1/faltas-retardos/estadisticas:
+    get:
+      tags: [Faltas y retardos]
+      summary: Estadísticas de eventos de asistencia
+      operationId: faltas_retardos_estadisticas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: tipo
+          in: query
+          schema:
+            $ref: "#/components/schemas/FaltaRetardoTipo"
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: busqueda
+          in: query
+          description: Nombre o número de empleado
+          schema:
+            type: string
+        - name: area
+          in: query
+          description: Nombre de área
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Totales por tipo con filtros aplicados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosEstadisticasResponse"
+
   # ── Actas Administrativas ──────────────────────────
   /api/v1/actas:
     get:
@@ -8171,11 +8512,30 @@ paths:
         - BearerAuth: []
       responses:
         "200":
-          description: Lista de metodos (Planeado a Experto)
+          description: Lista de metodos activos configurables
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetodoCalificacionCompetenciaListResponse"
+    post:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Crear metodo de calificacion de competencias
+      operationId: metodos_calificacion_competencia_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetodoCalificacionCompetenciaCreate"
+      responses:
+        "201":
+          description: Metodo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
 
   /api/v1/metodos-calificacion-competencia/{id}:
     get:
@@ -8222,6 +8582,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
+    delete:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Desactivar metodo de calificacion de competencias
+      operationId: metodos_calificacion_competencia_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Metodo desactivado
 
   /api/v1/competencias/multihabilidades/puestos:
     get:

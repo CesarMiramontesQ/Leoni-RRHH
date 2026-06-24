@@ -236,8 +236,14 @@ class MetodoCalificacionCompetenciaResumen(BaseModel):
 class MultihabilidadesEmpleadoItem(BaseModel):
     empleado_id: int
     nombre: str
-    no_empleado: str
+    no_empleado: int
+    grado_id: int
+    grado_nombre: str = ""
     niveles: dict[int, int]
+    requisitos: dict[int, int] = Field(
+        default_factory=dict,
+        description="Nivel requerido por competencia_id según el grado asignado al colaborador",
+    )
 
 
 class MultihabilidadesResponse(BaseModel):

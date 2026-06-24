@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class OrganigramaNodoResponse(BaseModel):
     id: int
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre_colaborador: str
     nombre_puesto: str | None = None
     departamento: str | None = None

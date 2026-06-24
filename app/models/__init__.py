@@ -9,11 +9,18 @@ from app.models.catalogos import (
     Subarea,
 )
 from app.models.empleados import Empleado
+from app.models.empleados_rh import (
+    EmpleadoCore,
+    EmpleadoRhConfig,
+    EmpleadoRhHorasExtra,
+    EmpleadoRhPermisos,
+)
 from app.models.turnos_empleados import TurnoEmpleado
 from app.models.vacaciones import Vacaciones
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
+from app.models.faltas_retardos import FaltaRetardoEvento
 from app.models.comedor import (
     Comedor,
     ComedorAcceso,
@@ -80,6 +87,10 @@ __all__ = [
     "EstadoEmpleado",
     "ClasificacionEmpleado",
     "Empleado",
+    "EmpleadoCore",
+    "EmpleadoRhConfig",
+    "EmpleadoRhPermisos",
+    "EmpleadoRhHorasExtra",
     "TurnoEmpleado",
     "Vacaciones",
     "Solicitud",
@@ -88,6 +99,7 @@ __all__ = [
     "Evidencia",
     "ActaAdministrativa",
     "ActaAprobacion",
+    "FaltaRetardoEvento",
     "Comedor",
     "ComedorAcceso",
     "ComedorCodigoExterno",

@@ -32,18 +32,20 @@ type FormBaseline = {
 };
 
 function rolIdSeleccionado(empleado: UsuarioListItem, roles: RolBrief[]): number {
-  const tieneRol = empleado.rol_id > 0 && roles.some((r) => r.id === empleado.rol_id);
-  if (tieneRol) return empleado.rol_id;
+  const rolId = empleado.rol_id ?? 0;
+  const tieneRol = rolId > 0 && roles.some((r) => r.id === rolId);
+  if (tieneRol) return rolId;
   const def = roles.find((r) => r.nombre.trim().toLowerCase() === "empleado");
-  return def?.id ?? roles[0]?.id ?? empleado.rol_id;
+  return def?.id ?? roles[0]?.id ?? rolId;
 }
 
 function textoRolActual(empleado: UsuarioListItem, roles: RolBrief[]): string {
   const desdeEmpleado = empleado.rol?.nombre?.trim();
   if (desdeEmpleado) return desdeEmpleado;
-  const enCatalogo = roles.find((r) => r.id === empleado.rol_id);
+  const rolId = empleado.rol_id ?? 0;
+  const enCatalogo = roles.find((r) => r.id === rolId);
   if (enCatalogo?.nombre?.trim()) return enCatalogo.nombre.trim();
-  if (empleado.rol_id > 0) return `Rol #${empleado.rol_id}`;
+  if (rolId > 0) return `Rol #${rolId}`;
   return "Sin asignar";
 }
 
@@ -260,7 +262,6 @@ function formBodyHtml(
   const comedorSelect = `<select
     id="ea-comedor_id"
     name="comedor_id"
-    required
     data-ea-control="comedor"
     class="col-start-1 row-start-1 ${SELECT_CONTROL}"
   >${renderComedorOptions(comedores, baseline.comedorId, comedorAsignado)}</select>`;
@@ -286,7 +287,7 @@ function formBodyHtml(
             ${fieldBlockHtml({
               id: "comedor",
               label: "Comedor asignado",
-              description: "Comedor donde el empleado podrá registrar servicios.",
+              description: "Opcional. Asigna o cambia el comedor del empleado.",
               forId: "ea-comedor_id",
               selectHtml: comedorSelect,
             })}
@@ -442,37 +443,44 @@ export function mountEditarAsignacionModal(
 
         if (!syncFormDirtyState(host, baseline)) return;
 
-        const fd = new FormData(form);
+        const rolSelect = host.querySelector<HTMLSelectElement>('[data-ea-control="rol"]');
+        const comedorSelect = host.querySelector<HTMLSelectElement>('[data-ea-control="comedor"]');
+        if (!rolSelect || !comedorSelect) return;
 
-        // Si el control de rol está deshabilitado (sin permiso), no se envía rol_id.
-        const rolControl = host.querySelector<HTMLSelectElement>('[data-ea-control="rol"]');
-        const canEditRol = !!rolControl && !rolControl.disabled;
+        const rolChanged = Number.parseInt(rolSelect.value, 10) !== baseline.rolId;
+        const comedorChanged = comedorSelect.value !== baseline.comedorId;
 
-        let rol_id: number | undefined;
-        if (canEditRol) {
-          const rolRaw = String(fd.get("rol_id") ?? "");
-          rol_id = Number.parseInt(rolRaw, 10);
+        const rolControl = rolSelect;
+        const canEditRol = !rolControl.disabled;
+
+        const payload: { rol_id?: number; comedor_id?: number } = {};
+
+        if (canEditRol && rolChanged) {
+          const rol_id = Number.parseInt(rolSelect.value, 10);
           if (Number.isNaN(rol_id)) {
             showError("Selecciona un rol.");
             return;
           }
+          payload.rol_id = rol_id;
         }
 
-        const comRaw = String(fd.get("comedor_id") ?? "").trim();
-        const comedor_id = Number.parseInt(comRaw, 10);
-        if (Number.isNaN(comedor_id) || comedor_id < 1) {
-          showError("Selecciona un comedor.");
-          return;
+        if (comedorChanged) {
+          const comRaw = comedorSelect.value.trim();
+          const comedor_id = Number.parseInt(comRaw, 10);
+          if (Number.isNaN(comedor_id) || comedor_id < 1) {
+            showError("Selecciona un comedor válido o deja el valor anterior sin cambios.");
+            return;
+          }
+          payload.comedor_id = comedor_id;
         }
+
+        if (Object.keys(payload).length === 0) return;
 
         setSubmitLoading(true);
         syncFormDirtyState(host, baseline, true);
 
         try {
-          await patchUsuarioAsignacion(empleado.id, {
-            ...(rol_id !== undefined ? { rol_id } : {}),
-            comedor_id,
-          });
+          await patchUsuarioAsignacion(empleado.id, payload);
           showEmpleadosToast(options.toastContainer, "Asignación actualizada correctamente.", "success");
           close();
           await options.onSuccess();

@@ -183,7 +183,7 @@ def _solicitud_to_response(s: Solicitud, empleado_ctx: Empleado | None = None) -
     lid_id: int | None = None
     lid_nom: str | None = None
     if emp:
-        no_empleado = (emp.no_empleado or "").strip() or None
+        no_empleado = emp.no_empleado  # int (alineado con Bono)
         foto = emp.foto
         lid_id = emp.lider_id
         if emp.area is not None:

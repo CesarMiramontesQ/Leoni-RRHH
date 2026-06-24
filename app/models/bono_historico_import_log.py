@@ -11,7 +11,7 @@ from app.core.database import Base
 
 
 class BonoHistoricoImportLog(Base):
-    __tablename__ = "bono_historico_import_log"
+    __tablename__ = "levelup_bono_historico_import_log"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     fuente: Mapped[str] = mapped_column(

@@ -2,8 +2,7 @@
 """
 Servicio de sincronizacion IT Mirror ↔ TRESS SQL Server.
 
-Se ejecuta periodicamente via APScheduler (job 'it_mirror_sync' en main.py,
-intervalo configurable via IT_SYNC_INTERVAL_MINUTES).
+Puede invocarse manualmente o desde scripts; ya no corre en APScheduler.
 
 Politica de conflictos:
   - TRESS es la fuente de verdad para datos de nomina

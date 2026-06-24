@@ -111,6 +111,7 @@ export const INC_COPY = {
   colNumero: "Número",
   colArea: "Área",
   colTipo: "Tipo",
+  colTipoIncidencia: "Tipo incidencia",
   colFecha: "Fecha",
   colEstado: "Estado",
   colPrioridad: "Prioridad",

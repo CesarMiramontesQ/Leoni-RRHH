@@ -15,7 +15,7 @@ function nombreEmpleadoExport(raw: string): string {
 }
 
 function tipoExport(row: RhIncidenciaTablaFila): string {
-  const raw = (row.tipo_texto ?? row.tipo).trim() || String(row.tipo);
+  const raw = (row.tipo_incidencia ?? row.tipo_texto ?? row.tipo).trim() || String(row.tipo);
   return labelTipoIncidenciaUi(raw);
 }
 

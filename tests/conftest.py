@@ -32,12 +32,14 @@ from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 # Forzar importacion de todos los modelos para poblar Base.metadata
 import app.models.catalogos  # noqa: F401
 import app.models.empleados  # noqa: F401
+import app.models.empleados_rh  # noqa: F401
 import app.models.solicitudes  # noqa: F401
 import app.models.auditoria  # noqa: F401
 import app.models.roles  # noqa: F401
@@ -45,6 +47,7 @@ import app.models.comedor  # noqa: F401
 import app.models.tress  # noqa: F401
 import app.models.incidencias  # noqa: F401
 import app.models.actas  # noqa: F401
+import app.models.faltas_retardos  # noqa: F401
 import app.models.notificaciones  # noqa: F401
 import app.models.emails  # noqa: F401
 import app.models.talento  # noqa: F401
@@ -76,6 +79,19 @@ async def engine():
         poolclass=StaticPool,
         echo=False,
     )
+
+    # SQLite no trae `translate` (la usa la búsqueda de empleados, _normalized_sql
+    # en usuario_repository). La registramos para que las búsquedas insensibles a
+    # acentos sean ejecutables en los tests.
+    def _sqlite_translate(value, from_chars, to_chars):
+        if value is None:
+            return None
+        table = {ord(f): t for f, t in zip(from_chars, to_chars)}
+        return value.translate(table)
+
+    @event.listens_for(_engine.sync_engine, "connect")
+    def _register_sqlite_functions(dbapi_connection, _record):  # noqa: ANN001
+        dbapi_connection.create_function("translate", 3, _sqlite_translate)
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -177,7 +193,7 @@ async def make_empleado(
     rol: str = "empleado",
     email: str | None = None,
     usuario: str | None = None,
-    no_empleado: str | None = None,
+    no_empleado: int | None = None,
     empleado_id: int | None = None,
     nombre: str = "Test Usuario",
     password: str = "Passw0rd!Seguro",
@@ -203,40 +219,65 @@ async def make_empleado(
 
     uid = str(uuid.uuid4())[:8]
     _email = email or f"emp_{uid}@leoni.test"
-    _no_empleado = no_empleado or f"EMP-{uid}"
+    # no_empleado es entero (alineado con Bono.empleados).
     _empleado_id = empleado_id or abs(hash(uid)) % 100000
+    _no_empleado = no_empleado if no_empleado is not None else (abs(hash(uid)) % 9000000 + 1000000)
 
     rol_obj = await _get_or_create_rol(db, rol)
 
+    # empleados (Bono) solo tiene identidad + atributos de Bono (sin id/rol/email/password).
     empleado = Empleado(
         empleado_id=_empleado_id,
         no_empleado=_no_empleado,
         nombre=nombre,
-        email=_email,
         usuario=usuario,
-        password_hash=hash_password(password),
-        rol_id=rol_obj.id,
         lider_id=lider_id,
         estado_id=estado_id,
         clasificacion_id=clasificacion_id,
-        fecha_fin_contrato=fecha_fin_contrato,
-        puede_administrar_permisos_rh=puede_administrar_permisos_rh,
-        puede_registrar_horas_extra=puede_registrar_horas_extra,
-        modulos_rh=modulos_rh or {},
-        inscrito_modulos_rh=inscrito_modulos_rh,
-        acceso_rh_removido=acceso_rh_removido,
         puesto_id=puesto_id,
     )
     db.add(empleado)
     await db.flush()
+
+    # Datos propios del proyecto en tablas hijas levelup_empleados_*.
+    from app.models.empleados_rh import (
+        EmpleadoCore,
+        EmpleadoRhConfig,
+        EmpleadoRhPermisos,
+    )
+
+    core = EmpleadoCore(
+        empleado_id=_empleado_id,
+        rol_id=rol_obj.id,
+        password_hash=hash_password(password),
+        email=_email,
+    )
+    config = EmpleadoRhConfig(
+        empleado_id=_empleado_id,
+        fecha_fin_contrato=fecha_fin_contrato,
+        modulos_rh=modulos_rh or {},
+        inscrito_modulos_rh=inscrito_modulos_rh,
+        acceso_rh_removido=acceso_rh_removido,
+    )
+    permisos = EmpleadoRhPermisos(
+        empleado_id=_empleado_id,
+        puede_administrar_permisos_rh=puede_administrar_permisos_rh,
+        puede_registrar_horas_extra=puede_registrar_horas_extra,
+    )
+    db.add_all([core, config, permisos])
+    await db.flush()
+
     await db.refresh(empleado)
-    empleado.rol = rol_obj
+    empleado.core = core
+    empleado.rh_config = config
+    empleado.rh_permisos = permisos
+    core.rol = rol_obj
 
     if dias_vacaciones is not None:
         from app.models.vacaciones import Vacaciones
 
         db.add(
-            Vacaciones(empleado_id=empleado.id, dias_disponibles=dias_vacaciones)
+            Vacaciones(empleado_id=empleado.empleado_id, dias_disponibles=dias_vacaciones)
         )
         await db.flush()
 
@@ -253,10 +294,11 @@ async def link_turno_comedor_empleado(
 ) -> None:
     """Vincula empleado con código de comedor en `turnos_empleados` (reservas automáticas)."""
     from app.models.turnos_empleados import TurnoEmpleado
+    from app.utils.turno_empleado_match import no_empleado_as_turno_str
 
     db.add(
         TurnoEmpleado(
-            no_empleado=empleado.no_empleado,
+            no_empleado=no_empleado_as_turno_str(empleado.no_empleado),
             nombre=empleado.nombre,
             clasificacion=clasificacion,
             comedor=comedor_id,

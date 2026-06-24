@@ -248,7 +248,7 @@ class ComedorRhProximoRegistroItem(BaseModel):
     id: int
     empleado_id: int
     empleado_nombre: str
-    no_empleado: str
+    no_empleado: int
     area: str
     comedor_nombre: str
     fecha_servicio: date
@@ -265,7 +265,7 @@ class ComedorRhProximosRegistrosPage(BaseModel):
 
 class ComedorEquipoBeneficiarioItem(BaseModel):
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     nombre_corto: str
 
@@ -314,7 +314,7 @@ class ComedorTerminalConsumirResponse(BaseModel):
 
 class ComedorRhEmpleadoSinComedorItem(BaseModel):
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
 
 

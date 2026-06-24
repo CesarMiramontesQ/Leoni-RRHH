@@ -125,7 +125,7 @@ class EstadoSesion(str, enum.Enum):
 
 
 class Capacidad(Base):
-    __tablename__ = "capacidades"
+    __tablename__ = "levelup_capacidades"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -151,7 +151,7 @@ class Capacidad(Base):
 
 
 class CapacidadPuestoPerfil(Base):
-    __tablename__ = "capacidad_puesto_perfil"
+    __tablename__ = "levelup_capacidad_puesto_perfil"
     __table_args__ = (
         UniqueConstraint("capacidad_id", "puesto_perfil_id", name="uq_capacidad_puesto"),
         CheckConstraint(
@@ -162,10 +162,10 @@ class CapacidadPuestoPerfil(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     capacidad_id: Mapped[int] = mapped_column(
-        ForeignKey("capacidades.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_capacidades.id", ondelete="CASCADE"), nullable=False
     )
     puesto_perfil_id: Mapped[int] = mapped_column(
-        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
     nivel_requerido: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(
@@ -177,7 +177,7 @@ class CapacidadPuestoPerfil(Base):
 
 
 class Habilidad(Base):
-    __tablename__ = "habilidades"
+    __tablename__ = "levelup_habilidades"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -200,7 +200,7 @@ class Habilidad(Base):
 
 
 class EvaluacionCapacidad(Base):
-    __tablename__ = "evaluaciones_capacidad"
+    __tablename__ = "levelup_evaluaciones_capacidad"
     __table_args__ = (
         UniqueConstraint("empleado_id", "capacidad_id", name="uq_eval_capacidad_vigente"),
         CheckConstraint("nivel_actual >= 1 AND nivel_actual <= 5", name="ck_eval_cap_nivel_actual"),
@@ -208,9 +208,9 @@ class EvaluacionCapacidad(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     capacidad_id: Mapped[int] = mapped_column(
-        ForeignKey("capacidades.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_capacidades.id", ondelete="CASCADE"), nullable=False
     )
     nivel_actual: Mapped[int] = mapped_column(Integer, nullable=False)
     nivel_requerido: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -218,7 +218,7 @@ class EvaluacionCapacidad(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     evaluador_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -233,23 +233,23 @@ class EvaluacionCapacidad(Base):
 
 
 class EvaluacionHabilidad(Base):
-    __tablename__ = "evaluaciones_habilidad"
+    __tablename__ = "levelup_evaluaciones_habilidad"
     __table_args__ = (
         UniqueConstraint("empleado_id", "habilidad_id", name="uq_eval_habilidad_vigente"),
         CheckConstraint("nivel_actual >= 1 AND nivel_actual <= 4", name="ck_eval_hab_nivel_actual"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     habilidad_id: Mapped[int] = mapped_column(
-        ForeignKey("habilidades.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_habilidades.id", ondelete="CASCADE"), nullable=False
     )
     nivel_actual: Mapped[int] = mapped_column(Integer, nullable=False)
     fecha_evaluacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     evaluador_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -264,7 +264,7 @@ class EvaluacionHabilidad(Base):
 
 
 class Curso(Base):
-    __tablename__ = "cursos"
+    __tablename__ = "levelup_cursos"
     __table_args__ = (UniqueConstraint("nombre", name="uq_cursos_nombre"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -272,23 +272,23 @@ class Curso(Base):
     duracion_horas: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     categoria_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_categoria.id"), nullable=True
+        ForeignKey("levelup_curso_categoria.id"), nullable=True
     )
     tipo_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_tipo.id"), nullable=True
+        ForeignKey("levelup_curso_tipo.id"), nullable=True
     )
     clasificacion_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_clasificacion.id"), nullable=True
+        ForeignKey("levelup_curso_clasificacion.id"), nullable=True
     )
     proveedor_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_proveedor.id"), nullable=True
+        ForeignKey("levelup_curso_proveedor.id"), nullable=True
     )
     instructor_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     instructor_empleado_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     instructor_externo_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_instructor_externo.id"), nullable=True
+        ForeignKey("levelup_curso_instructor_externo.id"), nullable=True
     )
     modalidad: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     sesiones_anio: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -329,11 +329,11 @@ class Curso(Base):
 
 
 class CursoSesion(Base):
-    __tablename__ = "curso_sesion"
+    __tablename__ = "levelup_curso_sesion"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     curso_id: Mapped[int] = mapped_column(
-        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_cursos.id", ondelete="CASCADE"), nullable=False
     )
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -343,10 +343,10 @@ class CursoSesion(Base):
     ubicacion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     instructor_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     instructor_empleado_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     instructor_externo_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_instructor_externo.id"), nullable=True
+        ForeignKey("levelup_curso_instructor_externo.id"), nullable=True
     )
     costo: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -375,17 +375,17 @@ class CursoSesion(Base):
 
 
 class CursoPuesto(Base):
-    __tablename__ = "curso_puesto"
+    __tablename__ = "levelup_curso_puesto"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     curso_id: Mapped[int] = mapped_column(
-        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_cursos.id", ondelete="CASCADE"), nullable=False
     )
     puesto_perfil_id: Mapped[int] = mapped_column(
-        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
     sesion_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_sesion.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("levelup_curso_sesion.id", ondelete="SET NULL"), nullable=True
     )
     obligatorio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -398,7 +398,7 @@ class CursoPuesto(Base):
 
 
 class CursoEmpleado(Base):
-    __tablename__ = "curso_empleado"
+    __tablename__ = "levelup_curso_empleado"
     __table_args__ = (
         Index("ix_curso_empleado_empleado_id", "empleado_id"),
         Index("ix_curso_empleado_curso_id", "curso_id"),
@@ -406,13 +406,13 @@ class CursoEmpleado(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     curso_id: Mapped[int] = mapped_column(
-        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_cursos.id", ondelete="CASCADE"), nullable=False
     )
     empleado_id: Mapped[int] = mapped_column(
-        ForeignKey("empleados.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("empleados.empleado_id", ondelete="CASCADE"), nullable=False
     )
     sesion_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("curso_sesion.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("levelup_curso_sesion.id", ondelete="SET NULL"), nullable=True
     )
     fecha: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     horas: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -438,7 +438,7 @@ class TipoGrupoCurso(str, enum.Enum):
 
 
 class CursoGrupo(Base):
-    __tablename__ = "curso_grupo"
+    __tablename__ = "levelup_curso_grupo"
     __table_args__ = (
         UniqueConstraint("curso_id", "tipo", "referencia_id", name="uq_curso_grupo"),
         Index("ix_curso_grupo_curso_id", "curso_id"),
@@ -446,7 +446,7 @@ class CursoGrupo(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     curso_id: Mapped[int] = mapped_column(
-        ForeignKey("cursos.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_cursos.id", ondelete="CASCADE"), nullable=False
     )
     tipo: Mapped[TipoGrupoCurso] = mapped_column(
         Enum(TipoGrupoCurso, name="tipo_grupo_curso_enum"), nullable=False
@@ -460,7 +460,7 @@ class CursoGrupo(Base):
 
 
 class OPL(Base):
-    __tablename__ = "opls"
+    __tablename__ = "levelup_opls"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -468,7 +468,7 @@ class OPL(Base):
     proceso: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     maquina: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     aprobador_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     estado_aprobacion: Mapped[EstadoAprobacionOPL] = mapped_column(
         Enum(EstadoAprobacionOPL, name="estado_aprobacion_opl_enum"),
@@ -486,14 +486,14 @@ class OPL(Base):
 
 
 class OPLVersion(Base):
-    __tablename__ = "opl_versiones"
+    __tablename__ = "levelup_opl_versiones"
     __table_args__ = (
         UniqueConstraint("opl_id", "version_num", name="uq_opl_version"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     opl_id: Mapped[int] = mapped_column(
-        ForeignKey("opls.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_opls.id", ondelete="CASCADE"), nullable=False
     )
     version_num: Mapped[int] = mapped_column(Integer, nullable=False)
     archivo_url: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -502,7 +502,7 @@ class OPLVersion(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     creado_por_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
 
     opl: Mapped["OPL"] = relationship("OPL", back_populates="versiones")
@@ -510,7 +510,7 @@ class OPLVersion(Base):
 
 
 class EvidenciaCapacitacion(Base):
-    __tablename__ = "evidencias_capacitacion"
+    __tablename__ = "levelup_evidencias_capacitacion"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tipo: Mapped[TipoEvidencia] = mapped_column(
@@ -518,9 +518,9 @@ class EvidenciaCapacitacion(Base):
     )
     archivo_url: Mapped[str] = mapped_column(String(500), nullable=False)
     capacitacion_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("capacitaciones.id"), nullable=True
+        ForeignKey("levelup_capacitaciones.id"), nullable=True
     )
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     estado: Mapped[EstadoEvidencia] = mapped_column(
         Enum(EstadoEvidencia, name="estado_evidencia_cap_enum"),
         nullable=False,
@@ -539,16 +539,16 @@ class EvidenciaCapacitacion(Base):
 
 
 class EvidenciaFirma(Base):
-    __tablename__ = "evidencia_firmas"
+    __tablename__ = "levelup_evidencia_firmas"
     __table_args__ = (
         UniqueConstraint("evidencia_id", "firmante_id", "rol_firma", name="uq_firma_evidencia_rol"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     evidencia_id: Mapped[int] = mapped_column(
-        ForeignKey("evidencias_capacitacion.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_evidencias_capacitacion.id", ondelete="CASCADE"), nullable=False
     )
-    firmante_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    firmante_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     rol_firma: Mapped[str] = mapped_column(String(100), nullable=False)
     estado: Mapped[EstadoFirma] = mapped_column(
         Enum(EstadoFirma, name="estado_firma_enum"),
@@ -567,7 +567,7 @@ class EvidenciaFirma(Base):
 
 
 class EncuestaPostCurso(Base):
-    __tablename__ = "encuestas_post_curso"
+    __tablename__ = "levelup_encuestas_post_curso"
     __table_args__ = (
         UniqueConstraint("capacitacion_id", "empleado_id", name="uq_encuesta_cap_emp"),
         CheckConstraint("score_general >= 1 AND score_general <= 5", name="ck_enc_score_gen"),
@@ -577,8 +577,8 @@ class EncuestaPostCurso(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    capacitacion_id: Mapped[int] = mapped_column(ForeignKey("capacitaciones.id"), nullable=False)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    capacitacion_id: Mapped[int] = mapped_column(ForeignKey("levelup_capacitaciones.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     score_general: Mapped[int] = mapped_column(Integer, nullable=False)
     score_instructor: Mapped[int] = mapped_column(Integer, nullable=False)
     score_contenido: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -593,7 +593,7 @@ class EncuestaPostCurso(Base):
 
 
 class SugerenciaCapacitacion(Base):
-    __tablename__ = "sugerencias_capacitacion"
+    __tablename__ = "levelup_sugerencias_capacitacion"
     __table_args__ = (
         CheckConstraint("prioridad >= 1 AND prioridad <= 5", name="ck_sug_prioridad"),
     )
@@ -624,10 +624,10 @@ class SugerenciaCapacitacion(Base):
 
 
 class PlanDesarrollo(Base):
-    __tablename__ = "planes_desarrollo"
+    __tablename__ = "levelup_planes_desarrollo"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     titulo: Mapped[str] = mapped_column(String(255), nullable=False)
     fecha_inicio: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -651,11 +651,11 @@ class PlanDesarrollo(Base):
 
 
 class PlanEtapa(Base):
-    __tablename__ = "plan_etapas"
+    __tablename__ = "levelup_plan_etapas"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     plan_id: Mapped[int] = mapped_column(
-        ForeignKey("planes_desarrollo.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_planes_desarrollo.id", ondelete="CASCADE"), nullable=False
     )
     orden: Mapped[int] = mapped_column(Integer, nullable=False)
     titulo: Mapped[str] = mapped_column(String(255), nullable=False)

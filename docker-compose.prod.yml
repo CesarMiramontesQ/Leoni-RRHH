@@ -1,31 +1,31 @@
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: leoni_rh_db
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
+# Producción V2.0 (branch prod-v2.0): código de main + infra de prod v1.0.
+# BD única = Bono (PostgreSQL externo del cliente); sin contenedor de BD en Docker.
+#
+# Proyecto Compose: leoni-rh-prod (aislado de leoni-rh-dev).
+# Uso en servidor:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+# Tras git pull con cambios en backend/alembic:
+#   ./scripts/prod-migrate.sh
+name: leoni-rh-prod
 
+services:
   backend:
     build:
       context: .
       target: production
-    container_name: leoni_rh_backend
+    container_name: leoni_rh_backend_prod
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # BD única = Bono. DATABASE_URL explícita tiene prioridad; si no, se arma con BONO_DB_* (ver .env.prod.example).
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER}:${BONO_DB_PASSWORD}@${BONO_DB_HOST}:${BONO_DB_PORT:-5432}/${BONO_DB_NAME}}
+      # Bono (BD principal y lectura para imports históricos manuales; ver .env.prod.example)
+      BONO_DB_HOST: ${BONO_DB_HOST:-}
+      BONO_DB_PORT: ${BONO_DB_PORT:-5432}
+      BONO_DB_NAME: ${BONO_DB_NAME:-}
+      BONO_DB_USER: ${BONO_DB_USER:-}
+      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD:-}
+      BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-15}
@@ -34,31 +34,24 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      OLLAMA_URL: ${OLLAMA_URL:-http://localhost:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
-      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-16384}
       IT_MIRROR_DB_URL: ${IT_MIRROR_DB_URL:-}
-      IT_SYNC_INTERVAL_MINUTES: ${IT_SYNC_INTERVAL_MINUTES:-30}
-      TRESS_ODBC_CONN: ${TRESS_ODBC_CONN:-}
       HUELLA_WHITELIST_IPS: ${HUELLA_WHITELIST_IPS:-}
       COMEDOR_TERMINAL_IPS: ${COMEDOR_TERMINAL_IPS:-}
+      COMEDOR_ACCESO_HORA_INICIO: ${COMEDOR_ACCESO_HORA_INICIO:-}
+      COMEDOR_ACCESO_HORA_FIN: ${COMEDOR_ACCESO_HORA_FIN:-}
       TORNIQUETE_API_KEY: ${TORNIQUETE_API_KEY:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Mexico_City}
+      ESTADOS_ACTIVOS_IDS: ${ESTADOS_ACTIVOS_IDS:-1}
+      ESTADOS_PERMISO_IDS: ${ESTADOS_PERMISO_IDS:-3}
     restart: always
 
   frontend:
     build:
       context: ./frontend
       target: production
-    container_name: leoni_rh_frontend
+    container_name: leoni_rh_frontend_prod
     ports:
       - "80:80"
     depends_on:
       - backend
     restart: always
-
-volumes:
-  postgres_data:
-    driver: local

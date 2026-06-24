@@ -37,6 +37,8 @@ export type BuildComedorNewRequestFormParams = {
   menuFieldLabel?: string;
   /** ISO yyyy-mm-dd: límite mínimo del input type="date". */
   fechaMinIso?: string | null;
+  /** Texto de ayuda bajo el selector de fecha. */
+  fechaMinHint?: string | null;
   /** Cuántas fechas ya tienen reserva (para texto de ayuda; el input no deshabilita días aislados). */
   fechasBloqueadasCount?: number;
   searchResults: readonly ComedorEmployeeOption[];
@@ -226,6 +228,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     menuOptions,
     menuFieldLabel = "Selector de menú",
     fechaMinIso,
+    fechaMinHint,
     fechasBloqueadasCount = 0,
     searchResults,
     employeeOptions,
@@ -423,7 +426,9 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
           />
           ${fieldError(errors.fechaServicio)}
           ${
-            fechaMinIso
+            fechaMinHint
+              ? `<p class="${formHintClass()}" id="comedor-modal-date-window-hint">${escapeHtml(fechaMinHint)}</p>`
+              : fechaMinIso
               ? `<p class="${formHintClass()}" id="comedor-modal-date-window-hint">Ventana vigente hasta el jueves previo al servicio. Fechas seleccionables desde <span class="font-medium text-slate-600">${escapeHtml(fechaMinIso)}</span>.</p>`
               : ""
           }

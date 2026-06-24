@@ -3,9 +3,10 @@
  * No importa nada del dominio ni de la app — solo strings.
  */
 
-/** Escapa caracteres HTML. Reemplaza todas las copias locales de escapeHtml/escapeIncHtml/escapeComedorHtml. */
-export function escapeHtml(s: string): string {
-  return s
+/** Escapa caracteres HTML. Reemplaza todas las copias locales de escapeHtml/escapeIncHtml/escapeComedorHtml.
+ * Coacciona valores no-string (p. ej. `no_empleado` numérico de Bono) a texto para no romper el render. */
+export function escapeHtml(s: string | number | null | undefined): string {
+  return String(s ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")

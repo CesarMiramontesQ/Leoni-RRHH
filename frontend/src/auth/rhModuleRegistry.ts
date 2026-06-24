@@ -8,6 +8,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "metricas", prefix: "#/metricas" },
   { key: "solicitudes", prefix: "#/solicitudes" },
   { key: "incidencias", prefix: "#/incidencias" },
+  { key: "faltas-retardos", prefix: "#/faltas-retardos" },
   { key: "actas", prefix: "#/actas" },
   { key: "reportes", prefix: "#/comedor/reporte" },
   { key: "reportes", prefix: "#/reportes" },

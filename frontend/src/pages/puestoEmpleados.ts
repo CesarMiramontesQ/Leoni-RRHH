@@ -30,6 +30,8 @@ import { mountEvaluarCompetenciasModal } from "../components/puestos/evaluarComp
 interface AsignacionItem {
   id: number;
   empleado_id: number;
+  grado_id: number;
+  grado_nombre: string;
   nombre_empleado: string | null;
   no_empleado: string | null;
   departamento: string | null;
@@ -161,10 +163,125 @@ function filterAsignaciones(items: AsignacionItem[], filters: FilterState): Asig
   });
 }
 
+const PPE_MODAL_ROOT_ID = "ppe-modal-root";
+const PPE_ACTIONS_MENU_PORTAL_ID = "ppe-actions-menu-portal";
+
+let activeMenuScrollCloser: (() => void) | null = null;
+
+function detachMenuScrollListener(): void {
+  if (!activeMenuScrollCloser) return;
+  window.removeEventListener("scroll", activeMenuScrollCloser, true);
+  window.removeEventListener("resize", activeMenuScrollCloser);
+  activeMenuScrollCloser = null;
+}
+
+function ensureActionsMenuPortal(): HTMLElement {
+  let portal = document.getElementById(PPE_ACTIONS_MENU_PORTAL_ID);
+  if (!portal) {
+    portal = document.createElement("div");
+    portal.id = PPE_ACTIONS_MENU_PORTAL_ID;
+    portal.className = "ppe-page";
+    document.body.appendChild(portal);
+  }
+  return portal;
+}
+
+function collectActionMenus(root: HTMLElement): HTMLElement[] {
+  const portal = document.getElementById(PPE_ACTIONS_MENU_PORTAL_ID);
+  const inRoot = Array.from(root.querySelectorAll(".ppe-actions-menu"));
+  const inPortal = portal ? Array.from(portal.querySelectorAll(".ppe-actions-menu")) : [];
+  return [...inRoot, ...inPortal] as HTMLElement[];
+}
+
+function restoreActionMenu(menu: HTMLElement, root: HTMLElement): void {
+  const wrapId = menu.dataset.ppeActionsWrapId;
+  if (!wrapId) return;
+  const wrap = root.querySelector(`.ppe-actions-wrap[data-asignacion-id="${wrapId}"]`);
+  if (wrap) wrap.appendChild(menu);
+  delete menu.dataset.ppeActionsWrapId;
+}
+
+function findActionMenuForWrap(root: HTMLElement, wrapId: string): HTMLElement | null {
+  return collectActionMenus(root).find((menu) => menu.dataset.ppeActionsWrapId === wrapId) ?? null;
+}
+
+function ensurePpeModalHost(hostId: string): HTMLElement {
+  let root = document.getElementById(PPE_MODAL_ROOT_ID);
+  if (!root) {
+    root = document.createElement("div");
+    root.id = PPE_MODAL_ROOT_ID;
+    document.body.appendChild(root);
+  }
+  let host = document.getElementById(hostId);
+  if (!host) {
+    host = document.createElement("div");
+    host.id = hostId;
+    root.appendChild(host);
+  }
+  return host;
+}
+
 function closeAllActionMenus(root: HTMLElement): void {
-  root.querySelectorAll(".ppe-actions-menu").forEach((el) => el.classList.add("hidden"));
+  detachMenuScrollListener();
+  collectActionMenus(root).forEach((menu) => {
+    menu.classList.add("hidden");
+    menu.classList.remove("ppe-actions-menu--floating", "ppe-actions-menu--open-up");
+    menu.style.top = "";
+    menu.style.left = "";
+    menu.style.maxHeight = "";
+    restoreActionMenu(menu, root);
+  });
   root.querySelectorAll(".ppe-actions-trigger").forEach((btn) => {
     btn.setAttribute("aria-expanded", "false");
+  });
+}
+
+function positionAndShowActionsMenu(trigger: HTMLElement, menu: HTMLElement, root: HTMLElement): void {
+  const wrap = trigger.closest(".ppe-actions-wrap") as HTMLElement | null;
+  const wrapId = wrap?.dataset.asignacionId;
+  if (wrapId) menu.dataset.ppeActionsWrapId = wrapId;
+
+  ensureActionsMenuPortal().appendChild(menu);
+  menu.classList.remove("hidden");
+  menu.classList.add("ppe-actions-menu--floating");
+
+  const margin = 8;
+  const gap = 4;
+  const rect = trigger.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth > 0 ? menu.offsetWidth : 216;
+  let left = rect.right - menuWidth;
+  left = Math.max(margin, Math.min(left, window.innerWidth - menuWidth - margin));
+
+  const placeMenu = (): void => {
+    const menuHeight = menu.scrollHeight;
+    const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
+    const spaceAbove = rect.top - gap - margin;
+    const openUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+
+    menu.classList.toggle("ppe-actions-menu--open-up", openUp);
+
+    if (openUp) {
+      const maxHeight = Math.max(120, spaceAbove);
+      const height = Math.min(menuHeight, maxHeight);
+      menu.style.maxHeight = `${maxHeight}px`;
+      menu.style.top = `${Math.max(margin, rect.top - gap - height)}px`;
+    } else {
+      menu.style.maxHeight = `${Math.max(120, spaceBelow)}px`;
+      menu.style.top = `${rect.bottom + gap}px`;
+    }
+
+    menu.style.left = `${left}px`;
+  };
+
+  placeMenu();
+  requestAnimationFrame(placeMenu);
+
+  detachMenuScrollListener();
+  activeMenuScrollCloser = () => closeAllActionMenus(root);
+  requestAnimationFrame(() => {
+    if (!activeMenuScrollCloser) return;
+    window.addEventListener("scroll", activeMenuScrollCloser, true);
+    window.addEventListener("resize", activeMenuScrollCloser);
   });
 }
 
@@ -362,6 +479,18 @@ function renderActionMenu(a: AsignacionItem, showRhActions: boolean): string {
   </div>`;
 }
 
+function gradoLabel(a: AsignacionItem): string {
+  const nombre = (a.grado_nombre ?? "").trim();
+  if (nombre) return nombre;
+  if (a.grado_id > 0) return `Grado #${a.grado_id}`;
+  return "Sin grado";
+}
+
+function renderGradoCell(a: AsignacionItem): string {
+  const label = gradoLabel(a);
+  return `<span class="inline-flex max-w-[10rem] items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+}
+
 function renderTableRows(items: AsignacionItem[], showRhActions: boolean): string {
   return items
     .map((a) => {
@@ -374,7 +503,11 @@ function renderTableRows(items: AsignacionItem[], showRhActions: boolean): strin
           <p class="text-sm font-semibold text-text-primary">${escapeHtml(a.nombre_empleado ?? `Empleado #${a.empleado_id}`)}</p>
           ${noFmt ? `<p class="mt-0.5 text-xs tabular-nums text-text-muted">No. ${escapeHtml(noFmt)}</p>` : ""}
           ${a.departamento ? `<p class="mt-1 text-xs text-text-secondary">${escapeHtml(a.departamento)}</p>` : ""}
+          <p class="mt-1.5 sm:hidden">${renderGradoCell(a)}</p>
         </div>
+      </td>
+      <td class="hidden px-4 py-4 align-middle sm:table-cell">
+        ${renderGradoCell(a)}
       </td>
       <td class="hidden px-4 py-4 align-middle md:table-cell">
         ${acuseBadge(estado)}
@@ -474,10 +607,11 @@ function renderTableSection(
   ${renderFilters(filters, filtered.length, allCount)}
   <section class="${RH_LISTADO_SURFACE} ppe-table-section overflow-hidden p-0 flex flex-col" aria-label="Colaboradores asignados">
     <div class="ppe-table-scroll overflow-x-auto">
-      <table class="ppe-table min-w-[640px] w-full border-collapse text-left">
+      <table class="ppe-table min-w-[720px] w-full border-collapse text-left">
         <thead>
           <tr>
             <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Colaborador</th>
+            <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted sm:table-cell">Grado</th>
             <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted md:table-cell">Estado</th>
             <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
           </tr>
@@ -507,12 +641,6 @@ function renderPage(
     ${renderHero(perfil, metrics, showRhActions)}
     ${asignaciones.length > 0 ? renderKpis(metrics) : ""}
     <div id="ppe-main">${renderTableSection(filtered, asignaciones.length, filters, safePage, showRhActions)}</div>
-    <div id="modal-host-asignar"></div>
-    <div id="modal-host-tareas-extra"></div>
-    <div id="modal-host-cursos-extra"></div>
-    <div id="modal-host-evaluar-cual"></div>
-    <div id="modal-host-evaluar-comp"></div>
-    <div id="modal-host-detalle"></div>
   </div>`;
 }
 
@@ -569,7 +697,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
 
   function bindModalHosts(): void {
     if (!showRhActions) return;
-    const modalHost = pageRoot.querySelector("#modal-host-asignar") as HTMLElement;
+    const modalHost = ensurePpeModalHost("modal-host-asignar");
     asignarModal = mountAsignarEmpleadoModal(modalHost, {
       perfilId,
       onSuccess: () => void loadData(),
@@ -595,11 +723,14 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
 
     if (action === "toggle-menu") {
       const wrap = btn.closest(".ppe-actions-wrap");
-      const menu = wrap?.querySelector(".ppe-actions-menu");
+      const wrapId = wrap?.dataset.asignacionId ?? "";
+      const menu =
+        (wrapId ? findActionMenuForWrap(pageRoot, wrapId) : null) ??
+        (wrap?.querySelector(".ppe-actions-menu") as HTMLElement | null);
       const wasOpen = menu && !menu.classList.contains("hidden");
       closeAllActionMenus(pageRoot);
       if (menu && wrap && !wasOpen) {
-        menu.classList.remove("hidden");
+        positionAndShowActionsMenu(btn, menu, pageRoot);
         btn.setAttribute("aria-expanded", "true");
       }
       return;
@@ -608,26 +739,35 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
     closeAllActionMenus(pageRoot);
 
     if (action === "ver-detalle") {
-      const detalleHost = pageRoot.querySelector("#modal-host-detalle") as HTMLElement;
-      void openDetalleModal(detalleHost, perfilId, asignacionId, nombreEmpleado);
+      void openDetalleModal(ensurePpeModalHost("modal-host-detalle"), perfilId, asignacionId, nombreEmpleado);
       return;
     }
 
     if (!showRhActions) return;
 
-    const tareasHost = pageRoot.querySelector("#modal-host-tareas-extra") as HTMLElement;
-    const cualHost = pageRoot.querySelector("#modal-host-evaluar-cual") as HTMLElement;
-    const compHost = pageRoot.querySelector("#modal-host-evaluar-comp") as HTMLElement;
+    const tareasHost = ensurePpeModalHost("modal-host-tareas-extra");
+    const cualHost = ensurePpeModalHost("modal-host-evaluar-cual");
+    const compHost = ensurePpeModalHost("modal-host-evaluar-comp");
 
     if (action === "tareas-extra") {
       mountTareasExtraModal(tareasHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "cursos-extra") {
-      const cursosHost = pageRoot.querySelector("#modal-host-cursos-extra") as HTMLElement;
+      const cursosHost = ensurePpeModalHost("modal-host-cursos-extra");
       mountCursosExtraModal(cursosHost, { perfilId, asignacionId, nombreEmpleado }).open();
     } else if (action === "evaluar-cual") {
-      mountEvaluarCualificacionesModal(cualHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      mountEvaluarCualificacionesModal(cualHost, {
+        perfilId,
+        asignacionId,
+        empleadoNombre: nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
     } else if (action === "evaluar-comp") {
-      mountEvaluarCompetenciasModal(compHost, { perfilId, asignacionId, nombreEmpleado }).open();
+      mountEvaluarCompetenciasModal(compHost, {
+        perfilId,
+        asignacionId,
+        nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
     } else if (action === "desasignar") {
       void handleDesasignar(asignacionId);
     }
@@ -656,6 +796,9 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
       refreshView();
       return;
     }
+    if (action === "toggle-menu") {
+      e.stopPropagation();
+    }
     if (action) handleMenuAction(btn);
   });
 
@@ -678,9 +821,19 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
   });
 
   document.addEventListener("click", (e) => {
-    const t = e.target as HTMLElement;
-    if (t.closest(".ppe-actions-wrap")) return;
-    if (pageRoot.isConnected) closeAllActionMenus(pageRoot);
+    const target = e.target as HTMLElement;
+    if (!pageRoot.isConnected) return;
+
+    const menuPortal = document.getElementById(PPE_ACTIONS_MENU_PORTAL_ID);
+    const portalActionBtn = target.closest<HTMLElement>("[data-ppe-action]");
+    if (portalActionBtn && menuPortal?.contains(portalActionBtn)) {
+      handleMenuAction(portalActionBtn);
+      return;
+    }
+
+    if (!target.closest(".ppe-actions-wrap") && !target.closest(".ppe-actions-menu")) {
+      closeAllActionMenus(pageRoot);
+    }
   });
 
   document.addEventListener("keydown", (e) => {
@@ -738,7 +891,7 @@ async function openDetalleModal(
   nombreEmpleado: string,
 ): Promise<void> {
   host.innerHTML = `
-    <div id="detalle-overlay" class="ppe-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+    <div id="detalle-overlay" class="ppe-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
       <div class="ppe-modal-panel w-full max-w-2xl rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)] max-h-[90vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="detalle-title">
         <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 shrink-0">
           <div>
@@ -760,7 +913,10 @@ async function openDetalleModal(
 
   function close(): void {
     host.innerHTML = "";
+    document.body.style.overflow = "";
   }
+
+  document.body.style.overflow = "hidden";
 
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();

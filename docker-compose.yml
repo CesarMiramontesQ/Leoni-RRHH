@@ -1,23 +1,6 @@
+# BD única = Bono (PostgreSQL externo del cliente, fuera de Docker). No hay
+# contenedor de BD local: el backend conecta a Bono vía host.docker.internal (BONO_DB_*).
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: leoni_rh_db
-    environment:
-      POSTGRES_DB: leoni_rh
-      POSTGRES_USER: leoni
-      POSTGRES_PASSWORD: leoni_dev_pass
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db:/dump
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U leoni -d leoni_rh"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   backend:
     build:
       context: .
@@ -31,8 +14,10 @@ services:
     volumes:
       - .:/app
     environment:
-      DATABASE_URL: postgresql+asyncpg://leoni:leoni_dev_pass@postgres:5432/leoni_rh
-      # Bono productividad (solo lectura): crear `.env` en la raíz con BONO_DB_* reales (compose sustituye ${BONO_DB_*})
+      # BD única = Bono. El proyecto usa `empleados` (Bono) como fuente y sus
+      # propias tablas levelup_* en la misma BD. Definir BONO_DB_* en `.env`.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER:-bono_user}:${BONO_DB_PASSWORD:-bono_password}@${BONO_DB_HOST:-host.docker.internal}:${BONO_DB_PORT:-5433}/${BONO_DB_NAME:-bono_productividad}}
+      # BONO_DB_* se conservan para otras importaciones histórico (calidad, etc.).
       BONO_DB_HOST: ${BONO_DB_HOST:-host.docker.internal}
       BONO_DB_PORT: ${BONO_DB_PORT:-5433}
       BONO_DB_NAME: ${BONO_DB_NAME:-bono_productividad}
@@ -50,9 +35,6 @@ services:
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-16384}
       # Chroma: evita intentos de telemetría fallidos en consola durante ingest/RAG
       ANONYMIZED_TELEMETRY: "false"
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -82,7 +64,3 @@ services:
       APP_ENV: test
     profiles:
       - test
-
-volumes:
-  postgres_data:
-    driver: local

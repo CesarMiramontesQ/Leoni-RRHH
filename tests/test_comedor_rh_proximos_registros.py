@@ -96,14 +96,14 @@ async def test_rh_proximos_registros_filtro_estado_y_buscar(client: AsyncClient,
         email="prox_f_a@test.leoni",
         password="SecretA!",
         nombre="LOPEZ GARCIA, ANA MARIA",
-        no_empleado="RHPFILT-1001",
+        no_empleado=7000045,
     )
     emp_b = await make_empleado(
         db,
         email="prox_f_b@test.leoni",
         password="SecretB!",
         nombre="MARTINEZ RUIZ, BETO",
-        no_empleado="RHPFILT-2002",
+        no_empleado=7000046,
     )
     rh = await make_empleado(db, rol="rh", email="prox_f_rh@test.leoni", password="RhFiltr!!")
 
@@ -161,7 +161,7 @@ async def test_rh_proximos_registros_filtro_estado_y_buscar(client: AsyncClient,
 
     r_todos = await client.get(
         URL,
-        params={"page": 1, "page_size": 10, "filtro_estado": "todos", "buscar": "RHPFILT"},
+        params={"page": 1, "page_size": 10, "filtro_estado": "todos", "buscar": "700004"},
         headers=hdrs,
     )
     assert r_todos.status_code == 200
@@ -169,7 +169,7 @@ async def test_rh_proximos_registros_filtro_estado_y_buscar(client: AsyncClient,
 
     r_conf = await client.get(
         URL,
-        params={"page": 1, "page_size": 10, "filtro_estado": "confirmado", "buscar": "RHPFILT"},
+        params={"page": 1, "page_size": 10, "filtro_estado": "confirmado", "buscar": "700004"},
         headers=hdrs,
     )
     assert r_conf.status_code == 200
@@ -179,7 +179,7 @@ async def test_rh_proximos_registros_filtro_estado_y_buscar(client: AsyncClient,
 
     r_canc = await client.get(
         URL,
-        params={"page": 1, "page_size": 10, "filtro_estado": "cancelado", "buscar": "RHPFILT"},
+        params={"page": 1, "page_size": 10, "filtro_estado": "cancelado", "buscar": "700004"},
         headers=hdrs,
     )
     assert r_canc.status_code == 200
@@ -189,12 +189,12 @@ async def test_rh_proximos_registros_filtro_estado_y_buscar(client: AsyncClient,
 
     r_bus = await client.get(
         URL,
-        params={"page": 1, "page_size": 10, "buscar": "RHPFILT-2002", "filtro_estado": "todos"},
+        params={"page": 1, "page_size": 10, "buscar": 7000046, "filtro_estado": "todos"},
         headers=hdrs,
     )
     assert r_bus.status_code == 200
     assert r_bus.json()["total"] == 1
-    assert r_bus.json()["items"][0]["no_empleado"] == "RHPFILT-2002"
+    assert r_bus.json()["items"][0]["no_empleado"] == 7000046
 
 
 @pytest.mark.asyncio

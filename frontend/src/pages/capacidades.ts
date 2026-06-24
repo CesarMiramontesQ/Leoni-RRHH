@@ -11,6 +11,7 @@ import {
 import {
   buildNivelMetodoLabelsMap,
   buildNivelMetodoOptions,
+  maxNivelActivoValor,
   nivelMetodoLabel,
   nivelMetodoLegendTone,
   setMetodosCalificacionCompetenciaCache,
@@ -66,6 +67,11 @@ const ICON_GRID = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const ICON_USERS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>`;
 const ICON_CHART = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>`;
 const ICON_ALERT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008z"/></svg>`;
+
+function formatNoEmpleadoDisplay(no: string | number | null | undefined): string {
+  if (no === null || no === undefined) return "";
+  return String(no).replace(/\.0$/, "");
+}
 
 // ── Estados y skeletons ──────────────────────────────────────────────────────
 
@@ -234,9 +240,10 @@ function computeKpiMetrics(
   for (const emp of empleados) {
     for (const comp of competencias) {
       const nivel = emp.niveles[comp.competencia_id] ?? 0;
+      const required = emp.requisitos?.[comp.competencia_id] ?? 0;
       totalLevel += nivel;
       totalCells++;
-      if (comp.nivel_requerido > 0 && nivel < comp.nivel_requerido) brechas++;
+      if (required > 0 && nivel < required) brechas++;
     }
   }
   const promedio = totalCells > 0 ? (totalLevel / totalCells).toFixed(1) : "0.0";
@@ -324,20 +331,39 @@ function legendBadge(
   </span>`;
 }
 
-function renderSinNivelRequeridoBanner(competencias: MultihabilidadesCompetencia[]): string {
-  if (competencias.length === 0) return "";
-  const conRequisito = competencias.some((c) => c.nivel_requerido > 0);
+function renderSinNivelRequeridoBanner(empleados: MultihabilidadesEmpleado[]): string {
+  if (empleados.length === 0) return "";
+  const conRequisito = empleados.some((e) =>
+    Object.values(e.requisitos ?? {}).some((v) => v > 0),
+  );
   if (conRequisito) return "";
   return `
   <div class="rounded-xl border border-amber-200/90 bg-amber-50/70 px-4 py-3 text-sm text-amber-950" role="status">
     <p class="font-semibold">Sin niveles mínimos configurados</p>
     <p class="mt-1 leading-relaxed text-amber-900/90">
-      Las competencias de este puesto están asociadas pero con nivel requerido <strong>0 (N/A)</strong>.
+      Las competencias de este puesto están asociadas pero con nivel requerido <strong>0 (N/A)</strong> para los grados asignados.
       Para detectar brechas y bordes rojos, en
       <a href="#/competencias" class="font-semibold text-leoni-blue hover:underline">Competencias → Niveles por puesto</a>
-      elige este perfil y asigna nivel 1–4 a cada competencia.
+      elige este perfil y asigna el nivel mínimo por grado.
     </p>
   </div>`;
+}
+
+function requisitoHeaderLabel(
+  compId: number,
+  empleados: MultihabilidadesEmpleado[],
+  nivelNames: Record<number, string>,
+): string {
+  const vals = [
+    ...new Set(
+      empleados
+        .map((e) => e.requisitos?.[compId] ?? 0)
+        .filter((v) => v > 0),
+    ),
+  ];
+  if (vals.length === 0) return "—";
+  const labels = vals.map((v) => nivelNames[v] ?? String(v));
+  return labels.length === 1 ? labels[0]! : labels.join(" / ");
 }
 
 function renderLegend(): string {
@@ -425,7 +451,7 @@ function renderHeatmap(
   const nivelNames = buildNivelMetodoLabelsMap(true);
   const colHeaders = competencias
     .map((c) => {
-      const reqLabel = nivelNames[c.nivel_requerido] ?? "—";
+      const reqLabel = requisitoHeaderLabel(c.competencia_id, empleados, nivelNames);
       const catLabel = c.tipo_nombre || "General";
       return `<th scope="col" class="px-1 py-2 text-center align-bottom min-w-[2.75rem] cursor-help bg-[var(--color-grid-header-bg,#f8fafc)]" data-tooltip-name="${escapeHtml(c.competencia_nombre)}" data-tooltip-cat="${escapeHtml(catLabel)}" data-tooltip-req="${escapeHtml(reqLabel)}">
         <span class="cap-matriz-comp-label" title="${escapeHtml(c.competencia_nombre)}">${escapeHtml(c.competencia_nombre)}</span>
@@ -440,21 +466,23 @@ function renderHeatmap(
       const cells = competencias
         .map((comp) => {
           const nivel = emp.niveles[comp.competencia_id] ?? 0;
+          const required = emp.requisitos?.[comp.competencia_id] ?? 0;
           if (nivel > 0) {
             scoreSum += nivel;
             scoreCount++;
           }
-          return renderLevelCell(nivel, comp.nivel_requerido);
+          return renderLevelCell(nivel, required);
         })
         .join("");
-      const score = scoreCount > 0 ? Math.round((scoreSum / (scoreCount * 4)) * 100) : 0;
+      const maxNivel = maxNivelActivoValor() || 4;
+      const score = scoreCount > 0 ? Math.round((scoreSum / (scoreCount * maxNivel)) * 100) : 0;
       const initials = emp.nombre
         .split(" ")
         .slice(0, 2)
         .map((w) => w[0])
         .join("")
         .toUpperCase();
-      const noEmpDisplay = emp.no_empleado.replace(/\.0$/, "");
+      const noEmpDisplay = formatNoEmpleadoDisplay(emp.no_empleado);
 
       return `
     <tr class="border-t border-slate-100/90 transition-colors hover:bg-slate-50/80 focus-within:bg-blue-50/50 focus-within:ring-1 focus-within:ring-inset focus-within:ring-blue-200/80">
@@ -464,6 +492,7 @@ function renderHeatmap(
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm font-semibold leading-snug text-text-primary">${escapeHtml(emp.nombre)}</div>
             <div class="truncate text-xs tabular-nums text-text-muted">#${escapeHtml(noEmpDisplay)}</div>
+            ${emp.grado_nombre ? `<div class="truncate text-[11px] font-medium text-text-secondary">${escapeHtml(emp.grado_nombre)}</div>` : ""}
           </div>
         </div>
       </th>
@@ -478,7 +507,8 @@ function renderHeatmap(
   for (const emp of empleados) {
     let tieneBrecha = false;
     for (const comp of competencias) {
-      if (comp.nivel_requerido > 0 && (emp.niveles[comp.competencia_id] ?? 0) < comp.nivel_requerido) {
+      const required = emp.requisitos?.[comp.competencia_id] ?? 0;
+      if (required > 0 && (emp.niveles[comp.competencia_id] ?? 0) < required) {
         totalBrechas++;
         tieneBrecha = true;
       }
@@ -545,6 +575,18 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
 
   const root = container.querySelector<HTMLElement>("#capacidades-root")!;
 
+  function safePaint(): void {
+    try {
+      paint();
+    } catch (err) {
+      console.error("capacidades paint error", err);
+      status = "error";
+      errorMessage =
+        err instanceof Error ? err.message : "Error al mostrar la matriz de multihabilidades";
+      root.innerHTML = renderError(errorMessage);
+    }
+  }
+
   function paint(): void {
     if (status === "error") {
       root.innerHTML = renderError(errorMessage);
@@ -576,7 +618,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
         content += renderResultsSkeleton();
       } else {
         content += renderKpis(matrizData.competencias, filtered);
-        content += renderSinNivelRequeridoBanner(matrizData.competencias);
+        content += renderSinNivelRequeridoBanner(filtered);
         content += renderLegend();
         content += renderHeatmap(matrizData.competencias, filtered, searchActive);
       }
@@ -594,7 +636,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
       initialLoad = false;
       if (puestoOptions.length > 0 && !selectedPuestoId) {
         selectedPuestoId = puestoOptions[0].id;
-        paint();
+        safePaint();
         await loadMatriz();
         return;
       }
@@ -603,14 +645,14 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
       initialLoad = false;
       errorMessage = (err as { detail?: string })?.detail ?? "Error al cargar puestos";
     }
-    paint();
+    safePaint();
   }
 
   async function loadMatriz(): Promise<void> {
     if (!selectedPuestoId) return;
     const version = ++loadVersion;
     status = "loading";
-    paint();
+    safePaint();
     try {
       const data = await getMultihabilidadesData(selectedPuestoId);
       if (version !== loadVersion) return;
@@ -624,7 +666,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
       status = "error";
       errorMessage = (err as { detail?: string })?.detail ?? "Error al cargar matriz";
     }
-    paint();
+    safePaint();
   }
 
   function handleChange(e: Event): void {
@@ -637,7 +679,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
       if (selectedPuestoId) {
         loadMatriz();
       } else {
-        paint();
+        safePaint();
       }
     }
   }
@@ -671,7 +713,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
 
     resultsEl.innerHTML =
       renderKpis(matrizData.competencias, filtered) +
-      renderSinNivelRequeridoBanner(matrizData.competencias) +
+      renderSinNivelRequeridoBanner(filtered) +
       renderLegend() +
       renderHeatmap(matrizData.competencias, filtered, searchActive);
   }

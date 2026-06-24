@@ -1,12 +1,13 @@
 # app/services/tarea_catalogo_service.py
 """Logica de negocio para el catalogo centralizado de tareas."""
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
-from app.models.talento import TareaCatalogo
+from app.models.talento import PerfilTarea, TareaCatalogo
 from app.repositories.tarea_catalogo_repository import TareaCatalogoRepository
 from app.schemas.tareas_catalogo import (
     TareaCatalogoCreate,
@@ -105,9 +106,29 @@ class TareaCatalogoService:
 
         if update_data:
             await self.repo.update(id, update_data)
+            await self._propagar_cambios_a_perfiles(id, update_data)
 
         tarea = await self.repo.get(id)
         return self._to_response(tarea)
+
+    async def _propagar_cambios_a_perfiles(
+        self, catalogo_id: int, update_data: dict
+    ) -> None:
+        """Sincroniza nombre/tipo en perfiles que referencian esta tarea del catálogo."""
+        perfil_updates: dict = {}
+        if "nombre" in update_data:
+            perfil_updates["descripcion"] = update_data["nombre"]
+        if "es_complemento" in update_data:
+            perfil_updates["es_complemento"] = update_data["es_complemento"]
+        if not perfil_updates:
+            return
+
+        await self.db.execute(
+            update(PerfilTarea)
+            .where(PerfilTarea.tarea_catalogo_id == catalogo_id)
+            .values(**perfil_updates)
+        )
+        await self.db.flush()
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
         if not user_has_module(current_user, "tareas-catalogo"):

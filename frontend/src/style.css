@@ -1291,18 +1291,18 @@ body {
 }
 
 /* ── Solicitudes, Incidencias y Actas: cards, tabla, filtros (mismo lenguaje visual) ─ */
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-hero-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-hero-card {
   box-shadow:
     0 10px 28px rgba(15, 23, 42, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-hero__copy {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-hero__copy {
   word-break: normal;
   overflow-wrap: normal;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge {
   display: inline-flex;
   align-items: baseline;
   gap: 0.375rem;
@@ -1314,48 +1314,48 @@ body {
     0 2px 8px rgba(15, 23, 42, 0.05);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge .tabular-nums {
   font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge-text {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge-text {
   font-size: 0.75rem;
   font-weight: 600;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--total {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--total {
   border: 1px solid rgba(37, 99, 235, 0.22);
   background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
   color: #082f5f;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--total .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--total .tabular-nums {
   color: #082f5f;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--pending {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--pending {
   border: 1px solid rgba(245, 158, 11, 0.28);
   background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
   color: #92400e;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--pending .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--pending .tabular-nums {
   color: #b45309;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--acta-abiertas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--acta-abiertas {
   border: 1px solid rgba(14, 165, 233, 0.3);
   background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
   color: #0c4a6e;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--acta-abiertas .tabular-nums {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-header__badge--acta-abiertas .tabular-nums {
   color: #075985;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary {
   color: #fff;
   background: linear-gradient(135deg, #021b3a 0%, #063b73 58%, #0b4f8a 100%);
   box-shadow: 0 8px 20px rgba(2, 27, 58, 0.2);
@@ -1367,19 +1367,19 @@ body {
     color 160ms ease;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:hover:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:hover:not(:disabled) {
   color: #fff;
   transform: translateY(-1px);
   box-shadow: 0 12px 26px rgba(2, 27, 58, 0.26);
   filter: brightness(1.03);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:active:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 6px 16px rgba(2, 27, 58, 0.18);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary {
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -1388,13 +1388,13 @@ body {
     color 160ms ease;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary:hover:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.35) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card {
   border-width: 1px;
   transition:
     transform 180ms ease,
@@ -1402,209 +1402,209 @@ body {
     border-color 180ms ease;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente {
   border-color: rgba(245, 158, 11, 0.35);
   background: linear-gradient(145deg, #fffbeb 0%, #fff7ed 55%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fef3c7 0%, #fffbeb 100%);
   color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--pendiente .rh-sol-kpi-card__value {
   color: #78350f;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones {
   border-color: rgba(249, 115, 22, 0.32);
   background: linear-gradient(145deg, #fff7ed 0%, #ffedd5 45%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #ffedd5 0%, #fff7ed 100%);
   color: #c2410c;
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--vacaciones .rh-sol-kpi-card__value {
   color: #9a3412;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente {
   border-color: rgba(239, 68, 68, 0.38);
   background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 48%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fecaca 0%, #fef2f2 100%);
   color: #dc2626;
   border: 1px solid rgba(239, 68, 68, 0.32);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--urgente .rh-sol-kpi-card__value {
   color: #991b1b;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho {
   border-color: rgba(124, 58, 237, 0.28);
   background: linear-gradient(145deg, #faf5ff 0%, #ede9fe 40%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #ede9fe 0%, #f5f3ff 100%);
   color: #5b21b6;
   border: 1px solid rgba(124, 58, 237, 0.22);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
   color: #4c1d95;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas {
   border-color: rgba(16, 185, 129, 0.3);
   background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 35%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas .rh-sol-kpi-card__value {
   color: #065f46;
 }
 
 /* KPIs vista Incidencias (variantes dedicadas) */
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas {
   border-color: rgba(37, 99, 235, 0.32);
   background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 42%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #dbeafe 0%, #eff6ff 100%);
   color: #1d4ed8;
   border: 1px solid rgba(37, 99, 235, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-abiertas .rh-sol-kpi-card__value {
   color: #1e3a8a;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion {
   border-color: rgba(245, 158, 11, 0.36);
   background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 48%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fef3c7 0%, #fffbeb 100%);
   color: #c2410c;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-investigacion .rh-sol-kpi-card__value {
   color: #9a3412;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas {
   border-color: rgba(16, 185, 129, 0.32);
   background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 38%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-resueltas .rh-sol-kpi-card__value {
   color: #065f46;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas {
   border-color: rgba(239, 68, 68, 0.34);
   background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 42%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #fee2e2 0%, #fef2f2 100%);
   color: #b91c1c;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--inc-criticas .rh-sol-kpi-card__value {
   color: #991b1b;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--empleado:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--empleado:hover {
   border-color: rgba(148, 163, 184, 0.45);
 }
 
 /* Actas: KPI “cerradas” (gris / slate) y badges de tipo */
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada {
   border-color: rgba(100, 116, 139, 0.38);
   background: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 38%, #fff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__icon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__icon {
   background: linear-gradient(145deg, #e2e8f0 0%, #f1f5f9 100%);
   color: #475569;
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__value {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--acta-cerrada .rh-sol-kpi-card__value {
   color: #334155;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) button.rh-sol-kpi-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) button.rh-sol-kpi-card {
   font: inherit;
   color: inherit;
   appearance: none;
   -webkit-appearance: none;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo--admin {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo--admin {
   color: #082f5f;
   border-color: rgba(37, 99, 235, 0.28);
   background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo--amon {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo--amon {
   color: #92400e;
   border-color: rgba(245, 158, 11, 0.28);
   background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo--susp {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-acta-tipo--susp {
   color: #991b1b;
   border-color: rgba(248, 113, 113, 0.35);
   background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #horas-extra-page) .rh-sol-filters-card {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #horas-extra-page) .rh-sol-filters-card {
   box-shadow:
     0 8px 22px rgba(15, 23, 42, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters__chips {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters__chips {
   row-gap: 0.5rem;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters__chip {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters__chip {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
@@ -1621,56 +1621,56 @@ body {
     0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters__clear:hover:not(:disabled) {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-filters__clear:hover:not(:disabled) {
   border-color: rgba(37, 99, 235, 0.35);
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.4) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-header__toolbar--dual {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-header__toolbar--dual {
   align-self: stretch;
 }
 
 @media (min-width: 768px) {
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-header__toolbar--dual {
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #rh-dashboard-analytics) .rh-sol-header__toolbar--dual {
     align-self: center;
     width: auto;
   }
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-act-btn--disabled {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-act-btn--disabled {
   pointer-events: none;
   user-select: none;
   opacity: 0.55;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-empleado-celda {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-empleado-celda {
   gap: 0.75rem;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-avatar-img {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-avatar-img {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-thead th.rh-sol-th {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-thead th.rh-sol-th {
   background: linear-gradient(135deg, #f8fbff 0%, #f1f5f9 100%);
   box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.12);
   backdrop-filter: blur(8px);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-tbody .rh-sol-data-row:hover {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-tbody .rh-sol-data-row:hover {
   background: linear-gradient(90deg, rgba(37, 99, 235, 0.04), rgba(37, 99, 235, 0.015));
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-data-row--interactive:focus-within {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-data-row--interactive:focus-within {
   background: linear-gradient(90deg, rgba(37, 99, 235, 0.07), rgba(37, 99, 235, 0.02));
   outline: none;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-data-row--interactive:focus-visible {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-data-row--interactive:focus-visible {
   box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.25);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--vacaciones {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--vacaciones {
   color: #c2410c;
   border-color: rgba(249, 115, 22, 0.22);
   background: linear-gradient(135deg, #ffedd5 0%, #fff7ed 100%);
@@ -1679,7 +1679,7 @@ body {
     0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--ho {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--ho {
   color: #5b21b6;
   border-color: rgba(124, 58, 237, 0.22);
   background: linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
@@ -1688,7 +1688,7 @@ body {
     0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--goce {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-tipo--goce {
   color: #0f766e;
   border-color: rgba(20, 184, 166, 0.25);
   background: linear-gradient(135deg, #ccfbf1 0%, #f0fdfa 100%);
@@ -1697,62 +1697,62 @@ body {
     0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--pending {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--pending {
   color: #92400e;
   border-color: rgba(245, 158, 11, 0.28);
   background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--approved {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--approved {
   color: #065f46;
   border-color: rgba(16, 185, 129, 0.28);
   background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--rejected {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--rejected {
   color: #991b1b;
   border-color: rgba(248, 113, 113, 0.35);
   background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--changes {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--changes {
   color: #0c4a6e;
   border-color: rgba(14, 165, 233, 0.28);
   background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--cancelled {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--cancelled {
   color: #334155;
   border-color: rgba(148, 163, 184, 0.35);
   background: linear-gradient(135deg, #f1f5f9 0%, #f8fafc 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--overridden {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-badge-estado--overridden {
   color: #065f46;
   border-color: rgba(16, 185, 129, 0.28);
   background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-empty {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-empty {
   border-top: 1px dashed rgba(148, 163, 184, 0.35);
   background: linear-gradient(180deg, rgba(248, 251, 255, 0.65) 0%, rgba(255, 255, 255, 0.4) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-inc-empty--standalone {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-inc-empty--standalone {
   border-top: none;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-table-error-fallback {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-table-error-fallback {
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, rgba(255, 255, 255, 0.5) 100%);
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #horas-extra-page) .rh-sol-table-section {
+:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, #horas-extra-page) .rh-sol-table-section {
   border-radius: 1rem;
   overflow: hidden;
 }
@@ -1875,11 +1875,64 @@ body {
     linear-gradient(180deg, #fff 0%, #fbfdff 100%);
 }
 
+#rh-faltas-retardos-page .rh-inc-noempleado-pill,
+#rh-faltas-retardos-page .rh-inc-type-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#rh-faltas-retardos-page .rh-inc-noempleado-pill {
+  color: #334155;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--seguridad {
+  color: #991b1b;
+  border-color: rgba(248, 113, 113, 0.35);
+  background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--tiempo {
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.28);
+  background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--evaluacion {
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.28);
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--default {
+  color: #0c4a6e;
+  border-color: rgba(14, 165, 233, 0.25);
+  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-mobile-card {
+  background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:hover:not(:disabled),
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:active:not(:disabled),
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary:hover:not(:disabled),
-  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card:hover {
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:hover:not(:disabled),
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-primary:active:not(:disabled),
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page) .rh-sol-btn-secondary:hover:not(:disabled),
+  :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card:hover {
     transform: none;
   }
 
@@ -2874,6 +2927,15 @@ body {
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 
+.ppe-page .ppe-actions-menu.ppe-actions-menu--floating {
+  position: fixed;
+  right: auto;
+  top: auto;
+  z-index: 100;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .ppe-page .ppe-menu-item {
   display: flex;
   width: 100%;
@@ -3094,6 +3156,204 @@ body {
   #tareas-catalogo-root .tc-page-btn,
   #tareas-catalogo-root .tc-modal-backdrop,
   #tareas-catalogo-root .tc-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── Catálogo de Cursos (.cc-page) ─────────────────────────────────────── */
+.cc-page .cc-page-header {
+  padding-bottom: 0.25rem;
+}
+
+.cc-page .cc-btn-nueva:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+.cc-page .cc-catalogo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.cc-page .cc-catalogo-row {
+  transition: background-color 140ms ease;
+}
+
+.cc-page .cc-catalogo-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.cc-page .cc-catalogo-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+.cc-page .cc-curso-card {
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.cc-page .cc-page-btn {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.cc-page .cc-page-btn:hover:not(.cc-page-btn--active) {
+  color: #1e40af;
+  background: #f1f5f9;
+}
+
+.cc-page .cc-page-btn--active {
+  background: #1e40af;
+  color: #fff;
+}
+
+.cc-page .cc-page-btn:focus-visible,
+.cc-page .cc-page-nav:focus-visible,
+.cc-page .cc-view-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.cc-page .cc-page-nav {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.cc-page .cc-page-nav:hover:not(:disabled) {
+  color: #1e40af;
+  background: #f8fafc;
+}
+
+.cc-page .cc-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+.cc-page .cc-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-page .cc-catalogo-row,
+  .cc-page .cc-curso-card,
+  .cc-page .cc-page-btn,
+  .cc-page .cc-modal-backdrop,
+  .cc-page .cc-modal-panel {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── Sesiones de cursos (.ss-page) ──────────────────────────────────────── */
+.ss-page .ss-page-header {
+  padding-bottom: 0.25rem;
+}
+
+.ss-page .ss-sesiones-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.ss-page .ss-sesion-row {
+  transition: background-color 140ms ease;
+}
+
+.ss-page .ss-sesion-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.ss-page .ss-sesion-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+.ss-page .ss-page-btn {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.ss-page .ss-page-btn:hover:not(.ss-page-btn--active) {
+  color: #1e40af;
+  background: #f1f5f9;
+}
+
+.ss-page .ss-page-btn--active {
+  background: #1e40af;
+  color: #fff;
+}
+
+.ss-page .ss-page-btn:focus-visible,
+.ss-page .ss-page-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.ss-page .ss-page-nav {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.ss-page .ss-page-nav:hover:not(:disabled) {
+  color: #1e40af;
+  background: #f8fafc;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-page .ss-sesion-row,
+  .ss-page .ss-page-btn {
+    transition: none;
+  }
+}
+
+/* ── Detalle de sesión (.ss-page.ss-detail) ─────────────────────────────── */
+.ss-page.ss-detail .ss-detail-breadcrumb {
+  padding-top: 0.125rem;
+}
+
+.ss-page.ss-detail .ss-detail-header {
+  padding-bottom: 0.25rem;
+}
+
+.ss-page.ss-detail .ss-empleados-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+.ss-page.ss-detail .ss-empleado-row {
+  transition: background-color 140ms ease;
+}
+
+.ss-page.ss-detail .ss-empleado-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.ss-page.ss-detail .ss-modal-backdrop {
+  animation: comp-modal-fade-in 180ms ease;
+}
+
+.ss-page.ss-detail .ss-modal-panel {
+  animation: comp-modal-slide-in 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-page.ss-detail .ss-empleado-row,
+  .ss-page.ss-detail .ss-modal-backdrop,
+  .ss-page.ss-detail .ss-modal-panel {
     transition: none;
     animation: none;
   }

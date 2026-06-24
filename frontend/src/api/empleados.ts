@@ -6,6 +6,7 @@ import type {
   UsuarioResumen,
   UsuariosFetchError,
 } from "./usuarios.ts";
+import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 
 export type { CatalogoFiltros, UsuarioPage, UsuarioResumen };
 
@@ -23,6 +24,23 @@ async function readErrorDetail(res: Response): Promise<string> {
 function throwIfNotOk(res: Response, detail: string): never {
   const err: UsuariosFetchError = { status: res.status, detail };
   throw err;
+}
+
+/** El backend expone `no_empleado` como entero; la UI espera string. */
+function normalizeUsuarioListItem(item: UsuarioListItem & { no_empleado?: string | number | null }): UsuarioListItem {
+  return {
+    ...item,
+    no_empleado: formatNoEmpleadoDisplay(item.no_empleado) || "",
+  };
+}
+
+function normalizeUsuarioPage(page: UsuarioPage): UsuarioPage {
+  return {
+    ...page,
+    items: page.items.map((item) =>
+      normalizeUsuarioListItem(item as UsuarioListItem & { no_empleado?: string | number | null }),
+    ),
+  };
 }
 
 export async function getEmpleadosResumen(): Promise<UsuarioResumen> {
@@ -73,7 +91,7 @@ export async function getEmpleadosPage(params: EmpleadosListParams): Promise<Usu
 
   const res = await fetchWithAuth(`/api/v1/empleados?${sp.toString()}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
-  return (await res.json()) as UsuarioPage;
+  return normalizeUsuarioPage((await res.json()) as UsuarioPage);
 }
 
 export async function getEmpleadosCatalogoFiltros(): Promise<CatalogoFiltros> {

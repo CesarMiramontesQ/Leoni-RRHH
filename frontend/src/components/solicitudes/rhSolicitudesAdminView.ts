@@ -18,7 +18,9 @@ import {
   rhListadoTablaUsaScrollVerticalViewport,
 } from "../../utils/rhListadoTablaLayout.ts";
 import { renderRhIncidenciasChartsSection } from "../incidencias/rhIncidenciasAnalyticsSection.ts";
+import { renderRhFaltasRetardosMetricasSection } from "../faltasRetardos/rhFaltasRetardosMetricasSection.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
+import type { FaltasRetardosMetricasViewModel } from "../../faltasRetardos/rh/types.ts";
 import { renderRhSolicitudesAnalyticsSection } from "./rhSolicitudesAnalyticsSection.ts";
 import { escapeHtml, fmtFechaCorta, paginationRange } from "../../ui/uiUtils.ts";
 import {
@@ -1182,6 +1184,7 @@ function renderMetricasDomainSection(sectionId: string, title: string, bodyHtml:
 export function renderRhMetricasView(
   solicitudesVm: RhSolicitudesAdminViewModel,
   incidenciasVm: RhIncidenciasAdminViewModel,
+  faltasRetardosVm: FaltasRetardosMetricasViewModel,
 ): string {
   const analyticsState =
     solicitudesVm.ui.showPersonasDiaChart ?
@@ -1215,6 +1218,11 @@ export function renderRhMetricasView(
         "rh-metricas-seccion-incidencias",
         "Incidencias",
         renderRhIncidenciasChartsSection(incidenciasVm),
+      )}
+      ${renderMetricasDomainSection(
+        "rh-metricas-seccion-faltas-retardos",
+        "Faltas y retardos",
+        renderRhFaltasRetardosMetricasSection(faltasRetardosVm),
       )}
     </div>`;
 }

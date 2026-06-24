@@ -1,6 +1,7 @@
 """Acceso a datos para Ajustes de Nóminas (autorización de horas extra)."""
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 from datetime import datetime
 
@@ -10,6 +11,13 @@ from sqlalchemy.orm import selectinload
 
 from app.models.catalogos import Area, Puesto
 from app.models.empleados import Empleado
+from app.models.empleados_rh import (
+    EmpleadoCore,
+    EmpleadoRhHorasExtra,
+    EmpleadoRhPermisos,
+    ensure_rh_horas_extra,
+    ensure_rh_permisos,
+)
 from app.models.horas_extra import HorasExtraAprobador, HorasExtraSolicitud
 
 
@@ -30,18 +38,35 @@ class NominasAjustesRepository:
             stmt = (
                 stmt.outerjoin(Area, Empleado.area_id == Area.area_id)
                 .outerjoin(Puesto, Empleado.puesto_id == Puesto.puesto_id)
+                .outerjoin(
+                    EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id
+                )
                 .where(
                     or_(
                         Empleado.nombre.ilike(patron),
-                        Empleado.no_empleado.ilike(patron),
-                        Empleado.email.ilike(patron),
+                        cast(Empleado.no_empleado, String).ilike(patron),
+                        EmpleadoCore.email.ilike(patron),
                         Area.descripcion.ilike(patron),
                         Puesto.descripcion.ilike(patron),
                     )
                 )
             )
         if autorizado is not None:
-            stmt = stmt.where(Empleado.puede_registrar_horas_extra.is_(autorizado))
+            stmt = stmt.outerjoin(
+                EmpleadoRhPermisos,
+                EmpleadoRhPermisos.empleado_id == Empleado.empleado_id,
+            )
+            if autorizado:
+                stmt = stmt.where(
+                    EmpleadoRhPermisos.puede_registrar_horas_extra.is_(True)
+                )
+            else:
+                stmt = stmt.where(
+                    or_(
+                        EmpleadoRhPermisos.puede_registrar_horas_extra.is_(False),
+                        EmpleadoRhPermisos.empleado_id.is_(None),
+                    )
+                )
         return stmt
 
     async def list_empleados(
@@ -56,10 +81,12 @@ class NominasAjustesRepository:
         stmt = (
             self._base_query(estados_activos, q=q, autorizado=autorizado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.area),
                 selectinload(Empleado.puesto),
-                selectinload(Empleado.horas_extra_autorizado_por),
+                selectinload(Empleado.rh_horas_extra).selectinload(
+                    EmpleadoRhHorasExtra.autorizado_por
+                ),
             )
             .order_by(Empleado.nombre, Empleado.id)
             .offset(offset)
@@ -84,7 +111,7 @@ class NominasAjustesRepository:
     async def count_total_autorizados(self) -> int:
         """Empleados autorizados sin importar su estado laboral."""
         stmt = select(func.count()).where(
-            Empleado.puede_registrar_horas_extra.is_(True)
+            EmpleadoRhPermisos.puede_registrar_horas_extra.is_(True)
         )
         result = await self.db.execute(stmt)
         return int(result.scalar_one())
@@ -95,10 +122,18 @@ class NominasAjustesRepository:
         return int(result.scalar_one())
 
     async def count_autorizados_recientes(self, desde: datetime) -> int:
-        stmt = select(func.count()).where(
-            Empleado.puede_registrar_horas_extra.is_(True),
-            Empleado.horas_extra_autorizado_en.is_not(None),
-            Empleado.horas_extra_autorizado_en >= desde,
+        stmt = (
+            select(func.count())
+            .select_from(EmpleadoRhPermisos)
+            .join(
+                EmpleadoRhHorasExtra,
+                EmpleadoRhHorasExtra.empleado_id == EmpleadoRhPermisos.empleado_id,
+            )
+            .where(
+                EmpleadoRhPermisos.puede_registrar_horas_extra.is_(True),
+                EmpleadoRhHorasExtra.autorizado_en.is_not(None),
+                EmpleadoRhHorasExtra.autorizado_en >= desde,
+            )
         )
         result = await self.db.execute(stmt)
         return int(result.scalar_one())
@@ -119,16 +154,18 @@ class NominasAjustesRepository:
         empleados: list[Empleado],
         autorizado: bool,
         *,
-        autorizado_por_id: int | None,
+        autorizado_por_empleado_id: int | None,
         fecha: datetime,
     ) -> int:
         actualizados = 0
         for emp in empleados:
             if emp.puede_registrar_horas_extra != autorizado:
-                emp.puede_registrar_horas_extra = autorizado
-                emp.horas_extra_autorizado_en = fecha if autorizado else None
-                emp.horas_extra_autorizado_por_id = (
-                    autorizado_por_id if autorizado else None
+                permisos = ensure_rh_permisos(self.db, emp)
+                permisos.puede_registrar_horas_extra = autorizado
+                he = ensure_rh_horas_extra(self.db, emp)
+                he.autorizado_en = fecha if autorizado else None
+                he.autorizado_por_empleado_id = (
+                    autorizado_por_empleado_id if autorizado else None
                 )
                 actualizados += 1
         if actualizados:

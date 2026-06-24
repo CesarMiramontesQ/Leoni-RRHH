@@ -35,6 +35,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "metricas", hash: "#/metricas" },
   { itemId: "solicitudes", hash: "#/solicitudes" },
   { itemId: "incidencias", hash: "#/incidencias" },
+  { itemId: "faltas-retardos", hash: "#/faltas-retardos" },
   { itemId: "actas", hash: "#/actas" },
   { itemId: "comedor", hash: "#/comedor" },
   { itemId: "reportes", hash: "#/comedor/reporte" },
@@ -101,6 +102,7 @@ export type AppShellNavItemId =
   | "solicitudes"
   | "incidencias"
   | "actas"
+  | "faltas-retardos"
   | "comedor"
   | "comedor-menu"
   | "comedor-gestion"
@@ -147,6 +149,7 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "metricas",
   "incidencias",
+  "faltas-retardos",
   "solicitudes",
   "comedor",
   "empleados",

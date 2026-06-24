@@ -770,7 +770,7 @@ function empleadosSearchInput(value: string): string {
                 type="text"
                 name="emp-search"
                 autocomplete="off"
-                placeholder="Buscar por nombre, ID o número de empleado..."
+                placeholder="Buscar por nombre o número de empleado..."
                 value="${escapeHtml(value)}"
                 class="block w-full rounded-md bg-white px-3 py-1.5 pr-10 text-base text-gray-900 placeholder:text-gray-400 sm:text-sm/6 ${FIELD_FOCUS}"
               />
@@ -896,7 +896,7 @@ function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage,
           name="emp-search"
           autocomplete="off"
           enterkeyhint="search"
-          placeholder="Buscar por nombre, ID o número de empleado..."
+          placeholder="Buscar por nombre o número de empleado..."
           value="${escapeHtml(state.q)}"
           class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
         />

@@ -1,6 +1,7 @@
 """Consultas de solicitudes de horas extra para la vista RH (filas empleado-solicitud)."""
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 from decimal import Decimal
 
@@ -82,7 +83,7 @@ class HorasExtraRepository:
             query = query.where(
                 or_(
                     func.lower(Empleado.nombre).like(term),
-                    func.lower(Empleado.no_empleado).like(term),
+                    func.lower(cast(Empleado.no_empleado, String)).like(term),
                 )
             )
         return query

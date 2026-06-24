@@ -17,6 +17,7 @@ import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/
 import { mountActas } from "./pages/actas.ts";
 import { mountActaDetalle } from "./pages/actaDetalle.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
+import { mountFaltasRetardos } from "./pages/faltasRetardos.ts";
 import { mountIncidencias } from "./pages/incidencias.ts";
 import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
@@ -229,7 +230,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/cursos")) {
-      mountCursos(container);
+      mountCursos(container, signal);
       return;
     }
     if (h.startsWith("#/opls")) {
@@ -325,6 +326,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountMetricas(container, signal);
     } else if (h.startsWith("#/solicitudes")) {
       mountSolicitudes(container, signal);
+    } else if (h.startsWith("#/faltas-retardos")) {
+      mountFaltasRetardos(container, signal);
     } else if (h.startsWith("#/incidencias")) {
       mountIncidencias(container, signal);
     } else {

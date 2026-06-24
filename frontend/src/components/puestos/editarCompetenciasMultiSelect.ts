@@ -46,24 +46,70 @@ function tipoChipColors(tipoId: number, tipos: TipoCompetencia[]): string {
   return TIPO_CHIP_PALETTE[idx >= 0 ? idx % TIPO_CHIP_PALETTE.length : 0] ?? "bg-slate-100 text-slate-600 border-slate-200";
 }
 
+function nivelOptionsHtml(selected?: number): string {
+  const opts = getNivelRequeridoOptions();
+  if (opts.length === 0) {
+    return `<option value="" disabled selected>Sin niveles configurados</option>`;
+  }
+  return opts
+    .map(
+      (o) =>
+        `<option value="${o.value}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
+    )
+    .join("");
+}
+
 function compactNivelSelect(selected: number, attrs: string): string {
-  const opts = getNivelRequeridoOptions().map(
-    (o) =>
-      `<option value="${o.value}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
-  ).join("");
-  return `<div class="grid grid-cols-1 shrink-0">
-    <select ${attrs} class="col-start-1 row-start-1 min-w-[8.5rem] appearance-none rounded border border-slate-200 bg-white py-0.5 pl-1.5 pr-6 text-[10px] font-semibold text-slate-800 ${FIELD_FOCUS}">${opts}</select>
+  const opts = getNivelRequeridoOptions();
+  const fallback = opts[0]?.value ?? 0;
+  const nivel = opts.some((o) => o.value === selected) ? selected : fallback;
+  return `<div class="relative grid grid-cols-1 shrink-0">
+    <select ${attrs} class="relative z-[1] col-start-1 row-start-1 min-w-[8.5rem] cursor-pointer appearance-none rounded border border-slate-200 bg-white py-0.5 pl-1.5 pr-6 text-[10px] font-semibold text-slate-800 ${FIELD_FOCUS}">${nivelOptionsHtml(nivel)}</select>
     ${SELECT_CHEVRON.replace('class="', 'class="!size-3 !mr-0.5 ')}
   </div>`;
+}
+
+function isNivelValido(nivel: number): boolean {
+  return nivel > 0 && getNivelRequeridoOptions().some((o) => o.value === nivel);
+}
+
+function mensajeNivelRequerido(): string {
+  const opts = getNivelRequeridoOptions();
+  if (opts.length === 0) return "Configura niveles de competencia en Ajustes de perfiles.";
+  return "Selecciona el nivel mínimo requerido configurado en ajustes.";
+}
+
+function resolveNivelForSelect(nivel: number): number {
+  const opts = getNivelRequeridoOptions();
+  if (opts.some((o) => o.value === nivel)) return nivel;
+  return opts[0]?.value ?? 0;
+}
+
+function optsFirstValue(): number {
+  return getNivelRequeridoOptions()[0]?.value ?? 0;
+}
+
+const COMPETENCIAS_MODAL_ROOT_ID = "editar-competencias-modal-root";
+
+function ensureCompetenciasModalRoot(): HTMLElement {
+  let root = document.getElementById(COMPETENCIAS_MODAL_ROOT_ID);
+  if (!root) {
+    root = document.createElement("div");
+    root.id = COMPETENCIAS_MODAL_ROOT_ID;
+    document.body.appendChild(root);
+  }
+  return root;
 }
 
 export function mountEditarCompetenciasModal(
   host: HTMLElement,
   options: EditarCompetenciasModalOptions,
 ): EditarCompetenciasModalHandle {
-  host.innerHTML = overlayHtml();
-  const overlay = host.querySelector("#editar-competencias-overlay") as HTMLElement;
-  const body = host.querySelector("#editar-competencias-body") as HTMLElement;
+  const modalRoot = ensureCompetenciasModalRoot();
+  modalRoot.innerHTML = overlayHtml(options.gradoNombre);
+  host.innerHTML = "";
+  const overlay = modalRoot.querySelector("#editar-competencias-overlay") as HTMLElement;
+  const body = modalRoot.querySelector("#editar-competencias-body") as HTMLElement;
 
   let catalogo: CatalogoItem[] = [];
   let tiposCatalogo: TipoCompetencia[] = [];
@@ -89,7 +135,7 @@ export function mountEditarCompetenciasModal(
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
-      await ensureMetodosCalificacionCompetenciaLoaded();
+      await ensureMetodosCalificacionCompetenciaLoaded(true);
       const [catalogoItems, perfilComps, tipos] = await Promise.all([
         getCompetencias({ page_size: 200 }),
         getPerfilCompetencias(options.perfilId, options.gradoId),
@@ -184,7 +230,7 @@ export function mountEditarCompetenciasModal(
           return `
           <span class="inline-flex flex-wrap items-center gap-1 rounded-md border ${colors} px-2 py-1 text-xs font-medium">
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
-            ${compactNivelSelect(nivel >= 1 && nivel <= 4 ? nivel : 1, `data-nivel-assigned="${a.requisito_id}"`)}
+            ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-assigned="${a.requisito_id}"`)}
             <button type="button" data-remove-req="${a.requisito_id}" class="text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
           </span>`;
         }),
@@ -193,7 +239,7 @@ export function mountEditarCompetenciasModal(
           return `
           <span class="inline-flex flex-wrap items-center gap-1 rounded-md border border-dashed ${colors} px-2 py-1 text-xs font-medium opacity-90">
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
-            ${compactNivelSelect(nivel >= 1 && nivel <= 4 ? nivel : 1, `data-nivel-pending-add="${a.id}"`)}
+            ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-pending-add="${a.id}"`)}
             <button type="button" data-undo-add="${a.id}" class="text-current opacity-50 hover:opacity-100" aria-label="Deshacer">×</button>
           </span>`;
         }),
@@ -211,8 +257,10 @@ export function mountEditarCompetenciasModal(
 
     const searchPanel = showSearch ? renderSearchPanel() : "";
     const createPanel = showCreate ? renderCreatePanel() : "";
+    const sinNiveles = getNivelRequeridoOptions().length === 0;
 
     body.innerHTML = `
+      ${sinNiveles ? `<p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">No hay niveles de competencia cargados. Configúralos en <a href="#/puestos/ajustes" class="font-semibold underline">Ajustes de perfiles de puesto</a> y vuelve a abrir este diálogo.</p>` : ""}
       ${sections || `<p class="text-sm text-slate-400 italic mb-4">Sin competencias asignadas</p>`}
 
       <div class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
@@ -223,10 +271,10 @@ export function mountEditarCompetenciasModal(
 
       ${searchPanel}
       ${createPanel}
-      ${saveError ? `<p class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2">${escapeHtml(saveError)}</p>` : ""}
+      ${saveError ? `<p data-comp-save-error class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="alert">${escapeHtml(saveError)}</p>` : ""}
 
       ${hasChanges ? `
-        <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+        <div data-comp-save-footer class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
           <span class="text-xs text-slate-500">
             ${pendingAdds.size ? `+${pendingAdds.size} por agregar` : ""}
             ${pendingAdds.size && pendingRemovals.size ? " · " : ""}
@@ -238,6 +286,46 @@ export function mountEditarCompetenciasModal(
           </div>
         </div>` : ""}
     `;
+  }
+
+  function paintSaveFooter(): void {
+    const existingError = body.querySelector("[data-comp-save-error]");
+    if (saveError) {
+      if (existingError) {
+        existingError.textContent = saveError;
+      } else {
+        body.insertAdjacentHTML(
+          "beforeend",
+          `<p data-comp-save-error class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="alert">${escapeHtml(saveError)}</p>`,
+        );
+      }
+    } else {
+      existingError?.remove();
+    }
+
+    const hasChanges =
+      pendingRemovals.size > 0 || pendingAdds.size > 0 || pendingNivelUpdates.size > 0;
+    const footerHtml = hasChanges
+      ? `<div data-comp-save-footer class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+          <span class="text-xs text-slate-500">
+            ${pendingAdds.size ? `+${pendingAdds.size} por agregar` : ""}
+            ${pendingAdds.size && pendingRemovals.size ? " · " : ""}
+            ${pendingRemovals.size ? `−${pendingRemovals.size} por quitar` : ""}
+          </span>
+          <div class="flex gap-2">
+            <button type="button" data-discard class="${BTN_GHOST} text-xs">Descartar</button>
+            <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
+          </div>
+        </div>`
+      : "";
+
+    const footer = body.querySelector("[data-comp-save-footer]");
+    if (!hasChanges) {
+      footer?.remove();
+      return;
+    }
+    if (footer) footer.outerHTML = footerHtml;
+    else body.insertAdjacentHTML("beforeend", footerHtml);
   }
 
   function renderSearchPanel(): string {
@@ -271,15 +359,12 @@ export function mountEditarCompetenciasModal(
         ? (() => {
             const comp = catalogo.find((c) => c.id === pickNivelCompId);
             if (!comp) return "";
-            const nivelOpts = getNivelRequeridoOptions().map(
-              (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
-            ).join("");
             return `
         <div class="mb-3 rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
           <p class="text-xs font-semibold text-slate-700 mb-2">Nivel mínimo para <span class="text-leoni-blue">${escapeHtml(comp.nombre)}</span></p>
           <div class="flex flex-wrap items-end gap-2">
-            <div class="grid grid-cols-1 flex-1 min-w-[12rem]">
-              <select data-pick-nivel-select class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOpts}</select>
+            <div class="relative grid grid-cols-1 flex-1 min-w-[12rem]">
+              <select data-pick-nivel-select class="relative z-[1] col-start-1 row-start-1 w-full cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
               ${SELECT_CHEVRON}
             </div>
             <button type="button" data-confirm-pick-nivel class="${BTN_PRIMARY} !py-1.5 text-xs">Agregar</button>
@@ -322,10 +407,6 @@ export function mountEditarCompetenciasModal(
       `<option value="${s.id}">${escapeHtml(s.nombre)}</option>`,
     ).join("");
 
-    const nivelOpts = getNivelRequeridoOptions().map(
-      (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
-    ).join("");
-
     return `
       <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs font-medium text-slate-600 mb-2">Crear nueva competencia</p>
@@ -343,8 +424,8 @@ export function mountEditarCompetenciasModal(
           </div>
           <div>
             <label class="mb-1 block text-[10px] font-semibold text-slate-500">Nivel mínimo requerido</label>
-            <div class="grid grid-cols-1">
-              <select data-create-nivel required class="col-start-1 row-start-1 w-full min-w-[11rem] appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOpts}</select>
+            <div class="relative grid grid-cols-1">
+              <select data-create-nivel required class="relative z-[1] col-start-1 row-start-1 w-full min-w-[11rem] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
               ${SELECT_CHEVRON}
             </div>
           </div>
@@ -354,8 +435,14 @@ export function mountEditarCompetenciasModal(
       </div>`;
   }
 
+  function isFormControl(target: EventTarget | null): boolean {
+    return target instanceof Element && Boolean(target.closest("select, input, textarea, option, label"));
+  }
+
   // Single event delegation listener
   body.addEventListener("click", (e) => {
+    if (isFormControl(e.target)) return;
+
     const target = e.target as HTMLElement;
 
     const removeBtn = target.closest<HTMLElement>("[data-remove-req]");
@@ -376,8 +463,8 @@ export function mountEditarCompetenciasModal(
     if (confirmPick && pickNivelCompId !== null && !saving) {
       const sel = body.querySelector("[data-pick-nivel-select]") as HTMLSelectElement | null;
       const nivel = Number.parseInt(sel?.value ?? "", 10);
-      if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) {
-        saveError = "Selecciona un nivel mínimo entre 1 y 4.";
+      if (!isNivelValido(nivel)) {
+        saveError = mensajeNivelRequerido();
         render();
         return;
       }
@@ -482,26 +569,23 @@ export function mountEditarCompetenciasModal(
       render();
       return;
     }
-    if (target.matches("[data-nivel-assigned]")) {
-      const reqId = Number.parseInt((target as HTMLElement).getAttribute("data-nivel-assigned") ?? "", 10);
+    if (target.matches("[data-nivel-assigned], [data-nivel-pending-add], [data-pick-nivel-select], [data-create-nivel]")) {
       const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
-      if (Number.isFinite(reqId) && nivel >= 1 && nivel <= 4) {
+      if (!isNivelValido(nivel)) return;
+
+      if (target.matches("[data-nivel-assigned]")) {
+        const reqId = Number.parseInt(target.getAttribute("data-nivel-assigned") ?? "", 10);
+        if (!Number.isFinite(reqId)) return;
         const orig = assigned.find((a) => a.requisito_id === reqId)?.nivel_requerido ?? 0;
         if (nivel === orig) pendingNivelUpdates.delete(reqId);
         else pendingNivelUpdates.set(reqId, nivel);
-        saveError = "";
-        render();
-      }
-      return;
-    }
-    if (target.matches("[data-nivel-pending-add]")) {
-      const compId = Number.parseInt((target as HTMLElement).getAttribute("data-nivel-pending-add") ?? "", 10);
-      const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
-      if (Number.isFinite(compId) && nivel >= 1 && nivel <= 4) {
+      } else if (target.matches("[data-nivel-pending-add]")) {
+        const compId = Number.parseInt(target.getAttribute("data-nivel-pending-add") ?? "", 10);
+        if (!Number.isFinite(compId)) return;
         pendingAdds.set(compId, nivel);
-        saveError = "";
-        render();
       }
+      saveError = "";
+      paintSaveFooter();
     }
   });
 
@@ -519,8 +603,8 @@ export function mountEditarCompetenciasModal(
       nombreInput.focus();
       return;
     }
-    if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) {
-      saveError = "Selecciona el nivel mínimo requerido (1–4).";
+    if (!isNivelValido(nivel)) {
+      saveError = mensajeNivelRequerido();
       render();
       return;
     }
@@ -575,8 +659,8 @@ export function mountEditarCompetenciasModal(
         for (const a of currentInSub) {
           if (pendingRemovals.has(a.requisito_id)) continue;
           const nivel = effectiveNivel(a);
-          if (nivel < 1 || nivel > 4) {
-            saveError = `Define el nivel mínimo (1–4) para «${a.nombre}».`;
+          if (!isNivelValido(nivel)) {
+            saveError = `${mensajeNivelRequerido()} Competencia: «${a.nombre}».`;
             saving = false;
             render();
             return;
@@ -586,9 +670,9 @@ export function mountEditarCompetenciasModal(
 
         for (const compId of addsInSub) {
           const nivel = pendingAdds.get(compId);
-          if (!nivel || nivel < 1 || nivel > 4) {
+          if (!isNivelValido(nivel)) {
             const c = catalogo.find((cat) => cat.id === compId);
-            saveError = `Define el nivel mínimo (1–4) para «${c?.nombre ?? "competencia"}».`;
+            saveError = `${mensajeNivelRequerido()} Competencia: «${c?.nombre ?? "competencia"}».`;
             saving = false;
             render();
             return;
@@ -619,7 +703,7 @@ export function mountEditarCompetenciasModal(
     if (e.target === overlay) close();
   });
 
-  host.addEventListener("click", (e) => {
+  modalRoot.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest("[data-close-competencias-modal]")) close();
   });
 
@@ -642,11 +726,11 @@ export function mountEditarCompetenciasModal(
   };
 }
 
-function overlayHtml(): string {
+function overlayHtml(gradoNombre?: string): string {
   return `
     <div
       id="editar-competencias-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 p-4"
       role="presentation"
     >
       <div
@@ -658,7 +742,7 @@ function overlayHtml(): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Asigna competencias y define el nivel mínimo requerido (1–4) para este puesto</p>
+            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Competencias para <strong>${escapeHtml(gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.</p>
           </div>
           <button
             type="button"

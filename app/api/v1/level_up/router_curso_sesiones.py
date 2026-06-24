@@ -1,10 +1,12 @@
+from sqlalchemy import String, cast
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, union_all, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.models.cursos_catalogo import CursoInstructorExterno
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.models.level_up import CursoEmpleado, CursoPuesto, CursoSesion
@@ -30,6 +32,13 @@ all_sesiones_router = APIRouter(
 )
 
 
+def _coerce_no_empleado(v: object) -> str | None:
+    """empleados.no_empleado es integer en Bono; la API expone string."""
+    if v is None:
+        return None
+    return str(v)
+
+
 # ── Todas las sesiones (cross-curso) ────────────────────────────────────────
 
 
@@ -42,7 +51,7 @@ class SesionGlobalItem(BaseModel):
     hora_inicio: str | None = None
     hora_fin: str | None = None
     ubicacion: str | None = None
-    instructor: str | None = None
+    instructor_nombre: str | None = None
     cupo_max: int | None = None
     inscritos_count: int = 0
     estado: str
@@ -76,6 +85,15 @@ async def listar_todas_sesiones(
     stmt = (
         select(CursoSesion, CursoModel.nombre.label("curso_nombre"), count_sub.label("inscritos"))
         .join(CursoModel, CursoModel.id == CursoSesion.curso_id)
+        .outerjoin(
+            CursoInstructorExterno,
+            CursoInstructorExterno.id == CursoSesion.instructor_externo_id,
+        )
+        .outerjoin(Empleado, Empleado.empleado_id == CursoSesion.instructor_empleado_id)
+        .options(
+            selectinload(CursoSesion.instructor_externo_rel),
+            selectinload(CursoSesion.instructor_empleado_rel),
+        )
     )
 
     if estado:
@@ -85,7 +103,8 @@ async def listar_todas_sesiones(
         stmt = stmt.where(
             CursoModel.nombre.ilike(search)
             | CursoSesion.ubicacion.ilike(search)
-            | CursoSesion.instructor.ilike(search)
+            | CursoInstructorExterno.nombre.ilike(search)
+            | Empleado.nombre.ilike(search)
         )
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -105,7 +124,7 @@ async def listar_todas_sesiones(
             hora_inicio=str(row.CursoSesion.hora_inicio) if row.CursoSesion.hora_inicio else None,
             hora_fin=str(row.CursoSesion.hora_fin) if row.CursoSesion.hora_fin else None,
             ubicacion=row.CursoSesion.ubicacion,
-            instructor=row.CursoSesion.instructor,
+            instructor_nombre=CursoSesionService._resolve_instructor_nombre(row.CursoSesion),
             cupo_max=row.CursoSesion.cupo_max,
             inscritos_count=row.inscritos or 0,
             estado=row.CursoSesion.estado.value if hasattr(row.CursoSesion.estado, 'value') else row.CursoSesion.estado,
@@ -191,6 +210,11 @@ class SesionPuestoEmpleado(BaseModel):
     empleado_id: int
     nombre: str | None = None
     no_empleado: str | None = None
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        return _coerce_no_empleado(v)
 
 
 class SesionPuestoResponse(BaseModel):
@@ -332,6 +356,11 @@ class SesionEmpleadoResponse(BaseModel):
     no_empleado: str | None = None
     asistio: bool | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        return _coerce_no_empleado(v)
+
 
 @router.get("/{sesion_id}/empleados", response_model=list[SesionEmpleadoResponse])
 async def listar_empleados_sesion(
@@ -370,6 +399,11 @@ class EmpleadoElegibleResponse(BaseModel):
     nombre: str | None = None
     no_empleado: str | None = None
     origen: str
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        return _coerce_no_empleado(v)
 
 
 @router.get("/{sesion_id}/empleados-elegibles", response_model=list[EmpleadoElegibleResponse])
@@ -441,14 +475,14 @@ async def listar_empleados_elegibles(
     if q.strip():
         search = f"%{q.strip()}%"
         from_puestos = from_puestos.where(
-            Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
         )
         from_extras = from_extras.where(
-            Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
         )
         if from_grupos is not None:
             from_grupos = from_grupos.where(
-                Empleado.nombre.ilike(search) | Empleado.no_empleado.ilike(search)
+                Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
             )
 
     queries = [from_puestos, from_extras]

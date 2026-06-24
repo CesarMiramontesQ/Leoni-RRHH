@@ -56,10 +56,16 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Backdoor SOLO dev: admin sintético (no consulta BD).
+    from app.core.dev_admin import build_dev_admin, is_dev_admin_sub
+
+    if is_dev_admin_sub(empleado_id):
+        return build_dev_admin()
+
     result = await db.execute(
         select(Empleado)
         .options(
-            selectinload(Empleado.rol),
+            selectinload(Empleado.core),
             selectinload(Empleado.estado),
             selectinload(Empleado.area),
             selectinload(Empleado.puesto),

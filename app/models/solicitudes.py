@@ -8,10 +8,10 @@ from app.core.database import Base
 
 
 class Solicitud(Base):
-    __tablename__ = "solicitudes"
+    __tablename__ = "levelup_solicitudes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     tipo: Mapped[str] = mapped_column(
         Enum(
             "vacaciones",
@@ -58,11 +58,11 @@ class Solicitud(Base):
 
 
 class SolicitudAprobacion(Base):
-    __tablename__ = "solicitud_aprobaciones"
+    __tablename__ = "levelup_solicitud_aprobaciones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    solicitud_id: Mapped[int] = mapped_column(ForeignKey("solicitudes.id"), nullable=False)
-    aprobador_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    solicitud_id: Mapped[int] = mapped_column(ForeignKey("levelup_solicitudes.id"), nullable=False)
+    aprobador_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     accion: Mapped[str] = mapped_column(
         Enum("approve", "reject", "override", "request_changes", name="aprobacion_accion_enum"),
         nullable=False,

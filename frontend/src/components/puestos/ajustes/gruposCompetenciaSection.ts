@@ -25,7 +25,9 @@ import {
   ajustesModalError,
   ajustesSectionCard,
   ajustesTableWrap,
+  notifyAjustesGruposCompetenciaChanged,
 } from "./ajustesSectionUi.ts";
+import { bindAjustesModalCleanup, syncAjustesModal } from "./ajustesModalHost.ts";
 
 type ModalMode = "create" | "edit" | "delete" | null;
 
@@ -109,14 +111,17 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
   }
 
   function paint(): void {
-    sectionEl.innerHTML =
-      ajustesSectionCard({
-        titleId: "grupos-section-title",
-        title: "Grupos de competencia",
-        description: "Catálogo de grupos para organizar tipos de competencia.",
-        actionButtonHtml: `<button type="button" data-grupo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo grupo</span></button>`,
-        bodyHtml: renderTable(),
-      }) + renderModal();
+    sectionEl.innerHTML = ajustesSectionCard({
+      titleId: "grupos-section-title",
+      title: "Grupos de competencia",
+      description: "Catálogo de grupos para organizar tipos de competencia.",
+      actionButtonHtml: `<button type="button" data-grupo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo grupo</span></button>`,
+      bodyHtml: renderTable(),
+    });
+    syncAjustesModal("grupos-competencia", Boolean(modalMode), renderModal(), {
+      onInteract: handleModalInteract,
+      onEscape: closeModal,
+    });
   }
 
   async function load(): Promise<void> {
@@ -144,17 +149,38 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
     paint();
   }
 
+  function handleModalInteract(ev: Event): void {
+    if (ev.type === "submit") {
+      const form = ev.target;
+      if (!(form instanceof HTMLFormElement) || form.id !== "grupo-form") return;
+      ev.preventDefault();
+      void submitForm(form);
+      return;
+    }
+
+    const t = ev.target as HTMLElement;
+    if (t.id === "grupo-modal-overlay" && t === ev.target) {
+      closeModal();
+      return;
+    }
+    const modalBtn = t.closest("[data-grupo-modal]") as HTMLElement | null;
+    if (modalBtn?.dataset.grupoModal === "cancel") {
+      closeModal();
+      return;
+    }
+    if (modalBtn?.dataset.grupoModal === "confirm-delete") {
+      void confirmDelete();
+    }
+  }
+
+  bindAjustesModalCleanup("grupos-competencia", signal);
+
   sectionEl.addEventListener(
     "click",
     (ev) => {
       const t = ev.target as HTMLElement;
       const btn = t.closest("[data-grupo-action]") as HTMLElement | null;
-      if (!btn) {
-        const modalBtn = t.closest("[data-grupo-modal]") as HTMLElement | null;
-        if (modalBtn?.dataset.grupoModal === "cancel") closeModal();
-        if (modalBtn?.dataset.grupoModal === "confirm-delete") void confirmDelete();
-        return;
-      }
+      if (!btn) return;
       const action = btn.dataset.grupoAction;
       const id = Number(btn.dataset.id);
       if (action === "create") {
@@ -162,7 +188,7 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
         editingNombre = "";
         modalError = "";
         paint();
-        sectionEl.querySelector<HTMLInputElement>("#grupo-nombre")?.focus();
+        document.getElementById("grupo-nombre")?.focus();
       } else if (action === "edit" && !Number.isNaN(id)) {
         const item = items.find((n) => n.id === id);
         if (!item) return;
@@ -182,20 +208,10 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
     { signal },
   );
 
-  sectionEl.addEventListener(
-    "submit",
-    (ev) => {
-      const form = (ev.target as HTMLElement).closest("#grupo-form");
-      if (!form) return;
-      ev.preventDefault();
-      void submitForm(form as HTMLFormElement);
-    },
-    { signal },
-  );
-
   async function submitForm(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
     const nombre = String(fd.get("nombre") ?? "").trim();
+    editingNombre = String(fd.get("nombre") ?? "");
     if (nombre.length < 2) {
       modalError = "El nombre debe tener al menos 2 caracteres.";
       paint();
@@ -211,6 +227,7 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
         await updateGrupoCompetencia(editingId, { nombre });
       }
       closeModal();
+      notifyAjustesGruposCompetenciaChanged();
       await load();
     } catch (e) {
       modalSaving = false;
@@ -227,6 +244,7 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
     try {
       await deleteGrupoCompetencia(deletingItem.id);
       closeModal();
+      notifyAjustesGruposCompetenciaChanged();
       await load();
     } catch (e) {
       modalSaving = false;

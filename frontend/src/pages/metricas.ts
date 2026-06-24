@@ -1,8 +1,10 @@
 import { canAccessMetricasPage } from "../auth/jwt.ts";
 import { fetchIncidenciasEstadisticas, type IncidenciasFetchError } from "../api/incidencias.ts";
+import { getFaltasRetardosEstadisticas } from "../api/faltasRetardos.ts";
 import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
+import { mountRhFaltasRetardosMetricasCharts } from "../components/faltasRetardos/rhFaltasRetardosMetricasSection.ts";
 import { renderRhMetricasView } from "../components/solicitudes/rhSolicitudesAdminView.ts";
 import { mountRhSolicitudesAnalyticsFromRows } from "../components/solicitudes/rhSolicitudesAnalyticsSection.ts";
 import { clearAuth } from "../auth/session.ts";
@@ -33,6 +35,11 @@ import {
   type RhIncidenciasAdminViewModel,
   type RhIncidenciasEstadisticasData,
 } from "../incidencias/rh/types.ts";
+import { faltasRetardosFiltersFromSolicitudesMetricas } from "../faltasRetardos/rh/faltasRetardosMetricasFilterHelpers.ts";
+import type {
+  FaltasRetardosEstadisticasData,
+  FaltasRetardosMetricasViewModel,
+} from "../faltasRetardos/rh/types.ts";
 import type {
   RhSolicitudFilterState,
   RhSolicitudesAdminViewModel,
@@ -126,6 +133,14 @@ function loadingIncidenciasViewModel(): RhIncidenciasAdminViewModel {
   );
 }
 
+function loadingFaltasRetardosViewModel(): FaltasRetardosMetricasViewModel {
+  return {
+    estadisticas: null,
+    estadisticasStatus: "loading",
+    estadisticasErrorMessage: undefined,
+  };
+}
+
 export function mountMetricas(container: HTMLElement, signal: AbortSignal): void {
   const mainClass = "py-0";
 
@@ -152,6 +167,19 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   let incEstadisticasError: string | undefined;
   let incEmpleadosRetardosRanking: readonly SolicitudRankingRow[] = [];
   let incLoadSeq = 0;
+
+  let frEstadisticas: FaltasRetardosEstadisticasData | null = null;
+  let frEstadisticasStatus: FaltasRetardosMetricasViewModel["estadisticasStatus"] = "loading";
+  let frEstadisticasError: string | undefined;
+  let frLoadSeq = 0;
+
+  function buildFaltasRetardosMetricasVm(): FaltasRetardosMetricasViewModel {
+    return {
+      estadisticas: frEstadisticas,
+      estadisticasStatus: frEstadisticasStatus,
+      estadisticasErrorMessage: frEstadisticasError,
+    };
+  }
 
   function appliedIncidenciasFilters() {
     return incidenciasFiltersFromSolicitudesMetricas(appliedFilters);
@@ -182,10 +210,11 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     );
     solVm.personasDiaChartRows = filterRhSolicitudRows(allRows, appliedFilters);
     const incVm = buildIncidenciasVm();
+    const frVm = buildFaltasRetardosMetricasVm();
     const inner = container.querySelector("#rh-metricas-inner");
     if (inner) {
       destroyChartsIn(inner);
-      inner.innerHTML = renderRhMetricasView(solVm, incVm);
+      inner.innerHTML = renderRhMetricasView(solVm, incVm, frVm);
       runChartsAfterLayout(inner, () => {
         mountRhSolicitudesAnalyticsFromRows(
           inner,
@@ -196,8 +225,46 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
         );
         const incSection = inner.querySelector("#rh-metricas-seccion-incidencias");
         mountRhIncidenciasAnalyticsCharts(incSection ?? inner, incVm, destroyChart, destroyChartsIn);
+        const frSection = inner.querySelector("#rh-metricas-seccion-faltas-retardos");
+        mountRhFaltasRetardosMetricasCharts(frSection ?? inner, frVm, destroyChart, destroyChartsIn);
       });
     }
+  }
+
+  async function loadFaltasRetardosEstadisticas(): Promise<void> {
+    const seq = ++frLoadSeq;
+    const isStale = (): boolean => seq !== frLoadSeq;
+
+    frEstadisticasStatus = "loading";
+    frEstadisticas = null;
+    frEstadisticasError = undefined;
+    paint();
+
+    try {
+      frEstadisticas = await getFaltasRetardosEstadisticas(
+        faltasRetardosFiltersFromSolicitudesMetricas(appliedFilters),
+      );
+      if (isStale()) return;
+      frEstadisticasStatus = "ready";
+      frEstadisticasError = undefined;
+    } catch (err) {
+      if (isStale()) return;
+      const fetchError = err as { status?: number; detail?: string };
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
+      frEstadisticas = null;
+      frEstadisticasStatus = "error";
+      frEstadisticasError =
+        fetchError?.detail || "No se pudieron cargar las estadísticas de faltas y retardos.";
+    }
+    if (isStale()) return;
+    paint();
   }
 
   async function loadIncidenciasEstadisticas(): Promise<void> {
@@ -252,6 +319,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   function refreshMetricas(): void {
     paint();
     void loadIncidenciasEstadisticas();
+    void loadFaltasRetardosEstadisticas();
   }
 
   function applyMetricasFilters(): void {
@@ -277,7 +345,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     mainClass,
     mainHtml: `<div id="rh-metricas-page" class="${PAGE_SHELL_CLASS}">
       ${renderLaboralesBackBar()}
-      <div id="rh-metricas-inner" class="flex min-h-0 flex-1 flex-col">${renderRhMetricasView(loadingSolicitudesViewModel(pageUi), loadingIncidenciasViewModel())}</div>
+      <div id="rh-metricas-inner" class="flex min-h-0 flex-1 flex-col">${renderRhMetricasView(loadingSolicitudesViewModel(pageUi), loadingIncidenciasViewModel(), loadingFaltasRetardosViewModel())}</div>
     </div>`,
   });
 
@@ -316,6 +384,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
         inner.innerHTML = renderRhMetricasView(
           errorSolicitudesViewModel(fetchError?.detail || "Error inesperado al cargar métricas.", pageUi),
           buildIncidenciasVm(),
+          buildFaltasRetardosMetricasVm(),
         );
       }
     }

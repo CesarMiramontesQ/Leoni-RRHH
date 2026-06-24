@@ -931,7 +931,7 @@ class ActaService:
         raise ForbiddenError(detail="No tienes acceso a este empleado")
 
     @staticmethod
-    def _normalizar_numero_empleado(numero: str | None) -> str | None:
+    def _normalizar_numero_empleado(numero: str | int | None) -> str | None:
         if numero is None:
             return None
         raw = str(numero).strip()
@@ -941,7 +941,22 @@ class ActaService:
             entero = raw[:-2]
             if entero.isdigit():
                 return entero
+        if raw.isdigit():
+            return raw
+        try:
+            as_float = float(raw)
+            if as_float.is_integer():
+                return str(int(as_float))
+        except ValueError:
+            pass
         return raw
+
+    @staticmethod
+    def _no_empleado_a_entero(numero: str | int | None) -> int | None:
+        norm = ActaService._normalizar_numero_empleado(numero)
+        if not norm or not norm.isdigit():
+            return None
+        return int(norm)
 
     async def _build_response(self, acta: ActaAdministrativa) -> ActaResponse:
         aprobaciones = getattr(acta, "aprobaciones", []) or []
@@ -953,21 +968,18 @@ class ActaService:
         # Si el acta trae numero_empleado, priorizamos resolver el empleado por ese numero.
         numero_acta = self._normalizar_numero_empleado(getattr(acta, "numero_empleado", None))
         empleado_por_numero = None
-        if numero_acta:
-            candidatos = [numero_acta]
-            if numero_acta.isdigit():
-                # Compatibilidad con datos legacy que guardaron numero como decimal string.
-                candidatos.append(f"{numero_acta}.0")
+        no_int = self._no_empleado_a_entero(numero_acta)
+        if no_int is not None:
             result_emp = await self.db.execute(
                 select(Empleado)
                 .options(selectinload(Empleado.puesto))
-                .where(Empleado.no_empleado.in_(candidatos))
+                .where(Empleado.no_empleado == no_int)
             )
             empleado_por_numero = result_emp.scalar_one_or_none()
 
         if empleado_por_numero:
             r.empleado_nombre = empleado_por_numero.nombre
-            r.numero_empleado = empleado_por_numero.no_empleado
+            r.numero_empleado = self._normalizar_numero_empleado(empleado_por_numero.no_empleado)
             r.puesto = (
                 empleado_por_numero.puesto.descripcion
                 if empleado_por_numero.puesto
@@ -977,7 +989,7 @@ class ActaService:
             empleado_rel = getattr(acta, "empleado", None)
             if empleado_rel:
                 r.empleado_nombre = empleado_rel.nombre
-                r.numero_empleado = empleado_rel.no_empleado
+                r.numero_empleado = self._normalizar_numero_empleado(empleado_rel.no_empleado)
                 r.puesto = (
                     empleado_rel.puesto.descripcion
                     if getattr(empleado_rel, "puesto", None)
@@ -1070,7 +1082,7 @@ class ActaService:
         for acta in items:
             r = ActaResponse.model_validate(acta)
             r.empleado_nombre = empleado.nombre
-            r.numero_empleado = empleado.no_empleado
+            r.numero_empleado = self._normalizar_numero_empleado(empleado.no_empleado)
             if puesto_txt:
                 r.puesto = puesto_txt
             r.aprobaciones = []

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 async def ejecutar_importaciones_bono_historico() -> None:
-    """Importaciones históricas de bono en secuencia (mismo horario en APScheduler)."""
+    """Importaciones históricas de bono en secuencia (scripts CLI o invocación manual)."""
     corrida_id = str(uuid.uuid4())
     await importar_calidad_historico_job(corrida_id=corrida_id)
     await importar_seguridad_historico_job(corrida_id=corrida_id)

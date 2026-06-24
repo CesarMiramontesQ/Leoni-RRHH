@@ -18,7 +18,7 @@ class RhPermisosMeResponse(BaseModel):
 
 class RhUsuarioPermisosItem(BaseModel):
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     email: str | None = None
     rol_nombre: str
@@ -31,7 +31,7 @@ class RhUsuarioPermisosItem(BaseModel):
 
 class RhEmpleadoBusquedaItem(BaseModel):
     empleado_id: int
-    no_empleado: str
+    no_empleado: int
     nombre: str
     email: str | None = None
     rol_nombre: str

@@ -6,11 +6,19 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class MetodoCalificacionCompetenciaCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    nombre: str = Field(..., min_length=2, max_length=100)
+    orden: int = Field(..., ge=1, le=99)
+
+
 class MetodoCalificacionCompetenciaUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     nombre: str = Field(..., min_length=2, max_length=100)
-    orden: int = Field(..., ge=1, le=4)
+    orden: int = Field(..., ge=1, le=99)
+    activo: bool | None = None
 
 
 class MetodoCalificacionCompetenciaResponse(BaseModel):

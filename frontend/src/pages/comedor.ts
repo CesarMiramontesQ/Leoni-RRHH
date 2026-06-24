@@ -22,6 +22,7 @@ import { mountComedorNewRequestModal } from "../components/comedor/comedorNewReq
 import {
   addYearsToIsoString,
   etiquetaTipoComida,
+  hoyReservaComedorIso,
   primerLunesReservaComedorPermitidoIso,
 } from "../utils/comedorReservaFechas.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
@@ -917,7 +918,7 @@ async function searchComedorEmployeesFromDb(query: string): Promise<readonly Com
   return page.items.map((item) => ({
     id: String(item.empleado_id),
     nombre: item.nombre,
-    numero: item.no_empleado,
+    numero: formatNoEmpleadoDisplay(item.no_empleado),
     area: item.area?.descripcion ?? "Sin área",
     avatarUrl: null,
   }));
@@ -1222,6 +1223,9 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         toastContainer: container,
         allowExternalPeople: true,
         allowEmployeeSearch: true,
+        fechaMinReservaIso: hoyReservaComedorIso(),
+        fechaServicioMinMensaje: "No se pueden registrar comidas para días pasados.",
+        fechaMinHint: "Solo fechas de hoy en adelante.",
         menuFieldLabel: "Tipo de comida",
         loadMenuOptions: async () => {
           return [
@@ -2219,7 +2223,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
                   .map((row) => ({
                     id: String(row.empleado_id),
                     nombre: row.nombre_corto,
-                    numero: row.no_empleado,
+                    numero: formatNoEmpleadoDisplay(row.no_empleado),
                     area: "Equipo directo",
                     avatarUrl: null,
                   }))

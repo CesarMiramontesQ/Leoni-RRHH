@@ -9,10 +9,10 @@ from app.core.database import Base
 
 
 class Notificacion(Base):
-    __tablename__ = "notificaciones"
+    __tablename__ = "levelup_notificaciones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     type: Mapped[str] = mapped_column(
         Enum("email", "in_app", name="notificacion_tipo_enum"),
         nullable=False,

@@ -40,7 +40,9 @@ import {
   ajustesModalError,
   ajustesSectionCard,
   ajustesTableWrap,
+  AJUSTES_GRUPOS_COMPETENCIA_CHANGED,
 } from "./ajustesSectionUi.ts";
+import { bindAjustesModalCleanup, syncAjustesModal } from "./ajustesModalHost.ts";
 
 type ModalMode = "create" | "edit" | "delete" | null;
 
@@ -156,14 +158,45 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
   }
 
   function paint(): void {
-    sectionEl.innerHTML =
-      ajustesSectionCard({
-        titleId: "tipos-section-title",
-        title: "Tipos de competencia",
-        description: "Catálogo de tipos para clasificar competencias al crearlas.",
-        actionButtonHtml: `<button type="button" data-tipo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0" ${grupos.length === 0 ? "disabled title=\"Crea un grupo primero\"" : ""}>${AJUSTES_ICON_PLUS}<span>Nuevo tipo</span></button>`,
-        bodyHtml: renderTable(),
-      }) + renderModal();
+    const sinGrupos = grupos.length === 0;
+    sectionEl.innerHTML = ajustesSectionCard({
+      titleId: "tipos-section-title",
+      title: "Tipos de competencia",
+      description: "Catálogo de tipos para clasificar competencias al crearlas.",
+      actionButtonHtml: `<button type="button" data-tipo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0" ${sinGrupos ? "title=\"Crea un grupo primero o actualiza la lista\"" : ""}>${AJUSTES_ICON_PLUS}<span>Nuevo tipo</span></button>`,
+      bodyHtml: renderTable(),
+    });
+    syncAjustesModal("tipos-competencia", Boolean(modalMode), renderModal(), {
+      onInteract: handleModalInteract,
+      onEscape: closeModal,
+    });
+  }
+
+  async function refreshGrupos(): Promise<void> {
+    try {
+      grupos = await getGruposCompetencia({ page_size: 200 });
+      if (modalMode === "create" && editingGrupoId == null) {
+        editingGrupoId = grupos[0]?.id ?? null;
+      }
+      paint();
+    } catch {
+      /* mantener lista previa */
+    }
+  }
+
+  async function openCreateModal(): Promise<void> {
+    await refreshGrupos();
+    modalMode = "create";
+    editingNombre = "";
+    editingGrupoId = grupos[0]?.id ?? null;
+    modalError =
+      grupos.length === 0
+        ? "Crea al menos un grupo de competencia en la sección de la izquierda."
+        : "";
+    paint();
+    if (grupos.length > 0) {
+      requestAnimationFrame(() => document.getElementById("tipo-nombre")?.focus());
+    }
   }
 
   async function load(): Promise<void> {
@@ -197,27 +230,44 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
     paint();
   }
 
+  function handleModalInteract(ev: Event): void {
+    if (ev.type === "submit") {
+      const form = ev.target;
+      if (!(form instanceof HTMLFormElement) || form.id !== "tipo-form") return;
+      ev.preventDefault();
+      void submitForm(form);
+      return;
+    }
+
+    const t = ev.target as HTMLElement;
+    if (t.id === "tipo-modal-overlay" && t === ev.target) {
+      closeModal();
+      return;
+    }
+    const modalBtn = t.closest("[data-tipo-modal]") as HTMLElement | null;
+    if (modalBtn?.dataset.tipoModal === "cancel") {
+      closeModal();
+      return;
+    }
+    if (modalBtn?.dataset.tipoModal === "confirm-delete") {
+      void confirmDelete();
+    }
+  }
+
+  bindAjustesModalCleanup("tipos-competencia", signal);
+
+  document.addEventListener(AJUSTES_GRUPOS_COMPETENCIA_CHANGED, () => void refreshGrupos(), { signal });
+
   sectionEl.addEventListener(
     "click",
     (ev) => {
       const t = ev.target as HTMLElement;
       const btn = t.closest("[data-tipo-action]") as HTMLElement | null;
-      if (!btn) {
-        const modalBtn = t.closest("[data-tipo-modal]") as HTMLElement | null;
-        if (modalBtn?.dataset.tipoModal === "cancel") closeModal();
-        if (modalBtn?.dataset.tipoModal === "confirm-delete") void confirmDelete();
-        return;
-      }
+      if (!btn) return;
       const action = btn.dataset.tipoAction;
       const id = Number(btn.dataset.id);
       if (action === "create") {
-        if (grupos.length === 0) return;
-        modalMode = "create";
-        editingNombre = "";
-        editingGrupoId = grupos[0]?.id ?? null;
-        modalError = "";
-        paint();
-        sectionEl.querySelector<HTMLInputElement>("#tipo-nombre")?.focus();
+        void openCreateModal();
       } else if (action === "edit" && !Number.isNaN(id)) {
         const item = items.find((n) => n.id === id);
         if (!item) return;
@@ -238,21 +288,14 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
     { signal },
   );
 
-  sectionEl.addEventListener(
-    "submit",
-    (ev) => {
-      const form = (ev.target as HTMLElement).closest("#tipo-form");
-      if (!form) return;
-      ev.preventDefault();
-      void submitForm(form as HTMLFormElement);
-    },
-    { signal },
-  );
-
   async function submitForm(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
     const nombre = String(fd.get("nombre") ?? "").trim();
     const grupoCompetenciaId = Number(fd.get("grupo_competencia_id"));
+    editingNombre = String(fd.get("nombre") ?? "");
+    if (Number.isFinite(grupoCompetenciaId) && grupoCompetenciaId > 0) {
+      editingGrupoId = grupoCompetenciaId;
+    }
     if (nombre.length < 2) {
       modalError = "El nombre debe tener al menos 2 caracteres.";
       paint();

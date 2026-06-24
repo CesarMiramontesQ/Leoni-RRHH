@@ -4,7 +4,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.talento import MetodoCalificacionCompetencia
+from app.models.talento import CompetenciaRequisito, MetodoCalificacionCompetencia
 from app.repositories.base import BaseRepository
 
 
@@ -20,6 +20,14 @@ class MetodoCalificacionCompetenciaRepository(BaseRepository[MetodoCalificacionC
         )
         return list(result.scalars().all())
 
+    async def list_all(self) -> list[MetodoCalificacionCompetencia]:
+        result = await self.db.execute(
+            select(MetodoCalificacionCompetencia).order_by(
+                MetodoCalificacionCompetencia.orden
+            )
+        )
+        return list(result.scalars().all())
+
     async def count_activos(self) -> int:
         count = await self.db.scalar(
             select(func.count())
@@ -27,6 +35,12 @@ class MetodoCalificacionCompetenciaRepository(BaseRepository[MetodoCalificacionC
             .where(MetodoCalificacionCompetencia.activo.is_(True))
         )
         return count or 0
+
+    async def next_valor(self) -> int:
+        max_valor = await self.db.scalar(
+            select(func.max(MetodoCalificacionCompetencia.valor))
+        )
+        return (max_valor or 0) + 1
 
     async def exists_by_nombre(
         self, nombre: str, exclude_id: int | None = None
@@ -69,3 +83,19 @@ class MetodoCalificacionCompetenciaRepository(BaseRepository[MetodoCalificacionC
             )
         )
         return result.scalar_one_or_none()
+
+    async def count_requisitos_usando_valor(self, valor: int) -> int:
+        count = await self.db.scalar(
+            select(func.count())
+            .select_from(CompetenciaRequisito)
+            .where(CompetenciaRequisito.nivel_requerido == valor)
+        )
+        return count or 0
+
+    async def valores_activos(self) -> set[int]:
+        result = await self.db.execute(
+            select(MetodoCalificacionCompetencia.valor).where(
+                MetodoCalificacionCompetencia.activo.is_(True)
+            )
+        )
+        return {row[0] for row in result.all()}

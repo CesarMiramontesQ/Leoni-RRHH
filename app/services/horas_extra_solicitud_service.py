@@ -406,7 +406,7 @@ class HorasExtraSolicitudService:
             HorasExtraDetalleResponse(
                 id=d.id,
                 empleado_id=d.empleado_id,
-                no_empleado=d.empleado.no_empleado if d.empleado else "",
+                no_empleado=d.empleado.no_empleado if d.empleado else None,
                 nombre_empleado=d.empleado.nombre if d.empleado else "",
                 lunes=d.lunes,
                 martes=d.martes,

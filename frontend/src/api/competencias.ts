@@ -329,8 +329,11 @@ export type MultihabilidadesCompetencia = {
 export type MultihabilidadesEmpleado = {
   empleado_id: number;
   nombre: string;
-  no_empleado: string;
+  no_empleado: number | string;
+  grado_id: number;
+  grado_nombre: string;
   niveles: Record<number, number>;
+  requisitos: Record<number, number>;
 };
 
 export type MultihabilidadesResponse = {

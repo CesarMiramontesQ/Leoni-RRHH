@@ -4,8 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.empleados import Empleado
+from app.models.empleados_rh import EmpleadoCore
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
+from app.utils.turno_empleado_match import no_empleado_as_turno_str, turno_empleado_join_on, turno_no_empleado_matches
 
 
 class EmpleadoRepository(BaseRepository[Empleado]):
@@ -13,16 +15,14 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         super().__init__(Empleado, db)
 
     @staticmethod
-    def _no_empleado_variantes(no_empleado: str) -> list[str]:
-        valor = (no_empleado or "").strip()
-        if not valor:
-            return []
-        variantes = {valor}
-        if valor.isdigit():
-            variantes.add(f"{valor}.0")
-        if valor.endswith(".0") and valor[:-2].isdigit():
-            variantes.add(valor[:-2])
-        return list(variantes)
+    def _no_empleado_int(no_empleado) -> int | None:
+        """no_empleado es entero en Bono. Acepta '25', '25.0', 25 → 25."""
+        if no_empleado is None:
+            return None
+        try:
+            return int(str(no_empleado).strip().split(".")[0])
+        except (ValueError, TypeError):
+            return None
 
     async def get_by_email(self, email: str) -> Empleado | None:
         normalized_email = (email or "").strip().lower()
@@ -30,11 +30,12 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             return None
         result = await self.db.execute(
             select(Empleado)
+            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
-            .where(func.lower(Empleado.email) == normalized_email)
+            .where(func.lower(EmpleadoCore.email) == normalized_email)
         )
         return result.scalar_one_or_none()
 
@@ -45,7 +46,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(Empleado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
             .where(
@@ -56,37 +57,31 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         return result.scalar_one_or_none()
 
     async def get_by_no_empleado(self, no_empleado: str) -> Empleado | None:
-        variantes = self._no_empleado_variantes(no_empleado)
-        if not variantes:
+        val = self._no_empleado_int(no_empleado)
+        if val is None:
             return None
-        variantes_lower = [v.lower() for v in variantes]
         result = await self.db.execute(
             select(Empleado)
             .options(
-                selectinload(Empleado.rol),
+                selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
-            .where(
-                func.lower(Empleado.no_empleado).in_(variantes_lower),
-            )
+            .where(Empleado.no_empleado == val)
         )
         return result.scalar_one_or_none()
 
     async def get_by_no_empleado_con_puesto_y_lider(self, no_empleado: str) -> Empleado | None:
         """Mismo criterio de búsqueda que `get_by_no_empleado`, con puesto y líder cargados."""
-        variantes = self._no_empleado_variantes(no_empleado)
-        if not variantes:
+        val = self._no_empleado_int(no_empleado)
+        if val is None:
             return None
-        variantes_lower = [v.lower() for v in variantes]
         result = await self.db.execute(
             select(Empleado)
             .options(
                 selectinload(Empleado.puesto),
                 selectinload(Empleado.lider),
             )
-            .where(
-                func.lower(Empleado.no_empleado).in_(variantes_lower),
-            )
+            .where(Empleado.no_empleado == val)
         )
         return result.scalar_one_or_none()
 
@@ -99,7 +94,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_with_rol(self, id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol), selectinload(Empleado.puesto))
+            .options(selectinload(Empleado.core), selectinload(Empleado.puesto))
             .where(Empleado.id == id)
         )
         return result.scalar_one_or_none()
@@ -128,7 +123,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_with_rol_by_empleado_id(self, empleado_id: int) -> Empleado | None:
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(Empleado.empleado_id == empleado_id)
         )
         return result.scalar_one_or_none()
@@ -242,7 +237,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         result = await self.db.execute(
             select(func.count())
             .select_from(Empleado)
-            .outerjoin(TurnoEmpleado, TurnoEmpleado.no_empleado == Empleado.no_empleado)
+            .outerjoin(TurnoEmpleado, turno_empleado_join_on())
             .where(
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(TurnoEmpleado.id.is_(None), TurnoEmpleado.comedor.is_(None)),
@@ -254,7 +249,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         """Empleados activos sin comedor en turnos (sin fila o `comedor` nulo)."""
         result = await self.db.execute(
             select(Empleado)
-            .outerjoin(TurnoEmpleado, TurnoEmpleado.no_empleado == Empleado.no_empleado)
+            .outerjoin(TurnoEmpleado, turno_empleado_join_on())
             .where(
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
                 or_(TurnoEmpleado.id.is_(None), TurnoEmpleado.comedor.is_(None)),
@@ -272,14 +267,18 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         clasificacion: str | None = None,
     ) -> None:
         """Crea o actualiza `turnos_empleados` con el comedor indicado."""
+        no_int = self._no_empleado_int(no_empleado)
+        if no_int is None:
+            raise ValueError(f"no_empleado inválido: {no_empleado!r}")
+        no_turno = no_empleado_as_turno_str(no_int)
         result = await self.db.execute(
-            select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == no_empleado)
+            select(TurnoEmpleado).where(turno_no_empleado_matches(no_int))
         )
         turno = result.scalar_one_or_none()
         if turno is None:
             self.db.add(
                 TurnoEmpleado(
-                    no_empleado=no_empleado,
+                    no_empleado=no_turno,
                     nombre=nombre,
                     clasificacion=clasificacion,
                     comedor=comedor_id,

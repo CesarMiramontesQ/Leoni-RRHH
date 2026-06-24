@@ -3,6 +3,7 @@
 Repositorio de Comedor: menus semanales, registros de seleccion y validacion de huella.
 """
 
+from sqlalchemy import String, cast
 from datetime import date
 
 from sqlalchemy import and_, case, delete, func, or_, select, text, update
@@ -171,7 +172,7 @@ class ComedorRegistroRepository(BaseRepository[ComedorRegistro]):
 
         result = await self.db.execute(
             select(Empleado)
-            .options(selectinload(Empleado.rol))
+            .options(selectinload(Empleado.core))
             .where(
                 Empleado.no_empleado == num_empleado,
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
@@ -385,7 +386,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         if buscar and (t := buscar.strip()):
             pattern = f"%{t}%"
             emp_ids = select(Empleado.id).where(
-                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+                or_(Empleado.nombre.ilike(pattern), cast(Empleado.no_empleado, String).ilike(pattern))
             )
             stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
         return int((await self.db.execute(stmt)).scalar_one() or 0)
@@ -412,7 +413,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         if buscar and (t := buscar.strip()):
             pattern = f"%{t}%"
             emp_ids = select(Empleado.id).where(
-                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+                or_(Empleado.nombre.ilike(pattern), cast(Empleado.no_empleado, String).ilike(pattern))
             )
             stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
         stmt = stmt.order_by(ComedorAcceso.fecha_servicio.asc(), ComedorAcceso.id.asc()).offset(offset).limit(
@@ -435,7 +436,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         if buscar and (t := buscar.strip()):
             pattern = f"%{t}%"
             emp_ids = select(Empleado.id).where(
-                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+                or_(Empleado.nombre.ilike(pattern), cast(Empleado.no_empleado, String).ilike(pattern))
             )
             stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
         return int((await self.db.execute(stmt)).scalar_one() or 0)
@@ -464,7 +465,7 @@ class ComedorAccesoRepository(BaseRepository[ComedorAcceso]):
         if buscar and (t := buscar.strip()):
             pattern = f"%{t}%"
             emp_ids = select(Empleado.id).where(
-                or_(Empleado.nombre.ilike(pattern), Empleado.no_empleado.ilike(pattern))
+                or_(Empleado.nombre.ilike(pattern), cast(Empleado.no_empleado, String).ilike(pattern))
             )
             stmt = stmt.where(ComedorAcceso.empleado_id.in_(emp_ids))
         stmt = stmt.order_by(ComedorAcceso.fecha_servicio.asc(), ComedorAcceso.id.asc()).offset(offset).limit(
@@ -786,9 +787,10 @@ class ComedorExternoCorrelativoRepository:
     async def reservar_siguientes(self, cantidad: int) -> list[int]:
         if cantidad <= 0:
             return []
+        tabla = ComedorExternoCorrelativo.__tablename__
         await self.db.execute(
             text(
-                "INSERT INTO comedor_externo_correlativo (id, siguiente) "
+                f"INSERT INTO {tabla} (id, siguiente) "
                 "VALUES (1, 0) ON CONFLICT (id) DO NOTHING",
             ),
         )
@@ -846,7 +848,7 @@ class ComedorCodigoExternoRepository(BaseRepository[ComedorCodigoExterno]):
                     .where(
                         ComedorAcceso.fecha_servicio == hoy,
                         ComedorAcceso.estado_acceso == ComedorAccesoEstado.ACCEDIDO,
-                        Empleado.no_empleado.like(f"{prefix}%"),
+                        cast(Empleado.no_empleado, String).like(f"{prefix}%"),
                     )
                 )
             usados = int((await self.db.execute(usados_stmt)).scalar() or 0)

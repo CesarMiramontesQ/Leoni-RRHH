@@ -51,6 +51,8 @@ export type RhIncidenciaTablaFila = {
   supervisor_id: string;
   supervisor_nombre: string;
   tipo: RhIncidenciaTipoCodigo;
+  /** Categoría de alto nivel (Calidad, Seguridad). */
+  tipo_incidencia?: string | null;
   /** ISO `YYYY-MM-DD`. */
   fecha: string;
   estado: RhIncidenciaEstadoCodigo;

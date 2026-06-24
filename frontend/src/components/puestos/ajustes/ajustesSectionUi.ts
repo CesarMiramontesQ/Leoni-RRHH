@@ -68,3 +68,17 @@ export function ajustesSectionCard(opts: {
 export function ajustesTableWrap(tableHtml: string): string {
   return `<div class="overflow-x-auto">${tableHtml}</div>`;
 }
+
+/** Disparado cuando cambia el catálogo de métodos de calificación (cualificaciones). */
+export const AJUSTES_METODOS_CALIFICACION_CHANGED = "ajustes:metodos-calificacion-changed";
+
+export function notifyAjustesMetodosCalificacionChanged(): void {
+  document.dispatchEvent(new CustomEvent(AJUSTES_METODOS_CALIFICACION_CHANGED));
+}
+
+/** Disparado cuando cambia el catálogo de grupos de competencia. */
+export const AJUSTES_GRUPOS_COMPETENCIA_CHANGED = "ajustes:grupos-competencia-changed";
+
+export function notifyAjustesGruposCompetenciaChanged(): void {
+  document.dispatchEvent(new CustomEvent(AJUSTES_GRUPOS_COMPETENCIA_CHANGED));
+}

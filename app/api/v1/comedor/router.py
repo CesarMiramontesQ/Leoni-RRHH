@@ -114,9 +114,10 @@ async def get_menu(
 async def publicar_menu(
     body: MenuSemanalCreate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Planeación de menú: requiere sesión y módulo `comedor` (RH Admin), no rol RH."""
     service = ComedorService(db)
     return await service.publicar_menu(
         data=body,
@@ -130,7 +131,7 @@ async def eliminar_menu_semana(
     background_tasks: BackgroundTasks,
     comedor_id: int = Query(...),
     semana: date = Query(...),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)

@@ -26,7 +26,7 @@ function overlayHtml(): string {
   return `
     <div
       id="asignar-empleado-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 p-4"
       role="presentation"
     >
       <div

@@ -8,13 +8,13 @@ from app.core.database import Base
 
 
 class ActaAdministrativa(Base):
-    __tablename__ = "actas_administrativas"
+    __tablename__ = "levelup_actas_administrativas"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     incidencia_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("incidencias.id"), nullable=True
+        ForeignKey("levelup_incidencias.id"), nullable=True
     )
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     numero_empleado: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     area_departamento: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     supervisor_directo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -50,7 +50,7 @@ class ActaAdministrativa(Base):
         nullable=False,
         default="draft",
     )
-    generado_por: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    generado_por: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -68,11 +68,11 @@ class ActaAdministrativa(Base):
 
 
 class ActaAprobacion(Base):
-    __tablename__ = "acta_aprobaciones"
+    __tablename__ = "levelup_acta_aprobaciones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    acta_id: Mapped[int] = mapped_column(ForeignKey("actas_administrativas.id"), nullable=False)
-    firmante_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    acta_id: Mapped[int] = mapped_column(ForeignKey("levelup_actas_administrativas.id"), nullable=False)
+    firmante_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     rol_firmante: Mapped[str] = mapped_column(String(100), nullable=False)
     firma_timestamp: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

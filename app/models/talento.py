@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 class PuestoPerfil(Base):
-    __tablename__ = "puestos_perfil"
+    __tablename__ = "levelup_puestos_perfil"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
@@ -54,16 +54,16 @@ class PuestoPerfil(Base):
         ForeignKey("areas.area_id"), nullable=True
     )
     nivel_id: Mapped[int] = mapped_column(
-        ForeignKey("niveles_puesto.id"), nullable=False
+        ForeignKey("levelup_niveles_puesto.id"), nullable=False
     )
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     updated_by: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -115,7 +115,7 @@ class PuestoPerfil(Base):
 class GrupoCompetencia(Base):
     """Catalogo de grupos para clasificar tipos de competencia (ej. Tecnica, Habilidad blanda)."""
 
-    __tablename__ = "grupos_competencia"
+    __tablename__ = "levelup_grupos_competencia"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
@@ -138,12 +138,12 @@ class GrupoCompetencia(Base):
 class TipoCompetencia(Base):
     """Catalogo de tipos de competencia (ej. Informatica, Idiomas, Profesional)."""
 
-    __tablename__ = "tipos_competencia"
+    __tablename__ = "levelup_tipos_competencia"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     grupo_competencia_id: Mapped[int] = mapped_column(
-        ForeignKey("grupos_competencia.id"), nullable=False
+        ForeignKey("levelup_grupos_competencia.id"), nullable=False
     )
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -165,7 +165,7 @@ class TipoCompetencia(Base):
 
 
 class Competencia(Base):
-    __tablename__ = "competencias"
+    __tablename__ = "levelup_competencias"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -174,7 +174,7 @@ class Competencia(Base):
         String(20), nullable=False
     )  # 'tecnica' | 'blanda' — derivado del tipo
     tipo_competencia_id: Mapped[int] = mapped_column(
-        ForeignKey("tipos_competencia.id"), nullable=False
+        ForeignKey("levelup_tipos_competencia.id"), nullable=False
     )
     area_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("areas.area_id"), nullable=True
@@ -201,27 +201,27 @@ class Competencia(Base):
 
 
 class CompetenciaRequisito(Base):
-    __tablename__ = "competencia_requisitos"
+    __tablename__ = "levelup_competencia_requisitos"
     __table_args__ = (
         UniqueConstraint(
             "competencia_id", "puesto_perfil_id", "grado_id",
             name="uq_competencia_puesto_grado",
         ),
         CheckConstraint(
-            "nivel_requerido >= 0 AND nivel_requerido <= 4",
-            name="ck_nivel_requerido_rango",
+            "nivel_requerido >= 0",
+            name="ck_nivel_requerido_nonneg",
         ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     competencia_id: Mapped[int] = mapped_column(
-        ForeignKey("competencias.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_competencias.id", ondelete="CASCADE"), nullable=False
     )
     puesto_perfil_id: Mapped[int] = mapped_column(
-        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
     grado_id: Mapped[int] = mapped_column(
-        ForeignKey("grados_puesto.id"), nullable=False
+        ForeignKey("levelup_grados_puesto.id"), nullable=False
     )
     nivel_requerido: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
@@ -253,30 +253,30 @@ class CompetenciaRequisito(Base):
 
 
 class EvaluacionCompetencia(Base):
-    __tablename__ = "evaluaciones_competencia"
+    __tablename__ = "levelup_evaluaciones_competencia"
     __table_args__ = (
         UniqueConstraint(
             "empleado_id", "competencia_id", name="uq_evaluacion_vigente"
         ),
         CheckConstraint(
-            "nivel_actual >= 0 AND nivel_actual <= 4",
-            name="ck_nivel_actual_rango",
+            "nivel_actual >= 0",
+            name="ck_nivel_actual_nonneg",
         ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     empleado_id: Mapped[int] = mapped_column(
-        ForeignKey("empleados.id"), nullable=False
+        ForeignKey("empleados.empleado_id"), nullable=False
     )
     competencia_id: Mapped[int] = mapped_column(
-        ForeignKey("competencias.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_competencias.id", ondelete="CASCADE"), nullable=False
     )
     nivel_actual: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
         comment="0=N/A, 1=Planeado, 2=En entrenamiento, 3=Certificado, 4=Experto",
     )
     evaluador_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     fecha_evaluacion: Mapped[datetime] = mapped_column(
@@ -306,7 +306,7 @@ class EvaluacionCompetencia(Base):
 
 
 class Capacitacion(Base):
-    __tablename__ = "capacitaciones"
+    __tablename__ = "levelup_capacitaciones"
     __table_args__ = (
         Index("ix_capacitaciones_activo_estado", "activo", "estado"),
         Index("ix_capacitaciones_area_id", "area_id"),
@@ -334,14 +334,14 @@ class Capacitacion(Base):
         JSONB, nullable=True, default=list
     )
     curso_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cursos.id"), nullable=True
+        ForeignKey("levelup_cursos.id"), nullable=True
     )
     estado: Mapped[str] = mapped_column(
         String(20), nullable=False, default="activa"
     )  # 'activa' | 'cancelada' | 'finalizada'
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"), nullable=True
+        ForeignKey("empleados.empleado_id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -362,7 +362,7 @@ class Capacitacion(Base):
 
 
 class Inscripcion(Base):
-    __tablename__ = "inscripciones_capacitacion"
+    __tablename__ = "levelup_inscripciones_capacitacion"
     __table_args__ = (
         UniqueConstraint(
             "capacitacion_id", "empleado_id", name="uq_inscripcion_cap_emp"
@@ -372,10 +372,10 @@ class Inscripcion(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     capacitacion_id: Mapped[int] = mapped_column(
-        ForeignKey("capacitaciones.id"), nullable=False
+        ForeignKey("levelup_capacitaciones.id"), nullable=False
     )
     empleado_id: Mapped[int] = mapped_column(
-        ForeignKey("empleados.id"), nullable=False
+        ForeignKey("empleados.empleado_id"), nullable=False
     )
     estado: Mapped[str] = mapped_column(
         String(20), nullable=False, default="inscrito"
@@ -409,7 +409,7 @@ class Inscripcion(Base):
 class TipoCualificacionCatalogo(Base):
     """Catálogo de tipos de cualificación (configurable por RH)."""
 
-    __tablename__ = "tipos_cualificacion"
+    __tablename__ = "levelup_tipos_cualificacion"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
@@ -433,7 +433,7 @@ class TipoCualificacionCatalogo(Base):
 class MetodoCalificacion(Base):
     """Método o regla de calificación para evaluar cualificaciones."""
 
-    __tablename__ = "metodos_calificacion"
+    __tablename__ = "levelup_metodos_calificacion"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -462,11 +462,11 @@ class MetodoCalificacion(Base):
 class OpcionCalificacion(Base):
     """Opción de calificación asociada a un método (cuando aplica)."""
 
-    __tablename__ = "opciones_calificacion"
+    __tablename__ = "levelup_opciones_calificacion"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     metodo_calificacion_id: Mapped[int] = mapped_column(
-        ForeignKey("metodos_calificacion.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_metodos_calificacion.id", ondelete="CASCADE"), nullable=False
     )
     etiqueta: Mapped[str] = mapped_column(String(200), nullable=False)
     valor: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -485,14 +485,14 @@ class OpcionCalificacion(Base):
 class CualificacionCatalogo(Base):
     """Catálogo maestro de cualificaciones reutilizables en perfiles."""
 
-    __tablename__ = "cualificaciones_catalogo"
+    __tablename__ = "levelup_cualificaciones_catalogo"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tipo_cualificacion_id: Mapped[int] = mapped_column(
-        ForeignKey("tipos_cualificacion.id"), nullable=False
+        ForeignKey("levelup_tipos_cualificacion.id"), nullable=False
     )
     metodo_calificacion_id: Mapped[int] = mapped_column(
-        ForeignKey("metodos_calificacion.id"), nullable=False
+        ForeignKey("levelup_metodos_calificacion.id"), nullable=False
     )
     nombre: Mapped[str] = mapped_column(String(200), nullable=False)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -528,7 +528,7 @@ class CualificacionCatalogo(Base):
 class GradoPuesto(Base):
     """Catalogo global de grados de progresion dentro de un puesto (Grado 1-4)."""
 
-    __tablename__ = "grados_puesto"
+    __tablename__ = "levelup_grados_puesto"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
@@ -553,13 +553,13 @@ class GradoPuesto(Base):
 
 
 class MetodoCalificacionCompetencia(Base):
-    """Catalogo de metodos de calificacion para competencias (niveles 1-4)."""
+    """Catalogo configurable de metodos de calificacion para competencias."""
 
-    __tablename__ = "metodos_calificacion_competencia"
+    __tablename__ = "levelup_metodos_calificacion_competencia"
     __table_args__ = (
         CheckConstraint(
-            "valor >= 1 AND valor <= 4",
-            name="ck_metodo_calificacion_competencia_valor",
+            "valor >= 1",
+            name="ck_metodo_calificacion_competencia_valor_pos",
         ),
     )
 
@@ -585,7 +585,7 @@ class MetodoCalificacionCompetencia(Base):
 class NivelPuesto(Base):
     """Catalogo de niveles organizacionales para perfiles de puesto."""
 
-    __tablename__ = "niveles_puesto"
+    __tablename__ = "levelup_niveles_puesto"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
@@ -608,7 +608,7 @@ class NivelPuesto(Base):
 class TareaCatalogo(Base):
     """Catalogo centralizado de tareas reutilizables."""
 
-    __tablename__ = "tareas_catalogo"
+    __tablename__ = "levelup_tareas_catalogo"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
@@ -634,14 +634,14 @@ class TareaCatalogo(Base):
 class PerfilTarea(Base):
     """Tareas asociadas a un puesto perfil (1:N), vinculadas al catalogo."""
 
-    __tablename__ = "perfil_tareas"
+    __tablename__ = "levelup_perfil_tareas"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     puesto_perfil_id: Mapped[int] = mapped_column(
-        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
     tarea_catalogo_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("tareas_catalogo.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("levelup_tareas_catalogo.id", ondelete="SET NULL"), nullable=True
     )
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
@@ -668,14 +668,14 @@ class PerfilTarea(Base):
 class PerfilCualificacion(Base):
     """Cualificaciones requeridas por puesto (1:N)."""
 
-    __tablename__ = "perfil_cualificaciones"
+    __tablename__ = "levelup_perfil_cualificaciones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     puesto_perfil_id: Mapped[int] = mapped_column(
-        ForeignKey("puestos_perfil.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
     cualificacion_catalogo_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cualificaciones_catalogo.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("levelup_cualificaciones_catalogo.id", ondelete="RESTRICT"), nullable=True
     )
     criterio_requerido: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     tipo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -711,7 +711,7 @@ class PerfilCualificacion(Base):
 class PerfilFunciones(Base):
     """Asignacion individual empleado-puesto (perfil de funciones firmado)."""
 
-    __tablename__ = "perfil_funciones"
+    __tablename__ = "levelup_perfil_funciones"
     __table_args__ = (
         UniqueConstraint(
             "puesto_perfil_id", "empleado_id",
@@ -722,13 +722,13 @@ class PerfilFunciones(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     puesto_perfil_id: Mapped[int] = mapped_column(
-        ForeignKey("puestos_perfil.id"), nullable=False
+        ForeignKey("levelup_puestos_perfil.id"), nullable=False
     )
     empleado_id: Mapped[int] = mapped_column(
-        ForeignKey("empleados.id"), nullable=False
+        ForeignKey("empleados.empleado_id"), nullable=False
     )
     grado_id: Mapped[int] = mapped_column(
-        ForeignKey("grados_puesto.id"), nullable=False
+        ForeignKey("levelup_grados_puesto.id"), nullable=False
     )
     departamento: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     fecha_firma_superior: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -769,14 +769,14 @@ class PerfilFunciones(Base):
 class PerfilFuncionesCualificacion(Base):
     """Evaluacion individual de cualificacion para un perfil de funciones."""
 
-    __tablename__ = "perfil_funciones_cualificacion"
+    __tablename__ = "levelup_perfil_funciones_cualificacion"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     perfil_funciones_id: Mapped[int] = mapped_column(
-        ForeignKey("perfil_funciones.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_perfil_funciones.id", ondelete="CASCADE"), nullable=False
     )
     cualificacion_id: Mapped[int] = mapped_column(
-        ForeignKey("perfil_cualificaciones.id"), nullable=False
+        ForeignKey("levelup_perfil_cualificaciones.id"), nullable=False
     )
     valor_capturado: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     situacion_actual: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -807,14 +807,14 @@ class PerfilFuncionesCualificacion(Base):
 class PerfilFuncionesCompetencia(Base):
     """Evaluacion individual de competencia para un perfil de funciones."""
 
-    __tablename__ = "perfil_funciones_competencia"
+    __tablename__ = "levelup_perfil_funciones_competencia"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     perfil_funciones_id: Mapped[int] = mapped_column(
-        ForeignKey("perfil_funciones.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_perfil_funciones.id", ondelete="CASCADE"), nullable=False
     )
     competencia_requisito_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("competencia_requisitos.id", ondelete="CASCADE"), nullable=True
+        ForeignKey("levelup_competencia_requisitos.id", ondelete="CASCADE"), nullable=True
     )
     situacion_actual: Mapped[str] = mapped_column(Text, nullable=False)
     comentarios: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -843,7 +843,7 @@ class PerfilFuncionesCompetencia(Base):
 class PerfilFuncionesTarea(Base):
     """Tarea extra asignada individualmente a un empleado (perfil_funciones)."""
 
-    __tablename__ = "perfil_funciones_tarea"
+    __tablename__ = "levelup_perfil_funciones_tarea"
     __table_args__ = (
         UniqueConstraint(
             "perfil_funciones_id", "tarea_catalogo_id",
@@ -857,10 +857,10 @@ class PerfilFuncionesTarea(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     perfil_funciones_id: Mapped[int] = mapped_column(
-        ForeignKey("perfil_funciones.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_perfil_funciones.id", ondelete="CASCADE"), nullable=False
     )
     tarea_catalogo_id: Mapped[int] = mapped_column(
-        ForeignKey("tareas_catalogo.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("levelup_tareas_catalogo.id", ondelete="CASCADE"), nullable=False
     )
     nivel: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True,

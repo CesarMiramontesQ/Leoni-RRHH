@@ -153,8 +153,10 @@ async def test_patch_asignacion_comedor_sin_flag_retorna_200(client: AsyncClient
     )
     assert response.status_code == 200, response.text
 
+    from app.utils.turno_empleado_match import turno_no_empleado_matches
+
     result = await db.execute(
-        select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+        select(TurnoEmpleado).where(turno_no_empleado_matches(empleado.no_empleado))
     )
     turno = result.scalar_one_or_none()
     assert turno is not None
@@ -181,8 +183,10 @@ async def test_patch_asignacion_comedor_rh_persiste_turnos(client: AsyncClient, 
     )
     assert response.status_code == 200, response.text
 
+    from app.utils.turno_empleado_match import turno_no_empleado_matches
+
     result = await db.execute(
-        select(TurnoEmpleado).where(TurnoEmpleado.no_empleado == empleado.no_empleado)
+        select(TurnoEmpleado).where(turno_no_empleado_matches(empleado.no_empleado))
     )
     turno = result.scalar_one_or_none()
     assert turno is not None

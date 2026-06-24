@@ -22,6 +22,7 @@ Empleado×fecha únicos (uq). REPETIDO no suma en % asistencia del resumen (solo
 """
 
 from __future__ import annotations
+from sqlalchemy import String, cast
 
 import argparse
 import asyncio
@@ -125,12 +126,16 @@ async def _resolve_comedor(session) -> Comedor:
 
 
 async def _find_demo_empleados(session) -> list[Empleado]:
+    from app.models.empleados_rh import EmpleadoCore
+
     rows = (
         await session.execute(
-            select(Empleado).where(
-                Empleado.email.isnot(None),
-                Empleado.email.like(f"{DEMO_EMAIL_PREFIX}%{DEMO_EMAIL_DOMAIN}"),
-                Empleado.no_empleado.like(f"{DEMO_NO_EMPLEADO_PREFIX}%"),
+            select(Empleado)
+            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
+            .where(
+                EmpleadoCore.email.isnot(None),
+                EmpleadoCore.email.like(f"{DEMO_EMAIL_PREFIX}%{DEMO_EMAIL_DOMAIN}"),
+                cast(Empleado.no_empleado, String).like(f"{DEMO_NO_EMPLEADO_PREFIX}%"),
             )
         )
     ).scalars()

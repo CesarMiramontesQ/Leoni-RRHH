@@ -129,7 +129,7 @@ class NominasAjustesService:
         actualizados = await self.repo.set_autorizacion(
             empleados,
             data.autorizado,
-            autorizado_por_id=current_user.id,
+            autorizado_por_empleado_id=current_user.empleado_id,
             fecha=datetime.now(timezone.utc),
         )
         await self.db.commit()

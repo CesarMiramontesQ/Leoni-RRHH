@@ -8,7 +8,7 @@ from app.core.database import Base
 
 
 class CursoCategoria(Base):
-    __tablename__ = "curso_categoria"
+    __tablename__ = "levelup_curso_categoria"
     __table_args__ = (UniqueConstraint("nombre", name="uq_curso_categoria_nombre"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -21,7 +21,7 @@ class CursoCategoria(Base):
 
 
 class CursoTipo(Base):
-    __tablename__ = "curso_tipo"
+    __tablename__ = "levelup_curso_tipo"
     __table_args__ = (UniqueConstraint("nombre", name="uq_curso_tipo_nombre"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -34,7 +34,7 @@ class CursoTipo(Base):
 
 
 class CursoClasificacion(Base):
-    __tablename__ = "curso_clasificacion"
+    __tablename__ = "levelup_curso_clasificacion"
     __table_args__ = (UniqueConstraint("nombre", name="uq_curso_clasificacion_nombre"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -47,7 +47,7 @@ class CursoClasificacion(Base):
 
 
 class CursoInstructorExterno(Base):
-    __tablename__ = "curso_instructor_externo"
+    __tablename__ = "levelup_curso_instructor_externo"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -61,7 +61,7 @@ class CursoInstructorExterno(Base):
 
 
 class CursoProveedor(Base):
-    __tablename__ = "curso_proveedor"
+    __tablename__ = "levelup_curso_proveedor"
     __table_args__ = (UniqueConstraint("nombre", name="uq_curso_proveedor_nombre"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

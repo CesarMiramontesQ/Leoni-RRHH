@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "./http.ts";
 import type {
   MetodoCalificacionCompetencia,
+  MetodoCalificacionCompetenciaCreatePayload,
   MetodoCalificacionCompetenciaFetchError,
   MetodoCalificacionCompetenciaUpdatePayload,
 } from "../dashboard/metodosCalificacionCompetencia/types.ts";
@@ -41,8 +42,27 @@ export async function getMetodosCalificacionCompetencia(): Promise<MetodoCalific
     } as MetodoCalificacionCompetenciaFetchError;
   }
   const data = await res.json();
-  const items = (data.items ?? data) as Record<string, unknown>[];
-  return items.map(mapMetodo).sort((a, b) => a.orden - b.orden);
+  const rawItems = (data as { items?: unknown }).items ?? data;
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  return (items as Record<string, unknown>[]).map(mapMetodo).sort((a, b) => a.orden - b.orden);
+}
+
+/** POST /api/v1/metodos-calificacion-competencia */
+export async function createMetodoCalificacionCompetencia(
+  payload: MetodoCalificacionCompetenciaCreatePayload,
+): Promise<MetodoCalificacionCompetencia> {
+  const res = await fetchWithAuth("/api/v1/metodos-calificacion-competencia", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw {
+      status: res.status,
+      detail: await readErrorDetail(res),
+    } as MetodoCalificacionCompetenciaFetchError;
+  }
+  return mapMetodo(await res.json());
 }
 
 /** PATCH /api/v1/metodos-calificacion-competencia/:id */
@@ -62,4 +82,17 @@ export async function updateMetodoCalificacionCompetencia(
     } as MetodoCalificacionCompetenciaFetchError;
   }
   return mapMetodo(await res.json());
+}
+
+/** DELETE /api/v1/metodos-calificacion-competencia/:id */
+export async function deleteMetodoCalificacionCompetencia(id: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/metodos-calificacion-competencia/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw {
+      status: res.status,
+      detail: await readErrorDetail(res),
+    } as MetodoCalificacionCompetenciaFetchError;
+  }
 }

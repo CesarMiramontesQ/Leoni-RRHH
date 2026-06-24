@@ -16,6 +16,13 @@
 - Evitar logica de negocio en routers.
 - Para cambios de API, actualizar esquemas, servicio y consumo frontend correspondiente.
 
+## Base de datos — prefijo `levelup_` (OBLIGATORIO)
+- Toda tabla **nueva** creada por este proyecto debe llamarse `levelup_<nombre>` (`__tablename__` en SQLAlchemy).
+- **Prohibido** crear, alterar o eliminar tablas sin prefijo `levelup_` en modelos, repositorios o migraciones Alembic.
+- Las tablas legacy de Bono (`empleados`, `areas`, `puestos`, etc.) son **solo lectura** desde este proyecto: se pueden consultar y referenciar en FKs, pero **no** generar migraciones ni cambios de esquema sobre ellas.
+- En SQL crudo, usar siempre el nombre desde el modelo (`Model.__tablename__`); nunca hardcodear nombres de tabla sin el prefijo.
+- Migraciones Alembic nuevas: solo `op.create_table` / `op.alter_column` / `op.drop_table` sobre tablas `levelup_*`. Si hace falta tocar una tabla sin prefijo, detenerse y pedir aclaracion.
+
 ## Frontend
 - Centralizar llamadas HTTP en `frontend/src/api/`.
 - Mantener tipos en `dashboard/*/types.ts` sincronizados con respuestas del backend.

@@ -29,6 +29,6 @@ def test_clasificacion_es_administrativo_directo():
 
 
 def test_empleado_es_administrativo_sin_clasificacion():
-    emp = Empleado(empleado_id=1, no_empleado="E1", nombre="Test", email="t@t.com")
+    emp = Empleado(empleado_id=1, no_empleado="E1", nombre="Test")
     emp.clasificacion = None
     assert empleado_es_administrativo(emp) is False

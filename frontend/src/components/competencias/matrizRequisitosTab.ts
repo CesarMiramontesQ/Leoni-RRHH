@@ -182,7 +182,7 @@ export function renderMatrizRequisitosTab(model: MatrizRequisitosModel): string 
   return `
     <div class="flex flex-col gap-4">
       <p class="text-sm leading-relaxed text-text-secondary">
-        Elige un <strong class="font-semibold text-text-primary">perfil de puesto</strong> y define el nivel mínimo (1–4) de cada competencia asociada.
+        Elige un <strong class="font-semibold text-text-primary">perfil de puesto</strong> y define el nivel mínimo de cada competencia asociada según los niveles configurados en ajustes.
         Una misma competencia del catálogo puede exigir niveles distintos en cada puesto.
       </p>
       ${legend}

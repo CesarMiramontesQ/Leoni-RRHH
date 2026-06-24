@@ -43,14 +43,14 @@ class ComedorCodigoExternoEstado(str, enum.Enum):
 class ComedorExternoCorrelativo(Base):
     """Fila única (id=1): último número usado en códigos CEXT{n} para externos."""
 
-    __tablename__ = "comedor_externo_correlativo"
+    __tablename__ = "levelup_comedor_externo_correlativo"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     siguiente: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
 
 class Comedor(Base):
-    __tablename__ = "comedores"
+    __tablename__ = "levelup_comedores"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -77,10 +77,10 @@ class Comedor(Base):
 
 
 class MenuSemanal(Base):
-    __tablename__ = "menu_semanal"
+    __tablename__ = "levelup_menu_semanal"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    comedor_id: Mapped[int] = mapped_column(ForeignKey("comedores.id"), nullable=False)
+    comedor_id: Mapped[int] = mapped_column(ForeignKey("levelup_comedores.id"), nullable=False)
     semana: Mapped[date] = mapped_column(Date, nullable=False)
     dia: Mapped[str] = mapped_column(String(20), nullable=False)
     tipo: Mapped[str] = mapped_column(
@@ -91,7 +91,7 @@ class MenuSemanal(Base):
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     detalle: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     foto_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    created_by: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -105,11 +105,11 @@ class MenuSemanal(Base):
 
 
 class ComedorRegistro(Base):
-    __tablename__ = "comedor_registros"
+    __tablename__ = "levelup_comedor_registros"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
-    comedor_id: Mapped[int] = mapped_column(ForeignKey("comedores.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
+    comedor_id: Mapped[int] = mapped_column(ForeignKey("levelup_comedores.id"), nullable=False)
     semana: Mapped[date] = mapped_column(Date, nullable=False)
     tipo_platillo: Mapped[str] = mapped_column(
         Enum("normal", "dieta", name="comedor_tipo_platillo_enum"),
@@ -136,7 +136,7 @@ class ComedorRegistro(Base):
 
 
 class ComedorAcceso(Base):
-    __tablename__ = "comedor_accesos"
+    __tablename__ = "levelup_comedor_accesos"
     __table_args__ = (
         UniqueConstraint(
             "empleado_id",
@@ -152,10 +152,10 @@ class ComedorAcceso(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
-    comedor_id: Mapped[int] = mapped_column(ForeignKey("comedores.id"), nullable=False)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
+    comedor_id: Mapped[int] = mapped_column(ForeignKey("levelup_comedores.id"), nullable=False)
     comedor_registro_id: Mapped[int] = mapped_column(
-        ForeignKey("comedor_registros.id"), nullable=False
+        ForeignKey("levelup_comedor_registros.id"), nullable=False
     )
     fecha_servicio: Mapped[date] = mapped_column(Date, nullable=False)
     tipo_comida: Mapped[ComedorTipoComida] = mapped_column(
@@ -186,7 +186,7 @@ class ComedorAcceso(Base):
 
 
 class ComedorCodigoExterno(Base):
-    __tablename__ = "comedor_codigos_externos"
+    __tablename__ = "levelup_comedor_codigos_externos"
     __table_args__ = (
         Index("ix_comedor_codigos_externos_fecha_inicio", "fecha_inicio"),
         Index("ix_comedor_codigos_externos_fecha_fin", "fecha_fin"),
@@ -196,10 +196,10 @@ class ComedorCodigoExterno(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    comedor_id: Mapped[int] = mapped_column(ForeignKey("comedores.id"), nullable=False)
-    created_by: Mapped[int] = mapped_column(ForeignKey("empleados.id"), nullable=False)
+    comedor_id: Mapped[int] = mapped_column(ForeignKey("levelup_comedores.id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     empleado_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("empleados.id"),
+        ForeignKey("empleados.empleado_id"),
         nullable=True,
     )
     lote_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
