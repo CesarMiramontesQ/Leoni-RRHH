@@ -18,7 +18,7 @@ class Rol(Base):
     # Valid values: empleado, supervisor, gerente, director, rh
     permisos: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
-    __table_args__ = (UniqueConstraint("nombre", name="uq_roles_nombre"),)
+    __table_args__ = (UniqueConstraint("nombre", name="uq_levelup_roles_nombre"),)
 
     # El rol del empleado vive en levelup_empleados_core (no en empleados de Bono).
     empleados: Mapped[list["EmpleadoCore"]] = relationship(
