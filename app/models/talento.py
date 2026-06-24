@@ -205,11 +205,11 @@ class CompetenciaRequisito(Base):
     __table_args__ = (
         UniqueConstraint(
             "competencia_id", "puesto_perfil_id", "grado_id",
-            name="uq_competencia_puesto_grado",
+            name="uq_levelup_competencia_puesto_grado",
         ),
         CheckConstraint(
             "nivel_requerido >= 0",
-            name="ck_nivel_requerido_nonneg",
+            name="ck_levelup_nivel_requerido_nonneg",
         ),
     )
 
@@ -256,11 +256,11 @@ class EvaluacionCompetencia(Base):
     __tablename__ = "levelup_evaluaciones_competencia"
     __table_args__ = (
         UniqueConstraint(
-            "empleado_id", "competencia_id", name="uq_evaluacion_vigente"
+            "empleado_id", "competencia_id", name="uq_levelup_evaluacion_vigente"
         ),
         CheckConstraint(
             "nivel_actual >= 0",
-            name="ck_nivel_actual_nonneg",
+            name="ck_levelup_nivel_actual_nonneg",
         ),
     )
 
@@ -308,8 +308,8 @@ class EvaluacionCompetencia(Base):
 class Capacitacion(Base):
     __tablename__ = "levelup_capacitaciones"
     __table_args__ = (
-        Index("ix_capacitaciones_activo_estado", "activo", "estado"),
-        Index("ix_capacitaciones_area_id", "area_id"),
+        Index("ix_levelup_capacitaciones_activo_estado", "activo", "estado"),
+        Index("ix_levelup_capacitaciones_area_id", "area_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -365,9 +365,9 @@ class Inscripcion(Base):
     __tablename__ = "levelup_inscripciones_capacitacion"
     __table_args__ = (
         UniqueConstraint(
-            "capacitacion_id", "empleado_id", name="uq_inscripcion_cap_emp"
+            "capacitacion_id", "empleado_id", name="uq_levelup_inscripcion_cap_emp"
         ),
-        Index("ix_inscripciones_empleado_id", "empleado_id"),
+        Index("ix_levelup_inscripciones_empleado_id", "empleado_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -559,7 +559,7 @@ class MetodoCalificacionCompetencia(Base):
     __table_args__ = (
         CheckConstraint(
             "valor >= 1",
-            name="ck_metodo_calificacion_competencia_valor_pos",
+            name="ck_levelup_metodo_calificacion_competencia_valor_pos",
         ),
     )
 
@@ -715,9 +715,9 @@ class PerfilFunciones(Base):
     __table_args__ = (
         UniqueConstraint(
             "puesto_perfil_id", "empleado_id",
-            name="uq_perfil_funciones_puesto_empleado_activo",
+            name="uq_levelup_perfil_funciones_puesto_empleado_activo",
         ),
-        Index("ix_perfil_funciones_empleado_id", "empleado_id"),
+        Index("ix_levelup_perfil_funciones_empleado_id", "empleado_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -847,11 +847,11 @@ class PerfilFuncionesTarea(Base):
     __table_args__ = (
         UniqueConstraint(
             "perfil_funciones_id", "tarea_catalogo_id",
-            name="uq_perfil_funciones_tarea_pair",
+            name="uq_levelup_perfil_funciones_tarea_pair",
         ),
         CheckConstraint(
             "nivel IS NULL OR (nivel >= 1 AND nivel <= 3)",
-            name="ck_perfil_funciones_tarea_nivel",
+            name="ck_levelup_perfil_funciones_tarea_nivel",
         ),
     )
 
