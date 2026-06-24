@@ -12,4 +12,4 @@ cd "$(dirname "$0")/.."
 source "$(dirname "$0")/lib/docker-prod-backend.sh"
 
 echo "=== Seed (roles + admin) ==="
-backend_run python -m app.utils.seed
+backend_run_fresh python -m app.utils.seed
