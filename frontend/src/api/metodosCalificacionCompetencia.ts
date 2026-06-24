@@ -42,8 +42,9 @@ export async function getMetodosCalificacionCompetencia(): Promise<MetodoCalific
     } as MetodoCalificacionCompetenciaFetchError;
   }
   const data = await res.json();
-  const items = (data.items ?? data) as Record<string, unknown>[];
-  return items.map(mapMetodo).sort((a, b) => a.orden - b.orden);
+  const rawItems = (data as { items?: unknown }).items ?? data;
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  return (items as Record<string, unknown>[]).map(mapMetodo).sort((a, b) => a.orden - b.orden);
 }
 
 /** POST /api/v1/metodos-calificacion-competencia */

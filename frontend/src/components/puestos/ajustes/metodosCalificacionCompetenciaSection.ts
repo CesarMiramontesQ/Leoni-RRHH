@@ -8,7 +8,10 @@ import type {
   MetodoCalificacionCompetencia,
   MetodoCalificacionCompetenciaFetchError,
 } from "../../../dashboard/metodosCalificacionCompetencia/types.ts";
-import { invalidateMetodosCalificacionCompetenciaCache } from "../../../ui/metodosCalificacionCompetencia.ts";
+import {
+  invalidateMetodosCalificacionCompetenciaCache,
+  setMetodosCalificacionCompetenciaCache,
+} from "../../../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import { BTN_DANGER, BTN_SECONDARY, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_LABEL } from "../../../ui/uiTokens.ts";
 import {
@@ -145,6 +148,7 @@ export function mountMetodosCalificacionCompetenciaSection(
     paint();
     try {
       items = await getMetodosCalificacionCompetencia();
+      setMetodosCalificacionCompetenciaCache(items);
       loading = false;
       paint();
     } catch (e) {

@@ -993,12 +993,14 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
     const contentEl = inner;
     const ctrl = perfilDetalleControllers.get(container);
 
-    if (canEditarPerfilPuesto() && ctrl) {
-      const reload = ctrl.reload;
-
+    if (ctrl) {
       ctrl.puesto = puesto;
       ctrl.cursosList = cursosList;
       ctrl.grados = gradosActivos;
+    }
+
+    if (canEditarPerfilPuesto() && ctrl) {
+      const reload = ctrl.reload;
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
       ctrl.tareasModal = mountEditarTareasModal(tareasHost, {

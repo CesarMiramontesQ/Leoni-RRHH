@@ -33,10 +33,14 @@ export function setMetodosCalificacionCompetenciaCache(
   }));
 }
 
-export async function ensureMetodosCalificacionCompetenciaLoaded(): Promise<
-  MetodoCalificacionCompetencia[]
-> {
-  if (cache) return getMetodosCalificacionCompetenciaSync();
+export async function ensureMetodosCalificacionCompetenciaLoaded(
+  force = false,
+): Promise<MetodoCalificacionCompetencia[]> {
+  if (!force && cache !== null) return getMetodosCalificacionCompetenciaSync();
+  if (force) {
+    cache = null;
+    loadPromise = null;
+  }
   if (!loadPromise) {
     loadPromise = getMetodosCalificacionCompetencia()
       .then((items) => {
@@ -44,8 +48,8 @@ export async function ensureMetodosCalificacionCompetenciaLoaded(): Promise<
         return getMetodosCalificacionCompetenciaSync();
       })
       .catch(() => {
-        cache = [];
-        return getMetodosCalificacionCompetenciaSync();
+        cache = null;
+        return [] as MetodoCalificacionCompetencia[];
       })
       .finally(() => {
         loadPromise = null;

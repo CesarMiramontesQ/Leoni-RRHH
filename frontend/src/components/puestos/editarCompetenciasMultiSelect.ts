@@ -79,6 +79,12 @@ function mensajeNivelRequerido(): string {
   return "Selecciona el nivel mínimo requerido configurado en ajustes.";
 }
 
+function resolveNivelForSelect(nivel: number): number {
+  const opts = getNivelRequeridoOptions();
+  if (opts.some((o) => o.value === nivel)) return nivel;
+  return opts[0]?.value ?? 0;
+}
+
 function optsFirstValue(): number {
   return getNivelRequeridoOptions()[0]?.value ?? 0;
 }
@@ -100,7 +106,7 @@ export function mountEditarCompetenciasModal(
   options: EditarCompetenciasModalOptions,
 ): EditarCompetenciasModalHandle {
   const modalRoot = ensureCompetenciasModalRoot();
-  modalRoot.innerHTML = overlayHtml();
+  modalRoot.innerHTML = overlayHtml(options.gradoNombre);
   host.innerHTML = "";
   const overlay = modalRoot.querySelector("#editar-competencias-overlay") as HTMLElement;
   const body = modalRoot.querySelector("#editar-competencias-body") as HTMLElement;
@@ -129,7 +135,7 @@ export function mountEditarCompetenciasModal(
   async function load(): Promise<void> {
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
-      await ensureMetodosCalificacionCompetenciaLoaded();
+      await ensureMetodosCalificacionCompetenciaLoaded(true);
       const [catalogoItems, perfilComps, tipos] = await Promise.all([
         getCompetencias({ page_size: 200 }),
         getPerfilCompetencias(options.perfilId, options.gradoId),
@@ -224,7 +230,7 @@ export function mountEditarCompetenciasModal(
           return `
           <span class="inline-flex flex-wrap items-center gap-1 rounded-md border ${colors} px-2 py-1 text-xs font-medium">
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
-            ${compactNivelSelect(nivel >= 1 && nivel <= 4 ? nivel : 1, `data-nivel-assigned="${a.requisito_id}"`)}
+            ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-assigned="${a.requisito_id}"`)}
             <button type="button" data-remove-req="${a.requisito_id}" class="text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
           </span>`;
         }),
@@ -233,7 +239,7 @@ export function mountEditarCompetenciasModal(
           return `
           <span class="inline-flex flex-wrap items-center gap-1 rounded-md border border-dashed ${colors} px-2 py-1 text-xs font-medium opacity-90">
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
-            ${compactNivelSelect(nivel >= 1 && nivel <= 4 ? nivel : 1, `data-nivel-pending-add="${a.id}"`)}
+            ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-pending-add="${a.id}"`)}
             <button type="button" data-undo-add="${a.id}" class="text-current opacity-50 hover:opacity-100" aria-label="Deshacer">×</button>
           </span>`;
         }),
@@ -251,8 +257,10 @@ export function mountEditarCompetenciasModal(
 
     const searchPanel = showSearch ? renderSearchPanel() : "";
     const createPanel = showCreate ? renderCreatePanel() : "";
+    const sinNiveles = getNivelRequeridoOptions().length === 0;
 
     body.innerHTML = `
+      ${sinNiveles ? `<p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">No hay niveles de competencia cargados. Configúralos en <a href="#/puestos/ajustes" class="font-semibold underline">Ajustes de perfiles de puesto</a> y vuelve a abrir este diálogo.</p>` : ""}
       ${sections || `<p class="text-sm text-slate-400 italic mb-4">Sin competencias asignadas</p>`}
 
       <div class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
@@ -356,7 +364,7 @@ export function mountEditarCompetenciasModal(
           <p class="text-xs font-semibold text-slate-700 mb-2">Nivel mínimo para <span class="text-leoni-blue">${escapeHtml(comp.nombre)}</span></p>
           <div class="flex flex-wrap items-end gap-2">
             <div class="relative grid grid-cols-1 flex-1 min-w-[12rem]">
-              <select data-pick-nivel-select class="relative z-[1] col-start-1 row-start-1 w-full cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(optsFirstValue())}</select>
+              <select data-pick-nivel-select class="relative z-[1] col-start-1 row-start-1 w-full cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
               ${SELECT_CHEVRON}
             </div>
             <button type="button" data-confirm-pick-nivel class="${BTN_PRIMARY} !py-1.5 text-xs">Agregar</button>
@@ -417,7 +425,7 @@ export function mountEditarCompetenciasModal(
           <div>
             <label class="mb-1 block text-[10px] font-semibold text-slate-500">Nivel mínimo requerido</label>
             <div class="relative grid grid-cols-1">
-              <select data-create-nivel required class="relative z-[1] col-start-1 row-start-1 w-full min-w-[11rem] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(optsFirstValue())}</select>
+              <select data-create-nivel required class="relative z-[1] col-start-1 row-start-1 w-full min-w-[11rem] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
               ${SELECT_CHEVRON}
             </div>
           </div>
@@ -456,7 +464,7 @@ export function mountEditarCompetenciasModal(
       const sel = body.querySelector("[data-pick-nivel-select]") as HTMLSelectElement | null;
       const nivel = Number.parseInt(sel?.value ?? "", 10);
       if (!isNivelValido(nivel)) {
-        saveError = "Selecciona un nivel mínimo entre 1 y 4.";
+        saveError = mensajeNivelRequerido();
         render();
         return;
       }
@@ -718,7 +726,7 @@ export function mountEditarCompetenciasModal(
   };
 }
 
-function overlayHtml(): string {
+function overlayHtml(gradoNombre?: string): string {
   return `
     <div
       id="editar-competencias-overlay"
@@ -734,7 +742,7 @@ function overlayHtml(): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Competencias para <strong>${escapeHtml(options.gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.</p>
+            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Competencias para <strong>${escapeHtml(gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.</p>
           </div>
           <button
             type="button"
