@@ -153,10 +153,10 @@ class Capacidad(Base):
 class CapacidadPuestoPerfil(Base):
     __tablename__ = "levelup_capacidad_puesto_perfil"
     __table_args__ = (
-        UniqueConstraint("capacidad_id", "puesto_perfil_id", name="uq_capacidad_puesto"),
+        UniqueConstraint("capacidad_id", "puesto_perfil_id", name="uq_levelup_capacidad_puesto"),
         CheckConstraint(
             "nivel_requerido >= 1 AND nivel_requerido <= 5",
-            name="ck_cap_puesto_nivel_rango",
+            name="ck_levelup_cap_puesto_nivel_rango",
         ),
     )
 
@@ -202,9 +202,9 @@ class Habilidad(Base):
 class EvaluacionCapacidad(Base):
     __tablename__ = "levelup_evaluaciones_capacidad"
     __table_args__ = (
-        UniqueConstraint("empleado_id", "capacidad_id", name="uq_eval_capacidad_vigente"),
-        CheckConstraint("nivel_actual >= 1 AND nivel_actual <= 5", name="ck_eval_cap_nivel_actual"),
-        CheckConstraint("nivel_requerido >= 1 AND nivel_requerido <= 5", name="ck_eval_cap_nivel_req"),
+        UniqueConstraint("empleado_id", "capacidad_id", name="uq_levelup_eval_capacidad_vigente"),
+        CheckConstraint("nivel_actual >= 1 AND nivel_actual <= 5", name="ck_levelup_eval_cap_nivel_actual"),
+        CheckConstraint("nivel_requerido >= 1 AND nivel_requerido <= 5", name="ck_levelup_eval_cap_nivel_req"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -235,8 +235,8 @@ class EvaluacionCapacidad(Base):
 class EvaluacionHabilidad(Base):
     __tablename__ = "levelup_evaluaciones_habilidad"
     __table_args__ = (
-        UniqueConstraint("empleado_id", "habilidad_id", name="uq_eval_habilidad_vigente"),
-        CheckConstraint("nivel_actual >= 1 AND nivel_actual <= 4", name="ck_eval_hab_nivel_actual"),
+        UniqueConstraint("empleado_id", "habilidad_id", name="uq_levelup_eval_habilidad_vigente"),
+        CheckConstraint("nivel_actual >= 1 AND nivel_actual <= 4", name="ck_levelup_eval_hab_nivel_actual"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -265,7 +265,7 @@ class EvaluacionHabilidad(Base):
 
 class Curso(Base):
     __tablename__ = "levelup_cursos"
-    __table_args__ = (UniqueConstraint("nombre", name="uq_cursos_nombre"),)
+    __table_args__ = (UniqueConstraint("nombre", name="uq_levelup_cursos_nombre"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(300), nullable=False)
@@ -400,8 +400,8 @@ class CursoPuesto(Base):
 class CursoEmpleado(Base):
     __tablename__ = "levelup_curso_empleado"
     __table_args__ = (
-        Index("ix_curso_empleado_empleado_id", "empleado_id"),
-        Index("ix_curso_empleado_curso_id", "curso_id"),
+        Index("ix_levelup_curso_empleado_empleado_id", "empleado_id"),
+        Index("ix_levelup_curso_empleado_curso_id", "curso_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -440,8 +440,8 @@ class TipoGrupoCurso(str, enum.Enum):
 class CursoGrupo(Base):
     __tablename__ = "levelup_curso_grupo"
     __table_args__ = (
-        UniqueConstraint("curso_id", "tipo", "referencia_id", name="uq_curso_grupo"),
-        Index("ix_curso_grupo_curso_id", "curso_id"),
+        UniqueConstraint("curso_id", "tipo", "referencia_id", name="uq_levelup_curso_grupo"),
+        Index("ix_levelup_curso_grupo_curso_id", "curso_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -488,7 +488,7 @@ class OPL(Base):
 class OPLVersion(Base):
     __tablename__ = "levelup_opl_versiones"
     __table_args__ = (
-        UniqueConstraint("opl_id", "version_num", name="uq_opl_version"),
+        UniqueConstraint("opl_id", "version_num", name="uq_levelup_opl_version"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -541,7 +541,7 @@ class EvidenciaCapacitacion(Base):
 class EvidenciaFirma(Base):
     __tablename__ = "levelup_evidencia_firmas"
     __table_args__ = (
-        UniqueConstraint("evidencia_id", "firmante_id", "rol_firma", name="uq_firma_evidencia_rol"),
+        UniqueConstraint("evidencia_id", "firmante_id", "rol_firma", name="uq_levelup_firma_evidencia_rol"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -569,11 +569,11 @@ class EvidenciaFirma(Base):
 class EncuestaPostCurso(Base):
     __tablename__ = "levelup_encuestas_post_curso"
     __table_args__ = (
-        UniqueConstraint("capacitacion_id", "empleado_id", name="uq_encuesta_cap_emp"),
-        CheckConstraint("score_general >= 1 AND score_general <= 5", name="ck_enc_score_gen"),
-        CheckConstraint("score_instructor >= 1 AND score_instructor <= 5", name="ck_enc_score_inst"),
-        CheckConstraint("score_contenido >= 1 AND score_contenido <= 5", name="ck_enc_score_cont"),
-        CheckConstraint("score_aplicabilidad >= 1 AND score_aplicabilidad <= 5", name="ck_enc_score_aplic"),
+        UniqueConstraint("capacitacion_id", "empleado_id", name="uq_levelup_encuesta_cap_emp"),
+        CheckConstraint("score_general >= 1 AND score_general <= 5", name="ck_levelup_enc_score_gen"),
+        CheckConstraint("score_instructor >= 1 AND score_instructor <= 5", name="ck_levelup_enc_score_inst"),
+        CheckConstraint("score_contenido >= 1 AND score_contenido <= 5", name="ck_levelup_enc_score_cont"),
+        CheckConstraint("score_aplicabilidad >= 1 AND score_aplicabilidad <= 5", name="ck_levelup_enc_score_aplic"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -595,7 +595,7 @@ class EncuestaPostCurso(Base):
 class SugerenciaCapacitacion(Base):
     __tablename__ = "levelup_sugerencias_capacitacion"
     __table_args__ = (
-        CheckConstraint("prioridad >= 1 AND prioridad <= 5", name="ck_sug_prioridad"),
+        CheckConstraint("prioridad >= 1 AND prioridad <= 5", name="ck_levelup_sug_prioridad"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

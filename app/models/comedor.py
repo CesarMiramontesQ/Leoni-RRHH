@@ -141,10 +141,10 @@ class ComedorAcceso(Base):
         UniqueConstraint(
             "empleado_id",
             "fecha_servicio",
-            name="uq_comedor_acceso_empleado_fecha",
+            name="uq_levelup_comedor_acceso_empleado_fecha",
         ),
         Index(
-            "ix_comedor_accesos_empleado_fecha_estado",
+            "ix_levelup_comedor_accesos_empleado_fecha_estado",
             "empleado_id",
             "fecha_servicio",
             "estado_acceso",
@@ -188,11 +188,11 @@ class ComedorAcceso(Base):
 class ComedorCodigoExterno(Base):
     __tablename__ = "levelup_comedor_codigos_externos"
     __table_args__ = (
-        Index("ix_comedor_codigos_externos_fecha_inicio", "fecha_inicio"),
-        Index("ix_comedor_codigos_externos_fecha_fin", "fecha_fin"),
-        Index("ix_comedor_codigos_externos_codigo_acceso", "codigo_acceso", unique=True),
-        Index("ix_comedor_codigos_externos_empleado_id", "empleado_id"),
-        Index("ix_comedor_codigos_externos_lote_id", "lote_id"),
+        Index("ix_levelup_comedor_codigos_externos_fecha_inicio", "fecha_inicio"),
+        Index("ix_levelup_comedor_codigos_externos_fecha_fin", "fecha_fin"),
+        Index("ix_levelup_comedor_codigos_externos_codigo_acceso", "codigo_acceso", unique=True),
+        Index("ix_levelup_comedor_codigos_externos_empleado_id", "empleado_id"),
+        Index("ix_levelup_comedor_codigos_externos_lote_id", "lote_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

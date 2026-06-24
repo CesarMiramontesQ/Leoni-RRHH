@@ -30,7 +30,11 @@ FALTA_RETARDO_TIPO_ENUM = postgresql.ENUM(
 
 
 def upgrade() -> None:
-    FALTA_RETARDO_TIPO_ENUM.create(op.get_bind(), checkfirst=True)
+    bind = op.get_bind()
+    FALTA_RETARDO_TIPO_ENUM.create(bind, checkfirst=True)
+
+    if bind.execute(sa.text("SELECT 1 FROM pg_class WHERE relname = 'levelup_faltas_retardos' AND relkind = 'r'")).scalar():
+        return
 
     op.create_table(
         "levelup_faltas_retardos",
