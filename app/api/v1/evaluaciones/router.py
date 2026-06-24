@@ -12,6 +12,8 @@ Endpoints:
   POST /api/v1/evaluaciones/bulk                  — Bulk create (RH)
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +28,7 @@ from app.schemas.evaluaciones import (
     EvaluacionResponse,
     EvaluacionUpdate,
 )
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIResumenResponse
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
 
@@ -34,6 +36,42 @@ router = APIRouter(prefix="/api/v1/evaluaciones", tags=["Evaluaciones"])
 
 
 # ── Endpoints especiales (antes de /{id}) ───────────────────────────────────
+
+
+@router.get("/pdi", response_model=PDIGestionListResponse)
+async def listar_pdi_consolidado(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    area_id: int | None = Query(None),
+    estado: str | None = Query(None),
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
+    search: str | None = Query(None),
+    solo_vencidas: bool = Query(False),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.listar_consolidado(
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+        area_id=area_id,
+        estado=estado,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        search=search,
+        solo_vencidas=solo_vencidas,
+    )
+
+
+@router.get("/pdi/resumen", response_model=PDIResumenResponse)
+async def resumen_pdi(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.obtener_resumen(current_user=current_user)
 
 
 @router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])

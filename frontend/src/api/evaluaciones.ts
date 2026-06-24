@@ -246,3 +246,72 @@ export async function deletePDI(empleadoId: number, pdiId: number): Promise<bool
   });
   return res.status === 204;
 }
+
+// ── PDI Gestion Consolidada ─────────────────────────────────────────────────
+
+export interface PDIGestionItem {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string;
+  area_nombre: string | null;
+  puesto_nombre: string | null;
+  competencia_id: number;
+  competencia_nombre: string;
+  accion: string;
+  tipo: string;
+  duracion_horas: number | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  responsable: string;
+  estado: string;
+  vencida: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PDIGestionListResponse {
+  items: PDIGestionItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PDIResumenResponse {
+  total_acciones: number;
+  completadas: number;
+  en_proceso: number;
+  pendientes: number;
+  vencidas: number;
+}
+
+export async function getPDIGestion(params: {
+  page?: number;
+  page_size?: number;
+  area_id?: number;
+  estado?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  search?: string;
+  solo_vencidas?: boolean;
+}): Promise<PDIGestionListResponse> {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", String(params.page));
+  if (params.page_size) qs.set("page_size", String(params.page_size));
+  if (params.area_id) qs.set("area_id", String(params.area_id));
+  if (params.estado) qs.set("estado", params.estado);
+  if (params.fecha_inicio) qs.set("fecha_inicio", params.fecha_inicio);
+  if (params.fecha_fin) qs.set("fecha_fin", params.fecha_fin);
+  if (params.search) qs.set("search", params.search);
+  if (params.solo_vencidas) qs.set("solo_vencidas", "true");
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi${suffix}`);
+  if (!res.ok) return { items: [], total: 0, page: 1, page_size: 10 };
+  return res.json();
+}
+
+export async function getPDIResumen(): Promise<PDIResumenResponse> {
+  const res = await fetchWithAuth("/api/v1/evaluaciones/pdi/resumen");
+  if (!res.ok)
+    return { total_acciones: 0, completadas: 0, en_proceso: 0, pendientes: 0, vencidas: 0 };
+  return res.json();
+}

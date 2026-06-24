@@ -1,5 +1,6 @@
 """Service para Plan de Desarrollo Individual (PDI)."""
 
+from datetime import date
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,7 @@ from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import PlanDesarrolloIndividual
 from app.repositories.pdi_repository import PDIRepository
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse
 
 
 VALID_TRANSITIONS = {
@@ -125,6 +126,80 @@ class PDIService:
     def _check_write_access(self, user: Empleado) -> None:
         if not user_has_module(user, "evaluaciones"):
             raise ForbiddenError("Solo RH puede gestionar el PDI")
+
+    def _resolve_area_scope(self, current_user: Empleado) -> list[int] | None:
+        if user_has_module(current_user, "evaluaciones"):
+            return None
+        if hasattr(current_user, "rol") and current_user.rol and current_user.rol.nombre in ("supervisor", "gerente"):
+            if current_user.area_id:
+                return [current_user.area_id]
+            return []
+        raise ForbiddenError("No tienes acceso a la gestión de PDI")
+
+    async def listar_consolidado(
+        self,
+        current_user: Empleado,
+        page: int = 1,
+        page_size: int = 10,
+        area_id: int | None = None,
+        estado: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        search: str | None = None,
+        solo_vencidas: bool = False,
+    ) -> PDIGestionListResponse:
+        area_ids = self._resolve_area_scope(current_user)
+        offset = (page - 1) * page_size
+        items, total = await self.repo.list_consolidated(
+            offset=offset,
+            limit=page_size,
+            area_id=area_id,
+            area_ids=area_ids,
+            estado=estado,
+            fecha_inicio_desde=fecha_inicio,
+            fecha_fin_hasta=fecha_fin,
+            search=search,
+            solo_vencidas=solo_vencidas,
+        )
+        return PDIGestionListResponse(
+            items=[self._to_gestion_item(i) for i in items],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def obtener_resumen(self, current_user: Empleado) -> PDIResumenResponse:
+        area_ids = self._resolve_area_scope(current_user)
+        data = await self.repo.resumen(area_ids=area_ids)
+        return PDIResumenResponse(**data)
+
+    def _to_gestion_item(self, item: PlanDesarrolloIndividual) -> PDIGestionItem:
+        emp = item.empleado
+        emp_nombre = emp.nombre if emp else "—"
+        area_nombre = emp.area.descripcion if emp and emp.area else None
+        puesto_nombre = None
+        comp_nombre = item.competencia.nombre if item.competencia else "—"
+        today = date.today()
+        vencida = item.fecha_fin < today and item.estado not in ("completado", "cancelado")
+        return PDIGestionItem(
+            id=item.id,
+            empleado_id=item.empleado_id,
+            empleado_nombre=emp_nombre,
+            area_nombre=area_nombre,
+            puesto_nombre=puesto_nombre,
+            competencia_id=item.competencia_id,
+            competencia_nombre=comp_nombre,
+            accion=item.accion,
+            tipo=item.tipo,
+            duracion_horas=item.duracion_horas,
+            fecha_inicio=item.fecha_inicio,
+            fecha_fin=item.fecha_fin,
+            responsable=item.responsable,
+            estado=item.estado,
+            vencida=vencida,
+            created_at=item.created_at.isoformat() if item.created_at else "",
+            updated_at=item.updated_at.isoformat() if item.updated_at else "",
+        )
 
     def _to_response(self, item: PlanDesarrolloIndividual) -> PDIResponse:
         comp_nombre = item.competencia.nombre if item.competencia else "—"
