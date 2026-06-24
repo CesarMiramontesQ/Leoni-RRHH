@@ -103,3 +103,24 @@ class PDIResumenResponse(BaseModel):
     en_proceso: int
     pendientes: int
     vencidas: int
+
+
+class PDIEstadoPatch(BaseModel):
+    estado: str
+
+
+class PDIProgresoEmpleadoItem(BaseModel):
+    empleado_id: int
+    empleado_nombre: str
+    area_nombre: str | None = None
+    total: int
+    completadas: int
+    en_proceso: int
+    pendientes: int
+    vencidas: int
+    progreso_pct: float
+
+
+class PDIProgresoEquipoResponse(BaseModel):
+    items: list[PDIProgresoEmpleadoItem]
+    total: int

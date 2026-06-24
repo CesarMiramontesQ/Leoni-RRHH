@@ -10,7 +10,7 @@ from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import PlanDesarrolloIndividual
 from app.repositories.pdi_repository import PDIRepository
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEmpleadoItem, PDIProgresoEquipoResponse
 
 
 VALID_TRANSITIONS = {
@@ -200,6 +200,62 @@ class PDIService:
             created_at=item.created_at.isoformat() if item.created_at else "",
             updated_at=item.updated_at.isoformat() if item.updated_at else "",
         )
+
+    async def cambiar_estado(
+        self,
+        pdi_id: int,
+        nuevo_estado: str,
+        current_user: Empleado,
+    ) -> PDIGestionItem:
+        self._check_write_access(current_user)
+        item = await self.repo.get_with_empleado(pdi_id)
+        if not item:
+            raise NotFoundError("Acción PDI no encontrada")
+
+        area_ids = self._resolve_area_scope(current_user)
+        if area_ids is not None:
+            emp_area = item.empleado.area_id if item.empleado else None
+            if emp_area not in area_ids:
+                raise ForbiddenError("No tienes acceso a este recurso")
+
+        if item.estado in ("completado", "cancelado"):
+            raise ForbiddenError("No se puede modificar una acción en estado terminal")
+
+        allowed = VALID_TRANSITIONS.get(item.estado, set())
+        if nuevo_estado not in allowed:
+            raise ForbiddenError(
+                f"Transición de '{item.estado}' a '{nuevo_estado}' no permitida"
+            )
+
+        item.estado = nuevo_estado
+        await self.db.flush()
+        await self.db.refresh(item, attribute_names=["competencia"])
+        return self._to_gestion_item(item)
+
+    async def progreso_equipo(
+        self,
+        current_user: Empleado,
+        area_id: int | None = None,
+    ) -> PDIProgresoEquipoResponse:
+        area_ids = self._resolve_area_scope(current_user)
+        rows = await self.repo.progreso_por_empleado(area_ids=area_ids, area_id=area_id)
+        items = []
+        for row in rows:
+            total = row.total or 0
+            completadas = row.completadas or 0
+            pct = (completadas / total * 100) if total > 0 else 0.0
+            items.append(PDIProgresoEmpleadoItem(
+                empleado_id=row.empleado_id,
+                empleado_nombre=row.empleado_nombre,
+                area_nombre=row.area_nombre,
+                total=total,
+                completadas=completadas,
+                en_proceso=row.en_proceso or 0,
+                pendientes=row.pendientes or 0,
+                vencidas=row.vencidas or 0,
+                progreso_pct=round(pct, 1),
+            ))
+        return PDIProgresoEquipoResponse(items=items, total=len(items))
 
     def _to_response(self, item: PlanDesarrolloIndividual) -> PDIResponse:
         comp_nombre = item.competencia.nombre if item.competencia else "—"
