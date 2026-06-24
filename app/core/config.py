@@ -160,6 +160,15 @@ class Settings(BaseSettings):
             return None
         return value
 
+    # Seed: empleado_ids con puede_administrar_permisos_rh=true (ej. 12345,67890).
+    seed_rh_permisos_admin_empleado_ids_env: str = Field(
+        default="", validation_alias="SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS"
+    )
+
+    @property
+    def SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.seed_rh_permisos_admin_empleado_ids_env, [])
+
     # App
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"

@@ -311,7 +311,6 @@ ADMIN_RH: dict = {
     "usuario": "admin.rh",
     "password": "Leoni2026!RH",
     "estado_id": 1,
-    "puede_administrar_permisos_rh": True,
 }
 
 DEV_USER: dict = {
@@ -388,9 +387,7 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
     """Crea/asegura un usuario. rol, email y password viven en levelup_empleados_core;
     `empleados` (Bono) solo guarda identidad. En Bono real el empleado ya existe; en
     dev/local se crea para conveniencia."""
-    from app.models.empleados_rh import ensure_core, ensure_rh_permisos
-
-    admin_flag = bool(user_data.get("puede_administrar_permisos_rh", False))
+    from app.models.empleados_rh import ensure_core
 
     existing = await db.execute(
         select(Empleado).where(Empleado.empleado_id == user_data["empleado_id"])
@@ -423,12 +420,43 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
         core.email = user_data["email"]
     await db.flush()
 
-    if admin_flag:
+    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, core.email)
+
+
+async def seed_rh_permisos_admins(db) -> None:
+    """Marca `puede_administrar_permisos_rh=true` en los empleados de
+    SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS (.env). Idempotente."""
+    from app.models.empleados_rh import ensure_rh_permisos
+
+    empleado_ids = settings.SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS
+    if not empleado_ids:
+        logger.info(
+            "  Sin SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS — omitiendo administradores de permisos RH"
+        )
+        return
+
+    for empleado_id in empleado_ids:
+        result = await db.execute(
+            select(Empleado).where(Empleado.empleado_id == empleado_id)
+        )
+        emp = result.scalar_one_or_none()
+        if emp is None:
+            if settings.APP_ENV == "production":
+                raise RuntimeError(
+                    f"No existe empleado_id={empleado_id} en Bono.empleados. "
+                    "Configure SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS con empleados activos existentes."
+                )
+            logger.warning(
+                "  empleado_id=%d no encontrado — omitiendo admin permisos RH", empleado_id
+            )
+            continue
+
         permisos = ensure_rh_permisos(db, emp)
         permisos.puede_administrar_permisos_rh = True
         await db.flush()
-
-    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, core.email)
+        logger.info(
+            "  Admin permisos RH: empleado_id=%d (%s)", emp.empleado_id, emp.nombre
+        )
 
 
 async def seed_level_up(db) -> None:
@@ -525,6 +553,9 @@ async def seed() -> None:
 
             if settings.APP_ENV != "production":
                 await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
+
+            logger.info("Seeding administradores de permisos RH...")
+            await seed_rh_permisos_admins(db)
 
             if settings.APP_ENV == "production":
                 logger.info("Seeding Level Up omitido (producción)")

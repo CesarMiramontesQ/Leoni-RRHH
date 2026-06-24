@@ -45,6 +45,7 @@ services:
       ESTADOS_PERMISO_IDS: ${ESTADOS_PERMISO_IDS:-3}
       # Seed inicial (./scripts/prod-seed.sh): empleado_id real de Bono.empleados
       SEED_ADMIN_EMPLEADO_ID: ${SEED_ADMIN_EMPLEADO_ID:-}
+      SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS: ${SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS:-}
     restart: always
 
   frontend:
