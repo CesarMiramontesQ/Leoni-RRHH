@@ -26,8 +26,12 @@ function sortMetodos(items: MetodoCalificacionCompetencia[]): MetodoCalificacion
   return [...items].filter((m) => m.activo).sort((a, b) => a.orden - b.orden);
 }
 
+function resolvedMetodos(): MetodoCalificacionCompetencia[] {
+  return cache && cache.length > 0 ? cache : DEFAULT_METODOS;
+}
+
 export function getMetodosCalificacionCompetenciaSync(): MetodoCalificacionCompetencia[] {
-  return sortMetodos(cache ?? DEFAULT_METODOS);
+  return sortMetodos(resolvedMetodos());
 }
 
 export function setMetodosCalificacionCompetenciaCache(
@@ -51,10 +55,13 @@ export async function ensureMetodosCalificacionCompetenciaLoaded(): Promise<
   if (!loadPromise) {
     loadPromise = getMetodosCalificacionCompetencia()
       .then((items) => {
-        cache = items;
+        cache = items.length > 0 ? items : DEFAULT_METODOS;
         return getMetodosCalificacionCompetenciaSync();
       })
-      .catch(() => DEFAULT_METODOS)
+      .catch(() => {
+        cache = DEFAULT_METODOS;
+        return getMetodosCalificacionCompetenciaSync();
+      })
       .finally(() => {
         loadPromise = null;
       });

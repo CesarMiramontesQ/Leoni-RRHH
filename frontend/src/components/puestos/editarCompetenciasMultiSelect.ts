@@ -46,24 +46,52 @@ function tipoChipColors(tipoId: number, tipos: TipoCompetencia[]): string {
   return TIPO_CHIP_PALETTE[idx >= 0 ? idx % TIPO_CHIP_PALETTE.length : 0] ?? "bg-slate-100 text-slate-600 border-slate-200";
 }
 
+function nivelOptionsHtml(selected?: number): string {
+  const opts = getNivelRequeridoOptions();
+  if (opts.length === 0) {
+    return `<option value="" disabled selected>Sin niveles configurados</option>`;
+  }
+  return opts
+    .map(
+      (o) =>
+        `<option value="${o.value}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
+    )
+    .join("");
+}
+
 function compactNivelSelect(selected: number, attrs: string): string {
-  const opts = getNivelRequeridoOptions().map(
-    (o) =>
-      `<option value="${o.value}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
-  ).join("");
-  return `<div class="grid grid-cols-1 shrink-0">
-    <select ${attrs} class="col-start-1 row-start-1 min-w-[8.5rem] appearance-none rounded border border-slate-200 bg-white py-0.5 pl-1.5 pr-6 text-[10px] font-semibold text-slate-800 ${FIELD_FOCUS}">${opts}</select>
+  const nivel = selected >= 1 && selected <= 4 ? selected : optsFirstValue();
+  return `<div class="relative grid grid-cols-1 shrink-0">
+    <select ${attrs} class="relative z-[1] col-start-1 row-start-1 min-w-[8.5rem] cursor-pointer appearance-none rounded border border-slate-200 bg-white py-0.5 pl-1.5 pr-6 text-[10px] font-semibold text-slate-800 ${FIELD_FOCUS}">${nivelOptionsHtml(nivel)}</select>
     ${SELECT_CHEVRON.replace('class="', 'class="!size-3 !mr-0.5 ')}
   </div>`;
+}
+
+function optsFirstValue(): number {
+  return getNivelRequeridoOptions()[0]?.value ?? 1;
+}
+
+const COMPETENCIAS_MODAL_ROOT_ID = "editar-competencias-modal-root";
+
+function ensureCompetenciasModalRoot(): HTMLElement {
+  let root = document.getElementById(COMPETENCIAS_MODAL_ROOT_ID);
+  if (!root) {
+    root = document.createElement("div");
+    root.id = COMPETENCIAS_MODAL_ROOT_ID;
+    document.body.appendChild(root);
+  }
+  return root;
 }
 
 export function mountEditarCompetenciasModal(
   host: HTMLElement,
   options: EditarCompetenciasModalOptions,
 ): EditarCompetenciasModalHandle {
-  host.innerHTML = overlayHtml();
-  const overlay = host.querySelector("#editar-competencias-overlay") as HTMLElement;
-  const body = host.querySelector("#editar-competencias-body") as HTMLElement;
+  const modalRoot = ensureCompetenciasModalRoot();
+  modalRoot.innerHTML = overlayHtml();
+  host.innerHTML = "";
+  const overlay = modalRoot.querySelector("#editar-competencias-overlay") as HTMLElement;
+  const body = modalRoot.querySelector("#editar-competencias-body") as HTMLElement;
 
   let catalogo: CatalogoItem[] = [];
   let tiposCatalogo: TipoCompetencia[] = [];
@@ -223,10 +251,10 @@ export function mountEditarCompetenciasModal(
 
       ${searchPanel}
       ${createPanel}
-      ${saveError ? `<p class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2">${escapeHtml(saveError)}</p>` : ""}
+      ${saveError ? `<p data-comp-save-error class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="alert">${escapeHtml(saveError)}</p>` : ""}
 
       ${hasChanges ? `
-        <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+        <div data-comp-save-footer class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
           <span class="text-xs text-slate-500">
             ${pendingAdds.size ? `+${pendingAdds.size} por agregar` : ""}
             ${pendingAdds.size && pendingRemovals.size ? " · " : ""}
@@ -238,6 +266,46 @@ export function mountEditarCompetenciasModal(
           </div>
         </div>` : ""}
     `;
+  }
+
+  function paintSaveFooter(): void {
+    const existingError = body.querySelector("[data-comp-save-error]");
+    if (saveError) {
+      if (existingError) {
+        existingError.textContent = saveError;
+      } else {
+        body.insertAdjacentHTML(
+          "beforeend",
+          `<p data-comp-save-error class="mt-3 text-sm text-red-700 rounded-lg border border-red-200 bg-red-50 px-3 py-2" role="alert">${escapeHtml(saveError)}</p>`,
+        );
+      }
+    } else {
+      existingError?.remove();
+    }
+
+    const hasChanges =
+      pendingRemovals.size > 0 || pendingAdds.size > 0 || pendingNivelUpdates.size > 0;
+    const footerHtml = hasChanges
+      ? `<div data-comp-save-footer class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+          <span class="text-xs text-slate-500">
+            ${pendingAdds.size ? `+${pendingAdds.size} por agregar` : ""}
+            ${pendingAdds.size && pendingRemovals.size ? " · " : ""}
+            ${pendingRemovals.size ? `−${pendingRemovals.size} por quitar` : ""}
+          </span>
+          <div class="flex gap-2">
+            <button type="button" data-discard class="${BTN_GHOST} text-xs">Descartar</button>
+            <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
+          </div>
+        </div>`
+      : "";
+
+    const footer = body.querySelector("[data-comp-save-footer]");
+    if (!hasChanges) {
+      footer?.remove();
+      return;
+    }
+    if (footer) footer.outerHTML = footerHtml;
+    else body.insertAdjacentHTML("beforeend", footerHtml);
   }
 
   function renderSearchPanel(): string {
@@ -271,15 +339,12 @@ export function mountEditarCompetenciasModal(
         ? (() => {
             const comp = catalogo.find((c) => c.id === pickNivelCompId);
             if (!comp) return "";
-            const nivelOpts = getNivelRequeridoOptions().map(
-              (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
-            ).join("");
             return `
         <div class="mb-3 rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
           <p class="text-xs font-semibold text-slate-700 mb-2">Nivel mínimo para <span class="text-leoni-blue">${escapeHtml(comp.nombre)}</span></p>
           <div class="flex flex-wrap items-end gap-2">
-            <div class="grid grid-cols-1 flex-1 min-w-[12rem]">
-              <select data-pick-nivel-select class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOpts}</select>
+            <div class="relative grid grid-cols-1 flex-1 min-w-[12rem]">
+              <select data-pick-nivel-select class="relative z-[1] col-start-1 row-start-1 w-full cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(optsFirstValue())}</select>
               ${SELECT_CHEVRON}
             </div>
             <button type="button" data-confirm-pick-nivel class="${BTN_PRIMARY} !py-1.5 text-xs">Agregar</button>
@@ -322,10 +387,6 @@ export function mountEditarCompetenciasModal(
       `<option value="${s.id}">${escapeHtml(s.nombre)}</option>`,
     ).join("");
 
-    const nivelOpts = getNivelRequeridoOptions().map(
-      (o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`,
-    ).join("");
-
     return `
       <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <p class="text-xs font-medium text-slate-600 mb-2">Crear nueva competencia</p>
@@ -343,8 +404,8 @@ export function mountEditarCompetenciasModal(
           </div>
           <div>
             <label class="mb-1 block text-[10px] font-semibold text-slate-500">Nivel mínimo requerido</label>
-            <div class="grid grid-cols-1">
-              <select data-create-nivel required class="col-start-1 row-start-1 w-full min-w-[11rem] appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOpts}</select>
+            <div class="relative grid grid-cols-1">
+              <select data-create-nivel required class="relative z-[1] col-start-1 row-start-1 w-full min-w-[11rem] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(optsFirstValue())}</select>
               ${SELECT_CHEVRON}
             </div>
           </div>
@@ -354,8 +415,14 @@ export function mountEditarCompetenciasModal(
       </div>`;
   }
 
+  function isFormControl(target: EventTarget | null): boolean {
+    return target instanceof Element && Boolean(target.closest("select, input, textarea, option, label"));
+  }
+
   // Single event delegation listener
   body.addEventListener("click", (e) => {
+    if (isFormControl(e.target)) return;
+
     const target = e.target as HTMLElement;
 
     const removeBtn = target.closest<HTMLElement>("[data-remove-req]");
@@ -482,26 +549,23 @@ export function mountEditarCompetenciasModal(
       render();
       return;
     }
-    if (target.matches("[data-nivel-assigned]")) {
-      const reqId = Number.parseInt((target as HTMLElement).getAttribute("data-nivel-assigned") ?? "", 10);
+    if (target.matches("[data-nivel-assigned], [data-nivel-pending-add], [data-pick-nivel-select], [data-create-nivel]")) {
       const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
-      if (Number.isFinite(reqId) && nivel >= 1 && nivel <= 4) {
+      if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) return;
+
+      if (target.matches("[data-nivel-assigned]")) {
+        const reqId = Number.parseInt(target.getAttribute("data-nivel-assigned") ?? "", 10);
+        if (!Number.isFinite(reqId)) return;
         const orig = assigned.find((a) => a.requisito_id === reqId)?.nivel_requerido ?? 0;
         if (nivel === orig) pendingNivelUpdates.delete(reqId);
         else pendingNivelUpdates.set(reqId, nivel);
-        saveError = "";
-        render();
-      }
-      return;
-    }
-    if (target.matches("[data-nivel-pending-add]")) {
-      const compId = Number.parseInt((target as HTMLElement).getAttribute("data-nivel-pending-add") ?? "", 10);
-      const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
-      if (Number.isFinite(compId) && nivel >= 1 && nivel <= 4) {
+      } else if (target.matches("[data-nivel-pending-add]")) {
+        const compId = Number.parseInt(target.getAttribute("data-nivel-pending-add") ?? "", 10);
+        if (!Number.isFinite(compId)) return;
         pendingAdds.set(compId, nivel);
-        saveError = "";
-        render();
       }
+      saveError = "";
+      paintSaveFooter();
     }
   });
 
@@ -619,7 +683,7 @@ export function mountEditarCompetenciasModal(
     if (e.target === overlay) close();
   });
 
-  host.addEventListener("click", (e) => {
+  modalRoot.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest("[data-close-competencias-modal]")) close();
   });
 
@@ -646,7 +710,7 @@ function overlayHtml(): string {
   return `
     <div
       id="editar-competencias-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 p-4"
       role="presentation"
     >
       <div
