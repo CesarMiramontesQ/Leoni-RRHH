@@ -27,18 +27,22 @@ echo "=== Alembic heads ==="
 alembic_run heads
 
 echo "=== Revisión actual en BD ==="
-CURRENT_OUT="$(alembic_run current 2>&1 || true)"
-echo "$CURRENT_OUT"
+CURRENT_REV="$(alembic_current_revision || true)"
+if [[ -z "$CURRENT_REV" ]]; then
+  echo "(vacía)"
+else
+  echo "$CURRENT_REV"
+fi
 
 # BD Bono sin historial Alembic: no usar upgrade head (intentaría crear empleados).
-if ! echo "$CURRENT_OUT" | grep -qE '[a-f0-9]{12}'; then
+if [[ -z "$CURRENT_REV" ]]; then
   echo ""
   echo "=== BD sin revisión Alembic: delegando a bono-first-migrate.sh ==="
   exec "$(dirname "$0")/bono-first-migrate.sh"
 fi
 
 # Prod v1.0 dejó alembic_version en n3; prod-v2.0 continúa desde f36fc (merge vacío equivalente).
-if echo "$CURRENT_OUT" | grep -qE '(^|[^a-z0-9])n3o4p5q6r7s8([^a-z0-9]|$)'; then
+if [[ "$CURRENT_REV" == "n3o4p5q6r7s8" ]]; then
   echo "=== Prod v1.0 detectado (n3): stamp a f36fc5feb45e antes de upgrade ==="
   alembic_run stamp f36fc5feb45e
 fi

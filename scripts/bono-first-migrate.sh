@@ -10,10 +10,9 @@
 # Uso en el servidor:
 #   cd /levelup/Leoni-RRHH
 #   ./scripts/bono-first-migrate.sh
-#   ./scripts/prod-seed.sh   # o backend_run manual para seed
-#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+#   ./scripts/prod-seed.sh
 #
-# Requisito: alembic_version vacía o inexistente (nunca migrado con este proyecto).
+# Requisito: alembic_version vacía, o solo p2q3r4s5t6u7 si se interrumpió antes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1091
@@ -21,6 +20,7 @@ source "$(dirname "$0")/lib/docker-prod-backend.sh"
 
 STAMP_SKIP_LEGACY="p2q3r4s5t6u7"
 BASELINE_REV="v1l2u3p0base"
+HEAD_REV="37a743fada1c"
 
 echo "=== Build backend (sin caché: asegura migraciones nuevas en la imagen) ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend --no-cache
@@ -29,27 +29,35 @@ echo "=== Verificar migración baseline en la imagen Docker ==="
 require_alembic_revision "$BASELINE_REV"
 python3 scripts/check_alembic_heads.py
 
-CURRENT_OUT="$(alembic_run current 2>&1 || true)"
+CURRENT_REV="$(alembic_current_revision || true)"
 echo "=== Revisión actual en BD ==="
-echo "$CURRENT_OUT"
-
-if echo "$CURRENT_OUT" | grep -qE 'v1l2u3p0base|37a743fada1c'; then
-  echo "=== Ya en baseline/head. Nada que migrar. ==="
-  exit 0
-fi
-
-if echo "$CURRENT_OUT" | grep -q 'p2q3r4s5t6u7'; then
-  echo "=== Reanudando desde p2q3r4s5t6u7 (stamp previo) ==="
-elif echo "$CURRENT_OUT" | grep -qE '[a-f0-9]{12}'; then
-  echo ""
-  echo "ERROR: Revisión Alembic inesperada (no es primera carga Bono)." >&2
-  echo "$CURRENT_OUT" >&2
-  exit 1
+if [[ -z "$CURRENT_REV" ]]; then
+  echo "(vacía — primera carga Bono)"
 else
-  echo ""
-  echo "=== Bono first: stamp cadena legacy (sin DDL) → $STAMP_SKIP_LEGACY ==="
-  alembic_run stamp "$STAMP_SKIP_LEGACY"
+  echo "$CURRENT_REV"
 fi
+
+case "$CURRENT_REV" in
+  ""|" ")
+    echo ""
+    echo "=== Bono first: stamp cadena legacy (sin DDL) → $STAMP_SKIP_LEGACY ==="
+    alembic_run stamp "$STAMP_SKIP_LEGACY"
+    ;;
+  "$BASELINE_REV"|"$HEAD_REV")
+    echo "=== Ya en baseline/head. Nada que migrar. ==="
+    recreate_backend
+    exit 0
+    ;;
+  "$STAMP_SKIP_LEGACY")
+    echo "=== Reanudando desde $STAMP_SKIP_LEGACY (stamp previo) ==="
+    ;;
+  *)
+    echo ""
+    echo "ERROR: Revisión Alembic inesperada: '$CURRENT_REV'" >&2
+    echo "  Esperado: vacío, $STAMP_SKIP_LEGACY, $BASELINE_REV o $HEAD_REV" >&2
+    exit 1
+    ;;
+esac
 
 echo "=== Bono first: crear tablas levelup_* → upgrade $BASELINE_REV ==="
 alembic_run upgrade "$BASELINE_REV"
@@ -59,7 +67,7 @@ alembic_run stamp head
 
 echo ""
 echo "=== Migración Bono completada ==="
-alembic_run current
+alembic_current_revision
 echo ""
 echo "=== Recrear backend con imagen nueva ==="
 recreate_backend
