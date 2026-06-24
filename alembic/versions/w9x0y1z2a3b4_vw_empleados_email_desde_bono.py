@@ -43,7 +43,7 @@ SELECT
     e.requiere_cambio_password,
     c.rol_id,
     c.password_hash,
-    e.email,
+    CAST(e.email AS character varying(255)) AS email,
     c.created_at,
     cfg.fecha_fin_contrato,
     cfg.modulos_rh,
