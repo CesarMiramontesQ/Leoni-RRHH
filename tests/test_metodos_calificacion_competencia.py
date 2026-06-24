@@ -33,6 +33,64 @@ async def test_listar_metodos_calificacion_competencia(client, db):
 
 
 @pytest.mark.asyncio
+async def test_crear_metodo_calificacion_competencia(client, db):
+    rh = await make_empleado(db, rol="rh", email="mcc_create@leoni.test")
+    await ensure_metodos_calificacion_competencia(db)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/metodos-calificacion-competencia",
+        json={"nombre": "Maestro", "orden": 5},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["nombre"] == "Maestro"
+    assert data["orden"] == 5
+    assert data["valor"] == 5
+    assert data["activo"] is True
+
+
+@pytest.mark.asyncio
+async def test_desactivar_metodo_sin_uso(client, db):
+    rh = await make_empleado(db, rol="rh", email="mcc_del@leoni.test")
+    metodos = await ensure_metodos_calificacion_competencia(db)
+    metodo = next(m for m in metodos if m.valor == 4)
+    headers = await auth_headers(client, rh)
+
+    response = await client.delete(
+        f"/api/v1/metodos-calificacion-competencia/{metodo.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_desactivar_metodo_en_uso_falla(client, db):
+    rh = await make_empleado(db, rol="rh", email="mcc_del_use@leoni.test")
+    metodos = await ensure_metodos_calificacion_competencia(db)
+    metodo = next(m for m in metodos if m.valor == 3)
+    perfil = await make_puesto_perfil(db, nombre="Perfil MCC uso")
+    comp = await make_competencia(db, nombre="Comp uso MCC", categoria="tecnica")
+    await make_competencia_requisito(
+        db,
+        competencia_id=comp.id,
+        puesto_perfil_id=perfil.id,
+        nivel_requerido=3,
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.delete(
+        f"/api/v1/metodos-calificacion-competencia/{metodo.id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_actualizar_metodo_calificacion_competencia(client, db):
     rh = await make_empleado(db, rol="rh", email="mcc_upd@leoni.test")
     metodos = await ensure_metodos_calificacion_competencia(db)

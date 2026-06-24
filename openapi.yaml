@@ -3411,6 +3411,19 @@ components:
         page_size:
           type: integer
 
+    MetodoCalificacionCompetenciaCreate:
+      type: object
+      required: [nombre, orden]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        orden:
+          type: integer
+          minimum: 1
+          maximum: 99
+
     MetodoCalificacionCompetenciaUpdate:
       type: object
       required: [nombre, orden]
@@ -3422,7 +3435,9 @@ components:
         orden:
           type: integer
           minimum: 1
-          maximum: 4
+          maximum: 99
+        activo:
+          type: boolean
 
     MetodoCalificacionCompetenciaResponse:
       type: object
@@ -3433,7 +3448,6 @@ components:
         valor:
           type: integer
           minimum: 1
-          maximum: 4
         nombre:
           type: string
         orden:
@@ -8478,11 +8492,30 @@ paths:
         - BearerAuth: []
       responses:
         "200":
-          description: Lista de metodos (Planeado a Experto)
+          description: Lista de metodos activos configurables
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetodoCalificacionCompetenciaListResponse"
+    post:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Crear metodo de calificacion de competencias
+      operationId: metodos_calificacion_competencia_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetodoCalificacionCompetenciaCreate"
+      responses:
+        "201":
+          description: Metodo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
 
   /api/v1/metodos-calificacion-competencia/{id}:
     get:
@@ -8529,6 +8562,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetodoCalificacionCompetenciaResponse"
+    delete:
+      tags: [Talento - Metodos Calificacion Competencia]
+      summary: Desactivar metodo de calificacion de competencias
+      operationId: metodos_calificacion_competencia_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Metodo desactivado
 
   /api/v1/competencias/multihabilidades/puestos:
     get:

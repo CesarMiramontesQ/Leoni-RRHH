@@ -80,6 +80,7 @@ class CompetenciaService:
         self.pf_repo = PerfilFuncionesRepository(db)
         self.pf_comp_repo = PerfilFuncionesCompetenciaRepository(db)
         self.grado_repo = GradoPuestoRepository(db)
+        self.metodo_competencia_service = MetodoCalificacionCompetenciaService(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -381,13 +382,24 @@ class CompetenciaService:
                 )
                 continue
 
-            # Validar nivel
-            if celda.nivel_requerido < 0 or celda.nivel_requerido > 4:
+            # Validar nivel contra catalogo configurado
+            if celda.nivel_requerido < 0:
                 errores.append(
-                    f"Nivel {celda.nivel_requerido} fuera de rango (0-4) para "
+                    f"Nivel {celda.nivel_requerido} invalido para "
                     f"competencia={celda.competencia_id}, puesto={celda.puesto_perfil_id}"
                 )
                 continue
+            if celda.nivel_requerido > 0:
+                try:
+                    await self.metodo_competencia_service.validar_nivel_requerido(
+                        celda.nivel_requerido
+                    )
+                except DomainValidationError as exc:
+                    errores.append(
+                        f"{exc.detail} (competencia={celda.competencia_id}, "
+                        f"puesto={celda.puesto_perfil_id})"
+                    )
+                    continue
 
             await self.requisito_repo.upsert(
                 competencia_id=celda.competencia_id,

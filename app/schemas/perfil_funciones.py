@@ -134,11 +134,11 @@ class PerfilCualificacionResponse(BaseModel):
 class PerfilCompetenciaCreate(BaseModel):
     competencia_id: int
     grado_id: int = Field(..., gt=0)
-    nivel_requerido: int = Field(..., ge=1, le=4, description="Nivel mínimo requerido (1-4)")
+    nivel_requerido: int = Field(..., ge=1, description="Nivel mínimo requerido (valor del catálogo)")
 
 
 class PerfilCompetenciaUpdate(BaseModel):
-    nivel_requerido: int = Field(..., ge=1, le=4, description="Nivel mínimo requerido (1-4)")
+    nivel_requerido: int = Field(..., ge=1, description="Nivel mínimo requerido (valor del catálogo)")
 
 
 class PerfilCompetenciaResponse(BaseModel):
@@ -276,7 +276,7 @@ class PerfilFuncionesCompetenciaResponse(BaseModel):
 
 class PerfilCompetenciaSyncItem(BaseModel):
     competencia_id: int
-    nivel_requerido: int = Field(..., ge=1, le=4)
+    nivel_requerido: int = Field(..., ge=1)
 
 
 class PerfilCompetenciaSyncBody(BaseModel):

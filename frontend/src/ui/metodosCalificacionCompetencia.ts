@@ -4,21 +4,6 @@ import type {
   MetodoCalificacionCompetenciaResumen,
 } from "../dashboard/metodosCalificacionCompetencia/types.ts";
 
-const DEFAULT_METODOS: MetodoCalificacionCompetencia[] = [
-  { id: 0, valor: 1, nombre: "Planeado", orden: 1, activo: true, created_at: "", updated_at: "" },
-  {
-    id: 0,
-    valor: 2,
-    nombre: "En entrenamiento",
-    orden: 2,
-    activo: true,
-    created_at: "",
-    updated_at: "",
-  },
-  { id: 0, valor: 3, nombre: "Certificado", orden: 3, activo: true, created_at: "", updated_at: "" },
-  { id: 0, valor: 4, nombre: "Experito", orden: 4, activo: true, created_at: "", updated_at: "" },
-];
-
 let cache: MetodoCalificacionCompetencia[] | null = null;
 let loadPromise: Promise<MetodoCalificacionCompetencia[]> | null = null;
 
@@ -27,7 +12,7 @@ function sortMetodos(items: MetodoCalificacionCompetencia[]): MetodoCalificacion
 }
 
 function resolvedMetodos(): MetodoCalificacionCompetencia[] {
-  return cache && cache.length > 0 ? cache : DEFAULT_METODOS;
+  return cache ?? [];
 }
 
 export function getMetodosCalificacionCompetenciaSync(): MetodoCalificacionCompetencia[] {
@@ -55,11 +40,11 @@ export async function ensureMetodosCalificacionCompetenciaLoaded(): Promise<
   if (!loadPromise) {
     loadPromise = getMetodosCalificacionCompetencia()
       .then((items) => {
-        cache = items.length > 0 ? items : DEFAULT_METODOS;
+        cache = items;
         return getMetodosCalificacionCompetenciaSync();
       })
       .catch(() => {
-        cache = DEFAULT_METODOS;
+        cache = [];
         return getMetodosCalificacionCompetenciaSync();
       })
       .finally(() => {
@@ -89,20 +74,41 @@ export function nivelMetodoLabel(valor: number, includePrefix = true): string {
   return includePrefix ? `${metodo.valor} — ${metodo.nombre}` : metodo.nombre;
 }
 
+const TONE_PALETTE = [
+  "border-red-200 bg-red-50 text-red-900",
+  "border-orange-200 bg-orange-50 text-orange-900",
+  "border-amber-200 bg-amber-50 text-amber-900",
+  "border-emerald-200 bg-emerald-50 text-emerald-900",
+  "border-blue-200 bg-blue-50 text-blue-900",
+  "border-violet-200 bg-violet-50 text-violet-900",
+];
+
+const LEGEND_PALETTE = [
+  "bg-red-100 ring-1 ring-red-200/80",
+  "bg-orange-100 ring-1 ring-orange-200/80",
+  "bg-amber-100 ring-1 ring-amber-200/80",
+  "bg-emerald-100 ring-1 ring-emerald-200/80",
+  "bg-blue-100 ring-1 ring-blue-200/80",
+  "bg-violet-100 ring-1 ring-violet-200/80",
+];
+
 export function nivelMetodoSelectTone(valor: number): string {
   if (valor === 0) return "border-dashed border-slate-200 bg-slate-50 text-slate-600";
-  if (valor === 1) return "border-red-200 bg-red-50 text-red-900";
-  if (valor === 2) return "border-orange-200 bg-orange-50 text-orange-900";
-  if (valor === 3) return "border-amber-200 bg-amber-50 text-amber-900";
-  return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  const metodos = getMetodosCalificacionCompetenciaSync();
+  const idx = metodos.findIndex((m) => m.valor === valor);
+  return TONE_PALETTE[idx >= 0 ? idx % TONE_PALETTE.length : TONE_PALETTE.length - 1];
 }
 
 export function nivelMetodoLegendTone(valor: number): string {
-  if (valor === 1) return "bg-red-100 ring-1 ring-red-200/80";
-  if (valor === 2) return "bg-orange-100 ring-1 ring-orange-200/80";
-  if (valor === 3) return "bg-amber-100 ring-1 ring-amber-200/80";
-  if (valor >= 4) return "bg-emerald-100 ring-1 ring-emerald-200/80";
-  return "bg-slate-50 ring-1 ring-dashed ring-slate-300";
+  if (valor <= 0) return "bg-slate-50 ring-1 ring-dashed ring-slate-300";
+  const metodos = getMetodosCalificacionCompetenciaSync();
+  const idx = metodos.findIndex((m) => m.valor === valor);
+  return LEGEND_PALETTE[idx >= 0 ? idx % LEGEND_PALETTE.length : LEGEND_PALETTE.length - 1];
+}
+
+export function maxNivelActivoValor(): number {
+  const metodos = getMetodosCalificacionCompetenciaSync();
+  return metodos.length > 0 ? Math.max(...metodos.map((m) => m.valor)) : 0;
 }
 
 export function renderNivelMetodoSelectHtml(

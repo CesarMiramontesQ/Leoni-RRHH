@@ -47,6 +47,9 @@ from app.services.calificacion_comparador_service import (
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.services.grado_puesto_service import GradoPuestoService
+from app.services.metodo_calificacion_competencia_service import (
+    MetodoCalificacionCompetenciaService,
+)
 from app.schemas.perfil_funciones import (
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
@@ -83,6 +86,7 @@ class PerfilFuncionesService:
         self.eval_competencia_repo = PerfilFuncionesCompetenciaRepository(db)
         self.tarea_extra_repo = PerfilFuncionesTareaRepository(db)
         self.grado_service = GradoPuestoService(db)
+        self.metodo_competencia_service = MetodoCalificacionCompetenciaService(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -464,6 +468,8 @@ class PerfilFuncionesService:
         if not catalogo:
             raise NotFoundError(entidad="Competencia", id=data.competencia_id)
 
+        await self.metodo_competencia_service.validar_nivel_requerido(data.nivel_requerido)
+
         orden = (await self.competencia_repo.max_orden(perfil_id, data.grado_id)) + 1
 
         requisito = await self.competencia_repo.create({
@@ -505,6 +511,9 @@ class PerfilFuncionesService:
         requested_ids = set(requested_map.keys())
 
         if requested_ids:
+            await self.metodo_competencia_service.validar_niveles_requeridos(
+                set(requested_map.values())
+            )
             invalid = requested_ids - catalogo_ids
             if invalid:
                 raise DomainValidationError(
@@ -577,6 +586,8 @@ class PerfilFuncionesService:
         requisito = result.scalar_one_or_none()
         if not requisito:
             raise NotFoundError(entidad="CompetenciaRequisito", id=requisito_id)
+
+        await self.metodo_competencia_service.validar_nivel_requerido(data.nivel_requerido)
 
         requisito.nivel_requerido = data.nivel_requerido
         await self.db.flush()

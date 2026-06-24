@@ -208,8 +208,8 @@ class CompetenciaRequisito(Base):
             name="uq_competencia_puesto_grado",
         ),
         CheckConstraint(
-            "nivel_requerido >= 0 AND nivel_requerido <= 4",
-            name="ck_nivel_requerido_rango",
+            "nivel_requerido >= 0",
+            name="ck_nivel_requerido_nonneg",
         ),
     )
 
@@ -259,8 +259,8 @@ class EvaluacionCompetencia(Base):
             "empleado_id", "competencia_id", name="uq_evaluacion_vigente"
         ),
         CheckConstraint(
-            "nivel_actual >= 0 AND nivel_actual <= 4",
-            name="ck_nivel_actual_rango",
+            "nivel_actual >= 0",
+            name="ck_nivel_actual_nonneg",
         ),
     )
 
@@ -553,13 +553,13 @@ class GradoPuesto(Base):
 
 
 class MetodoCalificacionCompetencia(Base):
-    """Catalogo de metodos de calificacion para competencias (niveles 1-4)."""
+    """Catalogo configurable de metodos de calificacion para competencias."""
 
     __tablename__ = "levelup_metodos_calificacion_competencia"
     __table_args__ = (
         CheckConstraint(
-            "valor >= 1 AND valor <= 4",
-            name="ck_metodo_calificacion_competencia_valor",
+            "valor >= 1",
+            name="ck_metodo_calificacion_competencia_valor_pos",
         ),
     )
 

@@ -8,9 +8,15 @@ export type MetodoCalificacionCompetencia = {
   updated_at: string;
 };
 
+export type MetodoCalificacionCompetenciaCreatePayload = {
+  nombre: string;
+  orden: number;
+};
+
 export type MetodoCalificacionCompetenciaUpdatePayload = {
   nombre: string;
   orden: number;
+  activo?: boolean;
 };
 
 export type MetodoCalificacionCompetenciaFetchError = {

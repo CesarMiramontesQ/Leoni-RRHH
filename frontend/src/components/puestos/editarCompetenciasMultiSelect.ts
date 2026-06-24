@@ -60,15 +60,27 @@ function nivelOptionsHtml(selected?: number): string {
 }
 
 function compactNivelSelect(selected: number, attrs: string): string {
-  const nivel = selected >= 1 && selected <= 4 ? selected : optsFirstValue();
+  const opts = getNivelRequeridoOptions();
+  const fallback = opts[0]?.value ?? 0;
+  const nivel = opts.some((o) => o.value === selected) ? selected : fallback;
   return `<div class="relative grid grid-cols-1 shrink-0">
     <select ${attrs} class="relative z-[1] col-start-1 row-start-1 min-w-[8.5rem] cursor-pointer appearance-none rounded border border-slate-200 bg-white py-0.5 pl-1.5 pr-6 text-[10px] font-semibold text-slate-800 ${FIELD_FOCUS}">${nivelOptionsHtml(nivel)}</select>
     ${SELECT_CHEVRON.replace('class="', 'class="!size-3 !mr-0.5 ')}
   </div>`;
 }
 
+function isNivelValido(nivel: number): boolean {
+  return nivel > 0 && getNivelRequeridoOptions().some((o) => o.value === nivel);
+}
+
+function mensajeNivelRequerido(): string {
+  const opts = getNivelRequeridoOptions();
+  if (opts.length === 0) return "Configura niveles de competencia en Ajustes de perfiles.";
+  return "Selecciona el nivel mínimo requerido configurado en ajustes.";
+}
+
 function optsFirstValue(): number {
-  return getNivelRequeridoOptions()[0]?.value ?? 1;
+  return getNivelRequeridoOptions()[0]?.value ?? 0;
 }
 
 const COMPETENCIAS_MODAL_ROOT_ID = "editar-competencias-modal-root";
@@ -443,7 +455,7 @@ export function mountEditarCompetenciasModal(
     if (confirmPick && pickNivelCompId !== null && !saving) {
       const sel = body.querySelector("[data-pick-nivel-select]") as HTMLSelectElement | null;
       const nivel = Number.parseInt(sel?.value ?? "", 10);
-      if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) {
+      if (!isNivelValido(nivel)) {
         saveError = "Selecciona un nivel mínimo entre 1 y 4.";
         render();
         return;
@@ -551,7 +563,7 @@ export function mountEditarCompetenciasModal(
     }
     if (target.matches("[data-nivel-assigned], [data-nivel-pending-add], [data-pick-nivel-select], [data-create-nivel]")) {
       const nivel = Number.parseInt((target as HTMLSelectElement).value, 10);
-      if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) return;
+      if (!isNivelValido(nivel)) return;
 
       if (target.matches("[data-nivel-assigned]")) {
         const reqId = Number.parseInt(target.getAttribute("data-nivel-assigned") ?? "", 10);
@@ -583,8 +595,8 @@ export function mountEditarCompetenciasModal(
       nombreInput.focus();
       return;
     }
-    if (!Number.isFinite(nivel) || nivel < 1 || nivel > 4) {
-      saveError = "Selecciona el nivel mínimo requerido (1–4).";
+    if (!isNivelValido(nivel)) {
+      saveError = mensajeNivelRequerido();
       render();
       return;
     }
@@ -639,8 +651,8 @@ export function mountEditarCompetenciasModal(
         for (const a of currentInSub) {
           if (pendingRemovals.has(a.requisito_id)) continue;
           const nivel = effectiveNivel(a);
-          if (nivel < 1 || nivel > 4) {
-            saveError = `Define el nivel mínimo (1–4) para «${a.nombre}».`;
+          if (!isNivelValido(nivel)) {
+            saveError = `${mensajeNivelRequerido()} Competencia: «${a.nombre}».`;
             saving = false;
             render();
             return;
@@ -650,9 +662,9 @@ export function mountEditarCompetenciasModal(
 
         for (const compId of addsInSub) {
           const nivel = pendingAdds.get(compId);
-          if (!nivel || nivel < 1 || nivel > 4) {
+          if (!isNivelValido(nivel)) {
             const c = catalogo.find((cat) => cat.id === compId);
-            saveError = `Define el nivel mínimo (1–4) para «${c?.nombre ?? "competencia"}».`;
+            saveError = `${mensajeNivelRequerido()} Competencia: «${c?.nombre ?? "competencia"}».`;
             saving = false;
             render();
             return;
@@ -722,7 +734,7 @@ function overlayHtml(): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Asigna competencias y define el nivel mínimo requerido (1–4) para este puesto</p>
+            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Competencias para <strong>${escapeHtml(options.gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.</p>
           </div>
           <button
             type="button"

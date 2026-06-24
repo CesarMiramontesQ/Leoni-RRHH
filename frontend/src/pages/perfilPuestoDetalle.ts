@@ -19,9 +19,8 @@ import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
 import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
 import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
-import { nivelRequeridoLabel } from "../ui/nivelCompetencia.ts";
+import { nivelRequeridoLabel, maxNivelActivoValor, ensureMetodosCalificacionCompetenciaLoaded } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
-import type { EditarCompetenciasModalHandle } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import type { EditarCualificacionesModalHandle } from "../components/puestos/editarCualificacionesModal.ts";
 import type { EditarTareasModalHandle } from "../components/puestos/editarTareasModal.ts";
 import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, type PerfilCualificacion } from "../api/puestos.ts";
@@ -117,32 +116,35 @@ function safeText(value: string | null | undefined, fallback = "—"): string {
   return escapeHtml(value?.trim() ? value : fallback);
 }
 
-async function loadCompetenciasPerfil(perfilId: number): Promise<Competencia[]> {
-  try {
-    const grados = (await getGradosPuesto()).filter((g) => g.activo);
-    if (grados.length === 0) return [];
+type CompetenciasPorGrado = {
+  grado: GradoPuesto;
+  competencias: Competencia[];
+};
 
-    const porGrado = await Promise.all(
-      grados.map(async (grado) => {
-        try {
-          return await getPerfilCompetencias(perfilId, grado.id);
-        } catch {
-          return [];
-        }
-      }),
-    );
+async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPuesto[]): Promise<CompetenciasPorGrado[]> {
+  const activos = grados.filter((g) => g.activo);
+  if (activos.length === 0) return [];
 
-    return porGrado.flat().map((c) => ({
-      id: c.id,
-      competencia_id: c.competencia_id,
-      competencia_nombre: c.competencia_nombre,
-      subcategoria: c.tipo_nombre,
-      nivel_requerido: c.nivel_requerido,
-      orden: c.orden,
-    }));
-  } catch {
-    return [];
-  }
+  const porGrado = await Promise.all(
+    activos.map(async (grado) => {
+      try {
+        const items = await getPerfilCompetencias(perfilId, grado.id);
+        const competencias = items.map((c) => ({
+          id: c.id,
+          competencia_id: c.competencia_id,
+          competencia_nombre: c.competencia_nombre,
+          subcategoria: c.tipo_nombre,
+          nivel_requerido: c.nivel_requerido,
+          orden: c.orden,
+        }));
+        return { grado, competencias };
+      } catch {
+        return { grado, competencias: [] as Competencia[] };
+      }
+    }),
+  );
+
+  return porGrado;
 }
 
 function formatFecha(iso: string | undefined): string | null {
@@ -169,6 +171,8 @@ function computeExecutiveSummary(
     conNivel.length > 0
       ? Math.round((conNivel.reduce((s, c) => s + c.nivel_requerido, 0) / conNivel.length) * 10) / 10
       : null;
+  const maxNivel = maxNivelActivoValor();
+  const nivelExperto = maxNivel > 0 ? maxNivel : 4;
   return {
     empleados,
     tareas: tareas.length,
@@ -176,7 +180,7 @@ function computeExecutiveSummary(
     cualificaciones: cualificaciones.length,
     nivelPromedio: avg != null ? String(avg) : null,
     competenciasSinNivel: competencias.filter((c) => !c.nivel_requerido || c.nivel_requerido <= 0).length,
-    competenciasExperto: competencias.filter((c) => c.nivel_requerido >= 4).length,
+    competenciasExperto: competencias.filter((c) => c.nivel_requerido >= nivelExperto).length,
   };
 }
 
@@ -192,6 +196,11 @@ function nivelVisual(nivel: number): { cls: string; short: string; title: string
 function sectionEditBtn(action: string, label: string): string {
   if (!canEditarPerfilPuesto()) return "";
   return `<button type="button" data-action="${action}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
+}
+
+function sectionEditBtnForGrado(gradoId: number, label: string): string {
+  if (!canEditarPerfilPuesto()) return "";
+  return `<button type="button" data-action="edit-competencias" data-grado-id="${gradoId}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
 }
 
 function emptyState(message: string, hint?: string): string {
@@ -332,10 +341,17 @@ function renderExecutiveSummary(summary: ExecutiveSummary): string {
 
   const extraInsights: string[] = [];
   if (summary.nivelPromedio) {
-    extraInsights.push(`Nivel promedio requerido: <strong>${escapeHtml(summary.nivelPromedio)}</strong> / 4`);
+    const maxN = maxNivelActivoValor();
+    extraInsights.push(
+      `Nivel promedio requerido: <strong>${escapeHtml(summary.nivelPromedio)}</strong>${maxN > 0 ? ` / ${maxN}` : ""}`,
+    );
   }
   if (summary.competenciasExperto > 0) {
-    extraInsights.push(`<strong>${summary.competenciasExperto}</strong> competencia${summary.competenciasExperto !== 1 ? "s" : ""} en nivel experto (4)`);
+    const maxN = maxNivelActivoValor();
+    const label = maxN > 0 ? `nivel máximo (${maxN})` : "nivel máximo";
+    extraInsights.push(
+      `<strong>${summary.competenciasExperto}</strong> competencia${summary.competenciasExperto !== 1 ? "s" : ""} en ${label}`,
+    );
   }
 
   return `
@@ -492,47 +508,30 @@ function renderCualificaciones(cualificaciones: PerfilCualificacion[]): string {
   );
 }
 
-function renderCompetencias(competencias: Competencia[]): string {
-  if (competencias.length === 0) {
-    return sectionShell(
-      "ppd-competencias",
-      "Competencias demostradas",
-      "Por categoría y nivel requerido",
-      0,
-      "edit-competencias",
-      "Editar competencias",
-      emptyState(
-        "Sin competencias registradas",
-        canEditarPerfilPuesto() ? "Asocia competencias del catálogo y define el nivel mínimo requerido." : undefined,
-      ),
-    );
-  }
-
+function renderCompetenciasGrupo(items: Competencia[], maxNivel: number): string {
   const grouped = new Map<string, Competencia[]>();
-  for (const c of competencias) {
+  for (const c of items) {
     const key = c.subcategoria ?? "sin_categoria";
     const list = grouped.get(key) ?? [];
     list.push(c);
     grouped.set(key, list);
   }
 
-  const maxNivel = Math.max(...competencias.map((c) => c.nivel_requerido ?? 0));
-
-  const sections = Array.from(grouped.entries())
-    .map(([sub, items]) => {
+  return Array.from(grouped.entries())
+    .map(([sub, comps]) => {
       const chipCls = CATEGORIA_CHIP[sub] ?? "ppd-cat-chip ppd-cat-chip--default";
       const label = CATEGORIA_LABELS[sub] ?? sub;
       return `
       <div class="ppd-comp-categoria rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <span class="${chipCls}">${escapeHtml(label)}</span>
-          <span class="text-xs font-medium tabular-nums text-text-muted">${items.length} competencia${items.length !== 1 ? "s" : ""}</span>
+          <span class="text-xs font-medium tabular-nums text-text-muted">${comps.length} competencia${comps.length !== 1 ? "s" : ""}</span>
         </div>
         <ul class="flex flex-col gap-2">
-          ${items
+          ${comps
             .map((c) => {
               const nv = nivelVisual(c.nivel_requerido ?? 0);
-              const isHigh = c.nivel_requerido >= 4;
+              const isHigh = maxNivel > 0 && c.nivel_requerido >= maxNivel;
               const isPending = !c.nivel_requerido || c.nivel_requerido <= 0;
               return `
             <li class="ppd-comp-item flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2.5 ${isHigh ? "ppd-comp-item--expert" : ""} ${isPending ? "ppd-comp-item--pending" : ""}">
@@ -548,16 +547,65 @@ function renderCompetencias(competencias: Competencia[]): string {
       </div>`;
     })
     .join("");
+}
+
+function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
+  const total = porGrado.reduce((s, g) => s + g.competencias.length, 0);
+  const maxNivel = maxNivelActivoValor();
+
+  if (porGrado.length === 0) {
+    return sectionShell(
+      "ppd-competencias",
+      "Competencias demostradas",
+      "Por grado, categoría y nivel requerido",
+      0,
+      "edit-competencias",
+      "Editar competencias",
+      emptyState(
+        "Configura grados en Ajustes de perfiles antes de asignar competencias",
+        canEditarPerfilPuesto() ? "Define grados de progresión y luego asigna competencias por grado." : undefined,
+      ),
+    );
+  }
+
+  const gradoBlocks = porGrado
+    .map(({ grado, competencias }) => {
+      const body =
+        competencias.length === 0
+          ? emptyState(
+              `Sin competencias en ${grado.nombre}`,
+              canEditarPerfilPuesto() ? "Agrega competencias requeridas para este grado." : undefined,
+            )
+          : `<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${renderCompetenciasGrupo(competencias, maxNivel)}</div>`;
+      return `
+      <article class="rounded-xl border border-slate-200/90 bg-slate-50/30 overflow-hidden" aria-labelledby="ppd-comp-grado-${grado.id}-title">
+        <header class="flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-3">
+          <div class="min-w-0">
+            <h3 id="ppd-comp-grado-${grado.id}-title" class="text-sm font-semibold text-text-primary">${escapeHtml(grado.nombre)}</h3>
+            <p class="text-xs text-text-muted">${competencias.length} competencia${competencias.length !== 1 ? "s" : ""} requerida${competencias.length !== 1 ? "s" : ""}</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <span class="inline-flex min-w-[1.75rem] items-center justify-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-bold tabular-nums text-violet-800 ring-1 ring-violet-200/80">${competencias.length}</span>
+            ${sectionEditBtnForGrado(grado.id, `Editar ${grado.nombre}`)}
+          </div>
+        </header>
+        <div class="p-4">${body}</div>
+      </article>`;
+    })
+    .join("");
+
+  const allComps = porGrado.flatMap((g) => g.competencias);
+  const maxReq = Math.max(...allComps.map((c) => c.nivel_requerido ?? 0));
 
   return sectionShell(
     "ppd-competencias",
     "Competencias demostradas",
-    maxNivel >= 4 ? "Incluye requisitos de nivel experto" : "Situación deseada por categoría",
-    competencias.length,
-    "edit-competencias",
-    "Editar competencias",
-    `<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${sections}</div>`,
-    maxNivel >= 4 ? "ppd-section--highlight" : "",
+    "Requisitos por grado de progresión",
+    total,
+    "",
+    "",
+    `<div class="flex flex-col gap-4">${gradoBlocks}</div>`,
+    maxNivel > 0 && maxReq >= maxNivel ? "ppd-section--highlight" : "",
   );
 }
 
@@ -684,24 +732,39 @@ type PerfilDetalleController = {
   reload: () => void;
   puesto: PuestoPerfilInfo | null;
   cursosList: CursoPuestoItem[];
-  gradoEdicion: GradoPuesto | null;
+  grados: GradoPuesto[];
   tareasModal: EditarTareasModalHandle | null;
   cualModal: EditarCualificacionesModalHandle | null;
-  compModal: EditarCompetenciasModalHandle | null;
 };
 
 const perfilDetalleControllers = new WeakMap<HTMLElement, PerfilDetalleController>();
 
-function resolveGradoEdicion(grados: GradoPuesto[]): GradoPuesto | null {
-  return grados.find((g) => g.activo) ?? grados[0] ?? null;
-}
+async function openEditarCompetenciasModal(
+  ctrl: PerfilDetalleController,
+  host: HTMLElement | null,
+  gradoId?: number,
+): Promise<void> {
+  if (!host) return;
 
-async function fetchGradoEdicion(): Promise<GradoPuesto | null> {
-  try {
-    return resolveGradoEdicion(await getGradosPuesto());
-  } catch {
-    return null;
+  let grado = gradoId != null ? ctrl.grados.find((g) => g.id === gradoId && g.activo) : undefined;
+  if (!grado) {
+    grado = ctrl.grados.find((g) => g.activo) ?? ctrl.grados[0];
   }
+  if (!grado) {
+    showPerfilDetalleNotice(
+      host,
+      "Configura al menos un grado de puesto en Ajustes de perfiles → Grados en puestos antes de asignar competencias.",
+    );
+    return;
+  }
+
+  const modal = mountEditarCompetenciasModal(host, {
+    perfilId: ctrl.perfilId,
+    gradoId: grado.id,
+    gradoNombre: grado.nombre,
+    onSuccess: ctrl.reload,
+  });
+  modal.open();
 }
 
 function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
@@ -729,35 +792,6 @@ function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
   host.querySelector("[data-perfil-detalle-notice-close]")?.addEventListener("click", close);
 }
 
-async function openEditarCompetenciasModal(ctrl: PerfilDetalleController, host: HTMLElement | null): Promise<void> {
-  if (!host) return;
-  if (ctrl.compModal) {
-    ctrl.compModal.open();
-    return;
-  }
-
-  let grado = ctrl.gradoEdicion;
-  if (!grado) {
-    grado = await fetchGradoEdicion();
-    ctrl.gradoEdicion = grado;
-  }
-  if (!grado) {
-    showPerfilDetalleNotice(
-      host,
-      "Configura al menos un grado de puesto en Ajustes de perfiles → Grados en puestos antes de asignar competencias.",
-    );
-    return;
-  }
-
-  ctrl.compModal = mountEditarCompetenciasModal(host, {
-    perfilId: ctrl.perfilId,
-    gradoId: grado.id,
-    gradoNombre: grado.nombre,
-    onSuccess: ctrl.reload,
-  });
-  ctrl.compModal.open();
-}
-
 async function handlePerfilDetalleClick(container: HTMLElement, ev: Event): Promise<void> {
   const ctrl = perfilDetalleControllers.get(container);
   if (!ctrl) return;
@@ -775,9 +809,15 @@ async function handlePerfilDetalleClick(container: HTMLElement, ev: Event): Prom
     case "edit-cualificaciones":
       ctrl.cualModal?.open();
       break;
-    case "edit-competencias":
-      await openEditarCompetenciasModal(ctrl, inner.querySelector("#modal-host-competencias") as HTMLElement | null);
+    case "edit-competencias": {
+      const gradoId = btn.dataset.gradoId ? Number(btn.dataset.gradoId) : undefined;
+      await openEditarCompetenciasModal(
+        ctrl,
+        inner.querySelector("#modal-host-competencias") as HTMLElement | null,
+        gradoId,
+      );
       break;
+    }
     case "edit-base":
       if (ctrl.puesto) {
         openEditBaseModal(
@@ -827,10 +867,9 @@ export function mountPerfilPuestoDetalle(container: HTMLElement, id: number): vo
     reload,
     puesto: null,
     cursosList: [],
-    gradoEdicion: null,
+    grados: [],
     tareasModal: null,
     cualModal: null,
-    compModal: null,
   });
 
   const root = container.querySelector("#perfil-detalle-root");
@@ -890,16 +929,16 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
   }
 
   try {
-    const [puesto, tareas, cualificaciones, competencias, asignaciones, cursosAsignados, grados] = await Promise.all([
+    await ensureMetodosCalificacionCompetenciaLoaded();
+    const gradosActivos = (await getGradosPuesto().catch(() => [])).filter((g) => g.activo);
+    const [puesto, tareas, cualificaciones, competenciasPorGrado, asignaciones, cursosAsignados] = await Promise.all([
       fetchJson<PuestoPerfilInfo>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
       getPerfilCualificaciones(perfilId).catch(() => [] as PerfilCualificacion[]),
-      loadCompetenciasPerfil(perfilId),
+      loadCompetenciasPorGrado(perfilId, gradosActivos),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
       getCursosPuesto(perfilId).catch(() => [] as CursoPuestoItem[]),
-      getGradosPuesto().catch(() => []),
     ]);
-    const gradoEdicion = resolveGradoEdicion(grados);
 
     if (!puesto) {
       inner.innerHTML = `<div class="${RH_LISTADO_PAGE_OUTER}"><p class="text-sm text-red-600">Perfil no encontrado (ID: ${perfilId})</p></div>`;
@@ -908,7 +947,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
     const tareasList = tareas ?? [];
     const cualifList = cualificaciones ?? [];
-    const compList = competencias ?? [];
+    const compList = competenciasPorGrado.flatMap((g) => g.competencias);
     const asigList = asignaciones ?? [];
     const cursosList = cursosAsignados ?? [];
     const empleadosCount = asigList.length;
@@ -938,7 +977,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
             ${renderCualificaciones(cualifList)}
           </div>
           <div class="flex flex-col gap-4 sm:gap-5">
-            ${renderCompetencias(compList)}
+            ${renderCompetencias(competenciasPorGrado)}
             ${renderCursosAsignados(cursosList, perfilId)}
             ${renderEmpleadosResumen(asigList, perfilId)}
           </div>
@@ -959,8 +998,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
       ctrl.puesto = puesto;
       ctrl.cursosList = cursosList;
-      ctrl.gradoEdicion = gradoEdicion;
-      ctrl.compModal = null;
+      ctrl.grados = gradosActivos;
 
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
       ctrl.tareasModal = mountEditarTareasModal(tareasHost, {
@@ -970,16 +1008,6 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
       const cualHost = contentEl.querySelector("#modal-host-cualificaciones") as HTMLElement;
       ctrl.cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
-
-      if (gradoEdicion) {
-        const compHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
-        ctrl.compModal = mountEditarCompetenciasModal(compHost, {
-          perfilId,
-          gradoId: gradoEdicion.id,
-          gradoNombre: gradoEdicion.nombre,
-          onSuccess: reload,
-        });
-      }
     }
   } catch {
     inner.innerHTML = `
