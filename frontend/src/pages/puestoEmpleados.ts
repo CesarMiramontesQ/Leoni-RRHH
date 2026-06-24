@@ -30,6 +30,8 @@ import { mountEvaluarCompetenciasModal } from "../components/puestos/evaluarComp
 interface AsignacionItem {
   id: number;
   empleado_id: number;
+  grado_id: number;
+  grado_nombre: string;
   nombre_empleado: string | null;
   no_empleado: string | null;
   departamento: string | null;
@@ -477,6 +479,18 @@ function renderActionMenu(a: AsignacionItem, showRhActions: boolean): string {
   </div>`;
 }
 
+function gradoLabel(a: AsignacionItem): string {
+  const nombre = (a.grado_nombre ?? "").trim();
+  if (nombre) return nombre;
+  if (a.grado_id > 0) return `Grado #${a.grado_id}`;
+  return "Sin grado";
+}
+
+function renderGradoCell(a: AsignacionItem): string {
+  const label = gradoLabel(a);
+  return `<span class="inline-flex max-w-[10rem] items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+}
+
 function renderTableRows(items: AsignacionItem[], showRhActions: boolean): string {
   return items
     .map((a) => {
@@ -489,7 +503,11 @@ function renderTableRows(items: AsignacionItem[], showRhActions: boolean): strin
           <p class="text-sm font-semibold text-text-primary">${escapeHtml(a.nombre_empleado ?? `Empleado #${a.empleado_id}`)}</p>
           ${noFmt ? `<p class="mt-0.5 text-xs tabular-nums text-text-muted">No. ${escapeHtml(noFmt)}</p>` : ""}
           ${a.departamento ? `<p class="mt-1 text-xs text-text-secondary">${escapeHtml(a.departamento)}</p>` : ""}
+          <p class="mt-1.5 sm:hidden">${renderGradoCell(a)}</p>
         </div>
+      </td>
+      <td class="hidden px-4 py-4 align-middle sm:table-cell">
+        ${renderGradoCell(a)}
       </td>
       <td class="hidden px-4 py-4 align-middle md:table-cell">
         ${acuseBadge(estado)}
@@ -589,10 +607,11 @@ function renderTableSection(
   ${renderFilters(filters, filtered.length, allCount)}
   <section class="${RH_LISTADO_SURFACE} ppe-table-section overflow-hidden p-0 flex flex-col" aria-label="Colaboradores asignados">
     <div class="ppe-table-scroll overflow-x-auto">
-      <table class="ppe-table min-w-[640px] w-full border-collapse text-left">
+      <table class="ppe-table min-w-[720px] w-full border-collapse text-left">
         <thead>
           <tr>
             <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Colaborador</th>
+            <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted sm:table-cell">Grado</th>
             <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted md:table-cell">Estado</th>
             <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
           </tr>
