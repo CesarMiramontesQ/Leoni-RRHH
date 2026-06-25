@@ -29,14 +29,19 @@ class RhPermisosRepository:
 
     async def list_empleados_gestionados(self) -> list[Empleado]:
         """Usuarios gestionados en permisos por módulo: RH no removidos (cualquier
-        estado) más empleados de otros roles inscritos explícitamente por RH."""
+        estado), empleados de otros roles inscritos explícitamente, y administradores
+        de permisos (`puede_administrar_permisos_rh`)."""
         result = await self.db.execute(
             select(Empleado)
-            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
-            .join(Rol, EmpleadoCore.rol_id == Rol.id)
+            .outerjoin(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
+            .outerjoin(Rol, EmpleadoCore.rol_id == Rol.id)
             .outerjoin(
                 EmpleadoRhConfig,
                 EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
+            )
+            .outerjoin(
+                EmpleadoRhPermisos,
+                EmpleadoRhPermisos.empleado_id == Empleado.empleado_id,
             )
             .options(selectinload(Empleado.core))
             .where(
@@ -49,6 +54,7 @@ class RhPermisosRepository:
                         ),
                     ),
                     EmpleadoRhConfig.inscrito_modulos_rh.is_(True),
+                    EmpleadoRhPermisos.puede_administrar_permisos_rh.is_(True),
                 )
             )
             .order_by(Empleado.nombre.asc())

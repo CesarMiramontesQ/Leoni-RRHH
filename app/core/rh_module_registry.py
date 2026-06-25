@@ -315,10 +315,22 @@ def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
     return bool(getattr(empleado, "inscrito_modulos_rh", False))
 
 
+def empleado_en_lista_permisos(empleado: "Empleado") -> bool:
+    """True si el empleado debe aparecer en la tabla de administración de permisos RH."""
+    if bool(getattr(empleado, "puede_administrar_permisos_rh", False)):
+        return True
+    rol = empleado.rol.nombre if empleado.rol else "empleado"
+    if rol == "rh" and not getattr(empleado, "acceso_rh_removido", False):
+        return True
+    return bool(getattr(empleado, "inscrito_modulos_rh", False))
+
+
 def effective_modules_for_display(empleado: "Empleado") -> dict[str, bool]:
     """Permisos efectivos para UI de administración."""
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
+    if getattr(empleado, "puede_administrar_permisos_rh", False):
+        return {key: True for key in all_module_keys()}
     if rol == "rh" and not modulos:
         return {key: True for key in all_module_keys()}
     return {key: bool(modulos.get(key, False)) for key in all_module_keys()}
