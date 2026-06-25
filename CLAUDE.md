@@ -140,7 +140,7 @@ Layered architecture: **router → service → repository → models/schemas**
 - Legacy Bono tables (`empleados`, `areas`, `puestos`, etc.) are **read-only** from this project: query and FK-reference only; no schema migrations or DDL on them.
 - In raw SQL, always derive the table name from the model (`Model.__tablename__`); never hardcode unprefixed table names.
 - New Alembic revisions may only `create_table` / `alter_column` / `drop_table` on `levelup_*` tables. If a change requires touching an unprefixed table, stop and ask for clarification.
-- **BD Bono nueva:** el esquema propio se crea con la migración baseline `v1l2u3p0base` (genera solo tablas `levelup_*`). **No** corras `alembic upgrade head` desde cero contra Bono: la cadena vieja (`c06e332f3cce` … `p2q3r4s5t6u7`) crea tablas sin prefijo y tocaría catálogos de Bono. Procedimiento: `alembic stamp p2q3r4s5t6u7` y luego `alembic upgrade v1l2u3p0base` (ver `docs/PROD-V2-DEPLOY.md`).
+- **BD Bono nueva:** el esquema propio se crea con la migración baseline `v1l2u3p0base` (genera solo tablas `levelup_*`). **No** corras `alembic upgrade head` desde cero contra Bono: la cadena vieja (`c06e332f3cce` … `p2q3r4s5t6u7`) crea tablas sin prefijo y tocaría catálogos de Bono. Usa `scripts/bono-first-migrate.sh` (stamp `p2q3r4s5t6u7` → upgrade `v1l2u3p0base` → stamp head); `scripts/prod-migrate.sh` lo invoca solo si `alembic_version` está vacía. El merge `37a743fada1c` dejó un único head (ver `docs/PROD-V2-DEPLOY.md`).
 
 ### OpenAPI spec (`openapi.yaml`)
 - When adding, removing, or modifying any backend endpoint (routers, schemas, models), update `openapi.yaml` at the project root to reflect the change.

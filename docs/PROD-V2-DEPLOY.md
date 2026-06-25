@@ -67,21 +67,18 @@ migraciones antiguas (`c06e332f3cce` … `p2q3r4s5t6u7`) crean tablas **sin** pr
 `levelup_` e incluso tocarían catálogos de Bono. El esquema propio se crea con la
 migración baseline `v1l2u3p0base`, que genera **solo** tablas `levelup_*`.
 
-Procedimiento correcto (apuntar al baseline `v1l2u3p0base`, **no** a `head`):
+Esto lo automatiza `scripts/bono-first-migrate.sh` (stamp `p2q3r4s5t6u7` →
+`upgrade v1l2u3p0base` → `stamp head`); además `scripts/prod-migrate.sh` lo invoca
+solo cuando detecta `alembic_version` vacía. Primera carga:
 
 ```bash
-# 1. Marcar la cadena vieja como aplicada SIN ejecutarla (stamp al PADRE del
-#    baseline; no toca la BD ni crea tablas sin prefijo):
-docker compose -f docker-compose.prod.yml --env-file .env exec backend \
-  alembic stamp p2q3r4s5t6u7
-# 2. Ejecutar SOLO el baseline → crea las tablas levelup_*:
-docker compose -f docker-compose.prod.yml --env-file .env exec backend \
-  alembic upgrade v1l2u3p0base
+./scripts/bono-first-migrate.sh
+./scripts/prod-seed.sh
 ```
 
-> Nota: el árbol de migraciones tiene actualmente 2 heads (`v1l2u3p0base` y
-> `g7h8i9j0k1l2`); por eso se apunta a la revisión `v1l2u3p0base` explícita y no a
-> `head`. Resolver los heads (vía `alembic merge`) es un trabajo aparte.
+> El merge `37a743fada1c` unificó la cadena de `main` (`g7h8i9j0k1l2`) con el baseline
+> Bono (`v1l2u3p0base`), de modo que el árbol tiene **un solo head** (`check_alembic_heads.py`
+> debe pasar). `bono-first-migrate.sh` termina con `stamp head` para alinear `alembic_version`.
 
 ## Migrar desde prod v1.0 en el servidor
 
