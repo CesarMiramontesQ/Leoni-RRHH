@@ -15,6 +15,18 @@ vi.stubGlobal("sessionStorage", {
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => "supervisor",
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => null,
+}));
+
+vi.mock("../auth/rhUiMode.ts", () => ({
+  isAdminUser: () => false,
+  isNonRhRhMode: () => false,
+  isRhDirectorUiMode: () => false,
+  isRhEmpleadoUiMode: () => false,
+  isRhGerenteUiMode: () => false,
+  isRhGestorTeamUiMode: () => false,
+  isRhLiderUiMode: () => false,
+  isRhOperativoUiMode: () => false,
 }));
 
 describe("shellNavPolicy supervisor structured nav", () => {

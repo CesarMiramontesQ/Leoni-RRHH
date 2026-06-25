@@ -140,6 +140,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 /** Rol con menú lateral plano (sin hubs ni submenús). */
 export function isEmpleadoFlatNavRol(rol: string | null): boolean {
+  if (isRhOperativoUiMode()) return false;
   if (rol === "empleado") return true;
   return isRhEmpleadoUiMode();
 }
@@ -156,6 +157,7 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 
 /** Rol con menú lateral estructurado por secciones (Laborales, Comedor). */
 export function isSupervisorStructuredNavRol(rol: string | null): boolean {
+  if (isRhOperativoUiMode()) return false;
   if (rol === "supervisor" || rol === "gerente") return true;
   return isRhGestorTeamUiMode();
 }
@@ -201,8 +203,10 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   // `horas-extra-solicitud` y `horas-extra-aprobaciones` se resuelven antes de
   // llegar aquí (Regla B, en isShellNavItemVisibleForRol).
   if (itemId === "nominas-ajustes") return navRol === "rh";
-  if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
-  if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
+  if (!isRhOperativoUiMode()) {
+    if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+    if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
+  }
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (itemId === "evaluacion-360") return navRol === "rh";
   if (itemId === "nominas" || itemId === "horas-extra" || itemId === "conciliacion") {
@@ -327,6 +331,7 @@ export function resolveRoutedHashForRol(
   opts: { enrolledNonRh: boolean },
 ): string {
   if (opts.enrolledNonRh) return rawHash;
+  if (isRhOperativoUiMode()) return rawHash;
   if (rol === "empleado" && !empleadoMayAccessHash(rawHash)) return "#/";
   if (usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash)) return "#/";
   return rawHash;

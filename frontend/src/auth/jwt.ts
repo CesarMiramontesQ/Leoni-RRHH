@@ -139,6 +139,7 @@ export function canAccessComedorReportePage(): boolean {
 
 /** Vista de comedor para líderes (`#/comedor`): propio + equipo, sin analítica avanzada. */
 export function canAccessComedorLiderPage(): boolean {
+  if (isRhOperativoUiMode()) return false;
   const r = getRolFromAccessToken();
   if (r === "supervisor" || r === "gerente") return true;
   return isRhGestorTeamUiMode();
@@ -146,12 +147,14 @@ export function canAccessComedorLiderPage(): boolean {
 
 /** Dashboard personal (vacaciones, HO, comidas) solo para el propio empleado. */
 export function canAccessEmpleadoPersonalDashboard(): boolean {
+  if (isRhOperativoUiMode()) return false;
   const r = getRolFromAccessToken();
   return r === "empleado" || isRhEmpleadoUiMode();
 }
 
 /** Dashboard personal + equipo (tarjetas, aprobaciones, calendario del equipo). */
 export function canAccessLiderTeamDashboard(): boolean {
+  if (isRhOperativoUiMode()) return false;
   const r = getRolFromAccessToken();
   if (r === "supervisor" || r === "gerente") return true;
   return isRhGestorTeamUiMode();
@@ -159,6 +162,7 @@ export function canAccessLiderTeamDashboard(): boolean {
 
 /** Calendario del equipo en `#/` (dashboard líder). Oculto para supervisor y gerente. */
 export function canSeeDashboardTeamCalendar(): boolean {
+  if (isRhOperativoUiMode()) return true;
   const r = getRolFromAccessToken();
   return r !== "supervisor" && r !== "gerente";
 }

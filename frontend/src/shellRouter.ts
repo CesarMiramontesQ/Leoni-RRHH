@@ -83,7 +83,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     // de abajo no deben pisar el grant, o un inscrito con permiso de una página
     // RH-exclusiva (ajustes, actas, reporte comedor, evaluación 360) sería enviado a #/.
     const enrolledNonRh = !isAdminUser() && getRolFromAccessToken() !== "rh" && isModulosRhEnrolled();
-    if (!enrolledNonRh) {
+    const adminRhOperativo = isAdminUser() && isRhOperativoUiMode();
+    if (!enrolledNonRh && !adminRhOperativo) {
       if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
         history.replaceState(null, "", "#/");
       }
