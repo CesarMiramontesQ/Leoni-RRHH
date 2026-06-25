@@ -1,6 +1,37 @@
 from __future__ import annotations
 
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote_plus, urlencode, urlsplit, urlunsplit
+
+
+def build_asyncpg_url(
+    host: str,
+    port: int | str,
+    name: str,
+    user: str,
+    password: str,
+    engine: str = "postgresql",
+) -> str | None:
+    """
+    Arma la URL asyncpg desde componentes individuales (host, puerto, BD, usuario,
+    contraseña). Función pura sin dependencia de `config`, reutilizable desde
+    `app.core.config` y el cliente de lectura de Bono.
+
+    Devuelve ``None`` si faltan datos mínimos (host, nombre o usuario), de modo que
+    el llamador decida el fallback. Aplica ``quote_plus`` a usuario y contraseña para
+    soportar caracteres especiales (`@`, `:`, `/`).
+    """
+    if not (host and name and user):
+        return None
+    eng = (engine or "postgresql").strip().lower()
+    if eng not in ("postgresql", "postgres"):
+        raise ValueError(
+            "BONO_DB_ENGINE debe ser 'postgresql' o 'postgres'; "
+            f"recibido: {engine!r}"
+        )
+    return (
+        f"postgresql+asyncpg://{quote_plus(user)}:{quote_plus(password)}"
+        f"@{host.strip()}:{int(port)}/{name.strip()}"
+    )
 
 
 def normalizar_url_y_connect_args(url: str) -> tuple[str, dict]:

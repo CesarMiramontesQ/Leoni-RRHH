@@ -6,7 +6,8 @@ services:
       context: .
       target: development
     container_name: leoni_rh_backend
-    # Postgres en el host (p. ej. puerto 5433): accesible sin `.env` en la máquina local
+    # Si el Postgres de Bono corre en el host (p. ej. puerto 5433), usar
+    # host.docker.internal como BONO_DB_HOST en `.env`.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -14,15 +15,15 @@ services:
     volumes:
       - .:/app
     environment:
-      # BD única = Bono. El proyecto usa `empleados` (Bono) como fuente y sus
-      # propias tablas levelup_* en la misma BD. Definir BONO_DB_* en `.env`.
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER:-bono_user}:${BONO_DB_PASSWORD:-bono_password}@${BONO_DB_HOST:-host.docker.internal}:${BONO_DB_PORT:-5433}/${BONO_DB_NAME:-bono_productividad}}
-      # BONO_DB_* se conservan para otras importaciones histórico (calidad, etc.).
-      BONO_DB_HOST: ${BONO_DB_HOST:-host.docker.internal}
+      # BD única = Bono. La conexión se toma EXCLUSIVAMENTE de `.env` (sin defaults
+      # hardcodeados). El backend arma DATABASE_URL desde BONO_DB_*; DATABASE_URL
+      # explícita es override opcional (password con caracteres especiales).
+      DATABASE_URL: ${DATABASE_URL:-}
+      BONO_DB_HOST: ${BONO_DB_HOST}
       BONO_DB_PORT: ${BONO_DB_PORT:-5433}
-      BONO_DB_NAME: ${BONO_DB_NAME:-bono_productividad}
-      BONO_DB_USER: ${BONO_DB_USER:-bono_user}
-      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD:-bono_password}
+      BONO_DB_NAME: ${BONO_DB_NAME}
+      BONO_DB_USER: ${BONO_DB_USER}
+      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD}
       BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
       APP_ENV: development
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}

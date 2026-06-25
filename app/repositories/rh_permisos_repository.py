@@ -75,7 +75,7 @@ class RhPermisosRepository:
                 or_(
                     Empleado.nombre.ilike(pattern),
                     cast(Empleado.no_empleado, String).ilike(pattern),
-                    EmpleadoCore.email.ilike(pattern),
+                    Empleado.email.ilike(pattern),
                 ),
             )
             .order_by(Empleado.nombre.asc())

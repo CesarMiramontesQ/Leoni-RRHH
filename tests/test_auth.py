@@ -183,9 +183,9 @@ async def test_login_por_email_empleado_exitoso_y_me_retorna_email(
 
 @pytest.mark.asyncio
 async def test_login_legacy_password_texto_plano_en_columna(client: AsyncClient, db):
-    """BD legada: `password_hash` puede ser la contraseña inicial en claro (p. ej. no_empleado)."""
+    """BD legada: `empleados.password` puede ser la contraseña inicial en claro (p. ej. no_empleado)."""
     empleado = await make_empleado(db, rol="empleado", email="legacy_plain@leoni.test")
-    empleado.core.password_hash = "RH-7777"
+    empleado.password = "RH-7777"
     await db.flush()
 
     response = await client.post(
@@ -201,7 +201,7 @@ async def test_login_legacy_password_texto_plano_en_columna(client: AsyncClient,
 @pytest.mark.asyncio
 async def test_login_legacy_texto_plano_incorrecto_retorna_401(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", email="legacy_wrong@leoni.test")
-    empleado.core.password_hash = "solo_esto"
+    empleado.password = "solo_esto"
     await db.flush()
 
     response = await client.post(

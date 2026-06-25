@@ -11,6 +11,8 @@ cd "$(dirname "$0")/.."
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env}"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/docker-prod-backend.sh"
 
 set -a
 # shellcheck disable=SC1090
@@ -45,19 +47,19 @@ SQL
 echo "=== Si la BD está en prod v1.0 (n3), re-stamp a f36fc5feb45e ==="
 CURRENT_N3="$(psql -h "$BONO_DB_HOST" -p "$BONO_DB_PORT" -U "$BONO_DB_USER" -d "$BONO_DB_NAME" -tAc "SELECT 1 FROM alembic_version WHERE version_num = 'n3o4p5q6r7s8' LIMIT 1" || true)"
 if [[ "${CURRENT_N3:-}" == "1" ]]; then
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic stamp f36fc5feb45e
+  alembic_run stamp f36fc5feb45e
 fi
 
 echo "=== Validar un solo head de Alembic ==="
 python3 scripts/check_alembic_heads.py
 
 echo "=== Alembic heads ==="
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic heads
+alembic_run heads
 
 echo "=== Aplicar migraciones ==="
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic upgrade head
+alembic_run upgrade head
 
 echo "=== Alinear alembic_version con head del repo ==="
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic stamp head
+alembic_run stamp head
 
 echo "=== Listo. Reinicia: docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d ==="

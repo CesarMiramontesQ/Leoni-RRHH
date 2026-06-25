@@ -59,6 +59,27 @@ python3 scripts/check_alembic_heads.py
 git push origin prod-v2.0
 ```
 
+## BD Bono nueva (sin esquema `levelup_` previo)
+
+Sobre una BD Bono **nueva** (ya tiene `empleados` y catálogos, pero ningún esquema
+del proyecto), **no** ejecutes la cadena completa de Alembic desde cero: las
+migraciones antiguas (`c06e332f3cce` … `p2q3r4s5t6u7`) crean tablas **sin** prefijo
+`levelup_` e incluso tocarían catálogos de Bono. El esquema propio se crea con la
+migración baseline `v1l2u3p0base`, que genera **solo** tablas `levelup_*`.
+
+Esto lo automatiza `scripts/bono-first-migrate.sh` (stamp `p2q3r4s5t6u7` →
+`upgrade v1l2u3p0base` → `stamp head`); además `scripts/prod-migrate.sh` lo invoca
+solo cuando detecta `alembic_version` vacía. Primera carga:
+
+```bash
+./scripts/bono-first-migrate.sh
+./scripts/prod-seed.sh
+```
+
+> El merge `37a743fada1c` unificó la cadena de `main` (`g7h8i9j0k1l2`) con el baseline
+> Bono (`v1l2u3p0base`), de modo que el árbol tiene **un solo head** (`check_alembic_heads.py`
+> debe pasar). `bono-first-migrate.sh` termina con `stamp head` para alinear `alembic_version`.
+
 ## Migrar desde prod v1.0 en el servidor
 
 1. Backup de BD.

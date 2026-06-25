@@ -1,7 +1,9 @@
 from typing import List, Union
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.db_engine_utils import build_asyncpg_url
 
 
 def parse_comma_separated_ips(value: Union[str, List[str], None]) -> List[str]:
@@ -23,17 +25,41 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Database — BD única = Bono (PostgreSQL externo). En Docker, docker-compose arma
-    # DATABASE_URL desde BONO_DB_*; este default es solo fallback fuera de Docker.
-    DATABASE_URL: str = "postgresql+asyncpg://bono_user:bono_password@localhost:5433/bono_productividad"
+    # Database — BD única = Bono (PostgreSQL externo del cliente). La conexión se
+    # configura EXCLUSIVAMENTE por `.env`; no hay valores por defecto de host,
+    # nombre, usuario ni contraseña. Si se define DATABASE_URL explícita, tiene
+    # prioridad (útil si la contraseña trae caracteres especiales); si no, se arma
+    # desde BONO_DB_* en el validador de abajo. Vacía => el arranque falla con
+    # mensaje claro (ver app/core/database.py).
+    DATABASE_URL: str = ""
 
-    # PostgreSQL bono_productividad (solo lectura; independiente de DATABASE_URL)
+    # PostgreSQL bono_productividad (BD única; valores obligatorios desde `.env`).
     BONO_DB_HOST: str = ""
-    BONO_DB_PORT: int = 5433
+    BONO_DB_PORT: int = 5432
     BONO_DB_NAME: str = ""
     BONO_DB_USER: str = ""
     BONO_DB_PASSWORD: str = ""
     BONO_DB_ENGINE: str = "postgresql"
+
+    @model_validator(mode="after")
+    def _armar_database_url(self) -> "Settings":
+        """Si no se proveyó DATABASE_URL en `.env`, se construye desde BONO_DB_*.
+
+        No hay fallback a localhost/credenciales: si faltan datos, queda vacía y el
+        arranque real falla explícitamente (los tests usan su propio engine SQLite).
+        """
+        if not self.DATABASE_URL:
+            built = build_asyncpg_url(
+                host=self.BONO_DB_HOST,
+                port=self.BONO_DB_PORT,
+                name=self.BONO_DB_NAME,
+                user=self.BONO_DB_USER,
+                password=self.BONO_DB_PASSWORD,
+                engine=self.BONO_DB_ENGINE,
+            )
+            if built:
+                self.DATABASE_URL = built
+        return self
 
     # JWT
     JWT_SECRET: str = "change-this-secret-in-production"
@@ -149,6 +175,25 @@ class Settings(BaseSettings):
     # Admin de desarrollo (login sintético; solo activo si APP_ENV=development)
     DEV_ADMIN_EMAIL: str = "admin.rh@leoni.com"
     DEV_ADMIN_PASSWORD: str = "DevAdmin2026!"
+
+    # Seed en producción: empleado_id real de Bono.empleados para el admin RH inicial.
+    SEED_ADMIN_EMPLEADO_ID: int | None = None
+
+    @field_validator("SEED_ADMIN_EMPLEADO_ID", mode="before")
+    @classmethod
+    def _seed_admin_empleado_id_empty_as_none(cls, value: object) -> object | None:
+        if value is None or value == "":
+            return None
+        return value
+
+    # Seed: empleado_ids con puede_administrar_permisos_rh=true (ej. 12345,67890).
+    seed_rh_permisos_admin_empleado_ids_env: str = Field(
+        default="", validation_alias="SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS"
+    )
+
+    @property
+    def SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.seed_rh_permisos_admin_empleado_ids_env, [])
 
     # App
     APP_ENV: str = "development"

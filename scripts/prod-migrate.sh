@@ -7,17 +7,15 @@
 #   ./scripts/prod-migrate.sh
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d
 #
+# Primera carga sobre BD Bono (sin alembic_version): usar bono-first-migrate.sh
+#   ./scripts/bono-first-migrate.sh
+#
 # Si falla "Can't locate revision" u otros conflictos de cadena:
 #   ./scripts/prod-alembic-recover.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
-ENV_FILE="${ENV_FILE:-.env}"
-
-alembic_run() {
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm --no-deps backend alembic "$@"
-}
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/docker-prod-backend.sh"
 
 echo "=== Build backend (obligatorio tras pull con migraciones nuevas) ==="
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
@@ -29,11 +27,22 @@ echo "=== Alembic heads ==="
 alembic_run heads
 
 echo "=== Revisión actual en BD ==="
-CURRENT_OUT="$(alembic_run current 2>&1 || true)"
-echo "$CURRENT_OUT"
+CURRENT_REV="$(alembic_current_revision || true)"
+if [[ -z "$CURRENT_REV" ]]; then
+  echo "(vacía)"
+else
+  echo "$CURRENT_REV"
+fi
+
+# BD Bono sin historial Alembic: no usar upgrade head (intentaría crear empleados).
+if [[ -z "$CURRENT_REV" ]]; then
+  echo ""
+  echo "=== BD sin revisión Alembic: delegando a bono-first-migrate.sh ==="
+  exec "$(dirname "$0")/bono-first-migrate.sh"
+fi
 
 # Prod v1.0 dejó alembic_version en n3; prod-v2.0 continúa desde f36fc (merge vacío equivalente).
-if echo "$CURRENT_OUT" | grep -qE '(^|[^a-z0-9])n3o4p5q6r7s8([^a-z0-9]|$)'; then
+if [[ "$CURRENT_REV" == "n3o4p5q6r7s8" ]]; then
   echo "=== Prod v1.0 detectado (n3): stamp a f36fc5feb45e antes de upgrade ==="
   alembic_run stamp f36fc5feb45e
 fi

@@ -1,4 +1,3 @@
-import "@tailwindplus/elements";
 import "./style.css";
 import { refreshAccessTokenSession } from "./api/http.ts";
 import { getRolFromAccessToken } from "./auth/jwt.ts";
