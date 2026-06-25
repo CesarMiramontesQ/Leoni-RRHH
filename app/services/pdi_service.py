@@ -1,6 +1,6 @@
 """Service para Plan de Desarrollo Individual (PDI)."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from sqlalchemy import select, and_, or_
@@ -12,7 +12,7 @@ from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import PlanDesarrolloIndividual, PerfilFunciones, CompetenciaRequisito, EvaluacionCompetencia
 from app.repositories.pdi_repository import PDIRepository
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEmpleadoItem, PDIProgresoEquipoResponse, EquipoResumenBrechaItem, EquipoResumenEmpleadoItem, EquipoResumenResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEmpleadoItem, PDIProgresoEquipoResponse, EquipoResumenBrechaItem, EquipoResumenEmpleadoItem, EquipoResumenResponse, HeatmapCompetencia, HeatmapEmpleado, HeatmapCell, HeatmapResponse, TimelineEvent, TimelineResponse
 
 
 VALID_TRANSITIONS = {
@@ -405,6 +405,150 @@ class PDIService:
         items.sort(key=lambda x: (status_order.get(x.estatus_pdi, 5), x.nombre))
 
         return EquipoResumenResponse(items=items, total=len(items))
+
+    async def heatmap(
+        self,
+        current_user: Empleado,
+        area_id: int | None = None,
+    ) -> HeatmapResponse:
+        area_ids = self._resolve_area_scope(current_user)
+
+        pf_stmt = (
+            select(PerfilFunciones)
+            .join(PerfilFunciones.empleado)
+            .options(
+                selectinload(PerfilFunciones.puesto_perfil),
+                selectinload(PerfilFunciones.empleado),
+            )
+            .where(PerfilFunciones.activo.is_(True))
+        )
+        if area_ids is not None:
+            pf_stmt = pf_stmt.where(Empleado.area_id.in_(area_ids))
+        if area_id is not None:
+            pf_stmt = pf_stmt.where(Empleado.area_id == area_id)
+        pf_result = await self.db.execute(pf_stmt)
+        perfiles = list(pf_result.scalars().all())
+
+        if not perfiles:
+            return HeatmapResponse(competencias=[], empleados=[], matriz={})
+
+        empleado_list: list[HeatmapEmpleado] = []
+        pf_map: dict[int, PerfilFunciones] = {}
+        seen_emp: set[int] = set()
+        for pf in perfiles:
+            emp = pf.empleado
+            if not emp or emp.empleado_id in seen_emp:
+                continue
+            seen_emp.add(emp.empleado_id)
+            pf_map[emp.empleado_id] = pf
+            empleado_list.append(HeatmapEmpleado(
+                empleado_id=emp.empleado_id,
+                nombre=emp.nombre,
+                no_empleado=emp.no_empleado or 0,
+            ))
+
+        empleado_ids = list(seen_emp)
+
+        pf_keys: set[tuple[int, int]] = set()
+        for pf in pf_map.values():
+            if pf.puesto_perfil_id and pf.grado_id:
+                pf_keys.add((pf.puesto_perfil_id, pf.grado_id))
+
+        all_requisitos: list = []
+        if pf_keys:
+            req_conditions = [
+                and_(
+                    CompetenciaRequisito.puesto_perfil_id == pp_id,
+                    CompetenciaRequisito.grado_id == g_id,
+                )
+                for pp_id, g_id in pf_keys
+            ]
+            req_stmt = (
+                select(CompetenciaRequisito)
+                .options(selectinload(CompetenciaRequisito.competencia))
+                .where(or_(*req_conditions))
+            )
+            req_result = await self.db.execute(req_stmt)
+            all_requisitos = list(req_result.scalars().all())
+
+        req_by_key: dict[tuple[int, int], list] = {}
+        competencia_set: dict[int, tuple[str, str]] = {}
+        for req in all_requisitos:
+            key = (req.puesto_perfil_id, req.grado_id)
+            req_by_key.setdefault(key, []).append(req)
+            comp = req.competencia
+            if comp and comp.id not in competencia_set:
+                competencia_set[comp.id] = (comp.nombre, getattr(comp, "categoria", "") or "")
+
+        competencia_list = [
+            HeatmapCompetencia(competencia_id=cid, competencia_nombre=name, categoria=cat)
+            for cid, (name, cat) in sorted(competencia_set.items(), key=lambda x: x[1][0])
+        ]
+
+        eval_stmt = select(EvaluacionCompetencia).where(
+            EvaluacionCompetencia.empleado_id.in_(empleado_ids)
+        )
+        eval_result = await self.db.execute(eval_stmt)
+        eval_by_emp: dict[int, dict[int, int]] = {}
+        for ev in eval_result.scalars().all():
+            eval_by_emp.setdefault(ev.empleado_id, {})[ev.competencia_id] = ev.nivel_actual
+
+        matriz: dict[str, dict[str, HeatmapCell]] = {}
+        for emp_id, pf in pf_map.items():
+            key = (pf.puesto_perfil_id, pf.grado_id)
+            requisitos = req_by_key.get(key, [])
+            eval_map = eval_by_emp.get(emp_id, {})
+
+            emp_cells: dict[str, HeatmapCell] = {}
+            for req in requisitos:
+                comp = req.competencia
+                if not comp:
+                    continue
+                nivel_act = eval_map.get(comp.id, 0)
+                gap = max(0, req.nivel_requerido - nivel_act)
+                emp_cells[str(comp.id)] = HeatmapCell(
+                    nivel_requerido=req.nivel_requerido,
+                    nivel_actual=nivel_act,
+                    gap=float(gap),
+                )
+            matriz[str(emp_id)] = emp_cells
+
+        empleado_list.sort(key=lambda e: e.nombre)
+        return HeatmapResponse(
+            competencias=competencia_list,
+            empleados=empleado_list,
+            matriz=matriz,
+        )
+
+    async def timeline(
+        self,
+        current_user: Empleado,
+        area_id: int | None = None,
+    ) -> TimelineResponse:
+        area_ids = self._resolve_area_scope(current_user)
+        items = await self.repo.timeline_events(area_ids=area_ids, area_id=area_id)
+        today = date.today()
+
+        eventos = []
+        for item in items:
+            emp_nombre = item.empleado.nombre if item.empleado else "—"
+            comp_nombre = item.competencia.nombre if item.competencia else "—"
+            vencida = item.fecha_fin < today and item.estado not in ("completado", "cancelado")
+            dias_rest = (item.fecha_fin - today).days if item.estado not in ("completado", "cancelado") else None
+            eventos.append(TimelineEvent(
+                id=item.id,
+                empleado_id=item.empleado_id,
+                empleado_nombre=emp_nombre,
+                competencia_nombre=comp_nombre,
+                accion=item.accion,
+                fecha_inicio=item.fecha_inicio.isoformat(),
+                fecha_fin=item.fecha_fin.isoformat(),
+                estado=item.estado,
+                vencida=vencida,
+                dias_restantes=dias_rest,
+            ))
+
+        return TimelineResponse(eventos=eventos, total=len(eventos))
 
     def _to_response(self, item: PlanDesarrolloIndividual) -> PDIResponse:
         comp_nombre = item.competencia.nombre if item.competencia else "—"

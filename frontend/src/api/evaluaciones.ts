@@ -400,3 +400,71 @@ export async function getPDIEquipoResumen(params?: {
   if (!res.ok) return { items: [], total: 0 };
   return res.json();
 }
+
+// ── Heatmap ──────────────────────────────────────────────────────────────────
+
+export interface HeatmapCompetencia {
+  competencia_id: number;
+  competencia_nombre: string;
+  categoria: string;
+}
+
+export interface HeatmapEmpleado {
+  empleado_id: number;
+  nombre: string;
+  no_empleado: number;
+}
+
+export interface HeatmapCell {
+  nivel_requerido: number;
+  nivel_actual: number;
+  gap: number;
+}
+
+export interface HeatmapResponse {
+  competencias: HeatmapCompetencia[];
+  empleados: HeatmapEmpleado[];
+  matriz: Record<string, Record<string, HeatmapCell>>;
+}
+
+export async function getPDIHeatmap(params?: {
+  area_id?: number;
+}): Promise<HeatmapResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/heatmap${suffix}`);
+  if (!res.ok) return { competencias: [], empleados: [], matriz: {} };
+  return res.json();
+}
+
+// ── Timeline ─────────────────────────────────────────────────────────────────
+
+export interface TimelineEvent {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string;
+  competencia_nombre: string;
+  accion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: string;
+  vencida: boolean;
+  dias_restantes: number | null;
+}
+
+export interface TimelineResponse {
+  eventos: TimelineEvent[];
+  total: number;
+}
+
+export async function getPDITimeline(params?: {
+  area_id?: number;
+}): Promise<TimelineResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/timeline${suffix}`);
+  if (!res.ok) return { eventos: [], total: 0 };
+  return res.json();
+}

@@ -151,3 +151,45 @@ class EquipoResumenEmpleadoItem(BaseModel):
 class EquipoResumenResponse(BaseModel):
     items: list[EquipoResumenEmpleadoItem]
     total: int
+
+
+class HeatmapCompetencia(BaseModel):
+    competencia_id: int
+    competencia_nombre: str
+    categoria: str
+
+
+class HeatmapEmpleado(BaseModel):
+    empleado_id: int
+    nombre: str
+    no_empleado: int
+
+
+class HeatmapCell(BaseModel):
+    nivel_requerido: int
+    nivel_actual: int
+    gap: float
+
+
+class HeatmapResponse(BaseModel):
+    competencias: list[HeatmapCompetencia]
+    empleados: list[HeatmapEmpleado]
+    matriz: dict[str, dict[str, HeatmapCell]]
+
+
+class TimelineEvent(BaseModel):
+    id: int
+    empleado_id: int
+    empleado_nombre: str
+    competencia_nombre: str
+    accion: str
+    fecha_inicio: str
+    fecha_fin: str
+    estado: str
+    vencida: bool
+    dias_restantes: int | None = None
+
+
+class TimelineResponse(BaseModel):
+    eventos: list[TimelineEvent]
+    total: int

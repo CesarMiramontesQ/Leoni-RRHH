@@ -6,6 +6,8 @@ import {
   patchPDIEstado,
   getPDIProgresoEquipo,
   getPDIEquipoResumen,
+  getPDIHeatmap,
+  getPDITimeline,
   getEmpleadoResumen,
   type PDIGestionItem,
   type PDIGestionListResponse,
@@ -15,6 +17,10 @@ import {
   type EquipoResumenEmpleadoItem,
   type EmpleadoResumen,
   type CompetenciaResumenItem,
+  type HeatmapResponse,
+  type HeatmapEmpleado,
+  type TimelineResponse,
+  type TimelineEvent,
 } from "../api/evaluaciones.ts";
 
 interface AreaOption {
@@ -31,11 +37,13 @@ interface State {
   loading: boolean;
   activeKpi: string;
   soloVencidas: boolean;
-  viewMode: "actions" | "employees" | "team";
+  viewMode: "actions" | "employees" | "team" | "heatmap" | "timeline";
   progresoEquipo: PDIProgresoEquipoResponse;
   equipoResumen: EquipoResumenResponse;
   expandedEmployeeId: number | null;
   expandedData: EmpleadoResumen | null;
+  heatmapData: HeatmapResponse;
+  timelineData: TimelineResponse;
 }
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -114,6 +122,8 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     equipoResumen: { items: [], total: 0 },
     expandedEmployeeId: null,
     expandedData: null,
+    heatmapData: { competencias: [], empleados: [], matriz: {} },
+    timelineData: { eventos: [], total: 0 },
   };
 
   mountAppShell(container, {
@@ -319,6 +329,157 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     render();
   }
 
+  async function loadHeatmap() {
+    state.loading = true;
+    render();
+    const params: { area_id?: number } = {};
+    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
+    state.heatmapData = await getPDIHeatmap(params);
+    state.loading = false;
+    render();
+  }
+
+  async function loadTimeline() {
+    state.loading = true;
+    render();
+    const params: { area_id?: number } = {};
+    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
+    state.timelineData = await getPDITimeline(params);
+    state.loading = false;
+    render();
+  }
+
+  function renderViewContent(): string {
+    switch (state.viewMode) {
+      case "actions": return renderActionsTable();
+      case "employees": return renderEmployeeView();
+      case "team": return renderTeamSummary();
+      case "heatmap": return renderHeatmap();
+      case "timeline": return renderTimeline();
+      default: return renderActionsTable();
+    }
+  }
+
+  function renderHeatmap(): string {
+    const { heatmapData } = state;
+    if (state.loading) return `<div class="flex items-center justify-center py-12 text-sm text-slate-500">Cargando...</div>`;
+    if (heatmapData.empleados.length === 0 || heatmapData.competencias.length === 0) {
+      return `<div class="px-3 py-8 text-center text-sm text-slate-400">Sin datos para el mapa de calor</div>`;
+    }
+
+    const { competencias, empleados, matriz } = heatmapData;
+
+    function cellColor(gap: number): string {
+      if (gap === 0) return "bg-emerald-400";
+      if (gap <= 1) return "bg-amber-400";
+      if (gap < 2) return "bg-orange-500";
+      return "bg-red-500";
+    }
+
+    return `
+      <div class="space-y-3">
+        <div class="overflow-x-auto rounded-lg border border-slate-200">
+          <table class="border-collapse">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-30 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-600 min-w-[160px] border-b border-r border-slate-200">Competencia / Empl.</th>
+                ${empleados.map((emp: HeatmapEmpleado) => {
+                  const short = emp.nombre.split(" ").slice(0, 2).map((w: string, i: number) => i === 0 ? w : w[0] + ".").join(" ");
+                  return `<th class="px-1 py-2 text-center border-b border-slate-200 min-w-[36px]">
+                    <span class="block text-[9px] text-slate-500 font-medium whitespace-nowrap [writing-mode:vertical-lr] rotate-180 h-16">${short}</span>
+                  </th>`;
+                }).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${competencias.map(comp => `
+              <tr>
+                <td class="sticky left-0 z-20 bg-white px-3 py-1 text-[11px] text-slate-700 border-r border-slate-100 truncate max-w-[160px]" title="${comp.competencia_nombre}">${comp.competencia_nombre}</td>
+                ${empleados.map((emp: HeatmapEmpleado) => {
+                  const cell = matriz[String(emp.empleado_id)]?.[String(comp.competencia_id)];
+                  if (!cell) return `<td class="px-1 py-1"><div class="size-7 rounded bg-slate-100 mx-auto" title="N/A"></div></td>`;
+                  const color = cellColor(cell.gap);
+                  return `<td class="px-1 py-1"><div class="size-7 rounded ${color} mx-auto cursor-default" title="${comp.competencia_nombre} · ${emp.nombre}\nReq: ${cell.nivel_requerido} / Act: ${cell.nivel_actual} (Gap: ${cell.gap})"></div></td>`;
+                }).join("")}
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center gap-4 text-[10px] text-slate-500">
+          <span class="flex items-center gap-1"><span class="inline-block size-3 rounded bg-emerald-400"></span>Alineado (0)</span>
+          <span class="flex items-center gap-1"><span class="inline-block size-3 rounded bg-amber-400"></span>Moderado (0.5-1)</span>
+          <span class="flex items-center gap-1"><span class="inline-block size-3 rounded bg-orange-500"></span>Alto (1-2)</span>
+          <span class="flex items-center gap-1"><span class="inline-block size-3 rounded bg-red-500"></span>Critico (2+)</span>
+          <span class="flex items-center gap-1"><span class="inline-block size-3 rounded bg-slate-100 border border-slate-200"></span>N/A</span>
+        </div>
+      </div>`;
+  }
+
+  function renderTimeline(): string {
+    const { timelineData } = state;
+    if (state.loading) return `<div class="flex items-center justify-center py-12 text-sm text-slate-500">Cargando...</div>`;
+    if (timelineData.eventos.length === 0) {
+      return `<div class="px-3 py-8 text-center text-sm text-slate-400">Sin eventos en los proximos 30 dias</div>`;
+    }
+
+    function dotColor(ev: TimelineEvent): string {
+      if (ev.estado === "completado") return "bg-emerald-500";
+      if (ev.vencida) return "bg-red-500";
+      if (ev.dias_restantes !== null && ev.dias_restantes <= 7) return "bg-orange-500";
+      return "bg-blue-500";
+    }
+
+    function groupLabel(fechaStr: string): string {
+      const fecha = new Date(fechaStr + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diff = Math.ceil((fecha.getTime() - today.getTime()) / 86400000);
+      if (diff < 0) return "Vencidas";
+      if (diff === 0) return "Hoy";
+      if (diff <= 7) return "Esta semana";
+      if (diff <= 14) return "Proxima semana";
+      return "Proximo mes";
+    }
+
+    let currentGroup = "";
+    let html = '<div class="space-y-0 relative">';
+
+    for (const ev of timelineData.eventos) {
+      const group = groupLabel(ev.fecha_fin);
+      if (group !== currentGroup) {
+        currentGroup = group;
+        html += `<div class="pt-3 pb-1"><span class="text-[10px] font-semibold uppercase tracking-wider ${group === "Vencidas" ? "text-red-600" : "text-slate-400"}">${group}</span></div>`;
+      }
+
+      const dot = dotColor(ev);
+      const badgeCls = BADGE_CLASSES[ev.estado] ?? BADGE_CLASSES.pendiente;
+      const diasText = ev.vencida
+        ? `<span class="text-[10px] text-red-600 font-medium">Vencida hace ${Math.abs(ev.dias_restantes ?? 0)} dias</span>`
+        : ev.dias_restantes !== null
+          ? `<span class="text-[10px] text-slate-500">${ev.dias_restantes} dias restantes</span>`
+          : "";
+
+      html += `
+        <div class="flex gap-3 py-2 pl-1">
+          <div class="flex flex-col items-center">
+            <div class="size-2.5 rounded-full ${dot} shrink-0 mt-1.5"></div>
+            <div class="w-px flex-1 bg-slate-200"></div>
+          </div>
+          <div class="flex-1 min-w-0 pb-2">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="text-[10px] uppercase tracking-wide text-slate-400">${new Date(ev.fecha_fin + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}</span>
+              ${diasText}
+            </div>
+            <p class="text-sm font-medium text-slate-900 truncate">${ev.accion}</p>
+            <p class="text-xs text-slate-500">${ev.empleado_nombre} · ${ev.competencia_nombre}</p>
+            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium mt-1 ${badgeCls}">${ESTADO_LABELS[ev.estado] ?? ev.estado}</span>
+          </div>
+        </div>`;
+    }
+    html += "</div>";
+    return html;
+  }
+
   function renderCircleProgress(pct: number, size: number = 48): string {
     const r = (size - 6) / 2;
     const circ = 2 * Math.PI * r;
@@ -486,9 +647,19 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
             class="rounded-md px-3 py-1.5 text-xs font-semibold transition ${state.viewMode === "team" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}">
             Resumen del Equipo
           </button>
+          <button type="button" role="tab" data-action="toggle-view" data-view="heatmap"
+            aria-selected="${state.viewMode === "heatmap"}"
+            class="rounded-md px-3 py-1.5 text-xs font-semibold transition ${state.viewMode === "heatmap" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}">
+            Mapa de Calor
+          </button>
+          <button type="button" role="tab" data-action="toggle-view" data-view="timeline"
+            aria-selected="${state.viewMode === "timeline"}"
+            class="rounded-md px-3 py-1.5 text-xs font-semibold transition ${state.viewMode === "timeline" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}">
+            Timeline
+          </button>
         </div>
 
-        ${state.viewMode === "actions" ? renderActionsTable() : state.viewMode === "employees" ? renderEmployeeView() : renderTeamSummary()}
+        ${renderViewContent()}
       </div>
     `;
   }
@@ -538,13 +709,17 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     }
 
     if (action === "toggle-view") {
-      const view = target.dataset.view as "actions" | "employees" | "team";
+      const view = target.dataset.view as State["viewMode"];
       if (view && view !== state.viewMode) {
         state.viewMode = view;
         if (view === "employees") {
           void loadProgresoEquipo();
         } else if (view === "team") {
           void loadEquipoResumen();
+        } else if (view === "heatmap") {
+          void loadHeatmap();
+        } else if (view === "timeline") {
+          void loadTimeline();
         } else {
           render();
         }

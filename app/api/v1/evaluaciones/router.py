@@ -28,7 +28,7 @@ from app.schemas.evaluaciones import (
     EvaluacionResponse,
     EvaluacionUpdate,
 )
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse, EquipoResumenResponse
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse, EquipoResumenResponse, HeatmapResponse, TimelineResponse
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
 
@@ -92,6 +92,26 @@ async def equipo_resumen_pdi(
 ):
     service = PDIService(db)
     return await service.equipo_resumen(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/heatmap", response_model=HeatmapResponse)
+async def heatmap_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.heatmap(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/timeline", response_model=TimelineResponse)
+async def timeline_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.timeline(current_user=current_user, area_id=area_id)
 
 
 @router.patch("/pdi/{pdi_id}/estado", response_model=PDIGestionItem)

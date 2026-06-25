@@ -1,6 +1,6 @@
 """Repository para Plan de Desarrollo Individual (PDI)."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from sqlalchemy import and_, select, func, delete
@@ -255,3 +255,34 @@ class PDIRepository:
             stmt = stmt.where(Empleado.area_id == area_id)
         result = await self.db.execute(stmt)
         return list(result.all())
+
+    async def timeline_events(
+        self,
+        area_ids: list[int] | None = None,
+        area_id: int | None = None,
+        dias_futuro: int = 30,
+        dias_pasado: int = 7,
+    ) -> list[PlanDesarrolloIndividual]:
+        today = date.today()
+        desde = today - timedelta(days=dias_pasado)
+        hasta = today + timedelta(days=dias_futuro)
+
+        stmt = (
+            select(PlanDesarrolloIndividual)
+            .join(PlanDesarrolloIndividual.empleado)
+            .options(
+                selectinload(PlanDesarrolloIndividual.empleado),
+                selectinload(PlanDesarrolloIndividual.competencia),
+            )
+            .where(
+                PlanDesarrolloIndividual.fecha_fin.between(desde, hasta),
+                PlanDesarrolloIndividual.estado.notin_(["cancelado"]),
+            )
+        )
+        if area_ids is not None:
+            stmt = stmt.where(Empleado.area_id.in_(area_ids))
+        if area_id is not None:
+            stmt = stmt.where(Empleado.area_id == area_id)
+        stmt = stmt.order_by(PlanDesarrolloIndividual.fecha_fin.asc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
