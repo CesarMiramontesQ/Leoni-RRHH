@@ -2,8 +2,11 @@ FROM node:20-alpine AS base
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json ./
+# Sin package-lock.json en la imagen: el lock local (gitignored) puede referenciar
+# paquetes con auth (@tailwindplus/elements) y provocar E401 en el build.
+ENV NPM_CONFIG_USERCONFIG=/tmp/empty-npmrc
+RUN touch /tmp/empty-npmrc && npm install --registry=https://registry.npmjs.org/
 
 COPY . .
 

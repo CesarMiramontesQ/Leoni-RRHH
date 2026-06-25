@@ -19,6 +19,7 @@ import logging
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.catalogos import (
@@ -310,7 +311,6 @@ ADMIN_RH: dict = {
     "usuario": "admin.rh",
     "password": "Leoni2026!RH",
     "estado_id": 1,
-    "puede_administrar_permisos_rh": True,
 }
 
 DEV_USER: dict = {
@@ -384,12 +384,10 @@ async def seed_roles(db) -> dict[str, int]:
 
 
 async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
-    """Crea/asegura un usuario. rol, email y password viven en levelup_empleados_core;
-    `empleados` (Bono) solo guarda identidad. En Bono real el empleado ya existe; en
-    dev/local se crea para conveniencia."""
-    from app.models.empleados_rh import ensure_core, ensure_rh_permisos
-
-    admin_flag = bool(user_data.get("puede_administrar_permisos_rh", False))
+    """Crea/asegura un usuario. rol y password_hash viven en levelup_empleados_core;
+    email y password legados viven en empleados (Bono). En Bono real el empleado ya
+    existe; en dev/local se crea para conveniencia."""
+    from app.models.empleados_rh import ensure_core
 
     existing = await db.execute(
         select(Empleado).where(Empleado.empleado_id == user_data["empleado_id"])
@@ -397,6 +395,11 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
     emp = existing.scalar_one_or_none()
 
     if emp is None:
+        if settings.APP_ENV == "production":
+            raise RuntimeError(
+                f"No existe empleado_id={user_data['empleado_id']} en Bono.empleados. "
+                "Configure SEED_ADMIN_EMPLEADO_ID en .env con un empleado activo existente."
+            )
         # Dev/local: no hay Bono, se crea la fila identidad.
         emp = Empleado(
             empleado_id=user_data["empleado_id"],
@@ -404,6 +407,7 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
             nombre=user_data["nombre"],
             usuario=user_data["usuario"],
             estado_id=user_data["estado_id"],
+            email=user_data["email"],
         )
         db.add(emp)
         await db.flush()
@@ -413,16 +417,47 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
         core.rol_id = rol_id
     if not core.password_hash:
         core.password_hash = hash_password(user_data["password"])
-    if not core.email:
-        core.email = user_data["email"]
+    if not emp.email:
+        emp.email = user_data["email"]
     await db.flush()
 
-    if admin_flag:
+    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, emp.email)
+
+
+async def seed_rh_permisos_admins(db) -> None:
+    """Marca `puede_administrar_permisos_rh=true` en los empleados de
+    SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS (.env). Idempotente."""
+    from app.models.empleados_rh import ensure_rh_permisos
+
+    empleado_ids = settings.SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS
+    if not empleado_ids:
+        logger.info(
+            "  Sin SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS — omitiendo administradores de permisos RH"
+        )
+        return
+
+    for empleado_id in empleado_ids:
+        result = await db.execute(
+            select(Empleado).where(Empleado.empleado_id == empleado_id)
+        )
+        emp = result.scalar_one_or_none()
+        if emp is None:
+            if settings.APP_ENV == "production":
+                raise RuntimeError(
+                    f"No existe empleado_id={empleado_id} en Bono.empleados. "
+                    "Configure SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS con empleados activos existentes."
+                )
+            logger.warning(
+                "  empleado_id=%d no encontrado — omitiendo admin permisos RH", empleado_id
+            )
+            continue
+
         permisos = ensure_rh_permisos(db, emp)
         permisos.puede_administrar_permisos_rh = True
         await db.flush()
-
-    logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, core.email)
+        logger.info(
+            "  Admin permisos RH: empleado_id=%d (%s)", emp.empleado_id, emp.nombre
+        )
 
 
 async def seed_level_up(db) -> None:
@@ -461,25 +496,19 @@ async def seed_level_up(db) -> None:
     cursos = [
         {
             "nombre": "CNC Básico",
-            "proveedor": "FANUC México",
             "duracion_horas": 40,
-            "categoria": CategoriaCurso.tecnico,
             "modalidad": "presencial",
             "sesiones_anio": 4,
         },
         {
             "nombre": "ISO 9001:2015 Auditor Interno",
-            "proveedor": "TÜV Rheinland",
             "duracion_horas": 24,
-            "categoria": CategoriaCurso.calidad,
             "modalidad": "mixta",
             "sesiones_anio": 2,
         },
         {
             "nombre": "LOTO y Seguridad Eléctrica",
-            "proveedor": "Leoni Internal",
             "duracion_horas": 8,
-            "categoria": CategoriaCurso.seguridad,
             "modalidad": "presencial",
             "sesiones_anio": 12,
         },
@@ -502,8 +531,13 @@ async def seed() -> None:
 
     async with AsyncSessionLocal() as db:
         try:
-            logger.info("Seeding catálogos...")
-            await seed_catalogos(db)
+            if settings.APP_ENV == "production":
+                logger.info(
+                    "Seeding catálogos omitido (producción: tablas Bono son solo lectura)"
+                )
+            else:
+                logger.info("Seeding catálogos...")
+                await seed_catalogos(db)
 
             logger.info("Seeding roles...")
             created_roles = await seed_roles(db)
@@ -512,11 +546,23 @@ async def seed() -> None:
             rol_rh_id = created_roles.get("rh")
             if not rol_rh_id:
                 raise RuntimeError("El rol 'rh' no fue creado correctamente")
-            await seed_user(db, ADMIN_RH, rol_rh_id, "Admin RH")
-            await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
 
-            logger.info("Seeding Level Up...")
-            await seed_level_up(db)
+            admin_data = dict(ADMIN_RH)
+            if settings.SEED_ADMIN_EMPLEADO_ID is not None:
+                admin_data["empleado_id"] = settings.SEED_ADMIN_EMPLEADO_ID
+            await seed_user(db, admin_data, rol_rh_id, "Admin RH")
+
+            if settings.APP_ENV != "production":
+                await seed_user(db, DEV_USER, rol_rh_id, "Dev User")
+
+            logger.info("Seeding administradores de permisos RH...")
+            await seed_rh_permisos_admins(db)
+
+            if settings.APP_ENV == "production":
+                logger.info("Seeding Level Up omitido (producción)")
+            else:
+                logger.info("Seeding Level Up...")
+                await seed_level_up(db)
 
             await db.commit()
             logger.info("=== Seed completado exitosamente ===")

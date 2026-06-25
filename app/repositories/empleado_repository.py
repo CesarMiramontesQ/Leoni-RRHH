@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.empleados import Empleado
-from app.models.empleados_rh import EmpleadoCore
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
 from app.utils.turno_empleado_match import no_empleado_as_turno_str, turno_empleado_join_on, turno_no_empleado_matches
@@ -30,12 +29,11 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             return None
         result = await self.db.execute(
             select(Empleado)
-            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
             .options(
                 selectinload(Empleado.core),
                 selectinload(Empleado.puesto),
             )
-            .where(func.lower(EmpleadoCore.email) == normalized_email)
+            .where(func.lower(Empleado.email) == normalized_email)
         )
         return result.scalar_one_or_none()
 

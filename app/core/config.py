@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.db_engine_utils import build_asyncpg_url
@@ -175,6 +175,25 @@ class Settings(BaseSettings):
     # Admin de desarrollo (login sintético; solo activo si APP_ENV=development)
     DEV_ADMIN_EMAIL: str = "admin.rh@leoni.com"
     DEV_ADMIN_PASSWORD: str = "DevAdmin2026!"
+
+    # Seed en producción: empleado_id real de Bono.empleados para el admin RH inicial.
+    SEED_ADMIN_EMPLEADO_ID: int | None = None
+
+    @field_validator("SEED_ADMIN_EMPLEADO_ID", mode="before")
+    @classmethod
+    def _seed_admin_empleado_id_empty_as_none(cls, value: object) -> object | None:
+        if value is None or value == "":
+            return None
+        return value
+
+    # Seed: empleado_ids con puede_administrar_permisos_rh=true (ej. 12345,67890).
+    seed_rh_permisos_admin_empleado_ids_env: str = Field(
+        default="", validation_alias="SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS"
+    )
+
+    @property
+    def SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS(self) -> List[int]:
+        return self._parse_estado_ids(self.seed_rh_permisos_admin_empleado_ids_env, [])
 
     # App
     APP_ENV: str = "development"

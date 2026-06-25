@@ -225,7 +225,7 @@ async def make_empleado(
 
     rol_obj = await _get_or_create_rol(db, rol)
 
-    # empleados (Bono) solo tiene identidad + atributos de Bono (sin id/rol/email/password).
+    # empleados (Bono): identidad + email/password legados (solo lectura en login).
     empleado = Empleado(
         empleado_id=_empleado_id,
         no_empleado=_no_empleado,
@@ -235,6 +235,8 @@ async def make_empleado(
         estado_id=estado_id,
         clasificacion_id=clasificacion_id,
         puesto_id=puesto_id,
+        email=_email,
+        password=password,
     )
     db.add(empleado)
     await db.flush()
@@ -250,7 +252,6 @@ async def make_empleado(
         empleado_id=_empleado_id,
         rol_id=rol_obj.id,
         password_hash=hash_password(password),
-        email=_email,
     )
     config = EmpleadoRhConfig(
         empleado_id=_empleado_id,
