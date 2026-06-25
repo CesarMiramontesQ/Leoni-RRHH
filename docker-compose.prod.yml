@@ -17,14 +17,15 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # BD única = Bono. DATABASE_URL explícita tiene prioridad; si no, se arma con BONO_DB_* (ver .env.prod.example).
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${BONO_DB_USER}:${BONO_DB_PASSWORD}@${BONO_DB_HOST}:${BONO_DB_PORT:-5432}/${BONO_DB_NAME}}
-      # Bono (BD principal y lectura para imports históricos manuales; ver .env.prod.example)
-      BONO_DB_HOST: ${BONO_DB_HOST:-}
+      # BD única = Bono. Conexión EXCLUSIVAMENTE desde `.env` (sin defaults
+      # hardcodeados). El backend arma DATABASE_URL desde BONO_DB_*; DATABASE_URL
+      # explícita es override opcional (ver .env.prod.example).
+      DATABASE_URL: ${DATABASE_URL:-}
+      BONO_DB_HOST: ${BONO_DB_HOST}
       BONO_DB_PORT: ${BONO_DB_PORT:-5432}
-      BONO_DB_NAME: ${BONO_DB_NAME:-}
-      BONO_DB_USER: ${BONO_DB_USER:-}
-      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD:-}
+      BONO_DB_NAME: ${BONO_DB_NAME}
+      BONO_DB_USER: ${BONO_DB_USER}
+      BONO_DB_PASSWORD: ${BONO_DB_PASSWORD}
       BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
       APP_ENV: production
       JWT_SECRET: ${JWT_SECRET}

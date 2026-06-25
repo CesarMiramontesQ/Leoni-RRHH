@@ -7,13 +7,11 @@ no comparte motor, pool ni sesión con esa base.
 
 from __future__ import annotations
 
-from urllib.parse import quote_plus
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.core.config import settings
-from app.core.db_engine_utils import normalizar_url_y_connect_args
+from app.core.db_engine_utils import build_asyncpg_url, normalizar_url_y_connect_args
 
 
 class BonoProductividadReadClient:
@@ -23,24 +21,14 @@ class BonoProductividadReadClient:
 
     @staticmethod
     def build_async_database_url() -> str | None:
-        if not (
-            settings.BONO_DB_HOST
-            and settings.BONO_DB_NAME
-            and settings.BONO_DB_USER
-        ):
-            return None
-        engine = (settings.BONO_DB_ENGINE or "postgresql").strip().lower()
-        if engine not in ("postgresql", "postgres"):
-            raise ValueError(
-                "BONO_DB_ENGINE debe ser 'postgresql' o 'postgres'; "
-                f"recibido: {settings.BONO_DB_ENGINE!r}"
-            )
-        user = quote_plus(settings.BONO_DB_USER)
-        password = quote_plus(settings.BONO_DB_PASSWORD)
-        host = settings.BONO_DB_HOST.strip()
-        port = int(settings.BONO_DB_PORT)
-        db = settings.BONO_DB_NAME.strip()
-        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db}"
+        return build_asyncpg_url(
+            host=settings.BONO_DB_HOST,
+            port=settings.BONO_DB_PORT,
+            name=settings.BONO_DB_NAME,
+            user=settings.BONO_DB_USER,
+            password=settings.BONO_DB_PASSWORD,
+            engine=settings.BONO_DB_ENGINE,
+        )
 
     @staticmethod
     def create_read_engine() -> AsyncEngine | None:

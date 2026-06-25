@@ -23,6 +23,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# La URL viene EXCLUSIVAMENTE de `.env` (DATABASE_URL o BONO_DB_*); sin fallback local.
+if not settings.DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL/BONO_DB_* no configuradas en `.env`; Alembic no tiene a dónde "
+        "conectarse. Define BONO_DB_HOST, BONO_DB_NAME, BONO_DB_USER y BONO_DB_PASSWORD."
+    )
+
 # Usar DATABASE_URL de settings, convirtiendo asyncpg a psycopg2
 db_url = settings.DATABASE_URL.replace(
     "postgresql+asyncpg://", "postgresql+psycopg2://"

@@ -59,6 +59,30 @@ python3 scripts/check_alembic_heads.py
 git push origin prod-v2.0
 ```
 
+## BD Bono nueva (sin esquema `levelup_` previo)
+
+Sobre una BD Bono **nueva** (ya tiene `empleados` y catálogos, pero ningún esquema
+del proyecto), **no** ejecutes la cadena completa de Alembic desde cero: las
+migraciones antiguas (`c06e332f3cce` … `p2q3r4s5t6u7`) crean tablas **sin** prefijo
+`levelup_` e incluso tocarían catálogos de Bono. El esquema propio se crea con la
+migración baseline `v1l2u3p0base`, que genera **solo** tablas `levelup_*`.
+
+Procedimiento correcto (apuntar al baseline `v1l2u3p0base`, **no** a `head`):
+
+```bash
+# 1. Marcar la cadena vieja como aplicada SIN ejecutarla (stamp al PADRE del
+#    baseline; no toca la BD ni crea tablas sin prefijo):
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  alembic stamp p2q3r4s5t6u7
+# 2. Ejecutar SOLO el baseline → crea las tablas levelup_*:
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  alembic upgrade v1l2u3p0base
+```
+
+> Nota: el árbol de migraciones tiene actualmente 2 heads (`v1l2u3p0base` y
+> `g7h8i9j0k1l2`); por eso se apunta a la revisión `v1l2u3p0base` explícita y no a
+> `head`. Resolver los heads (vía `alembic merge`) es un trabajo aparte.
+
 ## Migrar desde prod v1.0 en el servidor
 
 1. Backup de BD.
