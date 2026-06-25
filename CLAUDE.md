@@ -78,6 +78,7 @@ Layered architecture: **router → service → repository → models/schemas**
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
 - APScheduler runs periodic jobs (TRESS queue processing, IT Mirror sync, nightly bono imports: `calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`)
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
+- **Admin de permisos RH**: la capacidad de administrar permisos RH se controla por el flag `puede_administrar_permisos_rh` (tabla `levelup_empleados_permisos`), NO por rol. La **BD es la fuente** y se gestiona desde la UI de RH Admin (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, guard `require_rh_permisos_admin`, auditado en `levelup_audit_log`; candados: no cambiar el propio flag, no dejar 0 admins). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación**: otorga admins iniciales únicamente cuando no hay ninguno (al arrancar — `ensure_bootstrap_rh_admins` en el lifespan — o vía `python -m app.utils.seed`); no reemplaza la administración normal.
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
 
 ## Git Workflow

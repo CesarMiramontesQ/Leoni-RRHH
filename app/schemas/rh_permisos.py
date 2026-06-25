@@ -39,3 +39,9 @@ class RhEmpleadoBusquedaItem(BaseModel):
 
 class RhPermisosUpdate(BaseModel):
     modulos: dict[str, bool] = Field(default_factory=dict)
+
+
+class RhAdminPermisosUpdate(BaseModel):
+    """Otorgar (true) o revocar (false) `puede_administrar_permisos_rh`."""
+
+    conceder: bool
