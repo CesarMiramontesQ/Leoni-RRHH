@@ -350,9 +350,11 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   }
   if (h.startsWith("#/nominas")) {
     if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
-    // Permiso por PÁGINA tras el split granular de Nóminas
-    // (nominas-horas-extra | nominas-conciliacion | nominas-ajustes).
     const pageModule = resolveModuleFromHash(h);
+    if (isRhOperativoUiMode()) {
+      if (pageModule === null) return isNominasHubVisibleForRol(rol);
+      return hasRhModule(pageModule);
+    }
     if (pageModule === null) return isNominasHubVisibleForRol(rol); // hub raíz #/nominas
     if (rol === "rh") return hasRhModule(pageModule);
     // No-RH: acceso por grant solo en Modo RH; en modo base, navegación por rol.

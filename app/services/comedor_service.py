@@ -128,8 +128,8 @@ class ComedorService:
         rh_ui_mode: str | None = None,
     ) -> set[int]:
         """IDs de empleados visibles en vistas de comedor de equipo."""
-        raw_rol = await self._get_rol(current_user)
-        if raw_rol in ("supervisor", "gerente"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope in ("supervisor", "gerente"):
             equipo_ids = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id,
                 settings.ESTADOS_ACTIVOS_IDS,

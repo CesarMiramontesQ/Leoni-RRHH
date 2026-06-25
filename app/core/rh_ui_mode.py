@@ -214,3 +214,10 @@ def effective_solicitud_scope_rol(user: "Empleado", rh_ui_mode: str | None) -> s
     if mode == RH_UI_MODE_GERENTE:
         return "gerente"
     return "rh"
+
+
+def has_rh_plantilla_data_scope(user: "Empleado", rh_ui_mode: str | None = None) -> bool:
+    """Vista/datos de plantilla RH completa (rol RH operativo o ADMIN en Modo RH)."""
+    from app.core.data_scope import effective_data_scope_rol
+
+    return effective_data_scope_rol(user, rh_ui_mode) == "rh"

@@ -8,6 +8,7 @@ import {
   getEmpleadoDirectoryNumericIdFromAccessToken,
   getEmpleadoIdFromAccessToken,
   getNoEmpleadoFromAccessToken,
+  hasRhOperativeViewerContextOrGrant,
   getRolFromAccessToken,
   getUserDisplayNameFromAccessToken,
 } from "../auth/jwt.ts";
@@ -151,7 +152,7 @@ import {
  * porque los datos RH del reporte viven bajo `/api/v1/comedor/rh` (módulo `comedor` en backend).
  */
 function esViewerRhComedor(grantKey: "comedor"): boolean {
-  return getRolFromAccessToken() === "rh" || hasExplicitModuleGrant(grantKey);
+  return hasRhOperativeViewerContextOrGrant(grantKey);
 }
 
 /** Mismo contenedor visual que Solicitudes (`#rh-comedor-page` activa estilos en `style.css`). */

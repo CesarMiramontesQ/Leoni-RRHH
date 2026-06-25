@@ -30,6 +30,18 @@ export function getRolFromAccessToken(): string | null {
   return typeof r === "string" ? r : null;
 }
 
+/** Contexto de vistas/capacidades RH operativas (rol `rh` o ADMIN en Modo RH). */
+export function hasRhOperativeViewerContext(): boolean {
+  if (isRhOperativoUiMode()) return true;
+  return getRolFromAccessToken() === "rh";
+}
+
+/** RH operativo o grant explícito del módulo (p. ej. comedor para reporte). */
+export function hasRhOperativeViewerContextOrGrant(grantKey: string): boolean {
+  if (hasRhOperativeViewerContext()) return true;
+  return hasExplicitModuleGrant(grantKey);
+}
+
 /** Autorización para registrar horas extra (claim `he_autorizado`, administrada por RH en Ajustes de Nóminas). */
 export function isHorasExtraRegistroAutorizado(): boolean {
   return getAccessTokenPayload()?.he_autorizado === true;

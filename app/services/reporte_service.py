@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.data_scope import effective_data_scope_rol
 from app.core.exceptions import ForbiddenError
 from app.models.actas import ActaAdministrativa
 from app.models.empleados import Empleado
@@ -34,9 +35,10 @@ class ReporteService:
     async def get_kpis(
         self,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> dict:
-        rol = self._get_rol(current_user)
-        if rol not in ("rh", "gerente", "director"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver KPIs")
 
         emp_result = await self.db.execute(
@@ -75,9 +77,10 @@ class ReporteService:
         self,
         modulo: str,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> dict:
-        rol = self._get_rol(current_user)
-        if rol not in ("rh", "gerente", "director"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para exportar reportes")
 
         # Stub — generacion PDF implementada en fase 5 con weasyprint
@@ -97,9 +100,10 @@ class ReporteService:
         self,
         modulo: str,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> dict:
-        rol = self._get_rol(current_user)
-        if rol not in ("rh", "gerente", "director"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para exportar reportes")
 
         # Stub — generacion Excel implementada en fase 5 con openpyxl

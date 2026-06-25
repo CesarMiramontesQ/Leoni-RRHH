@@ -51,4 +51,13 @@ describe("ADMIN gerente en Modo RH — navegación", () => {
     expect(resolveRoutedHashForRol("gerente", "#/actas", { enrolledNonRh: false })).toBe("#/actas");
     expect(isShellNavItemVisibleForRol("gerente", "actas")).toBe(true);
   });
+
+  it("permite rutas de Nóminas en Modo RH (horas extra, ajustes, conciliación)", async () => {
+    const { modulosMayAccessHash, rhMayAccessHash } = await imports();
+    expect(modulosMayAccessHash("#/nominas/horas-extra", "gerente")).toBe(true);
+    expect(modulosMayAccessHash("#/nominas/ajustes", "gerente")).toBe(true);
+    expect(modulosMayAccessHash("#/nominas/conciliacion", "gerente")).toBe(true);
+    expect(rhMayAccessHash("#/nominas/horas-extra")).toBe(true);
+    expect(rhMayAccessHash("#/nominas/ajustes")).toBe(true);
+  });
 });

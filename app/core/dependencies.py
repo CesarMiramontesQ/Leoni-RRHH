@@ -100,8 +100,14 @@ def role_checker(roles_requeridos: list[str]):
         request: Request,
         current_user: Empleado = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
         from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module
+        from app.core.rh_ui_mode import is_admin_user, is_rh_operativo_ui_mode
+
+        if is_admin_user(current_user) and is_rh_operativo_ui_mode(current_user, rh_ui_mode):
+            if "rh" in roles_requeridos:
+                return current_user
 
         rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))
         rol = rol_result.scalar_one_or_none()

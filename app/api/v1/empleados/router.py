@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
-from app.core.rh_ui_mode import is_rh_gestor_team_ui_mode
+from app.core.rh_ui_mode import has_rh_plantilla_data_scope, is_rh_gestor_team_ui_mode
 from app.models.empleados import Empleado
 from app.schemas.actas import ActasPageResponse
 from app.schemas.usuarios import (
@@ -57,9 +57,7 @@ async def resumen_empleados(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if _rol_nombre(current_user) == "rh" and not is_rh_gestor_team_ui_mode(
-        current_user, rh_ui_mode
-    ):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
         return await svc.resumen_plantilla(current_user)
     return await svc.resumen_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
@@ -70,9 +68,7 @@ async def catalogo_empleados(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if _rol_nombre(current_user) == "rh" and not is_rh_gestor_team_ui_mode(
-        current_user, rh_ui_mode
-    ):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
         return await svc.catalogo_filtros(current_user)
     return await svc.catalogo_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
@@ -112,7 +108,7 @@ async def list_empleados(
     svc: UsuarioService = Depends(_svc),
 ):
     r = _rol_nombre(current_user)
-    if r == "rh" and not is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
         return await svc.list_usuarios_page(
             page=page,
             page_size=page_size,
