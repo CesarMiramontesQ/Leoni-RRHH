@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_user, require_rh_permisos_admin
 from app.models.empleados import Empleado
 from app.repositories.rh_permisos_repository import RhPermisosRepository
 from app.schemas.rh_permisos import (
+    RhAdminPermisosUpdate,
     RhEmpleadoBusquedaItem,
     RhModuloCatalogItem,
     RhPermisosMeResponse,
@@ -15,6 +16,10 @@ from app.schemas.rh_permisos import (
 from app.services.rh_permisos_service import RhPermisosService
 
 router = APIRouter(prefix="/api/v1/rh-permisos", tags=["RH Permisos"])
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
 
 
 def _repo(db: AsyncSession = Depends(get_db)) -> RhPermisosRepository:
@@ -62,12 +67,14 @@ async def buscar_empleados_para_permisos(
 @router.post("/usuarios/{empleado_id}", response_model=RhUsuarioPermisosItem, status_code=201)
 async def agregar_empleado_permisos(
     empleado_id: int,
+    request: Request,
     current_user: Empleado = Depends(require_rh_permisos_admin),
     svc: RhPermisosService = Depends(_svc),
 ):
     return await svc.agregar_empleado_permisos(
         empleado_id=empleado_id,
         current_user=current_user,
+        ip_address=_client_ip(request),
     )
 
 
@@ -75,6 +82,7 @@ async def agregar_empleado_permisos(
 async def actualizar_permisos_usuario(
     empleado_id: int,
     body: RhPermisosUpdate,
+    request: Request,
     current_user: Empleado = Depends(require_rh_permisos_admin),
     svc: RhPermisosService = Depends(_svc),
 ):
@@ -82,12 +90,31 @@ async def actualizar_permisos_usuario(
         empleado_id=empleado_id,
         body=body,
         current_user=current_user,
+        ip_address=_client_ip(request),
+    )
+
+
+@router.put("/usuarios/{empleado_id}/admin", response_model=RhUsuarioPermisosItem)
+async def set_admin_permisos_usuario(
+    empleado_id: int,
+    body: RhAdminPermisosUpdate,
+    request: Request,
+    current_user: Empleado = Depends(require_rh_permisos_admin),
+    svc: RhPermisosService = Depends(_svc),
+):
+    """Otorga/revoca `puede_administrar_permisos_rh` a un empleado (fuente: BD)."""
+    return await svc.set_admin_permisos(
+        empleado_id=empleado_id,
+        conceder=body.conceder,
+        current_user=current_user,
+        ip_address=_client_ip(request),
     )
 
 
 @router.delete("/usuarios/{empleado_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_usuario_permisos(
     empleado_id: int,
+    request: Request,
     current_user: Empleado = Depends(require_rh_permisos_admin),
     svc: RhPermisosService = Depends(_svc),
 ):
@@ -95,4 +122,5 @@ async def eliminar_usuario_permisos(
     await svc.remove_usuario_permisos(
         empleado_id=empleado_id,
         current_user=current_user,
+        ip_address=_client_ip(request),
     )

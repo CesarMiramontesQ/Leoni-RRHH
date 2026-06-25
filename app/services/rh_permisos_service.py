@@ -18,6 +18,7 @@ from app.schemas.rh_permisos import (
     RhPermisosUpdate,
     RhUsuarioPermisosItem,
 )
+from app.utils.audit_logger import log_action
 
 
 class RhPermisosService:
@@ -96,7 +97,7 @@ class RhPermisosService:
         return items
 
     async def agregar_empleado_permisos(
-        self, *, empleado_id: int, current_user: Empleado
+        self, *, empleado_id: int, current_user: Empleado, ip_address: str | None = None
     ) -> RhUsuarioPermisosItem:
         self._require_admin_permisos(current_user)
 
@@ -116,6 +117,15 @@ class RhPermisosService:
                 target = await self.repo.set_acceso_rh_removido(
                     target, False, empty_modulos_rh_config()
                 )
+                await log_action(
+                    self.repo.db,
+                    accion="RH_PERMISOS_USUARIO_ADDED",
+                    modulo="rh_permisos",
+                    usuario_id=current_user.empleado_id,
+                    entidad_id=empleado_id,
+                    datos_despues={"acceso_rh_removido": False},
+                    ip_address=ip_address,
+                )
                 return self._to_item(target, current_user)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -131,6 +141,70 @@ class RhPermisosService:
         # Inscribir a un usuario de otro rol sin alterar su rol: queda registrado
         # con accesos vacíos hasta que RH le otorgue módulos explícitamente.
         target = await self.repo.set_inscripcion(target, True, empty_modulos_rh_config())
+        await log_action(
+            self.repo.db,
+            accion="RH_PERMISOS_USUARIO_ADDED",
+            modulo="rh_permisos",
+            usuario_id=current_user.empleado_id,
+            entidad_id=empleado_id,
+            datos_despues={"inscrito_modulos_rh": True},
+            ip_address=ip_address,
+        )
+        return self._to_item(target, current_user)
+
+    async def set_admin_permisos(
+        self,
+        *,
+        empleado_id: int,
+        conceder: bool,
+        current_user: Empleado,
+        ip_address: str | None = None,
+    ) -> RhUsuarioPermisosItem:
+        """Otorga o revoca el flag `puede_administrar_permisos_rh` de un empleado.
+
+        La BD (`levelup_empleados_permisos`) es la fuente; el `.env` solo hace
+        bootstrap/recuperación. Candados: no puedes cambiar tu propio flag ni
+        revocar al último administrador (evita lockout). Auditado síncrono.
+        """
+        self._require_admin_permisos(current_user)
+
+        if empleado_id == current_user.empleado_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No puedes cambiar tu propio permiso de administración.",
+            )
+
+        target = await self.repo.get_by_empleado_id(empleado_id)
+        if target is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Empleado no encontrado.",
+            )
+
+        antes = bool(target.puede_administrar_permisos_rh)
+        if antes == conceder:
+            # Sin cambio: devolver estado actual sin auditar ruido.
+            return self._to_item(target, current_user)
+
+        if not conceder:
+            # Anti-lockout: no revocar al último administrador del sistema.
+            if await self.repo.count_admins() <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="No puedes revocar al último administrador de permisos RH.",
+                )
+
+        target = await self.repo.set_admin_flag(target, conceder)
+        await log_action(
+            self.repo.db,
+            accion="RH_PERMISOS_ADMIN_GRANTED" if conceder else "RH_PERMISOS_ADMIN_REVOKED",
+            modulo="rh_permisos",
+            usuario_id=current_user.empleado_id,
+            entidad_id=empleado_id,
+            datos_antes={"puede_administrar_permisos_rh": antes},
+            datos_despues={"puede_administrar_permisos_rh": conceder},
+            ip_address=ip_address,
+        )
         return self._to_item(target, current_user)
 
     async def update_usuario_permisos(
@@ -139,6 +213,7 @@ class RhPermisosService:
         empleado_id: int,
         body: RhPermisosUpdate,
         current_user: Empleado,
+        ip_address: str | None = None,
     ) -> RhUsuarioPermisosItem:
         self._require_admin_permisos(current_user)
 
@@ -162,19 +237,30 @@ class RhPermisosService:
                 detail="Empleado no encontrado.",
             )
 
+        antes = effective_modules_for_display(target)
         rol = target.rol.nombre if target.rol else "empleado"
         # Para roles distintos a RH, guardar accesos mantiene su inscripción
         # explícita; RH no usa el flag (su inscripción deriva del rol).
         inscrito = True if rol != "rh" else None
         normalized = {key: bool(body.modulos.get(key, False)) for key in all_module_keys()}
         await self.repo.update_modulos_rh(target, normalized, inscrito=inscrito)
+        await log_action(
+            self.repo.db,
+            accion="RH_PERMISOS_MODULOS_UPDATED",
+            modulo="rh_permisos",
+            usuario_id=current_user.empleado_id,
+            entidad_id=empleado_id,
+            datos_antes={"modulos": antes},
+            datos_despues={"modulos": normalized},
+            ip_address=ip_address,
+        )
         reloaded = await self.repo.get_by_empleado_id(empleado_id)
         if reloaded is None:
             raise HTTPException(status_code=404, detail="Empleado no encontrado.")
         return self._to_item(reloaded, current_user)
 
     async def remove_usuario_permisos(
-        self, *, empleado_id: int, current_user: Empleado
+        self, *, empleado_id: int, current_user: Empleado, ip_address: str | None = None
     ) -> None:
         """Quita a un usuario de la administración de permisos por módulo.
 
@@ -214,6 +300,15 @@ class RhPermisosService:
                     detail="El usuario ya fue removido de la administración de permisos.",
                 )
             await self.repo.set_acceso_rh_removido(target, True, empty_modulos_rh_config())
+            await log_action(
+                self.repo.db,
+                accion="RH_PERMISOS_USUARIO_REMOVED",
+                modulo="rh_permisos",
+                usuario_id=current_user.empleado_id,
+                entidad_id=empleado_id,
+                datos_despues={"acceso_rh_removido": True},
+                ip_address=ip_address,
+            )
             return
 
         if not is_modulos_rh_enrolled(target):
@@ -224,3 +319,12 @@ class RhPermisosService:
 
         # Quita la inscripción y limpia los accesos otorgados; el rol no cambia.
         await self.repo.set_inscripcion(target, False, {})
+        await log_action(
+            self.repo.db,
+            accion="RH_PERMISOS_USUARIO_REMOVED",
+            modulo="rh_permisos",
+            usuario_id=current_user.empleado_id,
+            entidad_id=empleado_id,
+            datos_despues={"inscrito_modulos_rh": False},
+            ip_address=ip_address,
+        )

@@ -61,6 +61,23 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
 
+    # 3. Bootstrap/recuperación de administradores de permisos RH (no bloqueante).
+    #    Solo escribe si NO hay ningún admin en BD (recuperación desde `.env`);
+    #    en operación normal es no-op y la BD/UI es la autoridad.
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.utils.seed import ensure_bootstrap_rh_admins
+
+        async with AsyncSessionLocal() as db:
+            await ensure_bootstrap_rh_admins(db)
+            await db.commit()
+    except Exception as e:  # noqa: BLE001 — el arranque no debe fallar por esto
+        logger.warning(
+            "Bootstrap de administradores de permisos RH omitido (%s: %s)",
+            type(e).__name__,
+            str(e),
+        )
+
     logger.info("Plataforma RH lista — entorno: %s", settings.APP_ENV)
 
     yield

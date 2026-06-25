@@ -17,7 +17,7 @@ Uso:
 import asyncio
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -424,15 +424,39 @@ async def seed_user(db, user_data: dict, rol_id: int, label: str) -> None:
     logger.info("  %s asegurado (empleado_id=%d, email=%s)", label, emp.empleado_id, emp.email)
 
 
-async def seed_rh_permisos_admins(db) -> None:
-    """Marca `puede_administrar_permisos_rh=true` en los empleados de
-    SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS (.env). Idempotente."""
-    from app.models.empleados_rh import ensure_rh_permisos
+async def ensure_bootstrap_rh_admins(db) -> None:
+    """Bootstrap/recuperación de administradores de permisos RH desde `.env`.
+
+    Semántica de RECUPERACIÓN: el `.env` (SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS) NO
+    es una fuente fija. Solo otorga `puede_administrar_permisos_rh=true` a esos
+    empleado_id cuando la BD tiene CERO administradores; si ya existe alguno, no
+    hace nada (la autoridad es la BD/UI). Idempotente. Auditado como sistema.
+    """
+    from app.models.empleados_rh import EmpleadoRhPermisos, ensure_rh_permisos
+    from app.utils.audit_logger import log_action
+
+    admins_actuales = int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(EmpleadoRhPermisos)
+                .where(EmpleadoRhPermisos.puede_administrar_permisos_rh.is_(True))
+            )
+        ).scalar_one()
+    )
+    if admins_actuales > 0:
+        logger.info(
+            "  Ya existen %d administrador(es) de permisos RH — bootstrap .env omitido "
+            "(la BD/UI es la autoridad)",
+            admins_actuales,
+        )
+        return
 
     empleado_ids = settings.SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS
     if not empleado_ids:
-        logger.info(
-            "  Sin SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS — omitiendo administradores de permisos RH"
+        logger.warning(
+            "  No hay administradores de permisos RH y SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS "
+            "está vacío — define empleado_id(s) en `.env` para el bootstrap/recuperación"
         )
         return
 
@@ -455,9 +479,21 @@ async def seed_rh_permisos_admins(db) -> None:
         permisos = ensure_rh_permisos(db, emp)
         permisos.puede_administrar_permisos_rh = True
         await db.flush()
-        logger.info(
-            "  Admin permisos RH: empleado_id=%d (%s)", emp.empleado_id, emp.nombre
+        await log_action(
+            db,
+            accion="RH_PERMISOS_ADMIN_BOOTSTRAP",
+            modulo="rh_permisos",
+            usuario_id=None,
+            entidad_id=empleado_id,
+            datos_despues={"puede_administrar_permisos_rh": True},
         )
+        logger.info(
+            "  Bootstrap admin permisos RH: empleado_id=%d (%s)", emp.empleado_id, emp.nombre
+        )
+
+
+# Alias retrocompatible para el punto de entrada del seed.
+seed_rh_permisos_admins = ensure_bootstrap_rh_admins
 
 
 async def seed_level_up(db) -> None:

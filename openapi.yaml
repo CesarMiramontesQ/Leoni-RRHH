@@ -261,6 +261,14 @@ components:
           additionalProperties:
             type: boolean
 
+    RhAdminPermisosUpdate:
+      type: object
+      required: [conceder]
+      properties:
+        conceder:
+          type: boolean
+          description: true otorga, false revoca puede_administrar_permisos_rh.
+
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
       type: object
@@ -5075,6 +5083,44 @@ paths:
           description: Sin permiso o auto-eliminación prohibida
         "404":
           description: Empleado no encontrado o ya removido / no inscrito
+
+  /api/v1/rh-permisos/usuarios/{empleado_id}/admin:
+    put:
+      tags: [RH Permisos]
+      summary: Otorgar o revocar el permiso de administrar permisos RH
+      description: >-
+        Activa/desactiva `puede_administrar_permisos_rh` (tabla
+        levelup_empleados_permisos) para un empleado. La BD es la fuente; el
+        cambio se registra en auditoría. Candados: no puedes cambiar tu propio
+        flag ni revocar al último administrador.
+      operationId: rh_permisos_usuarios_set_admin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RhAdminPermisosUpdate"
+      responses:
+        "200":
+          description: Permiso de administración actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RhUsuarioPermisosItem"
+        "403":
+          description: Sin permiso o cambio del propio flag prohibido
+        "404":
+          description: Empleado no encontrado
+        "409":
+          description: No se puede revocar al último administrador
 
   # ── Usuarios ────────────────────────────────────────
   /api/v1/usuarios/roles:
