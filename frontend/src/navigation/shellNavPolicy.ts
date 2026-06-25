@@ -18,7 +18,7 @@ import {
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
 import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
-import { isNonRhRhMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { isNonRhRhMode, isAdminUser, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
 export const RH_SIN_PERMISOS_HASH = "#/sin-permisos-rh";
@@ -83,8 +83,8 @@ export function resolveRhOperativoLandingHash(): string | null {
  */
 export function resolveRhInitialHash(currentHash?: string): string {
   const h = (currentHash ?? (typeof window !== "undefined" ? window.location.hash : "") ?? "#/").trim() || "#/";
-  if (getRolFromAccessToken() !== "rh") return h;
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return isRhHomeHash(h) ? "#/" : h;
+  if (!isAdminUser()) return h;
+  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return isRhHomeHash(h) ? "#/" : h;
   if (!isRhHomeHash(h)) return h;
   if (rhMayAccessHash("#/")) return "#/";
   const landing = resolveRhOperativoLandingHash();
@@ -141,8 +141,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 /** Rol con menú lateral plano (sin hubs ni submenús). */
 export function isEmpleadoFlatNavRol(rol: string | null): boolean {
   if (rol === "empleado") return true;
-  if (rol === "rh" && isRhEmpleadoUiMode()) return true;
-  return false;
+  return isRhEmpleadoUiMode();
 }
 
 const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
@@ -158,13 +157,13 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
 /** Rol con menú lateral estructurado por secciones (Laborales, Comedor). */
 export function isSupervisorStructuredNavRol(rol: string | null): boolean {
   if (rol === "supervisor" || rol === "gerente") return true;
-  if (rol === "rh" && (isRhLiderUiMode() || isRhGerenteUiMode())) return true;
-  return false;
+  return isRhGestorTeamUiMode();
 }
 
-/** RH operativo: sidebar con secciones desplegables (Laborales, Comedor, Level Up). */
+/** ADMIN en modo operativo: sidebar con secciones desplegables (Laborales, Comedor, Level Up). */
 export function isRhStructuredNavRol(rol: string | null): boolean {
-  return rol === "rh" && isRhOperativoUiMode();
+  void rol;
+  return isRhOperativoUiMode();
 }
 
 /** Supervisor y gerente comparten política de rutas permitidas (sin hubs ni módulos extra). */
@@ -188,10 +187,11 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
 const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set();
 
 function effectiveShellNavRol(rol: string | null): string | null {
-  if (rol === "rh") {
-    if (isRhLiderUiMode()) return "supervisor";
-    if (isRhGerenteUiMode()) return "gerente";
-  }
+  if (isRhLiderUiMode()) return "supervisor";
+  if (isRhGerenteUiMode()) return "gerente";
+  if (isRhDirectorUiMode()) return "director";
+  if (isRhEmpleadoUiMode()) return "empleado";
+  if (isRhOperativoUiMode()) return "rh";
   return rol;
 }
 
@@ -217,6 +217,9 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
 
 function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolean {
   const moduleKey = navItemIdToModuleKey(itemId);
+  if (isRhOperativoUiMode()) {
+    return hasRhModule(moduleKey);
+  }
   if (rol === "rh") {
     if (isRhEmpleadoUiMode()) return true;
     return hasRhModule(moduleKey);
@@ -253,8 +256,9 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   // (módulo `comedor`). Visibles solo para RH con el módulo o no-RH con grant explícito;
   // ocultas para roles sin acceso y para RH en Modo empleado/gestor.
   if (itemId === "comedor-gestion" || itemId === "comedor-planear") {
-    if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
+    if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return false;
     if (hasExplicitModuleGrant("comedor")) return true;
+    if (isRhOperativoUiMode()) return hasRhModule("comedor");
     if (rol === "rh") return hasRhModule("comedor");
     return false;
   }
@@ -262,16 +266,19 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
     return isNominasHubVisibleForRol(rol);
   }
   const byRole = roleOnlyNavVisible(rol, itemId);
-  if (rol === "rh") {
-    if (isRhEmpleadoUiMode()) {
-      return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
-    }
-    if (isRhGestorTeamUiMode()) {
-      return byRole;
-    }
+  if (isRhEmpleadoUiMode()) {
+    return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
+  }
+  if (isRhGestorTeamUiMode() || isRhDirectorUiMode()) {
+    return byRole;
+  }
+  if (isRhOperativoUiMode()) {
     return byRole && moduleNavAllowed(rol, itemId);
   }
-  // No-RH en modo base (o sin permisos): solo la navegación de su rol.
+  if (rol === "rh") {
+    return byRole && moduleNavAllowed(rol, itemId);
+  }
+  // No-ADMIN en modo base (o sin permisos): solo la navegación de su rol.
   return byRole;
 }
 
@@ -350,7 +357,7 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   }
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
-    return rol === "rh" && isRhOperativoUiMode();
+    return isRhOperativoUiMode();
   }
   if (h.startsWith("#/ajustes/permisos-rh")) {
     return isRhOperativoUiMode() && canAccessRhPermisosAdmin();
@@ -358,6 +365,16 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
 
   const moduleKey = resolveModuleFromHash(h);
   if (moduleKey === null) return true;
+
+  if (isRhOperativoUiMode()) {
+    if (h.startsWith("#/comedor/reporte") || h.startsWith("#/reportes")) {
+      return hasRhModule("reportes");
+    }
+    if (h.startsWith("#/comedor")) {
+      return hasRhModule("comedor");
+    }
+    return hasRhModule(moduleKey);
+  }
 
   if (rol === "rh") {
     if (h.startsWith("#/comedor/reporte") || h.startsWith("#/reportes")) {
@@ -388,7 +405,7 @@ export function rhEmpleadoMayAccessHash(hash: string): boolean {
   return empleadoMayAccessHash(hash);
 }
 
-/** Control de hash para usuarios RH según modo UI. */
+/** Control de hash para usuarios ADMIN según modo UI. */
 export function rhMayAccessHash(hash: string): boolean {
   if (isRhEmpleadoUiMode()) {
     return rhEmpleadoMayAccessHash(hash);
@@ -402,6 +419,11 @@ export function rhMayAccessHash(hash: string): boolean {
     }
     return hashAllowedByRole(navRol, hash);
   }
-  return modulosMayAccessHash(hash, "rh");
+  if (isRhDirectorUiMode()) {
+    const h = (hash || "#/").trim();
+    if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith(RH_SIN_PERMISOS_HASH)) return false;
+    return hashAllowedByRole("director", hash);
+  }
+  return modulosMayAccessHash(hash, getRolFromAccessToken());
 }
 

@@ -2,7 +2,9 @@ import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
 import {
   isRhEmpleadoUiMode,
   isRhGestorTeamUiMode,
+  isRhOperativoUiMode,
   rhHasFullOperativoModules,
+  setAdminUser,
   setRhInPermisosList,
   setRhPermisosActivos,
 } from "./rhUiMode.ts";
@@ -47,6 +49,7 @@ export function resetRhModulePermissions(): void {
   state.modules = {};
   state.canAdminPermisos = false;
   state.enListaPermisos = true;
+  setAdminUser(false);
   setRhInPermisosList(true);
   setRhPermisosActivos(false);
 }
@@ -60,6 +63,7 @@ export async function loadRhModulePermissions(): Promise<void> {
       state.modules = {};
       state.canAdminPermisos = false;
       state.enListaPermisos = true;
+      setAdminUser(false);
       setRhInPermisosList(true);
       setRhPermisosActivos(false);
       return;
@@ -68,6 +72,7 @@ export async function loadRhModulePermissions(): Promise<void> {
     state.modules = data.inscrito ? { ...data.modulos } : {};
     state.canAdminPermisos = data.puede_administrar_permisos_rh;
     state.enListaPermisos = data.en_lista_permisos;
+    setAdminUser(data.puede_administrar_permisos_rh);
     setRhInPermisosList(data.en_lista_permisos);
     setRhPermisosActivos(Object.values(state.modules).some(Boolean));
     state.loaded = true;
@@ -78,6 +83,7 @@ export async function loadRhModulePermissions(): Promise<void> {
     state.canAdminPermisos = false;
     // Fail-open de UI: ante error transitorio no ocultamos el toggle.
     state.enListaPermisos = true;
+    setAdminUser(false);
     setRhInPermisosList(true);
     setRhPermisosActivos(false);
   }
@@ -110,7 +116,7 @@ export function hasExplicitModuleGrant(moduleKey: string): boolean {
 /** Control de acceso RH (restricción) o grant explícito para otros roles. */
 export function hasRhModule(moduleKey: string): boolean {
   const rol = getSessionRol();
-  if (state.canAdminPermisos) return true;
+  if (state.canAdminPermisos && isRhOperativoUiMode()) return true;
   if (!state.loaded) return true;
 
   if (rol !== "rh") {

@@ -196,7 +196,8 @@ const LEVEL_UP_RESUMEN_ITEM: LevelUpAccessItem = {
 };
 
 function hasLevelUpResumenModuleAccess(rol: string | null): boolean {
-  if (rol === "empleado" || (rol === "rh" && isRhEmpleadoUiMode())) return false;
+  if (rol === "empleado" || isRhEmpleadoUiMode()) return false;
+  if (isRhOperativoUiMode()) return hasRhModule("level-up");
   if (rol === "rh") return hasRhModule("level-up");
   if (isModulosRhEnrolled()) return hasExplicitModuleGrant("level-up");
   return rol === "rh" || rol === "director" || rol === "gerente";
@@ -252,7 +253,7 @@ export function getVisibleLevelUpCategoriesForRhSidebar(rol: string | null): Lev
 
 export function isLevelUpHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
-  if (rol === "rh" && isRhOperativoUiMode()) return false;
+  if (isRhOperativoUiMode()) return false;
   return getVisibleLevelUpCategories(rol).length > 0;
 }
 

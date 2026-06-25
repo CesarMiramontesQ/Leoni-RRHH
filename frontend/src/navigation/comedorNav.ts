@@ -77,7 +77,7 @@ export function getVisibleComedorCategories(rol: string | null): ShellHubCategor
 
 export function isComedorHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
-  if (rol === "rh" && isRhOperativoUiMode()) return false;
+  if (isRhOperativoUiMode()) return false;
   return getVisibleComedorCategories(rol).length > 0;
 }
 

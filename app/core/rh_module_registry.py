@@ -416,16 +416,18 @@ def catalog_for_api() -> list[dict]:
 
 
 def rh_claims_for_token(empleado: "Empleado") -> dict:
-    """Claims JWT para permisos por módulo (solo rol RH)."""
+    """Claims JWT para permisos por módulo y flag ADMIN."""
+    claims: dict = {}
+    is_admin = bool(getattr(empleado, "puede_administrar_permisos_rh", False))
+    if is_admin:
+        claims["rh_admin"] = True
+
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
     if rol != "rh":
-        return {}
+        return claims
 
-    claims: dict = {
-        "rh_admin": bool(getattr(empleado, "puede_administrar_permisos_rh", False)),
-        "rh_enrolled": True,
-    }
+    claims["rh_enrolled"] = True
     if modulos:
         claims["rh_modulos"] = effective_modules(modulos)
     alcance = resolve_rh_gestor_alcance(empleado)
@@ -448,19 +450,26 @@ def user_has_module_from_claims(
     module_key: str,
     rh_ui_mode: str | None = None,
 ) -> bool:
+    from app.core.rh_ui_mode import (
+        RH_UI_MODE_LIDER,
+        RH_UI_MODE_GERENTE,
+        RH_UI_MODE_OPERATIVO,
+        effective_rh_ui_mode,
+    )
+
     if payload.get("rh_admin"):
-        return True
+        mode = effective_rh_ui_mode(rh_ui_mode)
+        if mode == RH_UI_MODE_OPERATIVO:
+            return True
+        if mode in (RH_UI_MODE_LIDER, RH_UI_MODE_GERENTE):
+            return True
+        if payload.get("rh_gestor_alcance") and mode == RH_UI_MODE_OPERATIVO:
+            return True
+
     rol = payload.get("rol")
     modulos = payload.get("rh_modulos")
 
     if rol == "rh":
-        from app.core.rh_ui_mode import (
-            RH_UI_MODE_LIDER,
-            RH_UI_MODE_GERENTE,
-            RH_UI_MODE_OPERATIVO,
-            effective_rh_ui_mode,
-        )
-
         mode = effective_rh_ui_mode(rh_ui_mode)
         if mode in (RH_UI_MODE_LIDER, RH_UI_MODE_GERENTE):
             return True

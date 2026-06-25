@@ -25,6 +25,7 @@ vi.stubGlobal("sessionStorage", {
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => rol,
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => ({}),
   isHorasExtraAprobador: () => heAprobador,
   isHorasExtraRegistroAutorizado: () => heAutorizado,
 }));

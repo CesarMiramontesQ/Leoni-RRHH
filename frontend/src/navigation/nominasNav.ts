@@ -98,7 +98,7 @@ export function isNominasHubVisibleForRol(rol: string | null): boolean {
   }
   if (hasNominasGrant(rol)) return getVisibleNominasCategories(rol).length > 0;
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
-  if (rol === "rh" && isRhOperativoUiMode()) return false;
+  if (isRhOperativoUiMode()) return false;
   return getVisibleNominasCategories(rol).length > 0;
 }
 

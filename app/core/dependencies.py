@@ -212,9 +212,11 @@ def get_rh_ui_mode(
     x_rh_ui_mode: str | None = Header(None, alias="X-RH-UI-Mode"),
     current_user: Empleado = Depends(get_current_user),
 ) -> str | None:
-    """Modo de UI activo para usuarios RH (`operativo` | `empleado` | `lider` | `gerente`)."""
+    """Modo de UI activo para usuarios ADMIN (`operativo` | `empleado` | `lider` | `gerente` | `director`)."""
+    from app.core.rh_ui_mode import is_admin_user
+
     mode = normalized_rh_ui_mode(x_rh_ui_mode)
-    if mode is not None:
+    if mode is not None and (is_admin_user(current_user) or (current_user.rol and current_user.rol.nombre == "rh")):
         validate_rh_ui_mode_for_user(current_user, mode)
     return x_rh_ui_mode
 
@@ -226,8 +228,12 @@ def gestor_team_role_checker(roles_requeridos: list[str]):
         current_user: Empleado = Depends(get_current_user),
         rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
+        from app.core.rh_ui_mode import is_admin_user
+
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         if rol in roles_requeridos:
+            return current_user
+        if is_admin_user(current_user) and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
             return current_user
         if rol == "rh" and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
             return current_user
@@ -246,8 +252,12 @@ def gestor_supervisor_role_checker():
         current_user: Empleado = Depends(get_current_user),
         rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
+        from app.core.rh_ui_mode import is_admin_user
+
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         if rol == "supervisor":
+            return current_user
+        if is_admin_user(current_user) and is_rh_lider_ui_mode(current_user, rh_ui_mode):
             return current_user
         if rol == "rh" and is_rh_lider_ui_mode(current_user, rh_ui_mode):
             return current_user

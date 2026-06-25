@@ -32,6 +32,7 @@ vi.mock("./rhUiMode.ts", () => ({
   isRhGestorTeamUiMode: () => gestorTeamUiMode,
   isRhGerenteUiMode: () => false,
   isRhLiderUiMode: () => false,
+  isRhDirectorUiMode: () => false,
   isRhOperativoUiMode: () => !empleadoUiMode && !gestorTeamUiMode,
 }));
 

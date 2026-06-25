@@ -11,7 +11,7 @@ import {
   usesSupervisorRoutePolicy,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
-import { isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
+import { isAdminUser, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -82,7 +82,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     // autoridad de ruta (rol base + grants en Modo RH). Las redirecciones por rol
     // de abajo no deben pisar el grant, o un inscrito con permiso de una página
     // RH-exclusiva (ajustes, actas, reporte comedor, evaluación 360) sería enviado a #/.
-    const enrolledNonRh = getRolFromAccessToken() !== "rh" && isModulosRhEnrolled();
+    const enrolledNonRh = !isAdminUser() && getRolFromAccessToken() !== "rh" && isModulosRhEnrolled();
     if (!enrolledNonRh) {
       if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
         history.replaceState(null, "", "#/");
@@ -93,21 +93,25 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }
     }
     const rol = getRolFromAccessToken();
-    if (rol === "rh" && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
+    if (isAdminUser() && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
       const landing = resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
       if (landing !== rawHash) {
         history.replaceState(null, "", landing);
         rawHash = landing;
       }
     }
-    if (rol === "rh" && !rhMayAccessHash(rawHash)) {
-      if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) {
+    if (isAdminUser() && !rhMayAccessHash(rawHash)) {
+      if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) {
         if (rawHash !== "#/") {
           history.replaceState(null, "", "#/");
         }
         routeToHash(container, signal, "#/");
         return;
       }
+      mountRhModuleAccessDenied(container);
+      return;
+    }
+    if (rol === "rh" && !isAdminUser() && !modulosMayAccessHash(rawHash, rol)) {
       mountRhModuleAccessDenied(container);
       return;
     }

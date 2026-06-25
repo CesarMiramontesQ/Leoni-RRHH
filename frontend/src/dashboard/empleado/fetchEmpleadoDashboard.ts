@@ -90,7 +90,7 @@ function calcVacationDaysInclusive(fechaInicio: string, fechaFin: string): numbe
  */
 export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget): Promise<EmpleadoDashboardPayload | null> {
   const rol = getRolFromAccessToken();
-  const esAutoservicio = rol === "empleado" || (rol === "rh" && isRhEmpleadoUiMode());
+  const esAutoservicio = rol === "empleado" || isRhEmpleadoUiMode();
   if (!esAutoservicio) return null;
 
   const now = new Date();

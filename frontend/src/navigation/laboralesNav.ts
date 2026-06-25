@@ -78,7 +78,7 @@ export function getVisibleLaboralesCategories(rol: string | null): ShellHubCateg
 
 export function isLaboralesHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
-  if (rol === "rh" && isRhOperativoUiMode()) return false;
+  if (isRhOperativoUiMode()) return false;
   return getVisibleLaboralesCategories(rol).length > 0;
 }
 

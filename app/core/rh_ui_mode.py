@@ -1,4 +1,4 @@
-"""Modo de UI para usuarios RH (operativo, autoservicio, líder o gerente)."""
+"""Modo de UI para usuarios ADMIN (operativo, autoservicio, líder, gerente o director)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ RH_UI_MODE_EMPLEADO = "empleado"
 RH_UI_MODE_OPERATIVO = "operativo"
 RH_UI_MODE_LIDER = "lider"
 RH_UI_MODE_GERENTE = "gerente"
+RH_UI_MODE_DIRECTOR = "director"
 
 _VALID_RH_UI_MODES = frozenset(
     {
@@ -21,8 +22,13 @@ _VALID_RH_UI_MODES = frozenset(
         RH_UI_MODE_EMPLEADO,
         RH_UI_MODE_LIDER,
         RH_UI_MODE_GERENTE,
+        RH_UI_MODE_DIRECTOR,
     }
 )
+
+
+def is_admin_user(user: "Empleado") -> bool:
+    return bool(getattr(user, "puede_administrar_permisos_rh", False))
 
 
 def parse_rh_ui_mode(raw: str | None) -> str:
@@ -43,71 +49,121 @@ def effective_rh_ui_mode(raw: str | None) -> str:
     return parse_rh_ui_mode(raw) if raw is not None and str(raw).strip() else RH_UI_MODE_OPERATIVO
 
 
+def _operational_rol(user: "Empleado") -> str:
+    rol = user.rol.nombre if user.rol else "empleado"
+    if rol in ("gerente", "supervisor", "director", "empleado"):
+        return rol
+    alcance = resolve_rh_gestor_alcance(user)
+    if alcance == "gerente":
+        return "gerente"
+    if alcance == "supervisor":
+        return "supervisor"
+    return "empleado"
+
+
 def validate_rh_ui_mode_for_user(user: "Empleado", mode: str) -> None:
     from fastapi import HTTPException, status
 
-    rol = user.rol.nombre if user.rol else "empleado"
-    if rol != "rh":
-        return
-
-    # RH removido de la administración de permisos: pasa a vista de empleado,
-    # se permite cualquier modo (el acceso a módulos RH ya está denegado por
-    # modulos_rh todo-falso). Evita 422 al enviar modo "empleado".
-    if getattr(user, "acceso_rh_removido", False):
-        return
-
-    alcance = resolve_rh_gestor_alcance(user)
-    if mode == RH_UI_MODE_LIDER:
-        if alcance != "supervisor":
+    if not is_admin_user(user):
+        rol = user.rol.nombre if user.rol else "empleado"
+        if rol != "rh":
+            return
+        if getattr(user, "acceso_rh_removido", False):
+            return
+        alcance = resolve_rh_gestor_alcance(user)
+        if mode == RH_UI_MODE_LIDER:
+            if alcance != "supervisor":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Modo líder no disponible para este usuario.",
+                )
+            return
+        if mode == RH_UI_MODE_GERENTE:
+            if alcance != "gerente":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Modo gerente no disponible para este usuario.",
+                )
+            return
+        if mode == RH_UI_MODE_EMPLEADO and alcance is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Modo líder no disponible para este usuario.",
+                detail="Usuarios RH líder/gerente deben usar modo líder o gerente.",
             )
         return
-    if mode == RH_UI_MODE_GERENTE:
-        if alcance != "gerente":
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Modo gerente no disponible para este usuario.",
-            )
+
+    if mode == RH_UI_MODE_OPERATIVO:
         return
-    if mode == RH_UI_MODE_EMPLEADO and alcance is not None:
+
+    operational = _operational_rol(user)
+    if mode == RH_UI_MODE_EMPLEADO and operational not in ("empleado",):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Usuarios RH líder/gerente deben usar modo líder o gerente.",
+            detail="Modo empleado no disponible para este usuario.",
+        )
+    if mode == RH_UI_MODE_LIDER and operational != "supervisor":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Modo líder no disponible para este usuario.",
+        )
+    if mode == RH_UI_MODE_GERENTE and operational != "gerente":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Modo gerente no disponible para este usuario.",
+        )
+    if mode == RH_UI_MODE_DIRECTOR and operational != "director":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Modo director no disponible para este usuario.",
         )
 
 
 def is_rh_empleado_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
-    rol = user.rol.nombre if user.rol else "empleado"
-    if rol != "rh":
-        return False
+    if not is_admin_user(user):
+        rol = user.rol.nombre if user.rol else "empleado"
+        if rol != "rh":
+            return False
+        return effective_rh_ui_mode(rh_ui_mode) == RH_UI_MODE_EMPLEADO
     return effective_rh_ui_mode(rh_ui_mode) == RH_UI_MODE_EMPLEADO
 
 
 def is_rh_operativo_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
-    rol = user.rol.nombre if user.rol else "empleado"
-    if rol != "rh":
-        return False
+    if not is_admin_user(user):
+        rol = user.rol.nombre if user.rol else "empleado"
+        if rol != "rh":
+            return False
+        return effective_rh_ui_mode(rh_ui_mode) == RH_UI_MODE_OPERATIVO
     return effective_rh_ui_mode(rh_ui_mode) == RH_UI_MODE_OPERATIVO
 
 
 def is_rh_lider_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
+    if effective_rh_ui_mode(rh_ui_mode) != RH_UI_MODE_LIDER:
+        return False
+    if is_admin_user(user):
+        return _operational_rol(user) == "supervisor"
     rol = user.rol.nombre if user.rol else "empleado"
     if rol != "rh":
-        return False
-    if effective_rh_ui_mode(rh_ui_mode) != RH_UI_MODE_LIDER:
         return False
     return resolve_rh_gestor_alcance(user) == "supervisor"
 
 
 def is_rh_gerente_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
+    if effective_rh_ui_mode(rh_ui_mode) != RH_UI_MODE_GERENTE:
+        return False
+    if is_admin_user(user):
+        return _operational_rol(user) == "gerente"
     rol = user.rol.nombre if user.rol else "empleado"
     if rol != "rh":
         return False
-    if effective_rh_ui_mode(rh_ui_mode) != RH_UI_MODE_GERENTE:
-        return False
     return resolve_rh_gestor_alcance(user) == "gerente"
+
+
+def is_rh_director_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
+    if effective_rh_ui_mode(rh_ui_mode) != RH_UI_MODE_DIRECTOR:
+        return False
+    if not is_admin_user(user):
+        return False
+    return _operational_rol(user) == "director"
 
 
 def is_rh_gestor_team_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
@@ -115,15 +171,17 @@ def is_rh_gestor_team_ui_mode(user: "Empleado", rh_ui_mode: str | None) -> bool:
 
 
 def rh_tiene_alcance_gestor(user: "Empleado", rh_ui_mode: str | None) -> bool:
-    """RH con permisos globales de gestión (solo modo operativo)."""
+    """RH/ADMIN con permisos globales de gestión (solo modo operativo)."""
     rol = user.rol.nombre if user.rol else "empleado"
+    if is_admin_user(user):
+        return is_rh_operativo_ui_mode(user, rh_ui_mode)
     if rol != "rh":
         return rol in ("director", "supervisor", "gerente")
     return is_rh_operativo_ui_mode(user, rh_ui_mode)
 
 
 def rh_tiene_modulos_completos_operativo(user: "Empleado", rh_ui_mode: str | None) -> bool:
-    """Líder/Gerente RH en modo operativo: acceso total al catálogo de módulos."""
+    """Líder/Gerente ADMIN en modo operativo: acceso total al catálogo de módulos."""
     if not is_rh_operativo_ui_mode(user, rh_ui_mode):
         return False
     return resolve_rh_gestor_alcance(user) is not None
@@ -132,6 +190,19 @@ def rh_tiene_modulos_completos_operativo(user: "Empleado", rh_ui_mode: str | Non
 def effective_solicitud_scope_rol(user: "Empleado", rh_ui_mode: str | None) -> str:
     """Rol efectivo para listar/ver/aprobar solicitudes."""
     rol = user.rol.nombre if user.rol else "empleado"
+
+    if is_admin_user(user):
+        mode = effective_rh_ui_mode(rh_ui_mode)
+        if mode == RH_UI_MODE_EMPLEADO:
+            return "empleado"
+        if mode == RH_UI_MODE_LIDER:
+            return "supervisor"
+        if mode == RH_UI_MODE_GERENTE:
+            return "gerente"
+        if mode == RH_UI_MODE_DIRECTOR:
+            return "director"
+        return "rh"
+
     if rol != "rh":
         return rol
 

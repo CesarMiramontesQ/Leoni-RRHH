@@ -5,7 +5,7 @@ import {
   getUserInitialsFromAccessToken,
 } from "../auth/jwt.ts";
 import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
-import { getRhUiModeLabel, isNonRhPermisosUser, isNonRhRhMode, isRhEmpleadoUiMode, isRhToggleOn, toggleNonRhRhMode, toggleRhUiMode } from "../auth/rhUiMode.ts";
+import { getRhUiModeLabel, isAdminUser, isNonRhPermisosUser, isNonRhRhMode, isRhEmpleadoUiMode, isRhToggleOn, toggleNonRhRhMode, toggleRhUiMode } from "../auth/rhUiMode.ts";
 import {
   isComedorHubVisibleForRol,
   COMEDOR_SIDEBAR_ITEM,
@@ -516,17 +516,16 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const userName = escapeHtmlText(getUserDisplayNameFromAccessToken());
   const userInitials = escapeHtmlText(getUserInitialsFromAccessToken());
   const rawRol = getRolFromAccessToken();
-  // Toggle Modo base / Modo RH: cualquier usuario con rol RH, o no-RH con módulos asignados.
-  const isRhUser = rawRol === "rh";
-  const showRhToggle = isRhUser || isNonRhPermisosUser();
-  const toggleOn = isRhUser ? isRhToggleOn() : isNonRhRhMode();
-  const toggleModeLabel = isRhUser
+  // Toggle Modo RH / Modo operativo: usuarios ADMIN, o no-ADMIN con módulos asignados.
+  const showAdminToggle = isAdminUser() || isNonRhPermisosUser();
+  const toggleOn = isAdminUser() ? isRhToggleOn() : isNonRhRhMode();
+  const toggleModeLabel = isAdminUser()
     ? getRhUiModeLabel()
     : isNonRhRhMode()
       ? "Modo RH"
       : `Modo ${formatRolLabel(rawRol ?? "")}`;
   const userRolLine =
-    isRhUser ?
+    isAdminUser() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal text-text-muted xl:block">${escapeHtmlText(getRhUiModeLabel())}</span>`
     : isNonRhPermisosUser() ?
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal text-text-muted xl:block">${escapeHtmlText(toggleModeLabel)}</span>`
@@ -534,7 +533,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       `<span class="hidden max-w-[12rem] truncate text-start text-xs font-normal capitalize text-text-muted xl:block">${escapeHtmlText(formatRolLabel(rawRol))}</span>`
     : "";
   const rhModeToggleHtml =
-    showRhToggle
+    showAdminToggle
       ? `<div class="hidden items-center gap-2 sm:flex" id="rh-ui-mode-toggle-wrap">
           <span class="text-xs font-medium text-text-muted" id="rh-ui-mode-toggle-label">${escapeHtmlText(toggleModeLabel)}</span>
           <button
@@ -703,7 +702,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   container.querySelector("#rh-ui-mode-toggle")?.addEventListener(
     "click",
     () => {
-      if (getRolFromAccessToken() === "rh") toggleRhUiMode();
+      if (isAdminUser()) toggleRhUiMode();
       else toggleNonRhRhMode();
     },
     { signal },
