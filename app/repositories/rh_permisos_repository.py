@@ -67,10 +67,14 @@ class RhPermisosRepository:
 
         pattern = f"%{term}%"
 
+        # LEFT JOIN: la mayoría de empleados de Bono no tiene fila en
+        # levelup_empleados_core (``ensure_core`` es perezoso). Con INNER JOIN
+        # quedaban excluidos de la búsqueda y no se podían agregar a permisos.
+        # El servicio ya asume rol "empleado" cuando no hay core.
         result = await self.db.execute(
             select(Empleado)
-            .join(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
-            .join(Rol, EmpleadoCore.rol_id == Rol.id)
+            .outerjoin(EmpleadoCore, EmpleadoCore.empleado_id == Empleado.empleado_id)
+            .outerjoin(Rol, EmpleadoCore.rol_id == Rol.id)
             .options(selectinload(Empleado.core))
             .where(
                 Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
