@@ -190,6 +190,45 @@ async def test_search_returns_any_active_employee(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_search_finds_employee_without_core_row(client: AsyncClient, db):
+    """La búsqueda debe localizar empleados de Bono que aún no tienen fila en
+    levelup_empleados_core (la mayoría: ``ensure_core`` es perezoso). El INNER JOIN
+    contra core/rol los excluía, dejando "sin coincidencias" al agregar empleados."""
+    from app.models.empleados import Empleado
+
+    admin = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_admin_nocore@test.com",
+        puede_administrar_permisos_rh=True,
+    )
+
+    # Empleado "pelón": existe en Bono (activo) pero nunca tocó el proyecto, así
+    # que no tiene EmpleadoCore (ni rol propio).
+    sin_core = Empleado(
+        empleado_id=987654,
+        no_empleado=987654,
+        nombre="Sincore Empleado",
+        email="sincore@test.com",
+        estado_id=1,
+    )
+    db.add(sin_core)
+    await db.flush()
+
+    res = await client.get(
+        "/api/v1/rh-permisos/empleados-buscar",
+        headers=await auth_headers(client, admin),
+        params={"q": "Sincore"},
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    ids = {u["empleado_id"] for u in payload}
+    assert sin_core.empleado_id in ids
+    hit = next(u for u in payload if u["empleado_id"] == sin_core.empleado_id)
+    assert hit["rol_nombre"] == "empleado"  # rol por defecto cuando no hay core
+
+
+@pytest.mark.asyncio
 async def test_admin_can_remove_non_rh_from_permisos(client: AsyncClient, db):
     """Eliminar de permisos: quita inscripción y accesos, sin tocar rol ni cuenta."""
     admin = await make_empleado(
