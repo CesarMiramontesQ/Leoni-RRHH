@@ -61,8 +61,9 @@ describe("canAccessMetricasPage", () => {
   it("permite RH/ADMIN en modo líder (métricas de equipo directo)", async () => {
     tokenRol = "rh";
     gestorAlcance = "supervisor";
-    const { canAccessMetricasPage, canAccessFaltasRetardosPage } = await import("./jwt.ts");
+    const { canAccessMetricasPage, canAccessFaltasRetardosPage, canAccessRhIncidenciasPage } = await import("./jwt.ts");
     expect(canAccessMetricasPage()).toBe(true);
     expect(canAccessFaltasRetardosPage()).toBe(true);
+    expect(canAccessRhIncidenciasPage()).toBe(true);
   });
 });

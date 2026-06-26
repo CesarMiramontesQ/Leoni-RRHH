@@ -89,8 +89,9 @@ describe("ADMIN supervisor en Modo líder", () => {
   });
 
   it("accede a métricas y faltas-retardos con alcance de equipo", async () => {
-    const { canAccessMetricasPage, canAccessFaltasRetardosPage } = await imports();
+    const { canAccessMetricasPage, canAccessFaltasRetardosPage, canAccessRhIncidenciasPage } = await imports();
     expect(canAccessMetricasPage()).toBe(true);
     expect(canAccessFaltasRetardosPage()).toBe(true);
+    expect(canAccessRhIncidenciasPage()).toBe(true);
   });
 });

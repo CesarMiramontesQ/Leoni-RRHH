@@ -207,6 +207,9 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   if (!isRhOperativoUiMode()) {
     if (rol === "empleado") return EMPLEADO_VISIBLE_NAV_IDS.has(itemId);
     if (rol === "supervisor" || rol === "gerente") return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
+    if (isRhGestorTeamUiMode() && (navRol === "supervisor" || navRol === "gerente")) {
+      return SUPERVISOR_VISIBLE_NAV_IDS.has(itemId);
+    }
   }
   if (itemId === "metricas") return METRICAS_NAV_ROLES.has(navRol ?? "");
   if (itemId === "evaluacion-360") return navRol === "rh";

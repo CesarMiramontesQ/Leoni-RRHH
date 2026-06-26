@@ -299,6 +299,7 @@ export function getEmpleadoDirectoryNumericIdFromAccessToken(): number | null {
 
 /** Vista de incidencias laborales (`#/incidencias`): RH, director, gerente y supervisor. */
 export function canAccessRhIncidenciasPage(): boolean {
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
   if (hasExplicitModuleGrant("incidencias")) return true;
   if (isRhOperativoUiMode()) return hasRhModule("incidencias");
   const r = getRolFromAccessToken();
