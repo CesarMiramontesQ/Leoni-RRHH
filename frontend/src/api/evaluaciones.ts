@@ -10,9 +10,32 @@ export interface Evaluacion {
   evaluador_id: number | null;
   evaluador_nombre: string | null;
   observaciones: string | null;
+  estado: string;
+  comentario_devolucion: string | null;
   fecha_evaluacion: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface TransicionResponse {
+  id: number;
+  estado: string;
+  mensaje: string;
+}
+
+export interface HistorialEvento {
+  actor_nombre: string | null;
+  accion: string;
+  estado_anterior: string | null;
+  estado_nuevo: string | null;
+  comentario: string | null;
+  timestamp: string;
+}
+
+export interface HistorialResponse {
+  evaluacion_id: number;
+  estado_actual: string;
+  eventos: HistorialEvento[];
 }
 
 export interface EvaluacionListResponse {
@@ -35,6 +58,7 @@ export async function getEvaluaciones(params: {
   empleado_id?: number;
   competencia_id?: number;
   area_id?: number;
+  estado?: string;
 }): Promise<EvaluacionListResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
@@ -42,6 +66,7 @@ export async function getEvaluaciones(params: {
   if (params.empleado_id) qs.set("empleado_id", String(params.empleado_id));
   if (params.competencia_id) qs.set("competencia_id", String(params.competencia_id));
   if (params.area_id) qs.set("area_id", String(params.area_id));
+  if (params.estado) qs.set("estado", params.estado);
 
   const res = await fetchWithAuth(`/api/v1/evaluaciones?${qs.toString()}`);
   if (!res.ok) return { items: [], total: 0, page: 1, page_size: 10 };
@@ -144,3 +169,45 @@ export const NIVEL_COLORS: Record<number, string> = {
   3: "bg-blue-100 text-blue-700",
   4: "bg-green-100 text-green-700",
 };
+
+// ── Workflow API ───────────────────────────────────────────────────────────────
+
+export async function enviarEvaluacion(id: number): Promise<TransicionResponse | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/enviar`, { method: "POST" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function revisarEvaluacion(id: number): Promise<TransicionResponse | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/revisar`, { method: "POST" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function aprobarEvaluacion(id: number): Promise<TransicionResponse | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/aprobar`, { method: "POST" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function cerrarEvaluacion(id: number): Promise<TransicionResponse | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/cerrar`, { method: "POST" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function devolverEvaluacion(id: number, comentario: string): Promise<TransicionResponse | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/devolver`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ comentario }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getHistorialEvaluacion(id: number): Promise<HistorialResponse | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/historial`);
+  if (!res.ok) return null;
+  return res.json();
+}

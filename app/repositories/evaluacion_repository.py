@@ -45,6 +45,7 @@ class EvaluacionRepository:
         empleado_id: int | None = None,
         competencia_id: int | None = None,
         area_id: int | None = None,
+        estados: list[str] | None = None,
     ) -> tuple[list[EvaluacionCompetencia], int]:
         conditions = []
         if empleado_id is not None:
@@ -57,6 +58,8 @@ class EvaluacionRepository:
                     select(Empleado.id).where(Empleado.area_id == area_id)
                 )
             )
+        if estados:
+            conditions.append(EvaluacionCompetencia.estado.in_(estados))
 
         # Count
         count_q = select(func.count()).select_from(EvaluacionCompetencia)
@@ -96,6 +99,22 @@ class EvaluacionRepository:
         )
         return list(result.scalars().all())
 
+    async def list_by_empleado_cerradas(self, empleado_id: int) -> list[EvaluacionCompetencia]:
+        result = await self.db.execute(
+            select(EvaluacionCompetencia)
+            .options(
+                selectinload(EvaluacionCompetencia.empleado),
+                selectinload(EvaluacionCompetencia.competencia),
+                selectinload(EvaluacionCompetencia.evaluador),
+            )
+            .where(
+                EvaluacionCompetencia.empleado_id == empleado_id,
+                EvaluacionCompetencia.estado == "cerrado",
+            )
+            .order_by(EvaluacionCompetencia.competencia_id)
+        )
+        return list(result.scalars().all())
+
     async def list_by_area(self, area_id: int) -> list[EvaluacionCompetencia]:
         result = await self.db.execute(
             select(EvaluacionCompetencia)
@@ -118,6 +137,7 @@ class EvaluacionRepository:
         nivel_actual: int,
         evaluador_id: int | None = None,
         observaciones: str | None = None,
+        estado: str = "borrador",
     ) -> EvaluacionCompetencia:
         existing = await self.get_by_empleado_competencia(empleado_id, competencia_id)
         if existing:
@@ -126,6 +146,9 @@ class EvaluacionRepository:
                 existing.evaluador_id = evaluador_id
             if observaciones is not None:
                 existing.observaciones = observaciones
+            if existing.estado == "cerrado":
+                existing.estado = "borrador"
+                existing.comentario_devolucion = None
             await self.db.flush()
             await self.db.refresh(existing)
             return existing
@@ -136,6 +159,7 @@ class EvaluacionRepository:
             nivel_actual=nivel_actual,
             evaluador_id=evaluador_id,
             observaciones=observaciones,
+            estado=estado,
         )
         self.db.add(evaluacion)
         await self.db.flush()

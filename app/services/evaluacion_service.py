@@ -1,23 +1,28 @@
 # app/services/evaluacion_service.py
 """
-Logica de negocio para Evaluaciones de Competencias — Fase 2.
+Logica de negocio para Evaluaciones de Competencias — Fase 2 + Workflow.
 
 Responsabilidades:
   - CRUD de evaluaciones (upsert semantics)
   - Evaluacion bulk
-  - Permisos: RH evalua a todos, supervisor solo su area
-  - Vista por empleado
+  - Workflow de estados: borrador → enviado → en_revision → revisado → cerrado
+  - Permisos: RH evalua a todos, supervisor solo su area, empleado solo autoevaluacion
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
+from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
-from app.models.talento import Competencia, CompetenciaRequisito, EvaluacionCompetencia, PuestoPerfil
+from app.models.talento import (
+    Competencia,
+    CompetenciaRequisito,
+    EvaluacionCompetencia,
+    PuestoPerfil,
+)
 from app.repositories.evaluacion_repository import EvaluacionRepository
 from app.schemas.evaluaciones import (
     EmpleadoCompetenciaResumen,
@@ -27,7 +32,31 @@ from app.schemas.evaluaciones import (
     EvaluacionListResponse,
     EvaluacionResponse,
     EvaluacionUpdate,
+    HistorialEvento,
+    HistorialResponse,
+    TransicionResponse,
 )
+
+# ── State machine ──────────────────────────────────────────────────────────────
+
+TRANSICIONES_VALIDAS: dict[tuple[str, str], set[str]] = {
+    ("borrador", "enviado"): {"empleado", "supervisor", "rh"},
+    ("borrador", "cerrado"): {"rh"},
+    ("enviado", "en_revision"): {"supervisor", "rh"},
+    ("enviado", "devuelto"): {"supervisor", "rh"},
+    ("en_revision", "revisado"): {"supervisor", "rh"},
+    ("en_revision", "devuelto"): {"supervisor", "rh"},
+    ("revisado", "cerrado"): {"rh"},
+    ("revisado", "devuelto"): {"rh"},
+    ("devuelto", "enviado"): {"empleado", "supervisor", "rh"},
+}
+
+ESTADOS_EDITABLES_EMPLEADO = {"borrador", "devuelto"}
+ESTADOS_EDITABLES_SUPERVISOR = {"en_revision"}
+
+
+def _get_rol(user: Empleado) -> str:
+    return user.rol.nombre if user.rol else "empleado"
 
 
 def _to_response(ev: EvaluacionCompetencia) -> EvaluacionResponse:
@@ -45,6 +74,8 @@ def _to_response(ev: EvaluacionCompetencia) -> EvaluacionResponse:
         evaluador_id=ev.evaluador_id,
         evaluador_nombre=evaluador_nombre,
         observaciones=ev.observaciones,
+        estado=ev.estado,
+        comentario_devolucion=ev.comentario_devolucion,
         fecha_evaluacion=ev.fecha_evaluacion,
         created_at=ev.created_at,
         updated_at=ev.updated_at,
@@ -56,17 +87,29 @@ class EvaluacionService:
         self.db = db
         self.repo = EvaluacionRepository(db)
 
-    def _check_supervisor_permission(self, current_user: Empleado, target_empleado: Empleado):
-        rol = current_user.rol.nombre if current_user.rol else None
-        # Acceso por permiso de módulo (RH con `evaluaciones`, o no-RH inscrito con el
-        # módulo otorgado): puede evaluar a cualquiera, sin restricción de área.
+    # ── Permission helpers ─────────────────────────────────────────────────────
+
+    def _check_create_permission(self, current_user: Empleado, target_empleado: Empleado):
         if user_has_module(current_user, "evaluaciones"):
             return
+        rol = _get_rol(current_user)
         if rol == "supervisor":
             if current_user.area_id != target_empleado.area_id:
                 raise ForbiddenError("Supervisor solo puede evaluar empleados de su area")
             return
-        raise ForbiddenError("Solo RH o supervisores pueden crear evaluaciones")
+        if current_user.id == target_empleado.id:
+            return
+        raise ForbiddenError("Solo puedes crear autoevaluaciones o necesitas permiso de RH/supervisor")
+
+    def _check_supervisor_of_area(self, current_user: Empleado, target_empleado: Empleado):
+        if user_has_module(current_user, "evaluaciones"):
+            return
+        rol = _get_rol(current_user)
+        if rol == "supervisor" and current_user.area_id == target_empleado.area_id:
+            return
+        raise ForbiddenError("No tienes permiso para esta accion")
+
+    # ── Internal helpers ───────────────────────────────────────────────────────
 
     async def _get_empleado(self, empleado_id: int) -> Empleado:
         result = await self.db.execute(
@@ -89,11 +132,170 @@ class EvaluacionService:
             raise NotFoundError("Competencia", competencia_id)
         return comp
 
+    async def _get_evaluacion_or_404(self, id: int) -> EvaluacionCompetencia:
+        ev = await self.repo.get(id)
+        if not ev:
+            raise NotFoundError("Evaluacion", id)
+        return ev
+
+    async def _registrar_transicion(
+        self,
+        evaluacion_id: int,
+        estado_anterior: str,
+        estado_nuevo: str,
+        actor: Empleado,
+        comentario: str | None = None,
+    ) -> None:
+        entry = AuditLog(
+            usuario_id=actor.id,
+            accion="TRANSICION_ESTADO",
+            modulo="evaluaciones",
+            entidad_id=evaluacion_id,
+            datos_antes={"estado": estado_anterior},
+            datos_despues={
+                "estado": estado_nuevo,
+                "actor_nombre": actor.nombre,
+                "comentario": comentario,
+            },
+        )
+        self.db.add(entry)
+        await self.db.flush()
+
+    def _validar_transicion(self, estado_actual: str, estado_nuevo: str, rol: str):
+        key = (estado_actual, estado_nuevo)
+        roles_permitidos = TRANSICIONES_VALIDAS.get(key)
+        if roles_permitidos is None:
+            raise DomainValidationError(
+                f"Transicion no permitida: {estado_actual} → {estado_nuevo}"
+            )
+        if rol not in roles_permitidos:
+            raise ForbiddenError(
+                f"Rol '{rol}' no puede realizar la transicion {estado_actual} → {estado_nuevo}"
+            )
+
+    # ── Workflow transitions ───────────────────────────────────────────────────
+
+    async def enviar(self, id: int, current_user: Empleado) -> TransicionResponse:
+        ev = await self._get_evaluacion_or_404(id)
+        if current_user.id != ev.empleado_id and not user_has_module(current_user, "evaluaciones"):
+            rol = _get_rol(current_user)
+            if rol == "supervisor":
+                target = await self._get_empleado(ev.empleado_id)
+                self._check_supervisor_of_area(current_user, target)
+            else:
+                raise ForbiddenError("Solo el dueño de la evaluacion puede enviarla")
+
+        rol = _get_rol(current_user)
+        self._validar_transicion(ev.estado, "enviado", rol)
+
+        estado_anterior = ev.estado
+        ev.estado = "enviado"
+        ev.comentario_devolucion = None
+        await self._registrar_transicion(id, estado_anterior, "enviado", current_user)
+        await self.db.commit()
+        return TransicionResponse(id=id, estado="enviado", mensaje="Evaluacion enviada a revision")
+
+    async def revisar(self, id: int, current_user: Empleado) -> TransicionResponse:
+        ev = await self._get_evaluacion_or_404(id)
+        target = await self._get_empleado(ev.empleado_id)
+        self._check_supervisor_of_area(current_user, target)
+
+        rol = _get_rol(current_user)
+        self._validar_transicion(ev.estado, "en_revision", rol)
+
+        ev.estado = "en_revision"
+        await self._registrar_transicion(id, "enviado", "en_revision", current_user)
+        await self.db.commit()
+        return TransicionResponse(id=id, estado="en_revision", mensaje="Evaluacion tomada para revision")
+
+    async def aprobar_revision(self, id: int, current_user: Empleado) -> TransicionResponse:
+        ev = await self._get_evaluacion_or_404(id)
+        target = await self._get_empleado(ev.empleado_id)
+        self._check_supervisor_of_area(current_user, target)
+
+        rol = _get_rol(current_user)
+        self._validar_transicion(ev.estado, "revisado", rol)
+
+        ev.estado = "revisado"
+        await self._registrar_transicion(id, "en_revision", "revisado", current_user)
+        await self.db.commit()
+        return TransicionResponse(id=id, estado="revisado", mensaje="Evaluacion aprobada por supervisor")
+
+    async def cerrar(self, id: int, current_user: Empleado) -> TransicionResponse:
+        ev = await self._get_evaluacion_or_404(id)
+        if not user_has_module(current_user, "evaluaciones"):
+            raise ForbiddenError("Solo RH puede cerrar evaluaciones")
+
+        rol = _get_rol(current_user)
+        self._validar_transicion(ev.estado, "cerrado", rol)
+
+        estado_anterior = ev.estado
+        ev.estado = "cerrado"
+        await self._registrar_transicion(id, estado_anterior, "cerrado", current_user)
+        await self.db.commit()
+        return TransicionResponse(id=id, estado="cerrado", mensaje="Evaluacion cerrada")
+
+    async def devolver(
+        self, id: int, comentario: str, current_user: Empleado
+    ) -> TransicionResponse:
+        ev = await self._get_evaluacion_or_404(id)
+        target = await self._get_empleado(ev.empleado_id)
+
+        if ev.estado == "revisado":
+            if not user_has_module(current_user, "evaluaciones"):
+                raise ForbiddenError("Solo RH puede devolver evaluaciones revisadas")
+        else:
+            self._check_supervisor_of_area(current_user, target)
+
+        rol = _get_rol(current_user)
+        self._validar_transicion(ev.estado, "devuelto", rol)
+
+        estado_anterior = ev.estado
+        ev.estado = "devuelto"
+        ev.comentario_devolucion = comentario
+        await self._registrar_transicion(id, estado_anterior, "devuelto", current_user, comentario)
+        await self.db.commit()
+        return TransicionResponse(id=id, estado="devuelto", mensaje="Evaluacion devuelta para correccion")
+
+    async def historial(self, id: int) -> HistorialResponse:
+        ev = await self._get_evaluacion_or_404(id)
+
+        result = await self.db.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.modulo == "evaluaciones",
+                AuditLog.entidad_id == id,
+            )
+            .order_by(AuditLog.timestamp.asc())
+        )
+        entries = result.scalars().all()
+
+        eventos = []
+        for entry in entries:
+            datos_despues = entry.datos_despues or {}
+            datos_antes = entry.datos_antes or {}
+            eventos.append(HistorialEvento(
+                actor_nombre=datos_despues.get("actor_nombre"),
+                accion=entry.accion,
+                estado_anterior=datos_antes.get("estado"),
+                estado_nuevo=datos_despues.get("estado"),
+                comentario=datos_despues.get("comentario"),
+                timestamp=entry.timestamp,
+            ))
+
+        return HistorialResponse(
+            evaluacion_id=id,
+            estado_actual=ev.estado,
+            eventos=eventos,
+        )
+
+    # ── CRUD ───────────────────────────────────────────────────────────────────
+
     async def crear(
         self, data: EvaluacionCreate, current_user: Empleado
     ) -> EvaluacionResponse:
         target = await self._get_empleado(data.empleado_id)
-        self._check_supervisor_permission(current_user, target)
+        self._check_create_permission(current_user, target)
         await self._get_competencia(data.competencia_id)
 
         ev = await self.repo.upsert(
@@ -102,27 +304,41 @@ class EvaluacionService:
             nivel_actual=data.nivel_actual,
             evaluador_id=current_user.id,
             observaciones=data.observaciones,
+            estado="borrador",
         )
-        # Reload with relations
         ev = await self.repo.get(ev.id)
         await self.db.commit()
         return _to_response(ev)
 
     async def obtener(self, id: int) -> EvaluacionResponse:
-        ev = await self.repo.get(id)
-        if not ev:
-            raise NotFoundError("Evaluacion", id)
+        ev = await self._get_evaluacion_or_404(id)
         return _to_response(ev)
 
     async def actualizar(
         self, id: int, data: EvaluacionUpdate, current_user: Empleado
     ) -> EvaluacionResponse:
-        ev = await self.repo.get(id)
-        if not ev:
-            raise NotFoundError("Evaluacion", id)
+        ev = await self._get_evaluacion_or_404(id)
+        rol = _get_rol(current_user)
 
-        target = await self._get_empleado(ev.empleado_id)
-        self._check_supervisor_permission(current_user, target)
+        if user_has_module(current_user, "evaluaciones"):
+            if ev.estado not in (ESTADOS_EDITABLES_EMPLEADO | ESTADOS_EDITABLES_SUPERVISOR):
+                raise DomainValidationError(
+                    f"No se puede editar una evaluacion en estado '{ev.estado}'"
+                )
+        elif rol == "supervisor":
+            if ev.estado not in ESTADOS_EDITABLES_SUPERVISOR:
+                raise DomainValidationError(
+                    f"Supervisor solo puede editar evaluaciones en estado 'en_revision'"
+                )
+            target = await self._get_empleado(ev.empleado_id)
+            self._check_supervisor_of_area(current_user, target)
+        elif current_user.id == ev.empleado_id:
+            if ev.estado not in ESTADOS_EDITABLES_EMPLEADO:
+                raise DomainValidationError(
+                    f"Solo puedes editar tu evaluacion en estado borrador o devuelto"
+                )
+        else:
+            raise ForbiddenError("No tienes permiso para editar esta evaluacion")
 
         if data.nivel_actual is not None:
             ev.nivel_actual = data.nivel_actual
@@ -137,12 +353,12 @@ class EvaluacionService:
         return _to_response(ev)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
-        ev = await self.repo.get(id)
-        if not ev:
-            raise NotFoundError("Evaluacion", id)
-        deleted = await self.repo.delete(id)
-        if not deleted:
-            raise NotFoundError("Evaluacion", id)
+        ev = await self._get_evaluacion_or_404(id)
+        if ev.estado != "borrador":
+            raise DomainValidationError(
+                "Solo se pueden eliminar evaluaciones en estado borrador"
+            )
+        await self.repo.delete(id)
         await self.db.commit()
 
     async def listar(
@@ -152,14 +368,17 @@ class EvaluacionService:
         empleado_id: int | None = None,
         competencia_id: int | None = None,
         area_id: int | None = None,
+        estado: str | None = None,
     ) -> EvaluacionListResponse:
         offset = (page - 1) * page_size
+        estados = [s.strip() for s in estado.split(",")] if estado else None
         items, total = await self.repo.list_filtered(
             offset=offset,
             limit=page_size,
             empleado_id=empleado_id,
             competencia_id=competencia_id,
             area_id=area_id,
+            estados=estados,
         )
         return EvaluacionListResponse(
             items=[_to_response(ev) for ev in items],
@@ -171,13 +390,14 @@ class EvaluacionService:
     async def listar_por_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> list[EvaluacionResponse]:
-        rol = current_user.rol.nombre if current_user.rol else None
-        if rol not in ("rh", "supervisor") and current_user.id != empleado_id:
-            raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
-        if rol == "supervisor" and current_user.id != empleado_id:
-            target = await self._get_empleado(empleado_id)
-            if current_user.area_id != target.area_id:
-                raise ForbiddenError("Supervisor solo puede ver evaluaciones de su area")
+        rol = _get_rol(current_user)
+        if not user_has_module(current_user, "evaluaciones"):
+            if rol == "supervisor" and current_user.id != empleado_id:
+                target = await self._get_empleado(empleado_id)
+                if current_user.area_id != target.area_id:
+                    raise ForbiddenError("Supervisor solo puede ver evaluaciones de su area")
+            elif current_user.id != empleado_id:
+                raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
 
         items = await self.repo.list_by_empleado(empleado_id)
         return [_to_response(ev) for ev in items]
@@ -190,7 +410,7 @@ class EvaluacionService:
         for ev_data in data.evaluaciones:
             try:
                 target = await self._get_empleado(ev_data.empleado_id)
-                self._check_supervisor_permission(current_user, target)
+                self._check_create_permission(current_user, target)
                 await self._get_competencia(ev_data.competencia_id)
                 await self.repo.upsert(
                     empleado_id=ev_data.empleado_id,
@@ -198,6 +418,7 @@ class EvaluacionService:
                     nivel_actual=ev_data.nivel_actual,
                     evaluador_id=current_user.id,
                     observaciones=ev_data.observaciones,
+                    estado="borrador",
                 )
                 creadas += 1
             except Exception as e:
@@ -211,17 +432,17 @@ class EvaluacionService:
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
-        rol = current_user.rol.nombre if current_user.rol else None
-        if rol not in ("rh", "supervisor") and current_user.id != empleado_id:
-            raise ForbiddenError("Solo puedes ver tu propio resumen")
-        if rol == "supervisor" and current_user.id != empleado_id:
-            target = await self._get_empleado(empleado_id)
-            if current_user.area_id != target.area_id:
-                raise ForbiddenError("Supervisor solo puede ver resumen de su area")
+        rol = _get_rol(current_user)
+        if not user_has_module(current_user, "evaluaciones"):
+            if rol == "supervisor" and current_user.id != empleado_id:
+                target = await self._get_empleado(empleado_id)
+                if current_user.area_id != target.area_id:
+                    raise ForbiddenError("Supervisor solo puede ver resumen de su area")
+            elif current_user.id != empleado_id:
+                raise ForbiddenError("Solo puedes ver tu propio resumen")
 
         emp = await self._get_empleado(empleado_id)
 
-        # Get competencia requisitos for perfiles in the employee's area
         requisitos_result = await self.db.execute(
             select(CompetenciaRequisito)
             .options(selectinload(CompetenciaRequisito.competencia))
@@ -233,11 +454,9 @@ class EvaluacionService:
         )
         requisitos = requisitos_result.scalars().all()
 
-        # Get employee's evaluations
-        evaluaciones = await self.repo.list_by_empleado(empleado_id)
+        evaluaciones = await self.repo.list_by_empleado_cerradas(empleado_id)
         eval_map = {ev.competencia_id: ev.nivel_actual for ev in evaluaciones}
 
-        # Build per-competencia resumen (deduplicate by competencia, take max nivel_requerido)
         competencia_reqs: dict[int, tuple[str, str, int]] = {}
         for req in requisitos:
             comp = req.competencia

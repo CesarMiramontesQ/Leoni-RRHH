@@ -289,6 +289,12 @@ class EvaluacionCompetencia(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    # Workflow
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="cerrado", default="borrador",
+    )
+    comentario_devolucion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     empleado: Mapped["Empleado"] = relationship(
         "Empleado", foreign_keys=[empleado_id]
@@ -301,7 +307,8 @@ class EvaluacionCompetencia(Base):
     def __repr__(self) -> str:
         return (
             f"<EvaluacionCompetencia empleado_id={self.empleado_id} "
-            f"competencia_id={self.competencia_id} nivel={self.nivel_actual}>"
+            f"competencia_id={self.competencia_id} nivel={self.nivel_actual} "
+            f"estado={self.estado}>"
         )
 
 

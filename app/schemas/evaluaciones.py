@@ -1,6 +1,6 @@
 # app/schemas/evaluaciones.py
 """
-Schemas Pydantic v2 para Evaluaciones de Competencias — Fase 2.
+Schemas Pydantic v2 para Evaluaciones de Competencias — Fase 2 + Workflow.
 """
 
 from datetime import datetime
@@ -14,7 +14,7 @@ class EvaluacionCreate(BaseModel):
 
     empleado_id: int
     competencia_id: int
-    nivel_actual: int = Field(..., ge=0, le=4)
+    nivel_actual: int = Field(0, ge=0, le=4)
     observaciones: Optional[str] = None
 
 
@@ -37,6 +37,8 @@ class EvaluacionResponse(BaseModel):
     evaluador_id: Optional[int] = None
     evaluador_nombre: Optional[str] = None
     observaciones: Optional[str] = None
+    estado: str
+    comentario_devolucion: Optional[str] = None
     fecha_evaluacion: datetime
     created_at: datetime
     updated_at: datetime
@@ -73,3 +75,33 @@ class EmpleadoResumenResponse(BaseModel):
     total_competencias: int
     evaluadas: int
     con_gap: int
+
+
+# ── Workflow schemas ───────────────────────────────────────────────────────────
+
+
+class TransicionRequest(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    comentario: str = Field(..., min_length=10)
+
+
+class TransicionResponse(BaseModel):
+    id: int
+    estado: str
+    mensaje: str
+
+
+class HistorialEvento(BaseModel):
+    actor_nombre: Optional[str] = None
+    accion: str
+    estado_anterior: Optional[str] = None
+    estado_nuevo: Optional[str] = None
+    comentario: Optional[str] = None
+    timestamp: datetime
+
+
+class HistorialResponse(BaseModel):
+    evaluacion_id: int
+    estado_actual: str
+    eventos: list[HistorialEvento]

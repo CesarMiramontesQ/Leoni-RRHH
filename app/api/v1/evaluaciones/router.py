@@ -1,15 +1,23 @@
 # app/api/v1/evaluaciones/router.py
 """
-Router de Evaluaciones de Competencias — Modulo Talento Fase 2.
+Router de Evaluaciones de Competencias — Modulo Talento Fase 2 + Workflow.
 
 Endpoints:
   GET  /api/v1/evaluaciones/                      — Listar (paginado, filtros)
   POST /api/v1/evaluaciones/                      — Crear/actualizar evaluacion
   GET  /api/v1/evaluaciones/{id}                  — Detalle
   PUT  /api/v1/evaluaciones/{id}                  — Actualizar
-  DELETE /api/v1/evaluaciones/{id}                — Eliminar (RH)
+  DELETE /api/v1/evaluaciones/{id}                — Eliminar (solo borrador)
   GET  /api/v1/evaluaciones/empleado/{empleado_id} — Evaluaciones de un empleado
   POST /api/v1/evaluaciones/bulk                  — Bulk create (RH)
+
+Workflow:
+  POST /api/v1/evaluaciones/{id}/enviar           — borrador/devuelto → enviado
+  POST /api/v1/evaluaciones/{id}/revisar          — enviado → en_revision
+  POST /api/v1/evaluaciones/{id}/aprobar          — en_revision → revisado
+  POST /api/v1/evaluaciones/{id}/cerrar           — revisado/borrador → cerrado
+  POST /api/v1/evaluaciones/{id}/devolver         — → devuelto (con comentario)
+  GET  /api/v1/evaluaciones/{id}/historial        — Historial de transiciones
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -25,6 +33,9 @@ from app.schemas.evaluaciones import (
     EvaluacionListResponse,
     EvaluacionResponse,
     EvaluacionUpdate,
+    HistorialResponse,
+    TransicionRequest,
+    TransicionResponse,
 )
 from app.services.evaluacion_service import EvaluacionService
 
@@ -71,6 +82,76 @@ async def bulk_evaluaciones(
     return await service.bulk_crear(data=body, current_user=current_user)
 
 
+# ── Workflow transitions ───────────────────────────────────────────────────────
+
+
+@router.post("/{id}/enviar", response_model=TransicionResponse)
+async def enviar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enviar evaluacion a revision (borrador/devuelto → enviado)."""
+    service = EvaluacionService(db)
+    return await service.enviar(id=id, current_user=current_user)
+
+
+@router.post("/{id}/revisar", response_model=TransicionResponse)
+async def revisar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tomar evaluacion para revision (enviado → en_revision)."""
+    service = EvaluacionService(db)
+    return await service.revisar(id=id, current_user=current_user)
+
+
+@router.post("/{id}/aprobar", response_model=TransicionResponse)
+async def aprobar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aprobar revision (en_revision → revisado)."""
+    service = EvaluacionService(db)
+    return await service.aprobar_revision(id=id, current_user=current_user)
+
+
+@router.post("/{id}/cerrar", response_model=TransicionResponse)
+async def cerrar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cerrar evaluacion (revisado/borrador → cerrado). Solo RH."""
+    service = EvaluacionService(db)
+    return await service.cerrar(id=id, current_user=current_user)
+
+
+@router.post("/{id}/devolver", response_model=TransicionResponse)
+async def devolver_evaluacion(
+    id: int,
+    body: TransicionRequest,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Devolver evaluacion con comentario (→ devuelto)."""
+    service = EvaluacionService(db)
+    return await service.devolver(id=id, comentario=body.comentario, current_user=current_user)
+
+
+@router.get("/{id}/historial", response_model=HistorialResponse)
+async def historial_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Historial de transiciones de estado de una evaluacion."""
+    service = EvaluacionService(db)
+    return await service.historial(id=id)
+
+
 # ── CRUD ────────────────────────────────────────────────────────────────────
 
 
@@ -81,6 +162,7 @@ async def listar_evaluaciones(
     empleado_id: int | None = Query(None),
     competencia_id: int | None = Query(None),
     area_id: int | None = Query(None),
+    estado: str | None = Query(None, description="Filtrar por estado(s), separados por coma"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -92,6 +174,7 @@ async def listar_evaluaciones(
         empleado_id=empleado_id,
         competencia_id=competencia_id,
         area_id=area_id,
+        estado=estado,
     )
 
 
@@ -102,10 +185,10 @@ async def listar_evaluaciones(
 )
 async def crear_evaluacion(
     body: EvaluacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Crear o actualizar evaluacion. RH o supervisor (solo su area)."""
+    """Crear evaluacion. Empleado (autoevaluacion), supervisor (su area), RH (cualquiera)."""
     service = EvaluacionService(db)
     return await service.crear(data=body, current_user=current_user)
 
@@ -125,10 +208,10 @@ async def obtener_evaluacion(
 async def actualizar_evaluacion(
     id: int,
     body: EvaluacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Actualizar evaluacion. RH o supervisor (solo su area)."""
+    """Actualizar evaluacion. Solo en estados editables segun rol."""
     service = EvaluacionService(db)
     return await service.actualizar(id=id, data=body, current_user=current_user)
 
@@ -136,9 +219,9 @@ async def actualizar_evaluacion(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_evaluacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Eliminar evaluacion. Solo RH."""
+    """Eliminar evaluacion. Solo en estado borrador."""
     service = EvaluacionService(db)
     await service.eliminar(id=id, current_user=current_user)
