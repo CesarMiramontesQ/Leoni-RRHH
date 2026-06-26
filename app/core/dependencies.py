@@ -103,10 +103,19 @@ def role_checker(roles_requeridos: list[str]):
         rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
         from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module
-        from app.core.rh_ui_mode import is_admin_user, is_rh_operativo_ui_mode
+        from app.core.rh_ui_mode import (
+            is_admin_user,
+            is_rh_gerente_ui_mode,
+            is_rh_lider_ui_mode,
+            is_rh_operativo_ui_mode,
+        )
 
-        if is_admin_user(current_user) and is_rh_operativo_ui_mode(current_user, rh_ui_mode):
-            if "rh" in roles_requeridos:
+        if is_admin_user(current_user):
+            if is_rh_operativo_ui_mode(current_user, rh_ui_mode) and "rh" in roles_requeridos:
+                return current_user
+            if is_rh_lider_ui_mode(current_user, rh_ui_mode) and "supervisor" in roles_requeridos:
+                return current_user
+            if is_rh_gerente_ui_mode(current_user, rh_ui_mode) and "gerente" in roles_requeridos:
                 return current_user
 
         rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))

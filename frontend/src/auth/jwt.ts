@@ -214,8 +214,7 @@ export function canAccessRhSolicitudesAdminPage(): boolean {
 
 /** Analítica de solicitudes e incidencias (`#/metricas`). RH (global), supervisor (equipo directo) y gerente (subárbol). */
 export function canAccessMetricasPage(): boolean {
-  if (isRhGerenteUiMode()) return true;
-  if (isRhGestorTeamUiMode()) return false;
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
   if (hasExplicitModuleGrant("metricas")) return true;
   if (isRhOperativoUiMode()) return hasRhModule("metricas");
   const r = getRolFromAccessToken();
@@ -309,7 +308,8 @@ export function canAccessRhIncidenciasPage(): boolean {
 
 /** Página de faltas y retardos (`#/faltas-retardos`). */
 export function canAccessFaltasRetardosPage(): boolean {
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return false;
+  if (isRhEmpleadoUiMode() || isRhDirectorUiMode()) return false;
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
   if (hasExplicitModuleGrant("faltas-retardos")) return true;
   if (isRhOperativoUiMode()) return hasRhModule("faltas-retardos");
   const r = getRolFromAccessToken();

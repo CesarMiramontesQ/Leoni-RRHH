@@ -176,7 +176,7 @@ export function usesSupervisorRoutePolicy(rol: string | null): boolean {
 
 const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
 
-const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente"]);
+const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "gerente", "supervisor"]);
 
 const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set(["rh", "director", "gerente"]);
 

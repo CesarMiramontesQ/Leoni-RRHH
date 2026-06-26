@@ -87,4 +87,10 @@ describe("ADMIN supervisor en Modo líder", () => {
     expect(canAccessComedorLiderPage()).toBe(true);
     expect(canAccessComedorRhPage()).toBe(false);
   });
+
+  it("accede a métricas y faltas-retardos con alcance de equipo", async () => {
+    const { canAccessMetricasPage, canAccessFaltasRetardosPage } = await imports();
+    expect(canAccessMetricasPage()).toBe(true);
+    expect(canAccessFaltasRetardosPage()).toBe(true);
+  });
 });
