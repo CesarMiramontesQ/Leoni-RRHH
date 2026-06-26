@@ -30,25 +30,24 @@ def _drop_check_if_exists(table: str, constraint: str) -> None:
 
 
 def upgrade() -> None:
+    from sqlalchemy import text
+    bind = op.get_bind()
+
     _drop_check_if_exists(TABLA_METODOS, "ck_metodo_calificacion_competencia_valor")
     _drop_check_if_exists(TABLA_REQUISITOS, "ck_nivel_requerido_rango")
     _drop_check_if_exists(TABLA_EVALUACIONES, "ck_nivel_actual_rango")
 
-    op.create_check_constraint(
-        "ck_metodo_calificacion_competencia_valor_pos",
-        TABLA_METODOS,
-        "valor >= 1",
-    )
-    op.create_check_constraint(
-        "ck_nivel_requerido_nonneg",
-        TABLA_REQUISITOS,
-        "nivel_requerido >= 0",
-    )
-    op.create_check_constraint(
-        "ck_nivel_actual_nonneg",
-        TABLA_EVALUACIONES,
-        "nivel_actual >= 0",
-    )
+    def _create_if_missing(name, table, expr):
+        exists = bind.execute(
+            text("SELECT 1 FROM pg_constraint WHERE conname = :n"),
+            {"n": name},
+        ).scalar()
+        if not exists:
+            op.create_check_constraint(name, table, expr)
+
+    _create_if_missing("ck_levelup_metodo_calificacion_competencia_valor_pos", TABLA_METODOS, "valor >= 1")
+    _create_if_missing("ck_levelup_nivel_requerido_nonneg", TABLA_REQUISITOS, "nivel_requerido >= 0")
+    _create_if_missing("ck_levelup_nivel_actual_nonneg", TABLA_EVALUACIONES, "nivel_actual >= 0")
 
 
 def downgrade() -> None:

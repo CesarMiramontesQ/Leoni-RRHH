@@ -18,9 +18,12 @@ from app.core.rh_module_registry import user_has_module
 from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
 from app.models.talento import (
+    AccionRecomendada,
     Competencia,
     CompetenciaRequisito,
     EvaluacionCompetencia,
+    NivelPuesto,
+    PerfilFunciones,
     PuestoPerfil,
 )
 from app.repositories.evaluacion_repository import EvaluacionRepository
@@ -429,6 +432,24 @@ class EvaluacionService:
         await self.db.commit()
         return {"creadas": creadas, "errores": errores}
 
+    def _classify_severidad(self, brecha_pct: float) -> str:
+        if brecha_pct <= 0:
+            return "alineado"
+        if brecha_pct <= 30:
+            return "media"
+        if brecha_pct <= 50:
+            return "alta"
+        return "critica"
+
+    def _lookup_accion(
+        self, brecha_pct: float, acciones: list[AccionRecomendada]
+    ) -> tuple[str | None, str | None]:
+        brecha_int = round(brecha_pct)
+        for a in acciones:
+            if a.brecha_min <= brecha_int <= a.brecha_max:
+                return a.etiqueta, a.color
+        return None, None
+
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
@@ -443,20 +464,68 @@ class EvaluacionService:
 
         emp = await self._get_empleado(empleado_id)
 
-        requisitos_result = await self.db.execute(
-            select(CompetenciaRequisito)
-            .options(selectinload(CompetenciaRequisito.competencia))
-            .join(PuestoPerfil)
+        # Try to resolve by assigned position (PerfilFunciones)
+        pf_result = await self.db.execute(
+            select(PerfilFunciones)
+            .options(
+                selectinload(PerfilFunciones.puesto_perfil).selectinload(PuestoPerfil.nivel),
+            )
             .where(
-                PuestoPerfil.area_id == emp.area_id,
-                PuestoPerfil.activo.is_(True),
+                PerfilFunciones.empleado_id == emp.id,
+                PerfilFunciones.activo.is_(True),
             )
         )
+        perfil_funciones = pf_result.scalar_one_or_none()
+
+        puesto_nombre = None
+        nivel_puesto = None
+        departamento = None
+
+        if perfil_funciones:
+            pp = perfil_funciones.puesto_perfil
+            puesto_nombre = pp.nombre if pp else None
+            nivel_puesto = pp.nivel.nombre if pp and pp.nivel else None
+            departamento = perfil_funciones.departamento
+
+            requisitos_result = await self.db.execute(
+                select(CompetenciaRequisito)
+                .options(selectinload(CompetenciaRequisito.competencia))
+                .where(
+                    CompetenciaRequisito.puesto_perfil_id == perfil_funciones.puesto_perfil_id,
+                    CompetenciaRequisito.grado_id == perfil_funciones.grado_id,
+                )
+            )
+        else:
+            # Fallback: resolve by area
+            requisitos_result = await self.db.execute(
+                select(CompetenciaRequisito)
+                .options(selectinload(CompetenciaRequisito.competencia))
+                .join(PuestoPerfil)
+                .where(
+                    PuestoPerfil.area_id == emp.area_id,
+                    PuestoPerfil.activo.is_(True),
+                )
+            )
+
         requisitos = requisitos_result.scalars().all()
 
         evaluaciones = await self.repo.list_by_empleado_cerradas(empleado_id)
         eval_map = {ev.competencia_id: ev.nivel_actual for ev in evaluaciones}
 
+        # Get evaluador from most recent evaluation
+        evaluador_nombre = None
+        if evaluaciones:
+            latest = max(evaluaciones, key=lambda ev: ev.fecha_evaluacion)
+            if latest.evaluador:
+                evaluador_nombre = latest.evaluador.nombre
+
+        # Load acciones recomendadas catalog
+        acciones_result = await self.db.execute(
+            select(AccionRecomendada).order_by(AccionRecomendada.orden)
+        )
+        acciones = list(acciones_result.scalars().all())
+
+        # Build per-competencia resumen (deduplicate by competencia, take max nivel_requerido)
         competencia_reqs: dict[int, tuple[str, str, int]] = {}
         for req in requisitos:
             comp = req.competencia
@@ -470,6 +539,10 @@ class EvaluacionService:
         for comp_id, (nombre, categoria, nivel_req) in sorted(competencia_reqs.items(), key=lambda x: x[1][0]):
             nivel_act = eval_map.get(comp_id, 0)
             gap = max(0, nivel_req - nivel_act)
+            brecha_pct = round(max(0, (nivel_req - nivel_act) / nivel_req * 100), 1) if nivel_req > 0 else 0.0
+            severidad = self._classify_severidad(brecha_pct)
+            accion_etiqueta, accion_color = self._lookup_accion(brecha_pct, acciones)
+
             items.append(EmpleadoCompetenciaResumen(
                 competencia_id=comp_id,
                 competencia_nombre=nombre,
@@ -477,11 +550,20 @@ class EvaluacionService:
                 nivel_requerido=nivel_req,
                 nivel_actual=nivel_act,
                 gap=gap,
+                brecha_pct=brecha_pct,
+                severidad=severidad,
+                accion_recomendada=accion_etiqueta,
+                accion_color=accion_color,
             ))
 
         total = len(items)
         evaluadas = sum(1 for i in items if eval_map.get(i.competencia_id) is not None)
         con_gap = sum(1 for i in items if i.gap > 0)
+        competencias_alineadas = sum(1 for i in items if i.brecha_pct == 0)
+        brechas_identificadas = sum(1 for i in items if i.brecha_pct > 0)
+        brecha_promedio = round(sum(i.brecha_pct for i in items) / total, 1) if total > 0 else 0.0
+        severidad_promedio = self._classify_severidad(brecha_promedio)
+        readiness_score = round(100 - brecha_promedio, 1)
 
         if total > 0:
             cumplimiento = sum(
@@ -503,6 +585,15 @@ class EvaluacionService:
             empleado_id=emp.id,
             empleado_nombre=emp.nombre,
             area_nombre=area_nombre,
+            puesto_nombre=puesto_nombre,
+            nivel_puesto=nivel_puesto,
+            departamento=departamento,
+            evaluador_nombre=evaluador_nombre,
+            competencias_alineadas=competencias_alineadas,
+            brechas_identificadas=brechas_identificadas,
+            brecha_promedio=brecha_promedio,
+            severidad_promedio=severidad_promedio,
+            readiness_score=readiness_score,
             competencias=items,
             cumplimiento_pct=round(cumplimiento, 1),
             total_competencias=total,

@@ -64,17 +64,30 @@ class EmpleadoCompetenciaResumen(BaseModel):
     nivel_requerido: int
     nivel_actual: int
     gap: int
+    brecha_pct: float = 0.0
+    severidad: str = "alineado"
+    accion_recomendada: Optional[str] = None
+    accion_color: Optional[str] = None
 
 
 class EmpleadoResumenResponse(BaseModel):
     empleado_id: int
     empleado_nombre: str
     area_nombre: Optional[str] = None
-    competencias: list[EmpleadoCompetenciaResumen]
-    cumplimiento_pct: float
-    total_competencias: int
-    evaluadas: int
-    con_gap: int
+    puesto_nombre: Optional[str] = None
+    nivel_puesto: Optional[str] = None
+    departamento: Optional[str] = None
+    evaluador_nombre: Optional[str] = None
+    competencias_alineadas: int = 0
+    brechas_identificadas: int = 0
+    brecha_promedio: float = 0.0
+    severidad_promedio: str = "alineado"
+    readiness_score: float = 100.0
+    competencias: list[EmpleadoCompetenciaResumen] = []
+    cumplimiento_pct: float = 0.0
+    total_competencias: int = 0
+    evaluadas: int = 0
+    con_gap: int = 0
 
 
 # ── Workflow schemas ───────────────────────────────────────────────────────────

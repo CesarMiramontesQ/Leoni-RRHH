@@ -121,6 +121,8 @@ export async function bulkCreateEvaluaciones(
   return res.json();
 }
 
+export type Severidad = "alineado" | "media" | "alta" | "critica";
+
 export interface CompetenciaResumenItem {
   competencia_id: number;
   competencia_nombre: string;
@@ -128,12 +130,25 @@ export interface CompetenciaResumenItem {
   nivel_requerido: number;
   nivel_actual: number;
   gap: number;
+  brecha_pct: number;
+  severidad: Severidad;
+  accion_recomendada: string | null;
+  accion_color: string | null;
 }
 
 export interface EmpleadoResumen {
   empleado_id: number;
   empleado_nombre: string;
   area_nombre: string | null;
+  puesto_nombre: string | null;
+  nivel_puesto: string | null;
+  departamento: string | null;
+  evaluador_nombre: string | null;
+  competencias_alineadas: number;
+  brechas_identificadas: number;
+  brecha_promedio: number;
+  severidad_promedio: string;
+  readiness_score: number;
   competencias: CompetenciaResumenItem[];
   cumplimiento_pct: number;
   total_competencias: number;
@@ -145,6 +160,93 @@ export async function getEmpleadoResumen(empleadoId: number): Promise<EmpleadoRe
   const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/resumen`);
   if (!res.ok) return null;
   return res.json();
+}
+
+// ── PDI (Plan de Desarrollo Individual) ──────────────────────────────────
+
+export type EstadoPDI = "pendiente" | "en_proceso" | "completado" | "cancelado";
+
+export interface PDIAccion {
+  id: number;
+  empleado_id: number;
+  competencia_id: number;
+  competencia_nombre: string;
+  accion: string;
+  tipo: string;
+  duracion_horas: number | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  responsable: string;
+  estado: EstadoPDI;
+  creado_por: number;
+  creado_por_nombre: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PDIListResponse {
+  items: PDIAccion[];
+  total: number;
+}
+
+export interface PDICreatePayload {
+  competencia_id: number;
+  accion: string;
+  tipo: string;
+  duracion_horas?: number | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  responsable: string;
+}
+
+export interface PDIUpdatePayload {
+  accion?: string;
+  tipo?: string;
+  duracion_horas?: number | null;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  responsable?: string;
+  estado?: EstadoPDI;
+}
+
+export async function getPDI(
+  empleadoId: number,
+  params?: { estado?: string; competencia_id?: number },
+): Promise<PDIListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.estado) qs.set("estado", params.estado);
+  if (params?.competencia_id) qs.set("competencia_id", String(params.competencia_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi${suffix}`);
+  if (!res.ok) return { items: [], total: 0 };
+  return res.json();
+}
+
+export async function createPDI(empleadoId: number, payload: PDICreatePayload): Promise<PDIAccion | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function updatePDI(empleadoId: number, pdiId: number, payload: PDIUpdatePayload): Promise<PDIAccion | null> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi/${pdiId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deletePDI(empleadoId: number, pdiId: number): Promise<boolean> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/pdi/${pdiId}`, {
+    method: "DELETE",
+  });
+  return res.status === 204;
 }
 
 import { buildNivelMetodoLabelsMap } from "../ui/metodosCalificacionCompetencia.ts";

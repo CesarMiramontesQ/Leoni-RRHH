@@ -35,6 +35,8 @@ from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.bono_historico_import_log import BonoHistoricoImportLog
 from app.models.tress import TressRobotQueue
 from app.models.talento import (
+    AccionRecomendada,
+    PlanDesarrolloIndividual,
     PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
     Capacitacion, Inscripcion,
     TareaCatalogo, PerfilTarea, PerfilCualificacion,
@@ -113,6 +115,8 @@ __all__ = [
     "TokenBlacklist",
     "BonoHistoricoImportLog",
     "TressRobotQueue",
+    "AccionRecomendada",
+    "PlanDesarrolloIndividual",
     "PuestoPerfil",
     "Competencia",
     "CompetenciaRequisito",
