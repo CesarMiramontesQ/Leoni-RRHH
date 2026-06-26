@@ -121,12 +121,15 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
   const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
     ${chartCard(
       "Top 5 empleados con más retardos",
-      "Incidencias de tipo retardo en el periodo seleccionado",
+      "Retardos del historial de asistencia (importadas_historico) en el periodo seleccionado",
       renderDashEmpleadosRetardosChart(payload.laborales.empleadosRetardosRanking),
     )}
     ${chartCard(
       "Tendencia de incidencias por tipo",
-      tendenciaIncidenciasChartSubtitle(payload.laborales.incidenciasTendenciaPorTipo),
+      tendenciaIncidenciasChartSubtitle(
+        payload.laborales.incidenciasTendenciaPorTipo,
+        payload.periodDays,
+      ),
       renderDashIncidenciasTendenciaChart(payload.laborales.incidenciasTendenciaPorTipo),
     )}
   </div>`;

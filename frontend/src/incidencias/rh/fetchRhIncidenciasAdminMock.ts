@@ -2,7 +2,6 @@ import { buildRhIncidenciaFilterOptions } from "./buildRhIncidenciaFilterOptions
 import { computeRhIncidenciasEstadisticasFromFilas } from "./computeRhIncidenciasEstadisticasFromFilas.ts";
 import { filterRhIncidenciaRows, paginateRhIncidencias } from "./filterAndPaginateRhIncidencias.ts";
 import { buildRhIncidenciasMockFilas } from "./mockDataset.ts";
-import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import type {
   RhIncidenciaFilterState,
   RhIncidenciasAdminViewModel,
@@ -99,13 +98,12 @@ export function buildMetricasIncidenciasViewModel(
   appliedFilters: RhIncidenciaListFilters,
   ui: RhIncidenciasUiConfig,
   catalog: RhIncidenciasFilterCatalog,
-  empleadosRetardosRanking: readonly SolicitudRankingRow[] = [],
 ): RhIncidenciasAdminViewModel {
   return {
     estadisticas,
     estadisticasStatus,
     estadisticasErrorMessage,
-    empleadosRetardosRanking,
+    empleadosRetardosRanking: [],
     resumenListado: null,
     filterOptions: buildRhIncidenciaFilterOptions([]),
     tiposRegistrados: catalog.tiposRegistrados,

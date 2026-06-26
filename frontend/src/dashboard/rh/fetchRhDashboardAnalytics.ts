@@ -8,6 +8,7 @@ import {
   mapRegistrosFuturosPorSemana,
 } from "../../comedor/rh/buildRhDashboardComedorCharts.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
+import { getFaltasRetardosEstadisticas } from "../../api/faltasRetardos.ts";
 import { fetchIncidenciasEstadisticas } from "../../api/incidencias.ts";
 import { getDashboardKpis } from "../../api/reportes.ts";
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
@@ -15,6 +16,7 @@ import {
   canAccessActasPage,
   canAccessComedorRhPage,
   canAccessEmpleadosPage,
+  canAccessFaltasRetardosPage,
   canAccessRhIncidenciasPage,
   canAccessRhSolicitudesAdminPage,
 } from "../../auth/jwt.ts";
@@ -79,10 +81,9 @@ export async function fetchRhDashboardAnalytics(
     fecha_fin: fechaFin,
   };
 
-  const incFiltersRetardo = { ...incFilters, tipo: "retardo" };
-
   const loadSolicitudes = canAccessRhSolicitudesAdminPage();
   const loadIncidencias = canAccessRhIncidenciasPage();
+  const loadFaltasRetardos = canAccessFaltasRetardosPage();
   const loadActas = canAccessActasPage();
   const loadComedor = canAccessComedorRhPage();
 
@@ -114,8 +115,12 @@ export async function fetchRhDashboardAnalytics(
             err: fetchErrorMessage(e, "Estadísticas de incidencias no disponibles"),
           }))
       : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
-    loadIncidencias
-      ? fetchIncidenciasEstadisticas(incFiltersRetardo)
+    loadFaltasRetardos
+      ? getFaltasRetardosEstadisticas({
+          tipo: "retardo",
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+        })
           .then((v) => ({ ok: true as const, v }))
           .catch((e: unknown) => ({
             ok: false as const,
@@ -186,7 +191,7 @@ export async function fetchRhDashboardAnalytics(
 
   if (retardosEstadisticasResult.ok) {
     empleadosRetardosRanking = aggregateEmpleadosRetardosTop(
-      retardosEstadisticasResult.v.empleados_con_mas_incidencias,
+      retardosEstadisticasResult.v.empleados_con_mas_eventos,
     );
   } else if (!("skipped" in retardosEstadisticasResult)) {
     laboralesErrors.push(retardosEstadisticasResult.err);

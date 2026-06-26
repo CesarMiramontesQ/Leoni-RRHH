@@ -202,7 +202,7 @@ function bindRhDashboardPeriodControls(
     if (!btn) return;
     const raw = btn.getAttribute("data-rh-dash-period");
     const days = Number(raw);
-    if (days !== 7 && days !== 30 && days !== 90) return;
+    if (days !== 30 && days !== 60 && days !== 90) return;
     if (readStoredRhDashboardPeriod() === days) return;
     storeRhDashboardPeriod(days);
     syncRhDashboardPeriodButtons(host, days);

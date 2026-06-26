@@ -3,6 +3,7 @@ import type { RhIncidenciasUiConfig } from "./types.ts";
 
 export function incidenciasUiConfig(): RhIncidenciasUiConfig {
   const rol = getEffectiveGestorNavRol() ?? getRolFromAccessToken();
+  const mostrarTarjetasEstadisticas = rol !== "supervisor" && rol !== "gerente";
   if (hasRhOperativeViewerContext()) {
     return { modoFiltros: "rh", mostrarFiltroSupervisor: true, mostrarTarjetasEstadisticas: true };
   }

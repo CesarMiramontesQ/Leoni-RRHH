@@ -11,13 +11,13 @@ import type {
   RhDashComedorSemanaFutura,
 } from "../../comedor/rh/buildRhDashboardComedorCharts.ts";
 
-export type RhDashboardPeriodDays = 7 | 30 | 90;
+export type RhDashboardPeriodDays = 30 | 60 | 90;
 
 export const RH_DASHBOARD_PERIOD_STORAGE_KEY = "rh-dashboard-period";
 
 export const RH_DASHBOARD_PERIOD_OPTIONS: readonly { days: RhDashboardPeriodDays; label: string }[] = [
-  { days: 7, label: "7 días" },
   { days: 30, label: "30 días" },
+  { days: 60, label: "60 días" },
   { days: 90, label: "90 días" },
 ] as const;
 

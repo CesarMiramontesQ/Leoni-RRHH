@@ -2,6 +2,13 @@ import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
 import type { FaltasRetardosMetricasViewModel } from "../../faltasRetardos/rh/types.ts";
 import type { FaltasRetardosEstadisticasData } from "../../faltasRetardos/rh/types.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
+import { cssVar } from "../../charts/chartTokens.ts";
+import {
+  renderDashEmpleadosRetardosChart,
+  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
+} from "../dashboard/rhAnalyticsCharts.ts";
+import { mountRankingHorizontalBar } from "../solicitudes/rhSolicitudesAnalyticsCharts.ts";
+import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { RH_LISTADO_SURFACE } from "./rhFaltasRetardosPageStyles.ts";
 import {
@@ -108,11 +115,18 @@ function chartsSkeleton(): string {
     <div class="${CARD} min-h-[300px] animate-pulse"><div class="h-4 w-48 rounded bg-slate-200"></div><div class="mt-4 h-[260px] rounded bg-slate-100"></div></div>`;
 }
 
-function renderChartsContent(data: FaltasRetardosEstadisticasData): string {
+function renderChartsContent(
+  data: FaltasRetardosEstadisticasData,
+  empleadosRetardosRanking: readonly SolicitudRankingRow[],
+): string {
   if (data.total_eventos <= 0) {
     return `<div class="${CARD} items-center py-10 text-center text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasVacia)}</div>`;
   }
   const ranking = empleadosChartRows(data);
+  const retardosBody = renderDashEmpleadosRetardosChart(
+    empleadosRetardosRanking,
+    FR_COPY.metricasRetardosVacio,
+  );
   return `
     <div class="flex flex-col gap-4 sm:gap-5">
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
@@ -131,6 +145,11 @@ function renderChartsContent(data: FaltasRetardosEstadisticasData): string {
           )}
         </div>
       </div>
+      ${chartShell(
+        FR_COPY.metricasRetardosTitulo,
+        FR_COPY.metricasRetardosSub,
+        retardosBody,
+      )}
       ${chartShell(
         FR_COPY.metricasEmpleadosTitulo,
         FR_COPY.metricasEmpleadosSub,
@@ -164,15 +183,18 @@ export function renderRhFaltasRetardosMetricasSection(
       { status: "ready", cards: buildKpiCards(data) },
       { columnsClass: "sm:grid-cols-2 lg:grid-cols-3", ariaLabel: FR_COPY.estadisticasAria },
     )}
-    ${renderChartsContent(data)}
+    ${renderChartsContent(data, vm.empleadosRetardosRanking)}
   </div>`;
 }
 
 const FR_METRICAS_CHART_IDS = [
   RH_FR_TENDENCIA_CHART_ID,
   RH_FR_TIPO_BAR_CHART_ID,
+  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
   RH_FR_EMPLEADOS_BAR_CHART_ID,
 ] as const;
+
+const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
 
 export function mountRhFaltasRetardosMetricasCharts(
   root: ParentNode,
@@ -187,6 +209,15 @@ export function mountRhFaltasRetardosMetricasCharts(
   const data = vm.estadisticas;
   mountFaltasRetardosTendenciaChart(root, data.eventos_por_mes ?? []);
   mountFaltasRetardosTipoBarChart(root, data.eventos_por_tipo ?? []);
+  if (vm.empleadosRetardosRanking.length > 0) {
+    mountRankingHorizontalBar(
+      root,
+      RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
+      vm.empleadosRetardosRanking,
+      RETARDOS_BAR_COLOR,
+      "Retardos",
+    );
+  }
   const rows = empleadosChartRows(data);
   if (rows.length > 0) {
     mountFaltasRetardosEmpleadosStackedBarChart(root, rows);

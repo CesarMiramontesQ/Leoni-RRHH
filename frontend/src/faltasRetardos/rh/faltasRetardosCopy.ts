@@ -73,6 +73,10 @@ export const FR_COPY = {
   metricasTipoSub: "Composición de faltas y retardos",
   metricasEmpleadosTitulo: "Empleados con más eventos",
   metricasEmpleadosSub: "Top 10 por tipo de evento según filtros aplicados",
+  metricasRetardosTitulo: "Top 5 empleados con más retardos",
+  metricasRetardosSub:
+    "Retardos del historial de asistencia (importadas_historico) según filtros aplicados",
+  metricasRetardosVacio: "Sin retardos registrados con los filtros actuales.",
 
   modalTitulo: "Nuevo registro",
   modalCerrar: "Cerrar",

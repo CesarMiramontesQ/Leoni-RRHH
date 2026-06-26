@@ -95,6 +95,24 @@ export function resolveRhInitialHash(currentHash?: string): string {
   return landing ?? RH_SIN_PERMISOS_HASH;
 }
 
+/**
+ * Dashboard de aterrizaje al alternar Modo RH / modo operativo (toggle).
+ * Siempre redirige al inicio del modo activo, sin conservar deep links.
+ */
+export function resolveRhModeLandingHash(): string {
+  if (isAdminUser()) {
+    if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) {
+      return "#/";
+    }
+    if (rhMayAccessHash("#/")) return "#/";
+    return resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+  }
+  if (isModulosRhEnrolled() && isNonRhRhMode()) {
+    return resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+  }
+  return "#/";
+}
+
 /** Mostrar «Organigrama» en el sidebar. La ruta `#/organigrama` sigue disponible para RH. */
 export const ORGANIGRAMA_MENU_VISIBLE = false;
 
