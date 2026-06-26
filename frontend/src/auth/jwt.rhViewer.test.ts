@@ -34,7 +34,7 @@ describe("hasRhOperativeViewerContext", () => {
   it("ADMIN gerente en Modo RH cuenta como contexto RH operativo", async () => {
     const { hasRhOperativeViewerContext, hasRhOperativeViewerContextOrGrant } = await imports();
     expect(hasRhOperativeViewerContext()).toBe(true);
-    expect(hasRhOperativeViewerContextOrGrant("comedor")).toBe(true);
+    expect(hasRhOperativeViewerContextOrGrant("comedor-registro")).toBe(true);
   });
 
   it("ADMIN gerente en modo operativo de su rol no cuenta como RH", async () => {

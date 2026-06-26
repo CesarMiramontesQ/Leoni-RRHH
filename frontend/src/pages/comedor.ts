@@ -1,6 +1,8 @@
 import {
   canAccessComedorLiderPage,
+  canAccessComedorGestionPage,
   canAccessComedorPersonalForRh,
+  canAccessComedorPlanearPage,
   canAccessComedorReportePage,
   canAccessComedorRhPage,
   canAccessEmpleadoPersonalDashboard,
@@ -145,13 +147,9 @@ import {
   sumResumenDiario,
 } from "../comedor/reportes/reporteAggregations.ts";
 
-/**
- * Viewer en capacidad RH para una vista de comedor: RH nativo o no‑RH con el módulo
- * `comedor` otorgado. La página ya está gateada por `canAccessComedorRhPage`/`canAccessComedorReportePage`;
- * esto sólo selecciona qué vista (resumen RH vs. comedor) mostrar. Se usa el grant `comedor`
- * porque los datos RH del reporte viven bajo `/api/v1/comedor/rh` (módulo `comedor` en backend).
- */
-function esViewerRhComedor(grantKey: "comedor"): boolean {
+function esViewerRhComedor(
+  grantKey: "comedor-registro" | "comedor-gestion" | "comedor-planear" | "reportes",
+): boolean {
   return hasRhOperativeViewerContextOrGrant(grantKey);
 }
 
@@ -1114,7 +1112,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
         getComedorEstadisticas(currentWeekStartIso),
         getComedorEstadisticas(nextWeekStartIso),
       ]);
-      const vistaComidasRh = esViewerRhComedor("comedor");
+      const vistaComidasRh = esViewerRhComedor("comedor-registro");
       const rows = mapEstadisticasToRhKpis(estadisticasActual, estadisticasProxima, vistaComidasRh);
       if (signal.aborted) return;
       state.stats = rows;
@@ -1157,7 +1155,7 @@ function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
       const weekStartIso = getCurrentWeekStartIso();
       const desde4SemanasIso = dateToIso(addDays(isoToDate(weekStartIso), -21));
       const weekEndIso = dateToIso(addDays(isoToDate(weekStartIso), 6));
-      const incluirResumenRh = esViewerRhComedor("comedor");
+      const incluirResumenRh = esViewerRhComedor("comedor-registro");
       const [proyecciones, estadisticas, resumenSemanaRh] = await Promise.all([
         getComedorProyecciones(),
         getComedorEstadisticas(weekStartIso),
@@ -2801,7 +2799,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   const initialRange = dateRangeFromPreset("this_month");
   const comedorIdResolver = createComedorIdResolver({ rhAdmin: true });
   const resolveComedorId = () => comedorIdResolver.resolve();
-  const esRhReporte = esViewerRhComedor("comedor");
+  const esRhReporte = esViewerRhComedor("reportes");
   const state: ReporteComedorState = {
     filtersDataset: {
       departamentos: [{ id: "todos", label: "Todos los comedores" }],
@@ -3221,7 +3219,7 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
   const hash = window.location.hash || "#/comedor";
   const isGestionRoute = hash.startsWith("#/comedor/gestion");
   if (isGestionRoute) {
-    if (canAccessComedorRhPage()) {
+    if (canAccessComedorGestionPage()) {
       mountComedorGestionAdmin(container, signal);
       return;
     }
@@ -3236,7 +3234,7 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
 
   const isPlannerRoute = hash.startsWith("#/comedor/planear");
   if (isPlannerRoute) {
-    if (canAccessComedorRhPage()) {
+    if (canAccessComedorPlanearPage()) {
       mountComedorRhPlanner(container, signal);
       return;
     }
@@ -3262,7 +3260,7 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
 
   const isCodigosExternosRoute = hash.startsWith("#/comedor/codigos-externos");
   if (isCodigosExternosRoute) {
-    if (canAccessComedorRhPage()) {
+    if (canAccessComedorGestionPage()) {
       mountComedorRhCodigosExternos(container, signal);
       return;
     }

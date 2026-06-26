@@ -245,6 +245,7 @@ describe("rhNav sections", () => {
     allowedModules.delete("sesiones");
     allowedModules.delete("capacitaciones");
     allowedModules.delete("encuestas");
+    allowedModules.delete("cursos-ajustes");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sections = getVisibleRhNavSections("supervisor");
