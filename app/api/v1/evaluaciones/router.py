@@ -39,7 +39,13 @@ from app.schemas.evaluaciones import (
     TransicionRequest,
     TransicionResponse,
 )
-from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse, EquipoResumenResponse, HeatmapResponse, TimelineResponse
+from fastapi.responses import StreamingResponse
+from app.schemas.pdi import (
+    PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse,
+    PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse,
+    EquipoResumenResponse, HeatmapResponse, TimelineResponse,
+    PDIKpisAvanzadosResponse, PDIRecomendacionesResponse, PDINotificarEquipoResponse,
+)
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
 
@@ -123,6 +129,58 @@ async def timeline_pdi(
 ):
     service = PDIService(db)
     return await service.timeline(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/kpis-avanzados", response_model=PDIKpisAvanzadosResponse)
+async def kpis_avanzados_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.kpis_avanzados(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/empleado/{empleado_id}/recomendaciones", response_model=PDIRecomendacionesResponse)
+async def recomendaciones_pdi(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.recomendaciones(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get("/pdi/export")
+async def export_pdi(
+    format: str = Query(..., description="pdf o excel"),
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    if format == "excel":
+        output = await service.export_excel(current_user=current_user, area_id=area_id)
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=pdi_reporte.xlsx"},
+        )
+    output = await service.export_pdf(current_user=current_user, area_id=area_id)
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=pdi_reporte.pdf"},
+    )
+
+
+@router.post("/pdi/notificar-equipo", response_model=PDINotificarEquipoResponse)
+async def notificar_equipo_pdi(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.notificar_equipo(current_user=current_user)
 
 
 @router.patch("/pdi/{pdi_id}/estado", response_model=PDIGestionItem)

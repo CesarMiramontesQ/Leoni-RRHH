@@ -201,6 +201,8 @@ export interface PDIAccion {
   fecha_fin: string;
   responsable: string;
   estado: EstadoPDI;
+  prioridad: string;
+  recursos: string | null;
   creado_por: number | null;
   creado_por_nombre: string | null;
   created_at: string;
@@ -220,6 +222,8 @@ export interface PDICreatePayload {
   fecha_inicio: string;
   fecha_fin: string;
   responsable: string;
+  prioridad?: "baja" | "media" | "alta";
+  recursos?: string;
 }
 
 export interface PDIUpdatePayload {
@@ -289,6 +293,8 @@ export interface PDIGestionItem {
   fecha_fin: string;
   responsable: string;
   estado: string;
+  prioridad: string;
+  recursos: string | null;
   vencida: boolean;
   created_at: string;
   updated_at: string;
@@ -533,5 +539,62 @@ export async function devolverEvaluacion(id: number, comentario: string): Promis
 export async function getHistorialEvaluacion(id: number): Promise<HistorialResponse | null> {
   const res = await fetchWithAuth(`/api/v1/evaluaciones/${id}/historial`);
   if (!res.ok) return null;
+  return res.json();
+}
+
+// ── Fase 4: KPIs Avanzados, Recomendaciones, Export, Notificar ──────────
+
+export interface PDIKpisAvanzadosResponse {
+  cumplimiento_plan_pct: number;
+  horas_training_promedio: number;
+  promedio_skill_gap: number;
+  inversion_horas_total: number;
+}
+
+export interface PDIRecomendacionItem {
+  accion: string;
+  tipo: string;
+  justificacion: string;
+  prioridad: string;
+}
+
+export interface PDIRecomendacionesResponse {
+  empleado_id: number;
+  recomendaciones: PDIRecomendacionItem[];
+}
+
+export async function getPDIKpisAvanzados(params?: { area_id?: number }): Promise<PDIKpisAvanzadosResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/kpis-avanzados${suffix}`);
+  if (!res.ok) return { cumplimiento_plan_pct: 0, horas_training_promedio: 0, promedio_skill_gap: 0, inversion_horas_total: 0 };
+  return res.json();
+}
+
+export async function getPDIRecomendaciones(empleadoId: number): Promise<PDIRecomendacionesResponse> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/empleado/${empleadoId}/recomendaciones`);
+  if (!res.ok) return { empleado_id: empleadoId, recomendaciones: [] };
+  return res.json();
+}
+
+export async function exportPDI(format: "pdf" | "excel"): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/export?format=${format}`);
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const ext = format === "excel" ? "xlsx" : "pdf";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `pdi_reporte.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export async function notificarEquipoPDI(): Promise<{ notificaciones_creadas: number; empleados_notificados: number }> {
+  const res = await fetchWithAuth("/api/v1/evaluaciones/pdi/notificar-equipo", { method: "POST" });
+  if (!res.ok) return { notificaciones_creadas: 0, empleados_notificados: 0 };
   return res.json();
 }
