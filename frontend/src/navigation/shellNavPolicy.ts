@@ -170,6 +170,7 @@ export function isRhStructuredNavRol(rol: string | null): boolean {
 
 /** Supervisor y gerente comparten política de rutas permitidas (sin hubs ni módulos extra). */
 export function usesSupervisorRoutePolicy(rol: string | null): boolean {
+  if (isRhGestorTeamUiMode()) return true;
   return rol === "supervisor" || rol === "gerente";
 }
 

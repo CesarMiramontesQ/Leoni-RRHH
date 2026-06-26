@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let rol: string | null = "gerente";
 let operativoUiMode = true;
+let gestorTeamUiMode = false;
+let liderUiMode = false;
 
 function tokenFor(value: string | null): string | null {
   if (value === null) return null;
@@ -20,9 +22,9 @@ vi.mock("./rhModulePermissions.ts", () => ({
 
 vi.mock("./rhUiMode.ts", () => ({
   isRhEmpleadoUiMode: () => false,
-  isRhGestorTeamUiMode: () => false,
+  isRhGestorTeamUiMode: () => gestorTeamUiMode,
   isRhGerenteUiMode: () => false,
-  isRhLiderUiMode: () => false,
+  isRhLiderUiMode: () => liderUiMode,
   isRhDirectorUiMode: () => false,
   isRhOperativoUiMode: () => operativoUiMode,
 }));
@@ -35,6 +37,8 @@ describe("ADMIN gerente en Modo RH (operativo)", () => {
   beforeEach(() => {
     rol = "gerente";
     operativoUiMode = true;
+    gestorTeamUiMode = false;
+    liderUiMode = false;
     vi.resetModules();
   });
 
@@ -48,5 +52,39 @@ describe("ADMIN gerente en Modo RH (operativo)", () => {
     const { canAccessComedorLiderPage, canAccessComedorRhPage } = await imports();
     expect(canAccessComedorLiderPage()).toBe(false);
     expect(canAccessComedorRhPage()).toBe(true);
+  });
+});
+
+describe("ADMIN supervisor en Modo líder", () => {
+  beforeEach(() => {
+    rol = "supervisor";
+    operativoUiMode = false;
+    gestorTeamUiMode = true;
+    liderUiMode = true;
+    vi.resetModules();
+  });
+
+  it("muestra dashboard de líder, no el personal de empleado", async () => {
+    const {
+      canAccessEmpleadoPersonalDashboard,
+      canAccessLiderTeamDashboard,
+      canAccessRhOperationalDashboard,
+      getEffectiveGestorNavRol,
+    } = await imports();
+    expect(getEffectiveGestorNavRol()).toBe("supervisor");
+    expect(canAccessEmpleadoPersonalDashboard()).toBe(false);
+    expect(canAccessLiderTeamDashboard()).toBe(true);
+    expect(canAccessRhOperationalDashboard()).toBe(false);
+  });
+
+  it("oculta calendario de equipo en dashboard supervisor", async () => {
+    const { canSeeDashboardTeamCalendar } = await imports();
+    expect(canSeeDashboardTeamCalendar()).toBe(false);
+  });
+
+  it("usa vista de comedor de líder", async () => {
+    const { canAccessComedorLiderPage, canAccessComedorRhPage } = await imports();
+    expect(canAccessComedorLiderPage()).toBe(true);
+    expect(canAccessComedorRhPage()).toBe(false);
   });
 });
