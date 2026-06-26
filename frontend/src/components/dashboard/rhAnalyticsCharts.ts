@@ -42,11 +42,15 @@ export const RH_DASH_ANALYTICS_CHART_IDS = [
 
 const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
 
-export function tendenciaIncidenciasChartSubtitle(t: IncidenciaTendenciaPorTipo | null): string {
+export function tendenciaIncidenciasChartSubtitle(
+  t: IncidenciaTendenciaPorTipo | null,
+  periodDays?: number,
+): string {
   if (!t) return "Sin datos en el periodo";
-  if (t.agrupacion === "dia") return "Por día · últimos 7 días";
-  if (t.agrupacion === "semana") return "Por semana · últimos 30 días";
-  return "Por mes · últimos 90 días";
+  const periodo = periodDays ? `últimos ${periodDays} días` : "periodo seleccionado";
+  if (t.agrupacion === "dia") return `Por día · ${periodo}`;
+  if (t.agrupacion === "semana") return `Por semana · ${periodo}`;
+  return `Por mes · ${periodo}`;
 }
 
 function safeMountChart(label: string, mount: () => void): void {

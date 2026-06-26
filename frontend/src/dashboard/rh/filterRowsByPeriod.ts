@@ -76,7 +76,7 @@ export function readStoredRhDashboardPeriod(): RhDashboardPeriodDays {
   try {
     const raw = sessionStorage.getItem("rh-dashboard-period");
     const n = Number(raw);
-    if (n === 7 || n === 30 || n === 90) return n;
+    if (n === 30 || n === 60 || n === 90) return n;
   } catch {
     /* ignore */
   }
@@ -95,8 +95,7 @@ export type RhDashboardTendenciaAgrupacion = "dia" | "semana" | "mes";
 
 /** Granularidad del eje X de tendencia de incidencias según filtro del dashboard. */
 export function tendenciaAgrupacionForPeriod(days: RhDashboardPeriodDays): RhDashboardTendenciaAgrupacion {
-  if (days === 7) return "dia";
-  if (days === 30) return "semana";
+  if (days === 30 || days === 60) return "semana";
   return "mes";
 }
 

@@ -31,21 +31,21 @@ function row(partial: Partial<RhSolicitudTablaFila> & Pick<RhSolicitudTablaFila,
 }
 
 describe("periodRangeIso", () => {
-  it("devuelve rango de 7 días inclusivo", () => {
-    const { fechaInicio, fechaFin } = periodRangeIso(7);
+  it("devuelve rango de 30 días inclusivo", () => {
+    const { fechaInicio, fechaFin } = periodRangeIso(30);
     expect(fechaFin).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(fechaInicio).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const start = new Date(fechaInicio);
     const end = new Date(fechaFin);
     const diff = Math.round((end.getTime() - start.getTime()) / (86400000));
-    expect(diff).toBe(6);
+    expect(diff).toBe(29);
   });
 });
 
 describe("tendenciaAgrupacionForPeriod", () => {
-  it("mapea 7/30/90 a dia/semana/mes", () => {
-    expect(tendenciaAgrupacionForPeriod(7)).toBe("dia");
+  it("mapea 30/60/90 a semana/semana/mes", () => {
     expect(tendenciaAgrupacionForPeriod(30)).toBe("semana");
+    expect(tendenciaAgrupacionForPeriod(60)).toBe("semana");
     expect(tendenciaAgrupacionForPeriod(90)).toBe("mes");
   });
 });

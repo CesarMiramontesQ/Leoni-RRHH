@@ -1,7 +1,12 @@
-import type { RhIncidenciasEstadisticasData } from "./types.ts";
 import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 
 export const EMPLEADOS_RETARDOS_TOP = 5;
+
+export type EmpleadoRetardoRankingSource = {
+  nombre: string | null | undefined;
+  no_empleado: string | null | undefined;
+  total: number;
+};
 
 function empleadoNombreCompleto(
   nombre: string | null | undefined,
@@ -13,9 +18,9 @@ function empleadoNombreCompleto(
   return no || "Sin nombre";
 }
 
-/** Top N empleados con más incidencias de retardo (respuesta de estadísticas filtrada por tipo). */
+/** Top N empleados con más retardos (estadísticas filtradas por tipo retardo). */
 export function aggregateEmpleadosRetardosTop(
-  empleados: RhIncidenciasEstadisticasData["empleados_con_mas_incidencias"],
+  empleados: readonly EmpleadoRetardoRankingSource[],
   top = EMPLEADOS_RETARDOS_TOP,
 ): SolicitudRankingRow[] {
   return empleados
