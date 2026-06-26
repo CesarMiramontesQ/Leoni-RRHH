@@ -3,6 +3,10 @@ Bloqueo temprano para el rol `supervisor` en rutas de Actas y analítica de come
 
 La verificación por endpoint (role_checker) sigue siendo obligatoria; este middleware
 refuerza la política antes de ejecutar handlers y evita depender solo del cliente.
+
+Excepciones:
+- ADMIN (`rh_admin`) en Modo RH operativo (`X-RH-UI-Mode: operativo` o sin header).
+- Supervisores inscritos con el módulo correspondiente otorgado explícitamente.
 """
 
 from __future__ import annotations
@@ -13,6 +17,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import settings
+from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module_from_claims
+from app.core.rh_ui_mode import RH_UI_MODE_OPERATIVO, effective_rh_ui_mode
 
 _FORBIDDEN_DETAIL = (
     "Acceso denegado: el rol supervisor no puede acceder a este recurso."
@@ -35,6 +41,26 @@ def _decode_payload_safe(token: str) -> dict | None:
     except JWTError:
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def supervisor_restricted_path_allowed(
+    payload: dict,
+    path: str,
+    *,
+    rh_ui_mode: str | None = None,
+) -> bool:
+    """True si el supervisor puede pasar el middleware para `path` (tests y lógica compartida)."""
+    if payload.get("rol") != "supervisor":
+        return True
+
+    if payload.get("rh_admin"):
+        return effective_rh_ui_mode(rh_ui_mode) == RH_UI_MODE_OPERATIVO
+
+    module_key = resolve_module_from_api_path(path)
+    if module_key and user_has_module_from_claims(payload, module_key, rh_ui_mode=rh_ui_mode):
+        return True
+
+    return False
 
 
 class SupervisorRestrictedRoutesMiddleware(BaseHTTPMiddleware):
@@ -62,6 +88,10 @@ class SupervisorRestrictedRoutesMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if payload.get("rol") != "supervisor":
+            return await call_next(request)
+
+        rh_ui_mode = request.headers.get("X-RH-UI-Mode")
+        if supervisor_restricted_path_allowed(payload, path, rh_ui_mode=rh_ui_mode):
             return await call_next(request)
 
         return JSONResponse(

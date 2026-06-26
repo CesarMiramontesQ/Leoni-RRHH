@@ -1,4 +1,6 @@
 import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
+import { refreshAccessTokenSession } from "../api/http.ts";
+import { getAccessTokenPayload } from "./jwt.ts";
 import {
   isRhEmpleadoUiMode,
   isRhGestorTeamUiMode,
@@ -76,6 +78,9 @@ export async function loadRhModulePermissions(): Promise<void> {
     setRhInPermisosList(data.en_lista_permisos);
     setRhPermisosActivos(Object.values(state.modules).some(Boolean));
     state.loaded = true;
+    if (data.puede_administrar_permisos_rh && getAccessTokenPayload()?.rh_admin !== true) {
+      await refreshAccessTokenSession();
+    }
   } catch {
     state.loaded = true;
     state.enrolled = false;
