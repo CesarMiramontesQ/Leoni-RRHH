@@ -4,6 +4,7 @@ import {
   isRhHomeHash,
   modulosMayAccessHash,
   resolveRhOperativoLandingHash,
+  resolveRhModeLandingHash,
   resolveRoutedHashForRol,
   RH_SIN_PERMISOS_HASH,
   rhMayAccessHash,
@@ -342,6 +343,16 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
   };
 
   window.addEventListener("hashchange", go, { signal });
-  window.addEventListener(RH_UI_MODE_CHANGE_EVENT, go, { signal });
+  window.addEventListener(
+    RH_UI_MODE_CHANGE_EVENT,
+    () => {
+      const landing = resolveRhModeLandingHash();
+      if ((window.location.hash || "#/") !== landing) {
+        history.replaceState(null, "", landing);
+      }
+      go();
+    },
+    { signal },
+  );
   go();
 }

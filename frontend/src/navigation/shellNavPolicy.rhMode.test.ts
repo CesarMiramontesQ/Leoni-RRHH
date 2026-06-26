@@ -108,4 +108,26 @@ describe("shellNavPolicy rh mode", () => {
     setRhUiMode("lider");
     expect(resolveRhInitialHash("#/")).toBe("#/");
   });
+
+  it("resolveRhModeLandingHash en modo gerente siempre va al dashboard equipo", async () => {
+    jwtRol = "gerente";
+    gestorAlcance = "gerente";
+    const { setRhUiMode } = await import("../auth/rhUiMode.ts");
+    const { resolveRhModeLandingHash } = await import("./shellNavPolicy.ts");
+    setRhUiMode("gerente");
+    expect(resolveRhModeLandingHash()).toBe("#/");
+  });
+
+  it("resolveRhModeLandingHash en modo operativo usa dashboard o primera página permitida", async () => {
+    const { resolveRhModeLandingHash } = await import("./shellNavPolicy.ts");
+    expect(resolveRhModeLandingHash()).toBe("#/");
+
+    allowedModules.clear();
+    allowedModules.add("metricas");
+    vi.resetModules();
+    const { setAdminUser } = await import("../auth/rhUiMode.ts");
+    setAdminUser(true);
+    const { resolveRhModeLandingHash: landing } = await import("./shellNavPolicy.ts");
+    expect(landing()).toBe("#/metricas");
+  });
 });
