@@ -907,15 +907,17 @@ class ActaService:
         self.empleado_repo = EmpleadoRepository(db)
         self.db = db
 
-    def _get_rol(self, current_user: Empleado) -> str:
-        return current_user.rol.nombre if current_user.rol else "empleado"
+    def _scope_rol(self, current_user: Empleado, rh_ui_mode: str | None = None) -> str:
+        from app.core.data_scope import effective_data_scope_rol
+
+        return effective_data_scope_rol(current_user, rh_ui_mode)
 
     async def _ensure_puede_ver_empleado(
         self,
         current_user: Empleado,
         empleado_id: int,
     ) -> None:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol in ("rh", "gerente", "director"):
             return
         if rol == "supervisor":
@@ -1015,7 +1017,7 @@ class ActaService:
         limit: int,
         current_user: Empleado,
     ) -> PaginatedResponse[ActaResponse]:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
 
         if rol in ("director", "rh"):
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
@@ -1101,7 +1103,7 @@ class ActaService:
         current_user: Empleado,
     ) -> ActasDashboardMetricasResponse:
         """Cuenta actas en proceso y pendientes de firma con el mismo alcance que list_actas."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         emp_filters: list = []
         if rol in ("director", "rh"):
             pass
@@ -1137,7 +1139,7 @@ class ActaService:
         if not acta:
             raise NotFoundError(entidad="Acta", id=id)
 
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "gerente", "director"):
             if acta.empleado_id != current_user.id:
                 raise ForbiddenError(detail="No tienes acceso a esta acta")
@@ -1280,7 +1282,7 @@ class ActaService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede generar actas")
 
@@ -1348,7 +1350,7 @@ class ActaService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede crear actas")
 
@@ -1409,7 +1411,7 @@ class ActaService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede editar actas")
 
@@ -1483,7 +1485,7 @@ class ActaService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ActaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("gerente", "director", "rh"):
             raise ForbiddenError(detail="Solo gerente, director o rh pueden firmar actas")
 
@@ -1575,7 +1577,7 @@ class ActaService:
         id: int,
         current_user: Empleado,
     ) -> ActaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede aprobar actas")
 
@@ -1642,7 +1644,7 @@ class ActaService:
         data: ActaAnularRequest,
         current_user: Empleado,
     ) -> ActaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if not user_has_module(current_user, "actas"):
             raise ForbiddenError(detail="Solo RH puede anular actas")
 
@@ -1683,7 +1685,7 @@ class ActaService:
         current_user: Empleado,
     ) -> str:
         """Retorna el path del PDF del acta. Retorna NotFoundError si aun no existe."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="Se requiere rol rh o gerente para descargar el PDF")
 

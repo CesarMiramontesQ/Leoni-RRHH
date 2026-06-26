@@ -1,4 +1,4 @@
-"""Capacidad gestor (líder/gerente) para usuarios con rol RH según puesto."""
+"""Capacidad gestor (líder/gerente) para usuarios ADMIN o rol legacy `rh` según puesto."""
 
 from __future__ import annotations
 
@@ -28,9 +28,11 @@ def normalize_puesto_text(value: str | None) -> str:
 
 
 def resolve_rh_gestor_alcance(empleado: "Empleado") -> RhGestorAlcance | None:
-    """None si el RH no tiene capacidad gestor."""
+    """Alcance gestor para ADMIN o rol legacy `rh` según puesto."""
+    from app.core.rh_ui_mode import is_admin_user
+
     rol = empleado.rol.nombre if empleado.rol else "empleado"
-    if rol != "rh":
+    if rol != "rh" and not is_admin_user(empleado):
         return None
 
     puesto = getattr(empleado, "puesto", None)

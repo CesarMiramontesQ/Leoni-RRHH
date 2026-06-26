@@ -95,7 +95,7 @@ async def listar_tareas(
 async def crear_tarea(
     perfil_id: int,
     body: PerfilTareaCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea una tarea para el perfil. Solo RH o supervisor."""
@@ -112,7 +112,7 @@ class ReorderItem(BaseModel):
 async def reordenar_tareas(
     perfil_id: int,
     body: list[ReorderItem],
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Reordena tareas del perfil. Solo RH o supervisor."""
@@ -125,7 +125,7 @@ async def actualizar_tarea(
     perfil_id: int,
     tarea_id: int,
     body: PerfilTareaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza una tarea del perfil. Solo RH o supervisor."""
@@ -139,7 +139,7 @@ async def actualizar_tarea(
 async def eliminar_tarea(
     perfil_id: int,
     tarea_id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina una tarea del perfil. Solo RH o supervisor."""
@@ -171,7 +171,7 @@ async def listar_cualificaciones(
 async def crear_cualificacion(
     perfil_id: int,
     body: PerfilCualificacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea una cualificacion para el perfil. Solo RH o supervisor."""
@@ -189,7 +189,7 @@ async def actualizar_cualificacion(
     perfil_id: int,
     cualificacion_id: int,
     body: PerfilCualificacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza una cualificacion del perfil. Solo RH o supervisor."""
@@ -209,7 +209,7 @@ async def actualizar_cualificacion(
 async def eliminar_cualificacion(
     perfil_id: int,
     cualificacion_id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina una cualificacion del perfil. Solo RH o supervisor."""
@@ -244,7 +244,7 @@ async def listar_competencias(
 async def crear_competencia(
     perfil_id: int,
     body: PerfilCompetenciaCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Agrega competencia del catálogo al perfil con nivel mínimo requerido (1-4). Solo RH o supervisor."""
@@ -262,7 +262,7 @@ async def actualizar_nivel_competencia(
     perfil_id: int,
     requisito_id: int,
     body: PerfilCompetenciaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza el nivel mínimo requerido de una competencia del perfil."""
@@ -279,7 +279,7 @@ async def actualizar_nivel_competencia(
 async def sincronizar_competencias(
     perfil_id: int,
     body: PerfilCompetenciaSyncBody,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Sync completo de competencias requeridas por tipo (multi-select)."""
@@ -298,7 +298,7 @@ async def sincronizar_evaluacion_competencias(
     perfil_id: int,
     asignacion_id: int,
     body: EvaluacionCompetenciaSyncBody,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Sync evaluación de competencias del empleado (nivel 0-4)."""
@@ -335,7 +335,7 @@ async def listar_asignaciones(
 async def crear_asignacion(
     perfil_id: int,
     body: PerfilFuncionesCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna un empleado al perfil. Solo RH o supervisor."""
@@ -365,7 +365,7 @@ async def actualizar_asignacion(
     perfil_id: int,
     asignacion_id: int,
     body: PerfilFuncionesUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza metadatos de la asignacion (p. ej. grado). Solo RH o supervisor."""
@@ -390,7 +390,7 @@ async def actualizar_evaluaciones(
     perfil_id: int,
     asignacion_id: int,
     body: ActualizarEvaluacionesBody,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza evaluaciones de cualificacion y competencia de la asignacion. Solo RH o supervisor."""
@@ -411,7 +411,7 @@ async def actualizar_evaluaciones(
 async def desactivar_asignacion(
     perfil_id: int,
     asignacion_id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Desactiva (soft-delete) una asignacion. Solo RH."""
@@ -465,7 +465,7 @@ async def crear_tarea_extra(
     perfil_id: int,
     asignacion_id: int,
     body: PerfilFuncionesTareaCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna una tarea extra del catalogo a un empleado. Solo RH o supervisor."""
@@ -483,7 +483,7 @@ async def eliminar_tarea_extra(
     perfil_id: int,
     asignacion_id: int,
     tarea_extra_id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina una tarea extra de un empleado. Solo RH o supervisor."""
@@ -513,7 +513,7 @@ async def evaluar_tareas(
     perfil_id: int,
     asignacion_id: int,
     body: EvaluacionTareasSyncBody,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Evalúa tareas de un empleado con escala 1-3."""
@@ -585,7 +585,7 @@ async def listar_cursos_puesto(
 async def asignar_curso_puesto(
     perfil_id: int,
     body: CursoPuestoCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna un curso a un perfil de puesto. Solo RH o supervisor."""
@@ -637,7 +637,7 @@ async def asignar_curso_puesto(
 async def eliminar_curso_puesto(
     perfil_id: int,
     curso_puesto_id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina la asignación de un curso a un puesto. Solo RH o supervisor."""
@@ -721,7 +721,7 @@ async def asignar_curso_extra(
     perfil_id: int,
     asignacion_id: int,
     body: CursoEmpleadoCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna un curso extra individual a un empleado. Solo RH o supervisor."""
@@ -777,7 +777,7 @@ async def eliminar_curso_extra(
     perfil_id: int,
     asignacion_id: int,
     curso_empleado_id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina un curso extra de un empleado. Solo RH o supervisor."""

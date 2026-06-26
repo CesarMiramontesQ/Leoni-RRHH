@@ -39,9 +39,9 @@ class HorasExtraService:
         self.solicitud_repo = HorasExtraSolicitudRepository(db)
         self.solicitud_svc = HorasExtraSolicitudService(db)
 
-    def _require_acceso(self, current_user: Empleado) -> None:
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol not in _ROLES_PERMITIDOS:
+    def _require_acceso(self, current_user: Empleado, rh_ui_mode: str | None = None) -> None:
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in _ROLES_PERMITIDOS:
             raise ForbiddenError(detail="No tienes acceso a Horas Extra")
 
     async def _ids_permitidos(
@@ -142,7 +142,7 @@ class HorasExtraService:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
     ) -> HorasExtraListResponse:
-        self._require_acceso(current_user)
+        self._require_acceso(current_user, rh_ui_mode)
         ids_permitidos = await self._ids_permitidos(current_user, rh_ui_mode)
 
         filtros = {
@@ -222,7 +222,7 @@ class HorasExtraService:
         current_user: Empleado,
         rh_ui_mode: str | None,
     ) -> HorasExtraSolicitudResponse:
-        self._require_acceso(current_user)
+        self._require_acceso(current_user, rh_ui_mode)
         ids_permitidos = await self._ids_permitidos(current_user, rh_ui_mode)
 
         solicitud = await self.solicitud_repo.get_solicitud_by_id(solicitud_id)

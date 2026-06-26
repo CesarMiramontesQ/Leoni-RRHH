@@ -166,7 +166,7 @@ async def obtener_sesion(
 async def crear_sesion(
     curso_id: int,
     body: CursoSesionCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursoSesionService(db)
@@ -178,7 +178,7 @@ async def actualizar_sesion(
     curso_id: int,
     sesion_id: int,
     body: CursoSesionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursoSesionService(db)
@@ -191,7 +191,7 @@ async def actualizar_sesion(
 async def eliminar_sesion(
     curso_id: int,
     sesion_id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursoSesionService(db)
@@ -288,7 +288,7 @@ async def inscribir_puesto_sesion(
     curso_id: int,
     sesion_id: int,
     body: SesionPuestoCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     sesion = await db.get(CursoSesion, sesion_id)
@@ -331,7 +331,7 @@ async def quitar_puesto_sesion(
     curso_id: int,
     sesion_id: int,
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     cp = await db.get(CursoPuesto, id)
@@ -513,7 +513,7 @@ async def inscribir_empleado_sesion(
     curso_id: int,
     sesion_id: int,
     body: SesionEmpleadoCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     from app.core.exceptions import NotFoundError, ConflictError
@@ -579,7 +579,7 @@ async def actualizar_asistencia_empleado(
     sesion_id: int,
     id: int,
     body: SesionEmpleadoUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     ce = await db.get(CursoEmpleado, id)
@@ -603,7 +603,7 @@ async def quitar_empleado_sesion(
     curso_id: int,
     sesion_id: int,
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     ce = await db.get(CursoEmpleado, id)

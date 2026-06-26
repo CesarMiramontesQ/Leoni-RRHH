@@ -5,6 +5,7 @@ from app.core.rh_module_registry import (
     all_module_keys,
     catalog_for_api,
     effective_modules_for_display,
+    empleado_en_lista_permisos,
     empty_modulos_rh_config,
     has_personalized_modulos_rh,
     is_modulos_rh_enrolled,
@@ -55,9 +56,7 @@ class RhPermisosService:
         modulos = effective_modules_for_display(current_user) if inscrito else {}
         # Pertenencia a la lista administrada: un RH removido (acceso_rh_removido)
         # sigue "inscrito" para denegar acceso, pero NO está en la lista.
-        en_lista_permisos = (
-            rol == "rh" and not getattr(current_user, "acceso_rh_removido", False)
-        ) or bool(getattr(current_user, "inscrito_modulos_rh", False))
+        en_lista_permisos = empleado_en_lista_permisos(current_user)
         return RhPermisosMeResponse(
             rol=rol,
             puede_administrar_permisos_rh=bool(current_user.puede_administrar_permisos_rh),
@@ -110,33 +109,23 @@ class RhPermisosService:
 
         rol = target.rol.nombre if target.rol else "empleado"
 
-        if rol == "rh":
-            # Un RH removido puede re-incluirse en la lista (sin tocar su rol);
-            # arranca sin permisos hasta que se le otorguen módulos.
-            if getattr(target, "acceso_rh_removido", False):
-                target = await self.repo.set_acceso_rh_removido(
-                    target, False, empty_modulos_rh_config()
-                )
-                await log_action(
-                    self.repo.db,
-                    accion="RH_PERMISOS_USUARIO_ADDED",
-                    modulo="rh_permisos",
-                    usuario_id=current_user.empleado_id,
-                    entidad_id=empleado_id,
-                    datos_despues={"acceso_rh_removido": False},
-                    ip_address=ip_address,
-                )
-                return self._to_item(target, current_user)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="El empleado ya está en la lista de permisos.",
+        if rol == "rh" and getattr(target, "acceso_rh_removido", False):
+            target = await self.repo.set_acceso_rh_removido(
+                target, False, empty_modulos_rh_config()
             )
+            await log_action(
+                self.repo.db,
+                accion="RH_PERMISOS_USUARIO_ADDED",
+                modulo="rh_permisos",
+                usuario_id=current_user.empleado_id,
+                entidad_id=empleado_id,
+                datos_despues={"acceso_rh_removido": False},
+                ip_address=ip_address,
+            )
+            return self._to_item(target, current_user)
 
-        if is_modulos_rh_enrolled(target):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="El empleado ya está en la lista de permisos.",
-            )
+        if empleado_en_lista_permisos(target):
+            return self._to_item(target, current_user)
 
         # Inscribir a un usuario de otro rol sin alterar su rol: queda registrado
         # con accesos vacíos hasta que RH le otorgue módulos explícitamente.

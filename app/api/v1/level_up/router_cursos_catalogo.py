@@ -44,7 +44,7 @@ async def listar_categorias(
 @router.post("/categorias", response_model=CursoCatSimpleResponse, status_code=status.HTTP_201_CREATED)
 async def crear_categoria(
     body: CursoCatSimpleCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -55,7 +55,7 @@ async def crear_categoria(
 async def actualizar_categoria(
     id: int,
     body: CursoCatSimpleUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -65,7 +65,7 @@ async def actualizar_categoria(
 @router.delete("/categorias/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_categoria(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -91,7 +91,7 @@ async def listar_tipos(
 @router.post("/tipos", response_model=CursoCatSimpleResponse, status_code=status.HTTP_201_CREATED)
 async def crear_tipo(
     body: CursoCatSimpleCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -102,7 +102,7 @@ async def crear_tipo(
 async def actualizar_tipo(
     id: int,
     body: CursoCatSimpleUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -112,7 +112,7 @@ async def actualizar_tipo(
 @router.delete("/tipos/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_tipo(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -138,7 +138,7 @@ async def listar_clasificaciones(
 @router.post("/clasificaciones", response_model=CursoCatSimpleResponse, status_code=status.HTTP_201_CREATED)
 async def crear_clasificacion(
     body: CursoCatSimpleCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -149,7 +149,7 @@ async def crear_clasificacion(
 async def actualizar_clasificacion(
     id: int,
     body: CursoCatSimpleUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -159,7 +159,7 @@ async def actualizar_clasificacion(
 @router.delete("/clasificaciones/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_clasificacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -185,7 +185,7 @@ async def listar_instructores_externos(
 @router.post("/instructores-externos", response_model=InstructorExternoResponse, status_code=status.HTTP_201_CREATED)
 async def crear_instructor_externo(
     body: InstructorExternoCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -196,7 +196,7 @@ async def crear_instructor_externo(
 async def actualizar_instructor_externo(
     id: int,
     body: InstructorExternoUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -206,7 +206,7 @@ async def actualizar_instructor_externo(
 @router.delete("/instructores-externos/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_instructor_externo(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -232,7 +232,7 @@ async def listar_proveedores(
 @router.post("/proveedores", response_model=ProveedorResponse, status_code=status.HTTP_201_CREATED)
 async def crear_proveedor(
     body: ProveedorCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -243,7 +243,7 @@ async def crear_proveedor(
 async def actualizar_proveedor(
     id: int,
     body: ProveedorUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)
@@ -253,7 +253,7 @@ async def actualizar_proveedor(
 @router.delete("/proveedores/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_proveedor(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CursosCatalogoService(db)

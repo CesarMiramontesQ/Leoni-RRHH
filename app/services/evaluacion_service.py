@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError
+from app.core.data_scope import effective_data_scope_rol
 from app.core.rh_module_registry import user_has_module
 from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
@@ -393,14 +394,13 @@ class EvaluacionService:
     async def listar_por_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> list[EvaluacionResponse]:
-        rol = _get_rol(current_user)
-        if not user_has_module(current_user, "evaluaciones"):
-            if rol == "supervisor" and current_user.id != empleado_id:
-                target = await self._get_empleado(empleado_id)
-                if current_user.area_id != target.area_id:
-                    raise ForbiddenError("Supervisor solo puede ver evaluaciones de su area")
-            elif current_user.id != empleado_id:
-                raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
+        scope = effective_data_scope_rol(current_user)
+        if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
+            raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
+        if scope == "supervisor" and current_user.id != empleado_id:
+            target = await self._get_empleado(empleado_id)
+            if current_user.area_id != target.area_id:
+                raise ForbiddenError("Supervisor solo puede ver evaluaciones de su area")
 
         items = await self.repo.list_by_empleado(empleado_id)
         return [_to_response(ev) for ev in items]
@@ -453,14 +453,13 @@ class EvaluacionService:
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
-        rol = _get_rol(current_user)
-        if not user_has_module(current_user, "evaluaciones"):
-            if rol == "supervisor" and current_user.id != empleado_id:
-                target = await self._get_empleado(empleado_id)
-                if current_user.area_id != target.area_id:
-                    raise ForbiddenError("Supervisor solo puede ver resumen de su area")
-            elif current_user.id != empleado_id:
-                raise ForbiddenError("Solo puedes ver tu propio resumen")
+        scope = effective_data_scope_rol(current_user)
+        if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
+            raise ForbiddenError("Solo puedes ver tu propio resumen")
+        if scope == "supervisor" and current_user.id != empleado_id:
+            target = await self._get_empleado(empleado_id)
+            if current_user.area_id != target.area_id:
+                raise ForbiddenError("Supervisor solo puede ver resumen de su area")
 
         emp = await self._get_empleado(empleado_id)
 

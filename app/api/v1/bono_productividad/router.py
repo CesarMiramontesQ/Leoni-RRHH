@@ -56,7 +56,7 @@ async def listar_incidencias_bono(
         int | None,
         Query(description="Opcional. Vacío = sin filtro. Filtra por id de semana."),
     ] = None,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
 ):
     _ = current_user
     no_empleado = (no_empleado or "").strip() or None
@@ -93,7 +93,7 @@ async def sync_incidencias_bono_a_local(
             ge=1,
         ),
     ] = None,
-    current_user: Empleado = Depends(role_checker(["rh", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "director"])),
     db: AsyncSession = Depends(get_db),
 ):
     _ = current_user

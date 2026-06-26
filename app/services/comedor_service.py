@@ -128,8 +128,8 @@ class ComedorService:
         rh_ui_mode: str | None = None,
     ) -> set[int]:
         """IDs de empleados visibles en vistas de comedor de equipo."""
-        raw_rol = await self._get_rol(current_user)
-        if raw_rol in ("supervisor", "gerente"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope in ("supervisor", "gerente"):
             equipo_ids = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id,
                 settings.ESTADOS_ACTIVOS_IDS,
@@ -1611,8 +1611,10 @@ class ComedorService:
         self,
         current_user: Empleado,
         semana: date | None = None,
+        rh_ui_mode: str | None = None,
     ) -> dict:
-        if await self._get_rol(current_user) not in ("rh", "gerente", "director"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver estadisticas de comedor")
 
         semana_ref = semana or date.today()
@@ -1660,8 +1662,10 @@ class ComedorService:
     async def get_proyecciones(
         self,
         current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> dict:
-        if await self._get_rol(current_user) not in ("rh", "gerente", "director"):
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver proyecciones")
 
         registros = await self.registro_repo.get_registros_semanas_recientes(n=4)

@@ -1,23 +1,33 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
-import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhLiderUiMode } from "../auth/rhUiMode.ts";
+import {
+  isNonRhRhMode,
+  isRhEmpleadoUiMode,
+  isRhGerenteUiMode,
+  isRhLiderUiMode,
+  isRhOperativoUiMode,
+} from "../auth/rhUiMode.ts";
 
 /** Roles con acceso a `#/solicitudes` (gestores + empleado). */
-export type SolicitudesPageRole = "rh" | "supervisor" | "gerente" | "empleado";
+export type SolicitudesPageRole = "operativo" | "supervisor" | "gerente" | "empleado";
 
 export type SolicitudesPageVariant = "gestor" | "empleado";
 
 export type RequestFilterKey = "area" | "supervisor" | "type" | "employee" | "status" | "period";
 
 export const filtersByRole: Record<SolicitudesPageRole, readonly RequestFilterKey[]> = {
-  rh: ["employee", "area", "supervisor", "type", "status", "period"],
+  operativo: ["employee", "area", "supervisor", "type", "status", "period"],
   supervisor: ["employee", "type", "status", "period"],
   gerente: ["employee", "type", "status", "period"],
   empleado: ["type", "status"],
 } as const;
 
-const ROLES_FILTRO_EMPLEADO_TEXTO: ReadonlySet<SolicitudesPageRole> = new Set(["rh", "supervisor", "gerente"]);
+const ROLES_FILTRO_EMPLEADO_TEXTO: ReadonlySet<SolicitudesPageRole> = new Set([
+  "operativo",
+  "supervisor",
+  "gerente",
+]);
 
-/** `rh`, `supervisor` y `gerente`: búsqueda de empleado con input de texto (primero en la barra). */
+/** Vista operativa, supervisor y gerente: búsqueda de empleado con input de texto. */
 export function solicitudesUsaFiltroEmpleadoTexto(role: SolicitudesPageRole): boolean {
   return ROLES_FILTRO_EMPLEADO_TEXTO.has(role);
 }
@@ -58,20 +68,17 @@ export type SolicitudesPageUiConfig = {
 export type SolicitudesDataScope = "rh_global" | "lider_equipo" | "empleado_self";
 
 export function normalizeSolicitudesPageRole(rol: string | null): SolicitudesPageRole | null {
-  if (rol === "rh" || rol === "supervisor" || rol === "gerente" || rol === "empleado") return rol;
+  if (rol === "supervisor" || rol === "gerente" || rol === "empleado") return rol;
   return null;
 }
 
-/** Rol efectivo de la página solicitudes (RH según modo UI). */
+/** Rol efectivo de la página solicitudes según modo UI (admin o inscrito Modo RH). */
 export function getSolicitudesPageRoleFromSession(): SolicitudesPageRole | null {
-  const rol = getRolFromAccessToken();
-  if (rol === "rh") {
-    if (isRhEmpleadoUiMode()) return "empleado";
-    if (isRhLiderUiMode()) return "supervisor";
-    if (isRhGerenteUiMode()) return "gerente";
-    return "rh";
-  }
-  return normalizeSolicitudesPageRole(rol);
+  if (isRhOperativoUiMode() || isNonRhRhMode()) return "operativo";
+  if (isRhEmpleadoUiMode()) return "empleado";
+  if (isRhLiderUiMode()) return "supervisor";
+  if (isRhGerenteUiMode()) return "gerente";
+  return normalizeSolicitudesPageRole(getRolFromAccessToken());
 }
 
 export function resolveVisibleFilterKeys(role: SolicitudesPageRole): RequestFilterKey[] {
@@ -104,9 +111,11 @@ export function buildDefaultSolicitudesPageUiConfig(role: SolicitudesPageRole): 
 export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
   const sessionRole = getSolicitudesPageRoleFromSession();
   const role: SolicitudesPageRole =
-    sessionRole === "gerente" ? "gerente"
-    : sessionRole === "supervisor" ? "supervisor"
-    : "rh";
+    sessionRole === "gerente"
+      ? "gerente"
+      : sessionRole === "supervisor"
+        ? "supervisor"
+        : "operativo";
   return {
     ...buildDefaultSolicitudesPageUiConfig(role),
     showStatsCards: false,
@@ -120,7 +129,7 @@ export function buildMetricasPageUiConfig(): SolicitudesPageUiConfig {
 }
 
 export function dataScopeForSolicitudesRole(role: SolicitudesPageRole): SolicitudesDataScope {
-  if (role === "rh") return "rh_global";
+  if (role === "operativo") return "rh_global";
   if (role === "empleado") return "empleado_self";
   return "lider_equipo";
 }

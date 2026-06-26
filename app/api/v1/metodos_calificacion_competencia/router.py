@@ -49,7 +49,7 @@ async def listar_metodos_calificacion_competencia(
 )
 async def crear_metodo_calificacion_competencia(
     body: MetodoCalificacionCompetenciaCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo nivel de competencia en el catalogo. Solo RH."""
@@ -72,7 +72,7 @@ async def obtener_metodo_calificacion_competencia(
 async def actualizar_metodo_calificacion_competencia(
     id: int,
     body: MetodoCalificacionCompetenciaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza nombre, orden o estado activo de un metodo. Solo RH."""
@@ -83,7 +83,7 @@ async def actualizar_metodo_calificacion_competencia(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def desactivar_metodo_calificacion_competencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Desactiva un metodo de calificacion si no esta en uso. Solo RH."""

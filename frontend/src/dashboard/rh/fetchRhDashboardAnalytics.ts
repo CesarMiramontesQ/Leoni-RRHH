@@ -11,6 +11,13 @@ import { getEmpleadosResumen } from "../../api/empleados.ts";
 import { fetchIncidenciasEstadisticas } from "../../api/incidencias.ts";
 import { getDashboardKpis } from "../../api/reportes.ts";
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
+import {
+  canAccessActasPage,
+  canAccessComedorRhPage,
+  canAccessEmpleadosPage,
+  canAccessRhIncidenciasPage,
+  canAccessRhSolicitudesAdminPage,
+} from "../../auth/jwt.ts";
 import { aggregateEmpleadosRetardosTop } from "../../incidencias/rh/aggregateEmpleadosRetardosTop.ts";
 import { buildIncidenciasTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { emptyRhIncidenciaListFilters } from "../../incidencias/rh/types.ts";
@@ -28,6 +35,15 @@ import {
   periodRangeIso,
   tendenciaAgrupacionForPeriod,
 } from "./filterRowsByPeriod.ts";
+
+function fetchErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof Error && e.message.trim()) return e.message;
+  if (e && typeof e === "object" && "detail" in e) {
+    const detail = (e as { detail: unknown }).detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+  }
+  return fallback;
+}
 
 function emptyPayload(periodDays: RhDashboardPeriodDays): RhDashboardAnalyticsPayload {
   const { fechaInicio, fechaFin } = periodRangeIso(periodDays);
@@ -65,6 +81,11 @@ export async function fetchRhDashboardAnalytics(
 
   const incFiltersRetardo = { ...incFilters, tipo: "retardo" };
 
+  const loadSolicitudes = canAccessRhSolicitudesAdminPage();
+  const loadIncidencias = canAccessRhIncidenciasPage();
+  const loadActas = canAccessActasPage();
+  const loadComedor = canAccessComedorRhPage();
+
   const [
     globalKpisResult,
     solicitudesResult,
@@ -75,57 +96,67 @@ export async function fetchRhDashboardAnalytics(
   ] = await Promise.all([
     getDashboardKpis().then((v) => ({ ok: true as const, v })).catch((e: unknown) => ({
       ok: false as const,
-      err: e instanceof Error ? e.message : "KPIs globales no disponibles",
+      err: fetchErrorMessage(e, "KPIs globales no disponibles"),
     })),
-    getSolicitudesRows()
-      .then((rows) => ({ ok: true as const, rows }))
-      .catch((e: unknown) => ({
-        ok: false as const,
-        err: e instanceof Error ? e.message : "Solicitudes no disponibles",
-      })),
-    fetchIncidenciasEstadisticas(incFilters, { tendencia_agrupacion: tendenciaAgrupacion })
-      .then((v) => ({ ok: true as const, v }))
-      .catch((e: unknown) => ({
-        ok: false as const,
-        err: e instanceof Error ? e.message : "Estadísticas de incidencias no disponibles",
-      })),
-    fetchIncidenciasEstadisticas(incFiltersRetardo)
-      .then((v) => ({ ok: true as const, v }))
-      .catch((e: unknown) => ({
-        ok: false as const,
-        err: e instanceof Error ? e.message : "Ranking de retardos no disponible",
-      })),
-    getActasDashboardMetricas()
-      .then((v) => ({ ok: true as const, v }))
-      .catch((e: unknown) => ({
-        ok: false as const,
-        err: e instanceof Error ? e.message : "Métricas de actas no disponibles",
-      })),
-    (async () => {
-      try {
-        const [resumenRh, futurosSemana] = await Promise.all([
-          getComedorRhResumenDiario(fechaInicio, fechaFin),
-          getComedorRhRegistrosFuturosPorSemana(8),
-        ]);
-        const asistenciaDiaria = buildAsistenciaDiariaSerie(
-          resumenRh,
-          fechaInicio,
-          fechaFin,
-          todayIso,
-        );
-        const registrosFuturosPorSemana = mapRegistrosFuturosPorSemana(futurosSemana);
-        return {
-          ok: true as const,
-          asistenciaDiaria,
-          registrosFuturosPorSemana,
-        };
-      } catch (e: unknown) {
-        return {
-          ok: false as const,
-          err: e instanceof Error ? e.message : "Datos de comedor no disponibles",
-        };
-      }
-    })(),
+    loadSolicitudes
+      ? getSolicitudesRows()
+          .then((rows) => ({ ok: true as const, rows }))
+          .catch((e: unknown) => ({
+            ok: false as const,
+            err: fetchErrorMessage(e, "Solicitudes no disponibles"),
+          }))
+      : Promise.resolve({ ok: true as const, rows: [] as Awaited<ReturnType<typeof getSolicitudesRows>> }),
+    loadIncidencias
+      ? fetchIncidenciasEstadisticas(incFilters, { tendencia_agrupacion: tendenciaAgrupacion })
+          .then((v) => ({ ok: true as const, v }))
+          .catch((e: unknown) => ({
+            ok: false as const,
+            err: fetchErrorMessage(e, "Estadísticas de incidencias no disponibles"),
+          }))
+      : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
+    loadIncidencias
+      ? fetchIncidenciasEstadisticas(incFiltersRetardo)
+          .then((v) => ({ ok: true as const, v }))
+          .catch((e: unknown) => ({
+            ok: false as const,
+            err: fetchErrorMessage(e, "Ranking de retardos no disponible"),
+          }))
+      : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
+    loadActas
+      ? getActasDashboardMetricas()
+          .then((v) => ({ ok: true as const, v }))
+          .catch((e: unknown) => ({
+            ok: false as const,
+            err: fetchErrorMessage(e, "Métricas de actas no disponibles"),
+          }))
+      : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
+    loadComedor
+      ? (async () => {
+          try {
+            const [resumenRh, futurosSemana] = await Promise.all([
+              getComedorRhResumenDiario(fechaInicio, fechaFin),
+              getComedorRhRegistrosFuturosPorSemana(8),
+            ]);
+            const asistenciaDiaria = buildAsistenciaDiariaSerie(
+              resumenRh,
+              fechaInicio,
+              fechaFin,
+              todayIso,
+            );
+            const registrosFuturosPorSemana = mapRegistrosFuturosPorSemana(futurosSemana);
+            return {
+              ok: true as const,
+              asistenciaDiaria,
+              registrosFuturosPorSemana,
+            };
+          } catch (e: unknown) {
+            return {
+              ok: false as const,
+              err: fetchErrorMessage(e, "Datos de comedor no disponibles"),
+            };
+          }
+        })()
+      : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
   ]);
 
   const laboralesErrors: string[] = [];
@@ -157,7 +188,7 @@ export async function fetchRhDashboardAnalytics(
     empleadosRetardosRanking = aggregateEmpleadosRetardosTop(
       retardosEstadisticasResult.v.empleados_con_mas_incidencias,
     );
-  } else {
+  } else if (!("skipped" in retardosEstadisticasResult)) {
     laboralesErrors.push(retardosEstadisticasResult.err);
   }
 
@@ -191,7 +222,7 @@ export async function fetchRhDashboardAnalytics(
           incidencias_calidad: 0,
           variacion_incidencias_pct: null,
         };
-  } else {
+  } else if (loadSolicitudes) {
     laboralesErrors.push(solicitudesResult.err);
   }
 
@@ -217,7 +248,7 @@ export async function fetchRhDashboardAnalytics(
         variacion_incidencias_pct: inc.variacion_total_pct ?? null,
       };
     }
-  } else {
+  } else if (!("skipped" in incidenciasResult)) {
     laboralesErrors.push(incidenciasResult.err);
   }
 
@@ -227,7 +258,7 @@ export async function fetchRhDashboardAnalytics(
       en_proceso: actasResult.v.en_proceso,
       pendientes_firma: actasResult.v.pendientes_firma,
     };
-  } else {
+  } else if (!("skipped" in actasResult)) {
     laboralesErrors.push(actasResult.err);
   }
 
@@ -237,7 +268,7 @@ export async function fetchRhDashboardAnalytics(
   if (comedorSidebarResult.ok) {
     asistenciaDiaria = comedorSidebarResult.asistenciaDiaria;
     registrosFuturosPorSemana = comedorSidebarResult.registrosFuturosPorSemana;
-  } else {
+  } else if (!("skipped" in comedorSidebarResult)) {
     comedorErrors.push(comedorSidebarResult.err);
   }
 
@@ -274,15 +305,16 @@ export type RhDashboardEmpleadosSlice = RhDashboardAnalyticsPayload["empleados"]
 
 /** Resumen de plantilla: no depende del periodo del dashboard. */
 export async function fetchRhDashboardEmpleados(): Promise<RhDashboardEmpleadosSlice> {
+  if (!canAccessEmpleadosPage()) {
+    return { resumen: null, errors: [] };
+  }
   try {
     const v = await getEmpleadosResumen();
     return { resumen: v, errors: [] };
   } catch (e: unknown) {
     return {
       resumen: null,
-      errors: [
-        e instanceof Error ? e.message : "Resumen de empleados no disponible",
-      ],
+      errors: [fetchErrorMessage(e, "Resumen de empleados no disponible")],
     };
   }
 }

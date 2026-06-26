@@ -5,7 +5,7 @@ import type {
   ReporteComedorViewState,
 } from "../../comedor/reportes/types.ts";
 import { serieDiariaTotales, serieDiariaTotalesOperativo } from "../../comedor/reportes/reporteAggregations.ts";
-import { getRolFromAccessToken } from "../../auth/jwt.ts";
+import { hasRhOperativeViewerContext } from "../../auth/jwt.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 import {
   renderReporteFilterToolbarGlobal,
@@ -521,7 +521,7 @@ function renderReporteWorkspaceIntro(): string {
 }
 
 export function renderComedorReporteDashboard(state: ReporteComedorViewState): string {
-  const esRh = getRolFromAccessToken() === "rh";
+  const esRh = hasRhOperativeViewerContext();
   const tabContent = `<div class="flex flex-col gap-5">${esRh ? renderReporteTabDetalle(state) : renderReporteRhRestrictedNotice()}</div>`;
 
   return `

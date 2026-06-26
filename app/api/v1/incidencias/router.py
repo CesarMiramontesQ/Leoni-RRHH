@@ -30,7 +30,7 @@ async def health():
 @router.get("", response_model=IncidenciasListPageResponse)
 async def list_incidencias(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
@@ -69,7 +69,7 @@ async def list_incidencias(
 @router.get("/tipos", response_model=IncidenciasTiposResponse)
 async def list_incidencias_tipos(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
@@ -82,7 +82,7 @@ async def list_incidencias_tipos(
 @router.get("/areas", response_model=IncidenciasAreasResponse)
 async def list_incidencias_areas(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
@@ -95,7 +95,7 @@ async def list_incidencias_areas(
 @router.get("/subareas", response_model=IncidenciasSubareasResponse)
 async def list_incidencias_subareas(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
@@ -109,7 +109,7 @@ async def list_incidencias_subareas(
 @router.get("/estadisticas", response_model=IncidenciasEstadisticasResponse)
 async def estadisticas_incidencias(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: IncidenciaService = Depends(_svc),
@@ -151,7 +151,7 @@ async def estadisticas_incidencias(
 
 @router.post("")
 async def create_incidencia(
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
 ):
     return {"message": "Endpoint en desarrollo"}
 
@@ -159,7 +159,7 @@ async def create_incidencia(
 @router.get("/{id}")
 async def get_incidencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "supervisor", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "supervisor", "director"])),
 ):
     return {"message": "Endpoint en desarrollo", "id": id}
 
@@ -167,7 +167,7 @@ async def get_incidencia(
 @router.put("/{id}/estado")
 async def update_estado(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente"])),
 ):
     return {"message": "Endpoint en desarrollo", "id": id}
 
@@ -175,7 +175,7 @@ async def update_estado(
 @router.post("/{id}/evidencias")
 async def upload_evidencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
 ):
     return {"message": "Endpoint en desarrollo", "id": id}
 

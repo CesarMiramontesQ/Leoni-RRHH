@@ -21,7 +21,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, role_checker
+from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
+from app.core.data_scope import effective_data_scope_rol
 from app.models.empleados import Empleado
 from app.schemas.capacitaciones import (
     CapacitacionCreate,
@@ -64,7 +65,7 @@ async def mis_inscripciones(
 async def actualizar_inscripcion(
     inscripcion_id: int,
     body: InscripcionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza estado/calificacion de una inscripcion. Solo RH."""
@@ -121,7 +122,7 @@ async def listar_capacitaciones(
 )
 async def crear_capacitacion(
     body: CapacitacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea una nueva capacitacion. Solo RH."""
@@ -144,7 +145,7 @@ async def obtener_capacitacion(
 async def actualizar_capacitacion(
     id: int,
     body: CapacitacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza una capacitacion. Solo RH."""
@@ -155,7 +156,7 @@ async def actualizar_capacitacion(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_capacitacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina (soft-delete) una capacitacion. Solo RH."""
@@ -195,12 +196,14 @@ async def listar_inscripciones_capacitacion(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(10, ge=1, le=100, description="Items por pagina"),
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista inscripciones de una capacitacion. RH, supervisores, gerentes y directores."""
-    rol = current_user.rol.nombre if current_user.rol else "empleado"
-    if rol not in ("rh", "supervisor", "gerente", "director"):
-        from fastapi import HTTPException
+    """Lista inscripciones de una capacitacion. RH operativo, supervisores, gerentes y directores."""
+    from fastapi import HTTPException
+
+    scope = effective_data_scope_rol(current_user, rh_ui_mode)
+    if scope not in ("rh", "supervisor", "gerente", "director"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Permisos insuficientes para ver inscripciones",

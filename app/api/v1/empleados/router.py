@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
-from app.core.rh_ui_mode import is_rh_gestor_team_ui_mode
+from app.core.rh_ui_mode import has_rh_plantilla_data_scope, is_rh_gestor_team_ui_mode
 from app.models.empleados import Empleado
 from app.schemas.actas import ActasPageResponse
 from app.schemas.usuarios import (
@@ -32,7 +32,7 @@ from app.services.vacaciones_service import VacacionesService
 
 router = APIRouter(prefix="/api/v1/empleados", tags=["Empleados - Directorio"])
 
-_ROLES_DIRECTORIO = ["rh", "gerente", "director", "supervisor"]
+_ROLES_DIRECTORIO = ["operativo", "gerente", "director", "supervisor"]
 
 
 def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
@@ -57,9 +57,7 @@ async def resumen_empleados(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if _rol_nombre(current_user) == "rh" and not is_rh_gestor_team_ui_mode(
-        current_user, rh_ui_mode
-    ):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
         return await svc.resumen_plantilla(current_user)
     return await svc.resumen_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
@@ -70,9 +68,7 @@ async def catalogo_empleados(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if _rol_nombre(current_user) == "rh" and not is_rh_gestor_team_ui_mode(
-        current_user, rh_ui_mode
-    ):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
         return await svc.catalogo_filtros(current_user)
     return await svc.catalogo_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
@@ -112,7 +108,7 @@ async def list_empleados(
     svc: UsuarioService = Depends(_svc),
 ):
     r = _rol_nombre(current_user)
-    if r == "rh" and not is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
         return await svc.list_usuarios_page(
             page=page,
             page_size=page_size,
@@ -162,7 +158,7 @@ async def get_vacaciones_empleado(
 async def actualizar_vacaciones_empleado(
     empleado_id: int,
     body: VacacionesUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: VacacionesService = Depends(_vac_svc),
 ):
     """Asigna o actualiza el saldo de vacaciones (solo RH)."""

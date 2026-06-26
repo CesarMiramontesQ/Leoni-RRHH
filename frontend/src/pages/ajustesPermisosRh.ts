@@ -1108,16 +1108,23 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
   };
 
   const addEmpleado = async (empleadoId: number): Promise<void> => {
-    if (state.usuarios.some((u) => u.empleado_id === empleadoId)) return;
     state.addingId = empleadoId;
     state.addError = null;
     paint({ focusAddInput: true });
     try {
       const nuevo = await agregarEmpleadoPermisos(empleadoId);
-      state.usuarios = [...state.usuarios, nuevo];
+      const idx = state.usuarios.findIndex((u) => u.empleado_id === nuevo.empleado_id);
+      if (idx >= 0) {
+        state.usuarios = state.usuarios.map((u, i) => (i === idx ? nuevo : u));
+      } else {
+        state.usuarios = [...state.usuarios, nuevo];
+      }
       state.draftByEmpleadoId.set(nuevo.empleado_id, { ...nuevo.modulos });
       state.lastUpdatedAtByEmpleadoId.set(nuevo.empleado_id, Date.now());
-      state.success = `${formatNombreTablaRh(nuevo.nombre)} se agregó a la administración de permisos.`;
+      state.success =
+        idx >= 0
+          ? `${formatNombreTablaRh(nuevo.nombre)} ya estaba en la lista; se actualizó su registro.`
+          : `${formatNombreTablaRh(nuevo.nombre)} se agregó a la administración de permisos.`;
     } catch (err) {
       state.addError = err instanceof Error ? err.message : "No se pudo agregar el empleado.";
     } finally {

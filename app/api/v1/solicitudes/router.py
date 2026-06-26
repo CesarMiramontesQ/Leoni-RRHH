@@ -56,7 +56,7 @@ async def create_solicitud(
     body: SolicitudCreate,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(
-        role_checker(["empleado", "supervisor", "gerente", "director", "rh"])
+        role_checker(["empleado", "supervisor", "gerente", "director", "operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -106,7 +106,7 @@ async def approve_solicitud(
     body: SolicitudAprobacionCreate,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(
-        role_checker(["supervisor", "gerente", "director", "rh"])
+        role_checker(["supervisor", "gerente", "director", "operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -127,7 +127,7 @@ async def reject_solicitud(
     body: SolicitudAprobacionCreate,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(
-        role_checker(["supervisor", "gerente", "director", "rh"])
+        role_checker(["supervisor", "gerente", "director", "operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -148,7 +148,7 @@ async def request_changes_solicitud(
     body: SolicitudSolicitarCambiosBody,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(
-        role_checker(["supervisor", "gerente", "director", "rh"])
+        role_checker(["supervisor", "gerente", "director", "operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -188,7 +188,7 @@ async def override_solicitud(
     solicitud_id: int,
     body: SolicitudAprobacionCreate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["director", "rh"])),
+    current_user: Empleado = Depends(role_checker(["director", "operativo"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
