@@ -103,8 +103,17 @@ END $$;
 def upgrade() -> None:
     bind = op.get_bind()
     from app.core.database import Base
+    from sqlalchemy import text
 
-    Base.metadata.create_all(bind=bind, tables=_levelup_tables())
+    for table in _levelup_tables():
+        exists = bind.execute(
+            text(
+                "SELECT 1 FROM pg_class WHERE relname = :t AND relkind = 'r'"
+            ),
+            {"t": table.name},
+        ).scalar()
+        if not exists:
+            Base.metadata.create_all(bind=bind, tables=[table])
     # No acoplar tablas de Bono: quitar FKs de levelup_* que apunten a tablas
     # existentes de Bono (empleados, catálogos). La integridad se valida en app.
     op.execute(_DROP_CROSS_FKS)

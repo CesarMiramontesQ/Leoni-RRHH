@@ -310,6 +310,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
+  if (h.startsWith("#/pdi-gestion")) return true;
   if (h.startsWith("#/evaluaciones")) return true;
   if (h.startsWith("#/level-up/evaluacion-360")) return false;
   if (h.startsWith("#/capacitaciones")) return true;

@@ -205,11 +205,11 @@ class CompetenciaRequisito(Base):
     __table_args__ = (
         UniqueConstraint(
             "competencia_id", "puesto_perfil_id", "grado_id",
-            name="uq_competencia_puesto_grado",
+            name="uq_levelup_competencia_puesto_grado",
         ),
         CheckConstraint(
             "nivel_requerido >= 0",
-            name="ck_nivel_requerido_nonneg",
+            name="ck_levelup_nivel_requerido_nonneg",
         ),
     )
 
@@ -256,11 +256,11 @@ class EvaluacionCompetencia(Base):
     __tablename__ = "levelup_evaluaciones_competencia"
     __table_args__ = (
         UniqueConstraint(
-            "empleado_id", "competencia_id", name="uq_evaluacion_vigente"
+            "empleado_id", "competencia_id", name="uq_levelup_evaluacion_vigente"
         ),
         CheckConstraint(
             "nivel_actual >= 0",
-            name="ck_nivel_actual_nonneg",
+            name="ck_levelup_nivel_actual_nonneg",
         ),
     )
 
@@ -279,6 +279,10 @@ class EvaluacionCompetencia(Base):
         ForeignKey("empleados.empleado_id"), nullable=True
     )
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="cerrado", default="borrador"
+    )
+    comentario_devolucion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     fecha_evaluacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -308,8 +312,8 @@ class EvaluacionCompetencia(Base):
 class Capacitacion(Base):
     __tablename__ = "levelup_capacitaciones"
     __table_args__ = (
-        Index("ix_capacitaciones_activo_estado", "activo", "estado"),
-        Index("ix_capacitaciones_area_id", "area_id"),
+        Index("ix_levelup_capacitaciones_activo_estado", "activo", "estado"),
+        Index("ix_levelup_capacitaciones_area_id", "area_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -365,9 +369,9 @@ class Inscripcion(Base):
     __tablename__ = "levelup_inscripciones_capacitacion"
     __table_args__ = (
         UniqueConstraint(
-            "capacitacion_id", "empleado_id", name="uq_inscripcion_cap_emp"
+            "capacitacion_id", "empleado_id", name="uq_levelup_inscripcion_cap_emp"
         ),
-        Index("ix_inscripciones_empleado_id", "empleado_id"),
+        Index("ix_levelup_inscripciones_empleado_id", "empleado_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -559,7 +563,7 @@ class MetodoCalificacionCompetencia(Base):
     __table_args__ = (
         CheckConstraint(
             "valor >= 1",
-            name="ck_metodo_calificacion_competencia_valor_pos",
+            name="ck_levelup_metodo_calificacion_competencia_valor_pos",
         ),
     )
 
@@ -708,6 +712,22 @@ class PerfilCualificacion(Base):
         )
 
 
+class AccionRecomendada(Base):
+    """Catalogo de acciones recomendadas por rango de brecha."""
+
+    __tablename__ = "levelup_acciones_recomendadas"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    brecha_min: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    brecha_max: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    etiqueta: Mapped[str] = mapped_column(String(100), nullable=False)
+    color: Mapped[str] = mapped_column(String(20), nullable=False)
+    orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<AccionRecomendada id={self.id} etiqueta={self.etiqueta} [{self.brecha_min}-{self.brecha_max}%]>"
+
+
 class PerfilFunciones(Base):
     """Asignacion individual empleado-puesto (perfil de funciones firmado)."""
 
@@ -715,9 +735,9 @@ class PerfilFunciones(Base):
     __table_args__ = (
         UniqueConstraint(
             "puesto_perfil_id", "empleado_id",
-            name="uq_perfil_funciones_puesto_empleado_activo",
+            name="uq_levelup_perfil_funciones_puesto_empleado_activo",
         ),
-        Index("ix_perfil_funciones_empleado_id", "empleado_id"),
+        Index("ix_levelup_perfil_funciones_empleado_id", "empleado_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -847,11 +867,11 @@ class PerfilFuncionesTarea(Base):
     __table_args__ = (
         UniqueConstraint(
             "perfil_funciones_id", "tarea_catalogo_id",
-            name="uq_perfil_funciones_tarea_pair",
+            name="uq_levelup_perfil_funciones_tarea_pair",
         ),
         CheckConstraint(
             "nivel IS NULL OR (nivel >= 1 AND nivel <= 3)",
-            name="ck_perfil_funciones_tarea_nivel",
+            name="ck_levelup_perfil_funciones_tarea_nivel",
         ),
     )
 
@@ -881,3 +901,56 @@ class PerfilFuncionesTarea(Base):
             f"<PerfilFuncionesTarea id={self.id} "
             f"perfil_funciones_id={self.perfil_funciones_id} tarea_catalogo_id={self.tarea_catalogo_id}>"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Plan de Desarrollo Individual (PDI)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class PlanDesarrolloIndividual(Base):
+    """Acción de desarrollo asignada a un empleado para cerrar brechas de competencia."""
+
+    __tablename__ = "levelup_plan_desarrollo_individual"
+    __table_args__ = (
+        Index("ix_levelup_pdi_empleado_id", "empleado_id"),
+        Index("ix_levelup_pdi_competencia_id", "competencia_id"),
+        CheckConstraint("fecha_fin >= fecha_inicio", name="ck_levelup_pdi_fechas"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.empleado_id", ondelete="CASCADE"), nullable=False
+    )
+    competencia_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_competencias.id", ondelete="CASCADE"), nullable=False
+    )
+    accion: Mapped[str] = mapped_column(String(300), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    duracion_horas: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
+    responsable: Mapped[str] = mapped_column(String(200), nullable=False)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="pendiente")
+    prioridad: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default="media")
+    recursos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    creado_por: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    empleado: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[empleado_id])
+    competencia: Mapped["Competencia"] = relationship("Competencia")
+    creador: Mapped[Optional["Empleado"]] = relationship(
+        "Empleado",
+        foreign_keys=[creado_por],
+        primaryjoin="foreign(PlanDesarrolloIndividual.creado_por) == Empleado.empleado_id",
+        viewonly=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<PDI id={self.id} empleado={self.empleado_id} competencia={self.competencia_id} estado={self.estado}>"

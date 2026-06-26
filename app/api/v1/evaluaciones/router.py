@@ -1,16 +1,26 @@
 # app/api/v1/evaluaciones/router.py
 """
-Router de Evaluaciones de Competencias — Modulo Talento Fase 2.
+Router de Evaluaciones de Competencias — Modulo Talento Fase 2 + Workflow.
 
 Endpoints:
   GET  /api/v1/evaluaciones/                      — Listar (paginado, filtros)
   POST /api/v1/evaluaciones/                      — Crear/actualizar evaluacion
   GET  /api/v1/evaluaciones/{id}                  — Detalle
   PUT  /api/v1/evaluaciones/{id}                  — Actualizar
-  DELETE /api/v1/evaluaciones/{id}                — Eliminar (RH)
+  DELETE /api/v1/evaluaciones/{id}                — Eliminar (solo borrador)
   GET  /api/v1/evaluaciones/empleado/{empleado_id} — Evaluaciones de un empleado
   POST /api/v1/evaluaciones/bulk                  — Bulk create (RH)
+
+Workflow:
+  POST /api/v1/evaluaciones/{id}/enviar           — borrador/devuelto → enviado
+  POST /api/v1/evaluaciones/{id}/revisar          — enviado → en_revision
+  POST /api/v1/evaluaciones/{id}/aprobar          — en_revision → revisado
+  POST /api/v1/evaluaciones/{id}/cerrar           — revisado/borrador → cerrado
+  POST /api/v1/evaluaciones/{id}/devolver         — → devuelto (con comentario)
+  GET  /api/v1/evaluaciones/{id}/historial        — Historial de transiciones
 """
+
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,13 +35,167 @@ from app.schemas.evaluaciones import (
     EvaluacionListResponse,
     EvaluacionResponse,
     EvaluacionUpdate,
+    HistorialResponse,
+    TransicionRequest,
+    TransicionResponse,
+)
+from fastapi.responses import StreamingResponse
+from app.schemas.pdi import (
+    PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse,
+    PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse,
+    EquipoResumenResponse, HeatmapResponse, TimelineResponse,
+    PDIKpisAvanzadosResponse, PDIRecomendacionesResponse, PDINotificarEquipoResponse,
 )
 from app.services.evaluacion_service import EvaluacionService
+from app.services.pdi_service import PDIService
 
 router = APIRouter(prefix="/api/v1/evaluaciones", tags=["Evaluaciones"])
 
 
 # ── Endpoints especiales (antes de /{id}) ───────────────────────────────────
+
+
+@router.get("/pdi", response_model=PDIGestionListResponse)
+async def listar_pdi_consolidado(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    area_id: int | None = Query(None),
+    estado: str | None = Query(None),
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
+    search: str | None = Query(None),
+    solo_vencidas: bool = Query(False),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.listar_consolidado(
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+        area_id=area_id,
+        estado=estado,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        search=search,
+        solo_vencidas=solo_vencidas,
+    )
+
+
+@router.get("/pdi/resumen", response_model=PDIResumenResponse)
+async def resumen_pdi(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.obtener_resumen(current_user=current_user)
+
+
+@router.get("/pdi/progreso-equipo", response_model=PDIProgresoEquipoResponse)
+async def progreso_equipo_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.progreso_equipo(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/equipo-resumen", response_model=EquipoResumenResponse)
+async def equipo_resumen_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.equipo_resumen(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/heatmap", response_model=HeatmapResponse)
+async def heatmap_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.heatmap(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/timeline", response_model=TimelineResponse)
+async def timeline_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.timeline(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/kpis-avanzados", response_model=PDIKpisAvanzadosResponse)
+async def kpis_avanzados_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.kpis_avanzados(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/empleado/{empleado_id}/recomendaciones", response_model=PDIRecomendacionesResponse)
+async def recomendaciones_pdi(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.recomendaciones(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get("/pdi/export")
+async def export_pdi(
+    format: str = Query(..., description="pdf o excel"),
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    if format == "excel":
+        output = await service.export_excel(current_user=current_user, area_id=area_id)
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=pdi_reporte.xlsx"},
+        )
+    output = await service.export_pdf(current_user=current_user, area_id=area_id)
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=pdi_reporte.pdf"},
+    )
+
+
+@router.post("/pdi/notificar-equipo", response_model=PDINotificarEquipoResponse)
+async def notificar_equipo_pdi(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.notificar_equipo(current_user=current_user)
+
+
+@router.patch("/pdi/{pdi_id}/estado", response_model=PDIGestionItem)
+async def patch_pdi_estado(
+    pdi_id: int,
+    body: PDIEstadoPatch,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.cambiar_estado(
+        pdi_id=pdi_id,
+        nuevo_estado=body.estado,
+        current_user=current_user,
+    )
 
 
 @router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])
@@ -60,6 +224,70 @@ async def resumen_empleado(
     )
 
 
+# ── PDI (Plan de Desarrollo Individual) ────────────────────────────────────
+
+
+@router.get("/empleado/{empleado_id}/pdi", response_model=PDIListResponse)
+async def listar_pdi(
+    empleado_id: int,
+    estado: str | None = Query(None),
+    competencia_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar acciones PDI de un empleado."""
+    service = PDIService(db)
+    return await service.listar(
+        empleado_id=empleado_id,
+        current_user=current_user,
+        estado=estado,
+        competencia_id=competencia_id,
+    )
+
+
+@router.post(
+    "/empleado/{empleado_id}/pdi",
+    response_model=PDIResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def crear_pdi(
+    empleado_id: int,
+    body: PDICreate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crear acción PDI. Solo RH."""
+    service = PDIService(db)
+    return await service.crear(empleado_id=empleado_id, data=body, current_user=current_user)
+
+
+@router.put("/empleado/{empleado_id}/pdi/{pdi_id}", response_model=PDIResponse)
+async def actualizar_pdi(
+    empleado_id: int,
+    pdi_id: int,
+    body: PDIUpdate,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar acción PDI. Solo RH."""
+    service = PDIService(db)
+    return await service.actualizar(
+        empleado_id=empleado_id, pdi_id=pdi_id, data=body, current_user=current_user
+    )
+
+
+@router.delete("/empleado/{empleado_id}/pdi/{pdi_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_pdi(
+    empleado_id: int,
+    pdi_id: int,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Eliminar acción PDI. Solo RH."""
+    service = PDIService(db)
+    await service.eliminar(empleado_id=empleado_id, pdi_id=pdi_id, current_user=current_user)
+
+
 @router.post("/bulk", status_code=status.HTTP_200_OK)
 async def bulk_evaluaciones(
     body: EvaluacionBulkCreate,
@@ -69,6 +297,76 @@ async def bulk_evaluaciones(
     """Crear/actualizar multiples evaluaciones en batch. Solo RH."""
     service = EvaluacionService(db)
     return await service.bulk_crear(data=body, current_user=current_user)
+
+
+# ── Workflow transitions ───────────────────────────────────────────────────────
+
+
+@router.post("/{id}/enviar", response_model=TransicionResponse)
+async def enviar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enviar evaluacion a revision (borrador/devuelto → enviado)."""
+    service = EvaluacionService(db)
+    return await service.enviar(id=id, current_user=current_user)
+
+
+@router.post("/{id}/revisar", response_model=TransicionResponse)
+async def revisar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tomar evaluacion para revision (enviado → en_revision)."""
+    service = EvaluacionService(db)
+    return await service.revisar(id=id, current_user=current_user)
+
+
+@router.post("/{id}/aprobar", response_model=TransicionResponse)
+async def aprobar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aprobar revision (en_revision → revisado)."""
+    service = EvaluacionService(db)
+    return await service.aprobar_revision(id=id, current_user=current_user)
+
+
+@router.post("/{id}/cerrar", response_model=TransicionResponse)
+async def cerrar_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cerrar evaluacion (revisado/borrador → cerrado). Solo RH."""
+    service = EvaluacionService(db)
+    return await service.cerrar(id=id, current_user=current_user)
+
+
+@router.post("/{id}/devolver", response_model=TransicionResponse)
+async def devolver_evaluacion(
+    id: int,
+    body: TransicionRequest,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Devolver evaluacion con comentario (→ devuelto)."""
+    service = EvaluacionService(db)
+    return await service.devolver(id=id, comentario=body.comentario, current_user=current_user)
+
+
+@router.get("/{id}/historial", response_model=HistorialResponse)
+async def historial_evaluacion(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Historial de transiciones de estado de una evaluacion."""
+    service = EvaluacionService(db)
+    return await service.historial(id=id)
 
 
 # ── CRUD ────────────────────────────────────────────────────────────────────
@@ -81,6 +379,7 @@ async def listar_evaluaciones(
     empleado_id: int | None = Query(None),
     competencia_id: int | None = Query(None),
     area_id: int | None = Query(None),
+    estado: str | None = Query(None, description="Filtrar por estado(s), separados por coma"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -92,6 +391,7 @@ async def listar_evaluaciones(
         empleado_id=empleado_id,
         competencia_id=competencia_id,
         area_id=area_id,
+        estado=estado,
     )
 
 
@@ -102,10 +402,10 @@ async def listar_evaluaciones(
 )
 async def crear_evaluacion(
     body: EvaluacionCreate,
-    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor", "empleado"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Crear o actualizar evaluacion. RH o supervisor (solo su area)."""
+    """Crear evaluacion. Empleado (autoevaluacion), supervisor (su area), RH (cualquiera)."""
     service = EvaluacionService(db)
     return await service.crear(data=body, current_user=current_user)
 
@@ -125,10 +425,10 @@ async def obtener_evaluacion(
 async def actualizar_evaluacion(
     id: int,
     body: EvaluacionUpdate,
-    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor", "empleado"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Actualizar evaluacion. RH o supervisor (solo su area)."""
+    """Actualizar evaluacion. Solo en estados editables segun rol."""
     service = EvaluacionService(db)
     return await service.actualizar(id=id, data=body, current_user=current_user)
 
@@ -136,9 +436,9 @@ async def actualizar_evaluacion(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_evaluacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["operativo"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "empleado"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Eliminar evaluacion. Solo RH."""
+    """Eliminar evaluacion. Solo en estado borrador."""
     service = EvaluacionService(db)
     await service.eliminar(id=id, current_user=current_user)

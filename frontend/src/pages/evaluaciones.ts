@@ -8,11 +8,25 @@ import {
   getEvaluaciones,
   createEvaluacion,
   deleteEvaluacion,
+  enviarEvaluacion,
+  revisarEvaluacion,
+  aprobarEvaluacion,
+  cerrarEvaluacion,
+  devolverEvaluacion,
   getNivelLabels,
   NIVEL_COLORS,
   type Evaluacion,
   type EvaluacionListResponse,
 } from "../api/evaluaciones.ts";
+import {
+  badgePending,
+  badgeApproved,
+  badgeRejected,
+  badgeCancelled,
+  badgeOpen,
+  badgeInProgress,
+  badgeChangesRequested,
+} from "../ui/uiTokens.ts";
 
 interface AreaOption {
   id: number;
@@ -34,9 +48,10 @@ interface State {
   areas: AreaOption[];
   competencias: CompetenciaOption[];
   empleados: EmpleadoOption[];
-  filters: { area_id: string; empleado_id: string; competencia_id: string; search: string };
+  filters: { area_id: string; empleado_id: string; competencia_id: string; estado: string; search: string };
   page: number;
   showModal: boolean;
+  showDevolucionModal: number | null;
   detailEval: Evaluacion | null;
   loading: boolean;
 }
@@ -51,9 +66,10 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
     areas: [],
     competencias: [],
     empleados: [],
-    filters: { area_id: "", empleado_id: "", competencia_id: "", search: "" },
+    filters: { area_id: "", empleado_id: "", competencia_id: "", estado: "", search: "" },
     page: 1,
     showModal: false,
+    showDevolucionModal: null,
     detailEval: null,
     loading: true,
   };
@@ -100,10 +116,11 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   }
 
   async function loadEvaluaciones() {
-    const params: Record<string, number> = { page: state.page, page_size: 10 };
+    const params: Record<string, number | string> = { page: state.page, page_size: 10 };
     if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
     if (state.filters.empleado_id) params.empleado_id = Number(state.filters.empleado_id);
     if (state.filters.competencia_id) params.competencia_id = Number(state.filters.competencia_id);
+    if (state.filters.estado) params.estado = state.filters.estado;
     state.evaluaciones = await getEvaluaciones(params);
   }
 
@@ -111,6 +128,45 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
     const label = getNivelLabels()[nivel] ?? `${nivel}`;
     const color = NIVEL_COLORS[nivel] ?? "bg-gray-100 text-gray-600";
     return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}">${label}</span>`;
+  }
+
+  function renderEstadoBadge(estado: string): string {
+    switch (estado) {
+      case "borrador": return badgeCancelled("Borrador");
+      case "enviado": return badgeOpen("Enviado");
+      case "en_revision": return badgeInProgress("En revisión");
+      case "revisado": return badgeChangesRequested("Revisado");
+      case "cerrado": return badgeApproved("Cerrado");
+      case "devuelto": return badgeRejected("Devuelto");
+      default: return badgePending(estado);
+    }
+  }
+
+  function renderWorkflowActions(ev: Evaluacion): string {
+    const buttons: string[] = [];
+    const isRh = hasRhModule("evaluaciones");
+    const isSupervisor = rol === "supervisor";
+
+    if (ev.estado === "borrador" || ev.estado === "devuelto") {
+      buttons.push(`<button data-action="wf-enviar" data-id="${ev.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Enviar</button>`);
+    }
+    if (ev.estado === "enviado" && (isSupervisor || isRh)) {
+      buttons.push(`<button data-action="wf-revisar" data-id="${ev.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Revisar</button>`);
+      buttons.push(`<button data-action="wf-devolver" data-id="${ev.id}" class="text-xs text-red-600 hover:text-red-800 font-medium">Devolver</button>`);
+    }
+    if (ev.estado === "en_revision" && (isSupervisor || isRh)) {
+      buttons.push(`<button data-action="wf-aprobar" data-id="${ev.id}" class="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Aprobar</button>`);
+      buttons.push(`<button data-action="wf-devolver" data-id="${ev.id}" class="text-xs text-red-600 hover:text-red-800 font-medium">Devolver</button>`);
+    }
+    if (ev.estado === "revisado" && isRh) {
+      buttons.push(`<button data-action="wf-cerrar" data-id="${ev.id}" class="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Cerrar</button>`);
+      buttons.push(`<button data-action="wf-devolver" data-id="${ev.id}" class="text-xs text-red-600 hover:text-red-800 font-medium">Devolver</button>`);
+    }
+    if (ev.estado === "borrador" && isRh) {
+      buttons.push(`<button data-action="wf-cerrar" data-id="${ev.id}" class="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Cerrar</button>`);
+    }
+
+    return buttons.join(" ");
   }
 
   function render() {
@@ -138,12 +194,22 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
             <option value="">Todas las competencias</option>
             ${state.competencias.map((c) => `<option value="${c.id}" ${state.filters.competencia_id === String(c.id) ? "selected" : ""}>${c.nombre}</option>`).join("")}
           </select>
+          <select data-action="filter-estado" class="rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+            <option value="">Todos los estados</option>
+            <option value="borrador" ${state.filters.estado === "borrador" ? "selected" : ""}>Borrador</option>
+            <option value="enviado" ${state.filters.estado === "enviado" ? "selected" : ""}>Enviado</option>
+            <option value="en_revision" ${state.filters.estado === "en_revision" ? "selected" : ""}>En revisión</option>
+            <option value="revisado" ${state.filters.estado === "revisado" ? "selected" : ""}>Revisado</option>
+            <option value="cerrado" ${state.filters.estado === "cerrado" ? "selected" : ""}>Cerrado</option>
+            <option value="devuelto" ${state.filters.estado === "devuelto" ? "selected" : ""}>Devuelto</option>
+          </select>
         </div>
 
         ${state.loading ? `<div class="text-center py-12 text-gray-500">Cargando...</div>` : renderTable()}
 
         ${state.showModal ? renderModal() : ""}
         ${state.detailEval ? renderDetailModal(state.detailEval) : ""}
+        ${state.showDevolucionModal !== null ? renderDevolucionModal(state.showDevolucionModal) : ""}
       </div>
     `;
   }
@@ -181,6 +247,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Empleado</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nivel</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evaluador</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
               <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
@@ -197,16 +264,19 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
 
   function renderRow(ev: Evaluacion): string {
     const fecha = ev.fecha_evaluacion ? new Date(ev.fecha_evaluacion).toLocaleDateString("es-MX") : "-";
+    const canDelete = canEvaluate && ev.estado === "borrador";
     return `<tr>
       <td class="px-4 py-3 text-sm"><a href="#/evaluaciones/empleado/${ev.empleado_id}" class="text-blue-600 hover:text-blue-800 font-medium">${ev.empleado_nombre ?? `ID ${ev.empleado_id}`}</a></td>
       <td class="px-4 py-3 text-sm text-gray-700">${ev.competencia_nombre ?? `ID ${ev.competencia_id}`}</td>
       <td class="px-4 py-3 text-sm">${renderNivelBadge(ev.nivel_actual)}</td>
+      <td class="px-4 py-3 text-sm">${renderEstadoBadge(ev.estado)}</td>
       <td class="px-4 py-3 text-sm text-gray-500">${ev.evaluador_nombre ?? "-"}</td>
       <td class="px-4 py-3 text-sm text-gray-500">${fecha}</td>
       <td class="px-4 py-3 text-center">
-        <div class="flex items-center justify-center gap-2">
-          <button data-action="view-detail" data-id="${ev.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Ver detalle</button>
-          ${canEvaluate ? `<button data-action="delete-eval" data-id="${ev.id}" class="text-xs text-red-600 hover:text-red-800">Eliminar</button>` : ""}
+        <div class="flex items-center justify-center gap-2 flex-wrap">
+          <button data-action="view-detail" data-id="${ev.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Ver</button>
+          ${renderWorkflowActions(ev)}
+          ${canDelete ? `<button data-action="delete-eval" data-id="${ev.id}" class="text-xs text-red-600 hover:text-red-800">Eliminar</button>` : ""}
         </div>
       </td>
     </tr>`;
@@ -299,6 +369,10 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
                 <p class="mt-0.5">${renderNivelBadge(ev.nivel_actual)}</p>
               </div>
               <div>
+                <p class="text-xs font-medium text-gray-500 uppercase">Estado</p>
+                <p class="mt-0.5">${renderEstadoBadge(ev.estado)}</p>
+              </div>
+              <div>
                 <p class="text-xs font-medium text-gray-500 uppercase">Evaluador</p>
                 <p class="text-sm text-gray-900 mt-0.5">${ev.evaluador_nombre ?? "-"}</p>
               </div>
@@ -311,6 +385,10 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
                 <p class="text-sm text-gray-900 mt-0.5">${updatedAt}</p>
               </div>
             </div>
+            ${ev.comentario_devolucion ? `<div class="pt-2 border-t border-red-100">
+              <p class="text-xs font-medium text-red-600 uppercase mb-1">Comentario de devolución</p>
+              <p class="text-sm text-red-700 whitespace-pre-wrap bg-red-50 rounded-md p-3">${ev.comentario_devolucion}</p>
+            </div>` : ""}
             <div class="pt-2 border-t border-gray-100">
               <p class="text-xs font-medium text-gray-500 uppercase mb-1">Observaciones</p>
               <p class="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-md p-3 min-h-[60px]">${ev.observaciones || "Sin observaciones registradas."}</p>
@@ -322,6 +400,28 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
           <div class="flex justify-end mt-4">
             <button data-action="close-detail" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cerrar</button>
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDevolucionModal(evalId: number): string {
+    return `
+      <div id="devolucion-modal-backdrop" data-action="close-devolucion" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div data-devolucion-inner class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Devolver evaluación</h2>
+          <form data-action="submit-devolucion" class="space-y-4">
+            <input type="hidden" name="eval_id" value="${evalId}" />
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Comentario (mínimo 10 caracteres)</label>
+              <textarea name="comentario" rows="3" required minlength="10" placeholder="Explica el motivo de la devolución..."
+                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+              <button type="button" data-action="close-devolucion" class="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancelar</button>
+              <button type="submit" class="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">Devolver</button>
+            </div>
+          </form>
         </div>
       </div>
     `;
@@ -422,6 +522,63 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
       return;
     }
 
+    // Workflow actions
+    if (t.matches("[data-action='wf-enviar']")) {
+      const id = Number(t.dataset.id);
+      if (id && confirm("¿Enviar esta evaluación a revisión?")) {
+        await enviarEvaluacion(id);
+        await loadEvaluaciones();
+        render();
+      }
+      return;
+    }
+    if (t.matches("[data-action='wf-revisar']")) {
+      const id = Number(t.dataset.id);
+      if (id) {
+        await revisarEvaluacion(id);
+        await loadEvaluaciones();
+        render();
+      }
+      return;
+    }
+    if (t.matches("[data-action='wf-aprobar']")) {
+      const id = Number(t.dataset.id);
+      if (id && confirm("¿Aprobar esta evaluación?")) {
+        await aprobarEvaluacion(id);
+        await loadEvaluaciones();
+        render();
+      }
+      return;
+    }
+    if (t.matches("[data-action='wf-cerrar']")) {
+      const id = Number(t.dataset.id);
+      if (id && confirm("¿Cerrar esta evaluación? Una vez cerrada contará para cálculos de brechas.")) {
+        await cerrarEvaluacion(id);
+        await loadEvaluaciones();
+        render();
+      }
+      return;
+    }
+    if (t.matches("[data-action='wf-devolver']")) {
+      const id = Number(t.dataset.id);
+      if (id) {
+        state.showDevolucionModal = id;
+        render();
+      }
+      return;
+    }
+
+    // Close devolucion modal
+    const closeDevolucion = t.closest<HTMLElement>("[data-action='close-devolucion']");
+    if (closeDevolucion) {
+      if (closeDevolucion.id === "devolucion-modal-backdrop" && t.closest("[data-devolucion-inner]")) {
+        return;
+      }
+      state.showDevolucionModal = null;
+      render();
+      return;
+    }
+
     if (t.matches("[data-action='delete-eval']")) {
       const id = Number(t.dataset.id);
       if (id && confirm("¿Eliminar esta evaluación?")) {
@@ -465,12 +622,36 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
       render();
       return;
     }
+    if (t.matches("[data-action='filter-estado']")) {
+      state.filters.estado = t.value;
+      state.page = 1;
+      await loadEvaluaciones();
+      render();
+      return;
+    }
   }
 
   async function handleSubmit(e: Event) {
     const form = (e.target as HTMLElement).closest("form");
-    if (!form || !form.matches("[data-action='submit-eval']")) return;
+    if (!form) return;
     e.preventDefault();
+
+    if (form.matches("[data-action='submit-devolucion']")) {
+      const fd = new FormData(form);
+      const evalId = Number(fd.get("eval_id"));
+      const comentario = (fd.get("comentario") as string).trim();
+      if (!evalId || comentario.length < 10) return;
+
+      const result = await devolverEvaluacion(evalId, comentario);
+      if (result) {
+        state.showDevolucionModal = null;
+        await loadEvaluaciones();
+        render();
+      }
+      return;
+    }
+
+    if (!form.matches("[data-action='submit-eval']")) return;
 
     const fd = new FormData(form);
     const empleado_id = Number(fd.get("empleado_id"));
@@ -496,7 +677,10 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
-      if (state.detailEval) {
+      if (state.showDevolucionModal !== null) {
+        state.showDevolucionModal = null;
+        render();
+      } else if (state.detailEval) {
         state.detailEval = null;
         render();
       } else if (state.showModal) {

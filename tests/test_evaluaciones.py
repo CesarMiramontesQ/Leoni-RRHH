@@ -11,76 +11,12 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import auth_headers, make_empleado
+from tests.conftest_talento import make_area, make_competencia
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-
-async def make_area(db: AsyncSession, *, descripcion: str = "Area Prueba", estatus_id: int = 1):
-    from app.models.catalogos import Area
-
-    uid = str(uuid.uuid4())[:6]
-    area = Area(
-        area_id=abs(hash(uid)) % 100000,
-        descripcion=descripcion or f"Area-{uid}",
-        estatus_id=estatus_id,
-    )
-    db.add(area)
-    await db.flush()
-    await db.refresh(area)
-    return area
-
-
-async def make_competencia(
-    db: AsyncSession,
-    *,
-    nombre: str = "Competencia Test",
-    categoria: str = "tecnica",
-    area_id: int | None = None,
-):
-    from app.models.talento import Competencia
-
-    comp = Competencia(
-        nombre=nombre,
-        categoria=categoria,
-        area_id=area_id,
-        activo=True,
-    )
-    db.add(comp)
-    await db.flush()
-    await db.refresh(comp)
-    return comp
-
-
-async def make_puesto_perfil(
-    db: AsyncSession,
-    *,
-    nombre: str = "Puesto Test",
-    area_id: int | None = None,
-):
-    from tests.conftest_talento import make_puesto_perfil as _make
-
-    return await _make(db, nombre=nombre, area_id=area_id)
-
-
-async def make_requisito(
-    db: AsyncSession,
-    *,
-    competencia_id: int,
-    puesto_perfil_id: int,
-    nivel_requerido: int = 3,
-):
-    from app.models.talento import CompetenciaRequisito
-
-    req = CompetenciaRequisito(
-        competencia_id=competencia_id,
-        puesto_perfil_id=puesto_perfil_id,
-        nivel_requerido=nivel_requerido,
-    )
-    db.add(req)
-    await db.flush()
-    await db.refresh(req)
-    return req
+from tests.conftest_talento import make_puesto_perfil, make_competencia_requisito as make_requisito
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
@@ -158,8 +94,8 @@ async def test_crear_evaluacion_supervisor_otra_area(client: AsyncClient, db: As
 
 
 @pytest.mark.asyncio
-async def test_crear_evaluacion_empleado_sin_permiso(client: AsyncClient, db: AsyncSession):
-    """Empleado no puede crear evaluaciones → 403."""
+async def test_crear_evaluacion_empleado_autoevaluacion(client: AsyncClient, db: AsyncSession):
+    """Empleado puede crear autoevaluacion (para si mismo) → 201 borrador."""
     emp = await make_empleado(db, rol="empleado", email="ev_emp4@leoni.test")
     comp = await make_competencia(db, nombre="Python")
     headers = await auth_headers(client, emp)
@@ -170,7 +106,8 @@ async def test_crear_evaluacion_empleado_sin_permiso(client: AsyncClient, db: As
         "nivel_actual": 2,
     }
     resp = await client.post("/api/v1/evaluaciones", json=payload, headers=headers)
-    assert resp.status_code == 403
+    assert resp.status_code == 201
+    assert resp.json()["estado"] == "borrador"
 
 
 @pytest.mark.asyncio

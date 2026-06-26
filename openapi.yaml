@@ -47,6 +47,8 @@ tags:
     description: Evaluaciones de competencias por empleado (CRUD, bulk, permisos por rol)
   - name: Talento - Capacitaciones
     description: Gestion de capacitaciones (CRUD, inscripciones, catalogo)
+  - name: Talento - PDI
+    description: Plan de Desarrollo Individual — KPIs avanzados, recomendaciones AI, export, notificaciones
 
 components:
   securitySchemes:
@@ -3836,7 +3838,7 @@ components:
     # ── Evaluaciones de Competencias ──────────────────────
     EvaluacionCreate:
       type: object
-      required: [empleado_id, competencia_id, nivel_actual]
+      required: [empleado_id, competencia_id]
       properties:
         empleado_id:
           type: integer
@@ -3846,6 +3848,7 @@ components:
           type: integer
           minimum: 0
           maximum: 4
+          default: 0
         observaciones:
           type: string
           nullable: true
@@ -3864,7 +3867,7 @@ components:
 
     EvaluacionResponse:
       type: object
-      required: [id, empleado_id, competencia_id, nivel_actual, fecha_evaluacion, created_at, updated_at]
+      required: [id, empleado_id, competencia_id, nivel_actual, estado, fecha_evaluacion, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -3891,6 +3894,12 @@ components:
         observaciones:
           type: string
           nullable: true
+        estado:
+          type: string
+          enum: [borrador, enviado, en_revision, revisado, cerrado, devuelto]
+        comentario_devolucion:
+          type: string
+          nullable: true
         fecha_evaluacion:
           type: string
           format: date-time
@@ -3900,6 +3909,59 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    TransicionRequest:
+      type: object
+      required: [comentario]
+      properties:
+        comentario:
+          type: string
+          minLength: 10
+
+    TransicionResponse:
+      type: object
+      required: [id, estado, mensaje]
+      properties:
+        id:
+          type: integer
+        estado:
+          type: string
+        mensaje:
+          type: string
+
+    HistorialEvento:
+      type: object
+      properties:
+        actor_nombre:
+          type: string
+          nullable: true
+        accion:
+          type: string
+        estado_anterior:
+          type: string
+          nullable: true
+        estado_nuevo:
+          type: string
+          nullable: true
+        comentario:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    HistorialResponse:
+      type: object
+      required: [evaluacion_id, estado_actual, eventos]
+      properties:
+        evaluacion_id:
+          type: integer
+        estado_actual:
+          type: string
+        eventos:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistorialEvento"
 
     EvaluacionListResponse:
       type: object
@@ -4679,6 +4741,85 @@ components:
           items:
             type: object
             additionalProperties: true
+
+    PDICreate:
+      type: object
+      required: [competencia_id, accion, tipo, fecha_inicio, fecha_fin, responsable]
+      properties:
+        competencia_id: { type: integer }
+        accion: { type: string }
+        tipo: { type: string }
+        duracion_horas: { type: integer, nullable: true }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        responsable: { type: string }
+        prioridad: { type: string, enum: [baja, media, alta], default: media }
+        recursos: { type: string, nullable: true }
+
+    PDIUpdate:
+      type: object
+      properties:
+        accion: { type: string }
+        tipo: { type: string }
+        duracion_horas: { type: integer, nullable: true }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        responsable: { type: string }
+        estado: { type: string }
+        prioridad: { type: string, enum: [baja, media, alta] }
+        recursos: { type: string, nullable: true }
+
+    PDIResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        empleado_id: { type: integer }
+        competencia_id: { type: integer }
+        competencia_nombre: { type: string }
+        accion: { type: string }
+        tipo: { type: string }
+        duracion_horas: { type: integer, nullable: true }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        responsable: { type: string }
+        estado: { type: string }
+        prioridad: { type: string, default: media }
+        recursos: { type: string, nullable: true }
+        creado_por: { type: integer, nullable: true }
+        creado_por_nombre: { type: string, nullable: true }
+        created_at: { type: string }
+        updated_at: { type: string }
+
+    PDIKpisAvanzadosResponse:
+      type: object
+      properties:
+        cumplimiento_plan_pct: { type: number }
+        horas_training_promedio: { type: number }
+        promedio_skill_gap: { type: number }
+        inversion_horas_total: { type: integer }
+
+    PDIRecomendacionItem:
+      type: object
+      properties:
+        accion: { type: string }
+        tipo: { type: string }
+        justificacion: { type: string }
+        prioridad: { type: string }
+
+    PDIRecomendacionesResponse:
+      type: object
+      properties:
+        empleado_id: { type: integer }
+        recomendaciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/PDIRecomendacionItem"
+
+    PDINotificarEquipoResponse:
+      type: object
+      properties:
+        notificaciones_creadas: { type: integer }
+        empleados_notificados: { type: integer }
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -9547,6 +9688,10 @@ paths:
         - name: area_id
           in: query
           schema: { type: integer }
+        - name: estado
+          in: query
+          description: Filtrar por estado(s), separados por coma
+          schema: { type: string }
       responses:
         "200":
           description: Lista paginada de evaluaciones
@@ -9557,7 +9702,7 @@ paths:
     post:
       tags: [Talento - Evaluaciones]
       summary: Crear/actualizar evaluacion (upsert)
-      description: Si ya existe evaluacion para el par empleado+competencia, actualiza el nivel. Solo RH o supervisor (su area).
+      description: Empleado (autoevaluacion), supervisor (su area), RH (cualquiera). Si ya existe evaluacion cerrada para el par empleado+competencia, la reabre como borrador.
       operationId: evaluaciones_create
       security:
         - BearerAuth: []
@@ -9603,7 +9748,7 @@ paths:
     put:
       tags: [Talento - Evaluaciones]
       summary: Actualizar evaluacion
-      description: Solo RH o supervisor (su area).
+      description: Solo en estados editables segun rol. Borrador/devuelto para empleado; en_revision para supervisor/RH.
       operationId: evaluaciones_update
       security:
         - BearerAuth: []
@@ -9632,7 +9777,7 @@ paths:
     delete:
       tags: [Talento - Evaluaciones]
       summary: Eliminar evaluacion
-      description: Solo RH.
+      description: Solo en estado borrador.
       operationId: evaluaciones_delete
       security:
         - BearerAuth: []
@@ -9702,6 +9847,240 @@ paths:
                     type: array
                     items:
                       type: string
+
+  /api/v1/evaluaciones/{id}/enviar:
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Enviar evaluacion a revision
+      description: Transicion borrador/devuelto → enviado.
+      operationId: evaluaciones_enviar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Transicion realizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransicionResponse"
+        "404":
+          description: Evaluacion no encontrada
+        "422":
+          description: Transicion no valida
+
+  /api/v1/evaluaciones/{id}/revisar:
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Tomar evaluacion para revision
+      description: Transicion enviado → en_revision. Solo supervisor/RH.
+      operationId: evaluaciones_revisar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Transicion realizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransicionResponse"
+        "404":
+          description: Evaluacion no encontrada
+        "422":
+          description: Transicion no valida
+
+  /api/v1/evaluaciones/{id}/aprobar:
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Aprobar revision
+      description: Transicion en_revision → revisado. Solo supervisor/RH.
+      operationId: evaluaciones_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Transicion realizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransicionResponse"
+        "404":
+          description: Evaluacion no encontrada
+        "422":
+          description: Transicion no valida
+
+  /api/v1/evaluaciones/{id}/cerrar:
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Cerrar evaluacion
+      description: Transicion revisado/borrador → cerrado. Solo RH.
+      operationId: evaluaciones_cerrar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Transicion realizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransicionResponse"
+        "404":
+          description: Evaluacion no encontrada
+        "422":
+          description: Transicion no valida
+
+  /api/v1/evaluaciones/{id}/devolver:
+    post:
+      tags: [Talento - Evaluaciones]
+      summary: Devolver evaluacion con comentario
+      description: Transicion enviado/en_revision/revisado → devuelto. Requiere comentario minimo 10 chars.
+      operationId: evaluaciones_devolver
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransicionRequest"
+      responses:
+        "200":
+          description: Transicion realizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransicionResponse"
+        "404":
+          description: Evaluacion no encontrada
+        "422":
+          description: Transicion no valida o comentario muy corto
+
+  /api/v1/evaluaciones/{id}/historial:
+    get:
+      tags: [Talento - Evaluaciones]
+      summary: Historial de transiciones de estado
+      operationId: evaluaciones_historial
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Historial de eventos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistorialResponse"
+        "404":
+          description: Evaluacion no encontrada
+
+  # ── Talento - PDI Avanzado ─────────────────────────────────────────────────
+
+  /api/v1/evaluaciones/pdi/kpis-avanzados:
+    get:
+      tags: [Talento - PDI]
+      summary: KPIs avanzados del Plan de Desarrollo Individual
+      operationId: pdi_kpis_avanzados
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          schema: { type: integer }
+          description: Filtrar por area (omitir para scope completo del usuario)
+      responses:
+        "200":
+          description: KPIs calculados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDIKpisAvanzadosResponse"
+
+  /api/v1/evaluaciones/pdi/empleado/{empleado_id}/recomendaciones:
+    get:
+      tags: [Talento - PDI]
+      summary: Recomendaciones AI para un empleado basadas en brechas
+      operationId: pdi_recomendaciones
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Lista de recomendaciones generadas por IA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDIRecomendacionesResponse"
+
+  /api/v1/evaluaciones/pdi/export:
+    get:
+      tags: [Talento - PDI]
+      summary: Exportar PDI en PDF o Excel
+      operationId: pdi_export
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, excel] }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Archivo descargable
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+
+  /api/v1/evaluaciones/pdi/notificar-equipo:
+    post:
+      tags: [Talento - PDI]
+      summary: Notificar a empleados con acciones pendientes
+      operationId: pdi_notificar_equipo
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Resultado de notificaciones enviadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDINotificarEquipoResponse"
 
   # ── Talento - Capacitaciones ───────────────────────────────────────────────
 

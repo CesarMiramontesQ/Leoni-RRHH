@@ -131,14 +131,14 @@ class HorasExtraSolicitud(Base):
 class HorasExtraSolicitudDetalle(Base):
     __tablename__ = "levelup_horas_extra_solicitud_detalle"
     __table_args__ = (
-        UniqueConstraint("solicitud_id", "empleado_id", name="uq_he_detalle_solicitud_empleado"),
-        CheckConstraint("lunes >= 0", name="chk_he_detalle_lunes_nonneg"),
-        CheckConstraint("martes >= 0", name="chk_he_detalle_martes_nonneg"),
-        CheckConstraint("miercoles >= 0", name="chk_he_detalle_miercoles_nonneg"),
-        CheckConstraint("jueves >= 0", name="chk_he_detalle_jueves_nonneg"),
-        CheckConstraint("viernes >= 0", name="chk_he_detalle_viernes_nonneg"),
-        CheckConstraint("sabado >= 0", name="chk_he_detalle_sabado_nonneg"),
-        CheckConstraint("domingo >= 0", name="chk_he_detalle_domingo_nonneg"),
+        UniqueConstraint("solicitud_id", "empleado_id", name="uq_levelup_he_detalle_solicitud_empleado"),
+        CheckConstraint("lunes >= 0", name="chk_levelup_he_detalle_lunes_nonneg"),
+        CheckConstraint("martes >= 0", name="chk_levelup_he_detalle_martes_nonneg"),
+        CheckConstraint("miercoles >= 0", name="chk_levelup_he_detalle_miercoles_nonneg"),
+        CheckConstraint("jueves >= 0", name="chk_levelup_he_detalle_jueves_nonneg"),
+        CheckConstraint("viernes >= 0", name="chk_levelup_he_detalle_viernes_nonneg"),
+        CheckConstraint("sabado >= 0", name="chk_levelup_he_detalle_sabado_nonneg"),
+        CheckConstraint("domingo >= 0", name="chk_levelup_he_detalle_domingo_nonneg"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -190,10 +190,10 @@ class HorasExtraAprobador(Base):
 
     __tablename__ = "levelup_horas_extra_aprobadores"
     __table_args__ = (
-        UniqueConstraint("empleado_id", "tipo", name="uq_he_aprobador_empleado_tipo"),
+        UniqueConstraint("empleado_id", "tipo", name="uq_levelup_he_aprobador_empleado_tipo"),
         # Solo puede existir un director activo a la vez.
         Index(
-            "uq_he_aprobador_director_activo",
+            "uq_levelup_he_aprobador_director_activo",
             "tipo",
             unique=True,
             postgresql_where=text("tipo = 'director' AND activo"),
@@ -235,12 +235,12 @@ class HorasExtraAprobador(Base):
 class HorasExtraAprobacion(Base):
     __tablename__ = "levelup_horas_extra_aprobaciones"
     __table_args__ = (
-        UniqueConstraint("solicitud_id", "tipo_firma", name="uq_he_aprobacion_solicitud_tipo"),
+        UniqueConstraint("solicitud_id", "tipo_firma", name="uq_levelup_he_aprobacion_solicitud_tipo"),
         CheckConstraint(
             "(estado = 'pendiente' AND aprobador_id IS NULL AND fecha_aprobacion IS NULL) "
             "OR (estado IN ('aprobado', 'rechazado') "
             "AND aprobador_id IS NOT NULL AND fecha_aprobacion IS NOT NULL)",
-            name="chk_he_aprobacion_firmada",
+            name="chk_levelup_he_aprobacion_firmada",
         ),
     )
 
