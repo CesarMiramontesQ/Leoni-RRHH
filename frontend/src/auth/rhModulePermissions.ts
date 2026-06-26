@@ -1,29 +1,15 @@
 import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
+import { refreshAccessTokenSession } from "../api/http.ts";
+import { getAccessTokenPayload } from "./jwt.ts";
 import {
+  isNonRhRhMode,
   isRhEmpleadoUiMode,
   isRhGestorTeamUiMode,
-  rhHasFullOperativoModules,
+  isRhOperativoUiMode,
+  setAdminUser,
   setRhInPermisosList,
   setRhPermisosActivos,
 } from "./rhUiMode.ts";
-import { getAccessToken } from "./session.ts";
-
-function getSessionRol(): string | null {
-  const token = getAccessToken();
-  if (!token) return null;
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
-  try {
-    const b64 = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = b64.length % 4;
-    const padded = pad ? b64 + "=".repeat(4 - pad) : b64;
-    const p = JSON.parse(atob(padded)) as Record<string, unknown>;
-    const r = p.rol;
-    return typeof r === "string" ? r : null;
-  } catch {
-    return null;
-  }
-}
 
 type RhModulePermissionsState = {
   loaded: boolean;
@@ -47,6 +33,7 @@ export function resetRhModulePermissions(): void {
   state.modules = {};
   state.canAdminPermisos = false;
   state.enListaPermisos = true;
+  setAdminUser(false);
   setRhInPermisosList(true);
   setRhPermisosActivos(false);
 }
@@ -60,6 +47,7 @@ export async function loadRhModulePermissions(): Promise<void> {
       state.modules = {};
       state.canAdminPermisos = false;
       state.enListaPermisos = true;
+      setAdminUser(false);
       setRhInPermisosList(true);
       setRhPermisosActivos(false);
       return;
@@ -68,9 +56,13 @@ export async function loadRhModulePermissions(): Promise<void> {
     state.modules = data.inscrito ? { ...data.modulos } : {};
     state.canAdminPermisos = data.puede_administrar_permisos_rh;
     state.enListaPermisos = data.en_lista_permisos;
+    setAdminUser(data.puede_administrar_permisos_rh);
     setRhInPermisosList(data.en_lista_permisos);
     setRhPermisosActivos(Object.values(state.modules).some(Boolean));
     state.loaded = true;
+    if (data.puede_administrar_permisos_rh && getAccessTokenPayload()?.rh_admin !== true) {
+      await refreshAccessTokenSession();
+    }
   } catch {
     state.loaded = true;
     state.enrolled = false;
@@ -78,6 +70,7 @@ export async function loadRhModulePermissions(): Promise<void> {
     state.canAdminPermisos = false;
     // Fail-open de UI: ante error transitorio no ocultamos el toggle.
     state.enListaPermisos = true;
+    setAdminUser(false);
     setRhInPermisosList(true);
     setRhPermisosActivos(false);
   }
@@ -107,20 +100,12 @@ export function hasExplicitModuleGrant(moduleKey: string): boolean {
   return state.modules[moduleKey] === true;
 }
 
-/** Control de acceso RH (restricción) o grant explícito para otros roles. */
+/** Control de acceso RH: admin operativo, Modo RH inscrito o grant explícito. */
 export function hasRhModule(moduleKey: string): boolean {
-  const rol = getSessionRol();
-  if (state.canAdminPermisos) return true;
+  if (state.canAdminPermisos && isRhOperativoUiMode()) return true;
   if (!state.loaded) return true;
-
-  if (rol !== "rh") {
-    return hasExplicitModuleGrant(moduleKey);
-  }
-
-  if (rhHasFullOperativoModules()) return true;
-
-  if (!state.enrolled) return true;
-  return state.modules[moduleKey] === true;
+  if (isNonRhRhMode() && state.enrolled) return state.modules[moduleKey] === true;
+  return hasExplicitModuleGrant(moduleKey);
 }
 
 export function getRhModulesSnapshot(): Readonly<Record<string, boolean>> {

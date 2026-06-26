@@ -92,6 +92,54 @@ async def test_patch_asignacion_rol_rh_retorna_200(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_patch_asignacion_rol_crea_core_si_falta(client: AsyncClient, db):
+    """Empleado de Bono sin levelup_empleados_core: asignar rol crea la fila core."""
+    from sqlalchemy import select
+
+    from app.models.empleados import Empleado
+    from app.models.empleados_rh import EmpleadoCore
+    from app.models.roles import Rol
+
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_core_lazy@leoni.test",
+        puede_administrar_permisos_rh=True,
+    )
+    sin_core = Empleado(
+        empleado_id=94001,
+        no_empleado=7200001,
+        nombre="Sin Core Aún",
+        estado_id=1,
+    )
+    db.add(sin_core)
+    await db.flush()
+
+    result = await db.execute(select(Rol).where(Rol.nombre == "supervisor"))
+    rol_supervisor = result.scalar_one_or_none()
+    if not rol_supervisor:
+        rol_supervisor = Rol(nombre="supervisor", permisos={})
+        db.add(rol_supervisor)
+        await db.flush()
+        await db.refresh(rol_supervisor)
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/usuarios/{sin_core.id}",
+        json={"rol_id": rol_supervisor.id},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["rol_id"] == rol_supervisor.id
+
+    core_row = await db.get(EmpleadoCore, sin_core.empleado_id)
+    assert core_row is not None
+    assert core_row.rol_id == rol_supervisor.id
+    assert core_row.password_hash
+
+
+@pytest.mark.asyncio
 async def test_patch_asignacion_rol_sin_flag_retorna_403(client: AsyncClient, db):
     """Cambiar rol exige puede_administrar_permisos_rh, aunque el actor sea RH."""
     from sqlalchemy import select

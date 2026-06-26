@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { OPERATIVO_NAV_ROL } from "./shellNavPolicy.ts";
 
 // Verifica la separación de reglas:
 // - Regla A (navegación): permiso RH "Nóminas" → ver páginas generales.
@@ -25,6 +26,7 @@ vi.stubGlobal("sessionStorage", {
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => rol,
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => ({}),
   isHorasExtraAprobador: () => heAprobador,
   isHorasExtraRegistroAutorizado: () => heAutorizado,
 }));
@@ -36,6 +38,17 @@ vi.mock("../auth/rhModulePermissions.ts", () => ({
   isModulosRhEnrolled: () => true,
 }));
 
+vi.mock("../auth/rhUiMode.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../auth/rhUiMode.ts")>();
+  return {
+    ...actual,
+    isAdminUser: () => adminUser,
+    isRhOperativoUiMode: () => adminUser,
+  };
+});
+
+let adminUser = false;
+
 async function imports() {
   const navMod = await import("./shellNavPolicy.ts");
   const uiMod = await import("../auth/rhUiMode.ts");
@@ -46,6 +59,7 @@ describe("separación Nóminas (Regla A) vs aprobar horas extra (Regla B)", () =
   beforeEach(() => {
     storage.clear();
     rol = "gerente";
+    adminUser = false;
     heAprobador = false;
     heAutorizado = false;
     grants.clear();
@@ -68,28 +82,30 @@ describe("separación Nóminas (Regla A) vs aprobar horas extra (Regla B)", () =
     // Sin grant ni módulo de nóminas.
     expect(isShellNavItemVisibleForRol("gerente", "horas-extra-aprobaciones")).toBe(true);
     expect(isShellNavItemVisibleForRol("empleado", "horas-extra-aprobaciones")).toBe(true);
-    expect(isShellNavItemVisibleForRol("rh", "horas-extra-aprobaciones")).toBe(true);
+    expect(isShellNavItemVisibleForRol(OPERATIVO_NAV_ROL, "horas-extra-aprobaciones")).toBe(true);
   });
 
-  it("'Aprobar Horas Extra' para RH depende solo de la Regla B (no del módulo Nóminas)", async () => {
+  it("'Aprobar Horas Extra' para admin operativo depende solo de la Regla B (no del módulo Nóminas)", async () => {
     const { isShellNavItemVisibleForRol } = await imports();
-    rol = "rh";
+    adminUser = true;
+    rol = "supervisor";
     heAprobador = true;
     rhModules.clear(); // sin módulo nominas
-    expect(isShellNavItemVisibleForRol("rh", "horas-extra-aprobaciones")).toBe(true);
+    expect(isShellNavItemVisibleForRol(OPERATIVO_NAV_ROL, "horas-extra-aprobaciones")).toBe(true);
     heAprobador = false;
     rhModules.add("nominas-horas-extra"); // con módulo nominas pero sin designación
-    expect(isShellNavItemVisibleForRol("rh", "horas-extra-aprobaciones")).toBe(false);
+    expect(isShellNavItemVisibleForRol(OPERATIVO_NAV_ROL, "horas-extra-aprobaciones")).toBe(false);
   });
 
   it("la lista 'Horas Extra' (Regla A) depende del permiso de Nóminas, no del aprobador", async () => {
     const { isShellNavItemVisibleForRol } = await imports();
-    rol = "rh";
+    adminUser = true;
+    rol = "supervisor";
     heAprobador = true; // ser aprobador no debe habilitar la lista
     rhModules.clear();
-    expect(isShellNavItemVisibleForRol("rh", "horas-extra")).toBe(false);
+    expect(isShellNavItemVisibleForRol(OPERATIVO_NAV_ROL, "horas-extra")).toBe(false);
     rhModules.add("nominas-horas-extra");
-    expect(isShellNavItemVisibleForRol("rh", "horas-extra")).toBe(true);
+    expect(isShellNavItemVisibleForRol(OPERATIVO_NAV_ROL, "horas-extra")).toBe(true);
   });
 
   it("permisos por página: otorgar solo Conciliación no muestra Horas Extra", async () => {
@@ -108,6 +124,7 @@ describe("modulosMayAccessHash: rutas de Nóminas por página", () => {
   beforeEach(() => {
     storage.clear();
     rol = "empleado";
+    adminUser = false;
     heAprobador = false;
     heAutorizado = false;
     grants.clear();
@@ -146,11 +163,12 @@ describe("modulosMayAccessHash: rutas de Nóminas por página", () => {
     expect(modulosMayAccessHash("#/nominas/ajustes", "gerente")).toBe(true);
   });
 
-  it("RH entra solo a las páginas de Nóminas que tiene otorgadas", async () => {
+  it("admin operativo entra solo a las páginas de Nóminas que tiene otorgadas", async () => {
     const { modulosMayAccessHash } = await imports();
-    rol = "rh";
+    adminUser = true;
+    rol = "supervisor";
     rhModules.add("nominas-horas-extra");
-    expect(modulosMayAccessHash("#/nominas/horas-extra", "rh")).toBe(true);
-    expect(modulosMayAccessHash("#/nominas/conciliacion", "rh")).toBe(false);
+    expect(modulosMayAccessHash("#/nominas/horas-extra", OPERATIVO_NAV_ROL)).toBe(true);
+    expect(modulosMayAccessHash("#/nominas/conciliacion", OPERATIVO_NAV_ROL)).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import type {
   ComedorRhSemanaPlatilloPorSemana,
   ComedorWeekOccupancyPoint,
 } from "../../comedor/rh/types.ts";
-import { getRolFromAccessToken } from "../../auth/jwt.ts";
+import { hasRhOperativeViewerContext } from "../../auth/jwt.ts";
 import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 
@@ -66,13 +66,13 @@ export function renderComedorCharts(
   rhPlatillosPorSemana: readonly ComedorRhSemanaPlatilloPorSemana[] | null | undefined,
 ): string {
   const esRhGraficaPlatillosSemana =
-    getRolFromAccessToken() === "rh" &&
+    hasRhOperativeViewerContext() &&
     rhPlatillosPorSemana != null &&
     rhPlatillosPorSemana.length > 0;
 
   if (state !== "ready" || (!esRhGraficaPlatillosSemana && !weeklyOccupancy)) {
     const tituloCarga =
-      getRolFromAccessToken() === "rh" ? "Distribución semanal de platillos" : "Ocupación por semana";
+      hasRhOperativeViewerContext() ? "Distribución semanal de platillos" : "Ocupación por semana";
     return `
       <article class="${RH_LISTADO_SURFACE} p-4 sm:p-5">
         <h3 class="text-sm font-semibold tracking-tight text-[#0f172a]">${tituloCarga}</h3>

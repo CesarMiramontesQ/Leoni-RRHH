@@ -47,7 +47,7 @@ async def listar_grupos_competencia(
 )
 async def crear_grupo_competencia(
     body: GrupoCompetenciaCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo grupo en el catalogo. Solo RH."""
@@ -70,7 +70,7 @@ async def obtener_grupo_competencia(
 async def actualizar_grupo_competencia(
     id: int,
     body: GrupoCompetenciaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza un grupo del catalogo. Solo RH."""
@@ -81,7 +81,7 @@ async def actualizar_grupo_competencia(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_grupo_competencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Desactiva un grupo del catalogo (soft delete). Solo RH."""

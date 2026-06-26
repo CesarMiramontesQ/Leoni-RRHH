@@ -15,6 +15,18 @@ vi.stubGlobal("sessionStorage", {
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => "empleado",
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => null,
+}));
+
+vi.mock("../auth/rhUiMode.ts", () => ({
+  isAdminUser: () => false,
+  isNonRhRhMode: () => false,
+  isRhDirectorUiMode: () => false,
+  isRhEmpleadoUiMode: () => false,
+  isRhGerenteUiMode: () => false,
+  isRhGestorTeamUiMode: () => false,
+  isRhLiderUiMode: () => false,
+  isRhOperativoUiMode: () => false,
 }));
 
 describe("shellNavPolicy empleado flat nav", () => {
@@ -26,7 +38,7 @@ describe("shellNavPolicy empleado flat nav", () => {
   it("detecta rol empleado para menú plano", async () => {
     const { isEmpleadoFlatNavRol } = await import("./shellNavPolicy.ts");
     expect(isEmpleadoFlatNavRol("empleado")).toBe(true);
-    expect(isEmpleadoFlatNavRol("rh")).toBe(false);
+    expect(isEmpleadoFlatNavRol("operativo")).toBe(false);
     expect(isEmpleadoFlatNavRol("supervisor")).toBe(false);
   });
 

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.data_scope import effective_data_scope_rol
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import Competencia, CompetenciaRequisito, EvaluacionCompetencia, PuestoPerfil
@@ -171,10 +172,10 @@ class EvaluacionService:
     async def listar_por_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> list[EvaluacionResponse]:
-        rol = current_user.rol.nombre if current_user.rol else None
-        if rol not in ("rh", "supervisor") and current_user.id != empleado_id:
+        scope = effective_data_scope_rol(current_user)
+        if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
             raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
-        if rol == "supervisor" and current_user.id != empleado_id:
+        if scope == "supervisor" and current_user.id != empleado_id:
             target = await self._get_empleado(empleado_id)
             if current_user.area_id != target.area_id:
                 raise ForbiddenError("Supervisor solo puede ver evaluaciones de su area")
@@ -211,10 +212,10 @@ class EvaluacionService:
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
-        rol = current_user.rol.nombre if current_user.rol else None
-        if rol not in ("rh", "supervisor") and current_user.id != empleado_id:
+        scope = effective_data_scope_rol(current_user)
+        if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
             raise ForbiddenError("Solo puedes ver tu propio resumen")
-        if rol == "supervisor" and current_user.id != empleado_id:
+        if scope == "supervisor" and current_user.id != empleado_id:
             target = await self._get_empleado(empleado_id)
             if current_user.area_id != target.area_id:
                 raise ForbiddenError("Supervisor solo puede ver resumen de su area")

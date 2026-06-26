@@ -64,7 +64,7 @@ async def buscar_empleados_para_permisos(
     return await svc.buscar_empleados_disponibles(q=q, current_user=current_user)
 
 
-@router.post("/usuarios/{empleado_id}", response_model=RhUsuarioPermisosItem, status_code=201)
+@router.post("/usuarios/{empleado_id}", response_model=RhUsuarioPermisosItem)
 async def agregar_empleado_permisos(
     empleado_id: int,
     request: Request,

@@ -304,13 +304,23 @@ def has_personalized_modulos_rh(empleado: "Empleado") -> bool:
 
 
 def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
-    """Usuario incluido en el sistema de permisos por módulo.
+    """Usuario incluido en permisos por módulo (admin, rol legacy `rh` o inscrito)."""
+    from app.core.rh_ui_mode import is_admin_user
 
-    RH siempre está inscrito; usuarios de otros roles quedan inscritos cuando RH
-    los agrega explícitamente (flag ``inscrito_modulos_rh``), sin cambiar su rol.
-    """
+    if is_admin_user(empleado):
+        return True
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     if rol == "rh":
+        return True
+    return bool(getattr(empleado, "inscrito_modulos_rh", False))
+
+
+def empleado_en_lista_permisos(empleado: "Empleado") -> bool:
+    """True si el empleado debe aparecer en la tabla de administración de permisos RH."""
+    if bool(getattr(empleado, "puede_administrar_permisos_rh", False)):
+        return True
+    rol = empleado.rol.nombre if empleado.rol else "empleado"
+    if rol == "rh" and not getattr(empleado, "acceso_rh_removido", False):
         return True
     return bool(getattr(empleado, "inscrito_modulos_rh", False))
 
@@ -319,6 +329,8 @@ def effective_modules_for_display(empleado: "Empleado") -> dict[str, bool]:
     """Permisos efectivos para UI de administración."""
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
+    if getattr(empleado, "puede_administrar_permisos_rh", False):
+        return {key: True for key in all_module_keys()}
     if rol == "rh" and not modulos:
         return {key: True for key in all_module_keys()}
     return {key: bool(modulos.get(key, False)) for key in all_module_keys()}
@@ -416,18 +428,22 @@ def catalog_for_api() -> list[dict]:
 
 
 def rh_claims_for_token(empleado: "Empleado") -> dict:
-    """Claims JWT para permisos por módulo (solo rol RH)."""
+    """Claims JWT para permisos por módulo y flag ADMIN."""
+    from app.core.rh_ui_mode import is_admin_user
+
+    claims: dict = {}
+    if is_admin_user(empleado):
+        claims["rh_admin"] = True
+
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
-    if rol != "rh":
-        return {}
-
-    claims: dict = {
-        "rh_admin": bool(getattr(empleado, "puede_administrar_permisos_rh", False)),
-        "rh_enrolled": True,
-    }
-    if modulos:
+    if rol == "rh":
+        claims["rh_enrolled"] = True
+        if modulos:
+            claims["rh_modulos"] = effective_modules(modulos)
+    elif bool(getattr(empleado, "inscrito_modulos_rh", False)) and modulos:
         claims["rh_modulos"] = effective_modules(modulos)
+
     alcance = resolve_rh_gestor_alcance(empleado)
     if alcance:
         claims["rh_gestor_alcance"] = alcance
@@ -448,19 +464,26 @@ def user_has_module_from_claims(
     module_key: str,
     rh_ui_mode: str | None = None,
 ) -> bool:
+    from app.core.rh_ui_mode import (
+        RH_UI_MODE_LIDER,
+        RH_UI_MODE_GERENTE,
+        RH_UI_MODE_OPERATIVO,
+        effective_rh_ui_mode,
+    )
+
     if payload.get("rh_admin"):
-        return True
+        mode = effective_rh_ui_mode(rh_ui_mode)
+        if mode == RH_UI_MODE_OPERATIVO:
+            return True
+        if mode in (RH_UI_MODE_LIDER, RH_UI_MODE_GERENTE):
+            return True
+        if payload.get("rh_gestor_alcance") and mode == RH_UI_MODE_OPERATIVO:
+            return True
+
     rol = payload.get("rol")
     modulos = payload.get("rh_modulos")
 
     if rol == "rh":
-        from app.core.rh_ui_mode import (
-            RH_UI_MODE_LIDER,
-            RH_UI_MODE_GERENTE,
-            RH_UI_MODE_OPERATIVO,
-            effective_rh_ui_mode,
-        )
-
         mode = effective_rh_ui_mode(rh_ui_mode)
         if mode in (RH_UI_MODE_LIDER, RH_UI_MODE_GERENTE):
             return True

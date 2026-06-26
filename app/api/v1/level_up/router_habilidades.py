@@ -39,7 +39,7 @@ async def listar_habilidades(
 )
 async def crear_habilidad(
     body: HabilidadCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea una nueva habilidad. Solo RH."""
@@ -62,7 +62,7 @@ async def obtener_habilidad(
 async def actualizar_habilidad(
     id: int,
     body: HabilidadUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza una habilidad. Solo RH."""
@@ -73,7 +73,7 @@ async def actualizar_habilidad(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_habilidad(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina (soft-delete) una habilidad. Solo RH."""

@@ -70,7 +70,7 @@ async def get_me(current_user: Empleado = Depends(get_current_user)):
 
 @router.post("/sync-it")
 async def sync_it(
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
 ):
     """Fuerza sincronizacion con BD de IT. Requiere rol RH."""
     # TODO: Implementar en fase de integraciones

@@ -199,10 +199,10 @@ function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   return false;
 }
 
-type PanelMode = "rh" | "lider" | "director";
+type PanelMode = "operativo" | "lider" | "director";
 
-function panelMode(isRhAdmin: boolean, kpiGestionEquipo: boolean): PanelMode {
-  if (isRhAdmin) return "rh";
+function panelMode(isOperativoAdmin: boolean, kpiGestionEquipo: boolean): PanelMode {
+  if (isOperativoAdmin) return "operativo";
   if (kpiGestionEquipo) return "lider";
   return "director";
 }
@@ -631,7 +631,7 @@ function rowHtml(u: UsuarioListItem, mode: PanelMode): string {
   const puesto = puestoRaw || "Sin asignar";
   const email = u.email?.trim() ? u.email : "Sin correo";
   const puestoTitle = escapeHtml(puestoRaw || "Sin asignar");
-  const isRhAdmin = mode === "rh";
+  const isRhAdmin = mode === "operativo";
   const isLider = mode === "lider";
   const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
   const ocultarLider = isLider && gestorStructuredUi;
@@ -855,7 +855,7 @@ function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage,
       <p class="rh-sol-empty__sub mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">Prueba ajustando los filtros de búsqueda.</p>
     </div>
   </td></tr>`
-      : pg.items.map((u) => rowHtml(u, "rh")).join("");
+      : pg.items.map((u) => rowHtml(u, "operativo")).join("");
 
   const pageButtons = pages
     .map((x) => {
@@ -1126,7 +1126,7 @@ function renderPanel(
   mode: PanelMode,
   liderUiForFilters: boolean,
 ): string {
-  if (mode === "rh") {
+  if (mode === "operativo") {
     return renderPanelRh(state, catalogo, pg, liderUiForFilters);
   }
 

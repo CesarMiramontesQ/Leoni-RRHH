@@ -94,19 +94,50 @@ async def get_current_user(
 
 
 def role_checker(roles_requeridos: list[str]):
-    """Factory que retorna una dependency para verificar roles."""
+    """Factory que retorna una dependency para verificar roles de API.
+
+    Usa ``operativo`` para vista RH (admin en Modo RH o rol legacy BD ``rh``).
+    """
 
     async def check_role(
         request: Request,
         current_user: Empleado = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
+        from app.core.rh_access import requires_operativo_api_role, rol_satisfies_api_roles
         from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module
+        from app.core.rh_ui_mode import (
+            is_admin_user,
+            is_rh_director_ui_mode,
+            is_rh_empleado_ui_mode,
+            is_rh_gerente_ui_mode,
+            is_rh_lider_ui_mode,
+            is_rh_operativo_ui_mode,
+        )
+
+        if is_admin_user(current_user):
+            if is_rh_operativo_ui_mode(current_user, rh_ui_mode) and requires_operativo_api_role(
+                roles_requeridos
+            ):
+                return current_user
+            if is_rh_lider_ui_mode(current_user, rh_ui_mode) and "supervisor" in roles_requeridos:
+                return current_user
+            if is_rh_gerente_ui_mode(current_user, rh_ui_mode) and "gerente" in roles_requeridos:
+                return current_user
+            if is_rh_director_ui_mode(current_user, rh_ui_mode) and "director" in roles_requeridos:
+                return current_user
+            if is_rh_empleado_ui_mode(current_user, rh_ui_mode) and "empleado" in roles_requeridos:
+                return current_user
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permisos insuficientes. Roles requeridos: {roles_requeridos}",
+            )
 
         rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))
         rol = rol_result.scalar_one_or_none()
         rol_nombre = rol.nombre if rol else "empleado"
-        if rol_nombre in roles_requeridos:
+        if rol_satisfies_api_roles(rol_nombre, roles_requeridos):
             return current_user
         module_key = resolve_module_from_api_path(request.url.path)
         if module_key and user_has_module(current_user, module_key):
@@ -132,15 +163,18 @@ async def require_rh_permisos_admin(
 
 
 def require_rh_module(module_key: str):
-    """Factory: exige acceso al módulo RH indicado (ignorado para otros roles)."""
+    """Factory: exige acceso al módulo RH indicado para inscritos y admin operativo."""
 
     async def check_module(
         current_user: Empleado = Depends(get_current_user),
+        rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
-        from app.core.rh_module_registry import user_has_module
+        from app.core.rh_module_registry import is_modulos_rh_enrolled, user_has_module
+        from app.core.rh_ui_mode import is_admin_user, is_rh_operativo_ui_mode
 
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol != "rh":
+        if not is_modulos_rh_enrolled(current_user):
+            return current_user
+        if is_admin_user(current_user) and not is_rh_operativo_ui_mode(current_user, rh_ui_mode):
             return current_user
         if not user_has_module(current_user, module_key):
             raise HTTPException(
@@ -212,9 +246,11 @@ def get_rh_ui_mode(
     x_rh_ui_mode: str | None = Header(None, alias="X-RH-UI-Mode"),
     current_user: Empleado = Depends(get_current_user),
 ) -> str | None:
-    """Modo de UI activo para usuarios RH (`operativo` | `empleado` | `lider` | `gerente`)."""
+    """Modo de UI activo para usuarios ADMIN (`operativo` | `empleado` | `lider` | `gerente` | `director`)."""
+    from app.core.rh_access import can_use_rh_ui_modes
+
     mode = normalized_rh_ui_mode(x_rh_ui_mode)
-    if mode is not None:
+    if mode is not None and can_use_rh_ui_modes(current_user):
         validate_rh_ui_mode_for_user(current_user, mode)
     return x_rh_ui_mode
 
@@ -226,10 +262,15 @@ def gestor_team_role_checker(roles_requeridos: list[str]):
         current_user: Empleado = Depends(get_current_user),
         rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
+        from app.core.rh_access import is_legacy_rh_role
+        from app.core.rh_ui_mode import is_admin_user
+
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         if rol in roles_requeridos:
             return current_user
-        if rol == "rh" and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
+        if is_admin_user(current_user) and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
+            return current_user
+        if is_legacy_rh_role(current_user) and is_rh_gestor_team_ui_mode(current_user, rh_ui_mode):
             return current_user
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -246,10 +287,15 @@ def gestor_supervisor_role_checker():
         current_user: Empleado = Depends(get_current_user),
         rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
+        from app.core.rh_access import is_legacy_rh_role
+        from app.core.rh_ui_mode import is_admin_user
+
         rol = current_user.rol.nombre if current_user.rol else "empleado"
         if rol == "supervisor":
             return current_user
-        if rol == "rh" and is_rh_lider_ui_mode(current_user, rh_ui_mode):
+        if is_admin_user(current_user) and is_rh_lider_ui_mode(current_user, rh_ui_mode):
+            return current_user
+        if is_legacy_rh_role(current_user) and is_rh_lider_ui_mode(current_user, rh_ui_mode):
             return current_user
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

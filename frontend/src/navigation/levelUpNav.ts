@@ -3,10 +3,9 @@
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
-import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
 import { hasExplicitModuleGrant, hasRhModule, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
-import { isRhEmpleadoUiMode } from "../auth/rhUiMode.ts";
+import { isNonRhRhMode, isRhEmpleadoUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 export type LevelUpNavKey =
   | "level-up"
@@ -196,10 +195,10 @@ const LEVEL_UP_RESUMEN_ITEM: LevelUpAccessItem = {
 };
 
 function hasLevelUpResumenModuleAccess(rol: string | null): boolean {
-  if (rol === "empleado" || (rol === "rh" && isRhEmpleadoUiMode())) return false;
-  if (rol === "rh") return hasRhModule("level-up");
+  if (rol === "empleado" || isRhEmpleadoUiMode()) return false;
+  if (isRhOperativoUiMode() || isNonRhRhMode()) return hasRhModule("level-up");
   if (isModulosRhEnrolled()) return hasExplicitModuleGrant("level-up");
-  return rol === "rh" || rol === "director" || rol === "gerente";
+  return rol === "director" || rol === "gerente";
 }
 
 export const LEVEL_UP_SUB_NAV_KEYS: ReadonlySet<LevelUpNavKey> = new Set(
@@ -252,7 +251,7 @@ export function getVisibleLevelUpCategoriesForRhSidebar(rol: string | null): Lev
 
 export function isLevelUpHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
-  if (rol === "rh" && isRhOperativoUiMode()) return false;
+  if (isRhOperativoUiMode()) return false;
   return getVisibleLevelUpCategories(rol).length > 0;
 }
 

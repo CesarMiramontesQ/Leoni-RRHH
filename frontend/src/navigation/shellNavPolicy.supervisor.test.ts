@@ -15,6 +15,18 @@ vi.stubGlobal("sessionStorage", {
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => "supervisor",
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => null,
+}));
+
+vi.mock("../auth/rhUiMode.ts", () => ({
+  isAdminUser: () => false,
+  isNonRhRhMode: () => false,
+  isRhDirectorUiMode: () => false,
+  isRhEmpleadoUiMode: () => false,
+  isRhGerenteUiMode: () => false,
+  isRhGestorTeamUiMode: () => false,
+  isRhLiderUiMode: () => false,
+  isRhOperativoUiMode: () => false,
 }));
 
 describe("shellNavPolicy supervisor structured nav", () => {
@@ -27,7 +39,7 @@ describe("shellNavPolicy supervisor structured nav", () => {
     const { isSupervisorStructuredNavRol } = await import("./shellNavPolicy.ts");
     expect(isSupervisorStructuredNavRol("supervisor")).toBe(true);
     expect(isSupervisorStructuredNavRol("gerente")).toBe(true);
-    expect(isSupervisorStructuredNavRol("rh")).toBe(false);
+    expect(isSupervisorStructuredNavRol("operativo")).toBe(false);
     expect(isSupervisorStructuredNavRol("empleado")).toBe(false);
   });
 
@@ -61,7 +73,7 @@ describe("shellNavPolicy supervisor structured nav", () => {
     const { resolveLaboralesSidebarActiveNav } = await import("./laboralesNav.ts");
     expect(resolveLaboralesSidebarActiveNav("metricas", "supervisor")).toBe("metricas");
     expect(resolveLaboralesSidebarActiveNav("solicitudes", "supervisor")).toBe("solicitudes");
-    expect(resolveLaboralesSidebarActiveNav("metricas", "rh")).toBe("laborales");
+    expect(resolveLaboralesSidebarActiveNav("metricas", "operativo")).toBe("laborales");
   });
 
   it("supervisor puede acceder a #/metricas", async () => {

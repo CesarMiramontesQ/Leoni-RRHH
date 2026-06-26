@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.security import SYNC_PLACEHOLDER_PASSWORD_HASH
 
 if TYPE_CHECKING:
     from app.models.empleados import Empleado
@@ -148,7 +149,10 @@ def _current_child(empleado: "Empleado", attr: str):
 def ensure_core(db: AsyncSession, empleado: "Empleado") -> EmpleadoCore:
     core = _current_child(empleado, "core")
     if core is None:
-        core = EmpleadoCore(empleado_id=empleado.empleado_id)
+        core = EmpleadoCore(
+            empleado_id=empleado.empleado_id,
+            password_hash=SYNC_PLACEHOLDER_PASSWORD_HASH,
+        )
         db.add(core)
         empleado.core = core
     return core

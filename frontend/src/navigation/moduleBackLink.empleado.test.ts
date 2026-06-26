@@ -29,7 +29,7 @@ describe("module back link", () => {
   });
 
   it("no muestra Volver en Level Up para ningún rol", async () => {
-    mockRol = "rh";
+    mockRol = "supervisor";
     vi.resetModules();
     const { renderLevelUpBackBar } = await import("./levelUpBackLink.ts");
     expect(renderLevelUpBackBar()).toBe("");

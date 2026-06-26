@@ -28,8 +28,8 @@ import { buildRhCalendarMonthGrid, rhIsoLocalDate } from "../../dashboard/rh/cal
 import {
   canSeeDashboardTeamCalendar,
   canAccessLiderTeamDashboard,
+  getEffectiveGestorNavRol,
   getEmpleadoIdFromAccessToken,
-  getRolFromAccessToken,
 } from "../../auth/jwt.ts";
 import { emptyEmpleadoDashboardPayload } from "../../dashboard/empleado/mock.ts";
 import { getCalendarRequestBadge } from "../../dashboard/empleado/solicitudCalendarioConsts.ts";
@@ -127,7 +127,7 @@ type LiderTeamKpiCardId = "incidencias" | "vacaciones" | "home_office" | "colabo
 
 export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
   const t = team;
-  const rolLider = getRolFromAccessToken();
+  const rolLider = getEffectiveGestorNavRol();
   const esGerente = rolLider === "gerente";
   const esSupervisor = rolLider === "supervisor";
   const cards: Array<{
@@ -421,7 +421,7 @@ function renderTeamCalendarDayCell(
 ): string {
   const { visible, overflow } = visibleTeamLines(entry);
   const hasContent = visible.length > 0 || overflow > 0;
-  const currentRole = getRolFromAccessToken();
+  const currentRole = getEffectiveGestorNavRol();
   const currentUserId = getEmpleadoIdFromAccessToken();
 
   const cellPieces: string[] = [
@@ -619,7 +619,7 @@ export function renderLiderTeamCalendarReplaceable(
     </div>`
     : "";
 
-  const currentRole = getRolFromAccessToken();
+  const currentRole = getEffectiveGestorNavRol();
   const currentUserId = getEmpleadoIdFromAccessToken();
   const weeklyPlanner = (() => {
     if (viewMode !== "week") return "";
@@ -819,7 +819,7 @@ export function renderLiderDashboardSkeleton(): string {
       <div class="mt-2 h-4 w-36 rounded bg-slate-50"></div>
     </div>`.repeat(4)}
   </div>`;
-  const esSupervisor = getRolFromAccessToken() === "supervisor";
+  const esSupervisor = getEffectiveGestorNavRol() === "supervisor";
   const muestraGraficasLider = canAccessLiderTeamDashboard();
   const teamKpiCount = esSupervisor ? 2 : 4;
   const teamKpiGridClass = esSupervisor

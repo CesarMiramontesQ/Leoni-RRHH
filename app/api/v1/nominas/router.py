@@ -31,7 +31,7 @@ from app.services.nominas_ajustes_service import NominasAjustesService
 
 router = APIRouter(prefix="/api/v1/nominas", tags=["Nóminas"])
 
-_ROLES_HORAS_EXTRA = ["rh", "director", "gerente"]
+_ROLES_HORAS_EXTRA = ["operativo", "director", "gerente"]
 
 
 def _svc(db: AsyncSession = Depends(get_db)) -> HorasExtraService:
@@ -243,7 +243,7 @@ async def list_horas_extra_autorizados(
     page_size: int = Query(10, ge=1, le=100),
     q: str | None = Query(None),
     filtro: HorasExtraAutorizadosFiltro = Query("todos"),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.listar_autorizados(
@@ -257,7 +257,7 @@ async def list_horas_extra_autorizados(
 )
 async def update_horas_extra_autorizados(
     body: HorasExtraAutorizacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.actualizar_autorizacion(body, current_user)
@@ -268,7 +268,7 @@ async def update_horas_extra_autorizados(
     response_model=HorasExtraAprobadoresListResponse,
 )
 async def list_horas_extra_aprobadores(
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.listar_aprobadores()
@@ -281,7 +281,7 @@ async def list_horas_extra_aprobadores(
 )
 async def create_horas_extra_aprobadores(
     body: HorasExtraAprobadoresCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.crear_aprobadores(body, current_user)
@@ -294,7 +294,7 @@ async def create_horas_extra_aprobadores(
 async def update_horas_extra_aprobador(
     aprobador_id: int,
     body: HorasExtraAprobadorUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.actualizar_aprobador(aprobador_id, body)
@@ -306,7 +306,7 @@ async def update_horas_extra_aprobador(
 )
 async def delete_horas_extra_aprobador(
     aprobador_id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.eliminar_aprobador(aprobador_id)

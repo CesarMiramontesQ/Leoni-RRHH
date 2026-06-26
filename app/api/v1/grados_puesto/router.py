@@ -47,7 +47,7 @@ async def listar_grados_puesto(
 )
 async def crear_grado_puesto(
     body: GradoPuestoCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo grado en el catalogo. Solo RH."""
@@ -70,7 +70,7 @@ async def obtener_grado_puesto(
 async def actualizar_grado_puesto(
     id: int,
     body: GradoPuestoUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza un grado del catalogo. Solo RH."""
@@ -81,7 +81,7 @@ async def actualizar_grado_puesto(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_grado_puesto(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Desactiva un grado del catalogo (soft delete). Solo RH."""

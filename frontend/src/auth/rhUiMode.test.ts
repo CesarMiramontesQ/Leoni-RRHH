@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storage = new Map<string, string>();
 let gestorAlcance: "supervisor" | "gerente" | null = null;
-let rol: string | null = "rh";
+let rol: string | null = "gerente";
 
 vi.stubGlobal("sessionStorage", {
   getItem: (key: string) => storage.get(key) ?? null,
@@ -17,30 +17,39 @@ vi.stubGlobal("sessionStorage", {
 vi.mock("./jwt.ts", () => ({
   getRolFromAccessToken: () => rol,
   getRhGestorAlcanceFromToken: () => gestorAlcance,
+  getAccessTokenPayload: () => ({}),
 }));
 
-describe("rhUiMode", () => {
+describe("rhUiMode — usuarios ADMIN", () => {
   beforeEach(() => {
     storage.clear();
     gestorAlcance = null;
-    rol = "rh";
+    rol = "gerente";
     vi.resetModules();
   });
 
-  it("default es operativo", async () => {
-    const { getRhUiMode } = await import("./rhUiMode.ts");
+  async function adminMod() {
+    const mod = await import("./rhUiMode.ts");
+    mod.setAdminUser(true);
+    return mod;
+  }
+
+  it("default es operativo (vista RH)", async () => {
+    const { getRhUiMode } = await adminMod();
     expect(getRhUiMode()).toBe("operativo");
   });
 
-  it("persiste modo empleado para RH normal", async () => {
-    const { getRhUiMode, setRhUiMode, isRhEmpleadoUiMode } = await import("./rhUiMode.ts");
+  it("persiste modo empleado para ADMIN con rol empleado", async () => {
+    rol = "empleado";
+    const { getRhUiMode, setRhUiMode, isRhEmpleadoUiMode } = await adminMod();
     setRhUiMode("empleado");
     expect(getRhUiMode()).toBe("empleado");
     expect(isRhEmpleadoUiMode()).toBe(true);
   });
 
-  it("toggle alterna operativo y empleado para RH normal", async () => {
-    const { getRhUiMode, toggleRhUiMode } = await import("./rhUiMode.ts");
+  it("toggle alterna operativo y empleado para ADMIN empleado", async () => {
+    rol = "empleado";
+    const { getRhUiMode, toggleRhUiMode } = await adminMod();
     expect(getRhUiMode()).toBe("operativo");
     toggleRhUiMode();
     expect(getRhUiMode()).toBe("empleado");
@@ -48,9 +57,9 @@ describe("rhUiMode", () => {
     expect(getRhUiMode()).toBe("operativo");
   });
 
-  it("RH líder alterna operativo y lider", async () => {
-    gestorAlcance = "supervisor";
-    const { getRhUiMode, toggleRhUiMode, isRhLiderUiMode, getRhToggleLabels } = await import("./rhUiMode.ts");
+  it("ADMIN supervisor alterna operativo y lider", async () => {
+    rol = "supervisor";
+    const { getRhUiMode, toggleRhUiMode, isRhLiderUiMode, getRhToggleLabels } = await adminMod();
     expect(getRhToggleLabels().on).toBe("Modo líder");
     toggleRhUiMode();
     expect(getRhUiMode()).toBe("lider");
@@ -59,34 +68,41 @@ describe("rhUiMode", () => {
     expect(getRhUiMode()).toBe("operativo");
   });
 
-  it("RH gerente alterna operativo y gerente", async () => {
-    gestorAlcance = "gerente";
-    const { getRhUiMode, toggleRhUiMode, isRhGerenteUiMode } = await import("./rhUiMode.ts");
+  it("ADMIN gerente alterna operativo y gerente", async () => {
+    const { getRhUiMode, toggleRhUiMode, isRhGerenteUiMode } = await adminMod();
     toggleRhUiMode();
     expect(getRhUiMode()).toBe("gerente");
     expect(isRhGerenteUiMode()).toBe(true);
   });
 
-  it("sanitiza modos no permitidos según alcance", async () => {
-    gestorAlcance = "supervisor";
-    const { getRhUiMode, setRhUiMode } = await import("./rhUiMode.ts");
+  it("ADMIN director alterna operativo y director", async () => {
+    rol = "director";
+    const { getRhUiMode, toggleRhUiMode, isRhDirectorUiMode, getRhToggleLabels } = await adminMod();
+    expect(getRhToggleLabels().on).toBe("Modo director");
+    toggleRhUiMode();
+    expect(getRhUiMode()).toBe("director");
+    expect(isRhDirectorUiMode()).toBe(true);
+  });
+
+  it("sanitiza modos no permitidos según rol operativo", async () => {
+    rol = "supervisor";
+    const { getRhUiMode, setRhUiMode } = await adminMod();
     setRhUiMode("gerente");
     expect(getRhUiMode()).toBe("operativo");
     setRhUiMode("empleado");
     expect(getRhUiMode()).toBe("operativo");
   });
 
-  it("RH fuera de la lista de permisos conserva el modo de UI elegido", async () => {
-    const { getRhUiMode, setRhInPermisosList, setRhUiMode } = await import("./rhUiMode.ts");
-    setRhInPermisosList(false);
-    setRhUiMode("empleado");
-    expect(getRhUiMode()).toBe("empleado");
-    setRhUiMode("operativo");
-    expect(getRhUiMode()).toBe("operativo");
+  it("usuario no ADMIN no puede cambiar modo de UI", async () => {
+    const mod = await import("./rhUiMode.ts");
+    mod.setAdminUser(false);
+    mod.setRhUiMode("empleado");
+    expect(mod.getRhUiMode()).toBe("operativo");
+    expect(mod.isRhOperativoUiMode()).toBe(false);
   });
 });
 
-describe("rhUiMode — modo no-RH (usuarios con permisos asignados)", () => {
+describe("rhUiMode — modo no-ADMIN (usuarios con permisos asignados)", () => {
   beforeEach(() => {
     storage.clear();
     gestorAlcance = null;
@@ -96,6 +112,7 @@ describe("rhUiMode — modo no-RH (usuarios con permisos asignados)", () => {
 
   it("sin permisos activos no es usuario de permisos y no entra a Modo RH", async () => {
     const mod = await import("./rhUiMode.ts");
+    mod.setAdminUser(false);
     expect(mod.isNonRhPermisosUser()).toBe(false);
     mod.setNonRhRhMode(true); // no-op sin permisos
     expect(mod.isNonRhRhMode()).toBe(false);
@@ -103,6 +120,7 @@ describe("rhUiMode — modo no-RH (usuarios con permisos asignados)", () => {
 
   it("con permisos: default modo base, y el toggle alterna a Modo RH", async () => {
     const mod = await import("./rhUiMode.ts");
+    mod.setAdminUser(false);
     mod.setRhPermisosActivos(true);
     expect(mod.isNonRhPermisosUser()).toBe(true);
     expect(mod.isNonRhRhMode()).toBe(false); // default = base
@@ -113,9 +131,9 @@ describe("rhUiMode — modo no-RH (usuarios con permisos asignados)", () => {
     expect(mod.isNonRhRhMode()).toBe(false);
   });
 
-  it("un usuario RH no se considera usuario no-RH de permisos", async () => {
-    rol = "rh";
+  it("un usuario ADMIN no se considera usuario no-ADMIN de permisos", async () => {
     const mod = await import("./rhUiMode.ts");
+    mod.setAdminUser(true);
     mod.setRhPermisosActivos(true);
     expect(mod.isNonRhPermisosUser()).toBe(false);
     expect(mod.isNonRhRhMode()).toBe(false);

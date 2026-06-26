@@ -1,4 +1,4 @@
-import { getRolFromAccessToken } from "../../auth/jwt.ts";
+import { hasRhOperativeViewerContext } from "../../auth/jwt.ts";
 import type { ComedorRhProximoRegistroRow } from "../../comedor/rh/types.ts";
 import type { ReporteComedorViewState } from "../../comedor/reportes/types.ts";
 import {
@@ -554,7 +554,7 @@ export function renderReporteMainHeaderCard(state: ReporteComedorViewState): str
     }">${escapeComedorHtml(label)}</button>`;
   };
 
-  const esRh = getRolFromAccessToken() === "rh";
+  const esRh = hasRhOperativeViewerContext();
   const exportDisabled = state.rhAnalyticsState === "loading";
   const exportBtn = esRh
     ? `<button type="button" data-comedor-reporte-export ${exportDisabled ? "disabled" : ""} class="${BTN_PRIMARY} h-9 min-h-9 w-full justify-center px-4 text-sm shadow-sm motion-safe:transition motion-safe:duration-150 motion-safe:hover:-translate-y-px motion-safe:hover:shadow-md sm:w-auto disabled:cursor-not-allowed disabled:opacity-50">${REPORTE_EXPORT_ICON}Exportar Reporte</button>`

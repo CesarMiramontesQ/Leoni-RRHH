@@ -11,8 +11,20 @@ let heAutorizado = false;
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => null,
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => null,
   isHorasExtraAprobador: () => heAprobador,
   isHorasExtraRegistroAutorizado: () => heAutorizado,
+}));
+
+vi.mock("../auth/rhUiMode.ts", () => ({
+  isAdminUser: () => false,
+  isNonRhRhMode: () => false,
+  isRhDirectorUiMode: () => false,
+  isRhEmpleadoUiMode: () => false,
+  isRhGerenteUiMode: () => false,
+  isRhGestorTeamUiMode: () => false,
+  isRhLiderUiMode: () => false,
+  isRhOperativoUiMode: () => false,
 }));
 
 vi.mock("../auth/rhModulePermissions.ts", () => ({

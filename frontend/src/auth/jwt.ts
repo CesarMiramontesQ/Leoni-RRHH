@@ -1,6 +1,14 @@
 import { formatNombreEmpleadoUi } from "../utils/nombreEmpleadoDisplay.ts";
 import { hasExplicitModuleGrant, hasRhModule } from "./rhModulePermissions.ts";
-import { isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "./rhUiMode.ts";
+import {
+  isNonRhRhMode,
+  isRhDirectorUiMode,
+  isRhEmpleadoUiMode,
+  isRhGerenteUiMode,
+  isRhGestorTeamUiMode,
+  isRhLiderUiMode,
+  isRhOperativoUiMode,
+} from "./rhUiMode.ts";
 import { getAccessToken } from "./session.ts";
 
 function decodePayloadSegment(segment: string): Record<string, unknown> | null {
@@ -28,6 +36,34 @@ export function getRolFromAccessToken(): string | null {
   const p = getAccessTokenPayload();
   const r = p?.rol;
   return typeof r === "string" ? r : null;
+}
+
+/** Admin en Modo RH o colaborador inscrito viendo módulos RH asignados. */
+export function hasRhOperativeViewerContext(): boolean {
+  return isRhOperativoUiMode() || isNonRhRhMode();
+}
+
+/** RH operativo o grant explícito del módulo (p. ej. comedor para reporte). */
+export function hasRhOperativeViewerContextOrGrant(grantKey: string): boolean {
+  if (hasRhOperativeViewerContext()) return true;
+  return hasExplicitModuleGrant(grantKey);
+}
+
+type RhModuleAccessOpts = {
+  blockGestorTeam?: boolean;
+  blockEmpleado?: boolean;
+  blockDirector?: boolean;
+};
+
+/** Acceso a módulo RH vía admin operativo, Modo RH inscrito o grant explícito. */
+function canAccessRhAssignedModule(moduleKey: string, opts: RhModuleAccessOpts = {}): boolean {
+  if (opts.blockEmpleado && isRhEmpleadoUiMode()) return false;
+  if (opts.blockGestorTeam && isRhGestorTeamUiMode()) return false;
+  if (opts.blockDirector && isRhDirectorUiMode()) return false;
+  if (hasExplicitModuleGrant(moduleKey)) return true;
+  if (isRhOperativoUiMode()) return hasRhModule(moduleKey);
+  if (isNonRhRhMode()) return hasRhModule(moduleKey);
+  return false;
 }
 
 /** Autorización para registrar horas extra (claim `he_autorizado`, administrada por RH en Ajustes de Nóminas). */
@@ -75,49 +111,37 @@ export function getUserInitialsFromAccessToken(): string {
   return (parts[0] ?? "U").slice(0, 2).toUpperCase();
 }
 
-/** Rol de navegación efectivo (RH gestor → supervisor/gerente). */
+/** Rol de navegación efectivo (ADMIN en modo operativo de su rol → supervisor/gerente/director/empleado). */
 export function getEffectiveGestorNavRol(): string | null {
-  const r = getRolFromAccessToken();
-  if (r === "rh") {
-    if (isRhLiderUiMode()) return "supervisor";
-    if (isRhGerenteUiMode()) return "gerente";
-  }
-  return r;
+  if (isRhLiderUiMode()) return "supervisor";
+  if (isRhGerenteUiMode()) return "gerente";
+  if (isRhDirectorUiMode()) return "director";
+  if (isRhEmpleadoUiMode()) return "empleado";
+  return getRolFromAccessToken();
 }
 
 /** Panel administrativo /api/v1/usuarios (lista completa, inactivos, KPIs plantilla). */
 export function canAccessUsuariosAdmin(): boolean {
-  if (isRhGestorTeamUiMode() || isRhEmpleadoUiMode()) return false;
-  if (hasExplicitModuleGrant("empleados")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("empleados");
-  return false;
+  return canAccessRhAssignedModule("empleados", { blockGestorTeam: true, blockDirector: true });
 }
 
 /** Dashboard principal con tarjetas operativas (métricas mock / futura API dedicada). */
 export function canAccessRhOperationalDashboard(): boolean {
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
-  if (hasExplicitModuleGrant("dashboard")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("dashboard");
-  return false;
+  return canAccessRhAssignedModule("dashboard", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
 }
 
 /** Página de organigrama empresarial (`#/organigrama`) exclusiva para RH. */
 export function canAccessOrganigramaPage(): boolean {
-  if (hasExplicitModuleGrant("organigrama")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("organigrama");
-  return false;
+  return canAccessRhAssignedModule("organigrama");
 }
 
 /** Vista operativa de comedor (`#/comedor`) exclusiva para RH. */
 export function canAccessComedorRhPage(): boolean {
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
-  if (hasExplicitModuleGrant("comedor")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("comedor");
-  return false;
+  return canAccessRhAssignedModule("comedor", { blockGestorTeam: true, blockDirector: true });
 }
 
 /** Comedor personal para RH en modo empleado. */
@@ -127,44 +151,47 @@ export function canAccessComedorPersonalForRh(): boolean {
 
 /** Tablero analítico «Reporte comedor» (`#/comedor/reporte`): alineado con GET estadisticas/proyecciones. */
 export function canAccessComedorReportePage(): boolean {
-  if (hasExplicitModuleGrant("reportes")) return true;
+  if (canAccessRhAssignedModule("reportes")) return true;
   const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("reportes");
   return r === "gerente" || r === "director";
 }
 
 /** Vista de comedor para líderes (`#/comedor`): propio + equipo, sin analítica avanzada. */
 export function canAccessComedorLiderPage(): boolean {
+  if (isRhOperativoUiMode()) return false;
   const r = getRolFromAccessToken();
   if (r === "supervisor" || r === "gerente") return true;
-  return r === "rh" && isRhGestorTeamUiMode();
+  return isRhGestorTeamUiMode();
 }
 
 /** Dashboard personal (vacaciones, HO, comidas) solo para el propio empleado. */
 export function canAccessEmpleadoPersonalDashboard(): boolean {
-  const r = getRolFromAccessToken();
-  return r === "empleado" || isRhEmpleadoUiMode();
+  if (isRhOperativoUiMode()) return false;
+  if (isRhGestorTeamUiMode() || isRhDirectorUiMode()) return false;
+  if (isRhEmpleadoUiMode()) return true;
+  return getRolFromAccessToken() === "empleado";
 }
 
 /** Dashboard personal + equipo (tarjetas, aprobaciones, calendario del equipo). */
 export function canAccessLiderTeamDashboard(): boolean {
+  if (isRhOperativoUiMode()) return false;
+  if (isRhGestorTeamUiMode()) return true;
   const r = getRolFromAccessToken();
-  if (r === "supervisor" || r === "gerente") return true;
-  return r === "rh" && isRhGestorTeamUiMode();
+  return r === "supervisor" || r === "gerente";
 }
 
 /** Calendario del equipo en `#/` (dashboard líder). Oculto para supervisor y gerente. */
 export function canSeeDashboardTeamCalendar(): boolean {
-  const r = getRolFromAccessToken();
+  if (isRhOperativoUiMode()) return true;
+  const r = getEffectiveGestorNavRol();
   return r !== "supervisor" && r !== "gerente";
 }
 
 /** Directorio GET /api/v1/empleados (RH ve plantilla completa; otros solo activos). */
 export function canAccessDirectorioEmpleados(): boolean {
   if (isRhGestorTeamUiMode()) return true;
-  if (hasExplicitModuleGrant("empleados")) return true;
+  if (canAccessRhAssignedModule("empleados")) return true;
   const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("empleados");
   return r === "gerente" || r === "director" || r === "supervisor";
 }
 
@@ -182,29 +209,22 @@ export function canAccessEmpleadosKpiGestionEquipo(): boolean {
 
 /** Vista administrativa global de solicitudes (`#/solicitudes`). Solo RH (catálogo completo de filtros). */
 export function canAccessRhSolicitudesAdminPage(): boolean {
-  if (isRhEmpleadoUiMode()) return false;
-  if (hasExplicitModuleGrant("solicitudes")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("solicitudes");
-  return false;
+  return canAccessRhAssignedModule("solicitudes", { blockEmpleado: true });
 }
 
 /** Analítica de solicitudes e incidencias (`#/metricas`). RH (global), supervisor (equipo directo) y gerente (subárbol). */
 export function canAccessMetricasPage(): boolean {
-  if (isRhGerenteUiMode()) return true;
-  if (isRhGestorTeamUiMode()) return false;
-  if (hasExplicitModuleGrant("metricas")) return true;
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
+  if (canAccessRhAssignedModule("metricas")) return true;
   const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("metricas");
   return r === "supervisor" || r === "gerente";
 }
 
 /** Gestión de solicitudes (`#/solicitudes`): RH, supervisores y gerentes (alcance y filtros según rol). */
 export function canAccessSolicitudesGestorPage(): boolean {
   if (isRhEmpleadoUiMode()) return false;
-  if (hasExplicitModuleGrant("solicitudes")) return true;
+  if (canAccessRhAssignedModule("solicitudes")) return true;
   const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("solicitudes");
   return r === "supervisor" || r === "gerente";
 }
 
@@ -275,35 +295,35 @@ export function getEmpleadoDirectoryNumericIdFromAccessToken(): number | null {
 
 /** Vista de incidencias laborales (`#/incidencias`): RH, director, gerente y supervisor. */
 export function canAccessRhIncidenciasPage(): boolean {
-  if (hasExplicitModuleGrant("incidencias")) return true;
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
+  if (canAccessRhAssignedModule("incidencias")) return true;
   const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("incidencias");
   return r === "director" || r === "gerente" || r === "supervisor";
 }
 
 /** Página de faltas y retardos (`#/faltas-retardos`). */
 export function canAccessFaltasRetardosPage(): boolean {
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
-  if (hasExplicitModuleGrant("faltas-retardos")) return true;
+  if (isRhEmpleadoUiMode() || isRhDirectorUiMode()) return false;
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
+  if (canAccessRhAssignedModule("faltas-retardos")) return true;
   const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("faltas-retardos");
   return r === "director" || r === "gerente" || r === "supervisor";
 }
 
-/** Página de actas (`#/actas`): RH con módulo `actas` o no-RH con el módulo otorgado. */
+/** Página de actas (`#/actas`): admin operativo o no-RH con módulo otorgado. */
 export function canAccessActasPage(): boolean {
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
-  if (hasExplicitModuleGrant("actas")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("actas");
-  return false;
+  return canAccessRhAssignedModule("actas", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
 }
 
-/** Ajustes de Nóminas (`#/nominas/ajustes`): RH con módulo o no-RH con el módulo otorgado. */
+/** Ajustes de Nóminas (`#/nominas/ajustes`): admin operativo o no-RH con módulo otorgado. */
 export function canAccessNominasAjustesPage(): boolean {
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode()) return false;
-  if (hasExplicitModuleGrant("nominas-ajustes")) return true;
-  const r = getRolFromAccessToken();
-  if (r === "rh") return hasRhModule("nominas-ajustes");
-  return false;
+  return canAccessRhAssignedModule("nominas-ajustes", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
 }

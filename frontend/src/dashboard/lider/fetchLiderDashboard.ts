@@ -3,7 +3,7 @@ import { fetchAllIncidenciasForExport, getIncidenciasRows } from "../../api/inci
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
 import { getEmpleadoVista360 } from "../../api/vista360.ts";
-import { getEmpleadoIdFromAccessToken, getRolFromAccessToken } from "../../auth/jwt.ts";
+import { getEmpleadoIdFromAccessToken, getEffectiveGestorNavRol, getRolFromAccessToken } from "../../auth/jwt.ts";
 import { emptyRhIncidenciaListFilters, type RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
@@ -233,7 +233,7 @@ function countIncidenciasActivas(filas: RhIncidenciaTablaFila[]): number {
  * construye el calendario de equipo con solicitudes propias+equipo (API scoped por rol).
  */
 export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Promise<LiderDashboardPayload | null> {
-  const role = getRolFromAccessToken();
+  const role = getEffectiveGestorNavRol();
   if (role !== "supervisor" && role !== "gerente") return null;
   const esGerente = role === "gerente";
 

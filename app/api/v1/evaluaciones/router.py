@@ -63,7 +63,7 @@ async def resumen_empleado(
 @router.post("/bulk", status_code=status.HTTP_200_OK)
 async def bulk_evaluaciones(
     body: EvaluacionBulkCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crear/actualizar multiples evaluaciones en batch. Solo RH."""
@@ -102,7 +102,7 @@ async def listar_evaluaciones(
 )
 async def crear_evaluacion(
     body: EvaluacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crear o actualizar evaluacion. RH o supervisor (solo su area)."""
@@ -125,7 +125,7 @@ async def obtener_evaluacion(
 async def actualizar_evaluacion(
     id: int,
     body: EvaluacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh", "supervisor"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualizar evaluacion. RH o supervisor (solo su area)."""
@@ -136,7 +136,7 @@ async def actualizar_evaluacion(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_evaluacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Eliminar evaluacion. Solo RH."""

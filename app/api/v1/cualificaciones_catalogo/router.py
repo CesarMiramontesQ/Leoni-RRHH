@@ -58,7 +58,7 @@ async def listar_tipos_cualificacion(
 @router.post("/tipos", response_model=TipoCualificacionResponse, status_code=status.HTTP_201_CREATED)
 async def crear_tipo_cualificacion(
     body: TipoCualificacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -69,7 +69,7 @@ async def crear_tipo_cualificacion(
 async def actualizar_tipo_cualificacion(
     id: int,
     body: TipoCualificacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -79,7 +79,7 @@ async def actualizar_tipo_cualificacion(
 @router.delete("/tipos/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_tipo_cualificacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -105,7 +105,7 @@ async def listar_metodos_calificacion(
 @router.post("/metodos", response_model=MetodoCalificacionResponse, status_code=status.HTTP_201_CREATED)
 async def crear_metodo_calificacion(
     body: MetodoCalificacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -116,7 +116,7 @@ async def crear_metodo_calificacion(
 async def actualizar_metodo_calificacion(
     id: int,
     body: MetodoCalificacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -126,7 +126,7 @@ async def actualizar_metodo_calificacion(
 @router.delete("/metodos/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_metodo_calificacion(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -154,7 +154,7 @@ async def listar_opciones_calificacion(
 async def crear_opcion_calificacion(
     metodo_id: int,
     body: OpcionCalificacionCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -169,7 +169,7 @@ async def actualizar_opcion_calificacion(
     metodo_id: int,
     opcion_id: int,
     body: OpcionCalificacionUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -180,7 +180,7 @@ async def actualizar_opcion_calificacion(
 async def eliminar_opcion_calificacion(
     metodo_id: int,
     opcion_id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -221,7 +221,7 @@ async def obtener_cualificacion_catalogo(
 )
 async def crear_cualificacion_catalogo(
     body: CualificacionCatalogoCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -232,7 +232,7 @@ async def crear_cualificacion_catalogo(
 async def actualizar_cualificacion_catalogo(
     id: int,
     body: CualificacionCatalogoUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)
@@ -242,7 +242,7 @@ async def actualizar_cualificacion_catalogo(
 @router.delete("/cualificaciones/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_cualificacion_catalogo(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = CualificacionesCatalogoService(db)

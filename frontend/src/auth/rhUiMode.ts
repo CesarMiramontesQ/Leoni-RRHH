@@ -1,16 +1,32 @@
-import { getRhGestorAlcanceFromToken, getRolFromAccessToken } from "./jwt.ts";
+import { getAccessTokenPayload, getRhGestorAlcanceFromToken, getRolFromAccessToken } from "./jwt.ts";
 
-export type RhUiMode = "operativo" | "empleado" | "lider" | "gerente";
+export type RhUiMode = "operativo" | "empleado" | "lider" | "gerente" | "director";
 
 const STORAGE_KEY = "leoni_rh_ui_mode";
 export const RH_UI_MODE_CHANGE_EVENT = "rh-ui-mode-change";
 
-const ALL_MODES: readonly RhUiMode[] = ["operativo", "empleado", "lider", "gerente"];
+const ALL_MODES: readonly RhUiMode[] = ["operativo", "empleado", "lider", "gerente", "director"];
 
 /**
- * ¿El usuario RH aparece en la lista de administración de Permisos RH?
+ * Flag ADMIN (`puede_administrar_permisos_rh`). Lo empuja `rhModulePermissions` tras
+ * cargar `/me`; también se lee del claim JWT `rh_admin` como respaldo inmediato.
+ */
+let adminUserFlag = false;
+
+export function setAdminUser(value: boolean): void {
+  adminUserFlag = value;
+}
+
+/** Usuario ADMIN: ve la vista RH operativa por defecto y puede alternar a su rol operativo. */
+export function isAdminUser(): boolean {
+  if (adminUserFlag) return true;
+  return getAccessTokenPayload()?.rh_admin === true;
+}
+
+/**
+ * ¿El usuario aparece en la lista de administración de Permisos RH?
  * Lo empuja `rhModulePermissions` tras cargar `/me`. No afecta el toggle ni el
- * modo de UI (todo RH puede alternar Modo RH / Modo empleado).
+ * modo de UI (todo ADMIN puede alternar Modo RH / Modo operativo).
  */
 let inPermisosList = true;
 
@@ -22,9 +38,9 @@ export function isRhInPermisosList(): boolean {
   return inPermisosList;
 }
 
-// ── Modo para usuarios SIN rol RH con permisos RH asignados ──────────────────
-// Sistema paralelo (no toca la lógica RH de arriba): un no-RH con >=1 permiso
-// activo alterna entre su modo base (su rol) y el Modo RH (módulos asignados).
+// ── Modo para usuarios SIN flag ADMIN con permisos RH asignados ──────────────
+// Sistema paralelo: un no-ADMIN con >=1 permiso activo alterna entre su modo base
+// (su rol) y el Modo RH (módulos asignados).
 
 const NON_RH_MODE_KEY = "leoni_non_rh_ui_mode";
 
@@ -39,9 +55,9 @@ export function hasRhPermisosActivos(): boolean {
   return rhPermisosActivos;
 }
 
-/** Usuario sin rol RH pero con permisos RH asignados (puede usar el toggle). */
+/** Usuario sin flag ADMIN pero con permisos RH asignados (puede usar el toggle). */
 export function isNonRhPermisosUser(): boolean {
-  return getRolFromAccessToken() !== "rh" && rhPermisosActivos;
+  return !isAdminUser() && rhPermisosActivos;
 }
 
 function readNonRhMode(): "base" | "rh" {
@@ -54,7 +70,7 @@ function readNonRhMode(): "base" | "rh" {
   return "base";
 }
 
-/** No-RH viendo sus módulos RH asignados (Modo RH). Default: modo base. */
+/** No-ADMIN viendo sus módulos RH asignados (Modo RH). Default: modo base. */
 export function isNonRhRhMode(): boolean {
   return isNonRhPermisosUser() && readNonRhMode() === "rh";
 }
@@ -85,26 +101,34 @@ function readStoredMode(): RhUiMode | null {
   return null;
 }
 
-function sanitizeModeForUser(mode: RhUiMode): RhUiMode {
+/** Modo operativo del toggle según el rol JWT del ADMIN (no asume ADMIN como rol). */
+export function getAdminOperationalUiMode(): RhUiMode {
+  const rol = getRolFromAccessToken();
+  if (rol === "gerente") return "gerente";
+  if (rol === "supervisor") return "lider";
+  if (rol === "director") return "director";
+  if (rol === "empleado") return "empleado";
   const alcance = getRhGestorAlcanceFromToken();
-  if (alcance === "supervisor") {
-    return mode === "lider" ? "lider" : "operativo";
-  }
-  if (alcance === "gerente") {
-    return mode === "gerente" ? "gerente" : "operativo";
-  }
-  return mode === "empleado" ? "empleado" : "operativo";
+  if (alcance === "supervisor") return "lider";
+  if (alcance === "gerente") return "gerente";
+  return "empleado";
 }
 
-/** Modo de UI para usuarios RH (default operativo). */
+function sanitizeModeForUser(mode: RhUiMode): RhUiMode {
+  const operational = getAdminOperationalUiMode();
+  if (mode === "operativo" || mode === operational) return mode;
+  return "operativo";
+}
+
+/** Modo de UI para usuarios ADMIN (default operativo = vista RH). */
 export function getRhUiMode(): RhUiMode {
-  if (getRolFromAccessToken() !== "rh") return "operativo";
+  if (!isAdminUser()) return "operativo";
   const stored = readStoredMode() ?? "operativo";
   return sanitizeModeForUser(stored);
 }
 
 export function setRhUiMode(mode: RhUiMode): void {
-  if (getRolFromAccessToken() !== "rh") return;
+  if (!isAdminUser()) return;
   try {
     sessionStorage.setItem(STORAGE_KEY, sanitizeModeForUser(mode));
   } catch {
@@ -120,21 +144,20 @@ export function getRhToggleOffMode(): RhUiMode {
 }
 
 export function getRhToggleOnMode(): RhUiMode {
-  const alcance = getRhGestorAlcanceFromToken();
-  if (alcance === "supervisor") return "lider";
-  if (alcance === "gerente") return "gerente";
-  return "empleado";
+  return getAdminOperationalUiMode();
 }
 
+const OPERATIONAL_MODE_LABELS: Record<RhUiMode, string> = {
+  operativo: "Modo RH",
+  empleado: "Modo empleado",
+  lider: "Modo líder",
+  gerente: "Modo gerente",
+  director: "Modo director",
+};
+
 export function getRhToggleLabels(): { off: string; on: string; active: string } {
-  const alcance = getRhGestorAlcanceFromToken();
-  if (alcance === "supervisor") {
-    return { off: "Modo RH", on: "Modo líder", active: "Modo líder" };
-  }
-  if (alcance === "gerente") {
-    return { off: "Modo RH", on: "Modo gerente", active: "Modo gerente" };
-  }
-  return { off: "Modo RH", on: "Modo empleado", active: "Modo empleado" };
+  const on = OPERATIONAL_MODE_LABELS[getAdminOperationalUiMode()];
+  return { off: "Modo RH", on, active: on };
 }
 
 export function getRhUiModeLabel(mode: RhUiMode = getRhUiMode()): string {
@@ -152,19 +175,23 @@ export function toggleRhUiMode(): void {
 }
 
 export function isRhEmpleadoUiMode(): boolean {
-  return getRolFromAccessToken() === "rh" && getRhUiMode() === "empleado";
+  return isAdminUser() && getRhUiMode() === "empleado";
 }
 
 export function isRhOperativoUiMode(): boolean {
-  return getRolFromAccessToken() === "rh" && getRhUiMode() === "operativo";
+  return isAdminUser() && getRhUiMode() === "operativo";
 }
 
 export function isRhLiderUiMode(): boolean {
-  return getRolFromAccessToken() === "rh" && getRhUiMode() === "lider";
+  return isAdminUser() && getRhUiMode() === "lider";
 }
 
 export function isRhGerenteUiMode(): boolean {
-  return getRolFromAccessToken() === "rh" && getRhUiMode() === "gerente";
+  return isAdminUser() && getRhUiMode() === "gerente";
+}
+
+export function isRhDirectorUiMode(): boolean {
+  return isAdminUser() && getRhUiMode() === "director";
 }
 
 export function isRhGestorTeamUiMode(): boolean {
@@ -175,13 +202,14 @@ export function rhHasFullOperativoModules(): boolean {
   return isRhOperativoUiMode() && getRhGestorAlcanceFromToken() !== null;
 }
 
-/** Valor del header `X-RH-UI-Mode` para requests autenticados RH. */
+/** Valor del header `X-RH-UI-Mode` para usuarios ADMIN autenticados. */
 export function getRhUiModeHeaderValue(): string | null {
-  if (getRolFromAccessToken() !== "rh") return null;
+  if (!isAdminUser()) return null;
   return getRhUiMode();
 }
 
 export function resetRhUiMode(): void {
+  adminUserFlag = false;
   inPermisosList = true;
   rhPermisosActivos = false;
   try {

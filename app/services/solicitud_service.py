@@ -911,9 +911,13 @@ class SolicitudService:
         background_tasks: BackgroundTasks,
         rh_ui_mode: str | None = None,
     ) -> SolicitudResponse:
-        rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if rol == "rh" and not rh_tiene_alcance_gestor(current_user, rh_ui_mode):
-            raise ForbiddenError(detail="No tienes permiso para override en modo empleado")
+        from app.core.rh_ui_mode import is_admin_user, rh_tiene_alcance_gestor
+
+        if not rh_tiene_alcance_gestor(current_user, rh_ui_mode):
+            from app.core.rh_access import is_legacy_rh_role
+
+            if is_admin_user(current_user) or is_legacy_rh_role(current_user):
+                raise ForbiddenError(detail="No tienes permiso para override en modo empleado")
 
         solicitud = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud:
