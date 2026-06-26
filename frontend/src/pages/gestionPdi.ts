@@ -9,6 +9,11 @@ import {
   getPDIHeatmap,
   getPDITimeline,
   getEmpleadoResumen,
+  createPDI,
+  getPDIKpisAvanzados,
+  getPDIRecomendaciones,
+  exportPDI,
+  notificarEquipoPDI,
   type PDIGestionItem,
   type PDIGestionListResponse,
   type PDIResumenResponse,
@@ -21,11 +26,26 @@ import {
   type HeatmapEmpleado,
   type TimelineResponse,
   type TimelineEvent,
+  type PDIKpisAvanzadosResponse,
+  type PDIRecomendacionItem,
+  type PDIRecomendacionesResponse,
+  type PDICreatePayload,
 } from "../api/evaluaciones.ts";
 
 interface AreaOption {
   id: number;
   label: string;
+}
+
+interface WizardData {
+  tipo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  accion: string;
+  prioridad: "baja" | "media" | "alta";
+  recursos: string;
+  competencia_id: string;
+  responsable: string;
 }
 
 interface State {
@@ -44,6 +64,14 @@ interface State {
   expandedData: EmpleadoResumen | null;
   heatmapData: HeatmapResponse;
   timelineData: TimelineResponse;
+  kpisAvanzados: PDIKpisAvanzadosResponse;
+  recomendaciones: PDIRecomendacionesResponse | null;
+  recomendacionesLoading: boolean;
+  wizardOpen: boolean;
+  wizardStep: number;
+  wizardEmpleadoId: number | null;
+  wizardData: WizardData;
+  competenciasOptions: { id: number; nombre: string }[];
 }
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -124,6 +152,14 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     expandedData: null,
     heatmapData: { competencias: [], empleados: [], matriz: {} },
     timelineData: { eventos: [], total: 0 },
+    kpisAvanzados: { cumplimiento_plan_pct: 0, horas_training_promedio: 0, promedio_skill_gap: 0, inversion_horas_total: 0 },
+    recomendaciones: null,
+    recomendacionesLoading: false,
+    wizardOpen: false,
+    wizardStep: 1,
+    wizardEmpleadoId: null,
+    wizardData: { tipo: "", fecha_inicio: "", fecha_fin: "", accion: "", prioridad: "media", recursos: "", competencia_id: "", responsable: "" },
+    competenciasOptions: [],
   };
 
   mountAppShell(container, {
@@ -147,6 +183,8 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
 
   async function loadResumen() {
     state.resumen = await getPDIResumen();
+    const areaParam = state.filters.area_id ? { area_id: Number(state.filters.area_id) } : undefined;
+    state.kpisAvanzados = await getPDIKpisAvanzados(areaParam);
   }
 
   async function loadItems() {
@@ -518,6 +556,124 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
       </div>`;
   }
 
+  function renderRecomendaciones(empleadoId: number): string {
+    if (state.recomendacionesLoading && state.expandedEmployeeId === empleadoId) {
+      return '<div class="flex items-center gap-2 py-3 text-xs text-slate-400"><svg class="animate-spin size-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg> Generando recomendaciones...</div>';
+    }
+    if (!state.recomendaciones || state.recomendaciones.empleado_id !== empleadoId) {
+      return '<div class="py-2 text-xs text-slate-400">Expandir para cargar recomendaciones</div>';
+    }
+    if (state.recomendaciones.recomendaciones.length === 0) {
+      return '<div class="py-2 text-xs text-slate-400">Recomendaciones no disponibles</div>';
+    }
+    const PRIO_BADGE: Record<string, string> = { baja: "bg-slate-100 text-slate-600", media: "bg-amber-50 text-amber-700", alta: "bg-red-50 text-red-700" };
+    return `<div class="grid gap-2 sm:grid-cols-3">${state.recomendaciones.recomendaciones.map(r => `
+      <div class="rounded-lg border border-slate-200 p-3 text-xs">
+        <p class="font-semibold text-slate-900 mb-1">${r.accion}</p>
+        <p class="text-slate-500 mb-2">${r.justificacion}</p>
+        <div class="flex items-center gap-1.5">
+          <span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-700">${r.tipo}</span>
+          <span class="inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${PRIO_BADGE[r.prioridad] ?? PRIO_BADGE.media}">${r.prioridad}</span>
+        </div>
+      </div>`).join("")}</div>`;
+  }
+
+  const WIZARD_TIPOS = ["E-Learning", "Presencial", "Mentoring", "Coaching", "Certificación", "Rotación"];
+
+  function renderWizardModal(): string {
+    if (!state.wizardOpen) return "";
+    const { wizardStep: step, wizardData: d } = state;
+    const stepLabels = ["Tipo Acción", "Detalles", "Recursos", "Confirmar"];
+    const PRIO_OPTS: Array<{ v: "baja" | "media" | "alta"; l: string }> = [{ v: "baja", l: "Baja" }, { v: "media", l: "Media" }, { v: "alta", l: "Alta" }];
+
+    const stepIndicator = `<div class="flex items-center justify-center gap-2 mb-6">${stepLabels.map((lbl, i) => {
+      const n = i + 1;
+      const active = n === step;
+      const done = n < step;
+      return `<div class="flex items-center gap-1.5">
+        <div class="size-6 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-blue-600 text-white" : done ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"}">${done ? "✓" : n}</div>
+        <span class="text-xs ${active ? "text-slate-900 font-semibold" : "text-slate-400"} hidden sm:inline">${lbl}</span>
+      </div>${i < 3 ? '<div class="w-6 h-px bg-slate-200"></div>' : ""}`;
+    }).join("")}</div>`;
+
+    let bodyHtml = "";
+    if (step === 1) {
+      bodyHtml = `
+        <label class="block mb-3"><span class="text-xs font-medium text-slate-700">Tipo de acción *</span>
+          <select data-wizard-field="tipo" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Seleccionar...</option>
+            ${WIZARD_TIPOS.map(t => `<option value="${t}" ${d.tipo === t ? "selected" : ""}>${t}</option>`).join("")}
+          </select>
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block"><span class="text-xs font-medium text-slate-700">Fecha inicio *</span>
+            <input type="date" data-wizard-field="fecha_inicio" value="${d.fecha_inicio}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"/>
+          </label>
+          <label class="block"><span class="text-xs font-medium text-slate-700">Fecha fin *</span>
+            <input type="date" data-wizard-field="fecha_fin" value="${d.fecha_fin}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"/>
+          </label>
+        </div>`;
+    } else if (step === 2) {
+      bodyHtml = `
+        <label class="block mb-3"><span class="text-xs font-medium text-slate-700">Nombre de la acción *</span>
+          <input type="text" data-wizard-field="accion" value="${d.accion}" placeholder="Ej: Curso de soldadura avanzada" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"/>
+        </label>
+        <div class="mb-3"><span class="text-xs font-medium text-slate-700 block mb-1.5">Prioridad *</span>
+          <div class="inline-flex rounded-lg border border-slate-200 p-0.5">${PRIO_OPTS.map(p =>
+            `<button type="button" data-wizard-field="prioridad" data-value="${p.v}" class="px-4 py-1.5 text-xs font-semibold rounded-md transition ${d.prioridad === p.v ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}">${p.l}</button>`
+          ).join("")}</div>
+        </div>`;
+    } else if (step === 3) {
+      bodyHtml = `
+        <label class="block mb-3"><span class="text-xs font-medium text-slate-700">Recursos asignados</span>
+          <textarea data-wizard-field="recursos" rows="2" placeholder="Presupuesto, materiales, herramientas..." class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">${d.recursos}</textarea>
+        </label>
+        <label class="block mb-3"><span class="text-xs font-medium text-slate-700">Competencia vinculada *</span>
+          <select data-wizard-field="competencia_id" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Seleccionar...</option>
+            ${state.competenciasOptions.map(c => `<option value="${c.id}" ${d.competencia_id === String(c.id) ? "selected" : ""}>${c.nombre}</option>`).join("")}
+          </select>
+        </label>
+        <label class="block"><span class="text-xs font-medium text-slate-700">Responsable *</span>
+          <input type="text" data-wizard-field="responsable" value="${d.responsable}" placeholder="Nombre o área responsable" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"/>
+        </label>`;
+    } else {
+      const PRIO_CLS: Record<string, string> = { baja: "bg-slate-100 text-slate-600", media: "bg-amber-50 text-amber-700", alta: "bg-red-50 text-red-700" };
+      const compName = state.competenciasOptions.find(c => String(c.id) === d.competencia_id)?.nombre ?? "—";
+      bodyHtml = `
+        <div class="space-y-2 text-sm">
+          <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+            <div><span class="text-slate-500">Tipo:</span> <span class="font-medium">${d.tipo}</span></div>
+            <div><span class="text-slate-500">Prioridad:</span> <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${PRIO_CLS[d.prioridad] ?? ""}">${d.prioridad}</span></div>
+            <div><span class="text-slate-500">Inicio:</span> <span class="font-medium">${d.fecha_inicio}</span></div>
+            <div><span class="text-slate-500">Fin:</span> <span class="font-medium">${d.fecha_fin}</span></div>
+            <div class="col-span-2"><span class="text-slate-500">Acción:</span> <span class="font-medium">${d.accion}</span></div>
+            <div><span class="text-slate-500">Competencia:</span> <span class="font-medium">${compName}</span></div>
+            <div><span class="text-slate-500">Responsable:</span> <span class="font-medium">${d.responsable}</span></div>
+            ${d.recursos ? `<div class="col-span-2"><span class="text-slate-500">Recursos:</span> <span class="font-medium">${d.recursos}</span></div>` : ""}
+          </div>
+        </div>`;
+    }
+
+    return `
+      <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px]" data-action="wizard-backdrop">
+        <div class="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onclick="event.stopPropagation()">
+          <button type="button" data-action="wizard-close" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600">
+            <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+          <h2 class="text-base font-bold text-slate-900 mb-4">Asignar Acción de Desarrollo</h2>
+          ${stepIndicator}
+          ${bodyHtml}
+          <div class="flex justify-between mt-6 pt-4 border-t border-slate-100">
+            <button type="button" data-action="wizard-prev" class="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition ${step === 1 ? "invisible" : ""}">Anterior</button>
+            ${step < 4
+              ? `<button type="button" data-action="wizard-next" class="rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition">Siguiente</button>`
+              : `<button type="button" data-action="wizard-submit" class="rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition">Crear Acción</button>`}
+          </div>
+        </div>
+      </div>`;
+  }
+
   function renderExpandedCard(emp: EquipoResumenEmpleadoItem): string {
     const initials = emp.nombre.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
     const loadingOrData = state.expandedData && state.expandedData.empleado_id === emp.empleado_id;
@@ -541,7 +697,15 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
           <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Analisis de Brechas Competenciales</h4>
           ${loadingOrData ? renderBrechasChart(state.expandedData!.competencias) : '<div class="flex items-center justify-center py-4 text-xs text-slate-400">Cargando brechas...</div>'}
         </div>
-        <div class="mt-4 pt-3 border-t border-slate-100 text-right">
+        <div class="mt-4 pt-3 border-t border-slate-100">
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Recomendaciones AI</h4>
+          ${renderRecomendaciones(emp.empleado_id)}
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+          <button type="button" data-action="open-wizard-emp" data-empleado-id="${emp.empleado_id}" class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition">
+            <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Asignar Accion
+          </button>
           <a href="#/evaluaciones/empleado/${emp.empleado_id}" class="text-xs font-medium text-blue-600 hover:text-blue-800">Ver perfil completo →</a>
         </div>
       </div>`;
@@ -624,11 +788,49 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
           <span class="text-slate-900 font-medium">Gestion PDI</span>
         </nav>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
-          ${kpiCard("total", "Total Acciones", resumen.total_acciones, "bg-slate-400")}
-          ${kpiCard("completadas", "Completadas", resumen.completadas, "bg-emerald-500")}
-          ${kpiCard("en_proceso", "En Proceso", resumen.en_proceso, "bg-blue-500")}
-          ${kpiCard("vencidas", "Vencidas", resumen.vencidas, "bg-red-500")}
+        <div class="flex items-center justify-between mb-4">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 flex-1">
+            ${kpiCard("total", "Total Acciones", resumen.total_acciones, "bg-slate-400")}
+            ${kpiCard("completadas", "Completadas", resumen.completadas, "bg-emerald-500")}
+            ${kpiCard("en_proceso", "En Proceso", resumen.en_proceso, "bg-blue-500")}
+            ${kpiCard("vencidas", "Vencidas", resumen.vencidas, "bg-red-500")}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+          <div class="rounded-[14px] border border-slate-200/60 bg-white p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
+            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cumplimiento Plan</span>
+            <p class="text-2xl font-bold tabular-nums text-slate-900 mt-1">${state.kpisAvanzados.cumplimiento_plan_pct.toFixed(1)}%</p>
+          </div>
+          <div class="rounded-[14px] border border-slate-200/60 bg-white p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
+            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Inversion (hrs)</span>
+            <p class="text-2xl font-bold tabular-nums text-slate-900 mt-1">${state.kpisAvanzados.inversion_horas_total}</p>
+          </div>
+          <div class="rounded-[14px] border border-slate-200/60 bg-white p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
+            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Hrs/Empleado</span>
+            <p class="text-2xl font-bold tabular-nums text-slate-900 mt-1">${state.kpisAvanzados.horas_training_promedio.toFixed(1)}</p>
+          </div>
+          <div class="rounded-[14px] border border-slate-200/60 bg-white p-4 shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
+            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Skill Gap Prom</span>
+            <p class="text-2xl font-bold tabular-nums text-slate-900 mt-1">${state.kpisAvanzados.promedio_skill_gap.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 mb-6">
+          <button type="button" data-action="open-wizard" class="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition">
+            <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Asignar Accion
+          </button>
+          <button type="button" data-action="export-pdf" class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition">
+            Exportar PDF
+          </button>
+          <button type="button" data-action="export-excel" class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition">
+            Exportar Excel
+          </button>
+          <button type="button" data-action="notificar-equipo" class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition">
+            <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            Notificar Equipo
+          </button>
         </div>
 
         <div class="mb-4 flex gap-1 rounded-lg bg-slate-100 p-1 w-fit" role="tablist">
@@ -661,6 +863,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
 
         ${renderViewContent()}
       </div>
+      ${renderWizardModal()}
     `;
   }
 
@@ -731,15 +934,108 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
       if (state.expandedEmployeeId === empId) {
         state.expandedEmployeeId = null;
         state.expandedData = null;
+        state.recomendaciones = null;
         render();
       } else {
         state.expandedEmployeeId = empId;
         state.expandedData = null;
+        state.recomendaciones = null;
+        state.recomendacionesLoading = true;
         render();
         void getEmpleadoResumen(empId).then(data => {
           if (data && state.expandedEmployeeId === empId) {
             state.expandedData = data;
             render();
+          }
+        });
+        void getPDIRecomendaciones(empId).then(data => {
+          if (state.expandedEmployeeId === empId) {
+            state.recomendaciones = data;
+            state.recomendacionesLoading = false;
+            render();
+          }
+        });
+      }
+    }
+
+    if (action === "open-wizard" || action === "open-wizard-emp") {
+      const empId = target.dataset.empleadoId ? Number(target.dataset.empleadoId) : null;
+      state.wizardEmpleadoId = empId;
+      state.wizardStep = 1;
+      state.wizardData = { tipo: "", fecha_inicio: "", fecha_fin: "", accion: "", prioridad: "media", recursos: "", competencia_id: "", responsable: "" };
+      state.wizardOpen = true;
+      if (state.competenciasOptions.length === 0) {
+        void fetchWithAuth("/api/v1/competencias?limit=200").then(async res => {
+          if (res.ok) {
+            const data = await res.json();
+            state.competenciasOptions = (data.items ?? data ?? []).map((c: { id: number; nombre: string }) => ({ id: c.id, nombre: c.nombre }));
+            render();
+          }
+        });
+      }
+      render();
+    }
+
+    if (action === "wizard-close" || action === "wizard-backdrop") {
+      state.wizardOpen = false;
+      render();
+    }
+
+    if (action === "wizard-prev" && state.wizardStep > 1) {
+      state.wizardStep--;
+      render();
+    }
+
+    if (action === "wizard-next") {
+      const d = state.wizardData;
+      if (state.wizardStep === 1 && (!d.tipo || !d.fecha_inicio || !d.fecha_fin)) return;
+      if (state.wizardStep === 2 && !d.accion) return;
+      if (state.wizardStep === 3 && (!d.competencia_id || !d.responsable)) return;
+      state.wizardStep++;
+      render();
+    }
+
+    if (action === "wizard-submit") {
+      const d = state.wizardData;
+      if (!state.wizardEmpleadoId || !d.competencia_id) return;
+      const payload: PDICreatePayload = {
+        competencia_id: Number(d.competencia_id),
+        accion: d.accion,
+        tipo: d.tipo,
+        fecha_inicio: d.fecha_inicio,
+        fecha_fin: d.fecha_fin,
+        responsable: d.responsable,
+        prioridad: d.prioridad,
+        recursos: d.recursos || undefined,
+      };
+      void createPDI(state.wizardEmpleadoId, payload).then(result => {
+        if (result) {
+          state.wizardOpen = false;
+          void Promise.all([loadResumen(), loadItems()]);
+        }
+      });
+    }
+
+    if (target.dataset.wizardField === "prioridad") {
+      const val = target.dataset.value as "baja" | "media" | "alta";
+      if (val) {
+        state.wizardData.prioridad = val;
+        render();
+      }
+    }
+
+    if (action === "export-pdf") {
+      void exportPDI("pdf");
+    }
+    if (action === "export-excel") {
+      void exportPDI("excel");
+    }
+
+    if (action === "notificar-equipo") {
+      if (confirm("¿Notificar a todos los empleados con acciones pendientes?")) {
+        void notificarEquipoPDI().then(res => {
+          if (res.notificaciones_creadas > 0) {
+            alert(`Se notificó a ${res.empleados_notificados} empleado(s).`);
           }
         });
       }
@@ -768,6 +1064,11 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
         render();
       }
     }
+    const wizField = target.dataset.wizardField;
+    if (wizField && state.wizardOpen) {
+      const val = (target as HTMLSelectElement | HTMLInputElement).value;
+      (state.wizardData as Record<string, string>)[wizField] = val;
+    }
   }, { signal });
 
   root.addEventListener("input", (e) => {
@@ -780,6 +1081,11 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
         state.page = 1;
         void loadItems();
       }, 350);
+    }
+    const wizField = target.dataset.wizardField;
+    if (wizField && state.wizardOpen) {
+      const val = (target as HTMLInputElement | HTMLTextAreaElement).value;
+      (state.wizardData as Record<string, string>)[wizField] = val;
     }
   }, { signal });
 

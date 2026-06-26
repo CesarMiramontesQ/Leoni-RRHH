@@ -47,6 +47,8 @@ tags:
     description: Evaluaciones de competencias por empleado (CRUD, bulk, permisos por rol)
   - name: Talento - Capacitaciones
     description: Gestion de capacitaciones (CRUD, inscripciones, catalogo)
+  - name: Talento - PDI
+    description: Plan de Desarrollo Individual — KPIs avanzados, recomendaciones AI, export, notificaciones
 
 components:
   securitySchemes:
@@ -4739,6 +4741,85 @@ components:
           items:
             type: object
             additionalProperties: true
+
+    PDICreate:
+      type: object
+      required: [competencia_id, accion, tipo, fecha_inicio, fecha_fin, responsable]
+      properties:
+        competencia_id: { type: integer }
+        accion: { type: string }
+        tipo: { type: string }
+        duracion_horas: { type: integer, nullable: true }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        responsable: { type: string }
+        prioridad: { type: string, enum: [baja, media, alta], default: media }
+        recursos: { type: string, nullable: true }
+
+    PDIUpdate:
+      type: object
+      properties:
+        accion: { type: string }
+        tipo: { type: string }
+        duracion_horas: { type: integer, nullable: true }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        responsable: { type: string }
+        estado: { type: string }
+        prioridad: { type: string, enum: [baja, media, alta] }
+        recursos: { type: string, nullable: true }
+
+    PDIResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        empleado_id: { type: integer }
+        competencia_id: { type: integer }
+        competencia_nombre: { type: string }
+        accion: { type: string }
+        tipo: { type: string }
+        duracion_horas: { type: integer, nullable: true }
+        fecha_inicio: { type: string, format: date }
+        fecha_fin: { type: string, format: date }
+        responsable: { type: string }
+        estado: { type: string }
+        prioridad: { type: string, default: media }
+        recursos: { type: string, nullable: true }
+        creado_por: { type: integer, nullable: true }
+        creado_por_nombre: { type: string, nullable: true }
+        created_at: { type: string }
+        updated_at: { type: string }
+
+    PDIKpisAvanzadosResponse:
+      type: object
+      properties:
+        cumplimiento_plan_pct: { type: number }
+        horas_training_promedio: { type: number }
+        promedio_skill_gap: { type: number }
+        inversion_horas_total: { type: integer }
+
+    PDIRecomendacionItem:
+      type: object
+      properties:
+        accion: { type: string }
+        tipo: { type: string }
+        justificacion: { type: string }
+        prioridad: { type: string }
+
+    PDIRecomendacionesResponse:
+      type: object
+      properties:
+        empleado_id: { type: integer }
+        recomendaciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/PDIRecomendacionItem"
+
+    PDINotificarEquipoResponse:
+      type: object
+      properties:
+        notificaciones_creadas: { type: integer }
+        empleados_notificados: { type: integer }
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -9919,6 +10000,87 @@ paths:
                 $ref: "#/components/schemas/HistorialResponse"
         "404":
           description: Evaluacion no encontrada
+
+  # ── Talento - PDI Avanzado ─────────────────────────────────────────────────
+
+  /api/v1/evaluaciones/pdi/kpis-avanzados:
+    get:
+      tags: [Talento - PDI]
+      summary: KPIs avanzados del Plan de Desarrollo Individual
+      operationId: pdi_kpis_avanzados
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          schema: { type: integer }
+          description: Filtrar por area (omitir para scope completo del usuario)
+      responses:
+        "200":
+          description: KPIs calculados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDIKpisAvanzadosResponse"
+
+  /api/v1/evaluaciones/pdi/empleado/{empleado_id}/recomendaciones:
+    get:
+      tags: [Talento - PDI]
+      summary: Recomendaciones AI para un empleado basadas en brechas
+      operationId: pdi_recomendaciones
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Lista de recomendaciones generadas por IA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDIRecomendacionesResponse"
+
+  /api/v1/evaluaciones/pdi/export:
+    get:
+      tags: [Talento - PDI]
+      summary: Exportar PDI en PDF o Excel
+      operationId: pdi_export
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, excel] }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Archivo descargable
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+
+  /api/v1/evaluaciones/pdi/notificar-equipo:
+    post:
+      tags: [Talento - PDI]
+      summary: Notificar a empleados con acciones pendientes
+      operationId: pdi_notificar_equipo
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Resultado de notificaciones enviadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDINotificarEquipoResponse"
 
   # ── Talento - Capacitaciones ───────────────────────────────────────────────
 

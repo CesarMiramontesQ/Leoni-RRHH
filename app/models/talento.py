@@ -932,6 +932,8 @@ class PlanDesarrolloIndividual(Base):
     fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
     responsable: Mapped[str] = mapped_column(String(200), nullable=False)
     estado: Mapped[str] = mapped_column(String(20), nullable=False, default="pendiente")
+    prioridad: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default="media")
+    recursos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     creado_por: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

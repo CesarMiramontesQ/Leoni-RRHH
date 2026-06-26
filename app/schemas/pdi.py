@@ -1,7 +1,7 @@
 """Schemas Pydantic para Plan de Desarrollo Individual (PDI)."""
 
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, model_validator
 
@@ -14,6 +14,8 @@ class PDICreate(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     responsable: str
+    prioridad: Literal["baja", "media", "alta"] = "media"
+    recursos: Optional[str] = None
 
     @model_validator(mode="after")
     def check_fechas(self):
@@ -32,6 +34,8 @@ class PDIUpdate(BaseModel):
     fecha_fin: Optional[date] = None
     responsable: Optional[str] = None
     estado: Optional[str] = None
+    prioridad: Optional[Literal["baja", "media", "alta"]] = None
+    recursos: Optional[str] = None
 
     @model_validator(mode="after")
     def check_fechas(self):
@@ -55,6 +59,8 @@ class PDIResponse(BaseModel):
     fecha_fin: date
     responsable: str
     estado: str
+    prioridad: str = "media"
+    recursos: Optional[str] = None
     creado_por: Optional[int] = None
     creado_por_nombre: Optional[str] = None
     created_at: str
@@ -83,6 +89,8 @@ class PDIGestionItem(BaseModel):
     fecha_fin: date
     responsable: str
     estado: str
+    prioridad: str = "media"
+    recursos: str | None = None
     vencida: bool = False
     created_at: str
     updated_at: str
@@ -193,3 +201,27 @@ class TimelineEvent(BaseModel):
 class TimelineResponse(BaseModel):
     eventos: list[TimelineEvent]
     total: int
+
+
+class PDIKpisAvanzadosResponse(BaseModel):
+    cumplimiento_plan_pct: float
+    horas_training_promedio: float
+    promedio_skill_gap: float
+    inversion_horas_total: int
+
+
+class PDIRecomendacionItem(BaseModel):
+    accion: str
+    tipo: str
+    justificacion: str
+    prioridad: str
+
+
+class PDIRecomendacionesResponse(BaseModel):
+    empleado_id: int
+    recomendaciones: list[PDIRecomendacionItem]
+
+
+class PDINotificarEquipoResponse(BaseModel):
+    notificaciones_creadas: int
+    empleados_notificados: int
