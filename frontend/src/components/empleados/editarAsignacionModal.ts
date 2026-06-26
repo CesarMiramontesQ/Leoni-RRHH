@@ -61,6 +61,29 @@ function textoComedorActual(
   return `Comedor #${asignado.comedor_id}`;
 }
 
+function esRolRh(rol: Pick<RolBrief, "nombre">): boolean {
+  return rol.nombre.trim().toLowerCase() === "rh";
+}
+
+/** RH no es asignable desde este formulario; si ya lo tiene, se muestra bloqueado. */
+function buildRoleSelectOptions(roles: RolBrief[], selectedRolId: number): string {
+  const selectable = roles.filter((r) => !esRolRh(r));
+  const rhLocked = roles.find((r) => r.id === selectedRolId && esRolRh(r));
+
+  const parts: string[] = [];
+  if (rhLocked) {
+    parts.push(
+      `<option value="${rhLocked.id}" selected disabled>${escapeHtml(rhLocked.nombre)}</option>`,
+    );
+  }
+  for (const r of selectable) {
+    parts.push(
+      `<option value="${r.id}" ${!rhLocked && r.id === selectedRolId ? "selected" : ""}>${escapeHtml(r.nombre)}</option>`,
+    );
+  }
+  return parts.join("");
+}
+
 function buildBaseline(
   empleado: UsuarioListItem,
   roles: RolBrief[],
@@ -242,12 +265,7 @@ function formBodyHtml(
   const name = formatNombreEmpleadoUi(empleado.nombre).trim() || "—";
   const noEmpleado = formatNoEmpleadoDisplay(empleado.no_empleado);
 
-  const roleOpts = roles
-    .map(
-      (r) =>
-        `<option value="${r.id}" ${r.id === baseline.rolId ? "selected" : ""}>${escapeHtml(r.nombre)}</option>`,
-    )
-    .join("");
+  const roleOpts = buildRoleSelectOptions(roles, baseline.rolId);
 
   // Un <select disabled> no se incluye en FormData: con rol bloqueado no se envía rol_id.
   const rolSelect = `<select
