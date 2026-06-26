@@ -138,6 +138,7 @@ function loadingFaltasRetardosViewModel(): FaltasRetardosMetricasViewModel {
     estadisticas: null,
     estadisticasStatus: "loading",
     estadisticasErrorMessage: undefined,
+    empleadosRetardosRanking: [],
   };
 }
 
@@ -165,12 +166,12 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   let incEstadisticas: RhIncidenciasEstadisticasData | null = null;
   let incEstadisticasStatus: "loading" | "ready" | "error" = "loading";
   let incEstadisticasError: string | undefined;
-  let incEmpleadosRetardosRanking: readonly SolicitudRankingRow[] = [];
   let incLoadSeq = 0;
 
   let frEstadisticas: FaltasRetardosEstadisticasData | null = null;
   let frEstadisticasStatus: FaltasRetardosMetricasViewModel["estadisticasStatus"] = "loading";
   let frEstadisticasError: string | undefined;
+  let frEmpleadosRetardosRanking: readonly SolicitudRankingRow[] = [];
   let frLoadSeq = 0;
 
   function buildFaltasRetardosMetricasVm(): FaltasRetardosMetricasViewModel {
@@ -178,6 +179,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       estadisticas: frEstadisticas,
       estadisticasStatus: frEstadisticasStatus,
       estadisticasErrorMessage: frEstadisticasError,
+      empleadosRetardosRanking: frEmpleadosRetardosRanking,
     };
   }
 
@@ -195,7 +197,6 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       cloneRhIncidenciaListFilters(incidenciasFiltersFromSolicitudesMetricas(filterDraft)),
       incUi,
       EMPTY_INC_CATALOG,
-      incEmpleadosRetardosRanking,
     );
   }
 
@@ -238,13 +239,21 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     frEstadisticasStatus = "loading";
     frEstadisticas = null;
     frEstadisticasError = undefined;
+    frEmpleadosRetardosRanking = [];
     paint();
 
     try {
-      frEstadisticas = await getFaltasRetardosEstadisticas(
-        faltasRetardosFiltersFromSolicitudesMetricas(appliedFilters),
-      );
+      const filters = faltasRetardosFiltersFromSolicitudesMetricas(appliedFilters);
+      const filtersRetardo = { ...filters, tipo: "retardo" as const };
+      const [estadisticas, retardosEstadisticas] = await Promise.all([
+        getFaltasRetardosEstadisticas(filters),
+        getFaltasRetardosEstadisticas(filtersRetardo).catch(() => null),
+      ]);
       if (isStale()) return;
+      frEstadisticas = estadisticas;
+      frEmpleadosRetardosRanking = retardosEstadisticas
+        ? aggregateEmpleadosRetardosTop(retardosEstadisticas.empleados_con_mas_eventos)
+        : [];
       frEstadisticasStatus = "ready";
       frEstadisticasError = undefined;
     } catch (err) {
@@ -262,6 +271,7 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       frEstadisticasStatus = "error";
       frEstadisticasError =
         fetchError?.detail || "No se pudieron cargar las estadísticas de faltas y retardos.";
+      frEmpleadosRetardosRanking = [];
     }
     if (isStale()) return;
     paint();
@@ -274,24 +284,11 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     incEstadisticasStatus = "loading";
     incEstadisticas = null;
     incEstadisticasError = undefined;
-    incEmpleadosRetardosRanking = [];
     paint();
 
     try {
       const applied = appliedIncidenciasFilters();
-      const filtersRetardo = { ...applied, tipo: "retardo" };
       incEstadisticas = await fetchIncidenciasEstadisticas(applied);
-      if (isStale()) return;
-      try {
-        const retardosStats = await fetchIncidenciasEstadisticas(filtersRetardo);
-        if (!isStale()) {
-          incEmpleadosRetardosRanking = aggregateEmpleadosRetardosTop(
-            retardosStats.empleados_con_mas_incidencias,
-          );
-        }
-      } catch {
-        incEmpleadosRetardosRanking = [];
-      }
       if (isStale()) return;
       incEstadisticasStatus = "ready";
       incEstadisticasError = undefined;
@@ -310,7 +307,6 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       incEstadisticasStatus = "error";
       incEstadisticasError =
         fetchError?.detail || "No se pudieron cargar las estadísticas de incidencias.";
-      incEmpleadosRetardosRanking = [];
     }
     if (isStale()) return;
     paint();

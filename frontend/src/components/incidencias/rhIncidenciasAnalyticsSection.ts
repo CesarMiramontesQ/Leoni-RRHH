@@ -1,9 +1,3 @@
-import { cssVar } from "../../charts/chartTokens.ts";
-import {
-  renderDashEmpleadosRetardosChart,
-  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
-} from "../dashboard/rhAnalyticsCharts.ts";
-import { mountRankingHorizontalBar } from "../solicitudes/rhSolicitudesAnalyticsCharts.ts";
 import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
 import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import {
@@ -162,10 +156,7 @@ function renderKpisContent(d: NonNullable<RhIncidenciasAdminViewModel["estadisti
     </section>`;
 }
 
-function renderChartsContent(
-  d: NonNullable<RhIncidenciasAdminViewModel["estadisticas"]>,
-  empleadosRetardosRanking: RhIncidenciasAdminViewModel["empleadosRetardosRanking"],
-): string {
+function renderChartsContent(d: NonNullable<RhIncidenciasAdminViewModel["estadisticas"]>): string {
   const total = d.total_incidencias ?? 0;
   if (total === 0) {
     return `
@@ -188,17 +179,10 @@ function renderChartsContent(
     </section>`;
   const areasBody = renderIncidenciasAreasBarChart(d.areas_con_mas_incidencias);
   const subareasBody = renderIncidenciasSubareasBarChart(d.subareas_con_mas_incidencias);
-  const retardosBody = renderDashEmpleadosRetardosChart(
-    empleadosRetardosRanking,
-    INC_COPY.analiticaRetardosVacio,
-  );
   const rankings = `
-    <section class="flex flex-col gap-3" aria-label="${escapeIncHtml(INC_COPY.analiticaRankingsAria)}">
-      ${cardShell("retardos", INC_COPY.analiticaRetardosTitulo, INC_COPY.analiticaRetardosSub, retardosBody, true)}
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody, true)}
-        ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subareasBody, true)}
-      </div>
+    <section class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="${escapeIncHtml(INC_COPY.analiticaRankingsAria)}">
+      ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody, true)}
+      ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subareasBody, true)}
     </section>`;
   return `${bloquePrincipal}${rankings}`;
 }
@@ -232,11 +216,8 @@ export function renderRhIncidenciasChartsSection(vm: RhIncidenciasAdminViewModel
     return `
       <div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5" aria-busy="true">
         ${chartPairSkeleton()}
-        <div class="flex flex-col gap-3" aria-hidden="true">
-          <div class="${CARD} min-h-[260px] animate-pulse"><div class="mb-2 h-4 w-48 rounded bg-slate-200"></div><div class="h-48 rounded bg-slate-100"></div></div>
-          <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            ${`<div class="${CARD} min-h-[260px] animate-pulse"><div class="mb-2 h-4 w-32 rounded bg-slate-200"></div><div class="h-48 rounded bg-slate-100"></div></div>`.repeat(2)}
-          </div>
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-hidden="true">
+          ${`<div class="${CARD} min-h-[260px] animate-pulse"><div class="mb-2 h-4 w-32 rounded bg-slate-200"></div><div class="h-48 rounded bg-slate-100"></div></div>`.repeat(2)}
         </div>
       </div>`;
   }
@@ -259,7 +240,7 @@ export function renderRhIncidenciasChartsSection(vm: RhIncidenciasAdminViewModel
       <div class="rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-text-muted)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</div>
     </div>`;
   }
-  return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">${renderChartsContent(d, vm.empleadosRetardosRanking)}</div>`;
+  return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">${renderChartsContent(d)}</div>`;
 }
 
 const RH_INC_ANALYTICS_CHART_IDS = [
@@ -267,10 +248,7 @@ const RH_INC_ANALYTICS_CHART_IDS = [
   RH_INC_TIPO_BAR_CHART_ID,
   RH_INC_AREAS_BAR_CHART_ID,
   RH_INC_SUBAREAS_BAR_CHART_ID,
-  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
 ] as const;
-
-const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
 
 /** Monta Chart.js tras pintar la analítica de incidencias (página Incidencias o sección Métricas). */
 export function mountRhIncidenciasAnalyticsCharts(
@@ -288,13 +266,4 @@ export function mountRhIncidenciasAnalyticsCharts(
   mountIncidenciasTipoBarChart(root, d.incidencias_por_tipo ?? []);
   mountIncidenciasAreasBarChart(root, d.areas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
   mountIncidenciasSubareasBarChart(root, d.subareas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
-  if (vm.empleadosRetardosRanking.length > 0) {
-    mountRankingHorizontalBar(
-      root,
-      RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
-      vm.empleadosRetardosRanking,
-      RETARDOS_BAR_COLOR,
-      "Retardos",
-    );
-  }
 }
