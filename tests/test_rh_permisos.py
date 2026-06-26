@@ -18,7 +18,7 @@ async def test_rh_permisos_me_default_full_access(client: AsyncClient, db):
     assert data["rol"] == "rh"
     assert data["inscrito"] is True
     assert data["puede_administrar_permisos_rh"] is False
-    assert data["modulos"]["comedor"] is True
+    assert data["modulos"]["comedor-registro"] is True
     assert data["modulos"]["solicitudes"] is True
 
 
@@ -136,7 +136,7 @@ async def test_admin_grants_module_to_non_rh_user(client: AsyncClient, db):
     assert reloaded.inscrito_modulos_rh is True
     assert reloaded.rol.nombre == "director"  # el rol no cambia
     assert user_has_module(reloaded, "nominas-horas-extra") is True
-    assert user_has_module(reloaded, "comedor") is False
+    assert user_has_module(reloaded, "comedor-registro") is False
 
     # El propio usuario ve su inscripción y módulos vía /me.
     me = await client.get(
@@ -316,7 +316,7 @@ async def test_can_remove_rh_user_keeps_role_drops_access(client: AsyncClient, d
     assert reloaded.rol.nombre == "rh"  # rol intacto (conserva toggle)
     assert reloaded.acceso_rh_removido is True
     # Sin acceso a módulos RH (vista empleado).
-    assert user_has_module(reloaded, "comedor") is False
+    assert user_has_module(reloaded, "comedor-registro") is False
     assert user_has_module(reloaded, "solicitudes") is False
 
     # Doble baja -> 404.
@@ -543,7 +543,7 @@ def test_validate_rh_ui_mode_relaxed_for_removed_rh(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_catalog_includes_nominas_module(client: AsyncClient, db):
+async def test_catalog_includes_submenu_modules(client: AsyncClient, db):
     admin = await make_empleado(
         db,
         rol="rh",
@@ -556,7 +556,17 @@ async def test_catalog_includes_nominas_module(client: AsyncClient, db):
     )
     assert res.status_code == 200
     keys = {m["key"] for m in res.json()}
-    assert "nominas-horas-extra" in keys
+    for expected in (
+        "nominas-horas-extra",
+        "comedor-registro",
+        "comedor-gestion",
+        "comedor-planear",
+        "sesiones",
+        "cursos-ajustes",
+        "puestos-ajustes",
+        "evaluacion-360",
+    ):
+        assert expected in keys
 
 
 @pytest.mark.asyncio
@@ -606,7 +616,7 @@ async def test_admin_can_list_and_update_other_rh(client: AsyncClient, db):
     assert any(u["empleado_id"] == target.empleado_id for u in usuarios)
 
     modulos = effective_modules({})
-    modulos["comedor"] = False
+    modulos["comedor-registro"] = False
     modulos["solicitudes"] = True
 
     put_res = await client.put(
@@ -616,7 +626,7 @@ async def test_admin_can_list_and_update_other_rh(client: AsyncClient, db):
     )
     assert put_res.status_code == 200
     updated = put_res.json()
-    assert updated["modulos"]["comedor"] is False
+    assert updated["modulos"]["comedor-registro"] is False
     assert updated["modulos"]["solicitudes"] is True
 
 
@@ -636,7 +646,7 @@ async def test_admin_cannot_edit_own_permissions(client: AsyncClient, db):
         puede_administrar_permisos_rh=True,
     )
     modulos = effective_modules({})
-    modulos["comedor"] = False
+    modulos["comedor-registro"] = False
 
     res = await client.put(
         f"/api/v1/rh-permisos/usuarios/{admin.empleado_id}",
@@ -698,7 +708,7 @@ async def test_middleware_blocks_rh_without_module(client: AsyncClient, db):
         db,
         rol="rh",
         email="rh_blocked@test.com",
-        modulos_rh={"comedor": False, "solicitudes": True},
+        modulos_rh={"comedor-gestion": False, "solicitudes": True},
     )
 
     res_comedor = await client.get(
@@ -743,8 +753,21 @@ async def test_supervisor_not_affected_by_rh_middleware(client: AsyncClient, db)
 
 def test_effective_modules_empty_means_full_access():
     effective = effective_modules({})
-    assert effective["comedor"] is True
+    assert effective["comedor-registro"] is True
     assert effective["level-up"] is True
+
+
+@pytest.mark.asyncio
+async def test_legacy_comedor_key_grants_split_modules(db):
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_legacy_comedor@test.com",
+        modulos_rh={"comedor": True},
+    )
+    assert user_has_module(rh, "comedor-registro") is True
+    assert user_has_module(rh, "comedor-gestion") is True
+    assert user_has_module(rh, "comedor-planear") is True
 
 
 @pytest.mark.asyncio

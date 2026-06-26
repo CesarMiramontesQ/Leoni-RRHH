@@ -3,6 +3,8 @@ Registro central de módulos/páginas accesibles por usuarios RH.
 
 Agregar un módulo aquí es suficiente para exponerlo en catálogo API,
 validación middleware y UI de administración (vía GET /rh-permisos/modulos).
+
+Cada ítem visible en los submenús del sidebar RH debe tener su propia clave.
 """
 
 from __future__ import annotations
@@ -24,6 +26,15 @@ class RhModuleDef:
     nav_item_ids: tuple[str, ...]
     hash_prefixes: tuple[str, ...]
     api_prefixes: tuple[str, ...]
+
+
+# Claves legacy → nuevas (si la legacy está en true, otorga las hijas).
+_LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
+    "comedor": ("comedor-registro", "comedor-gestion", "comedor-planear"),
+    "puestos": ("puestos-ajustes",),
+    "cursos": ("sesiones", "cursos-ajustes"),
+    "level-up": ("evaluacion-360",),
+}
 
 
 RH_MODULES: dict[str, RhModuleDef] = {
@@ -61,7 +72,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "solicitudes": RhModuleDef(
         key="solicitudes",
-        label="Solicitudes (gestión RH)",
+        label="Solicitudes",
         group="Laborales",
         nav_item_ids=("solicitudes",),
         hash_prefixes=("#/solicitudes",),
@@ -91,23 +102,20 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/faltas-retardos",),
         api_prefixes=("/api/v1/faltas-retardos",),
     ),
-    "comedor": RhModuleDef(
-        key="comedor",
-        label="Comedor (gestión RH)",
+    "comedor-registro": RhModuleDef(
+        key="comedor-registro",
+        label="Registro Comedor",
         group="Comedor",
         nav_item_ids=("comedor",),
-        hash_prefixes=("#/comedor/gestion", "#/comedor/planear", "#/comedor/codigos-externos"),
+        hash_prefixes=("#/comedor",),
         api_prefixes=(
             "/api/v1/comedor/rh",
             "/api/v1/comedor/accesos/rh",
-            "/api/v1/comedor/comedores",
-            "/api/v1/comedor/menu",
-            "/api/v1/comedor/codigos-externos",
         ),
     ),
     "reportes": RhModuleDef(
         key="reportes",
-        label="Reporte Comedor",
+        label="Reportes",
         group="Comedor",
         nav_item_ids=("reportes",),
         hash_prefixes=("#/comedor/reporte", "#/reportes"),
@@ -116,8 +124,26 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/comedor/proyecciones",
         ),
     ),
-    # Nóminas: un permiso de NAVEGACIÓN por página del submenú. "Aprobación de
-    # Horas Extra" NO es un permiso aquí (es operativo/Regla B: claim he_aprobador).
+    "comedor-gestion": RhModuleDef(
+        key="comedor-gestion",
+        label="Comedores",
+        group="Comedor",
+        nav_item_ids=("comedor-gestion",),
+        hash_prefixes=("#/comedor/gestion", "#/comedor/codigos-externos"),
+        api_prefixes=(
+            "/api/v1/comedor/comedores",
+            "/api/v1/comedor/codigos-externos",
+            "/api/v1/comedor/accesos/rh/codigos-externos",
+        ),
+    ),
+    "comedor-planear": RhModuleDef(
+        key="comedor-planear",
+        label="Planeación",
+        group="Comedor",
+        nav_item_ids=("comedor-planear",),
+        hash_prefixes=("#/comedor/planear",),
+        api_prefixes=("/api/v1/comedor/menu",),
+    ),
     "nominas-horas-extra": RhModuleDef(
         key="nominas-horas-extra",
         label="Horas Extra",
@@ -142,83 +168,102 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/nominas/ajustes",),
         api_prefixes=("/api/v1/nominas/ajustes",),
     ),
+    "cursos": RhModuleDef(
+        key="cursos",
+        label="Catálogo de cursos",
+        group="Cursos",
+        nav_item_ids=("cursos",),
+        hash_prefixes=("#/cursos",),
+        api_prefixes=("/api/v1/level-up/cursos",),
+    ),
+    "sesiones": RhModuleDef(
+        key="sesiones",
+        label="Sesiones",
+        group="Cursos",
+        nav_item_ids=("sesiones",),
+        hash_prefixes=("#/sesiones",),
+        api_prefixes=("/api/v1/level-up/sesiones",),
+    ),
+    "capacitaciones": RhModuleDef(
+        key="capacitaciones",
+        label="Capacitaciones",
+        group="Cursos",
+        nav_item_ids=("capacitaciones",),
+        hash_prefixes=("#/capacitaciones",),
+        api_prefixes=("/api/v1/capacitaciones",),
+    ),
+    "encuestas": RhModuleDef(
+        key="encuestas",
+        label="Encuestas Post Curso",
+        group="Cursos",
+        nav_item_ids=("encuestas",),
+        hash_prefixes=("#/encuestas",),
+        api_prefixes=(),
+    ),
+    "cursos-ajustes": RhModuleDef(
+        key="cursos-ajustes",
+        label="Ajustes de cursos",
+        group="Cursos",
+        nav_item_ids=("cursos-ajustes",),
+        hash_prefixes=("#/cursos/ajustes",),
+        api_prefixes=("/api/v1/level-up/catalogos",),
+    ),
     "puestos": RhModuleDef(
         key="puestos",
-        label="Perfiles de Puesto",
-        group="Talento",
+        label="Perfiles de puesto",
+        group="Puestos",
         nav_item_ids=("puestos",),
         hash_prefixes=("#/puestos",),
         api_prefixes=(
             "/api/v1/puestos-perfil",
             "/api/v1/perfiles",
             "/api/v1/cualificaciones-catalogo",
+            "/api/v1/tareas-catalogo",
+        ),
+    ),
+    "competencias": RhModuleDef(
+        key="competencias",
+        label="Competencias",
+        group="Puestos",
+        nav_item_ids=("competencias",),
+        hash_prefixes=("#/competencias",),
+        api_prefixes=("/api/v1/competencias",),
+    ),
+    "tareas-catalogo": RhModuleDef(
+        key="tareas-catalogo",
+        label="Tareas",
+        group="Puestos",
+        nav_item_ids=("tareas-catalogo",),
+        hash_prefixes=("#/tareas-catalogo",),
+        api_prefixes=("/api/v1/tareas-catalogo",),
+    ),
+    "puestos-ajustes": RhModuleDef(
+        key="puestos-ajustes",
+        label="Ajustes perfil de puesto",
+        group="Puestos",
+        nav_item_ids=("puestos-ajustes",),
+        hash_prefixes=("#/puestos/ajustes",),
+        api_prefixes=(
             "/api/v1/niveles-puesto",
             "/api/v1/grados-puesto",
             "/api/v1/metodos-calificacion-competencia",
             "/api/v1/grupos-competencia",
             "/api/v1/tipos-competencia",
+            "/api/v1/metodos-calificacion",
         ),
-    ),
-    "tareas-catalogo": RhModuleDef(
-        key="tareas-catalogo",
-        label="Catálogo de Tareas",
-        group="Talento",
-        nav_item_ids=("tareas-catalogo",),
-        hash_prefixes=("#/tareas-catalogo",),
-        api_prefixes=("/api/v1/tareas-catalogo",),
-    ),
-    "competencias": RhModuleDef(
-        key="competencias",
-        label="Matriz de Competencias",
-        group="Talento",
-        nav_item_ids=("competencias",),
-        hash_prefixes=("#/competencias",),
-        api_prefixes=("/api/v1/competencias",),
     ),
     "evaluaciones": RhModuleDef(
         key="evaluaciones",
         label="Evaluaciones",
-        group="Talento",
+        group="Cumplimiento",
         nav_item_ids=("evaluaciones",),
         hash_prefixes=("#/evaluaciones",),
         api_prefixes=("/api/v1/evaluaciones",),
     ),
-    "capacitaciones": RhModuleDef(
-        key="capacitaciones",
-        label="Capacitaciones",
-        group="Talento",
-        nav_item_ids=("capacitaciones",),
-        hash_prefixes=("#/capacitaciones",),
-        api_prefixes=("/api/v1/capacitaciones",),
-    ),
-    "level-up": RhModuleDef(
-        key="level-up",
-        label="Level Up",
-        group="Level Up",
-        nav_item_ids=("level-up",),
-        hash_prefixes=("#/level-up",),
-        api_prefixes=("/api/v1/level-up",),
-    ),
-    "capacidades": RhModuleDef(
-        key="capacidades",
-        label="Matriz de Multihabilidades",
-        group="Level Up",
-        nav_item_ids=("capacidades",),
-        hash_prefixes=("#/capacidades",),
-        api_prefixes=("/api/v1/competencias/multihabilidades",),
-    ),
-    "cursos": RhModuleDef(
-        key="cursos",
-        label="Manejo de Cursos",
-        group="Level Up",
-        nav_item_ids=("cursos",),
-        hash_prefixes=("#/cursos",),
-        api_prefixes=(),
-    ),
     "opls": RhModuleDef(
         key="opls",
         label="Manejo de OPLs",
-        group="Level Up",
+        group="Cumplimiento",
         nav_item_ids=("opls",),
         hash_prefixes=("#/opls",),
         api_prefixes=(),
@@ -226,7 +271,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "evidencias": RhModuleDef(
         key="evidencias",
         label="Motor de Evidencias",
-        group="Level Up",
+        group="Cumplimiento",
         nav_item_ids=("evidencias",),
         hash_prefixes=("#/evidencias",),
         api_prefixes=(),
@@ -234,42 +279,55 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "sugerencias": RhModuleDef(
         key="sugerencias",
         label="Motor de Sugerencias",
-        group="Level Up",
+        group="Cumplimiento",
         nav_item_ids=("sugerencias",),
         hash_prefixes=("#/sugerencias",),
         api_prefixes=(),
     ),
-    "encuestas": RhModuleDef(
-        key="encuestas",
-        label="Encuestas Post Curso",
+    "level-up": RhModuleDef(
+        key="level-up",
+        label="Resumen operativo",
         group="Level Up",
-        nav_item_ids=("encuestas",),
-        hash_prefixes=("#/encuestas",),
+        nav_item_ids=("level-up",),
+        hash_prefixes=("#/level-up/resumen", "#/level-up"),
+        api_prefixes=("/api/v1/level-up",),
+    ),
+    "evaluacion-360": RhModuleDef(
+        key="evaluacion-360",
+        label="Evaluación 360°",
+        group="Level Up",
+        nav_item_ids=("evaluacion-360",),
+        hash_prefixes=("#/level-up/evaluacion-360",),
         api_prefixes=(),
+    ),
+    "capacidades": RhModuleDef(
+        key="capacidades",
+        label="Matriz de multihabilidades",
+        group="Level Up",
+        nav_item_ids=("capacidades",),
+        hash_prefixes=("#/capacidades",),
+        api_prefixes=("/api/v1/competencias/multihabilidades",),
     ),
 }
 
-# Orden de grupos en UI de administración
 RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
     "General",
     "Laborales",
     "Comedor",
     "Nóminas",
-    "Talento",
+    "Cursos",
+    "Puestos",
+    "Cumplimiento",
     "Level Up",
 )
 
-# Rutas API exentas de control por módulo (transversales o propias del sistema de permisos)
 RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth",
     "/api/v1/notificaciones",
     "/api/v1/rh-permisos",
-    # Aprobación de Horas Extra = permiso operativo (Regla B, claim he_aprobador);
-    # el endpoint valida al aprobador. No debe gatearse por el permiso de Nóminas.
     "/api/v1/nominas/horas-extra/aprobaciones",
 )
 
-# Autoservicio RH: siempre permitido sin módulo de gestión (modo empleado / uso personal)
 RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/solicitudes",
     "/api/v1/comedor/mi-comedor-asignado",
@@ -290,11 +348,30 @@ def is_valid_module_key(key: str) -> bool:
     return key in RH_MODULES
 
 
+def _module_granted(modulos: dict, key: str) -> bool:
+    if bool(modulos.get(key, False)):
+        return True
+    for legacy, targets in _LEGACY_MODULE_ALIASES.items():
+        if key in targets and bool(modulos.get(legacy, False)):
+            return True
+    return False
+
+
+def _expand_legacy_modulos(modulos: dict) -> dict[str, bool]:
+    result = {key: bool(modulos.get(key, False)) for key in all_module_keys()}
+    for legacy, targets in _LEGACY_MODULE_ALIASES.items():
+        if bool(modulos.get(legacy, False)):
+            for target in targets:
+                if target in result:
+                    result[target] = True
+    return result
+
+
 def effective_modules(modulos_rh: dict | None) -> dict[str, bool]:
     """Vacío o null → acceso completo (compatibilidad retroactiva RH sin configurar)."""
     if not modulos_rh:
         return {key: True for key in all_module_keys()}
-    return {key: bool(modulos_rh.get(key, False)) for key in all_module_keys()}
+    return _expand_legacy_modulos(modulos_rh)
 
 
 def has_personalized_modulos_rh(empleado: "Empleado") -> bool:
@@ -333,7 +410,7 @@ def effective_modules_for_display(empleado: "Empleado") -> dict[str, bool]:
         return {key: True for key in all_module_keys()}
     if rol == "rh" and not modulos:
         return {key: True for key in all_module_keys()}
-    return {key: bool(modulos.get(key, False)) for key in all_module_keys()}
+    return _expand_legacy_modulos(modulos)
 
 
 def empty_modulos_rh_config() -> dict[str, bool]:
@@ -350,11 +427,9 @@ def user_has_module(empleado: "Empleado", module_key: str) -> bool:
     if rol == "rh":
         if not modulos:
             return True
-        return bool(modulos.get(module_key, False))
-    # Roles distintos a RH: acceso aditivo sólo si fueron inscritos por RH y el
-    # módulo les fue otorgado explícitamente.
+        return _module_granted(modulos, module_key)
     if is_modulos_rh_enrolled(empleado):
-        return bool(modulos.get(module_key, False))
+        return _module_granted(modulos, module_key)
     return False
 
 
@@ -496,7 +571,7 @@ def user_has_module_from_claims(
         return True
     if not isinstance(modulos, dict):
         return False
-    return bool(modulos.get(module_key, False))
+    return _module_granted(modulos, module_key)
 
 
 def validate_modulos_rh_keys(keys: Iterable[str]) -> list[str]:

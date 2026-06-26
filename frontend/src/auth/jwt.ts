@@ -139,9 +139,19 @@ export function canAccessOrganigramaPage(): boolean {
   return canAccessRhAssignedModule("organigrama");
 }
 
-/** Vista operativa de comedor (`#/comedor`) exclusiva para RH. */
+/** Registro operativo de comedor (`#/comedor`) exclusiva para RH. */
 export function canAccessComedorRhPage(): boolean {
-  return canAccessRhAssignedModule("comedor", { blockGestorTeam: true, blockDirector: true });
+  return canAccessRhAssignedModule("comedor-registro", { blockGestorTeam: true, blockDirector: true });
+}
+
+/** Gestión de comedores (`#/comedor/gestion`, códigos externos). */
+export function canAccessComedorGestionPage(): boolean {
+  return canAccessRhAssignedModule("comedor-gestion", { blockGestorTeam: true, blockDirector: true });
+}
+
+/** Planeación de menú (`#/comedor/planear`). */
+export function canAccessComedorPlanearPage(): boolean {
+  return canAccessRhAssignedModule("comedor-planear", { blockGestorTeam: true, blockDirector: true });
 }
 
 /** Comedor personal para RH en modo empleado. */

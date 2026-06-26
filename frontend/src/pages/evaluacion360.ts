@@ -82,7 +82,7 @@ function mountViewCharts(root: HTMLElement, state: State): void {
 }
 
 export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal): void {
-  if (!hasRhOperativeViewerContext() || !hasRhModule("level-up")) {
+  if (!hasRhOperativeViewerContext() || !hasRhModule("evaluacion-360")) {
     mountAppShell(container, {
       pageTitle: "Evaluación 360°",
       activeNav: "evaluacion-360",

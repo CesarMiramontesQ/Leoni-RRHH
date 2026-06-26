@@ -286,8 +286,9 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   // ocultas para roles sin acceso y para RH en Modo empleado/gestor.
   if (itemId === "comedor-gestion" || itemId === "comedor-planear") {
     if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return false;
-    if (hasExplicitModuleGrant("comedor")) return true;
-    if (isRhOperativoUiMode() || isNonRhRhMode()) return hasRhModule("comedor");
+    const moduleKey = navItemIdToModuleKey(itemId);
+    if (hasExplicitModuleGrant(moduleKey)) return true;
+    if (isRhOperativoUiMode() || isNonRhRhMode()) return hasRhModule(moduleKey);
     return false;
   }
   if (itemId === "nominas") {
@@ -398,8 +399,14 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     if (h.startsWith("#/comedor/reporte") || h.startsWith("#/reportes")) {
       return hasRhModule("reportes");
     }
+    if (h.startsWith("#/comedor/gestion") || h.startsWith("#/comedor/codigos-externos")) {
+      return hasRhModule("comedor-gestion");
+    }
+    if (h.startsWith("#/comedor/planear")) {
+      return hasRhModule("comedor-planear");
+    }
     if (h.startsWith("#/comedor")) {
-      return hasRhModule("comedor");
+      return hasRhModule("comedor-registro");
     }
     return hasRhModule(moduleKey);
   }
