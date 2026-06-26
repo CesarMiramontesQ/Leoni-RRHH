@@ -17,7 +17,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import settings
-from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module_from_claims
+from app.core.rh_module_registry import resolve_module_from_api_path
 from app.core.rh_ui_mode import RH_UI_MODE_OPERATIVO, effective_rh_ui_mode
 
 _FORBIDDEN_DETAIL = (
@@ -57,7 +57,12 @@ def supervisor_restricted_path_allowed(
         return effective_rh_ui_mode(rh_ui_mode) == RH_UI_MODE_OPERATIVO
 
     module_key = resolve_module_from_api_path(path)
-    if module_key and user_has_module_from_claims(payload, module_key, rh_ui_mode=rh_ui_mode):
+    modulos = payload.get("rh_modulos")
+    if (
+        module_key
+        and isinstance(modulos, dict)
+        and bool(modulos.get(module_key, False))
+    ):
         return True
 
     return False

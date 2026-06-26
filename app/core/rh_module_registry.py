@@ -304,11 +304,11 @@ def has_personalized_modulos_rh(empleado: "Empleado") -> bool:
 
 
 def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
-    """Usuario incluido en el sistema de permisos por módulo.
+    """Usuario incluido en permisos por módulo (admin, rol legacy `rh` o inscrito)."""
+    from app.core.rh_ui_mode import is_admin_user
 
-    RH siempre está inscrito; usuarios de otros roles quedan inscritos cuando RH
-    los agrega explícitamente (flag ``inscrito_modulos_rh``), sin cambiar su rol.
-    """
+    if is_admin_user(empleado):
+        return True
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     if rol == "rh":
         return True
@@ -429,19 +429,21 @@ def catalog_for_api() -> list[dict]:
 
 def rh_claims_for_token(empleado: "Empleado") -> dict:
     """Claims JWT para permisos por módulo y flag ADMIN."""
+    from app.core.rh_ui_mode import is_admin_user
+
     claims: dict = {}
-    is_admin = bool(getattr(empleado, "puede_administrar_permisos_rh", False))
-    if is_admin:
+    if is_admin_user(empleado):
         claims["rh_admin"] = True
 
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
-    if rol != "rh":
-        return claims
-
-    claims["rh_enrolled"] = True
-    if modulos:
+    if rol == "rh":
+        claims["rh_enrolled"] = True
+        if modulos:
+            claims["rh_modulos"] = effective_modules(modulos)
+    elif bool(getattr(empleado, "inscrito_modulos_rh", False)) and modulos:
         claims["rh_modulos"] = effective_modules(modulos)
+
     alcance = resolve_rh_gestor_alcance(empleado)
     if alcance:
         claims["rh_gestor_alcance"] = alcance

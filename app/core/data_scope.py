@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def effective_data_scope_rol(user: "Empleado", rh_ui_mode: str | None = None) -> str:
-    """Rol efectivo para filtrar incidencias, empleados, comedor y métricas."""
+    """Rol efectivo para filtrar datos. El valor ``rh`` = vista plantilla completa (admin operativo o legacy), no el rol JWT."""
     return effective_solicitud_scope_rol(user, rh_ui_mode)
 
 

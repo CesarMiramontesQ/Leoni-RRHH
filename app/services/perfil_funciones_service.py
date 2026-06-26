@@ -91,8 +91,11 @@ class PerfilFuncionesService:
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _get_rol(user: Empleado) -> str:
-        return user.rol.nombre if user.rol else "empleado"
+    @staticmethod
+    def _scope_rol(user: Empleado, rh_ui_mode: str | None = None) -> str:
+        from app.core.data_scope import effective_data_scope_rol
+
+        return effective_data_scope_rol(user, rh_ui_mode)
 
     @staticmethod
     def _to_competencia_response(requisito: CompetenciaRequisito) -> PerfilCompetenciaResponse:
@@ -176,7 +179,7 @@ class PerfilFuncionesService:
     async def crear_tarea(
         self, perfil_id: int, data: PerfilTareaCreate, current_user: Empleado
     ) -> PerfilTareaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar tareas del perfil")
 
@@ -213,7 +216,7 @@ class PerfilFuncionesService:
     async def actualizar_tarea(
         self, perfil_id: int, tarea_id: int, data: PerfilTareaUpdate, current_user: Empleado
     ) -> PerfilTareaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar tareas del perfil")
 
@@ -241,7 +244,7 @@ class PerfilFuncionesService:
     async def eliminar_tarea(
         self, perfil_id: int, tarea_id: int, current_user: Empleado
     ) -> None:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar tareas del perfil")
 
@@ -256,7 +259,7 @@ class PerfilFuncionesService:
     async def reordenar_tareas(
         self, perfil_id: int, items: list, current_user: Empleado
     ) -> None:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar tareas del perfil")
 
@@ -364,7 +367,7 @@ class PerfilFuncionesService:
     async def crear_cualificacion(
         self, perfil_id: int, data: PerfilCualificacionCreate, current_user: Empleado
     ) -> PerfilCualificacionResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar cualificaciones")
 
@@ -387,7 +390,7 @@ class PerfilFuncionesService:
     async def actualizar_cualificacion(
         self, perfil_id: int, cualificacion_id: int, data: PerfilCualificacionUpdate, current_user: Empleado
     ) -> PerfilCualificacionResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar cualificaciones")
 
@@ -417,7 +420,7 @@ class PerfilFuncionesService:
     async def eliminar_cualificacion(
         self, perfil_id: int, cualificacion_id: int, current_user: Empleado
     ) -> None:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar cualificaciones")
 
@@ -446,7 +449,7 @@ class PerfilFuncionesService:
     async def crear_competencia(
         self, perfil_id: int, data: PerfilCompetenciaCreate, current_user: Empleado
     ) -> PerfilCompetenciaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
@@ -492,7 +495,7 @@ class PerfilFuncionesService:
         current_user: Empleado,
     ) -> list[PerfilCompetenciaResponse]:
         """Sync competencias del catálogo por tipo y grado (incluye nivel requerido por puesto)."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
@@ -562,7 +565,7 @@ class PerfilFuncionesService:
         current_user: Empleado,
     ) -> PerfilCompetenciaResponse:
         """Actualiza el nivel mínimo requerido de una competencia ya asociada al perfil."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede gestionar competencias requeridas")
 
@@ -605,7 +608,7 @@ class PerfilFuncionesService:
         current_user: Empleado,
     ) -> dict:
         """Sync evaluación de competencias demostradas (nivel 0-4). No afecta competencias de Matriz."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
 
@@ -673,7 +676,7 @@ class PerfilFuncionesService:
     async def crear_asignacion(
         self, perfil_id: int, data: PerfilFuncionesCreate, current_user: Empleado
     ) -> PerfilFuncionesResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede asignar perfiles")
 
@@ -718,7 +721,7 @@ class PerfilFuncionesService:
         current_user: Empleado,
     ) -> PerfilFuncionesResponse:
         """Actualiza metadatos de una asignacion (p. ej. cambio de grado)."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede actualizar asignaciones")
 
@@ -874,7 +877,7 @@ class PerfilFuncionesService:
         current_user: Empleado,
     ) -> dict:
         """Actualiza las evaluaciones de una asignacion (upsert)."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
 
@@ -987,7 +990,7 @@ class PerfilFuncionesService:
         if not asignacion or asignacion.puesto_perfil_id != perfil_id or not asignacion.activo:
             raise NotFoundError(entidad="PerfilFunciones", id=asignacion_id)
 
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
 
         # Determinar tipo de firma segun rol
         if rol in ("rh", "supervisor"):
@@ -1116,7 +1119,7 @@ class PerfilFuncionesService:
         current_user: Empleado,
     ) -> dict:
         """Evalúa tareas de un empleado con escala 1-3."""
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor"):
             raise ForbiddenError(detail="Solo RH o supervisor puede evaluar")
 

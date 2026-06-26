@@ -520,10 +520,15 @@ async def validar_huella(
 async def get_estadisticas(
     semana: date | None = Query(None),
     current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)
-    return await service.get_estadisticas(current_user=current_user, semana=semana)
+    return await service.get_estadisticas(
+        current_user=current_user,
+        semana=semana,
+        rh_ui_mode=rh_ui_mode,
+    )
 
 
 @router.get(
@@ -556,7 +561,8 @@ async def rh_asignar_comedor_turnos(
 @router.get("/proyecciones")
 async def get_proyecciones(
     current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)
-    return await service.get_proyecciones(current_user=current_user)
+    return await service.get_proyecciones(current_user=current_user, rh_ui_mode=rh_ui_mode)

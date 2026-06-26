@@ -78,8 +78,9 @@ class IncidenciaService:
         r.puesto = puesto_txt
         r.supervisor_directo = sup_txt
 
-    def _get_rol(self, current_user: Empleado) -> str:
-        return current_user.rol.nombre if current_user.rol else "empleado"
+    @staticmethod
+    def _scope_rol(user: Empleado, rh_ui_mode: str | None = None) -> str:
+        return effective_data_scope_rol(user, rh_ui_mode)
 
     async def _scope_filters_for_list(
         self,
@@ -281,7 +282,7 @@ class IncidenciaService:
         if not incidencia:
             raise NotFoundError(entidad="Incidencia", id=id)
 
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("director", "rh", "gerente", "supervisor"):
             if incidencia.empleado_id != current_user.id:
                 raise ForbiddenError(detail="No tienes acceso a esta incidencia")
@@ -300,7 +301,7 @@ class IncidenciaService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> IncidenciaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor", "gerente", "director"):
             raise ForbiddenError(detail="Se requiere rol rh o supervisor para crear incidencias")
 
@@ -382,7 +383,7 @@ class IncidenciaService:
         file_bytes: bytes,
         current_user: Empleado,
     ) -> EvidenciaResponse:
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "supervisor", "gerente", "director"):
             raise ForbiddenError(detail="Se requiere rol rh o supervisor para subir evidencias")
 
@@ -427,7 +428,7 @@ class IncidenciaService:
         if not incidencia:
             raise NotFoundError(entidad="Incidencia", id=incidencia_id)
 
-        rol = self._get_rol(current_user)
+        rol = self._scope_rol(current_user)
         if rol not in ("rh", "gerente", "supervisor", "director"):
             if incidencia.empleado_id != current_user.id:
                 raise ForbiddenError(detail="No tienes acceso a esta evidencia")
