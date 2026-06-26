@@ -5,7 +5,7 @@
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { hasExplicitModuleGrant, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
 import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
-import { isNonRhRhMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { isAdminUser, isNonRhRhMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 import {
   isEmpleadoFlatNavRol,
   isShellNavItemVisibleForRol,
@@ -80,9 +80,10 @@ export function getVisibleNominasCategories(rol: string | null): ShellHubCategor
   return [{ id: "nominas", title: "Nóminas", items }];
 }
 
-/** Permiso de alguna página de Nóminas para un no-RH inscrito, visible solo en Modo RH. */
+/** Permiso de alguna página de Nóminas para un no-admin inscrito, visible solo en Modo RH. */
 export function hasNominasGrant(rol: string | null): boolean {
-  if (rol === "rh" || !isNonRhRhMode() || !isModulosRhEnrolled()) return false;
+  void rol;
+  if (isAdminUser() || isRhOperativoUiMode() || !isNonRhRhMode() || !isModulosRhEnrolled()) return false;
   return (
     hasExplicitModuleGrant("nominas-horas-extra") ||
     hasExplicitModuleGrant("nominas-conciliacion") ||

@@ -594,8 +594,9 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
         });
       },
       fixedEmpleadoDirectoryId: empleadoSelfDirectoryId ?? undefined,
-      allowPaidLeaveTypes: pageRole === "rh",
-      allowUnpaidLeaveType: pageRole === "supervisor" || pageRole === "gerente" || pageRole === "rh",
+      allowPaidLeaveTypes: pageRole === "operativo",
+      allowUnpaidLeaveType:
+        pageRole === "supervisor" || pageRole === "gerente" || pageRole === "operativo",
       wideForSupervisor: pageRole === "supervisor" || pageRole === "gerente",
       supervisorSolicitudSubjectSelector: pageRole === "supervisor" && sessionEmpleadoDirId != null,
       supervisorDirectoryId:

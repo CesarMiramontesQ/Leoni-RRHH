@@ -1,4 +1,5 @@
-import { getRolFromAccessToken } from "../auth/jwt.ts";
+import { getRolFromAccessToken, hasRhOperativeViewerContext } from "../auth/jwt.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
@@ -81,7 +82,7 @@ function mountViewCharts(root: HTMLElement, state: State): void {
 }
 
 export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal): void {
-  if (getRolFromAccessToken() !== "rh") {
+  if (!hasRhOperativeViewerContext() || !hasRhModule("level-up")) {
     mountAppShell(container, {
       pageTitle: "Evaluación 360°",
       activeNav: "evaluacion-360",

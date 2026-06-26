@@ -18,6 +18,7 @@ vi.mock("./rhModulePermissions.ts", () => ({
 
 vi.mock("./rhUiMode.ts", () => ({
   isRhOperativoUiMode: () => operativoUiMode,
+  isNonRhRhMode: () => false,
 }));
 
 async function imports() {

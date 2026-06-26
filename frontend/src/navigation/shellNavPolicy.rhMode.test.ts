@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storage = new Map<string, string>();
 let gestorAlcance: "supervisor" | "gerente" | null = null;
+let jwtRol: string | null = "supervisor";
 
 vi.stubGlobal("sessionStorage", {
   getItem: (key: string) => storage.get(key) ?? null,
@@ -14,7 +15,7 @@ vi.stubGlobal("sessionStorage", {
 });
 
 vi.mock("../auth/jwt.ts", () => ({
-  getRolFromAccessToken: () => "rh",
+  getRolFromAccessToken: () => jwtRol,
   getRhGestorAlcanceFromToken: () => gestorAlcance,
 }));
 
@@ -28,15 +29,19 @@ vi.mock("../auth/rhModulePermissions.ts", () => ({
 const allowedModules = new Set<string>(["dashboard"]);
 
 describe("shellNavPolicy rh mode", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     storage.clear();
     gestorAlcance = null;
+    jwtRol = "supervisor";
     allowedModules.clear();
     allowedModules.add("dashboard");
     vi.resetModules();
+    const { setAdminUser } = await import("../auth/rhUiMode.ts");
+    setAdminUser(true);
   });
 
   it("modo empleado permite solicitudes y bloquea empleados", async () => {
+    jwtRol = "empleado";
     const { setRhUiMode } = await import("../auth/rhUiMode.ts");
     const { rhMayAccessHash } = await import("./shellNavPolicy.ts");
     setRhUiMode("empleado");
@@ -55,13 +60,14 @@ describe("shellNavPolicy rh mode", () => {
     const { setRhUiMode } = await import("../auth/rhUiMode.ts");
     const { isShellNavItemVisibleForRol, rhMayAccessHash } = await import("./shellNavPolicy.ts");
     setRhUiMode("lider");
-    expect(isShellNavItemVisibleForRol("rh", "solicitudes")).toBe(true);
-    expect(isShellNavItemVisibleForRol("rh", "actas")).toBe(false);
+    expect(isShellNavItemVisibleForRol("supervisor", "solicitudes")).toBe(true);
+    expect(isShellNavItemVisibleForRol("supervisor", "actas")).toBe(false);
     expect(rhMayAccessHash("#/actas")).toBe(false);
     expect(rhMayAccessHash("#/solicitudes")).toBe(true);
   });
 
   it("modo gerente permite evaluaciones y bloquea permisos RH", async () => {
+    jwtRol = "gerente";
     gestorAlcance = "gerente";
     const { setRhUiMode } = await import("../auth/rhUiMode.ts");
     const { rhMayAccessHash } = await import("./shellNavPolicy.ts");

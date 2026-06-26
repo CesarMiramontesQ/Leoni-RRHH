@@ -82,7 +82,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     // autoridad de ruta (rol base + grants en Modo RH). Las redirecciones por rol
     // de abajo no deben pisar el grant, o un inscrito con permiso de una página
     // RH-exclusiva (ajustes, actas, reporte comedor, evaluación 360) sería enviado a #/.
-    const enrolledNonRh = !isAdminUser() && getRolFromAccessToken() !== "rh" && isModulosRhEnrolled();
+    const enrolledNonRh = !isAdminUser() && isModulosRhEnrolled();
     const adminRhOperativo = isAdminUser() && isRhOperativoUiMode();
     if (!enrolledNonRh && !adminRhOperativo) {
       if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
@@ -112,11 +112,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountRhModuleAccessDenied(container);
       return;
     }
-    if (rol === "rh" && !isAdminUser() && !modulosMayAccessHash(rawHash, rol)) {
-      mountRhModuleAccessDenied(container);
-      return;
-    }
-    if (rol !== "rh" && isModulosRhEnrolled() && !modulosMayAccessHash(rawHash, rol)) {
+    if (!isAdminUser() && isModulosRhEnrolled() && !modulosMayAccessHash(rawHash, rol)) {
       mountRhModuleAccessDenied(container);
       return;
     }

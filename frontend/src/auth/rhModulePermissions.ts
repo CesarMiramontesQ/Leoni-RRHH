@@ -2,32 +2,14 @@ import { fetchRhPermisosMe } from "../api/rhPermisos.ts";
 import { refreshAccessTokenSession } from "../api/http.ts";
 import { getAccessTokenPayload } from "./jwt.ts";
 import {
+  isNonRhRhMode,
   isRhEmpleadoUiMode,
   isRhGestorTeamUiMode,
   isRhOperativoUiMode,
-  rhHasFullOperativoModules,
   setAdminUser,
   setRhInPermisosList,
   setRhPermisosActivos,
 } from "./rhUiMode.ts";
-import { getAccessToken } from "./session.ts";
-
-function getSessionRol(): string | null {
-  const token = getAccessToken();
-  if (!token) return null;
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
-  try {
-    const b64 = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = b64.length % 4;
-    const padded = pad ? b64 + "=".repeat(4 - pad) : b64;
-    const p = JSON.parse(atob(padded)) as Record<string, unknown>;
-    const r = p.rol;
-    return typeof r === "string" ? r : null;
-  } catch {
-    return null;
-  }
-}
 
 type RhModulePermissionsState = {
   loaded: boolean;
@@ -118,20 +100,12 @@ export function hasExplicitModuleGrant(moduleKey: string): boolean {
   return state.modules[moduleKey] === true;
 }
 
-/** Control de acceso RH (restricción) o grant explícito para otros roles. */
+/** Control de acceso RH: admin operativo, Modo RH inscrito o grant explícito. */
 export function hasRhModule(moduleKey: string): boolean {
-  const rol = getSessionRol();
   if (state.canAdminPermisos && isRhOperativoUiMode()) return true;
   if (!state.loaded) return true;
-
-  if (rol !== "rh") {
-    return hasExplicitModuleGrant(moduleKey);
-  }
-
-  if (rhHasFullOperativoModules()) return true;
-
-  if (!state.enrolled) return true;
-  return state.modules[moduleKey] === true;
+  if (isNonRhRhMode() && state.enrolled) return state.modules[moduleKey] === true;
+  return hasExplicitModuleGrant(moduleKey);
 }
 
 export function getRhModulesSnapshot(): Readonly<Record<string, boolean>> {

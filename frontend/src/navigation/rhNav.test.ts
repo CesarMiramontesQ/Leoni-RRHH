@@ -13,8 +13,11 @@ vi.stubGlobal("localStorage", {
 });
 
 vi.mock("../auth/jwt.ts", () => ({
-  getRolFromAccessToken: () => "rh",
+  getRolFromAccessToken: () => "supervisor",
   getRhGestorAlcanceFromToken: () => null,
+  getAccessTokenPayload: () => null,
+  isHorasExtraAprobador: () => false,
+  isHorasExtraRegistroAutorizado: () => false,
 }));
 
 vi.mock("../auth/rhModulePermissions.ts", () => ({
@@ -24,8 +27,22 @@ vi.mock("../auth/rhModulePermissions.ts", () => ({
   isModulosRhEnrolled: () => true,
 }));
 
+vi.mock("../auth/rhUiMode.ts", () => ({
+  isAdminUser: () => adminUser,
+  isNonRhRhMode: () => false,
+  isRhDirectorUiMode: () => false,
+  isRhEmpleadoUiMode: () => false,
+  isRhGerenteUiMode: () => false,
+  isRhGestorTeamUiMode: () => false,
+  isRhLiderUiMode: () => false,
+  isRhOperativoUiMode: () => adminUser,
+}));
+
+let adminUser = true;
+
 const allowedModules = new Set<string>([
   "cursos",
+  "cursos-ajustes",
   "sesiones",
   "capacitaciones",
   "puestos",
@@ -43,8 +60,10 @@ const allowedModules = new Set<string>([
 describe("rhNav sections", () => {
   beforeEach(() => {
     storage.clear();
+    adminUser = true;
     allowedModules.clear();
     allowedModules.add("cursos");
+    allowedModules.add("cursos-ajustes");
     allowedModules.add("sesiones");
     allowedModules.add("capacitaciones");
     allowedModules.add("puestos");
@@ -62,7 +81,7 @@ describe("rhNav sections", () => {
 
   it("expone Cursos como sección independiente sin duplicar ítems en Level Up", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("rh");
+    const sections = getVisibleRhNavSections("supervisor");
 
     const cursosSection = sections.find((section) => section.id === "cursos");
     const levelUpSection = sections.find((section) => section.id === "level-up");
@@ -73,6 +92,7 @@ describe("rhNav sections", () => {
       "sesiones",
       "capacitaciones",
       "encuestas",
+      "cursos-ajustes",
     ]);
     expect(levelUpSection?.items.some((item) => item.key === "cursos")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "sesiones")).toBe(false);
@@ -82,7 +102,7 @@ describe("rhNav sections", () => {
 
   it("expone Puestos como sección independiente sin duplicar ítems en Level Up", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("rh");
+    const sections = getVisibleRhNavSections("supervisor");
 
     const puestosSection = sections.find((section) => section.id === "puestos");
     const levelUpSection = sections.find((section) => section.id === "level-up");
@@ -102,7 +122,7 @@ describe("rhNav sections", () => {
 
   it("expone Cumplimiento como sección independiente sin duplicar ítems en Level Up", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("rh");
+    const sections = getVisibleRhNavSections("supervisor");
 
     const cumplimientoSection = sections.find((section) => section.id === "cumplimiento");
     const levelUpSection = sections.find((section) => section.id === "level-up");
@@ -124,7 +144,7 @@ describe("rhNav sections", () => {
 
   it("conserva rutas y etiquetas originales de los ítems de Cursos", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const cursosSection = getVisibleRhNavSections("rh").find((section) => section.id === "cursos");
+    const cursosSection = getVisibleRhNavSections("supervisor").find((section) => section.id === "cursos");
 
     expect(cursosSection?.items).toEqual([
       expect.objectContaining({
@@ -147,12 +167,17 @@ describe("rhNav sections", () => {
         href: "#/encuestas",
         label: "Encuestas Post Curso",
       }),
+      expect.objectContaining({
+        key: "cursos-ajustes",
+        href: "#/cursos/ajustes",
+        label: "Ajustes de cursos",
+      }),
     ]);
   });
 
   it("conserva rutas y etiquetas originales de los ítems de Puestos", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const puestosSection = getVisibleRhNavSections("rh").find((section) => section.id === "puestos");
+    const puestosSection = getVisibleRhNavSections("supervisor").find((section) => section.id === "puestos");
 
     expect(puestosSection?.items).toEqual([
       expect.objectContaining({
@@ -180,7 +205,7 @@ describe("rhNav sections", () => {
 
   it("conserva rutas y etiquetas originales de los ítems de Cumplimiento", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const cumplimientoSection = getVisibleRhNavSections("rh").find(
+    const cumplimientoSection = getVisibleRhNavSections("supervisor").find(
       (section) => section.id === "cumplimiento",
     );
 
@@ -210,7 +235,7 @@ describe("rhNav sections", () => {
 
   it("ordena módulos de forma lógica para RH", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sectionIds = getVisibleRhNavSections("rh").map((section) => section.id);
+    const sectionIds = getVisibleRhNavSections("supervisor").map((section) => section.id);
 
     expect(sectionIds).toEqual(["cursos", "puestos", "cumplimiento", "level-up"]);
   });
@@ -222,7 +247,7 @@ describe("rhNav sections", () => {
     allowedModules.delete("encuestas");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("rh");
+    const sections = getVisibleRhNavSections("supervisor");
 
     expect(sections.some((section) => section.id === "cursos")).toBe(false);
   });
@@ -234,7 +259,7 @@ describe("rhNav sections", () => {
     allowedModules.delete("puestos-ajustes");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("rh");
+    const sections = getVisibleRhNavSections("supervisor");
 
     expect(sections.some((section) => section.id === "puestos")).toBe(false);
   });
@@ -246,7 +271,7 @@ describe("rhNav sections", () => {
     allowedModules.delete("sugerencias");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("rh");
+    const sections = getVisibleRhNavSections("supervisor");
 
     expect(sections.some((section) => section.id === "cumplimiento")).toBe(false);
   });
