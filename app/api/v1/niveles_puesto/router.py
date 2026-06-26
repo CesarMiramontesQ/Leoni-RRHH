@@ -47,7 +47,7 @@ async def listar_niveles_puesto(
 )
 async def crear_nivel_puesto(
     body: NivelPuestoCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo nivel en el catalogo. Solo RH."""
@@ -70,7 +70,7 @@ async def obtener_nivel_puesto(
 async def actualizar_nivel_puesto(
     id: int,
     body: NivelPuestoUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza un nivel del catalogo. Solo RH."""
@@ -81,7 +81,7 @@ async def actualizar_nivel_puesto(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_nivel_puesto(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Desactiva un nivel del catalogo (soft delete). Solo RH."""

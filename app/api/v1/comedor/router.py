@@ -69,7 +69,7 @@ async def list_comedores(
 async def crear_comedor(
     body: ComedorCreate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Alta de comedor (solo RH)."""
@@ -86,7 +86,7 @@ async def editar_comedor(
     comedor_id: int,
     body: ComedorUpdate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Edición de comedor (solo RH)."""
@@ -150,7 +150,7 @@ async def mi_comedor_asignado(
         description="Beneficiario (solo supervisor al registrar para su equipo).",
     ),
     current_user: Empleado = Depends(
-        role_checker(["empleado", "supervisor", "gerente", "director", "rh"])
+        role_checker(["empleado", "supervisor", "gerente", "director", "operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -168,7 +168,7 @@ async def mi_comedor_asignado(
 async def registrar_seleccion(
     body: ComedorRegistroCreate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["empleado", "supervisor", "gerente", "director", "rh"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "supervisor", "gerente", "director", "operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)
@@ -196,7 +196,7 @@ async def primera_fecha_reserva_comedor(
 async def list_mis_reservas_comedor(
     anio: int = Query(..., ge=2000, le=2100),
     mes: int = Query(..., ge=1, le=12),
-    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Reservas del empleado en un mes (calendario personal)."""
@@ -215,7 +215,7 @@ async def list_mis_reservas_comedor(
 async def mis_fechas_ocupadas_comedor(
     desde: date = Query(..., description="Inicio del rango (inclusive)"),
     hasta: date = Query(..., description="Fin del rango (inclusive)"),
-    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -237,7 +237,7 @@ async def mis_fechas_ocupadas_comedor(
 @router.get("/accesos/mis-proximas-reservas", response_model=list[ComedorMisReservaItem])
 async def mis_proximas_reservas_comedor(
     limite: int = Query(5, ge=1, le=200),
-    current_user: Empleado = Depends(role_checker(["empleado", "rh"])),
+    current_user: Empleado = Depends(role_checker(["empleado", "operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Top N reservas próximas del empleado desde hoy (por defecto 5, máx. 200)."""
@@ -314,7 +314,7 @@ async def equipo_metricas_comedor(
 async def rh_resumen_diario_comedor(
     desde: date = Query(..., description="Inicio del rango (inclusive)"),
     hasta: date = Query(..., description="Fin del rango (inclusive)"),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)
@@ -331,7 +331,7 @@ async def rh_resumen_diario_comedor(
 )
 async def rh_registros_futuros_por_semana_comedor(
     semanas: int = Query(8, ge=1, le=16, description="Máximo de semanas futuras a devolver"),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Totales de registros activos agrupados por semana ISO (solo fechas >= hoy)."""
@@ -348,7 +348,7 @@ async def rh_proximos_registros_comedor(
     page_size: int = Query(10, ge=1, le=50),
     buscar: str | None = Query(None, max_length=200),
     filtro_estado: Literal["todos", "confirmado", "cancelado"] = Query("todos"),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Accesos futuros (fecha_servicio >= hoy), filtrables por estado y búsqueda por empleado."""
@@ -370,7 +370,7 @@ async def rh_registros_reporte_comedor(
     page_size: int = Query(10, ge=1, le=50),
     buscar: str | None = Query(None, max_length=200),
     filtro_estado: Literal["todos", "confirmado", "cancelado"] = Query("todos"),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Registros operativos en un rango de fechas (inclusive), para tableros analíticos RH."""
@@ -394,7 +394,7 @@ async def reservar_acceso_dia(
     body: ComedorAccesoReservaCreate,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(
-        role_checker(["empleado", "supervisor", "gerente", "rh"])
+        role_checker(["empleado", "supervisor", "gerente", "operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -414,7 +414,7 @@ async def reservar_acceso_dia(
 async def registrar_acceso_rh(
     body: ComedorRhRegistroCreate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)
@@ -430,7 +430,7 @@ async def listar_codigos_externos_rh(
     desde: date | None = Query(None),
     hasta: date | None = Query(None),
     estatus: str | None = Query(None, description="ACTIVO|USADO_PARCIAL|USADO_TOTAL|VENCIDO"),
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ComedorService(db)
@@ -519,7 +519,7 @@ async def validar_huella(
 @router.get("/estadisticas")
 async def get_estadisticas(
     semana: date | None = Query(None),
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
@@ -536,7 +536,7 @@ async def get_estadisticas(
     response_model=ComedorRhEmpleadosSinComedorList,
 )
 async def rh_empleados_sin_comedor_asignado(
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Empleados activos sin comedor en `turnos_empleados` (alertas operativas)."""
@@ -550,7 +550,7 @@ async def rh_empleados_sin_comedor_asignado(
 )
 async def rh_asignar_comedor_turnos(
     data: ComedorRhAsignarComedorTurnosRequest,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Asigna comedor en turnos a empleados que aún no lo tienen."""
@@ -560,7 +560,7 @@ async def rh_asignar_comedor_turnos(
 
 @router.get("/proyecciones")
 async def get_proyecciones(
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):

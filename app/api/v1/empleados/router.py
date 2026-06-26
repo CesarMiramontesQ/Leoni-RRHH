@@ -32,7 +32,7 @@ from app.services.vacaciones_service import VacacionesService
 
 router = APIRouter(prefix="/api/v1/empleados", tags=["Empleados - Directorio"])
 
-_ROLES_DIRECTORIO = ["rh", "gerente", "director", "supervisor"]
+_ROLES_DIRECTORIO = ["operativo", "gerente", "director", "supervisor"]
 
 
 def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
@@ -158,7 +158,7 @@ async def get_vacaciones_empleado(
 async def actualizar_vacaciones_empleado(
     empleado_id: int,
     body: VacacionesUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: VacacionesService = Depends(_vac_svc),
 ):
     """Asigna o actualiza el saldo de vacaciones (solo RH)."""

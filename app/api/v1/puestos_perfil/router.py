@@ -69,7 +69,7 @@ async def resumen_tarjetas(
 )
 async def crear_puesto_perfil(
     body: PuestoPerfilCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo perfil de puesto. Solo RH."""
@@ -92,7 +92,7 @@ async def obtener_puesto_perfil(
 async def actualizar_puesto_perfil(
     id: int,
     body: PuestoPerfilUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza un perfil de puesto. Incrementa version. Solo RH."""
@@ -103,7 +103,7 @@ async def actualizar_puesto_perfil(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_puesto_perfil(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina (soft-delete) un perfil de puesto. Solo RH."""
@@ -115,7 +115,7 @@ async def eliminar_puesto_perfil(
 async def generar_perfil_ia(
     id: int,
     body: GenerarPerfilIARequest,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """

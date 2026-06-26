@@ -26,7 +26,7 @@ from app.services.usuario_service import UsuarioService
 
 router = APIRouter(prefix="/api/v1/usuarios", tags=["Usuarios"])
 
-_RH = ["rh"]
+_OPERATIVO = ["operativo"]
 
 
 def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
@@ -35,7 +35,7 @@ def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
 
 @router.get("/roles", response_model=list[RolBrief])
 async def list_roles(
-    current_user: Empleado = Depends(role_checker(_RH)),
+    current_user: Empleado = Depends(role_checker(_OPERATIVO)),
     svc: UsuarioService = Depends(_svc),
 ):
     """Catálogo de roles para formularios de asignación (solo RH)."""
@@ -45,7 +45,7 @@ async def list_roles(
 @router.get("/{id}", response_model=UsuarioResponse)
 async def get_usuario(
     id: int,
-    current_user: Empleado = Depends(role_checker(_RH)),
+    current_user: Empleado = Depends(role_checker(_OPERATIVO)),
     svc: UsuarioService = Depends(_svc),
 ):
     return await svc.get_usuario(id=id, current_user=current_user)
@@ -56,7 +56,7 @@ async def asignar_lider_y_rol(
     id: int,
     body: UsuarioAsignacionUpdate,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(_RH)),
+    current_user: Empleado = Depends(role_checker(_OPERATIVO)),
     svc: UsuarioService = Depends(_svc),
 ):
     """Edición restringida: rol_id, comedor en turnos (lider_id legacy)."""

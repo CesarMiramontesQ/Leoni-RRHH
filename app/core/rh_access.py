@@ -10,6 +10,10 @@ from app.core.rh_ui_mode import is_admin_user, is_rh_operativo_ui_mode
 if TYPE_CHECKING:
     from app.models.empleados import Empleado
 
+# Rol lógico de API para vista RH operativa (admin Modo RH o legacy BD `rh`).
+OPERATIVO_API_ROLE = "operativo"
+LEGACY_RH_BD_ROLE = "rh"
+
 
 def user_rol_nombre(user: "Empleado") -> str:
     return user.rol.nombre if user.rol else "empleado"
@@ -17,7 +21,17 @@ def user_rol_nombre(user: "Empleado") -> str:
 
 def is_legacy_rh_role(user: "Empleado") -> bool:
     """Usuario con rol de catálogo Bono `rh` (legacy)."""
-    return user_rol_nombre(user) == "rh"
+    return user_rol_nombre(user) == LEGACY_RH_BD_ROLE
+
+
+def requires_operativo_api_role(roles_requeridos: list[str]) -> bool:
+    return OPERATIVO_API_ROLE in roles_requeridos
+
+
+def rol_satisfies_api_roles(rol_nombre: str, roles_requeridos: list[str]) -> bool:
+    if rol_nombre in roles_requeridos:
+        return True
+    return rol_nombre == LEGACY_RH_BD_ROLE and requires_operativo_api_role(roles_requeridos)
 
 
 def can_use_rh_ui_modes(user: "Empleado") -> bool:

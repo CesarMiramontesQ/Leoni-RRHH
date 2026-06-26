@@ -30,7 +30,7 @@ async def health():
 @router.get("", response_model=FaltasRetardosPageResponse)
 async def list_faltas_retardos(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: FaltasRetardosService = Depends(_svc),
@@ -58,7 +58,7 @@ async def list_faltas_retardos(
 @router.get("/tipos", response_model=FaltasRetardosTiposResponse)
 async def list_tipos_faltas_retardos(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     svc: FaltasRetardosService = Depends(_svc),
 ):
@@ -68,7 +68,7 @@ async def list_tipos_faltas_retardos(
 @router.get("/estadisticas", response_model=FaltasRetardosEstadisticasResponse)
 async def estadisticas_faltas_retardos(
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: FaltasRetardosService = Depends(_svc),
@@ -95,7 +95,7 @@ async def estadisticas_faltas_retardos(
 async def create_falta_retardo(
     body: FaltaRetardoCreateRequest,
     current_user: Empleado = Depends(
-        role_checker(["rh", "gerente", "supervisor", "director"])
+        role_checker(["operativo", "gerente", "supervisor", "director"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: FaltasRetardosService = Depends(_svc),

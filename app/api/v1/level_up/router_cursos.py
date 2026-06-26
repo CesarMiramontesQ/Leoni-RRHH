@@ -54,7 +54,7 @@ async def listar_cursos(
 )
 async def crear_curso(
     body: CursoCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo curso en el catalogo. Solo RH."""
@@ -77,7 +77,7 @@ async def obtener_curso(
 async def actualizar_curso(
     id: int,
     body: CursoUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza un curso del catalogo. Solo RH."""
@@ -88,7 +88,7 @@ async def actualizar_curso(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_curso(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina (soft-delete) un curso del catalogo. Solo RH."""
@@ -340,7 +340,7 @@ class CursoGrupoCreateBody(BaseModel):
 async def agregar_grupo_al_curso(
     id: int,
     body: CursoGrupoCreateBody,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Asignar un grupo (área, subárea o puesto) al curso."""
@@ -405,7 +405,7 @@ async def agregar_grupo_al_curso(
 async def quitar_grupo_del_curso(
     id: int,
     grupo_id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     from app.core.exceptions import NotFoundError

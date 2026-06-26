@@ -94,7 +94,10 @@ async def get_current_user(
 
 
 def role_checker(roles_requeridos: list[str]):
-    """Factory que retorna una dependency para verificar roles."""
+    """Factory que retorna una dependency para verificar roles de API.
+
+    Usa ``operativo`` para vista RH (admin en Modo RH o rol legacy BD ``rh``).
+    """
 
     async def check_role(
         request: Request,
@@ -102,6 +105,7 @@ def role_checker(roles_requeridos: list[str]):
         db: AsyncSession = Depends(get_db),
         rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     ) -> Empleado:
+        from app.core.rh_access import requires_operativo_api_role, rol_satisfies_api_roles
         from app.core.rh_module_registry import resolve_module_from_api_path, user_has_module
         from app.core.rh_ui_mode import (
             is_admin_user,
@@ -113,7 +117,9 @@ def role_checker(roles_requeridos: list[str]):
         )
 
         if is_admin_user(current_user):
-            if is_rh_operativo_ui_mode(current_user, rh_ui_mode) and "rh" in roles_requeridos:
+            if is_rh_operativo_ui_mode(current_user, rh_ui_mode) and requires_operativo_api_role(
+                roles_requeridos
+            ):
                 return current_user
             if is_rh_lider_ui_mode(current_user, rh_ui_mode) and "supervisor" in roles_requeridos:
                 return current_user
@@ -131,7 +137,7 @@ def role_checker(roles_requeridos: list[str]):
         rol_result = await db.execute(select(Rol).where(Rol.id == current_user.rol_id))
         rol = rol_result.scalar_one_or_none()
         rol_nombre = rol.nombre if rol else "empleado"
-        if rol_nombre in roles_requeridos:
+        if rol_satisfies_api_roles(rol_nombre, roles_requeridos):
             return current_user
         module_key = resolve_module_from_api_path(request.url.path)
         if module_key and user_has_module(current_user, module_key):

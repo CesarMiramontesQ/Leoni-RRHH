@@ -55,6 +55,26 @@ async def test_admin_con_puesto_gestor_resuelve_alcance(db):
 
 
 @pytest.mark.asyncio
+async def test_role_checker_acepta_operativo_y_legacy_rh(client: AsyncClient, db):
+    """Endpoints con role_checker(['operativo']) admiten admin operativo y rol BD rh."""
+    admin = await make_empleado(
+        db,
+        rol="supervisor",
+        email="admin_operativo_chk@test.leoni",
+        puede_administrar_permisos_rh=True,
+        modulos_rh={"organigrama": True},
+    )
+    headers = await auth_headers(client, admin)
+    headers["X-RH-UI-Mode"] = "operativo"
+    res = await client.get("/api/v1/organigrama", headers=headers)
+    assert res.status_code == 200
+
+    legacy = await make_empleado(db, rol="rh", email="legacy_rh_org@test.leoni")
+    res2 = await client.get("/api/v1/organigrama", headers=await auth_headers(client, legacy))
+    assert res2.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_admin_supervisor_accede_actas_en_modo_operativo(client: AsyncClient, db):
     admin = await make_empleado(
         db,

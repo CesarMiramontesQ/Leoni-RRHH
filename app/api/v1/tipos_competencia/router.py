@@ -47,7 +47,7 @@ async def listar_tipos_competencia(
 )
 async def crear_tipo_competencia(
     body: TipoCompetenciaCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea un nuevo tipo en el catalogo. Solo RH."""
@@ -70,7 +70,7 @@ async def obtener_tipo_competencia(
 async def actualizar_tipo_competencia(
     id: int,
     body: TipoCompetenciaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza un tipo del catalogo. Solo RH."""
@@ -81,7 +81,7 @@ async def actualizar_tipo_competencia(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_tipo_competencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Desactiva un tipo del catalogo (soft delete). Solo RH."""

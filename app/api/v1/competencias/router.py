@@ -70,7 +70,7 @@ async def obtener_matriz(
 @router.put("/matriz")
 async def actualizar_matriz(
     body: MatrizBulkUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -178,7 +178,7 @@ async def listar_competencias(
 )
 async def crear_competencia(
     body: CompetenciaCreate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Crea una nueva competencia. Solo RH."""
@@ -201,7 +201,7 @@ async def obtener_competencia(
 async def actualizar_competencia(
     id: int,
     body: CompetenciaUpdate,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Actualiza una competencia. Solo RH."""
@@ -223,7 +223,7 @@ async def listar_puestos_asociados(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_competencia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Elimina (soft-delete) una competencia. Solo RH."""

@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1/reportes", tags=["Reportes y Exportacion"])
 
 @router.get("/dashboard/kpis")
 async def get_kpis(
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
@@ -23,7 +23,7 @@ async def get_kpis(
 @router.get("/{modulo}/pdf")
 async def export_pdf(
     modulo: str,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
@@ -36,7 +36,7 @@ async def export_pdf(
 @router.get("/{modulo}/excel")
 async def export_excel(
     modulo: str,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):

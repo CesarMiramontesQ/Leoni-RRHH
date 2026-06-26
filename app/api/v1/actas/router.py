@@ -29,7 +29,7 @@ async def health():
 async def list_actas(
     cursor: int | None = Query(None, description="ID del ultimo item recibido."),
     limit: int = Query(100, ge=1, le=500, description="Items por pagina."),
-    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -45,7 +45,7 @@ async def list_actas(
     response_model=ActasDashboardMetricasResponse,
 )
 async def actas_metricas_dashboard(
-    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -56,7 +56,7 @@ async def actas_metricas_dashboard(
 async def create_acta(
     body: ActaCreateRequest,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -70,7 +70,7 @@ async def create_acta(
 @router.post("/generar/{incidencia_id}")
 async def generar_acta(
     incidencia_id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
 ):
     # TODO: Llamar a Ollama LLM para generar borrador
     return {"message": "Generación desde incidencia en desarrollo", "incidencia_id": incidencia_id}
@@ -78,14 +78,14 @@ async def generar_acta(
 
 @router.get("/rag/status", response_model=ActaRagStatusResponse)
 async def rag_status(
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
 ):
     return await legal_rag_service.status()
 
 
 @router.post("/rag/reindex", response_model=ActaRagStatusResponse)
 async def rag_reindex(
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
 ):
     await legal_rag_service.rebuild_index()
     return await legal_rag_service.status()
@@ -94,7 +94,7 @@ async def rag_reindex(
 @router.get("/{id}", response_model=ActaResponse)
 async def get_acta(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -107,7 +107,7 @@ async def get_acta(
 @router.post("/{id}/mejorar-ia", response_model=ActaMejoraIaResponse)
 async def mejorar_acta_con_ia(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente", "director"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente", "director"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -123,7 +123,7 @@ async def editar_acta(
     id: int,
     body: ActaEditarRequest,
     background_tasks: BackgroundTasks,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -138,7 +138,7 @@ async def editar_acta(
 @router.put("/{id}/firmar")
 async def firmar_acta(
     id: int,
-    current_user: Empleado = Depends(role_checker(["gerente", "director", "rh"])),
+    current_user: Empleado = Depends(role_checker(["gerente", "director", "operativo"])),
 ):
     return {"message": "Endpoint en desarrollo", "id": id}
 
@@ -146,7 +146,7 @@ async def firmar_acta(
 @router.put("/{id}/aprobar", response_model=ActaResponse)
 async def aprobar_acta(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -160,7 +160,7 @@ async def aprobar_acta(
 async def anular_acta(
     id: int,
     body: ActaAnularRequest,
-    current_user: Empleado = Depends(role_checker(["rh"])),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = ActaService(db)
@@ -174,6 +174,6 @@ async def anular_acta(
 @router.get("/{id}/pdf")
 async def download_acta_pdf(
     id: int,
-    current_user: Empleado = Depends(role_checker(["rh", "gerente"])),
+    current_user: Empleado = Depends(role_checker(["operativo", "gerente"])),
 ):
     return {"message": "Generacion PDF en desarrollo", "id": id}
