@@ -56,6 +56,18 @@ const PDI_ESTADO_LABEL: Record<EstadoPDI, string> = {
 
 const PDI_TIPOS = ["E-Learning", "Presencial", "Mentoring", "Coaching", "Certificación", "Rotación"];
 
+const PRINT_STYLES = `
+@media print {
+  body * { visibility: hidden; }
+  #eval-empleado-page, #eval-empleado-page * { visibility: visible; }
+  #eval-empleado-page { position: absolute; left: 0; top: 0; width: 100%; }
+  .print\\:hidden { display: none !important; }
+  nav, aside, header, [data-shell-sidebar], [data-shell-topbar] { display: none !important; }
+  @page { size: A4 landscape; margin: 10mm; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+}`;
+
 function renderCircularGauge(value: number, maxValue: number, color: string, size = 48): string {
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -96,6 +108,14 @@ export function mountEvaluacionEmpleado(
 
   const root = container.querySelector<HTMLElement>("#eval-empleado-page")!;
 
+  // Inject print styles
+  if (!document.getElementById("eval-print-styles")) {
+    const style = document.createElement("style");
+    style.id = "eval-print-styles";
+    style.textContent = PRINT_STYLES;
+    document.head.appendChild(style);
+  }
+
   function renderLoading(): string {
     return `
       <div class="px-6 py-6 max-w-6xl mx-auto">
@@ -127,16 +147,21 @@ export function mountEvaluacionEmpleado(
           <h1 class="text-xl font-bold text-gray-900">Evaluación Individual vs Perfil Ideal</h1>
           <p class="text-sm text-gray-500 mt-0.5">Análisis detallado de competencias y alineación de carrera.</p>
         </div>
-        <div class="flex flex-col sm:flex-row gap-4 text-sm">
-          <div>
-            <p class="text-xs font-medium text-gray-500 uppercase">Empleado Seleccionado</p>
-            <p class="font-semibold text-gray-900 mt-0.5">${data.empleado_nombre}${data.puesto_nombre ? ` - ${data.puesto_nombre}` : ""}</p>
+        <div class="flex items-start gap-4 text-sm">
+          <div class="flex flex-col sm:flex-row gap-4">
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">Empleado Seleccionado</p>
+              <p class="font-semibold text-gray-900 mt-0.5">${data.empleado_nombre}${data.puesto_nombre ? ` - ${data.puesto_nombre}` : ""}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">Información del Puesto</p>
+              <p class="font-medium text-gray-700 mt-0.5">${puestoInfo}</p>
+              ${evaluador ? `<p class="text-xs text-gray-500 italic">${evaluador}</p>` : ""}
+            </div>
           </div>
-          <div>
-            <p class="text-xs font-medium text-gray-500 uppercase">Información del Puesto</p>
-            <p class="font-medium text-gray-700 mt-0.5">${puestoInfo}</p>
-            ${evaluador ? `<p class="text-xs text-gray-500 italic">${evaluador}</p>` : ""}
-          </div>
+          <button id="btn-export-pdf" class="${BTN_SECONDARY} text-xs px-3 py-1.5 print:hidden" title="Exportar a PDF">
+            <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>PDF
+          </button>
         </div>
       </div>`;
   }
@@ -302,7 +327,7 @@ export function mountEvaluacionEmpleado(
     const estadoLabels = ["Todos", "Pendiente", "En Proceso", "Completado", "Cancelado"];
 
     const filterHtml = `
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 print:hidden">
         <div class="relative">
           <select id="pdi-filter-estado" class="appearance-none rounded-md border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-gray-700 ${FIELD_FOCUS}">
             ${estadoOptions.map((v, i) => `<option value="${v}" ${v === (currentEstado ?? "") ? "selected" : ""}>${estadoLabels[i]}</option>`).join("")}
@@ -694,6 +719,11 @@ export function mountEvaluacionEmpleado(
     }
   }
 
+  function bindExportPDF() {
+    const btn = document.getElementById("btn-export-pdf");
+    if (btn) btn.addEventListener("click", () => window.print());
+  }
+
   async function load() {
     root.innerHTML = renderLoading();
     await ensureMetodosCalificacionCompetenciaLoaded();
@@ -709,6 +739,7 @@ export function mountEvaluacionEmpleado(
     pdiData = pdiResp.items;
     root.innerHTML = renderResumen(data, pdiData);
     bindPDIEvents();
+    bindExportPDF();
   }
 
   load();

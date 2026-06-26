@@ -20,6 +20,8 @@ Workflow:
   GET  /api/v1/evaluaciones/{id}/historial        — Historial de transiciones
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,7 +39,7 @@ from app.schemas.evaluaciones import (
     TransicionRequest,
     TransicionResponse,
 )
-from app.schemas.pdi import PDICreate, PDIListResponse, PDIResponse, PDIUpdate
+from app.schemas.pdi import PDICreate, PDIUpdate, PDIListResponse, PDIResponse, PDIGestionListResponse, PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse, EquipoResumenResponse, HeatmapResponse, TimelineResponse
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
 
@@ -45,6 +47,97 @@ router = APIRouter(prefix="/api/v1/evaluaciones", tags=["Evaluaciones"])
 
 
 # ── Endpoints especiales (antes de /{id}) ───────────────────────────────────
+
+
+@router.get("/pdi", response_model=PDIGestionListResponse)
+async def listar_pdi_consolidado(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    area_id: int | None = Query(None),
+    estado: str | None = Query(None),
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
+    search: str | None = Query(None),
+    solo_vencidas: bool = Query(False),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.listar_consolidado(
+        current_user=current_user,
+        page=page,
+        page_size=page_size,
+        area_id=area_id,
+        estado=estado,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        search=search,
+        solo_vencidas=solo_vencidas,
+    )
+
+
+@router.get("/pdi/resumen", response_model=PDIResumenResponse)
+async def resumen_pdi(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.obtener_resumen(current_user=current_user)
+
+
+@router.get("/pdi/progreso-equipo", response_model=PDIProgresoEquipoResponse)
+async def progreso_equipo_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.progreso_equipo(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/equipo-resumen", response_model=EquipoResumenResponse)
+async def equipo_resumen_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.equipo_resumen(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/heatmap", response_model=HeatmapResponse)
+async def heatmap_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.heatmap(current_user=current_user, area_id=area_id)
+
+
+@router.get("/pdi/timeline", response_model=TimelineResponse)
+async def timeline_pdi(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.timeline(current_user=current_user, area_id=area_id)
+
+
+@router.patch("/pdi/{pdi_id}/estado", response_model=PDIGestionItem)
+async def patch_pdi_estado(
+    pdi_id: int,
+    body: PDIEstadoPatch,
+    current_user: Empleado = Depends(role_checker(["rh"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.cambiar_estado(
+        pdi_id=pdi_id,
+        nuevo_estado=body.estado,
+        current_user=current_user,
+    )
 
 
 @router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])
@@ -125,9 +218,7 @@ async def actualizar_pdi(
     )
 
 
-@router.delete(
-    "/empleado/{empleado_id}/pdi/{pdi_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/empleado/{empleado_id}/pdi/{pdi_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_pdi(
     empleado_id: int,
     pdi_id: int,
@@ -136,7 +227,7 @@ async def eliminar_pdi(
 ):
     """Eliminar acción PDI. Solo RH."""
     service = PDIService(db)
-    await service.eliminar(empleado_id=empleado_id, pdi_id=pdi_id)
+    await service.eliminar(empleado_id=empleado_id, pdi_id=pdi_id, current_user=current_user)
 
 
 @router.post("/bulk", status_code=status.HTTP_200_OK)

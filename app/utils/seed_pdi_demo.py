@@ -1,124 +1,75 @@
-"""
-Seed demo — Acciones PDI para empleado 553.
-
-Crea 4 acciones de desarrollo vinculadas a competencias con brecha.
-Requiere que seed_evaluacion_demo haya corrido antes.
+"""Seed de datos demo para Plan de Desarrollo Individual (PDI).
 
 Uso:
-    docker-compose exec backend python -m app.utils.seed_pdi_demo
-    docker-compose exec backend python -m app.utils.seed_pdi_demo --cleanup
+  docker-compose exec backend python -m app.utils.seed_pdi_demo
 """
 
 import asyncio
-import logging
-import sys
 from datetime import date
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
-from app.models.talento import Competencia, PlanDesarrolloIndividual
+from app.models.talento import PlanDesarrolloIndividual, Competencia
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
-logger = logging.getLogger(__name__)
 
-DEMO_EMPLEADO_ID = 553
-DEMO_CREADOR_ID = 553
+DEMO_EMPLEADOS = [553, 1]
 
-ACCIONES = [
-    {
-        "competencia_nombre": "Auditoría Interna",
-        "accion": "Curso avanzado de auditoría interna ISO 19011",
-        "tipo": "E-Learning",
-        "duracion_horas": 40,
-        "fecha_inicio": date(2026, 7, 1),
-        "fecha_fin": date(2026, 8, 15),
-        "responsable": "Depto. Calidad",
-        "estado": "pendiente",
-    },
-    {
-        "competencia_nombre": "Liderazgo",
-        "accion": "Programa de mentoring con gerente de área",
-        "tipo": "Mentoring",
-        "duracion_horas": 20,
-        "fecha_inicio": date(2026, 7, 15),
-        "fecha_fin": date(2026, 9, 30),
-        "responsable": "Gerencia de Operaciones",
-        "estado": "en_proceso",
-    },
-    {
-        "competencia_nombre": "Toma de Decisiones",
-        "accion": "Taller presencial de toma de decisiones bajo presión",
-        "tipo": "Presencial",
-        "duracion_horas": 16,
-        "fecha_inicio": date(2026, 8, 1),
-        "fecha_fin": date(2026, 8, 2),
-        "responsable": "RH Capacitación",
-        "estado": "pendiente",
-    },
-    {
-        "competencia_nombre": "Manejo de ERP/SAP",
-        "accion": "Certificación SAP MM módulo básico",
-        "tipo": "Certificación",
-        "duracion_horas": 60,
-        "fecha_inicio": date(2026, 9, 1),
-        "fecha_fin": date(2026, 11, 30),
-        "responsable": "Proveedor externo SAP",
-        "estado": "pendiente",
-    },
+DEMO_DATA_553 = [
+    {"competencia": "Auditoría Interna", "accion": "Curso ISO 19011:2018 Auditorías Internas", "tipo": "E-Learning", "duracion": 24, "inicio": "2026-07-01", "fin": "2026-08-15", "responsable": "Dpto. Calidad", "estado": "pendiente"},
+    {"competencia": "Liderazgo", "accion": "Programa de Liderazgo Situacional Hersey-Blanchard", "tipo": "Presencial", "duracion": 40, "inicio": "2026-07-15", "fin": "2026-09-30", "responsable": "RH Capacitación", "estado": "en_proceso"},
+    {"competencia": "Toma de Decisiones", "accion": "Mentoring con Gerente de Operaciones", "tipo": "Mentoring", "duracion": None, "inicio": "2026-08-01", "fin": "2026-11-30", "responsable": "Lic. García (Gerente Ops)", "estado": "pendiente"},
+    {"competencia": "Manejo de ERP/SAP", "accion": "Certificación SAP MM Módulo Materiales", "tipo": "Certificación", "duracion": 60, "inicio": "2026-09-01", "fin": "2026-12-15", "responsable": "SAP Academy", "estado": "pendiente"},
+]
+
+DEMO_DATA_1 = [
+    {"competencia": "Auditoría Interna", "accion": "Curso avanzado de auditoría de procesos", "tipo": "E-Learning", "duracion": 16, "inicio": "2026-07-01", "fin": "2026-07-31", "responsable": "Dpto. Calidad", "estado": "en_proceso"},
+    {"competencia": "Liderazgo", "accion": "Workshop de liderazgo transformacional", "tipo": "Presencial", "duracion": 20, "inicio": "2026-08-01", "fin": "2026-09-15", "responsable": "RH Capacitación", "estado": "pendiente"},
+    {"competencia": "Toma de Decisiones", "accion": "Coaching ejecutivo 1:1", "tipo": "Coaching", "duracion": 12, "inicio": "2026-07-15", "fin": "2026-10-15", "responsable": "Coach Externo", "estado": "en_proceso"},
+    {"competencia": "Manejo de ERP/SAP", "accion": "Rotación área de compras (SAP práctico)", "tipo": "Rotación", "duracion": None, "inicio": "2026-09-01", "fin": "2027-01-31", "responsable": "Jefe de Compras", "estado": "pendiente"},
+    {"competencia": "Comunicación Efectiva", "accion": "Taller de presentaciones ejecutivas", "tipo": "Presencial", "duracion": 8, "inicio": "2026-07-20", "fin": "2026-08-20", "responsable": "RH Capacitación", "estado": "completado"},
 ]
 
 
-async def cleanup():
-    async with AsyncSessionLocal() as s:
-        await s.execute(
-            delete(PlanDesarrolloIndividual).where(
-                PlanDesarrolloIndividual.empleado_id == DEMO_EMPLEADO_ID
-            )
-        )
-        await s.commit()
-        logger.info("PDI demo data cleaned up.")
+async def seed_pdi():
+    async with AsyncSessionLocal() as db:
+        competencias_result = await db.execute(select(Competencia))
+        competencias = {c.nombre: c.id for c in competencias_result.scalars().all()}
 
-
-async def seed():
-    async with AsyncSessionLocal() as s:
-        existing = await s.execute(
-            select(PlanDesarrolloIndividual).where(
-                PlanDesarrolloIndividual.empleado_id == DEMO_EMPLEADO_ID
+        for emp_id, data_list in [(553, DEMO_DATA_553), (1, DEMO_DATA_1)]:
+            existing = await db.execute(
+                select(PlanDesarrolloIndividual).where(
+                    PlanDesarrolloIndividual.empleado_id == emp_id
+                )
             )
-        )
-        if existing.scalars().first():
-            logger.info("PDI demo data already exists. Skipping.")
-            return
-
-        for item in ACCIONES:
-            comp_name = item.pop("competencia_nombre")
-            r = await s.execute(
-                select(Competencia).where(Competencia.nombre == comp_name)
-            )
-            comp = r.scalar_one_or_none()
-            if not comp:
-                logger.warning("Competencia '%s' no encontrada, saltando.", comp_name)
+            if existing.scalars().first():
+                print(f"  ⊘ Empleado {emp_id} ya tiene PDI, saltando...")
                 continue
 
-            pdi = PlanDesarrolloIndividual(
-                empleado_id=DEMO_EMPLEADO_ID,
-                competencia_id=comp.id,
-                creado_por=DEMO_CREADOR_ID,
-                **item,
-            )
-            s.add(pdi)
+            for item in data_list:
+                comp_id = competencias.get(item["competencia"])
+                if not comp_id:
+                    print(f"  ⚠ Competencia '{item['competencia']}' no encontrada, saltando...")
+                    continue
+                pdi = PlanDesarrolloIndividual(
+                    empleado_id=emp_id,
+                    competencia_id=comp_id,
+                    accion=item["accion"],
+                    tipo=item["tipo"],
+                    duracion_horas=item["duracion"],
+                    fecha_inicio=date.fromisoformat(item["inicio"]),
+                    fecha_fin=date.fromisoformat(item["fin"]),
+                    responsable=item["responsable"],
+                    estado=item["estado"],
+                    creado_por=None,
+                )
+                db.add(pdi)
+            print(f"  ✓ Empleado {emp_id}: {len(data_list)} acciones PDI creadas")
 
-        await s.commit()
-        logger.info("PDI demo: %d acciones creadas para empleado %d.", len(ACCIONES), DEMO_EMPLEADO_ID)
-
-
-async def main():
-    if "--cleanup" in sys.argv:
-        await cleanup()
-    else:
-        await seed()
+        await db.commit()
+    print("\n✅ Seed PDI completado.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(seed_pdi())

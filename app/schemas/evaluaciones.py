@@ -90,6 +90,7 @@ class EmpleadoResumenResponse(BaseModel):
     con_gap: int = 0
 
 
+
 # ── Workflow schemas ───────────────────────────────────────────────────────────
 
 

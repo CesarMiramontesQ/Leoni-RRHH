@@ -289,12 +289,6 @@ class EvaluacionCompetencia(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    # Workflow
-    estado: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="cerrado", default="borrador",
-    )
-    comentario_devolucion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     # Relationships
     empleado: Mapped["Empleado"] = relationship(
         "Empleado", foreign_keys=[empleado_id]
@@ -307,8 +301,7 @@ class EvaluacionCompetencia(Base):
     def __repr__(self) -> str:
         return (
             f"<EvaluacionCompetencia empleado_id={self.empleado_id} "
-            f"competencia_id={self.competencia_id} nivel={self.nivel_actual} "
-            f"estado={self.estado}>"
+            f"competencia_id={self.competencia_id} nivel={self.nivel_actual}>"
         )
 
 
@@ -906,25 +899,27 @@ class PerfilFuncionesTarea(Base):
         )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Plan de Desarrollo Individual (PDI)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
 class PlanDesarrolloIndividual(Base):
-    """Acción de desarrollo individual vinculada a una competencia con brecha."""
+    """Acción de desarrollo asignada a un empleado para cerrar brechas de competencia."""
 
     __tablename__ = "levelup_plan_desarrollo_individual"
     __table_args__ = (
         Index("ix_levelup_pdi_empleado_id", "empleado_id"),
         Index("ix_levelup_pdi_competencia_id", "competencia_id"),
-        CheckConstraint(
-            "fecha_fin >= fecha_inicio",
-            name="ck_levelup_pdi_fechas",
-        ),
+        CheckConstraint("fecha_fin >= fecha_inicio", name="ck_levelup_pdi_fechas"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     empleado_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("empleados.empleado_id"), nullable=False
+        ForeignKey("empleados.empleado_id", ondelete="CASCADE"), nullable=False
     )
     competencia_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("levelup_competencias.id"), nullable=False
+        ForeignKey("levelup_competencias.id", ondelete="CASCADE"), nullable=False
     )
     accion: Mapped[str] = mapped_column(String(300), nullable=False)
     tipo: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -942,18 +937,14 @@ class PlanDesarrolloIndividual(Base):
     )
 
     # Relationships
-    empleado: Mapped["Empleado"] = relationship(
-        "Empleado", foreign_keys=[empleado_id], lazy="selectin"
-    )
-    competencia: Mapped["Competencia"] = relationship(
-        "Competencia", lazy="selectin"
-    )
+    empleado: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[empleado_id])
+    competencia: Mapped["Competencia"] = relationship("Competencia")
     creador: Mapped[Optional["Empleado"]] = relationship(
         "Empleado",
+        foreign_keys=[creado_por],
         primaryjoin="foreign(PlanDesarrolloIndividual.creado_por) == Empleado.empleado_id",
-        lazy="selectin",
         viewonly=True,
     )
 
     def __repr__(self) -> str:
-        return f"<PlanDesarrolloIndividual id={self.id} empleado={self.empleado_id} comp={self.competencia_id}>"
+        return f"<PDI id={self.id} empleado={self.empleado_id} competencia={self.competencia_id} estado={self.estado}>"

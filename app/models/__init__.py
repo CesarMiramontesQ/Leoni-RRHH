@@ -36,7 +36,6 @@ from app.models.bono_historico_import_log import BonoHistoricoImportLog
 from app.models.tress import TressRobotQueue
 from app.models.talento import (
     AccionRecomendada,
-    PlanDesarrolloIndividual,
     PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
     Capacitacion, Inscripcion,
     TareaCatalogo, PerfilTarea, PerfilCualificacion,
@@ -44,6 +43,7 @@ from app.models.talento import (
     PerfilFuncionesTarea, NivelPuesto, GradoPuesto, TipoCompetencia, GrupoCompetencia,
     TipoCualificacionCatalogo, MetodoCalificacion, OpcionCalificacion, CualificacionCatalogo,
     MetodoCalificacionCompetencia,
+    PlanDesarrolloIndividual,
 )
 from app.models.horas_extra import (
     CentroCosto,
@@ -116,7 +116,6 @@ __all__ = [
     "BonoHistoricoImportLog",
     "TressRobotQueue",
     "AccionRecomendada",
-    "PlanDesarrolloIndividual",
     "PuestoPerfil",
     "Competencia",
     "CompetenciaRequisito",
@@ -161,4 +160,5 @@ __all__ = [
     "SugerenciaCapacitacion",
     "PlanDesarrollo",
     "PlanEtapa",
+    "PlanDesarrolloIndividual",
 ]
