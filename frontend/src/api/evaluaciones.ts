@@ -234,6 +234,8 @@ export interface PDIUpdatePayload {
   fecha_fin?: string;
   responsable?: string;
   estado?: EstadoPDI;
+  prioridad?: "baja" | "media" | "alta";
+  recursos?: string;
 }
 
 export async function getPDI(
