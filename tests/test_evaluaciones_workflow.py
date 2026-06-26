@@ -14,34 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import auth_headers, make_empleado
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-async def make_area(db: AsyncSession, *, descripcion: str = "Area WF"):
-    from app.models.catalogos import Area
-
-    uid = str(uuid.uuid4())[:6]
-    area = Area(
-        area_id=abs(hash(uid)) % 100000,
-        descripcion=descripcion or f"Area-{uid}",
-        estatus_id=1,
-    )
-    db.add(area)
-    await db.flush()
-    await db.refresh(area)
-    return area
-
-
-async def make_competencia(db: AsyncSession, *, nombre: str = "Comp WF", area_id: int | None = None):
-    from app.models.talento import Competencia
-
-    comp = Competencia(nombre=nombre, categoria="tecnica", area_id=area_id, activo=True)
-    db.add(comp)
-    await db.flush()
-    await db.refresh(comp)
-    return comp
+from tests.conftest_talento import make_area, make_competencia
 
 
 async def _crear_evaluacion_borrador(client, headers, empleado_id, competencia_id, nivel=2):
@@ -364,7 +337,7 @@ async def test_filtro_por_estado(client: AsyncClient, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_resumen_solo_cerradas(client: AsyncClient, db: AsyncSession):
     """resumen_empleado solo considera evaluaciones en estado cerrado."""
-    from tests.conftest_talento import make_puesto_perfil
+    from tests.conftest_talento import make_competencia_requisito, make_puesto_perfil
 
     area = await make_area(db, descripcion="Res WF")
     rh = await make_empleado(db, rol="rh", email="wf_res_rh@leoni.test")
@@ -375,13 +348,9 @@ async def test_resumen_solo_cerradas(client: AsyncClient, db: AsyncSession):
     comp = await make_competencia(db, nombre="Comp Resumen", area_id=area.area_id)
     puesto = await make_puesto_perfil(db, nombre="Puesto Resumen", area_id=area.area_id)
 
-    from app.models.talento import CompetenciaRequisito
-
-    req = CompetenciaRequisito(
-        competencia_id=comp.id, puesto_perfil_id=puesto.id, nivel_requerido=3
+    await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=puesto.id, nivel_requerido=3
     )
-    db.add(req)
-    await db.flush()
 
     rh_h = await auth_headers(client, rh)
 

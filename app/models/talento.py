@@ -279,6 +279,10 @@ class EvaluacionCompetencia(Base):
         ForeignKey("empleados.empleado_id"), nullable=True
     )
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="cerrado", default="borrador"
+    )
+    comentario_devolucion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     fecha_evaluacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -2,11 +2,18 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getEmpleadoResumen,
+  getEvaluacionesPorEmpleado,
+  enviarEvaluacion,
+  revisarEvaluacion,
+  aprobarEvaluacion,
+  cerrarEvaluacion,
+  devolverEvaluacion,
   getNivelLabels,
   getPDI,
   createPDI,
   updatePDI,
   deletePDI,
+  type Evaluacion,
   type EmpleadoResumen,
   type CompetenciaResumenItem,
   type Severidad,
@@ -17,7 +24,21 @@ import {
 } from "../api/evaluaciones.ts";
 import { ensureMetodosCalificacionCompetenciaLoaded } from "../ui/metodosCalificacionCompetencia.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
-import { BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER, FIELD_FOCUS, SELECT_CHEVRON } from "../ui/uiTokens.ts";
+import { hasRhModule } from "../auth/rhModulePermissions.ts";
+import {
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  BTN_DANGER,
+  FIELD_FOCUS,
+  SELECT_CHEVRON,
+  badgeCancelled,
+  badgeOpen,
+  badgeInProgress,
+  badgeChangesRequested,
+  badgeApproved,
+  badgeRejected,
+  badgePending,
+} from "../ui/uiTokens.ts";
 
 const SEVERIDAD_CONFIG: Record<Severidad, { dot: string; bg: string; text: string; label: string }> = {
   alineado: { dot: "bg-green-500", bg: "bg-green-50", text: "text-green-700", label: "Alineado" },
@@ -67,6 +88,46 @@ const PRINT_STYLES = `
   table { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
 }`;
+
+function renderEstadoBadge(estado: string): string {
+  switch (estado) {
+    case "borrador": return badgeCancelled("Borrador");
+    case "enviado": return badgeOpen("Enviado");
+    case "en_revision": return badgeInProgress("En revisión");
+    case "revisado": return badgeChangesRequested("Revisado");
+    case "cerrado": return badgeApproved("Cerrado");
+    case "devuelto": return badgeRejected("Devuelto");
+    default: return badgePending(estado);
+  }
+}
+
+function renderWorkflowActions(ev: Evaluacion): string {
+  const rol = getRolFromAccessToken();
+  const isRh = hasRhModule("evaluaciones");
+  const isSupervisor = rol === "supervisor";
+  const buttons: string[] = [];
+
+  if (ev.estado === "borrador" || ev.estado === "devuelto") {
+    buttons.push(`<button data-action="wf-enviar" data-id="${ev.id}" class="${BTN_PRIMARY} text-xs px-3 py-1.5">Enviar</button>`);
+  }
+  if (ev.estado === "enviado" && (isSupervisor || isRh)) {
+    buttons.push(`<button data-action="wf-revisar" data-id="${ev.id}" class="${BTN_PRIMARY} text-xs px-3 py-1.5">Revisar</button>`);
+    buttons.push(`<button data-action="wf-devolver" data-id="${ev.id}" class="${BTN_DANGER} text-xs px-3 py-1.5">Devolver</button>`);
+  }
+  if (ev.estado === "en_revision" && (isSupervisor || isRh)) {
+    buttons.push(`<button data-action="wf-aprobar" data-id="${ev.id}" class="${BTN_PRIMARY} text-xs px-3 py-1.5">Aprobar</button>`);
+    buttons.push(`<button data-action="wf-devolver" data-id="${ev.id}" class="${BTN_DANGER} text-xs px-3 py-1.5">Devolver</button>`);
+  }
+  if (ev.estado === "revisado" && isRh) {
+    buttons.push(`<button data-action="wf-cerrar" data-id="${ev.id}" class="${BTN_PRIMARY} text-xs px-3 py-1.5">Cerrar</button>`);
+    buttons.push(`<button data-action="wf-devolver" data-id="${ev.id}" class="${BTN_DANGER} text-xs px-3 py-1.5">Devolver</button>`);
+  }
+  if (ev.estado === "borrador" && isRh) {
+    buttons.push(`<button data-action="wf-cerrar" data-id="${ev.id}" class="${BTN_PRIMARY} text-xs px-3 py-1.5">Cerrar</button>`);
+  }
+
+  return buttons.join(" ");
+}
 
 function renderCircularGauge(value: number, maxValue: number, color: string, size = 48): string {
   const radius = (size - 8) / 2;
@@ -569,13 +630,103 @@ export function mountEvaluacionEmpleado(
       </div>`;
   }
 
-  function renderResumen(data: EmpleadoResumen, pdiItems: PDIAccion[]): string {
+  function renderWorkflowSection(evaluaciones: Evaluacion[]): string {
+    const activas = evaluaciones.filter(ev => ev.estado !== "cerrado");
+    const devueltas = evaluaciones.filter(ev => ev.estado === "devuelto" && ev.comentario_devolucion);
+
+    if (activas.length === 0 && devueltas.length === 0) return "";
+
+    const devolucionBanner = devueltas.length > 0
+      ? devueltas.map(ev => `
+        <div class="rounded-lg border border-red-200 bg-red-50 p-4 mb-4">
+          <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.27 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-red-800">Evaluación devuelta: ${ev.competencia_nombre ?? `ID ${ev.competencia_id}`}</p>
+              <p class="text-sm text-red-700 mt-1 whitespace-pre-wrap">${ev.comentario_devolucion}</p>
+            </div>
+          </div>
+        </div>`).join("")
+      : "";
+
+    if (activas.length === 0) {
+      return `<div class="mt-6" id="workflow-section">${devolucionBanner}</div>`;
+    }
+
+    const rows = activas.map(ev => {
+      const fecha = ev.fecha_evaluacion ? new Date(ev.fecha_evaluacion).toLocaleDateString("es-MX") : "-";
+      return `
+        <tr class="border-b border-gray-100 hover:bg-gray-50/50">
+          <td class="px-4 py-3 text-sm font-medium text-gray-900">${ev.competencia_nombre ?? `ID ${ev.competencia_id}`}</td>
+          <td class="px-4 py-3 text-sm">${renderEstadoBadge(ev.estado)}</td>
+          <td class="px-4 py-3 text-sm text-gray-500">${ev.evaluador_nombre ?? "-"}</td>
+          <td class="px-4 py-3 text-sm text-gray-500">${fecha}</td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              ${renderWorkflowActions(ev)}
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+
+    return `
+      <div class="mt-6" id="workflow-section">
+        ${devolucionBanner}
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-gray-900 uppercase">Evaluaciones en curso</h2>
+          <span class="text-xs text-gray-500">${activas.length} evaluación${activas.length > 1 ? "es" : ""} activa${activas.length > 1 ? "s" : ""}</span>
+        </div>
+        <div class="overflow-hidden rounded-lg border border-gray-200">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evaluador</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 bg-white">
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function renderDevolucionModal(evalId: number): string {
+    return `
+      <div id="wf-devolucion-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+          <h3 class="text-base font-semibold text-gray-900 mb-4">Devolver evaluación</h3>
+          <form id="wf-devolucion-form" class="space-y-4">
+            <input type="hidden" name="eval_id" value="${evalId}" />
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Comentario (mínimo 10 caracteres)</label>
+              <textarea id="wf-devolucion-comentario" name="comentario" rows="3" required minlength="10"
+                placeholder="Explica el motivo de la devolución..."
+                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <button type="button" id="wf-devolucion-cancel" class="${BTN_SECONDARY} text-xs px-3 py-1.5">Cancelar</button>
+              <button type="submit" class="${BTN_DANGER} text-xs px-3 py-1.5">Devolver</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+  }
+
+  function renderResumen(data: EmpleadoResumen, pdiItems: PDIAccion[], evaluaciones: Evaluacion[]): string {
     return `
       <div class="px-6 py-6 max-w-6xl mx-auto">
         ${renderLevelUpBackBar()}
         <div class="mt-4">
           ${renderHeader(data)}
           ${renderKPIs(data)}
+          ${renderWorkflowSection(evaluaciones)}
           ${renderComparisonTable(data)}
           ${renderBreachBars(data)}
           ${renderPDISection(pdiItems, data.competencias)}
@@ -586,6 +737,7 @@ export function mountEvaluacionEmpleado(
 
   let resumenData: EmpleadoResumen | null = null;
   let pdiData: PDIAccion[] = [];
+  let evaluacionesData: Evaluacion[] = [];
 
   async function loadPDI(estado?: string) {
     const params = estado ? { estado } : undefined;
@@ -724,12 +876,116 @@ export function mountEvaluacionEmpleado(
     if (btn) btn.addEventListener("click", () => window.print());
   }
 
+  function openDevolucionModal(evalId: number) {
+    const html = renderDevolucionModal(evalId);
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper.firstElementChild!);
+
+    const overlay = document.getElementById("wf-devolucion-overlay")!;
+    const form = document.getElementById("wf-devolucion-form") as HTMLFormElement;
+    const cancelBtn = document.getElementById("wf-devolucion-cancel")!;
+
+    function closeModal() { overlay.remove(); }
+
+    cancelBtn.addEventListener("click", closeModal);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const comentarioEl = document.getElementById("wf-devolucion-comentario") as HTMLTextAreaElement;
+      const comentario = comentarioEl.value.trim();
+      if (comentario.length < 10) return;
+
+      const result = await devolverEvaluacion(evalId, comentario);
+      if (result) {
+        closeModal();
+        await refreshWorkflow();
+      }
+    });
+  }
+
+  async function refreshWorkflow() {
+    evaluacionesData = await getEvaluacionesPorEmpleado(empleadoId);
+    const section = document.getElementById("workflow-section");
+    const newHtml = renderWorkflowSection(evaluacionesData);
+
+    if (section) {
+      if (newHtml) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = newHtml;
+        section.replaceWith(tmp.firstElementChild!);
+      } else {
+        section.remove();
+      }
+    } else if (newHtml) {
+      // Insert after KPIs section
+      const kpis = root.querySelector(".grid.grid-cols-2.lg\\:grid-cols-4");
+      if (kpis) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = newHtml;
+        kpis.insertAdjacentElement("afterend", tmp.firstElementChild!);
+      }
+    }
+    bindWorkflowEvents();
+  }
+
+  function bindWorkflowEvents() {
+    root.querySelectorAll<HTMLElement>("[data-action='wf-enviar']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.dataset.id);
+        if (id && confirm("¿Enviar esta evaluación a revisión?")) {
+          await enviarEvaluacion(id);
+          await refreshWorkflow();
+        }
+      });
+    });
+
+    root.querySelectorAll<HTMLElement>("[data-action='wf-revisar']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.dataset.id);
+        if (id) {
+          await revisarEvaluacion(id);
+          await refreshWorkflow();
+        }
+      });
+    });
+
+    root.querySelectorAll<HTMLElement>("[data-action='wf-aprobar']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.dataset.id);
+        if (id && confirm("¿Aprobar esta evaluación?")) {
+          await aprobarEvaluacion(id);
+          await refreshWorkflow();
+        }
+      });
+    });
+
+    root.querySelectorAll<HTMLElement>("[data-action='wf-cerrar']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.dataset.id);
+        if (id && confirm("¿Cerrar esta evaluación? Una vez cerrada contará para cálculos de brechas.")) {
+          await cerrarEvaluacion(id);
+          await refreshWorkflow();
+        }
+      });
+    });
+
+    root.querySelectorAll<HTMLElement>("[data-action='wf-devolver']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = Number(btn.dataset.id);
+        if (id) openDevolucionModal(id);
+      });
+    });
+  }
+
   async function load() {
     root.innerHTML = renderLoading();
     await ensureMetodosCalificacionCompetenciaLoaded();
-    const [data, pdiResp] = await Promise.all([
+    const [data, pdiResp, evals] = await Promise.all([
       getEmpleadoResumen(empleadoId),
       getPDI(empleadoId),
+      getEvaluacionesPorEmpleado(empleadoId),
     ]);
     if (!data) {
       root.innerHTML = renderError();
@@ -737,8 +993,10 @@ export function mountEvaluacionEmpleado(
     }
     resumenData = data;
     pdiData = pdiResp.items;
-    root.innerHTML = renderResumen(data, pdiData);
+    evaluacionesData = evals;
+    root.innerHTML = renderResumen(data, pdiData, evaluacionesData);
     bindPDIEvents();
+    bindWorkflowEvents();
     bindExportPDF();
   }
 
