@@ -44,6 +44,17 @@ def main() -> int:
         return 1
 
     parents_by_rev, files_by_rev = _parse_revisions()
+
+    rev_to_files: dict[str, list[str]] = defaultdict(list)
+    for rev, filename in files_by_rev.items():
+        rev_to_files[rev].append(filename)
+    dupes = {rev: names for rev, names in rev_to_files.items() if len(names) > 1}
+    if dupes:
+        print(f"ERROR: {len(dupes)} revision(es) duplicada(s) en Alembic:", file=sys.stderr)
+        for rev, names in sorted(dupes.items()):
+            print(f"  - {rev}: {', '.join(names)}", file=sys.stderr)
+        return 1
+
     children: dict[str, list[str]] = defaultdict(list)
     for rev, parents in parents_by_rev.items():
         for parent in parents:
