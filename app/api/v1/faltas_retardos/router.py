@@ -78,7 +78,12 @@ async def estadisticas_faltas_retardos(
     fecha_fin: date | None = Query(None),
     busqueda: str | None = Query(None, description="Nombre o número de empleado"),
     area: str | None = Query(None, description="Nombre de área"),
+    tendencia_agrupacion: str | None = Query(
+        None,
+        description="Granularidad de tendencia por tipo: dia, semana o mes",
+    ),
 ):
+    agr = (tendencia_agrupacion or "").strip().lower() or None
     return await svc.estadisticas_eventos(
         current_user,
         rh_ui_mode=rh_ui_mode,
@@ -88,6 +93,7 @@ async def estadisticas_faltas_retardos(
         fecha_fin=fecha_fin,
         busqueda=busqueda.strip() if busqueda and busqueda.strip() else None,
         area=area.strip() if area and area.strip() else None,
+        tendencia_agrupacion=agr,
     )
 
 

@@ -67,8 +67,8 @@ export const FR_COPY = {
 
   metricasVacia: "No hay eventos de asistencia con los filtros seleccionados.",
   metricasSinDatos: "Sin datos de analítica disponibles.",
-  metricasTendenciaTitulo: "Tendencia mensual",
-  metricasTendenciaSub: "Eventos registrados por mes",
+  metricasTendenciaTitulo: "Tendencia por tipo de falta o retardo",
+  metricasTendenciaSub: "Evolución por tipo según filtros aplicados",
   metricasTipoTitulo: "Distribución por tipo",
   metricasTipoSub: "Composición de faltas y retardos",
   metricasEmpleadosTitulo: "Empleados con más eventos",

@@ -168,11 +168,31 @@ class FaltasRetardosService:
                 por_tipo[api_tipo] = por_tipo.get(api_tipo, 0) + int(count)
         return por_tipo
 
+    def _map_periodo_tipo_rows(
+        self, rows: list[tuple[str, str, int]]
+    ) -> list[dict[str, object]]:
+        merged: dict[tuple[str, str], int] = {}
+        for periodo, codigo, count in rows:
+            api_tipo = CODIGO_PONDERACION_A_TIPO.get(codigo.upper())
+            if not api_tipo:
+                continue
+            key = (periodo, api_tipo)
+            merged[key] = merged.get(key, 0) + int(count)
+        return [
+            {"periodo": periodo, "tipo": tipo, "total": total}
+            for (periodo, tipo), total in sorted(
+                merged.items(), key=lambda item: (item[0][0], item[0][1])
+            )
+        ]
+
     def _build_estadisticas_response(
         self,
         por_codigo: dict[str, int],
         por_mes: list[tuple[str, int]],
         empleados_top: list[tuple[int, str | None, str | None, int, dict[str, int]]],
+        *,
+        por_periodo_y_tipo: list[dict[str, object]] | None = None,
+        tendencia_agrupacion: str | None = None,
     ) -> FaltasRetardosEstadisticasResponse:
         por_tipo = self._map_por_codigo_a_tipo(por_codigo)
 
@@ -215,6 +235,8 @@ class FaltasRetardosService:
             eventos_por_mes=[
                 {"periodo": periodo, "total": count} for periodo, count in por_mes
             ],
+            eventos_por_periodo_y_tipo=por_periodo_y_tipo or [],
+            tendencia_agrupacion=tendencia_agrupacion,
             eventos_por_tipo=eventos_por_tipo,
             empleados_con_mas_eventos=empleados_con_mas_eventos,
         )
@@ -230,6 +252,7 @@ class FaltasRetardosService:
         fecha_fin: date | None = None,
         busqueda: str | None = None,
         area: str | None = None,
+        tendencia_agrupacion: str | None = None,
     ) -> FaltasRetardosEstadisticasResponse:
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
         engine, repo = await self._with_bono_repo()
@@ -246,7 +269,22 @@ class FaltasRetardosService:
             por_codigo = await repo.aggregate_por_tipo_codigo(**filters)
             por_mes = await repo.aggregate_por_mes(**filters)
             empleados_top = await repo.aggregate_empleados_top_por_tipo(limit=10, **filters)
-            return self._build_estadisticas_response(por_codigo, por_mes, empleados_top)
+            agr = (
+                tendencia_agrupacion.strip().lower()
+                if tendencia_agrupacion and tendencia_agrupacion.strip()
+                else None
+            )
+            por_periodo_y_tipo: list[dict[str, object]] | None = None
+            if agr in ("dia", "semana", "mes"):
+                periodo_rows = await repo.aggregate_por_periodo_y_tipo(agrupacion=agr, **filters)
+                por_periodo_y_tipo = self._map_periodo_tipo_rows(periodo_rows)
+            return self._build_estadisticas_response(
+                por_codigo,
+                por_mes,
+                empleados_top,
+                por_periodo_y_tipo=por_periodo_y_tipo,
+                tendencia_agrupacion=agr if agr in ("dia", "semana", "mes") else None,
+            )
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
                 f"Error al consultar estadísticas en bono: {type(exc).__name__}: {exc}"

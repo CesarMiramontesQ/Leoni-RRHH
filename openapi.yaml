@@ -2262,6 +2262,22 @@ components:
                 type: string
               total:
                 type: integer
+        eventos_por_periodo_y_tipo:
+          type: array
+          items:
+            type: object
+            required: [periodo, tipo, total]
+            properties:
+              periodo:
+                type: string
+              tipo:
+                $ref: "#/components/schemas/FaltaRetardoTipo"
+              total:
+                type: integer
+        tendencia_agrupacion:
+          type: [string, "null"]
+          enum: [dia, semana, mes, null]
+          description: Granularidad solicitada vía query tendencia_agrupacion.
         eventos_por_tipo:
           type: array
           items:
@@ -6886,6 +6902,12 @@ paths:
           description: Nombre de área
           schema:
             type: string
+        - name: tendencia_agrupacion
+          in: query
+          description: "Granularidad de tendencia por tipo: dia, semana o mes"
+          schema:
+            type: string
+            enum: [dia, semana, mes]
       responses:
         "200":
           description: Totales por tipo con filtros aplicados

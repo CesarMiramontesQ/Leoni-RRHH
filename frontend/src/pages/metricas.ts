@@ -140,6 +140,7 @@ function loadingFaltasRetardosViewModel(): FaltasRetardosMetricasViewModel {
     estadisticasStatus: "loading",
     estadisticasErrorMessage: undefined,
     empleadosRetardosRanking: [],
+    tendenciaFiltros: { fecha_inicio: "", fecha_fin: "" },
   };
 }
 
@@ -181,6 +182,10 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       estadisticasStatus: frEstadisticasStatus,
       estadisticasErrorMessage: frEstadisticasError,
       empleadosRetardosRanking: frEmpleadosRetardosRanking,
+      tendenciaFiltros: {
+        fecha_inicio: appliedFilters.fecha_inicio,
+        fecha_fin: appliedFilters.fecha_fin,
+      },
     };
   }
 
@@ -245,9 +250,13 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
 
     try {
       const filters = faltasRetardosFiltersFromSolicitudesMetricas(appliedFilters);
+      const tendenciaAgrupacion = tendenciaAgrupacionForRango(
+        filters.fecha_inicio ?? "",
+        filters.fecha_fin ?? "",
+      );
       const filtersRetardo = { ...filters, tipo: "retardo" as const };
       const [estadisticas, retardosEstadisticas] = await Promise.all([
-        getFaltasRetardosEstadisticas(filters),
+        getFaltasRetardosEstadisticas({ ...filters, tendencia_agrupacion: tendenciaAgrupacion }),
         getFaltasRetardosEstadisticas(filtersRetardo).catch(() => null),
       ]);
       if (isStale()) return;

@@ -25,6 +25,8 @@ export type FaltasRetardosEstadisticasData = {
   incapacidad: number;
   suspension: number;
   eventos_por_mes: { periodo: string; total: number }[];
+  eventos_por_periodo_y_tipo?: { periodo: string; tipo: FaltaRetardoTipo; total: number }[];
+  tendencia_agrupacion?: "dia" | "semana" | "mes" | null;
   eventos_por_tipo: { tipo: FaltaRetardoTipo; total: number; porcentaje: number }[];
   empleados_con_mas_eventos: {
     empleado_id: number;
@@ -40,6 +42,7 @@ export type FaltasRetardosMetricasViewModel = {
   estadisticasStatus: "loading" | "ready" | "error";
   estadisticasErrorMessage?: string;
   empleadosRetardosRanking: readonly SolicitudRankingRow[];
+  tendenciaFiltros: { fecha_inicio: string; fecha_fin: string };
 };
 
 export type FaltasRetardosAdminViewModel = {

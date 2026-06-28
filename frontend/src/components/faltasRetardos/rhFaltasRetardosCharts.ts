@@ -1,9 +1,7 @@
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
 import { cssVar } from "../../charts/chartTokens.ts";
-import {
-  filterSerieMesSinFuturo,
-  type SerieMesRow,
-} from "../incidencias/rhIncidenciasCharts.ts";
+import type { FaltaRetardoTendenciaPorTipo } from "../../faltasRetardos/rh/buildFaltasRetardosTendenciaPorTipo.ts";
+import type { RhDashboardTendenciaAgrupacion } from "../../dashboard/rh/filterRowsByPeriod.ts";
 import { labelFaltaRetardoTipo } from "../../faltasRetardos/rh/constants.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
 
@@ -14,6 +12,8 @@ export const RH_FR_EMPLEADOS_BAR_CHART_ID = "rh-fr-empleados-bar";
 const CHART_H = "h-[280px]";
 const BAR_RADIUS = 8;
 const BAR_FILL_ALPHA = 0.5;
+const TENDENCIA_TIPO_LINE_TENSION = 0.35;
+const TENDENCIA_TIPO_FILL_ALPHA = 0.12;
 
 export type FaltaRetardoTipoRow = {
   tipo: FaltaRetardoTipo;
@@ -35,66 +35,171 @@ function colorForTipo(tipo: FaltaRetardoTipo): string {
     case "falta_justificada":
       return cssVar("--color-leoni-green", "#00C853");
     case "falta_injustificada":
-      return cssVar("--color-kpi-metric-inactivo-icon", "#f87171");
+      return cssVar("--color-danger", "#EF4444");
     case "retardo":
       return cssVar("--color-accent", "#2563EB");
     case "incapacidad":
-      return cssVar("--color-leoni-blue-light", "#0D3D66");
+      return cssVar("--color-info", "#3B82F6");
     case "suspension":
-      return cssVar("--color-text-muted", "#5A6880");
+      return cssVar("--color-warning", "#F59E0B");
     default:
-      return cssVar("--color-border", "#D1DCE8");
+      return cssVar("--color-success", "#22C55E");
   }
 }
 
-export function renderFaltasRetardosTendenciaChart(rows: readonly SerieMesRow[]): string {
-  const serie = filterSerieMesSinFuturo(rows);
-  if (serie.length === 0) {
+function etiquetaMesCorto(periodo: string): string {
+  const [y, m] = periodo.split("-");
+  if (!y || !m) return periodo;
+  const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const mi = Number.parseInt(m, 10) - 1;
+  const pref = mi >= 0 && mi < 12 ? meses[mi] : m;
+  return `${pref} ${y.slice(2)}`;
+}
+
+function etiquetaMesTooltip(periodo: string): string {
+  const [y, m] = periodo.split("-").map(Number);
+  if (!y || !m) return periodo;
+  return new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(
+    new Date(y, m - 1, 1),
+  );
+}
+
+function etiquetaPeriodoEje(periodo: string, agrupacion: RhDashboardTendenciaAgrupacion): string {
+  if (agrupacion === "mes") return etiquetaMesCorto(periodo);
+  if (agrupacion === "dia") {
+    const [y, m, d] = periodo.split("-").map(Number);
+    if (!y || !m || !d) return periodo;
+    const raw = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" }).format(
+      new Date(y, m - 1, d),
+    );
+    return raw.replace(/\./g, "");
+  }
+  const [y, m, d] = periodo.split("-").map(Number);
+  if (!y || !m || !d) return periodo;
+  const end = new Date(y, m - 1, d + 6);
+  const fmt = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
+  const ini = fmt.format(new Date(y, m - 1, d)).replace(/\./g, "");
+  const fin = fmt.format(end).replace(/\./g, "");
+  return `${ini}–${fin}`;
+}
+
+function etiquetaPeriodoTooltip(periodo: string, agrupacion: RhDashboardTendenciaAgrupacion): string {
+  if (agrupacion === "mes") return etiquetaMesTooltip(periodo);
+  if (agrupacion === "dia") {
+    const [y, m, d] = periodo.split("-").map(Number);
+    if (!y || !m || !d) return periodo;
+    return new Intl.DateTimeFormat("es-MX", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(y, m - 1, d));
+  }
+  const [y, m, d] = periodo.split("-").map(Number);
+  if (!y || !m || !d) return periodo;
+  const end = new Date(y, m - 1, d + 6);
+  const fmt = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long", year: "numeric" });
+  return `Semana ${fmt.format(new Date(y, m - 1, d))} – ${fmt.format(end)}`;
+}
+
+export function renderFaltasRetardosTendenciaPorTipoChart(data: FaltaRetardoTendenciaPorTipo): string {
+  const has = data.series.some((s) => s.valores.some((v) => v > 0));
+  if (!has || data.periodos.length === 0) {
     return `<div class="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">Sin datos de tendencia en el periodo</div>`;
   }
   return `
     <div class="flex min-h-[280px] w-full min-w-0 flex-1 flex-col justify-center">
       ${renderChartCanvas({
         chartId: RH_FR_TENDENCIA_CHART_ID,
-        ariaLabel: "Tendencia de faltas y retardos por mes",
+        ariaLabel: "Tendencia por tipo de falta o retardo",
         heightClass: CHART_H,
         className: "relative w-full min-w-0",
       })}
     </div>`;
 }
 
-export function mountFaltasRetardosTendenciaChart(
+export function mountFaltasRetardosTendenciaPorTipoChart(
   root: ParentNode,
-  rows: readonly SerieMesRow[],
+  data: FaltaRetardoTendenciaPorTipo,
 ): void {
-  const serie = filterSerieMesSinFuturo(rows);
-  if (serie.length === 0) return;
-  const labels = serie.map((r) => r.periodo);
-  const values = serie.map((r) => r.total);
-  const lineColor = cssVar("--color-accent", "#2563EB");
-  mountChart(root, RH_FR_TENDENCIA_CHART_ID, ({ colors }) => ({
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Eventos",
-          data: values,
-          borderColor: lineColor,
-          backgroundColor: colorConAlpha(lineColor, 0.15),
-          fill: true,
-          tension: 0.35,
-          pointRadius: 3,
+  const seriesConDatos = data.series.filter((s) => s.valores.some((v) => v > 0));
+  if (seriesConDatos.length === 0 || data.periodos.length === 0) return;
+
+  const labels = data.periodos.map((p) => etiquetaPeriodoEje(p, data.agrupacion));
+  const periodos = data.periodos;
+  const agrupacion = data.agrupacion;
+
+  mountChart(root, RH_FR_TENDENCIA_CHART_ID, ({ colors }) => {
+    const cartesian = chartCartesianScales(colors);
+    return {
+      type: "line",
+      data: {
+        labels,
+        datasets: seriesConDatos.map((s) => {
+          const border = colorForTipo(s.tipo);
+          return {
+            label: s.label,
+            data: [...s.valores],
+            borderColor: border,
+            backgroundColor: colorConAlpha(border, TENDENCIA_TIPO_FILL_ALPHA),
+            fill: false,
+            tension: TENDENCIA_TIPO_LINE_TENSION,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          };
+        }),
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: { color: colors.textSecondary, font: { size: 11 }, boxWidth: 12 },
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const i = items[0]?.dataIndex ?? -1;
+                const p = i >= 0 ? periodos[i] : "";
+                return p ? etiquetaPeriodoTooltip(p, agrupacion) : "";
+              },
+              label: (ctx) => {
+                const tipo = ctx.dataset.label ?? "";
+                const n = typeof ctx.parsed.y === "number" ? ctx.parsed.y : 0;
+                return ` ${tipo}: ${n} evento${n === 1 ? "" : "s"}`;
+              },
+            },
+          },
         },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      ...chartCartesianScales(colors),
-    },
-  }));
+        scales: {
+          ...cartesian?.scales,
+          x: {
+            ...cartesian?.scales?.x,
+            ticks: {
+              color: colors.textMuted,
+              font: { size: 10 },
+              maxRotation: agrupacion === "dia" ? 45 : 0,
+              autoSkip: agrupacion === "dia",
+              maxTicksLimit: agrupacion === "dia" ? 8 : undefined,
+            },
+          },
+          y: {
+            ...cartesian?.scales?.y,
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Eventos",
+              color: colors.textMuted,
+              font: { size: 10 },
+            },
+            ticks: { color: colors.textMuted, font: { size: 10 }, precision: 0 },
+          },
+        },
+      },
+    };
+  });
 }
 
 export function renderFaltasRetardosTipoBarChart(rows: readonly FaltaRetardoTipoRow[]): string {
