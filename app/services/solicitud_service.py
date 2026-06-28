@@ -36,8 +36,8 @@ from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.utils.vacaciones_fechas import (
     defuncion_rango_para_empleado,
     dias_laborales_inclusive,
+    paternidad_rango,
     rango_incluye_fin_de_semana,
-    sumar_dias_habiles,
 )
 from app.core.exceptions import (
     ConflictError,
@@ -155,6 +155,18 @@ def _validar_defuncion_fechas(
             detail=(
                 "Defunción solo permite solicitar exactamente 3 días consecutivos "
                 "(fecha fin = dos días después de la fecha de inicio)."
+            )
+        )
+
+
+def _validar_paternidad_fechas(fecha_inicio: date, fecha_fin: date) -> None:
+    esperado_inicio, esperado_fin = paternidad_rango(fecha_inicio)
+    if fecha_inicio != esperado_inicio or fecha_fin != esperado_fin:
+        raise DomainValidationError(
+            detail=(
+                "Paternidad solo permite solicitar exactamente 7 días hábiles. "
+                "Si la fecha de inicio cae en fin de semana, se usan los días hábiles "
+                "más cercanos."
             )
         )
 
@@ -782,7 +794,7 @@ class SolicitudService:
                     administrativo=admin,
                 )
             elif data.tipo == "paternidad":
-                fecha_fin = sumar_dias_habiles(fecha_inicio, 7)
+                _validar_paternidad_fechas(fecha_inicio, fecha_fin)
             # incapacidad_interna mantiene la fecha_fin indicada por RH.
 
         duplicado = await self.repo.count(
@@ -1295,6 +1307,9 @@ class SolicitudService:
                 data.fecha_fin,
                 administrativo=admin,
             )
+
+        if solicitud.tipo == "paternidad":
+            _validar_paternidad_fechas(data.fecha_inicio, data.fecha_fin)
 
         if solicitud.tipo == "permiso_sin_goce_sueldo":
             await self._validar_permiso_sin_goce_sueldo_fechas(

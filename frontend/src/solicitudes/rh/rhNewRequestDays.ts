@@ -159,6 +159,33 @@ export const MENSAJE_MATRIMONIO_DOS_DIAS =
 export const MENSAJE_DEFUNCION_TRES_DIAS =
   "Defunción solo permite solicitar exactamente 3 días. Para administrativos son 3 días hábiles; si el rango cruza fin de semana, se ajustan los días hábiles más cercanos.";
 
+export const PATERNIDAD_DIAS_HABILES = 7;
+
+export function calcularRangoPaternidad(
+  fechaReferencia: string,
+): { fechaInicio: string; fechaFin: string } | null {
+  if (!fechaReferencia.trim()) return null;
+  const anchor = parseLocalDate(fechaReferencia);
+  if (!anchor) return null;
+  let cursor = new Date(anchor.getTime());
+  while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const inicioIso = dateToIso(cursor);
+  const finIso = sumarDiasHabilesInclusive(inicioIso, PATERNIDAD_DIAS_HABILES);
+  if (!finIso) return null;
+  return { fechaInicio: inicioIso, fechaFin: finIso };
+}
+
+export function esRangoPaternidadValido(fechaInicio: string, fechaFin: string): boolean {
+  const esperado = calcularRangoPaternidad(fechaInicio);
+  if (!esperado) return false;
+  return esperado.fechaInicio === fechaInicio && esperado.fechaFin === fechaFin;
+}
+
+export const MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES =
+  "Paternidad solo permite solicitar exactamente 7 días hábiles. Si la fecha de inicio cae en fin de semana, se ajustan los días hábiles más cercanos.";
+
 export const MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA =
   "Los colaboradores administrativos solo pueden solicitar vacaciones de lunes a viernes.";
 

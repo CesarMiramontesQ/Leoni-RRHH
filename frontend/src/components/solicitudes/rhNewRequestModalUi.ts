@@ -8,11 +8,13 @@ import {
   calcularDiasVacacionesSolicitados,
   esRangoDefuncionValido,
   esRangoMatrimonioValido,
+  esRangoPaternidadValido,
   fechasOrdenValidas,
   MENSAJE_DEFUNCION_TRES_DIAS,
   MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
   MENSAJE_HOME_OFFICE_MES_LIMITE,
   MENSAJE_MATRIMONIO_DOS_DIAS,
+  MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES,
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
   rangoIncluyeFinDeSemana,
@@ -322,6 +324,8 @@ export type RhNewRequestFormParams = {
   matrimonioTwoDayMode?: boolean;
   /** Defunción: duración fija de 3 días (ajuste hábil para administrativos). */
   defuncionThreeDayMode?: boolean;
+  /** Paternidad: duración fija de 7 días hábiles (ajuste si inicio en fin de semana). */
+  paternidadSevenDayMode?: boolean;
   /** Controla visibilidad del bloque de Motivo. */
   showMotivoField?: boolean;
   /** Radio personal vs equipo (solo supervisor). */
@@ -447,6 +451,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const singleDayMode = p.singleDayHomeOfficeMode === true;
   const matrimonioTwoDayMode = p.matrimonioTwoDayMode === true;
   const defuncionThreeDayMode = p.defuncionThreeDayMode === true;
+  const paternidadSevenDayMode = p.paternidadSevenDayMode === true;
   const showMotivoField = p.showMotivoField !== false;
   const motivoValue = p.motivo ?? "";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
@@ -630,6 +635,8 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
               "Matrimonio tiene duración fija de 2 días consecutivos. Elige la fecha de inicio."
             : defuncionThreeDayMode ?
               "Defunción tiene duración fija de 3 días. Elige la fecha de referencia; para administrativos se ajustan días hábiles si cruza fin de semana."
+            : paternidadSevenDayMode ?
+              "Paternidad tiene duración fija de 7 días hábiles. Elige la fecha de referencia; si cae en fin de semana, se ajustan los días hábiles más cercanos."
             : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
           }
         </p>
@@ -654,6 +661,17 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
               </div>
             </div>`
           : defuncionThreeDayMode ?
+            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+              </div>
+            </div>`
+          : paternidadSevenDayMode ?
             `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
               <div>
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
@@ -790,6 +808,11 @@ export function computeRhModalFormUi(
     bothDates &&
     fechasOk &&
     !esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true);
+  const paternidadRangoInvalido =
+    tipo === "paternidad" &&
+    bothDates &&
+    fechasOk &&
+    !esRangoPaternidadValido(fechaInicio, fechaFin);
   const diasDefuncion =
     tipo === "defuncion" &&
     bothDates &&
@@ -797,7 +820,14 @@ export function computeRhModalFormUi(
     esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true)
       ? 3
       : null;
-  const diasEfectivos = diasDefuncion ?? dias;
+  const diasPaternidad =
+    tipo === "paternidad" &&
+    bothDates &&
+    fechasOk &&
+    esRangoPaternidadValido(fechaInicio, fechaFin)
+      ? 7
+      : null;
+  const diasEfectivos = diasDefuncion ?? diasPaternidad ?? dias;
 
   const diasLabel =
     vacacionesAdminFinDeSemana || permisoSinGoceAdminFinDeSemana || homeOfficeFinDeSemana ?
@@ -830,6 +860,9 @@ export function computeRhModalFormUi(
   } else if (defuncionRangoInvalido) {
     resumenState = "error";
     resumenHint = MENSAJE_DEFUNCION_TRES_DIAS;
+  } else if (paternidadRangoInvalido) {
+    resumenState = "error";
+    resumenHint = MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES;
   } else if (
     tipo === "home_office" &&
     !modoRevision &&
@@ -886,6 +919,7 @@ export function computeRhModalFormUi(
     !homeOfficeFinDeSemana &&
     !matrimonioRangoInvalido &&
     !defuncionRangoInvalido &&
+    !paternidadRangoInvalido &&
     !homeOfficeSinAdministrativo &&
     !homeOfficeMesOcupado &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);

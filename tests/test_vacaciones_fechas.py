@@ -5,6 +5,7 @@ from app.utils.vacaciones_fechas import (
     defuncion_rango_calendario,
     defuncion_rango_para_empleado,
     dias_laborales_inclusive,
+    paternidad_rango,
     rango_incluye_fin_de_semana,
     sumar_dias_habiles,
 )
@@ -62,3 +63,12 @@ def test_defuncion_rango_para_empleado_no_administrativo():
 
 def test_sumar_dias_habiles_siete_desde_lunes():
     assert sumar_dias_habiles(date(2026, 5, 4), 7) == date(2026, 5, 12)
+
+
+def test_paternidad_rango_desde_lunes():
+    assert paternidad_rango(date(2026, 5, 4)) == (date(2026, 5, 4), date(2026, 5, 12))
+
+
+def test_paternidad_rango_ajusta_inicio_fin_de_semana():
+    # Sáb 9 → Lun 11 … Mar 19 (7 hábiles)
+    assert paternidad_rango(date(2026, 5, 9)) == (date(2026, 5, 11), date(2026, 5, 19))

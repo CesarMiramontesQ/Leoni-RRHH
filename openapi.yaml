@@ -1485,7 +1485,7 @@ components:
           description: >
             Tipos especiales (`matrimonio`, `incapacidad_interna`, `defuncion`, `paternidad`)
             solo pueden ser creados por RH. Reglas automáticas:
-            matrimonio=2 días, defuncion=3 días (administrativos: 3 días hábiles con ajuste si cruza fin de semana), paternidad=7 días hábiles,
+            matrimonio=2 días, defuncion=3 días (administrativos: 3 días hábiles con ajuste si cruza fin de semana), paternidad=7 días hábiles (ajuste si inicio en fin de semana),
             incapacidad_interna con duración manual.
             El tipo `permiso_sin_goce_sueldo` solo puede crearlo supervisor, gerente,
             RH o director, y requiere `motivo`.

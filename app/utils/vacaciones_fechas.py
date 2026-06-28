@@ -67,3 +67,18 @@ def defuncion_rango_para_empleado(fecha_referencia: date, *, administrativo: boo
     if administrativo:
         return defuncion_rango_administrativo(fecha_referencia)
     return defuncion_rango_calendario(fecha_referencia)
+
+
+PATERNIDAD_DIAS_HABILES = 7
+
+
+def paternidad_rango(fecha_referencia: date) -> tuple[date, date]:
+    """
+    Paternidad: 7 días hábiles (lun–vie).
+    Si la fecha de referencia cae en fin de semana, inicia el siguiente día hábil.
+    """
+    cursor = fecha_referencia
+    while cursor.weekday() >= 5:
+        cursor += timedelta(days=1)
+    fin = sumar_dias_habiles(cursor, PATERNIDAD_DIAS_HABILES)
+    return cursor, fin

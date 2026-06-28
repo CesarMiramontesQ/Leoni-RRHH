@@ -3,8 +3,10 @@ import {
   calcularDiasLaboralesInclusive,
   calcularDiasVacacionesSolicitados,
   calcularRangoDefuncion,
+  calcularRangoPaternidad,
   esRangoDefuncionValido,
   esRangoMatrimonioValido,
+  esRangoPaternidadValido,
   rangoIncluyeFinDeSemana,
   sumarDiasIso,
 } from "./rhNewRequestDays.ts";
@@ -56,5 +58,18 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
       fechaFin: "2026-05-13",
     });
     expect(esRangoDefuncionValido("2026-05-07", "2026-05-11", true)).toBe(true);
+  });
+
+  it("paternidad: 7 días hábiles con ajuste si inicio en fin de semana", () => {
+    expect(calcularRangoPaternidad("2026-05-04")).toEqual({
+      fechaInicio: "2026-05-04",
+      fechaFin: "2026-05-12",
+    });
+    expect(calcularRangoPaternidad("2026-05-09")).toEqual({
+      fechaInicio: "2026-05-11",
+      fechaFin: "2026-05-19",
+    });
+    expect(esRangoPaternidadValido("2026-05-04", "2026-05-12")).toBe(true);
+    expect(esRangoPaternidadValido("2026-05-04", "2026-05-11")).toBe(false);
   });
 });
