@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Integer, Text, func
+from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -58,3 +58,37 @@ class FaltaRetardoEvento(Base):
 
     def __repr__(self) -> str:
         return f"<FaltaRetardoEvento id={self.id} tipo={self.tipo} empleado_id={self.empleado_id}>"
+
+
+class FaltaRetardoRegistroAuditoria(Base):
+    """Quién registró en RH un evento insertado en bono (importadas_historico)."""
+
+    __tablename__ = "levelup_faltas_retardos_registro"
+    __table_args__ = (
+        UniqueConstraint(
+            "bono_origen",
+            "bono_origen_id",
+            name="uq_levelup_faltas_retardos_registro_bono",
+        ),
+        Index("ix_levelup_faltas_retardos_registro_bono_origen_id", "bono_origen_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bono_origen: Mapped[str] = mapped_column(String(64), nullable=False)
+    bono_origen_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    registrado_por_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.empleado_id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    registrado_por: Mapped["Empleado"] = relationship(
+        "Empleado", foreign_keys=[registrado_por_id]
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<FaltaRetardoRegistroAuditoria bono={self.bono_origen}:{self.bono_origen_id} "
+            f"por={self.registrado_por_id}>"
+        )

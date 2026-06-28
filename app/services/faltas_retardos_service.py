@@ -8,8 +8,9 @@ from app.core.data_scope import effective_data_scope_rol
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError, ServiceUnavailableError
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
 from app.models.empleados import Empleado
-from app.models.faltas_retardos import FALTA_RETARDO_TIPOS, FaltaRetardoEvento
+from app.models.faltas_retardos import FALTA_RETARDO_TIPOS, FALTA_RETARDO_TIPOS_RANGO
 from app.repositories.bono_faltas_retardos_repository import BonoFaltasRetardosRepository
+from app.repositories.bono_importadas_historico_repository import BonoImportadasHistoricoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.faltas_retardos_repository import FaltasRetardosRepository
 from app.schemas.faltas_retardos import (
@@ -18,7 +19,11 @@ from app.schemas.faltas_retardos import (
     FaltasRetardosEstadisticasResponse,
     FaltasRetardosPageResponse,
 )
-from app.services.faltas_retardos.constants import CODIGO_PONDERACION_A_TIPO, ORIGEN_MANUAL
+from app.services.faltas_retardos.constants import (
+    CODIGO_PONDERACION_A_TIPO,
+    ORIGEN_IMPORTADAS_HISTORICO,
+    TIPO_A_PONDERACION,
+)
 from app.services.faltas_retardos.mapper import map_bono_row
 
 
@@ -37,8 +42,8 @@ def _empleado_display_no(empleado: Empleado | None) -> str | None:
 class FaltasRetardosService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = FaltasRetardosRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
+        self.audit_repo = FaltasRetardosRepository(db)
 
     async def _empleado_ids_scope(
         self,
@@ -72,22 +77,128 @@ class FaltasRetardosService:
             raise ForbiddenError("No tiene permiso para registrar eventos de este empleado")
         return empleado
 
-    def _to_response_manual(self, evento: FaltaRetardoEvento) -> FaltaRetardoResponse:
-        return FaltaRetardoResponse(
-            id=evento.id,
-            empleado_id=evento.empleado_id,
-            empleado_nombre=_empleado_display_nombre(evento.empleado),
-            numero_empleado=_empleado_display_no(evento.empleado),
-            tipo=evento.tipo,
-            fecha_evento=evento.fecha_evento,
-            fecha_fin=evento.fecha_fin,
-            observaciones=evento.observaciones,
-            registrado_por_id=evento.registrado_por_id,
-            registrado_por_nombre=_empleado_display_nombre(evento.registrado_por),
-            created_at=evento.created_at,
-            origen=ORIGEN_MANUAL,
-            origen_id=evento.id,
+    def _to_response_importadas(
+        self,
+        mapped: FaltaRetardoResponse,
+        *,
+        current_user: Empleado,
+        fecha_fin: date | None,
+        observaciones: str | None,
+    ) -> FaltaRetardoResponse:
+        return mapped.model_copy(
+            update={
+                "fecha_fin": fecha_fin,
+                "observaciones": observaciones,
+                "registrado_por_id": current_user.empleado_id,
+                "registrado_por_nombre": _empleado_display_nombre(current_user),
+            }
         )
+
+    async def _with_bono_importadas_repo(self) -> tuple:
+        engine = BonoProductividadReadClient.create_read_engine()
+        if engine is None:
+            raise ServiceUnavailableError(
+                "Base bono_productividad no configurada (variables BONO_DB_*)."
+            )
+        return engine, BonoImportadasHistoricoRepository(engine)
+
+    async def _enrich_registrado_por(
+        self, items: list[FaltaRetardoResponse]
+    ) -> list[FaltaRetardoResponse]:
+        origen_ids = [
+            item.origen_id
+            for item in items
+            if item.origen == ORIGEN_IMPORTADAS_HISTORICO and item.origen_id is not None
+        ]
+        if not origen_ids:
+            return items
+        audit_map = await self.audit_repo.map_registros_auditoria(
+            bono_origen=ORIGEN_IMPORTADAS_HISTORICO,
+            bono_origen_ids=origen_ids,
+        )
+        if not audit_map:
+            return items
+        enriched: list[FaltaRetardoResponse] = []
+        for item in items:
+            audit = audit_map.get(item.origen_id) if item.origen_id is not None else None
+            if audit is None:
+                enriched.append(item)
+                continue
+            enriched.append(
+                item.model_copy(
+                    update={
+                        "registrado_por_id": audit.registrado_por_id,
+                        "registrado_por_nombre": _empleado_display_nombre(
+                            audit.registrado_por
+                        ),
+                        "created_at": audit.created_at,
+                    }
+                )
+            )
+        return enriched
+
+    async def _insertar_en_importadas_historico(
+        self,
+        empleado: Empleado,
+        data: FaltaRetardoCreateRequest,
+    ) -> list[int]:
+        ponderacion = TIPO_A_PONDERACION.get(data.tipo)
+        if ponderacion is None:
+            raise DomainValidationError(
+                f"Tipo {data.tipo!r} no se puede registrar en importadas_historico"
+            )
+        tipo_inc, inc_id = ponderacion
+
+        engine, repo = await self._with_bono_importadas_repo()
+        try:
+            if data.tipo in FALTA_RETARDO_TIPOS_RANGO:
+                assert data.fecha_fin is not None
+                semana_ids = await repo.list_semana_ids_en_rango(
+                    data.fecha_evento, data.fecha_fin
+                )
+                if not semana_ids:
+                    raise DomainValidationError(
+                        "No hay semana histórica en bono para el rango de fechas indicado"
+                    )
+                first_id: int | None = None
+                inserted_ids: list[int] = []
+                for semana_id in semana_ids:
+                    new_id = await repo.insert_evento(
+                        no_empleado=int(empleado.no_empleado),
+                        tipo_inc=tipo_inc,
+                        inc_id=inc_id,
+                        id_semana=semana_id,
+                        area_empleado=empleado.area_id,
+                        subarea_empleado=empleado.subarea_id,
+                        fecha_incidencia=None,
+                    )
+                    inserted_ids.append(new_id)
+                    if first_id is None:
+                        first_id = new_id
+                assert first_id is not None
+                return inserted_ids
+
+            semana_id = await repo.resolve_semana_id(data.fecha_evento)
+            if semana_id is None:
+                raise DomainValidationError(
+                    "No hay semana histórica en bono para la fecha del evento"
+                )
+            new_id = await repo.insert_evento(
+                no_empleado=int(empleado.no_empleado),
+                tipo_inc=tipo_inc,
+                inc_id=inc_id,
+                id_semana=semana_id,
+                area_empleado=empleado.area_id,
+                subarea_empleado=empleado.subarea_id,
+                fecha_incidencia=data.fecha_evento,
+            )
+            return [new_id]
+        except SQLAlchemyError as exc:
+            raise ServiceUnavailableError(
+                f"Error al registrar en importadas_historico: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            await engine.dispose()
 
     async def _with_bono_repo(self) -> tuple:
         engine = BonoProductividadReadClient.create_read_engine()
@@ -146,6 +257,7 @@ class FaltasRetardosService:
                 mapped = map_bono_row(row)
                 if mapped is not None:
                     items.append(mapped)
+            items = await self._enrich_registrado_por(items)
 
             return FaltasRetardosPageResponse(
                 items=items,
@@ -300,23 +412,49 @@ class FaltasRetardosService:
         rh_ui_mode: str | None = None,
     ) -> FaltaRetardoResponse:
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
-        await self._assert_empleado_en_alcance(data.empleado_id, scope_ids)
+        empleado = await self._assert_empleado_en_alcance(data.empleado_id, scope_ids)
 
-        evento = await self.repo.create(
-            {
-                "empleado_id": data.empleado_id,
-                "tipo": data.tipo,
-                "fecha_evento": data.fecha_evento,
-                "fecha_fin": data.fecha_fin,
-                "observaciones": data.observaciones,
-                "registrado_por_id": current_user.empleado_id,
-            }
+        origen_ids = await self._insertar_en_importadas_historico(empleado, data)
+        origen_id = origen_ids[0]
+
+        await self.audit_repo.save_registros_auditoria(
+            bono_origen=ORIGEN_IMPORTADAS_HISTORICO,
+            bono_origen_ids=origen_ids,
+            registrado_por_id=current_user.empleado_id,
         )
         await self.db.commit()
-        refreshed = await self.repo.get_with_relations(evento.id)
-        if refreshed is None:
-            raise DomainValidationError("No se pudo recuperar el registro creado")
-        return self._to_response_manual(refreshed)
+
+        engine, repo = await self._with_bono_importadas_repo()
+        try:
+            row = await repo.fetch_evento_row(origen_id)
+        except SQLAlchemyError as exc:
+            raise ServiceUnavailableError(
+                f"Error al leer registro en importadas_historico: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            await engine.dispose()
+
+        if row is None:
+            raise DomainValidationError(
+                "Registro creado en importadas_historico pero no fue posible recuperarlo"
+            )
+
+        mapped = map_bono_row(row)
+        if mapped is None:
+            raise DomainValidationError(
+                "Registro creado en importadas_historico con formato no reconocido"
+            )
+        if mapped.origen != ORIGEN_IMPORTADAS_HISTORICO:
+            raise DomainValidationError("Origen inesperado al recuperar el registro creado")
+
+        fecha_fin = data.fecha_fin if data.tipo in FALTA_RETARDO_TIPOS_RANGO else None
+        observaciones = data.observaciones.strip() if data.observaciones else None
+        return self._to_response_importadas(
+            mapped,
+            current_user=current_user,
+            fecha_fin=fecha_fin,
+            observaciones=observaciones,
+        )
 
     def list_tipos(self) -> list[str]:
         return list(FALTA_RETARDO_TIPOS)

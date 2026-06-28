@@ -38,6 +38,18 @@ def map_bono_row(row: dict[str, Any]) -> FaltaRetardoResponse | None:
     no_empleado = row.get("no_empleado")
     descripcion = row.get("tipo_descripcion")
 
+    created_at = datetime.now(timezone.utc)
+    fecha_registro = row.get("fecha_registro")
+    if fecha_registro is not None:
+        if isinstance(fecha_registro, datetime):
+            created_at = (
+                fecha_registro.replace(tzinfo=timezone.utc)
+                if fecha_registro.tzinfo is None
+                else fecha_registro
+            )
+        elif isinstance(fecha_registro, date):
+            created_at = datetime.combine(fecha_registro, datetime.min.time(), tzinfo=timezone.utc)
+
     return FaltaRetardoResponse(
         id=synthetic_falta_retardo_id(origen, int(origen_id)),
         empleado_id=int(empleado_id),
@@ -49,7 +61,7 @@ def map_bono_row(row: dict[str, Any]) -> FaltaRetardoResponse | None:
         observaciones=str(descripcion).strip() if descripcion else None,
         registrado_por_id=None,
         registrado_por_nombre=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=created_at,
         origen=origen,
         origen_id=int(origen_id),
     )

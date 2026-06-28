@@ -22,7 +22,8 @@ SELECT
     END AS fecha_evento,
     CAST(NULL AS date) AS fecha_fin,
     CAST(NULL AS text) AS observaciones,
-    COALESCE(NULLIF(TRIM(ar.descripcion), ''), '(sin área)') AS area
+    COALESCE(NULLIF(TRIM(ar.descripcion), ''), '(sin área)') AS area,
+    ih.fecha_registro AS fecha_registro
 FROM importadas_historico ih
 INNER JOIN ponderaciones p ON p.codigo = ih.tipo_inc
 JOIN empleados e ON CAST(e.no_empleado AS text) = CAST(ih.no_empleado AS text)
@@ -49,7 +50,8 @@ SELECT
     END AS fecha_evento,
     CAST(NULL AS date) AS fecha_fin,
     CAST(NULL AS text) AS observaciones,
-    COALESCE(NULLIF(TRIM(ar.descripcion), ''), '(sin área)') AS area
+    COALESCE(NULLIF(TRIM(ar.descripcion), ''), '(sin área)') AS area,
+    ih.fecha_registro AS fecha_registro
 FROM importadas_historico ih
 INNER JOIN ponderaciones p ON p.id = ih.inc_id
 JOIN empleados e ON CAST(e.no_empleado AS text) = CAST(ih.no_empleado AS text)
@@ -75,7 +77,8 @@ SELECT
     END AS fecha_evento,
     CAST(NULL AS date) AS fecha_fin,
     CAST(NULL AS text) AS observaciones,
-    COALESCE(NULLIF(TRIM(ar.descripcion), ''), '(sin área)') AS area
+    COALESCE(NULLIF(TRIM(ar.descripcion), ''), '(sin área)') AS area,
+    CAST(NULL AS timestamp) AS fecha_registro
 FROM evaluacion_historica eh
 INNER JOIN ponderaciones p ON p.id = eh.id_ponderacion
 JOIN empleados e ON e.empleado_id = eh.empleado_id

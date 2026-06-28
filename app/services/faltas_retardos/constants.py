@@ -24,6 +24,14 @@ CODIGO_PONDERACION_A_TIPO: dict[str, str] = {
     "SUS": "suspension",
 }
 
+# tipo API → (codigo ponderación, inc_id en importadas_historico)
+TIPO_A_PONDERACION: dict[str, tuple[str, int]] = {
+    "falta_injustificada": ("FI", 6),
+    "retardo": ("RE", 8),
+    "incapacidad": ("INC", 9),
+    "suspension": ("SUS", 13),
+}
+
 
 def synthetic_falta_retardo_id(origen: str, origen_id: int) -> int:
     base = _ID_OFFSETS.get(origen, 9_000_000_000)

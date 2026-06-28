@@ -1,6 +1,6 @@
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
 import {
-  FALTA_RETARDO_TIPOS,
+  FALTA_RETARDO_TIPOS_NUEVO_REGISTRO,
   FALTA_RETARDO_TIPOS_RANGO,
   labelFaltaRetardoTipo,
 } from "../../faltasRetardos/rh/constants.ts";
@@ -112,7 +112,7 @@ function buildFormHtml(
     )
     .join("");
 
-  const tipoOptions = FALTA_RETARDO_TIPOS.map(
+  const tipoOptions = FALTA_RETARDO_TIPOS_NUEVO_REGISTRO.map(
     (t) =>
       `<option value="${t}" ${data.tipo === t ? "selected" : ""}>${escapeHtml(labelFaltaRetardoTipo(t))}</option>`,
   ).join("");
@@ -122,7 +122,7 @@ function buildFormHtml(
       ${errors.form ? `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">${escapeHtml(errors.form)}</p>` : ""}
       <div>
         <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado-search">${escapeHtml(FR_COPY.filtroBusqueda)}</label>
-        <input id="fr-form-empleado-search" type="search" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}" value="${escapeHtml(empleadoSearch)}" />
+        <input id="fr-form-empleado-search" type="text" inputmode="search" autocomplete="off" dir="ltr" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}" value="${escapeHtml(empleadoSearch)}" />
       </div>
       <div>
         <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado">Empleado *</label>
@@ -272,9 +272,23 @@ export function mountNuevaFaltaRetardoModal(
 
     searchInp?.addEventListener("input", () => {
       empleadoSearch = searchInp.value;
+      const start = searchInp.selectionStart ?? empleadoSearch.length;
+      const end = searchInp.selectionEnd ?? empleadoSearch.length;
+      const dir =
+        searchInp.selectionDirection === "backward"
+          ? "backward"
+          : searchInp.selectionDirection === "none"
+            ? "none"
+            : "forward";
       render();
       const nextSearch = body.querySelector("#fr-form-empleado-search") as HTMLInputElement | null;
-      nextSearch?.focus();
+      if (!nextSearch) return;
+      nextSearch.focus();
+      try {
+        nextSearch.setSelectionRange(start, end, dir);
+      } catch {
+        /* noop: algunos navegadores restringen setSelectionRange en type=search */
+      }
     });
 
     empleadoSel?.addEventListener("change", () => {
