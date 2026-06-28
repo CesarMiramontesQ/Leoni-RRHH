@@ -412,6 +412,78 @@ async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
 
 
 # ---------------------------------------------------------------------------
+# TC-SOL-004e: Vacaciones administrativo — solo días laborales
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_vacaciones_administrativo_rechaza_fin_de_semana(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004e@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+        dias_vacaciones=10,
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-05-08",
+            "fecha_fin": "2026-05-11",
+            "comentarios": "Incluye fin de semana",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "entre semana" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_vacaciones_administrativo_debita_dias_laborales(
+    client: AsyncClient, db,
+):
+    from sqlalchemy import select
+
+    from app.models.vacaciones_disponibles import VacacionesDisponibles
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004f@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+        dias_vacaciones=10,
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-08",
+            "comentarios": "Semana laboral",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+    result = await db.execute(
+        select(VacacionesDisponibles).where(
+            VacacionesDisponibles.no_empleado == empleado.no_empleado
+        )
+    )
+    row = result.scalar_one()
+    assert row.dias == 5
+
+
 # TC-SOL-004d: Vacaciones con saldo insuficiente → 422
 # ---------------------------------------------------------------------------
 

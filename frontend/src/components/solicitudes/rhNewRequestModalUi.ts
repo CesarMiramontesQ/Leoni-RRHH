@@ -3,7 +3,13 @@
  * Separado del montaje para mantener el archivo de lógica más legible.
  */
 
-import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import {
+  calcularDiasSolicitadosInclusive,
+  calcularDiasVacacionesSolicitados,
+  fechasOrdenValidas,
+  MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  rangoIncluyeFinDeSemana,
+} from "../../solicitudes/rh/rhNewRequestDays.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
@@ -296,7 +302,8 @@ export type RhNewRequestFormParams = {
   canSubmit: boolean;
   /** Sin selector: campo oculto `empleado_id` (portal o corrección de solicitud existente). */
   fixedEmpleado?: { directoryId: string; displayLine: string };
-  /** Corrección tras `changes_requested`: tipo y empleado fijos; solo fechas y comentarios. */
+  /** Colaborador administrativo: vacaciones solo lun–vie. */
+  vacacionesAdministrativo?: boolean;
   modoRevision?: boolean;
   submitLabel?: string;
   /** Empleado + Home Office: selección de un solo día (fecha_fin = fecha_inicio). */
@@ -342,7 +349,12 @@ export const RESUMEN_VALUE_CLASS: Record<RhNewRequestFormParams["resumenState"],
   error: "text-red-700",
 };
 
-export function buildInfoVacacionesHtml(dias: number | null, diasSolicitados: number, fechasOk: boolean): string {
+export function buildInfoVacacionesHtml(
+  dias: number | null,
+  diasSolicitados: number,
+  fechasOk: boolean,
+  administrativo = false,
+): string {
   const iconCal = `<div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-leoni-blue shadow-sm ring-1 ring-leoni-blue/15" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5">
       <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
@@ -370,6 +382,9 @@ export function buildInfoVacacionesHtml(dias: number | null, diasSolicitados: nu
   }
 
   let secondary = "";
+  if (administrativo) {
+    secondary = `<p class="mt-1.5 text-xs font-medium text-slate-500">Como colaborador administrativo, solo puedes solicitar días de lunes a viernes.</p>`;
+  }
   if (fechasOk && diasSolicitados > 0) {
     const rest = dias - diasSolicitados;
     if (rest >= 0) {
@@ -407,6 +422,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
   const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
   const formSupEquipoSinMotivoAttr = p.omitMotivoCampoSupervisorEquipo === true ? ` data-rh-nr-sup-equipo-sin-motivo="1"` : "";
+  const formVacAdminAttr = p.vacacionesAdministrativo === true ? ` data-rh-nr-vacaciones-admin="1"` : "";
   const tipoEtiquetaLectura =
     p.tipo === "vacaciones" ? "Vacaciones"
     : p.tipo === "home_office" ? "Home office"
@@ -521,7 +537,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       : "";
 
   return `
-    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formSupEquipoSinMotivoAttr}>
+    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formSupEquipoSinMotivoAttr}${formVacAdminAttr}>
     <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
     ${revisionCallout}
 
@@ -726,15 +742,25 @@ export function computeRhModalFormUi(
   comentarios = "",
   permisoSinGoceMotivoViaComentarios = false,
   modoRevision = false,
+  empleadoEsAdministrativo: boolean | null = null,
 ): RhModalComputedUi {
-  const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+  const vacacionesAdmin = tipo === "vacaciones" && empleadoEsAdministrativo === true;
+  const dias = vacacionesAdmin
+    ? calcularDiasVacacionesSolicitados(fechaInicio, fechaFin, true)
+    : calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
   const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
   const fechaInInvalid = bothDates && !fechasOk;
   const fechaFinInvalid = fechaInInvalid;
+  const vacacionesAdminFinDeSemana =
+    vacacionesAdmin && bothDates && fechasOk && rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
 
   const diasLabel =
-    dias <= 0 && (fechaInicio.trim() || fechaFin.trim()) ? "—" : `${dias} ${dias === 1 ? "día" : "días"}`;
+    vacacionesAdminFinDeSemana ?
+      "—"
+    : dias <= 0 && (fechaInicio.trim() || fechaFin.trim()) ?
+      "—"
+    : `${dias} ${dias === 1 ? "día" : "días"}`;
 
   let resumenState: RhNewRequestFormParams["resumenState"] = "neutral";
   let resumenHint = "";
@@ -742,9 +768,12 @@ export function computeRhModalFormUi(
   if (bothDates && !fechasOk) {
     resumenState = "error";
     resumenHint = "La fecha de fin debe ser igual o posterior a la de inicio.";
-  } else if (bothDates && dias <= 0) {
+  } else if (bothDates && dias <= 0 && !vacacionesAdminFinDeSemana) {
     resumenState = "error";
     resumenHint = "El rango debe incluir al menos un día calendario.";
+  } else if (vacacionesAdminFinDeSemana) {
+    resumenState = "error";
+    resumenHint = MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA;
   } else if (
     tipo === "vacaciones" &&
     !modoRevision &&
@@ -789,6 +818,7 @@ export function computeRhModalFormUi(
     dias > 0 &&
     motivoOk &&
     !vacacionesSinSaldo &&
+    !vacacionesAdminFinDeSemana &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -831,6 +861,7 @@ export function applyRhModalLiveFeedback(
   const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
   const permisoViaComentarios = formEl?.hasAttribute("data-rh-nr-sup-equipo-sin-motivo") === true;
   const modoRevision = formEl?.hasAttribute("data-rh-nr-revision") === true;
+  const empleadoEsAdministrativo = formEl?.hasAttribute("data-rh-nr-vacaciones-admin") === true;
 
   const ui = computeRhModalFormUi(
     tipo,
@@ -843,6 +874,7 @@ export function applyRhModalLiveFeedback(
     comentariosEl?.value ?? "",
     permisoViaComentarios,
     modoRevision,
+    empleadoEsAdministrativo ? true : null,
   );
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;

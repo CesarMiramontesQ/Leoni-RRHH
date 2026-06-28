@@ -1,6 +1,5 @@
 /**
  * Cálculo de días para el modal de nueva solicitud RH.
- * Punto de extensión: sustituir por días hábiles / reglas de negocio cuando existan en API.
  */
 
 function parseLocalDate(iso: string): Date | null {
@@ -31,3 +30,49 @@ export function fechasOrdenValidas(fechaInicio: string, fechaFin: string): boole
   if (!a || !b) return false;
   return b.getTime() >= a.getTime();
 }
+
+/** True si el rango inclusive incluye sábado o domingo. */
+export function rangoIncluyeFinDeSemana(fechaInicio: string, fechaFin: string): boolean {
+  const a = parseLocalDate(fechaInicio);
+  const b = parseLocalDate(fechaFin);
+  if (!a || !b || b.getTime() < a.getTime()) return false;
+  const cur = new Date(a.getTime());
+  while (cur.getTime() <= b.getTime()) {
+    const dow = cur.getDay();
+    if (dow === 0 || dow === 6) return true;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return false;
+}
+
+/** Lunes–viernes inclusivos en el rango. 0 si el orden es inválido. */
+export function calcularDiasLaboralesInclusive(fechaInicio: string, fechaFin: string): number {
+  const a = parseLocalDate(fechaInicio);
+  const b = parseLocalDate(fechaFin);
+  if (!a || !b || b.getTime() < a.getTime()) return 0;
+  let total = 0;
+  const cur = new Date(a.getTime());
+  while (cur.getTime() <= b.getTime()) {
+    const dow = cur.getDay();
+    if (dow >= 1 && dow <= 5) total += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return total;
+}
+
+/** Días de vacaciones según clasificación del colaborador. */
+export function calcularDiasVacacionesSolicitados(
+  fechaInicio: string,
+  fechaFin: string,
+  administrativo: boolean,
+): number {
+  if (!fechasOrdenValidas(fechaInicio, fechaFin)) return 0;
+  if (administrativo) {
+    if (rangoIncluyeFinDeSemana(fechaInicio, fechaFin)) return 0;
+    return calcularDiasLaboralesInclusive(fechaInicio, fechaFin);
+  }
+  return calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+}
+
+export const MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA =
+  "Los colaboradores administrativos solo pueden solicitar vacaciones de lunes a viernes.";

@@ -14,7 +14,12 @@ import { getUserDisplayNameFromAccessToken } from "../../auth/jwt.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
-import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import {
+  calcularDiasVacacionesSolicitados,
+  fechasOrdenValidas,
+  MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  rangoIncluyeFinDeSemana,
+} from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
   enviarRhNuevaSolicitud,
@@ -222,10 +227,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     if (!card) return;
     const fi = (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ?? "";
     const ff = (host.querySelector("#rh-nr-fin") as HTMLInputElement | null)?.value ?? "";
-    const dias = calcularDiasSolicitadosInclusive(fi, ff);
+    const dias = calcularDiasVacacionesSolicitados(fi, ff, empleadoEsAdministrativo === true);
     const fechasOk = fechasOrdenValidas(fi, ff);
     if (tipo === "vacaciones") {
-      card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk);
+      card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true);
     } else if (tipo === "home_office") {
       card.innerHTML = buildInfoHomeOfficeHtml(contextoHoText);
     } else {
@@ -360,11 +365,15 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const motivo =
       hideMotivoEmpleado || hideMotivoSupervisorEquipo ? "" : motivoBase;
     const comentarios = preserve.comentarios ?? snap.comentarios;
-    const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+    const dias = calcularDiasVacacionesSolicitados(
+      fechaInicio,
+      fechaFin,
+      tipo === "vacaciones" && empleadoEsAdministrativo === true,
+    );
     const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
     const infoHtml =
       tipo === "vacaciones"
-        ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk)
+        ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true)
         : tipo === "home_office"
           ? buildInfoHomeOfficeHtml(contextoHoText)
           : buildInfoHomeOfficeHtml(
@@ -389,6 +398,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       comentarios,
       hideMotivoSupervisorEquipo,
       modoRevision,
+      empleadoEsAdministrativo,
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
 
@@ -411,6 +421,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaFinInvalid: ui.fechaFinInvalid,
       canSubmit: ui.canSubmit,
       fixedEmpleado,
+      vacacionesAdministrativo: tipo === "vacaciones" && empleadoEsAdministrativo === true,
       modoRevision,
       submitLabel: preserve.submitLabel,
       singleDayHomeOfficeMode: singleDayHomeOfficeEmpleado,
@@ -701,9 +712,21 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError("La fecha de fin no puede ser anterior a la fecha de inicio.");
           return;
         }
-        const dias = calcularDiasSolicitadosInclusive(fecha_inicio, fecha_fin);
+        const dias = calcularDiasVacacionesSolicitados(
+          fecha_inicio,
+          fecha_fin,
+          tipo === "vacaciones" && empleadoEsAdministrativo === true,
+        );
         if (dias <= 0) {
           showError("Revisa el rango de fechas.");
+          return;
+        }
+        if (
+          tipo === "vacaciones" &&
+          empleadoEsAdministrativo === true &&
+          rangoIncluyeFinDeSemana(fecha_inicio, fecha_fin)
+        ) {
+          showError(MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA);
           return;
         }
         if (tipo === "vacaciones" && revisionSolicitudId == null && contextoVac != null && contextoVac <= 0) {

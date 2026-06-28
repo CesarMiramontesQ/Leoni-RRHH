@@ -33,6 +33,7 @@ from app.core.rh_ui_mode import (
     rh_tiene_alcance_gestor,
 )
 from app.utils.clasificacion_empleado import empleado_es_administrativo
+from app.utils.vacaciones_fechas import dias_laborales_inclusive, rango_incluye_fin_de_semana
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -473,6 +474,25 @@ class SolicitudService:
 
     # ── Crear ────────────────────────────────────────────────────────────────
 
+    async def _dias_vacaciones_para_empleado(
+        self,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> int:
+        """Días a debitar/acreditar: laborales (lun–vie) si es administrativo; naturales si no."""
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is not None and empleado_es_administrativo(empleado):
+            if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
+                raise DomainValidationError(
+                    detail=(
+                        "Los colaboradores administrativos solo pueden solicitar vacaciones "
+                        "en días entre semana (lunes a viernes)."
+                    )
+                )
+            return dias_laborales_inclusive(fecha_inicio, fecha_fin)
+        return _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+
     async def _debitar_saldo_vacaciones(
         self,
         *,
@@ -481,7 +501,9 @@ class SolicitudService:
         fecha_fin: date,
     ) -> None:
         """Rebaja días disponibles al registrar o corregir una solicitud de vacaciones."""
-        necesarios = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+        necesarios = await self._dias_vacaciones_para_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
         await self.vacaciones_repo.debitar(empleado_id, necesarios)
 
     async def _validar_creacion_vacaciones(
@@ -500,7 +522,13 @@ class SolicitudService:
                     "para presentar una solicitud."
                 )
             )
-        necesarios = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+        necesarios = await self._dias_vacaciones_para_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
+        if necesarios <= 0:
+            raise DomainValidationError(
+                detail="El rango debe incluir al menos un día de vacaciones."
+            )
         if necesarios > saldo:
             raise DomainValidationError(
                 detail=(
@@ -517,7 +545,9 @@ class SolicitudService:
         fecha_fin: date,
     ) -> None:
         """Devuelve días al saldo (cancelación, rechazo o corrección de fechas)."""
-        dias = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+        dias = await self._dias_vacaciones_para_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
         await self.vacaciones_repo.acreditar(empleado_id, dias)
 
     async def _resolver_empleado_objetivo_crear_solicitud(
