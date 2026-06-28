@@ -6,6 +6,7 @@ import {
   listPeriodosMensualesEnRango,
   listSemanasEnRango,
   tendenciaAgrupacionForPeriod,
+  tendenciaAgrupacionForRango,
   periodRangeIso,
   countVacacionesUrgentes,
 } from "./filterRowsByPeriod.ts";
@@ -39,6 +40,15 @@ describe("periodRangeIso", () => {
     const end = new Date(fechaFin);
     const diff = Math.round((end.getTime() - start.getTime()) / (86400000));
     expect(diff).toBe(29);
+  });
+});
+
+describe("tendenciaAgrupacionForRango", () => {
+  it("elige granularidad según días del rango", () => {
+    expect(tendenciaAgrupacionForRango("2026-06-01", "2026-06-20")).toBe("dia");
+    expect(tendenciaAgrupacionForRango("2026-04-01", "2026-06-20")).toBe("semana");
+    expect(tendenciaAgrupacionForRango("2026-01-01", "2026-12-31")).toBe("mes");
+    expect(tendenciaAgrupacionForRango("", "")).toBe("mes");
   });
 });
 

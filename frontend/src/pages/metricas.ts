@@ -1,6 +1,7 @@
 import { canAccessMetricasPage } from "../auth/jwt.ts";
 import { fetchIncidenciasEstadisticas, type IncidenciasFetchError } from "../api/incidencias.ts";
 import { getFaltasRetardosEstadisticas } from "../api/faltasRetardos.ts";
+import { tendenciaAgrupacionForRango } from "../dashboard/rh/filterRowsByPeriod.ts";
 import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
@@ -288,7 +289,10 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
 
     try {
       const applied = appliedIncidenciasFilters();
-      incEstadisticas = await fetchIncidenciasEstadisticas(applied);
+      const tendenciaAgrupacion = tendenciaAgrupacionForRango(applied.fecha_inicio, applied.fecha_fin);
+      incEstadisticas = await fetchIncidenciasEstadisticas(applied, {
+        tendencia_agrupacion: tendenciaAgrupacion,
+      });
       if (isStale()) return;
       incEstadisticasStatus = "ready";
       incEstadisticasError = undefined;
