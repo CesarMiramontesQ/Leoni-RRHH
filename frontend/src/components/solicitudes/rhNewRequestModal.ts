@@ -323,7 +323,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const hideMotivoSupervisorEquipo = supervisorSolicitudEquipo;
     const singleDayHomeOfficeEmpleado =
       tipo === "home_office" && (actuaComoColaboradorPropio || supervisorSolicitudEquipo);
-    const hideMotivoEmpleado = actuaComoColaboradorPropio && (tipo === "home_office" || tipo === "vacaciones");
+    const hideMotivoVacaciones = tipo === "vacaciones";
+    const hideMotivoEmpleado = actuaComoColaboradorPropio && tipo === "home_office";
     const snap = readFormSnapshot();
     asegurarTipoSolicitudPermitido();
 
@@ -363,7 +364,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const fechaFin = singleDayHomeOfficeEmpleado ? fechaInicio : fechaFinBase;
     const motivoBase = preserve.motivo ?? snap.motivo;
     const motivo =
-      hideMotivoEmpleado || hideMotivoSupervisorEquipo ? "" : motivoBase;
+      hideMotivoVacaciones || hideMotivoEmpleado || hideMotivoSupervisorEquipo ? "" : motivoBase;
     const comentarios = preserve.comentarios ?? snap.comentarios;
     const dias = calcularDiasVacacionesSolicitados(
       fechaInicio,
@@ -425,7 +426,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       modoRevision,
       submitLabel: preserve.submitLabel,
       singleDayHomeOfficeMode: singleDayHomeOfficeEmpleado,
-      showMotivoField: !hideMotivoEmpleado && !hideMotivoSupervisorEquipo,
+      showMotivoField: !hideMotivoVacaciones && !hideMotivoEmpleado && !hideMotivoSupervisorEquipo,
       omitMotivoCampoSupervisorEquipo: hideMotivoSupervisorEquipo ? true : undefined,
       showSupervisorSolicitudSubject: showSupervisorSujeto && !modoRevision,
       supervisorSolicitudSubject: solicitudSubjectSupervisor,
