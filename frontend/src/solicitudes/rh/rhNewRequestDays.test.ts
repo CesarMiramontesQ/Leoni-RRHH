@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   calcularDiasLaboralesInclusive,
   calcularDiasVacacionesSolicitados,
+  calcularRangoDefuncion,
+  esRangoDefuncionValido,
   esRangoMatrimonioValido,
   rangoIncluyeFinDeSemana,
   sumarDiasIso,
@@ -29,5 +31,30 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
     expect(esRangoMatrimonioValido("2026-05-04", "2026-05-04")).toBe(false);
     expect(esRangoMatrimonioValido("2026-05-04", "2026-05-06")).toBe(false);
     expect(sumarDiasIso("2026-05-04", 1)).toBe("2026-05-05");
+  });
+
+  it("defunción: 3 días calendario para no administrativo", () => {
+    expect(calcularRangoDefuncion("2026-05-06", false)).toEqual({
+      fechaInicio: "2026-05-06",
+      fechaFin: "2026-05-08",
+    });
+    expect(esRangoDefuncionValido("2026-05-06", "2026-05-08", false)).toBe(true);
+    expect(esRangoDefuncionValido("2026-05-06", "2026-05-07", false)).toBe(false);
+  });
+
+  it("defunción administrativo ajusta días hábiles si cruza fin de semana", () => {
+    expect(calcularRangoDefuncion("2026-05-06", true)).toEqual({
+      fechaInicio: "2026-05-06",
+      fechaFin: "2026-05-08",
+    });
+    expect(calcularRangoDefuncion("2026-05-07", true)).toEqual({
+      fechaInicio: "2026-05-07",
+      fechaFin: "2026-05-11",
+    });
+    expect(calcularRangoDefuncion("2026-05-09", true)).toEqual({
+      fechaInicio: "2026-05-11",
+      fechaFin: "2026-05-13",
+    });
+    expect(esRangoDefuncionValido("2026-05-07", "2026-05-11", true)).toBe(true);
   });
 });

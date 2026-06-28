@@ -16,7 +16,9 @@ import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import {
   calcularDiasVacacionesSolicitados,
+  calcularRangoDefuncion,
   fechasOrdenValidas,
+  MENSAJE_DEFUNCION_TRES_DIAS,
   MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
   MENSAJE_HOME_OFFICE_MES_LIMITE,
   MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO,
@@ -24,6 +26,7 @@ import {
   MENSAJE_MATRIMONIO_DOS_DIAS,
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  esRangoDefuncionValido,
   esRangoMatrimonioValido,
   rangoIncluyeFinDeSemana,
   sumarDiasIso,
@@ -244,7 +247,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     } else {
       const txt =
         tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
-        : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
+        : tipo === "defuncion" ?
+            empleadoEsAdministrativo === true
+              ? "Defunción: 3 días hábiles con goce de sueldo. Si el rango cruza fin de semana, se ajustan los días hábiles más cercanos."
+              : "Defunción: duración fija de 3 días con goce de sueldo."
         : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
         : tipo === "permiso_sin_goce_sueldo" ?
           empleadoEsAdministrativo === true ?
@@ -334,6 +340,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "team";
     const singleDayHomeOffice = tipo === "home_office";
     const matrimonioDosDias = tipo === "matrimonio";
+    const defuncionTresDias = tipo === "defuncion";
     const hideMotivoVacaciones = tipo === "vacaciones";
     const hideMotivoEmpleado = actuaComoColaboradorPropio && tipo === "home_office";
     const snap = readFormSnapshot();
@@ -372,20 +379,31 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
-    const fechaFin =
+    let fechaFin =
       singleDayHomeOffice ? fechaInicio
       : matrimonioDosDias && fechaInicio.trim() ? sumarDiasIso(fechaInicio, 1)
       : fechaFinBase;
+    if (defuncionTresDias && fechaInicio.trim()) {
+      const rango = calcularRangoDefuncion(fechaInicio, empleadoEsAdministrativo === true);
+      if (rango) {
+        fechaFin = rango.fechaFin;
+      }
+    }
+    const fechaInicioEff =
+      defuncionTresDias && fechaInicio.trim()
+        ? (calcularRangoDefuncion(fechaInicio, empleadoEsAdministrativo === true)?.fechaInicio ??
+          fechaInicio)
+        : fechaInicio;
     const motivoBase = preserve.motivo ?? snap.motivo;
     const motivo =
       hideMotivoVacaciones || hideMotivoEmpleado ? "" : motivoBase;
     const dias = calcularDiasVacacionesSolicitados(
-      fechaInicio,
+      fechaInicioEff,
       fechaFin,
       empleadoEsAdministrativo === true &&
         (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo"),
     );
-    const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
+    const fechasOk = fechasOrdenValidas(fechaInicioEff, fechaFin);
     const infoHtml =
       tipo === "vacaciones"
         ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true)
@@ -393,7 +411,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           ? buildInfoHomeOfficeHtml(contextoHoText)
           : buildInfoHomeOfficeHtml(
               tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
-              : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
+              : tipo === "defuncion" ?
+                  empleadoEsAdministrativo === true
+                    ? "Defunción: 3 días hábiles con goce de sueldo. Si el rango cruza fin de semana, se ajustan los días hábiles más cercanos."
+                    : "Defunción: duración fija de 3 días con goce de sueldo."
               : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
               : tipo === "permiso_sin_goce_sueldo" ?
                   empleadoEsAdministrativo === true ?
@@ -406,7 +427,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       tipo,
       contextoVac,
       selectedEmpleadoId,
-      fechaInicio,
+      fechaInicioEff,
       fechaFin,
       motivo,
       empleadoSelectorOmitido,
@@ -423,7 +444,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       items: itemsParaSelector,
       selectedEmpleadoId,
       empleadoSearchQ,
-      fechaInicio,
+      fechaInicio: fechaInicioEff,
       fechaFin,
       motivo,
       diasLabel: ui.diasLabel,
@@ -442,6 +463,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       submitLabel: preserve.submitLabel,
       singleDayHomeOfficeMode: singleDayHomeOffice,
       matrimonioTwoDayMode: matrimonioDosDias,
+      defuncionThreeDayMode: defuncionTresDias,
       showMotivoField: !hideMotivoVacaciones && !hideMotivoEmpleado,
       showSupervisorSolicitudSubject: showSupervisorSujeto && !modoRevision,
       supervisorSolicitudSubject: solicitudSubjectSupervisor,
@@ -477,6 +499,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       showSupervisorSujeto && !modoRevBind && solicitudSubjectSupervisor === "team";
     const isSingleDayHomeOffice = tipo === "home_office";
     const isMatrimonioDosDias = tipo === "matrimonio";
+    const isDefuncionTresDias = tipo === "defuncion";
 
     function syncFechasFijas(): void {
       if (!inicio || !fin) return;
@@ -484,6 +507,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         fin.value = inicio.value;
       } else if (isMatrimonioDosDias && inicio.value.trim()) {
         fin.value = sumarDiasIso(inicio.value, 1);
+      } else if (isDefuncionTresDias && inicio.value.trim()) {
+        const formEl = host.querySelector("#rh-nr-form") as HTMLFormElement | null;
+        const admin = formEl?.hasAttribute("data-rh-nr-empleado-admin") === true;
+        const rango = calcularRangoDefuncion(inicio.value, admin);
+        if (rango) {
+          inicio.value = rango.fechaInicio;
+          fin.value = rango.fechaFin;
+        }
       }
     }
 
@@ -716,7 +747,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError("No está permitido modificar el colaborador de la solicitud.");
           return;
         }
-        if (tipo === "home_office" || tipo === "permiso_sin_goce_sueldo") {
+        if (tipo === "home_office" || tipo === "permiso_sin_goce_sueldo" || tipo === "defuncion") {
           const esAdmin = await resolverEmpleadoEsAdministrativo(empleado_id);
           empleadoEsAdministrativo = esAdmin;
           if (tipo === "home_office" && !esAdmin) {
@@ -724,12 +755,23 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             return;
           }
         }
-        const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
+        const fecha_inicio_raw = String(fd.get("fecha_inicio") ?? "").trim();
+        let fecha_inicio = fecha_inicio_raw;
         const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
-        const fecha_fin =
+        let fecha_fin =
           tipo === "home_office" ? fecha_inicio
           : tipo === "matrimonio" && fecha_inicio.trim() ? sumarDiasIso(fecha_inicio, 1)
           : fecha_fin_raw;
+        if (tipo === "defuncion" && fecha_inicio.trim()) {
+          const rango = calcularRangoDefuncion(
+            fecha_inicio,
+            empleadoEsAdministrativo === true,
+          );
+          if (rango) {
+            fecha_inicio = rango.fechaInicio;
+            fecha_fin = rango.fechaFin;
+          }
+        }
         if (!fecha_inicio || !fecha_fin) {
           showError("Indica fecha de inicio y fecha de fin.");
           return;
@@ -740,6 +782,13 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         }
         if (tipo === "matrimonio" && !esRangoMatrimonioValido(fecha_inicio, fecha_fin)) {
           showError(MENSAJE_MATRIMONIO_DOS_DIAS);
+          return;
+        }
+        if (
+          tipo === "defuncion" &&
+          !esRangoDefuncionValido(fecha_inicio, fecha_fin, empleadoEsAdministrativo === true)
+        ) {
+          showError(MENSAJE_DEFUNCION_TRES_DIAS);
           return;
         }
         if (!fechasOrdenValidas(fecha_inicio, fecha_fin)) {

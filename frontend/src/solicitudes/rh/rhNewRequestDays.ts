@@ -86,6 +86,67 @@ export function sumarDiasIso(fechaIso: string, dias: number): string {
 }
 
 export const MATRIMONIO_DIAS_FIJOS = 2;
+export const DEFUNCION_DIAS_FIJOS = 3;
+
+function dateToIso(dt: Date): string {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** Suma N días hábiles (lun–vie) inclusive desde fechaIso. */
+export function sumarDiasHabilesInclusive(fechaIso: string, diasHabiles: number): string {
+  const start = parseLocalDate(fechaIso);
+  if (!start || diasHabiles < 1) return "";
+  let cursor = new Date(start.getTime());
+  let acum = 1;
+  while (acum < diasHabiles) {
+    cursor.setDate(cursor.getDate() + 1);
+    const dow = cursor.getDay();
+    if (dow >= 1 && dow <= 5) acum += 1;
+  }
+  return dateToIso(cursor);
+}
+
+export function calcularRangoDefuncion(
+  fechaReferencia: string,
+  administrativo: boolean,
+): { fechaInicio: string; fechaFin: string } | null {
+  if (!fechaReferencia.trim()) return null;
+  if (!administrativo) {
+    const fin = sumarDiasIso(fechaReferencia, DEFUNCION_DIAS_FIJOS - 1);
+    return fin ? { fechaInicio: fechaReferencia, fechaFin: fin } : null;
+  }
+  const finCal = sumarDiasIso(fechaReferencia, DEFUNCION_DIAS_FIJOS - 1);
+  if (
+    finCal &&
+    !rangoIncluyeFinDeSemana(fechaReferencia, finCal) &&
+    calcularDiasLaboralesInclusive(fechaReferencia, finCal) === DEFUNCION_DIAS_FIJOS
+  ) {
+    return { fechaInicio: fechaReferencia, fechaFin: finCal };
+  }
+  const anchor = parseLocalDate(fechaReferencia);
+  if (!anchor) return null;
+  let cursor = new Date(anchor.getTime());
+  while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const inicioIso = dateToIso(cursor);
+  const finIso = sumarDiasHabilesInclusive(inicioIso, DEFUNCION_DIAS_FIJOS);
+  if (!finIso) return null;
+  return { fechaInicio: inicioIso, fechaFin: finIso };
+}
+
+export function esRangoDefuncionValido(
+  fechaInicio: string,
+  fechaFin: string,
+  administrativo: boolean,
+): boolean {
+  const esperado = calcularRangoDefuncion(fechaInicio, administrativo);
+  if (!esperado) return false;
+  return esperado.fechaInicio === fechaInicio && esperado.fechaFin === fechaFin;
+}
 
 export function esRangoMatrimonioValido(fechaInicio: string, fechaFin: string): boolean {
   if (!fechasOrdenValidas(fechaInicio, fechaFin)) return false;
@@ -94,6 +155,9 @@ export function esRangoMatrimonioValido(fechaInicio: string, fechaFin: string): 
 
 export const MENSAJE_MATRIMONIO_DOS_DIAS =
   "Matrimonio solo permite solicitar exactamente 2 días consecutivos (fecha fin = día siguiente al inicio).";
+
+export const MENSAJE_DEFUNCION_TRES_DIAS =
+  "Defunción solo permite solicitar exactamente 3 días. Para administrativos son 3 días hábiles; si el rango cruza fin de semana, se ajustan los días hábiles más cercanos.";
 
 export const MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA =
   "Los colaboradores administrativos solo pueden solicitar vacaciones de lunes a viernes.";

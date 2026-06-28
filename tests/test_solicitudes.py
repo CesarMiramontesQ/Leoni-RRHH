@@ -2094,6 +2094,111 @@ async def test_crear_solicitud_goce_paternidad_calcula_7_dias_habiles(client: As
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_tres_dias_calendario_ok(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol027e_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027e_emp@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-06",
+            "fecha_fin": "2026-05-08",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tipo"] == "defuncion"
+    assert body["fecha_inicio"] == "2026-05-06"
+    assert body["fecha_fin"] == "2026-05-08"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_administrativo_entre_semana_ok(
+    client: AsyncClient, db
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    rh = await make_empleado(db, rol="rh", email="sol027f_rh@leoni.test")
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027f_emp@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-06",
+            "fecha_fin": "2026-05-08",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["fecha_inicio"] == "2026-05-06"
+    assert body["fecha_fin"] == "2026-05-08"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_administrativo_ajusta_fin_de_semana(
+    client: AsyncClient, db
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    rh = await make_empleado(db, rol="rh", email="sol027g_rh@leoni.test")
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027g_emp@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-07",
+            "fecha_fin": "2026-05-11",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["fecha_inicio"] == "2026-05-07"
+    assert body["fecha_fin"] == "2026-05-11"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_rango_invalido_retorna_422(
+    client: AsyncClient, db
+):
+    rh = await make_empleado(db, rol="rh", email="sol027h_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027h_emp@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-06",
+            "fecha_fin": "2026-05-30",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "3 días" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_goce_no_rh_retorna_403(client: AsyncClient, db):
     supervisor = await make_empleado(db, rol="supervisor", email="sol027d_sup@leoni.test")
     headers = await auth_headers(client, supervisor)

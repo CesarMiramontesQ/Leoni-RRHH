@@ -6,8 +6,10 @@
 import {
   calcularDiasSolicitadosInclusive,
   calcularDiasVacacionesSolicitados,
+  esRangoDefuncionValido,
   esRangoMatrimonioValido,
   fechasOrdenValidas,
+  MENSAJE_DEFUNCION_TRES_DIAS,
   MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
   MENSAJE_HOME_OFFICE_MES_LIMITE,
   MENSAJE_MATRIMONIO_DOS_DIAS,
@@ -318,6 +320,8 @@ export type RhNewRequestFormParams = {
   singleDayHomeOfficeMode?: boolean;
   /** Matrimonio: duración fija de 2 días (fecha_fin = fecha_inicio + 1). */
   matrimonioTwoDayMode?: boolean;
+  /** Defunción: duración fija de 3 días (ajuste hábil para administrativos). */
+  defuncionThreeDayMode?: boolean;
   /** Controla visibilidad del bloque de Motivo. */
   showMotivoField?: boolean;
   /** Radio personal vs equipo (solo supervisor). */
@@ -442,6 +446,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const submitLabel = p.submitLabel ?? "Enviar solicitud";
   const singleDayMode = p.singleDayHomeOfficeMode === true;
   const matrimonioTwoDayMode = p.matrimonioTwoDayMode === true;
+  const defuncionThreeDayMode = p.defuncionThreeDayMode === true;
   const showMotivoField = p.showMotivoField !== false;
   const motivoValue = p.motivo ?? "";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
@@ -623,6 +628,8 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
               "Para Home Office se permite seleccionar únicamente un día."
             : matrimonioTwoDayMode ?
               "Matrimonio tiene duración fija de 2 días consecutivos. Elige la fecha de inicio."
+            : defuncionThreeDayMode ?
+              "Defunción tiene duración fija de 3 días. Elige la fecha de referencia; para administrativos se ajustan días hábiles si cruza fin de semana."
             : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
           }
         </p>
@@ -636,6 +643,17 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
               </div>
             </div>`
           : matrimonioTwoDayMode ?
+            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+              </div>
+            </div>`
+          : defuncionThreeDayMode ?
             `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
               <div>
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
@@ -767,13 +785,26 @@ export function computeRhModalFormUi(
     rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
   const matrimonioRangoInvalido =
     tipo === "matrimonio" && bothDates && fechasOk && !esRangoMatrimonioValido(fechaInicio, fechaFin);
+  const defuncionRangoInvalido =
+    tipo === "defuncion" &&
+    bothDates &&
+    fechasOk &&
+    !esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true);
+  const diasDefuncion =
+    tipo === "defuncion" &&
+    bothDates &&
+    fechasOk &&
+    esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true)
+      ? 3
+      : null;
+  const diasEfectivos = diasDefuncion ?? dias;
 
   const diasLabel =
     vacacionesAdminFinDeSemana || permisoSinGoceAdminFinDeSemana || homeOfficeFinDeSemana ?
       "—"
-    : dias <= 0 && (fechaInicio.trim() || fechaFin.trim()) ?
+    : diasEfectivos <= 0 && (fechaInicio.trim() || fechaFin.trim()) ?
       "—"
-    : `${dias} ${dias === 1 ? "día" : "días"}`;
+    : `${diasEfectivos} ${diasEfectivos === 1 ? "día" : "días"}`;
 
   let resumenState: RhNewRequestFormParams["resumenState"] = "neutral";
   let resumenHint = "";
@@ -796,6 +827,9 @@ export function computeRhModalFormUi(
   } else if (matrimonioRangoInvalido) {
     resumenState = "error";
     resumenHint = MENSAJE_MATRIMONIO_DOS_DIAS;
+  } else if (defuncionRangoInvalido) {
+    resumenState = "error";
+    resumenHint = MENSAJE_DEFUNCION_TRES_DIAS;
   } else if (
     tipo === "home_office" &&
     !modoRevision &&
@@ -818,10 +852,10 @@ export function computeRhModalFormUi(
     resumenHint = empleadoSelectorOmitted
       ? `Esta solicitud supera los ${contextoVac} días disponibles en tu saldo.`
       : `Esta solicitud supera los ${contextoVac} días disponibles para el empleado seleccionado.`;
-  } else if (dias > 0 && fechasOk) {
+  } else if (diasEfectivos > 0 && fechasOk) {
     resumenState = "valid";
     if (tipo === "vacaciones" && contextoVac != null) {
-      const rest = contextoVac - dias;
+      const rest = contextoVac - diasEfectivos;
       resumenHint =
         rest >= 0
           ? `Tras esta solicitud quedarían ${rest} día${rest === 1 ? "" : "s"} de vacaciones.`
@@ -851,6 +885,7 @@ export function computeRhModalFormUi(
     !permisoSinGoceAdminFinDeSemana &&
     !homeOfficeFinDeSemana &&
     !matrimonioRangoInvalido &&
+    !defuncionRangoInvalido &&
     !homeOfficeSinAdministrativo &&
     !homeOfficeMesOcupado &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);

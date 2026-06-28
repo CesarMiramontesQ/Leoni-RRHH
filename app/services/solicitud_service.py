@@ -33,7 +33,12 @@ from app.core.rh_ui_mode import (
     rh_tiene_alcance_gestor,
 )
 from app.utils.clasificacion_empleado import empleado_es_administrativo
-from app.utils.vacaciones_fechas import dias_laborales_inclusive, rango_incluye_fin_de_semana
+from app.utils.vacaciones_fechas import (
+    defuncion_rango_para_empleado,
+    dias_laborales_inclusive,
+    rango_incluye_fin_de_semana,
+    sumar_dias_habiles,
+)
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -127,15 +132,31 @@ def _validar_matrimonio_fechas(fecha_inicio: date, fecha_fin: date) -> None:
         )
 
 
-def _sumar_dias_habiles(fecha_inicio: date, dias_habiles: int) -> date:
-    """Suma días hábiles (lunes-viernes) sobre fecha_inicio inclusive."""
-    cursor = fecha_inicio
-    acumulados = 1
-    while acumulados < dias_habiles:
-        cursor += timedelta(days=1)
-        if cursor.weekday() < 5:
-            acumulados += 1
-    return cursor
+def _validar_defuncion_fechas(
+    fecha_inicio: date,
+    fecha_fin: date,
+    *,
+    administrativo: bool,
+) -> None:
+    esperado_inicio, esperado_fin = defuncion_rango_para_empleado(
+        fecha_inicio,
+        administrativo=administrativo,
+    )
+    if fecha_inicio != esperado_inicio or fecha_fin != esperado_fin:
+        if administrativo:
+            raise DomainValidationError(
+                detail=(
+                    "Defunción para colaboradores administrativos requiere exactamente "
+                    "3 días hábiles. Si el rango cruza fin de semana, se usan los días "
+                    "hábiles más cercanos."
+                )
+            )
+        raise DomainValidationError(
+            detail=(
+                "Defunción solo permite solicitar exactamente 3 días consecutivos "
+                "(fecha fin = dos días después de la fecha de inicio)."
+            )
+        )
 
 
 async def _enviar_notificacion_background(
@@ -753,9 +774,15 @@ class SolicitudService:
             if data.tipo == "matrimonio":
                 _validar_matrimonio_fechas(fecha_inicio, fecha_fin)
             elif data.tipo == "defuncion":
-                fecha_fin = fecha_inicio + timedelta(days=2)
+                emp_clf = await self.empleado_repo.get_with_clasificacion(target.id)
+                admin = emp_clf is not None and empleado_es_administrativo(emp_clf)
+                _validar_defuncion_fechas(
+                    fecha_inicio,
+                    fecha_fin,
+                    administrativo=admin,
+                )
             elif data.tipo == "paternidad":
-                fecha_fin = _sumar_dias_habiles(fecha_inicio, 7)
+                fecha_fin = sumar_dias_habiles(fecha_inicio, 7)
             # incapacidad_interna mantiene la fecha_fin indicada por RH.
 
         duplicado = await self.repo.count(
@@ -1259,6 +1286,15 @@ class SolicitudService:
 
         if solicitud.tipo == "matrimonio":
             _validar_matrimonio_fechas(data.fecha_inicio, data.fecha_fin)
+
+        if solicitud.tipo == "defuncion":
+            emp_clf = await self.empleado_repo.get_with_clasificacion(current_user.id)
+            admin = emp_clf is not None and empleado_es_administrativo(emp_clf)
+            _validar_defuncion_fechas(
+                data.fecha_inicio,
+                data.fecha_fin,
+                administrativo=admin,
+            )
 
         if solicitud.tipo == "permiso_sin_goce_sueldo":
             await self._validar_permiso_sin_goce_sueldo_fechas(
