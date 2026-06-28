@@ -550,6 +550,79 @@ class SolicitudService:
         )
         await self.vacaciones_repo.acreditar(empleado_id, dias)
 
+    async def _validar_creacion_home_office(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+        exclude_solicitud_id: int | None = None,
+    ) -> None:
+        if fecha_fin != fecha_inicio:
+            raise DomainValidationError(
+                detail=(
+                    "Home Office solo permite solicitar un día "
+                    "(fecha inicio y fin iguales)."
+                )
+            )
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is None or not empleado_es_administrativo(empleado):
+            raise DomainValidationError(
+                detail=(
+                    "Home Office solo está disponible para colaboradores "
+                    "con clasificación Administrativo."
+                )
+            )
+        if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
+            raise DomainValidationError(
+                detail=(
+                    "Home Office solo puede solicitarse en días entre semana "
+                    "(lunes a viernes)."
+                )
+            )
+        usados = await self.repo.count_home_office_activos_en_mes(
+            empleado_id=empleado_id,
+            year=fecha_inicio.year,
+            month=fecha_inicio.month,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=exclude_solicitud_id,
+        )
+        if usados >= 1:
+            raise DomainValidationError(
+                detail=(
+                    "Ya existe una solicitud de Home Office activa en el mes seleccionado. "
+                    "Solo se permite un día por mes."
+                )
+            )
+
+    async def home_office_disponibilidad_mes(
+        self,
+        empleado_id: int,
+        fecha_referencia: date,
+        current_user: Empleado,
+        exclude_solicitud_id: int | None = None,
+    ) -> "HomeOfficeDisponibilidadResponse":
+        from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
+        from app.services.vacaciones_service import VacacionesService
+
+        await VacacionesService(self.db)._ensure_puede_ver_empleado(
+            current_user, empleado_id
+        )
+        usados = await self.repo.count_home_office_activos_en_mes(
+            empleado_id=empleado_id,
+            year=fecha_referencia.year,
+            month=fecha_referencia.month,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=exclude_solicitud_id,
+        )
+        return HomeOfficeDisponibilidadResponse(
+            empleado_id=empleado_id,
+            anio=fecha_referencia.year,
+            mes=fecha_referencia.month,
+            dias_usados=usados,
+            puede_solicitar=usados < 1,
+        )
+
     async def _resolver_empleado_objetivo_crear_solicitud(
         self,
         data: SolicitudCreate,
@@ -623,19 +696,12 @@ class SolicitudService:
 
         fecha_inicio = data.fecha_inicio
         fecha_fin = data.fecha_fin
-        if scope_rol == "empleado" and data.tipo == "home_office" and fecha_fin != fecha_inicio:
-            raise DomainValidationError(
-                detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
-            )
         if data.tipo == "home_office":
-            target_cl = await self.empleado_repo.get_with_clasificacion(target.id)
-            if not target_cl or not empleado_es_administrativo(target_cl):
-                raise DomainValidationError(
-                    detail=(
-                        "Home Office solo está disponible para colaboradores "
-                        "con clasificación Administrativo."
-                    )
-                )
+            await self._validar_creacion_home_office(
+                empleado_id=target.id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
         if data.tipo == "permiso_sin_goce_sueldo" and scope_rol not in (
             "supervisor",
             "gerente",
@@ -1148,6 +1214,14 @@ class SolicitudService:
         )
         if empalme is not None:
             raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
+
+        if solicitud.tipo == "home_office":
+            await self._validar_creacion_home_office(
+                empleado_id=current_user.id,
+                fecha_inicio=data.fecha_inicio,
+                fecha_fin=data.fecha_fin,
+                exclude_solicitud_id=solicitud_id,
+            )
 
         if solicitud.tipo == "vacaciones":
             await self._restaurar_saldo_vacaciones(

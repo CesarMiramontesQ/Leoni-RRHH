@@ -16,4 +16,9 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
     expect(calcularDiasVacacionesSolicitados("2026-05-04", "2026-05-08", true)).toBe(5);
     expect(calcularDiasVacacionesSolicitados("2026-05-08", "2026-05-11", true)).toBe(0);
   });
+
+  it("rechaza Home Office en fin de semana", () => {
+    expect(rangoIncluyeFinDeSemana("2026-06-06", "2026-06-06")).toBe(true);
+    expect(rangoIncluyeFinDeSemana("2026-06-02", "2026-06-02")).toBe(false);
+  });
 });

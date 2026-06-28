@@ -17,6 +17,10 @@ import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import {
   calcularDiasVacacionesSolicitados,
   fechasOrdenValidas,
+  MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
+  MENSAJE_HOME_OFFICE_MES_LIMITE,
+  MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO,
+  MENSAJE_HOME_OFFICE_UN_DIA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
   rangoIncluyeFinDeSemana,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
@@ -42,8 +46,7 @@ function empleadosExcluyeId(items: UsuarioListItem[], excluirId: number): Usuari
   return items.filter((u) => u.id !== excluirId);
 }
 
-const MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO =
-  "Home Office solo está disponible para colaboradores con clasificación Administrativo.";
+const MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO = MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO;
 
 function empleadoAdministrativoDesdeItem(item: UsuarioListItem | undefined): boolean {
   return esEmpleadoAdministrativo(item?.clasificacion);
@@ -127,6 +130,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let empleadoEsAdministrativo: boolean | null = null;
   let contextoVac: number | null = null;
   let contextoHoText = "";
+  let contextoHoPuedeSolicitarMes: boolean | null = null;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSearchQ = "";
   let empleadoSearchQ = "";
@@ -253,19 +257,30 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
 
   function refreshLiveFormState(): void {
     updateInfoCard();
-    applyRhModalLiveFeedback(host, tipo, contextoVac);
+    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
   }
 
-  async function refreshContextForEmpleado(empleadoId: number | null): Promise<void> {
+  async function refreshContextForEmpleado(
+    empleadoId: number | null,
+    fechaReferencia?: string,
+  ): Promise<void> {
+    const fechaRef =
+      fechaReferencia?.trim() ||
+      (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ||
+      "";
     const [ctx] = await Promise.all([
-      fetchRhEmpleadoRequestContext(empleadoId),
+      fetchRhEmpleadoRequestContext(empleadoId, {
+        fechaReferencia: tipo === "home_office" ? fechaRef : undefined,
+        excluirSolicitudId: revisionSolicitudId ?? undefined,
+      }),
       actualizarClasificacionEmpleado(empleadoId),
     ]);
     contextoVac = ctx.diasVacacionesDisponibles;
     contextoHoText = ctx.homeOfficeResumen;
+    contextoHoPuedeSolicitarMes = ctx.homeOfficePuedeSolicitarMes;
     asegurarTipoSolicitudPermitido();
     updateInfoCard();
-    applyRhModalLiveFeedback(host, tipo, contextoVac);
+    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
   }
 
   function readFormSnapshot(): {
@@ -321,8 +336,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const supervisorSolicitudEquipo =
       showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "team";
     const hideMotivoSupervisorEquipo = supervisorSolicitudEquipo;
-    const singleDayHomeOfficeEmpleado =
-      tipo === "home_office" && (actuaComoColaboradorPropio || supervisorSolicitudEquipo);
+    const singleDayHomeOffice = tipo === "home_office";
     const hideMotivoVacaciones = tipo === "vacaciones";
     const hideMotivoEmpleado = actuaComoColaboradorPropio && tipo === "home_office";
     const snap = readFormSnapshot();
@@ -361,7 +375,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
-    const fechaFin = singleDayHomeOfficeEmpleado ? fechaInicio : fechaFinBase;
+    const fechaFin = singleDayHomeOffice ? fechaInicio : fechaFinBase;
     const motivoBase = preserve.motivo ?? snap.motivo;
     const motivo =
       hideMotivoVacaciones || hideMotivoEmpleado || hideMotivoSupervisorEquipo ? "" : motivoBase;
@@ -400,6 +414,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       hideMotivoSupervisorEquipo,
       modoRevision,
       empleadoEsAdministrativo,
+      contextoHoPuedeSolicitarMes,
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
 
@@ -423,9 +438,12 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       canSubmit: ui.canSubmit,
       fixedEmpleado,
       vacacionesAdministrativo: tipo === "vacaciones" && empleadoEsAdministrativo === true,
+      empleadoAdministrativo: empleadoEsAdministrativo === true,
+      homeOfficeMesDisponible:
+        tipo === "home_office" ? contextoHoPuedeSolicitarMes !== false : undefined,
       modoRevision,
       submitLabel: preserve.submitLabel,
-      singleDayHomeOfficeMode: singleDayHomeOfficeEmpleado,
+      singleDayHomeOfficeMode: singleDayHomeOffice,
       showMotivoField: !hideMotivoVacaciones && !hideMotivoEmpleado && !hideMotivoSupervisorEquipo,
       omitMotivoCampoSupervisorEquipo: hideMotivoSupervisorEquipo ? true : undefined,
       showSupervisorSolicitudSubject: showSupervisorSujeto && !modoRevision,
@@ -441,7 +459,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       showHomeOfficeType: puedeMostrarHomeOffice(),
     });
     bindFormInteractions();
-    applyRhModalLiveFeedback(host, tipo, contextoVac);
+    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
   }
 
   function bindFormInteractions(): void {
@@ -461,13 +479,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       supervisorDirResolved != null;
     const supervisorEquipoBind =
       showSupervisorSujeto && !modoRevBind && solicitudSubjectSupervisor === "team";
-    const isSingleDayHomeOfficeEmpleado =
-      revisionSolicitudId == null &&
-      tipo === "home_office" &&
-      (empleadoSelfBind || supervisorPersonalBind || supervisorEquipoBind);
+    const isSingleDayHomeOffice = tipo === "home_office";
 
     function syncSingleDayHomeOfficeFechaFin(): void {
-      if (!isSingleDayHomeOfficeEmpleado || !inicio || !fin) return;
+      if (!isSingleDayHomeOffice || !inicio || !fin) return;
       fin.value = inicio.value;
     }
 
@@ -628,7 +643,26 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       "input",
       () => {
         syncSingleDayHomeOfficeFechaFin();
-        refreshLiveFormState();
+        if (tipo === "home_office") {
+          const empRaw =
+            (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
+            (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ||
+            "";
+          const empId = Number.parseInt(empRaw, 10);
+          void (async (): Promise<void> => {
+            try {
+              await refreshContextForEmpleado(
+                empRaw && Number.isFinite(empId) ? empId : null,
+                inicio?.value ?? "",
+              );
+              refreshLiveFormState();
+            } catch {
+              refreshLiveFormState();
+            }
+          })();
+        } else {
+          refreshLiveFormState();
+        }
       },
       { signal: options.signal },
     );
@@ -695,18 +729,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           }
         }
         const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
-        const singleDayHOEnvio =
-          revisionSolicitudId == null &&
-          tipo === "home_office" &&
-          (fixedSelfId != null ||
-            (showSupervisorSujeto &&
-              solicitudSubjectSupervisor === "personal" &&
-              supervisorDirResolved != null) ||
-            (showSupervisorSujeto && solicitudSubjectSupervisor === "team"));
         const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
-        const fecha_fin = singleDayHOEnvio ? fecha_inicio : fecha_fin_raw;
+        const fecha_fin = tipo === "home_office" ? fecha_inicio : fecha_fin_raw;
         if (!fecha_inicio || !fecha_fin) {
           showError("Indica fecha de inicio y fecha de fin.");
+          return;
+        }
+        if (tipo === "home_office" && fecha_inicio !== fecha_fin) {
+          showError(MENSAJE_HOME_OFFICE_UN_DIA);
           return;
         }
         if (!fechasOrdenValidas(fecha_inicio, fecha_fin)) {
@@ -730,6 +760,29 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError(MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA);
           return;
         }
+        if (
+          tipo === "home_office" &&
+          rangoIncluyeFinDeSemana(fecha_inicio, fecha_fin)
+        ) {
+          showError(MENSAJE_HOME_OFFICE_FIN_DE_SEMANA);
+          return;
+        }
+        const comentariosRaw = String(fd.get("comentarios") ?? "").trim();
+        const motivoRaw = String(fd.get("motivo") ?? "").trim();
+        if (tipo === "home_office") {
+          await refreshContextForEmpleado(empleado_id, fecha_inicio);
+          if (contextoHoPuedeSolicitarMes === false) {
+            showError(MENSAJE_HOME_OFFICE_MES_LIMITE);
+            renderForm({
+              selectedId: empRaw,
+              fechaInicio: fecha_inicio,
+              fechaFin: fecha_fin,
+              motivo: motivoRaw,
+              comentarios: comentariosRaw,
+            });
+            return;
+          }
+        }
         if (tipo === "vacaciones" && revisionSolicitudId == null && contextoVac != null && contextoVac <= 0) {
           showError("No hay días de vacaciones disponibles para presentar una solicitud.");
           return;
@@ -738,8 +791,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError(`Los días solicitados (${dias}) superan los disponibles (${contextoVac}) para este empleado.`);
           return;
         }
-        const comentariosRaw = String(fd.get("comentarios") ?? "").trim();
-        const motivoRaw = String(fd.get("motivo") ?? "").trim();
         const supervisorEquipoMotivoViaComentarios =
           showSupervisorSujeto && solicitudSubjectSupervisor === "team";
         if (tipo === "permiso_sin_goce_sueldo") {
@@ -816,7 +867,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           if (submitBtn) {
             submitBtn.textContent =
               revisionSolicitudId != null ? "Guardar y reenviar" : "Enviar solicitud";
-            applyRhModalLiveFeedback(host, tipo, contextoVac);
+            applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
           }
         }
       },

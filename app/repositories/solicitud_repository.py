@@ -143,6 +143,32 @@ class SolicitudRepository(BaseRepository[Solicitud]):
         result = await self.db.execute(select(func.count(Solicitud.id)).where(and_(*filters)))
         return int(result.scalar_one() or 0)
 
+    async def count_home_office_activos_en_mes(
+        self,
+        *,
+        empleado_id: int,
+        year: int,
+        month: int,
+        estados_activos: list[str],
+        exclude_solicitud_id: int | None = None,
+    ) -> int:
+        """Cuenta solicitudes HO activas del empleado con fecha_inicio en el mes dado."""
+        from calendar import monthrange
+
+        first_day = date(year, month, 1)
+        last_day = date(year, month, monthrange(year, month)[1])
+        filters = [
+            Solicitud.empleado_id == empleado_id,
+            Solicitud.tipo == "home_office",
+            Solicitud.estado.in_(estados_activos),
+            Solicitud.fecha_inicio >= first_day,
+            Solicitud.fecha_inicio <= last_day,
+        ]
+        if exclude_solicitud_id is not None:
+            filters.append(Solicitud.id != exclude_solicitud_id)
+        result = await self.db.execute(select(func.count(Solicitud.id)).where(and_(*filters)))
+        return int(result.scalar_one() or 0)
+
     async def marcar_estado_aprobada_si_pending(self, solicitud_id: int) -> bool:
         """
         Pasa la solicitud a estado aprobado solo si sigue en pending (una sola fila).

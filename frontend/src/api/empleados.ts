@@ -132,3 +132,28 @@ export async function getEmpleadoVacaciones(empleadoId: number): Promise<Emplead
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as EmpleadoVacacionesSaldo;
 }
+
+export type EmpleadoHomeOfficeDisponibilidad = {
+  empleado_id: number;
+  anio: number;
+  mes: number;
+  dias_usados: number;
+  puede_solicitar: boolean;
+};
+
+export async function getEmpleadoHomeOfficeDisponibilidad(
+  empleadoId: number,
+  fechaReferencia: string,
+  excluirSolicitudId?: number,
+): Promise<EmpleadoHomeOfficeDisponibilidad> {
+  const sp = new URLSearchParams();
+  sp.set("fecha", fechaReferencia);
+  if (excluirSolicitudId != null) {
+    sp.set("excluir_solicitud_id", String(excluirSolicitudId));
+  }
+  const res = await fetchWithAuth(
+    `/api/v1/empleados/${empleadoId}/home-office/disponibilidad?${sp.toString()}`,
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as EmpleadoHomeOfficeDisponibilidad;
+}

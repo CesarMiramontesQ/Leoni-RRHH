@@ -1374,6 +1374,29 @@ components:
           format: date-time
           nullable: true
 
+    HomeOfficeDisponibilidadResponse:
+      type: object
+      required:
+        - empleado_id
+        - anio
+        - mes
+        - dias_usados
+        - puede_solicitar
+      properties:
+        empleado_id:
+          type: integer
+        anio:
+          type: integer
+        mes:
+          type: integer
+          minimum: 1
+          maximum: 12
+        dias_usados:
+          type: integer
+          minimum: 0
+        puede_solicitar:
+          type: boolean
+
     VacacionesUpdate:
       type: object
       required:
@@ -6034,6 +6057,44 @@ paths:
           description: Empleado no encontrado
         "422":
           description: Validación de días disponibles
+
+  /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
+    get:
+      tags: [Empleados]
+      summary: Disponibilidad de Home Office en el mes calendario
+      operationId: empleados_home_office_disponibilidad_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: fecha
+          in: query
+          required: true
+          description: Fecha de referencia (mes calendario a validar)
+          schema:
+            type: string
+            format: date
+        - name: excluir_solicitud_id
+          in: query
+          required: false
+          description: Excluir solicitud al corregir (changes_requested)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Indica si puede solicitar HO en el mes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeOfficeDisponibilidadResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
 
   /api/v1/empleados/{empleado_id}/foto:
     get:

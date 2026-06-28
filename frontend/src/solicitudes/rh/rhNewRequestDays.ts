@@ -76,3 +76,18 @@ export function calcularDiasVacacionesSolicitados(
 
 export const MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA =
   "Los colaboradores administrativos solo pueden solicitar vacaciones de lunes a viernes.";
+
+export const MENSAJE_HOME_OFFICE_FIN_DE_SEMANA =
+  "Home Office solo puede solicitarse en días entre semana (lunes a viernes).";
+
+export const MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO =
+  "Home Office solo está disponible para colaboradores con clasificación Administrativo.";
+
+export const MENSAJE_HOME_OFFICE_UN_DIA =
+  "Home Office solo permite solicitar un día (fecha inicio y fin iguales).";
+
+export const MENSAJE_HOME_OFFICE_MES_LIMITE =
+  "Ya existe una solicitud de Home Office activa en el mes seleccionado. Solo se permite un día por mes.";
+
+export const HOME_OFFICE_RESUMEN_BASE =
+  "Home Office: un solo día por solicitud y máximo uno por mes calendario. Solo colaboradores administrativos, entre semana (lunes a viernes).";

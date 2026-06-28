@@ -7,6 +7,8 @@ import {
   calcularDiasSolicitadosInclusive,
   calcularDiasVacacionesSolicitados,
   fechasOrdenValidas,
+  MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
+  MENSAJE_HOME_OFFICE_MES_LIMITE,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
   rangoIncluyeFinDeSemana,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
@@ -304,6 +306,10 @@ export type RhNewRequestFormParams = {
   fixedEmpleado?: { directoryId: string; displayLine: string };
   /** Colaborador administrativo: vacaciones solo lun–vie. */
   vacacionesAdministrativo?: boolean;
+  /** Colaborador titular con clasificación Administrativo. */
+  empleadoAdministrativo?: boolean;
+  /** false si ya hay HO activo en el mes de la fecha seleccionada. */
+  homeOfficeMesDisponible?: boolean;
   modoRevision?: boolean;
   submitLabel?: string;
   /** Empleado + Home Office: selección de un solo día (fecha_fin = fecha_inicio). */
@@ -325,7 +331,7 @@ export type RhNewRequestFormParams = {
    * Supervisor en «Miembro del equipo»: no mostrar campo Motivo; solo comentarios (permiso sin goce se valida ahí).
    */
   omitMotivoCampoSupervisorEquipo?: boolean;
-  /** Oculta Home Office cuando el colaborador no es Administrativo (roles distintos a RH). */
+  /** Oculta Home Office cuando el colaborador no es Administrativo (excepto RH gestor). */
   showHomeOfficeType?: boolean;
 };
 
@@ -423,6 +429,9 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
   const formSupEquipoSinMotivoAttr = p.omitMotivoCampoSupervisorEquipo === true ? ` data-rh-nr-sup-equipo-sin-motivo="1"` : "";
   const formVacAdminAttr = p.vacacionesAdministrativo === true ? ` data-rh-nr-vacaciones-admin="1"` : "";
+  const formEmpAdminAttr = p.empleadoAdministrativo === true ? ` data-rh-nr-empleado-admin="1"` : "";
+  const formHoMesAttr =
+    p.homeOfficeMesDisponible === false ? ` data-rh-nr-ho-mes-ocupado="1"` : "";
   const tipoEtiquetaLectura =
     p.tipo === "vacaciones" ? "Vacaciones"
     : p.tipo === "home_office" ? "Home office"
@@ -537,11 +546,13 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       : "";
 
   return `
-    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formSupEquipoSinMotivoAttr}${formVacAdminAttr}>
+    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formSupEquipoSinMotivoAttr}${formVacAdminAttr}${formEmpAdminAttr}${formHoMesAttr}>
     <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
     ${revisionCallout}
 
       ${supervisorSujetoSection}
+
+      ${empleadoBlock}
 
       <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
         <div>
@@ -604,8 +615,6 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         <h3 id="rh-nr-sec-disponibilidad" class="${SEC_TITLE}">Disponibilidad</h3>
         <div id="rh-nr-info-card">${p.infoHtml}</div>
       </section>
-
-      ${empleadoBlock}
 
       <section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-fechas">
         <h3 id="rh-nr-sec-fechas" class="${SEC_TITLE}">Rango de fechas</h3>
@@ -743,6 +752,7 @@ export function computeRhModalFormUi(
   permisoSinGoceMotivoViaComentarios = false,
   modoRevision = false,
   empleadoEsAdministrativo: boolean | null = null,
+  homeOfficePuedeSolicitarMes: boolean | null = null,
 ): RhModalComputedUi {
   const vacacionesAdmin = tipo === "vacaciones" && empleadoEsAdministrativo === true;
   const dias = vacacionesAdmin
@@ -754,9 +764,15 @@ export function computeRhModalFormUi(
   const fechaFinInvalid = fechaInInvalid;
   const vacacionesAdminFinDeSemana =
     vacacionesAdmin && bothDates && fechasOk && rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
+  const homeOfficeFinDeSemana =
+    tipo === "home_office" &&
+    empleadoEsAdministrativo === true &&
+    bothDates &&
+    fechasOk &&
+    rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
 
   const diasLabel =
-    vacacionesAdminFinDeSemana ?
+    vacacionesAdminFinDeSemana || homeOfficeFinDeSemana ?
       "—"
     : dias <= 0 && (fechaInicio.trim() || fechaFin.trim()) ?
       "—"
@@ -774,6 +790,16 @@ export function computeRhModalFormUi(
   } else if (vacacionesAdminFinDeSemana) {
     resumenState = "error";
     resumenHint = MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA;
+  } else if (homeOfficeFinDeSemana) {
+    resumenState = "error";
+    resumenHint = MENSAJE_HOME_OFFICE_FIN_DE_SEMANA;
+  } else if (
+    tipo === "home_office" &&
+    !modoRevision &&
+    homeOfficePuedeSolicitarMes === false
+  ) {
+    resumenState = "error";
+    resumenHint = MENSAJE_HOME_OFFICE_MES_LIMITE;
   } else if (
     tipo === "vacaciones" &&
     !modoRevision &&
@@ -811,6 +837,10 @@ export function computeRhModalFormUi(
     : motivo.trim().length > 0;
   const vacacionesSinSaldo =
     tipo === "vacaciones" && !modoRevision && contextoVac != null && contextoVac <= 0;
+  const homeOfficeSinAdministrativo =
+    tipo === "home_office" && empleadoEsAdministrativo !== true;
+  const homeOfficeMesOcupado =
+    tipo === "home_office" && !modoRevision && homeOfficePuedeSolicitarMes === false;
   const canSubmit =
     empOk &&
     bothDates &&
@@ -819,6 +849,9 @@ export function computeRhModalFormUi(
     motivoOk &&
     !vacacionesSinSaldo &&
     !vacacionesAdminFinDeSemana &&
+    !homeOfficeFinDeSemana &&
+    !homeOfficeSinAdministrativo &&
+    !homeOfficeMesOcupado &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -843,6 +876,7 @@ export function applyRhModalLiveFeedback(
     | "paternidad"
     | "permiso_sin_goce_sueldo",
   contextoVac: number | null,
+  contextoHoPuedeSolicitarMes: boolean | null = null,
 ): void {
   /** Empleado fijo: portal o corrección (hidden sin `<select>`). */
   const selfMode =
@@ -861,7 +895,10 @@ export function applyRhModalLiveFeedback(
   const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
   const permisoViaComentarios = formEl?.hasAttribute("data-rh-nr-sup-equipo-sin-motivo") === true;
   const modoRevision = formEl?.hasAttribute("data-rh-nr-revision") === true;
-  const empleadoEsAdministrativo = formEl?.hasAttribute("data-rh-nr-vacaciones-admin") === true;
+  const empleadoEsAdministrativo =
+    formEl?.hasAttribute("data-rh-nr-empleado-admin") === true ||
+    formEl?.hasAttribute("data-rh-nr-vacaciones-admin") === true;
+  const homeOfficeMesOcupado = formEl?.hasAttribute("data-rh-nr-ho-mes-ocupado") === true;
 
   const ui = computeRhModalFormUi(
     tipo,
@@ -875,6 +912,7 @@ export function applyRhModalLiveFeedback(
     permisoViaComentarios,
     modoRevision,
     empleadoEsAdministrativo ? true : null,
+    homeOfficeMesOcupado ? false : contextoHoPuedeSolicitarMes,
   );
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;

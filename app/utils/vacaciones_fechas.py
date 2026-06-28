@@ -1,4 +1,4 @@
-"""Reglas de fechas para solicitudes de vacaciones."""
+"""Reglas de fechas para solicitudes (vacaciones, home office)."""
 
 from __future__ import annotations
 

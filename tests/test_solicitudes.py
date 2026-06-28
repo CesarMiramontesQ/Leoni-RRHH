@@ -1762,6 +1762,31 @@ async def test_crear_solicitud_rh_home_office_no_administrativo_retorna_422(
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_home_office_fin_de_semana_retorna_422(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_weekend@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-06",
+            "fecha_fin": "2026-06-06",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "entre semana" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: AsyncClient, db):
     from tests.conftest import make_clasificacion_administrativo
 
@@ -1783,7 +1808,166 @@ async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: As
         headers=headers,
     )
     assert response.status_code == 422
-    assert "solo se permite un día" in response.text
+    assert "un día" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_rh_home_office_rango_retorna_422(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    rh = await make_empleado(db, rol="rh", email="sol027_ho_rh_rango@leoni.test")
+    colaborador = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_sub_rango@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-06",
+            "empleado_id": colaborador.id,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "un día" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_segundo_mes_mismo_mes_retorna_422(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_mes@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="approved",
+        fecha_inicio=date(2026, 6, 3),
+        fecha_fin=date(2026, 6, 3),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-10",
+            "fecha_fin": "2026-06-10",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "mes" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_meses_distintos_ok(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_mes_ok@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="approved",
+        fecha_inicio=date(2026, 5, 6),
+        fecha_fin=date(2026, 5, 6),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-02",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_home_office_mismo_mes_excluye_solicitud_actual(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_rev@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="changes_requested",
+        fecha_inicio=date(2026, 6, 2),
+        fecha_fin=date(2026, 6, 2),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": "2026-06-09",
+            "fecha_fin": "2026-06-09",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["fecha_inicio"] == "2026-06-09"
+
+
+@pytest.mark.asyncio
+async def test_get_home_office_disponibilidad_empleado(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_disp@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="pending",
+        fecha_inicio=date(2026, 6, 4),
+        fecha_fin=date(2026, 6, 4),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.get(
+        f"/api/v1/empleados/{empleado.id}/home-office/disponibilidad",
+        params={"fecha": "2026-06-15"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["dias_usados"] == 1
+    assert body["puede_solicitar"] is False
 
 
 @pytest.mark.asyncio

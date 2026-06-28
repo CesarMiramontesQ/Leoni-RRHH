@@ -190,3 +190,11 @@ class SolicitudAprobacionResponse(BaseModel):
     timestamp: datetime
     # Enriquecido en el servicio (no es columna de `solicitud_aprobaciones`).
     aprobador_nombre: str = ""
+
+
+class HomeOfficeDisponibilidadResponse(BaseModel):
+    empleado_id: int
+    anio: int
+    mes: int
+    dias_usados: int = Field(..., ge=0)
+    puede_solicitar: bool
