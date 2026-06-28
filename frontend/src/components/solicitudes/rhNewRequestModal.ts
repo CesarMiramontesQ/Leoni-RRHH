@@ -21,9 +21,12 @@ import {
   MENSAJE_HOME_OFFICE_MES_LIMITE,
   MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO,
   MENSAJE_HOME_OFFICE_UN_DIA,
+  MENSAJE_MATRIMONIO_DOS_DIAS,
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  esRangoMatrimonioValido,
   rangoIncluyeFinDeSemana,
+  sumarDiasIso,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
@@ -330,6 +333,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const supervisorSolicitudEquipo =
       showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "team";
     const singleDayHomeOffice = tipo === "home_office";
+    const matrimonioDosDias = tipo === "matrimonio";
     const hideMotivoVacaciones = tipo === "vacaciones";
     const hideMotivoEmpleado = actuaComoColaboradorPropio && tipo === "home_office";
     const snap = readFormSnapshot();
@@ -368,7 +372,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
-    const fechaFin = singleDayHomeOffice ? fechaInicio : fechaFinBase;
+    const fechaFin =
+      singleDayHomeOffice ? fechaInicio
+      : matrimonioDosDias && fechaInicio.trim() ? sumarDiasIso(fechaInicio, 1)
+      : fechaFinBase;
     const motivoBase = preserve.motivo ?? snap.motivo;
     const motivo =
       hideMotivoVacaciones || hideMotivoEmpleado ? "" : motivoBase;
@@ -434,6 +441,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       modoRevision,
       submitLabel: preserve.submitLabel,
       singleDayHomeOfficeMode: singleDayHomeOffice,
+      matrimonioTwoDayMode: matrimonioDosDias,
       showMotivoField: !hideMotivoVacaciones && !hideMotivoEmpleado,
       showSupervisorSolicitudSubject: showSupervisorSujeto && !modoRevision,
       supervisorSolicitudSubject: solicitudSubjectSupervisor,
@@ -468,10 +476,15 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const supervisorEquipoBind =
       showSupervisorSujeto && !modoRevBind && solicitudSubjectSupervisor === "team";
     const isSingleDayHomeOffice = tipo === "home_office";
+    const isMatrimonioDosDias = tipo === "matrimonio";
 
-    function syncSingleDayHomeOfficeFechaFin(): void {
-      if (!isSingleDayHomeOffice || !inicio || !fin) return;
-      fin.value = inicio.value;
+    function syncFechasFijas(): void {
+      if (!inicio || !fin) return;
+      if (isSingleDayHomeOffice) {
+        fin.value = inicio.value;
+      } else if (isMatrimonioDosDias && inicio.value.trim()) {
+        fin.value = sumarDiasIso(inicio.value, 1);
+      }
     }
 
     if (!host.querySelector("#rh-nr-form[data-rh-nr-revision]")) {
@@ -626,7 +639,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     inicio?.addEventListener(
       "input",
       () => {
-        syncSingleDayHomeOfficeFechaFin();
+        syncFechasFijas();
         if (tipo === "home_office") {
           const empRaw =
             (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
@@ -652,7 +665,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     );
     fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
-    syncSingleDayHomeOfficeFechaFin();
+    syncFechasFijas();
 
     form?.addEventListener(
       "submit",
@@ -713,13 +726,20 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         }
         const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
         const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
-        const fecha_fin = tipo === "home_office" ? fecha_inicio : fecha_fin_raw;
+        const fecha_fin =
+          tipo === "home_office" ? fecha_inicio
+          : tipo === "matrimonio" && fecha_inicio.trim() ? sumarDiasIso(fecha_inicio, 1)
+          : fecha_fin_raw;
         if (!fecha_inicio || !fecha_fin) {
           showError("Indica fecha de inicio y fecha de fin.");
           return;
         }
         if (tipo === "home_office" && fecha_inicio !== fecha_fin) {
           showError(MENSAJE_HOME_OFFICE_UN_DIA);
+          return;
+        }
+        if (tipo === "matrimonio" && !esRangoMatrimonioValido(fecha_inicio, fecha_fin)) {
+          showError(MENSAJE_MATRIMONIO_DOS_DIAS);
           return;
         }
         if (!fechasOrdenValidas(fecha_inicio, fecha_fin)) {

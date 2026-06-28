@@ -117,6 +117,16 @@ def _dias_solicitud_inclusive(fecha_inicio: date, fecha_fin: date) -> int:
     return (fecha_fin - fecha_inicio).days + 1
 
 
+def _validar_matrimonio_fechas(fecha_inicio: date, fecha_fin: date) -> None:
+    if _dias_solicitud_inclusive(fecha_inicio, fecha_fin) != 2:
+        raise DomainValidationError(
+            detail=(
+                "Matrimonio solo permite solicitar exactamente 2 días consecutivos "
+                "(fecha fin debe ser un día después de la fecha de inicio)."
+            )
+        )
+
+
 def _sumar_dias_habiles(fecha_inicio: date, dias_habiles: int) -> date:
     """Suma días hábiles (lunes-viernes) sobre fecha_inicio inclusive."""
     cursor = fecha_inicio
@@ -741,7 +751,7 @@ class SolicitudService:
                     detail="Solo RH puede crear solicitudes con goce de sueldo"
                 )
             if data.tipo == "matrimonio":
-                fecha_fin = fecha_inicio + timedelta(days=1)
+                _validar_matrimonio_fechas(fecha_inicio, fecha_fin)
             elif data.tipo == "defuncion":
                 fecha_fin = fecha_inicio + timedelta(days=2)
             elif data.tipo == "paternidad":
@@ -1246,6 +1256,9 @@ class SolicitudService:
                 fecha_fin=data.fecha_fin,
                 exclude_solicitud_id=solicitud_id,
             )
+
+        if solicitud.tipo == "matrimonio":
+            _validar_matrimonio_fechas(data.fecha_inicio, data.fecha_fin)
 
         if solicitud.tipo == "permiso_sin_goce_sueldo":
             await self._validar_permiso_sin_goce_sueldo_fechas(

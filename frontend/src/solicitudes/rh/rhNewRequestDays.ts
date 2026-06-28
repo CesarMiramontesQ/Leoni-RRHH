@@ -74,6 +74,27 @@ export function calcularDiasVacacionesSolicitados(
   return calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
 }
 
+/** Suma días calendario a una fecha ISO `YYYY-MM-DD`. Cadena vacía si la entrada es inválida. */
+export function sumarDiasIso(fechaIso: string, dias: number): string {
+  const dt = parseLocalDate(fechaIso);
+  if (!dt || !Number.isFinite(dias)) return "";
+  dt.setDate(dt.getDate() + dias);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export const MATRIMONIO_DIAS_FIJOS = 2;
+
+export function esRangoMatrimonioValido(fechaInicio: string, fechaFin: string): boolean {
+  if (!fechasOrdenValidas(fechaInicio, fechaFin)) return false;
+  return calcularDiasSolicitadosInclusive(fechaInicio, fechaFin) === MATRIMONIO_DIAS_FIJOS;
+}
+
+export const MENSAJE_MATRIMONIO_DOS_DIAS =
+  "Matrimonio solo permite solicitar exactamente 2 días consecutivos (fecha fin = día siguiente al inicio).";
+
 export const MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA =
   "Los colaboradores administrativos solo pueden solicitar vacaciones de lunes a viernes.";
 

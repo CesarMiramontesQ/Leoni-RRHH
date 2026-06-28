@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   calcularDiasLaboralesInclusive,
   calcularDiasVacacionesSolicitados,
+  esRangoMatrimonioValido,
   rangoIncluyeFinDeSemana,
+  sumarDiasIso,
 } from "./rhNewRequestDays.ts";
 
 describe("rhNewRequestDays — vacaciones administrativas", () => {
@@ -20,5 +22,12 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
   it("rechaza Home Office en fin de semana", () => {
     expect(rangoIncluyeFinDeSemana("2026-06-06", "2026-06-06")).toBe(true);
     expect(rangoIncluyeFinDeSemana("2026-06-02", "2026-06-02")).toBe(false);
+  });
+
+  it("matrimonio exige exactamente 2 días consecutivos", () => {
+    expect(esRangoMatrimonioValido("2026-05-04", "2026-05-05")).toBe(true);
+    expect(esRangoMatrimonioValido("2026-05-04", "2026-05-04")).toBe(false);
+    expect(esRangoMatrimonioValido("2026-05-04", "2026-05-06")).toBe(false);
+    expect(sumarDiasIso("2026-05-04", 1)).toBe("2026-05-05");
   });
 });

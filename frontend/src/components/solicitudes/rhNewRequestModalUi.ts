@@ -6,9 +6,11 @@
 import {
   calcularDiasSolicitadosInclusive,
   calcularDiasVacacionesSolicitados,
+  esRangoMatrimonioValido,
   fechasOrdenValidas,
   MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
   MENSAJE_HOME_OFFICE_MES_LIMITE,
+  MENSAJE_MATRIMONIO_DOS_DIAS,
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
   rangoIncluyeFinDeSemana,
@@ -314,6 +316,8 @@ export type RhNewRequestFormParams = {
   submitLabel?: string;
   /** Empleado + Home Office: selección de un solo día (fecha_fin = fecha_inicio). */
   singleDayHomeOfficeMode?: boolean;
+  /** Matrimonio: duración fija de 2 días (fecha_fin = fecha_inicio + 1). */
+  matrimonioTwoDayMode?: boolean;
   /** Controla visibilidad del bloque de Motivo. */
   showMotivoField?: boolean;
   /** Radio personal vs equipo (solo supervisor). */
@@ -437,6 +441,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     : "Permiso sin goce de sueldo";
   const submitLabel = p.submitLabel ?? "Enviar solicitud";
   const singleDayMode = p.singleDayHomeOfficeMode === true;
+  const matrimonioTwoDayMode = p.matrimonioTwoDayMode === true;
   const showMotivoField = p.showMotivoField !== false;
   const motivoValue = p.motivo ?? "";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
@@ -616,6 +621,8 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
           ${
             singleDayMode ?
               "Para Home Office se permite seleccionar únicamente un día."
+            : matrimonioTwoDayMode ?
+              "Matrimonio tiene duración fija de 2 días consecutivos. Elige la fecha de inicio."
             : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
           }
         </p>
@@ -626,6 +633,17 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha</label>
                 <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
                 <input id="rh-nr-fin" name="fecha_fin" type="hidden" value="${escapeHtml(p.fechaInicio)}" />
+              </div>
+            </div>`
+          : matrimonioTwoDayMode ?
+            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
               </div>
             </div>`
           : `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
@@ -747,6 +765,8 @@ export function computeRhModalFormUi(
     bothDates &&
     fechasOk &&
     rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
+  const matrimonioRangoInvalido =
+    tipo === "matrimonio" && bothDates && fechasOk && !esRangoMatrimonioValido(fechaInicio, fechaFin);
 
   const diasLabel =
     vacacionesAdminFinDeSemana || permisoSinGoceAdminFinDeSemana || homeOfficeFinDeSemana ?
@@ -773,6 +793,9 @@ export function computeRhModalFormUi(
   } else if (homeOfficeFinDeSemana) {
     resumenState = "error";
     resumenHint = MENSAJE_HOME_OFFICE_FIN_DE_SEMANA;
+  } else if (matrimonioRangoInvalido) {
+    resumenState = "error";
+    resumenHint = MENSAJE_MATRIMONIO_DOS_DIAS;
   } else if (
     tipo === "home_office" &&
     !modoRevision &&
@@ -827,6 +850,7 @@ export function computeRhModalFormUi(
     !vacacionesAdminFinDeSemana &&
     !permisoSinGoceAdminFinDeSemana &&
     !homeOfficeFinDeSemana &&
+    !matrimonioRangoInvalido &&
     !homeOfficeSinAdministrativo &&
     !homeOfficeMesOcupado &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);

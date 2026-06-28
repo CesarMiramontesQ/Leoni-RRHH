@@ -61,6 +61,22 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     expect(html).toContain('id="rh-nr-motivo"');
   });
 
+  it("matrimonio fija fecha fin readonly a 2 días", () => {
+    const html = buildFormHtml({
+      ...base,
+      tipo: "matrimonio",
+      modoRevision: false,
+      items: [],
+      selectedEmpleadoId: "1",
+      fechaInicio: "2026-05-04",
+      fechaFin: "2026-05-05",
+      matrimonioTwoDayMode: true,
+    });
+    expect(html).toContain('id="rh-nr-fin"');
+    expect(html).toContain("readonly");
+    expect(html).toContain("2026-05-05");
+  });
+
   it("oculta Home Office cuando showHomeOfficeType es false", () => {
     const html = buildFormHtml({
       ...base,

@@ -2032,7 +2032,7 @@ async def test_get_home_office_disponibilidad_empleado(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(client: AsyncClient, db):
+async def test_crear_solicitud_goce_matrimonio_solo_rh_y_dos_dias_ok(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="sol027b_rh@leoni.test")
     empleado = await make_empleado(db, rol="empleado", email="sol027b_emp@leoni.test")
     headers = await auth_headers(client, rh)
@@ -2042,8 +2042,7 @@ async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(cli
             "tipo": "matrimonio",
             "empleado_id": empleado.id,
             "fecha_inicio": "2026-05-04",
-            "fecha_fin": "2026-05-30",
-            "comentarios": "Alta RH",
+            "fecha_fin": "2026-05-05",
         },
         headers=headers,
     )
@@ -2052,6 +2051,25 @@ async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(cli
     assert body["tipo"] == "matrimonio"
     assert body["fecha_inicio"] == "2026-05-04"
     assert body["fecha_fin"] == "2026-05-05"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_matrimonio_rango_invalido_retorna_422(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol027b_rh_inv@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027b_emp_inv@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "matrimonio",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-30",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "2 días" in response.json().get("detail", "").lower()
 
 
 @pytest.mark.asyncio
