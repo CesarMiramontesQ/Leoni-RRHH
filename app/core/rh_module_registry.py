@@ -394,7 +394,9 @@ def is_modulos_rh_enrolled(empleado: "Empleado") -> bool:
 
 def empleado_en_lista_permisos(empleado: "Empleado") -> bool:
     """True si el empleado debe aparecer en la tabla de administración de permisos RH."""
-    if bool(getattr(empleado, "puede_administrar_permisos_rh", False)):
+    from app.core.rh_ui_mode import is_admin_user
+
+    if is_admin_user(empleado):
         return True
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     if rol == "rh" and not getattr(empleado, "acceso_rh_removido", False):
@@ -404,9 +406,11 @@ def empleado_en_lista_permisos(empleado: "Empleado") -> bool:
 
 def effective_modules_for_display(empleado: "Empleado") -> dict[str, bool]:
     """Permisos efectivos para UI de administración."""
+    from app.core.rh_ui_mode import is_admin_user
+
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}
-    if getattr(empleado, "puede_administrar_permisos_rh", False):
+    if is_admin_user(empleado):
         return {key: True for key in all_module_keys()}
     if rol == "rh" and not modulos:
         return {key: True for key in all_module_keys()}
@@ -418,9 +422,11 @@ def empty_modulos_rh_config() -> dict[str, bool]:
 
 
 def user_has_module(empleado: "Empleado", module_key: str) -> bool:
+    from app.core.rh_ui_mode import is_admin_user
+
     if not is_valid_module_key(module_key):
         return False
-    if getattr(empleado, "puede_administrar_permisos_rh", False):
+    if is_admin_user(empleado):
         return True
     rol = empleado.rol.nombre if empleado.rol else "empleado"
     modulos = getattr(empleado, "modulos_rh", None) or {}

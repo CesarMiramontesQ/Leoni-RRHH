@@ -1,4 +1,4 @@
-from sqlalchemy import String, cast, func
+from sqlalchemy import String, cast
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,7 +10,6 @@ from app.models.empleados_rh import (
     EmpleadoRhConfig,
     EmpleadoRhPermisos,
     ensure_rh_config,
-    ensure_rh_permisos,
 )
 from app.models.roles import Rol
 
@@ -43,7 +42,9 @@ class RhPermisosRepository:
                 EmpleadoRhPermisos,
                 EmpleadoRhPermisos.empleado_id == Empleado.empleado_id,
             )
-            .options(selectinload(Empleado.core))
+            .options(
+                selectinload(Empleado.core).selectinload(EmpleadoCore.rol),
+            )
             .where(
                 or_(
                     and_(
@@ -59,7 +60,7 @@ class RhPermisosRepository:
             )
             .order_by(Empleado.nombre.asc())
         )
-        return list(result.scalars().all())
+        return list(result.scalars().unique().all())
 
     async def search_empleados_disponibles(
         self,
@@ -138,20 +139,3 @@ class RhPermisosRepository:
         await self.db.flush()
         refreshed = await self.get_by_empleado_id(empleado.empleado_id)
         return refreshed or empleado
-
-    async def set_admin_flag(self, empleado: Empleado, value: bool) -> Empleado:
-        """Otorga/revoca `puede_administrar_permisos_rh` (fuente: BD `levelup_*`)."""
-        permisos = ensure_rh_permisos(self.db, empleado)
-        permisos.puede_administrar_permisos_rh = value
-        await self.db.flush()
-        refreshed = await self.get_by_empleado_id(empleado.empleado_id)
-        return refreshed or empleado
-
-    async def count_admins(self) -> int:
-        """Número de empleados con `puede_administrar_permisos_rh=true`."""
-        result = await self.db.execute(
-            select(func.count())
-            .select_from(EmpleadoRhPermisos)
-            .where(EmpleadoRhPermisos.puede_administrar_permisos_rh.is_(True))
-        )
-        return int(result.scalar_one())

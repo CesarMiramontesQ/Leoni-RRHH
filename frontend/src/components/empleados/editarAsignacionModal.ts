@@ -298,7 +298,7 @@ function formBodyHtml(
               label: "Rol del sistema",
               description: canEditRol
                 ? "Define los permisos de acceso del empleado."
-                : "Solo administradores de permisos pueden cambiar el rol.",
+                : "Solo administradores pueden cambiar el rol.",
               forId: "ea-rol_id",
               selectHtml: rolSelect,
             })}

@@ -263,14 +263,6 @@ components:
           additionalProperties:
             type: boolean
 
-    RhAdminPermisosUpdate:
-      type: object
-      required: [conceder]
-      properties:
-        conceder:
-          type: boolean
-          description: true otorga, false revoca puede_administrar_permisos_rh.
-
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
       type: object
@@ -5096,7 +5088,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/RhModuloCatalogItem"
         "403":
-          description: Requiere puede_administrar_permisos_rh
+          description: Requiere usuario admin
 
   /api/v1/rh-permisos/usuarios:
     get:
@@ -5115,7 +5107,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/RhUsuarioPermisosItem"
         "403":
-          description: Requiere puede_administrar_permisos_rh
+          description: Requiere usuario admin
 
   /api/v1/rh-permisos/empleados-buscar:
     get:
@@ -5141,7 +5133,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/RhEmpleadoBusquedaItem"
         "403":
-          description: Requiere puede_administrar_permisos_rh
+          description: Requiere usuario admin
 
   /api/v1/rh-permisos/usuarios/{empleado_id}:
     post:
@@ -5225,44 +5217,6 @@ paths:
         "404":
           description: Empleado no encontrado o ya removido / no inscrito
 
-  /api/v1/rh-permisos/usuarios/{empleado_id}/admin:
-    put:
-      tags: [RH Permisos]
-      summary: Otorgar o revocar el permiso de administrar permisos RH
-      description: >-
-        Activa/desactiva `puede_administrar_permisos_rh` (tabla
-        levelup_empleados_permisos) para un empleado. La BD es la fuente; el
-        cambio se registra en auditoría. Candados: no puedes cambiar tu propio
-        flag ni revocar al último administrador.
-      operationId: rh_permisos_usuarios_set_admin
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: empleado_id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RhAdminPermisosUpdate"
-      responses:
-        "200":
-          description: Permiso de administración actualizado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RhUsuarioPermisosItem"
-        "403":
-          description: Sin permiso o cambio del propio flag prohibido
-        "404":
-          description: Empleado no encontrado
-        "409":
-          description: No se puede revocar al último administrador
-
   # ── Usuarios ────────────────────────────────────────
   /api/v1/usuarios/roles:
     get:
@@ -5306,8 +5260,7 @@ paths:
       summary: Actualizar asignacion de lider o rol
       description: >-
         Actualiza lider, comedor y/o rol del empleado. Modificar `rol_id`
-        requiere que el usuario autenticado tenga `puede_administrar_permisos_rh`;
-        en caso contrario la operacion responde 403.
+        requiere usuario admin (`is_admin_user`); en caso contrario responde 403.
       operationId: usuarios_patch
       security:
         - BearerAuth: []
@@ -5332,7 +5285,7 @@ paths:
                 $ref: "#/components/schemas/UsuarioResponse"
         "403":
           description: >-
-            Sin permiso. Modificar el rol exige `puede_administrar_permisos_rh`.
+            Sin permiso. Modificar el rol exige usuario admin.
 
   # ── Empleados ───────────────────────────────────────
   /api/v1/empleados/resumen:

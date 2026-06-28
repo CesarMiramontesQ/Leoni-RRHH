@@ -45,13 +45,21 @@ export async function fetchRhPermisosMe(): Promise<RhPermisosMeResponse | null> 
 
 export async function fetchRhModulosCatalogo(): Promise<RhModuloCatalogItem[]> {
   const res = await fetchWithAuth("/api/v1/rh-permisos/modulos");
-  if (!res.ok) throw new Error(`rh-permisos/modulos: ${res.status}`);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
+    const detail = err?.detail ?? `HTTP ${res.status}`;
+    throw new Error(`No se pudieron cargar los módulos RH (${detail}).`);
+  }
   return (await res.json()) as RhModuloCatalogItem[];
 }
 
 export async function fetchRhUsuariosPermisos(): Promise<RhUsuarioPermisosItem[]> {
   const res = await fetchWithAuth("/api/v1/rh-permisos/usuarios");
-  if (!res.ok) throw new Error(`rh-permisos/usuarios: ${res.status}`);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
+    const detail = err?.detail ?? `HTTP ${res.status}`;
+    throw new Error(`No se pudieron cargar los usuarios (${detail}).`);
+  }
   return (await res.json()) as RhUsuarioPermisosItem[];
 }
 
@@ -95,22 +103,6 @@ export async function updateRhUsuarioPermisos(
   if (!res.ok) {
     const err = (await res.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}: ${res.status}`);
-  }
-  return (await res.json()) as RhUsuarioPermisosItem;
-}
-
-export async function setRhAdminPermisos(
-  empleadoId: number,
-  conceder: boolean,
-): Promise<RhUsuarioPermisosItem> {
-  const res = await fetchWithAuth(`/api/v1/rh-permisos/usuarios/${empleadoId}/admin`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ conceder }),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}/admin: ${res.status}`);
   }
   return (await res.json()) as RhUsuarioPermisosItem;
 }

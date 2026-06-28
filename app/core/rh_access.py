@@ -1,4 +1,4 @@
-"""Helpers de autorización RH: admin (`puede_administrar_permisos_rh`), no rol JWT/BD."""
+"""Helpers de autorización RH: admin vía `is_admin_user()`, no rol JWT/BD."""
 
 from __future__ import annotations
 

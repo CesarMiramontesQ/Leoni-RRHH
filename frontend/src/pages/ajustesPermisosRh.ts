@@ -4,7 +4,6 @@ import {
   deleteRhUsuarioPermisos,
   fetchRhModulosCatalogo,
   fetchRhUsuariosPermisos,
-  setRhAdminPermisos,
   updateRhUsuarioPermisos,
   type RhEmpleadoBusquedaItem,
   type RhModuloCatalogItem,
@@ -59,9 +58,6 @@ type PageState = {
   addingId: number | null;
   confirmDeleteId: number | null;
   deletingId: number | null;
-  confirmAdminId: number | null;
-  adminConceder: boolean;
-  togglingAdminId: number | null;
 };
 
 const CHEVRON_SVG = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-text-muted transition-transform duration-200"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>`;
@@ -107,7 +103,7 @@ function formatNoEmpleadoRh(noEmpleado: string): string {
 
 function renderNombreSublinea(user: RhUsuarioPermisosItem): string {
   const parts = [formatRol(user.rol_nombre)];
-  if (user.puede_administrar_permisos_rh) parts.push("Administrador de permisos");
+  if (user.puede_administrar_permisos_rh) parts.push("Administrador");
   return `<p class="mt-0.5 text-xs text-[#64748b]">${escapeHtml(parts.join(" · "))}</p>`;
 }
 
@@ -453,20 +449,6 @@ function renderTableRow(
                   Editar permisos
                 </button>`
               : badgeRejected("No editable")
-          }
-          ${
-            user.editable
-              ? `<button
-                  type="button"
-                  class="rh-permiso-admin ${user.puede_administrar_permisos_rh ? BTN_SECONDARY : BTN_GHOST} min-h-9 px-3 py-1.5 text-xs"
-                  data-empleado-id="${user.empleado_id}"
-                  data-conceder="${user.puede_administrar_permisos_rh ? "0" : "1"}"
-                  ${saving ? "disabled" : ""}
-                  title="${user.puede_administrar_permisos_rh ? "Quitar permiso de administrar permisos RH" : "Otorgar permiso de administrar permisos RH"}"
-                >
-                  ${user.puede_administrar_permisos_rh ? "Quitar admin" : "Hacer admin"}
-                </button>`
-              : ""
           }
           ${
             user.editable && !user.puede_administrar_permisos_rh
@@ -835,48 +817,6 @@ function renderConfirmDeleteModal(state: PageState): string {
     </div>`;
 }
 
-function renderConfirmAdminModal(state: PageState): string {
-  if (state.confirmAdminId === null) return "";
-  const user = state.usuarios.find((u) => u.empleado_id === state.confirmAdminId);
-  if (!user) return "";
-  const busy = state.togglingAdminId === user.empleado_id;
-  const conceder = state.adminConceder;
-  return `
-    <div id="rh-perm-admin-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div
-        id="rh-perm-admin-panel"
-        class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rh-perm-admin-title"
-      >
-        <header class="border-b border-slate-100 px-6 py-4">
-          <h2 id="rh-perm-admin-title" class="text-lg font-semibold text-text-primary">
-            ${conceder ? "Otorgar administración de permisos" : "Quitar administración de permisos"}
-          </h2>
-        </header>
-        <div class="space-y-3 px-6 py-5">
-          <p class="text-sm leading-relaxed text-[#475569]">
-            ${
-              conceder
-                ? `Se otorgará a <strong class="font-semibold text-[#0f172a]">${escapeHtml(formatNombreCompletoRh(user.nombre))}</strong> el permiso para <strong>administrar permisos RH</strong> (agregar/editar usuarios y otorgar/revocar este permiso a otros).`
-                : `Se quitará a <strong class="font-semibold text-[#0f172a]">${escapeHtml(formatNombreCompletoRh(user.nombre))}</strong> el permiso para administrar permisos RH. Conservará su rol y demás accesos.`
-            }
-          </p>
-          <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[#475569]">
-            El cambio se guarda en la base de datos y queda registrado en auditoría. El usuario debe volver a iniciar sesión para que aplique en la API.
-          </p>
-        </div>
-        <footer class="flex flex-col-reverse gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end">
-          <button type="button" id="rh-perm-admin-cancel" class="${BTN_SECONDARY} min-h-10 justify-center text-xs">Cancelar</button>
-          <button type="button" id="rh-perm-admin-confirm" class="${conceder ? BTN_PRIMARY : BTN_DANGER} min-h-10 justify-center text-xs disabled:cursor-not-allowed disabled:opacity-70" ${busy ? "disabled" : ""}>
-            ${busy ? "Guardando…" : conceder ? "Otorgar permiso" : "Quitar permiso"}
-          </button>
-        </footer>
-      </div>
-    </div>`;
-}
-
 function renderPage(state: PageState): string {
   if (state.loading) {
     return `<p class="text-sm text-text-muted">Cargando permisos…</p>`;
@@ -921,7 +861,6 @@ function renderPage(state: PageState): string {
       ${renderEditModal(state)}
       ${renderAddModal(state)}
       ${renderConfirmDeleteModal(state)}
-      ${renderConfirmAdminModal(state)}
     </div>`;
 }
 
@@ -930,7 +869,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     mountAppShell(container, {
       mainHtml: htmlAccessDenied({
         title: "Acceso restringido",
-        description: "Solo los administradores de permisos RH pueden acceder a esta sección.",
+        description: "Solo los administradores pueden acceder a esta sección.",
         linkHref: "#/",
         linkLabel: "Volver al inicio",
       }),
@@ -963,9 +902,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     addingId: null,
     confirmDeleteId: null,
     deletingId: null,
-    confirmAdminId: null,
-    adminConceder: false,
-    togglingAdminId: null,
   };
 
   const setBodyScrollLocked = (locked: boolean): void => {
@@ -977,8 +913,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
   const anyModalOpen = (): boolean =>
     state.editingEmpleadoId !== null ||
     state.addModalOpen ||
-    state.confirmDeleteId !== null ||
-    state.confirmAdminId !== null;
+    state.confirmDeleteId !== null;
 
   const paint = (opts?: { preserveFilterFocus?: boolean; focusAddInput?: boolean }): void => {
     mountAppShell(container, {
@@ -1169,42 +1104,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     }
   };
 
-  const askAdmin = (empleadoId: number, conceder: boolean): void => {
-    state.confirmAdminId = empleadoId;
-    state.adminConceder = conceder;
-    state.error = null;
-    state.success = null;
-    paint();
-  };
-
-  const cancelAdmin = (): void => {
-    state.confirmAdminId = null;
-    paint();
-  };
-
-  const confirmAdmin = async (): Promise<void> => {
-    const empleadoId = state.confirmAdminId;
-    if (empleadoId === null) return;
-    const conceder = state.adminConceder;
-    state.togglingAdminId = empleadoId;
-    state.error = null;
-    paint();
-    try {
-      const updated = await setRhAdminPermisos(empleadoId, conceder);
-      state.usuarios = state.usuarios.map((u) => (u.empleado_id === empleadoId ? updated : u));
-      state.confirmAdminId = null;
-      state.success = conceder
-        ? `${formatNombreTablaRh(updated.nombre)} ahora puede administrar permisos RH.`
-        : `${formatNombreTablaRh(updated.nombre)} ya no puede administrar permisos RH.`;
-    } catch (err) {
-      state.error = err instanceof Error ? err.message : "No se pudo actualizar el permiso de administración.";
-      state.confirmAdminId = null;
-    } finally {
-      state.togglingAdminId = null;
-      paint();
-    }
-  };
-
   const bindEvents = (): void => {
     const filterInput = container.querySelector<HTMLInputElement>("#rh-perm-filter-input");
     filterInput?.addEventListener(
@@ -1303,18 +1202,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       );
     });
 
-    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-admin").forEach((btn) => {
-      btn.addEventListener(
-        "click",
-        () => {
-          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
-          if (!Number.isFinite(empleadoId)) return;
-          askAdmin(empleadoId, btn.dataset.conceder === "1");
-        },
-        { signal },
-      );
-    });
-
     // ── Modal: agregar empleado ──
     container.querySelector("#rh-perm-add-open")?.addEventListener("click", openAddModal, { signal });
 
@@ -1368,24 +1255,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       "click",
       (ev) => {
         if (ev.target === delBackdrop) cancelDelete();
-      },
-      { signal },
-    );
-
-    // ── Modal: confirmar admin de permisos ──
-    container.querySelector("#rh-perm-admin-cancel")?.addEventListener("click", cancelAdmin, { signal });
-    container.querySelector("#rh-perm-admin-confirm")?.addEventListener(
-      "click",
-      () => {
-        void confirmAdmin();
-      },
-      { signal },
-    );
-    const adminBackdrop = container.querySelector("#rh-perm-admin-backdrop");
-    adminBackdrop?.addEventListener(
-      "click",
-      (ev) => {
-        if (ev.target === adminBackdrop) cancelAdmin();
       },
       { signal },
     );
@@ -1518,10 +1387,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       "keydown",
       (ev) => {
         if (ev.key !== "Escape") return;
-        if (state.confirmAdminId !== null) {
-          ev.preventDefault();
-          cancelAdmin();
-        } else if (state.confirmDeleteId !== null) {
+        if (state.confirmDeleteId !== null) {
           ev.preventDefault();
           cancelDelete();
         } else if (state.addModalOpen) {

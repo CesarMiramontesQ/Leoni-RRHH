@@ -460,10 +460,12 @@ class UsuarioService:
         cambios = data.model_dump(exclude_unset=True)
         if "rol_id" in cambios and cambios["rol_id"] is None:
             del cambios["rol_id"]
-        # Modificar el rol depende del flag de admin de permisos, no solo del módulo.
-        if "rol_id" in cambios and not current_user.puede_administrar_permisos_rh:
+        # Modificar el rol exige usuario admin, no solo acceso al módulo.
+        from app.core.rh_ui_mode import is_admin_user
+
+        if "rol_id" in cambios and not is_admin_user(current_user):
             raise ForbiddenError(
-                detail="Solo los administradores de permisos pueden modificar el rol de un empleado."
+                detail="Solo los administradores pueden modificar el rol de un empleado."
             )
         comedor_id = cambios.pop("comedor_id", None)
         tiene_comedor = "comedor_id" in data.model_fields_set

@@ -11,6 +11,7 @@ from app.core.rh_module_registry import (
     is_modulos_rh_enrolled,
     validate_modulos_rh_keys,
 )
+from app.core.rh_ui_mode import is_admin_user
 from app.models.empleados import Empleado
 from app.repositories.rh_permisos_repository import RhPermisosRepository
 from app.schemas.rh_permisos import (
@@ -26,12 +27,11 @@ class RhPermisosService:
     def __init__(self, repo: RhPermisosRepository) -> None:
         self.repo = repo
 
-    def _require_admin_permisos(self, current_user: Empleado) -> None:
-        # Administrar permisos depende del flag, no del rol base.
-        if not current_user.puede_administrar_permisos_rh:
+    def _require_admin(self, current_user: Empleado) -> None:
+        if not is_admin_user(current_user):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permiso para administrar accesos por módulo.",
+                detail="No tienes permiso de administrador.",
             )
 
     def _to_item(self, emp: Empleado, current_user: Empleado) -> RhUsuarioPermisosItem:
@@ -45,7 +45,7 @@ class RhPermisosService:
             rol_nombre=rol,
             activo=activo,
             permisos_personalizados=has_personalized_modulos_rh(emp),
-            puede_administrar_permisos_rh=bool(emp.puede_administrar_permisos_rh),
+            puede_administrar_permisos_rh=is_admin_user(emp),
             modulos=effective_modules_for_display(emp),
             editable=emp.empleado_id != current_user.empleado_id,
         )
@@ -59,27 +59,27 @@ class RhPermisosService:
         en_lista_permisos = empleado_en_lista_permisos(current_user)
         return RhPermisosMeResponse(
             rol=rol,
-            puede_administrar_permisos_rh=bool(current_user.puede_administrar_permisos_rh),
+            puede_administrar_permisos_rh=is_admin_user(current_user),
             modulos=modulos,
             inscrito=inscrito,
             en_lista_permisos=en_lista_permisos,
         )
 
     def list_modulos_catalog(self, current_user: Empleado) -> list[dict]:
-        self._require_admin_permisos(current_user)
+        self._require_admin(current_user)
         return catalog_for_api()
 
     async def list_usuarios_permisos(
         self, current_user: Empleado
     ) -> list[RhUsuarioPermisosItem]:
-        self._require_admin_permisos(current_user)
+        self._require_admin(current_user)
         empleados = await self.repo.list_empleados_gestionados()
         return [self._to_item(emp, current_user) for emp in empleados]
 
     async def buscar_empleados_disponibles(
         self, *, q: str, current_user: Empleado
     ) -> list[RhEmpleadoBusquedaItem]:
-        self._require_admin_permisos(current_user)
+        self._require_admin(current_user)
         empleados = await self.repo.search_empleados_disponibles(q=q)
         items: list[RhEmpleadoBusquedaItem] = []
         for emp in empleados:
@@ -98,7 +98,7 @@ class RhPermisosService:
     async def agregar_empleado_permisos(
         self, *, empleado_id: int, current_user: Empleado, ip_address: str | None = None
     ) -> RhUsuarioPermisosItem:
-        self._require_admin_permisos(current_user)
+        self._require_admin(current_user)
 
         target = await self.repo.get_by_empleado_id(empleado_id)
         if target is None:
@@ -141,61 +141,6 @@ class RhPermisosService:
         )
         return self._to_item(target, current_user)
 
-    async def set_admin_permisos(
-        self,
-        *,
-        empleado_id: int,
-        conceder: bool,
-        current_user: Empleado,
-        ip_address: str | None = None,
-    ) -> RhUsuarioPermisosItem:
-        """Otorga o revoca el flag `puede_administrar_permisos_rh` de un empleado.
-
-        La BD (`levelup_empleados_permisos`) es la fuente; el `.env` solo hace
-        bootstrap/recuperación. Candados: no puedes cambiar tu propio flag ni
-        revocar al último administrador (evita lockout). Auditado síncrono.
-        """
-        self._require_admin_permisos(current_user)
-
-        if empleado_id == current_user.empleado_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No puedes cambiar tu propio permiso de administración.",
-            )
-
-        target = await self.repo.get_by_empleado_id(empleado_id)
-        if target is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Empleado no encontrado.",
-            )
-
-        antes = bool(target.puede_administrar_permisos_rh)
-        if antes == conceder:
-            # Sin cambio: devolver estado actual sin auditar ruido.
-            return self._to_item(target, current_user)
-
-        if not conceder:
-            # Anti-lockout: no revocar al último administrador del sistema.
-            if await self.repo.count_admins() <= 1:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="No puedes revocar al último administrador de permisos RH.",
-                )
-
-        target = await self.repo.set_admin_flag(target, conceder)
-        await log_action(
-            self.repo.db,
-            accion="RH_PERMISOS_ADMIN_GRANTED" if conceder else "RH_PERMISOS_ADMIN_REVOKED",
-            modulo="rh_permisos",
-            usuario_id=current_user.empleado_id,
-            entidad_id=empleado_id,
-            datos_antes={"puede_administrar_permisos_rh": antes},
-            datos_despues={"puede_administrar_permisos_rh": conceder},
-            ip_address=ip_address,
-        )
-        return self._to_item(target, current_user)
-
     async def update_usuario_permisos(
         self,
         *,
@@ -204,7 +149,7 @@ class RhPermisosService:
         current_user: Empleado,
         ip_address: str | None = None,
     ) -> RhUsuarioPermisosItem:
-        self._require_admin_permisos(current_user)
+        self._require_admin(current_user)
 
         if empleado_id == current_user.empleado_id:
             raise HTTPException(
@@ -257,7 +202,7 @@ class RhPermisosService:
         toca el rol ni la cuenta. Los usuarios con rol RH no se pueden quitar
         porque su inscripción deriva del rol.
         """
-        self._require_admin_permisos(current_user)
+        self._require_admin(current_user)
 
         if empleado_id == current_user.empleado_id:
             raise HTTPException(
@@ -272,10 +217,10 @@ class RhPermisosService:
                 detail="Empleado no encontrado.",
             )
 
-        if getattr(target, "puede_administrar_permisos_rh", False):
+        if is_admin_user(target):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="No puedes eliminar a un administrador de permisos.",
+                detail="No puedes eliminar a un administrador.",
             )
 
         rol = target.rol.nombre if target.rol else "empleado"

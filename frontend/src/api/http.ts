@@ -6,11 +6,16 @@ export async function refreshAccessTokenSession(): Promise<boolean> {
   const refresh = getRefreshToken();
   if (!refresh) return false;
 
-  const res = await fetch("/api/v1/auth/refresh", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refresh }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/v1/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+  } catch {
+    return false;
+  }
 
   if (!res.ok) return false;
 
@@ -38,7 +43,14 @@ export async function fetchWithAuth(url: string, init: RequestInit = {}): Promis
     return fetch(url, { ...init, headers });
   };
 
-  let res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch {
+    throw new Error(
+      "No se pudo conectar con el servidor. Comprueba que el backend esté en ejecución (docker-compose up).",
+    );
+  }
   if (res.status !== 401) {
     return res;
   }
@@ -48,5 +60,11 @@ export async function fetchWithAuth(url: string, init: RequestInit = {}): Promis
     return res;
   }
 
-  return doFetch();
+  try {
+    return await doFetch();
+  } catch {
+    throw new Error(
+      "No se pudo conectar con el servidor. Comprueba que el backend esté en ejecución (docker-compose up).",
+    );
+  }
 }
