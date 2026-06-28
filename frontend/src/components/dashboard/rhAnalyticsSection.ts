@@ -15,9 +15,12 @@ import {
   tendenciaIncidenciasChartSubtitle,
 } from "./rhAnalyticsCharts.ts";
 import {
-  RH_DASH_EMPLEADOS_CLASIFICACION_CHARTS,
+  RH_DASH_EMPLEADOS_ADMIN_CHART,
+  RH_DASH_EMPLEADOS_DIRECTO_INDIRECTO_CHART_TITLE,
   empleadosClasificacionChartSubtitle,
+  empleadosDirectoIndirectoChartSubtitle,
   renderDashEmpleadosClasificacionAreaChart,
+  renderDashEmpleadosDirectoIndirectoAreaChart,
 } from "./rhEmpleadosDashboardCharts.ts";
 
 const CARD = `${RH_LISTADO_SURFACE} rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm sm:p-5`;
@@ -208,14 +211,17 @@ export function renderEmpleadosBlock(empleados: RhDashboardAnalyticsPayload["emp
       </div>`
     : `<p class="text-sm text-text-muted">Resumen de plantilla no disponible.</p>`;
 
-  const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-    ${RH_DASH_EMPLEADOS_CLASIFICACION_CHARTS.map((def) =>
-      chartCard(
-        def.title,
-        empleadosClasificacionChartSubtitle(series, def.tipo),
-        renderDashEmpleadosClasificacionAreaChart(series, def),
-      ),
-    ).join("")}
+  const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+    ${chartCard(
+      RH_DASH_EMPLEADOS_ADMIN_CHART.title,
+      empleadosClasificacionChartSubtitle(series, RH_DASH_EMPLEADOS_ADMIN_CHART.tipo),
+      renderDashEmpleadosClasificacionAreaChart(series, RH_DASH_EMPLEADOS_ADMIN_CHART),
+    )}
+    ${chartCard(
+      RH_DASH_EMPLEADOS_DIRECTO_INDIRECTO_CHART_TITLE,
+      empleadosDirectoIndirectoChartSubtitle(series),
+      renderDashEmpleadosDirectoIndirectoAreaChart(series),
+    )}
   </div>`;
 
   return `
