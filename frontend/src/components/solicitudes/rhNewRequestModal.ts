@@ -388,6 +388,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       empleadoSelectorOmitido,
       comentarios,
       hideMotivoSupervisorEquipo,
+      modoRevision,
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
 
@@ -703,6 +704,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         const dias = calcularDiasSolicitadosInclusive(fecha_inicio, fecha_fin);
         if (dias <= 0) {
           showError("Revisa el rango de fechas.");
+          return;
+        }
+        if (tipo === "vacaciones" && revisionSolicitudId == null && contextoVac != null && contextoVac <= 0) {
+          showError("No hay días de vacaciones disponibles para presentar una solicitud.");
           return;
         }
         if (tipo === "vacaciones" && contextoVac != null && dias > contextoVac) {

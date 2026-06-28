@@ -358,6 +358,17 @@ export function buildInfoVacacionesHtml(dias: number | null, diasSolicitados: nu
     </div>`;
   }
 
+  if (dias <= 0) {
+    return `<div class="flex items-start gap-4 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3.5">
+      ${iconCal}
+      <div class="min-w-0 flex-1">
+        <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Días disponibles</p>
+        <p class="mt-1 text-3xl font-bold tabular-nums leading-none tracking-tight text-red-700">${escapeHtml(String(dias))}</p>
+        <p class="mt-2 text-xs font-medium leading-snug text-red-700">No puedes presentar solicitudes de vacaciones sin días disponibles.</p>
+      </div>
+    </div>`;
+  }
+
   let secondary = "";
   if (fechasOk && diasSolicitados > 0) {
     const rest = dias - diasSolicitados;
@@ -714,6 +725,7 @@ export function computeRhModalFormUi(
   empleadoSelectorOmitted = false,
   comentarios = "",
   permisoSinGoceMotivoViaComentarios = false,
+  modoRevision = false,
 ): RhModalComputedUi {
   const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
@@ -733,6 +745,16 @@ export function computeRhModalFormUi(
   } else if (bothDates && dias <= 0) {
     resumenState = "error";
     resumenHint = "El rango debe incluir al menos un día calendario.";
+  } else if (
+    tipo === "vacaciones" &&
+    !modoRevision &&
+    contextoVac != null &&
+    contextoVac <= 0
+  ) {
+    resumenState = "error";
+    resumenHint = empleadoSelectorOmitted
+      ? "No tienes días de vacaciones disponibles para presentar una solicitud."
+      : "El empleado seleccionado no tiene días de vacaciones disponibles.";
   } else if (tipo === "vacaciones" && contextoVac != null && dias > 0 && dias > contextoVac) {
     resumenState = "exceeded";
     resumenHint = empleadoSelectorOmitted
@@ -758,12 +780,15 @@ export function computeRhModalFormUi(
     : permisoSinGoceMotivoViaComentarios ?
       comentarios.trim().length > 0
     : motivo.trim().length > 0;
+  const vacacionesSinSaldo =
+    tipo === "vacaciones" && !modoRevision && contextoVac != null && contextoVac <= 0;
   const canSubmit =
     empOk &&
     bothDates &&
     fechasOk &&
     dias > 0 &&
     motivoOk &&
+    !vacacionesSinSaldo &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -805,6 +830,7 @@ export function applyRhModalLiveFeedback(
 
   const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
   const permisoViaComentarios = formEl?.hasAttribute("data-rh-nr-sup-equipo-sin-motivo") === true;
+  const modoRevision = formEl?.hasAttribute("data-rh-nr-revision") === true;
 
   const ui = computeRhModalFormUi(
     tipo,
@@ -816,6 +842,7 @@ export function applyRhModalLiveFeedback(
     selfMode,
     comentariosEl?.value ?? "",
     permisoViaComentarios,
+    modoRevision,
   );
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;

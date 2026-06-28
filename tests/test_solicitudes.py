@@ -417,6 +417,29 @@ async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
+    client: AsyncClient, db,
+):
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol004c@leoni.test", dias_vacaciones=0
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-05-05",
+            "fecha_fin": "2026-05-05",
+            "comentarios": "Un solo día",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    detail = response.json().get("detail", "")
+    assert "días de vacaciones disponibles" in detail.lower()
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_saldo_insuficiente_422(
     client: AsyncClient, db,
 ):

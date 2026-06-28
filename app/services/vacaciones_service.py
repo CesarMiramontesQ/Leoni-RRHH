@@ -51,8 +51,8 @@ class VacacionesService:
     ) -> VacacionesResponse:
         await self.repo.ensure_empleado_exists(empleado_id)
         await self._ensure_puede_ver_empleado(current_user, empleado_id)
-        row = await self.repo.get_or_create(empleado_id)
-        return VacacionesResponse.model_validate(row)
+        dias = await self.repo.get_dias_disponibles(empleado_id)
+        return VacacionesResponse(empleado_id=empleado_id, dias_disponibles=dias)
 
     async def actualizar_saldo(
         self,
@@ -64,4 +64,4 @@ class VacacionesService:
             raise ForbiddenError(detail="No tienes permiso para actualizar el saldo de vacaciones")
         await self.repo.ensure_empleado_exists(empleado_id)
         row = await self.repo.establecer(empleado_id, data.dias_disponibles)
-        return VacacionesResponse.model_validate(row)
+        return VacacionesResponse(empleado_id=empleado_id, dias_disponibles=row.dias)

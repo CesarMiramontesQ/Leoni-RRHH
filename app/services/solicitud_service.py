@@ -484,6 +484,31 @@ class SolicitudService:
         necesarios = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
         await self.vacaciones_repo.debitar(empleado_id, necesarios)
 
+    async def _validar_creacion_vacaciones(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> None:
+        """Impide alta de vacaciones sin saldo o con días solicitados mayores al disponible."""
+        saldo = await self.vacaciones_repo.get_dias_disponibles(empleado_id)
+        if saldo <= 0:
+            raise DomainValidationError(
+                detail=(
+                    "No cuentas con días de vacaciones disponibles "
+                    "para presentar una solicitud."
+                )
+            )
+        necesarios = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+        if necesarios > saldo:
+            raise DomainValidationError(
+                detail=(
+                    f"Saldo insuficiente: hay {saldo} día(s) disponible(s) "
+                    f"y se solicitan {necesarios}."
+                )
+            )
+
     async def _restaurar_saldo_vacaciones(
         self,
         *,
@@ -624,6 +649,11 @@ class SolicitudService:
             raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
 
         if data.tipo == "vacaciones":
+            await self._validar_creacion_vacaciones(
+                empleado_id=target.id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
             await self._debitar_saldo_vacaciones(
                 empleado_id=target.id,
                 fecha_inicio=fecha_inicio,

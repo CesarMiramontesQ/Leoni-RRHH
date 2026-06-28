@@ -5,7 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vacaciones import Vacaciones
+from app.models.vacaciones_disponibles import VacacionesDisponibles
 from tests.conftest import auth_headers, make_empleado
 
 SOLICITUD_VACACIONES = {
@@ -53,7 +53,9 @@ async def test_crear_solicitud_vacaciones_rebaja_saldo(client: AsyncClient, db: 
     assert response.status_code == 201
 
     result = await db.execute(
-        select(Vacaciones).where(Vacaciones.empleado_id == empleado.id)
+        select(VacacionesDisponibles).where(
+            VacacionesDisponibles.no_empleado == empleado.no_empleado
+        )
     )
     row = result.scalar_one()
-    assert row.dias_disponibles == 5
+    assert row.dias == 5
