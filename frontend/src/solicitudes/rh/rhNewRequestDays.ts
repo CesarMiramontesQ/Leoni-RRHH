@@ -77,6 +77,9 @@ export function calcularDiasVacacionesSolicitados(
 export const MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA =
   "Los colaboradores administrativos solo pueden solicitar vacaciones de lunes a viernes.";
 
+export const MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA =
+  "Los colaboradores administrativos solo pueden solicitar permiso sin goce de sueldo de lunes a viernes.";
+
 export const MENSAJE_HOME_OFFICE_FIN_DE_SEMANA =
   "Home Office solo puede solicitarse en días entre semana (lunes a viernes).";
 

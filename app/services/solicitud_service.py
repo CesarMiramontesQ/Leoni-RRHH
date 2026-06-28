@@ -595,6 +595,24 @@ class SolicitudService:
                 )
             )
 
+    async def _validar_permiso_sin_goce_sueldo_fechas(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> None:
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is None or not empleado_es_administrativo(empleado):
+            return
+        if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
+            raise DomainValidationError(
+                detail=(
+                    "Los colaboradores administrativos solo pueden solicitar permiso "
+                    "sin goce de sueldo en días entre semana (lunes a viernes)."
+                )
+            )
+
     async def home_office_disponibilidad_mes(
         self,
         empleado_id: int,
@@ -698,6 +716,12 @@ class SolicitudService:
         fecha_fin = data.fecha_fin
         if data.tipo == "home_office":
             await self._validar_creacion_home_office(
+                empleado_id=target.id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
+        if data.tipo == "permiso_sin_goce_sueldo":
+            await self._validar_permiso_sin_goce_sueldo_fechas(
                 empleado_id=target.id,
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_fin,
@@ -1223,6 +1247,13 @@ class SolicitudService:
                 exclude_solicitud_id=solicitud_id,
             )
 
+        if solicitud.tipo == "permiso_sin_goce_sueldo":
+            await self._validar_permiso_sin_goce_sueldo_fechas(
+                empleado_id=current_user.id,
+                fecha_inicio=data.fecha_inicio,
+                fecha_fin=data.fecha_fin,
+            )
+
         if solicitud.tipo == "vacaciones":
             await self._restaurar_saldo_vacaciones(
                 empleado_id=current_user.id,
@@ -1239,14 +1270,14 @@ class SolicitudService:
             "estado": solicitud.estado,
             "fecha_inicio": str(solicitud.fecha_inicio),
             "fecha_fin": str(solicitud.fecha_fin),
-            "comentarios": solicitud.comentarios,
+            "motivo": solicitud.motivo,
         }
         await self.repo.update(
             solicitud_id,
             {
                 "fecha_inicio": data.fecha_inicio,
                 "fecha_fin": data.fecha_fin,
-                "comentarios": data.comentarios,
+                "motivo": data.motivo,
                 "estado": "pending",
                 "nivel_actual": 1,
             },
@@ -1264,7 +1295,7 @@ class SolicitudService:
                 "estado": "pending",
                 "fecha_inicio": str(data.fecha_inicio),
                 "fecha_fin": str(data.fecha_fin),
-                "comentarios": data.comentarios,
+                "motivo": data.motivo,
                 "nivel_actual": 1,
             },
         )

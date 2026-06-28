@@ -417,6 +417,67 @@ async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_permiso_sin_goce_administrativo_rechaza_fin_de_semana(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    supervisor = await make_empleado(db, rol="supervisor", email="sol004g_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004g_sub@leoni.test",
+        lider_id=supervisor.empleado_id,
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, supervisor)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "permiso_sin_goce_sueldo",
+            "fecha_inicio": "2026-05-08",
+            "fecha_fin": "2026-05-11",
+            "empleado_id": subordinado.id,
+            "motivo": "Permiso personal",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "entre semana" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_permiso_sin_goce_administrativo_entre_semana_ok(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    supervisor = await make_empleado(db, rol="supervisor", email="sol004h_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004h_sub@leoni.test",
+        lider_id=supervisor.empleado_id,
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, supervisor)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "permiso_sin_goce_sueldo",
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-06",
+            "empleado_id": subordinado.id,
+            "motivo": "Permiso personal",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_administrativo_rechaza_fin_de_semana(
     client: AsyncClient, db,
 ):
@@ -1376,7 +1437,7 @@ async def test_patch_revision_requisitor_changes_requested_ok(client: AsyncClien
     patch_body = {
         "fecha_inicio": "2026-05-12",
         "fecha_fin": "2026-05-16",
-        "comentarios": "Fechas corregidas según comentario del supervisor.",
+        "motivo": "Fechas corregidas según comentario del supervisor.",
     }
     response = await client.patch(
         f"/api/v1/solicitudes/{solicitud.id}/revision",
@@ -1389,7 +1450,7 @@ async def test_patch_revision_requisitor_changes_requested_ok(client: AsyncClien
     assert body["nivel_actual"] == 1
     assert body["fecha_inicio"] == patch_body["fecha_inicio"]
     assert body["fecha_fin"] == patch_body["fecha_fin"]
-    assert body["comentarios"] == patch_body["comentarios"]
+    assert body["motivo"] == patch_body["motivo"]
 
 
 @pytest.mark.asyncio
@@ -1496,7 +1557,7 @@ async def test_patch_revision_notifica_supervisor_corregida_reenviada(client: As
         json={
             "fecha_inicio": "2026-06-09",
             "fecha_fin": "2026-06-13",
-            "comentarios": "Corrección aplicada.",
+            "motivo": "Corrección aplicada.",
         },
         headers=headers_sub,
     )

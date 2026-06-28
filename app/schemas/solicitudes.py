@@ -144,7 +144,7 @@ class SolicitudRequisitorRevision(BaseModel):
     """
     Body para reenviar una solicitud tras `changes_requested` (solo el dueño).
 
-    Solo fechas y comentarios: `tipo` y `empleado_id` no forman parte del contrato y no deben
+    Solo fechas y motivo: `tipo` y `empleado_id` no forman parte del contrato y no deben
     alterarse en el servicio (el UPDATE persistido no los modifica).
     """
 
@@ -152,7 +152,7 @@ class SolicitudRequisitorRevision(BaseModel):
 
     fecha_inicio: date
     fecha_fin: date
-    comentarios: Optional[str] = None
+    motivo: Optional[str] = None
 
     @field_validator("fecha_fin")
     @classmethod

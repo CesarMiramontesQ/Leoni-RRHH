@@ -1611,7 +1611,7 @@ components:
           type: string
           format: date
           description: Debe ser >= fecha_inicio
-        comentarios:
+        motivo:
           type: [string, "null"]
 
     SolicitudAprobacionResponse:
