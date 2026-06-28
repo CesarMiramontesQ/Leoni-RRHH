@@ -12,11 +12,6 @@ import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitude
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { RH_LISTADO_SURFACE } from "./rhFaltasRetardosPageStyles.ts";
 import {
-  HE_KPI_ICONS,
-  renderHorasExtraKpiCards,
-  type HorasExtraKpiCard,
-} from "../../horasExtra/shared/renderHorasExtraKpiCards.ts";
-import {
   mountFaltasRetardosTendenciaChart,
   mountFaltasRetardosTipoBarChart,
   mountFaltasRetardosEmpleadosStackedBarChart,
@@ -30,53 +25,6 @@ import {
 } from "./rhFaltasRetardosCharts.ts";
 
 const CARD = `${RH_LISTADO_SURFACE} flex min-h-0 flex-col rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm sm:p-4`;
-
-function buildKpiCards(data: FaltasRetardosEstadisticasData): HorasExtraKpiCard[] {
-  return [
-    {
-      label: FR_COPY.kpiTotal,
-      value: String(data.total_eventos),
-      sub: FR_COPY.kpiTotalSub,
-      icon: HE_KPI_ICONS.solicitudes,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
-    },
-    {
-      label: FR_COPY.kpiFaltaJustificada,
-      value: String(data.falta_justificada),
-      sub: FR_COPY.kpiFaltaJustificadaSub,
-      icon: HE_KPI_ICONS.aprobada,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--emerald",
-    },
-    {
-      label: FR_COPY.kpiFaltaInjustificada,
-      value: String(data.falta_injustificada),
-      sub: FR_COPY.kpiFaltaInjustificadaSub,
-      icon: HE_KPI_ICONS.rechazada,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
-    },
-    {
-      label: FR_COPY.kpiRetardo,
-      value: String(data.retardo),
-      sub: FR_COPY.kpiRetardoSub,
-      icon: HE_KPI_ICONS.pendiente,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
-    },
-    {
-      label: FR_COPY.kpiIncapacidad,
-      value: String(data.incapacidad),
-      sub: FR_COPY.kpiIncapacidadSub,
-      icon: HE_KPI_ICONS.horas,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
-    },
-    {
-      label: FR_COPY.kpiSuspension,
-      value: String(data.suspension),
-      sub: FR_COPY.kpiSuspensionSub,
-      icon: HE_KPI_ICONS.parcial,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
-    },
-  ];
-}
 
 function empleadosChartRows(data: FaltasRetardosEstadisticasData): FaltaRetardoEmpleadoChartRow[] {
   return (data.empleados_con_mas_eventos ?? [])
@@ -163,7 +111,6 @@ export function renderRhFaltasRetardosMetricasSection(
 ): string {
   if (vm.estadisticasStatus === "loading") {
     return `<div id="rh-fr-metricas-analytics" class="flex flex-col gap-4 sm:gap-5" aria-busy="true">
-      ${renderHorasExtraKpiCards({ status: "loading" }, { columnsClass: "sm:grid-cols-2 lg:grid-cols-3", ariaLabel: FR_COPY.estadisticasAria })}
       ${chartsSkeleton()}
     </div>`;
   }
@@ -179,10 +126,6 @@ export function renderRhFaltasRetardosMetricasSection(
     return `<div id="rh-fr-metricas-analytics" class="text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasSinDatos)}</div>`;
   }
   return `<div id="rh-fr-metricas-analytics" class="flex flex-col gap-4 sm:gap-5">
-    ${renderHorasExtraKpiCards(
-      { status: "ready", cards: buildKpiCards(data) },
-      { columnsClass: "sm:grid-cols-2 lg:grid-cols-3", ariaLabel: FR_COPY.estadisticasAria },
-    )}
     ${renderChartsContent(data, vm.empleadosRetardosRanking)}
   </div>`;
 }
