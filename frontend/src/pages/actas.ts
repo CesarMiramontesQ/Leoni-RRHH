@@ -90,8 +90,8 @@ type ActasFilterState = {
 
 const ACTAS_RESPONSABLES_RH: readonly NuevaActaSelectOption[] = [
   {
-    id: "ALMA LIZBETH HERNANDEZ HERNANDEZ",
-    label: "ALMA LIZBETH HERNANDEZ HERNANDEZ",
+    id: "FABIOLA QUEZADA ROMERO",
+    label: "FABIOLA QUEZADA ROMERO",
   },
   {
     id: "MARTHA VERONICA BARAY ARMENDARIZ",
