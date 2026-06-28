@@ -15,6 +15,18 @@ describe("aggregateEmpleadosRetardosTop", () => {
     expect(ranking[4]).toEqual({ label: "Empleado 3", total: 3 });
   });
 
+  it("desempata por nombre y luego por empleado_id", () => {
+    const ranking = aggregateEmpleadosRetardosTop([
+      { empleado_id: 2, no_empleado: "1002", nombre: "Ana López", total: 3 },
+      { empleado_id: 1, no_empleado: "1001", nombre: "Ana López", total: 3 },
+    ]);
+    expect(ranking).toEqual([
+      { label: "Ana López", total: 3 },
+      { label: "Ana López", total: 3 },
+    ]);
+    expect(ranking).toHaveLength(2);
+  });
+
   it("excluye empleados sin retardos y usa no_empleado si falta nombre", () => {
     const ranking = aggregateEmpleadosRetardosTop([
       { empleado_id: 1, no_empleado: "1001", nombre: "Ana López", total: 3 },

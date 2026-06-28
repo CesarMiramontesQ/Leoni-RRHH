@@ -21,7 +21,6 @@ import {
   canAccessRhSolicitudesAdminPage,
 } from "../../auth/jwt.ts";
 import { aggregateEmpleadosRetardosTop } from "../../incidencias/rh/aggregateEmpleadosRetardosTop.ts";
-import { buildIncidenciasTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { emptyRhIncidenciaListFilters } from "../../incidencias/rh/types.ts";
 import { computeSolicitudesAnalytics } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import type {
@@ -33,9 +32,7 @@ import {
   countVacacionesUrgentes,
   filterSolicitudRowsByPeriod,
   isoLocalToday,
-  listPeriodosEnRango,
   periodRangeIso,
-  tendenciaAgrupacionForPeriod,
 } from "./filterRowsByPeriod.ts";
 
 function fetchErrorMessage(e: unknown, fallback: string): string {
@@ -59,8 +56,8 @@ function emptyPayload(periodDays: RhDashboardPeriodDays): RhDashboardAnalyticsPa
       kpis: null,
       solicitudesAnalytics: null,
       empleadosRetardosRanking: [],
+      empleadosFaltasInjustificadasRanking: [],
       incidenciasEstadisticas: null,
-      incidenciasTendenciaPorTipo: null,
       actas: null,
       errors: [],
     },
@@ -74,7 +71,6 @@ export async function fetchRhDashboardAnalytics(
 ): Promise<RhDashboardAnalyticsLoadResult> {
   const { fechaInicio, fechaFin } = periodRangeIso(periodDays);
   const todayIso = isoLocalToday();
-  const tendenciaAgrupacion = tendenciaAgrupacionForPeriod(periodDays);
   const incFilters = {
     ...emptyRhIncidenciaListFilters(),
     fecha_inicio: fechaInicio,
@@ -92,6 +88,7 @@ export async function fetchRhDashboardAnalytics(
     solicitudesResult,
     incidenciasResult,
     retardosEstadisticasResult,
+    faltasInjustificadasEstadisticasResult,
     actasResult,
     comedorSidebarResult,
   ] = await Promise.all([
@@ -108,7 +105,7 @@ export async function fetchRhDashboardAnalytics(
           }))
       : Promise.resolve({ ok: true as const, rows: [] as Awaited<ReturnType<typeof getSolicitudesRows>> }),
     loadIncidencias
-      ? fetchIncidenciasEstadisticas(incFilters, { tendencia_agrupacion: tendenciaAgrupacion })
+      ? fetchIncidenciasEstadisticas(incFilters)
           .then((v) => ({ ok: true as const, v }))
           .catch((e: unknown) => ({
             ok: false as const,
@@ -125,6 +122,18 @@ export async function fetchRhDashboardAnalytics(
           .catch((e: unknown) => ({
             ok: false as const,
             err: fetchErrorMessage(e, "Ranking de retardos no disponible"),
+          }))
+      : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
+    loadFaltasRetardos
+      ? getFaltasRetardosEstadisticas({
+          tipo: "falta_injustificada",
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+        })
+          .then((v) => ({ ok: true as const, v }))
+          .catch((e: unknown) => ({
+            ok: false as const,
+            err: fetchErrorMessage(e, "Ranking de faltas injustificadas no disponible"),
           }))
       : Promise.resolve({ ok: false as const, err: "", skipped: true as const }),
     loadActas
@@ -170,24 +179,10 @@ export async function fetchRhDashboardAnalytics(
   let solicitudesAnalytics = null;
   let empleadosRetardosRanking: RhDashboardAnalyticsPayload["laborales"]["empleadosRetardosRanking"] =
     [];
+  let empleadosFaltasInjustificadasRanking: RhDashboardAnalyticsPayload["laborales"]["empleadosFaltasInjustificadasRanking"] =
+    [];
   let laboralesKpis = null;
   let incidenciasEstadisticas = incidenciasResult.ok ? incidenciasResult.v : null;
-  let incidenciasTendenciaPorTipo: RhDashboardAnalyticsPayload["laborales"]["incidenciasTendenciaPorTipo"] =
-    null;
-  if (incidenciasResult.ok) {
-    try {
-      const periodosCanon = listPeriodosEnRango(fechaInicio, fechaFin, tendenciaAgrupacion);
-      incidenciasTendenciaPorTipo = buildIncidenciasTendenciaPorTipo(
-        incidenciasResult.v.incidencias_por_periodo_y_tipo ?? [],
-        periodosCanon,
-        tendenciaAgrupacion,
-      );
-    } catch (e: unknown) {
-      laboralesErrors.push(
-        e instanceof Error ? e.message : "Tendencia de incidencias no disponible",
-      );
-    }
-  }
 
   if (retardosEstadisticasResult.ok) {
     empleadosRetardosRanking = aggregateEmpleadosRetardosTop(
@@ -195,6 +190,14 @@ export async function fetchRhDashboardAnalytics(
     );
   } else if (!("skipped" in retardosEstadisticasResult)) {
     laboralesErrors.push(retardosEstadisticasResult.err);
+  }
+
+  if (faltasInjustificadasEstadisticasResult.ok) {
+    empleadosFaltasInjustificadasRanking = aggregateEmpleadosRetardosTop(
+      faltasInjustificadasEstadisticasResult.v.empleados_con_mas_eventos,
+    );
+  } else if (!("skipped" in faltasInjustificadasEstadisticasResult)) {
+    laboralesErrors.push(faltasInjustificadasEstadisticasResult.err);
   }
 
   if (solicitudesResult.ok) {
@@ -284,8 +287,8 @@ export async function fetchRhDashboardAnalytics(
       kpis: laboralesKpis,
       solicitudesAnalytics,
       empleadosRetardosRanking,
+      empleadosFaltasInjustificadasRanking,
       incidenciasEstadisticas,
-      incidenciasTendenciaPorTipo,
       actas,
       errors: laboralesErrors,
     },

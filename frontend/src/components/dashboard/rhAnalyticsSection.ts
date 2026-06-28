@@ -10,9 +10,8 @@ import {
   renderDashComedorRegistrosFuturosChart,
 } from "./rhComedorDashboardCharts.ts";
 import {
+  renderDashEmpleadosFaltasInjustificadasChart,
   renderDashEmpleadosRetardosChart,
-  renderDashIncidenciasTendenciaChart,
-  tendenciaIncidenciasChartSubtitle,
 } from "./rhAnalyticsCharts.ts";
 import {
   RH_DASH_EMPLEADOS_ADMIN_CHART,
@@ -128,12 +127,11 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
       renderDashEmpleadosRetardosChart(payload.laborales.empleadosRetardosRanking),
     )}
     ${chartCard(
-      "Tendencia de incidencias por tipo",
-      tendenciaIncidenciasChartSubtitle(
-        payload.laborales.incidenciasTendenciaPorTipo,
-        payload.periodDays,
+      "Top 5 empleados con más faltas injustificadas",
+      "Faltas injustificadas del historial de asistencia (importadas_historico) en el periodo seleccionado",
+      renderDashEmpleadosFaltasInjustificadasChart(
+        payload.laborales.empleadosFaltasInjustificadasRanking,
       ),
-      renderDashIncidenciasTendenciaChart(payload.laborales.incidenciasTendenciaPorTipo),
     )}
   </div>`;
 

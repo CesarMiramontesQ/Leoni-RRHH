@@ -4,7 +4,6 @@ import type {
   RhSolicitudesAnalyticsData,
   SolicitudRankingRow,
 } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
-import type { IncidenciaTendenciaPorTipo } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import type { RhIncidenciasEstadisticasData } from "../../incidencias/rh/types.ts";
 import type {
   RhDashComedorAsistenciaDia,
@@ -56,8 +55,9 @@ export type RhDashboardAnalyticsPayload = {
     solicitudesAnalytics: RhSolicitudesAnalyticsData | null;
     /** Top empleados con incidencias de retardo en el periodo seleccionado. */
     empleadosRetardosRanking: readonly SolicitudRankingRow[];
+    /** Top empleados con faltas injustificadas en el periodo seleccionado. */
+    empleadosFaltasInjustificadasRanking: readonly SolicitudRankingRow[];
     incidenciasEstadisticas: RhIncidenciasEstadisticasData | null;
-    incidenciasTendenciaPorTipo: IncidenciaTendenciaPorTipo | null;
     actas: RhDashboardActasKpis | null;
     errors: string[];
   };
