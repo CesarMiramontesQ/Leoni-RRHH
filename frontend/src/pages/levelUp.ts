@@ -486,13 +486,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   function renderCursosPageHeader(): string {
     return `
     <header class="cc-page-header flex flex-col gap-3">
-      <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
-        <ol class="flex flex-wrap items-center gap-1">
-          <li><a href="#/" class="font-medium transition hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">Inicio</a></li>
-          <li class="text-slate-300" aria-hidden="true">/</li>
-          <li class="font-semibold text-text-primary" aria-current="page">Catálogo de cursos</li>
-        </ol>
-      </nav>
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">Catálogo de cursos</h1>
@@ -1453,7 +1446,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     mountAppShell(container, {
       pageTitle: "Catálogo de cursos",
       activeNav: "cursos",
-      mainClass: "py-0",
+      mainClass: "py-5 sm:py-6",
       mainHtml: (state.detailCurso ? renderDetailView() : renderPage()) + (state.showCreateModal || state.editingCurso ? renderCreateEditModal() : ""),
     });
   }
