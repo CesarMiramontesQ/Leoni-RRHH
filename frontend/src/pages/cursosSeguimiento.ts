@@ -345,7 +345,6 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
                 empleadosCursosPendientes: resumen.empleados_cursos_pendientes,
                 empleadosSesionesPendientes: resumen.empleados_sesiones_pendientes,
                 sesionesProximas: resumen.sesiones_proximas,
-                cursosCompletados: resumen.cursos_completados_recientes,
               })}
             </div>`
           : ""

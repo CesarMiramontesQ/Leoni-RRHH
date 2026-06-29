@@ -1,5 +1,4 @@
 import type {
-  CursosDashboardCursoCompletadoItem,
   CursosDashboardEmpleadoResumenItem,
   CursosDashboardSesionProximaItem,
 } from "../../dashboard/cursos/seguimientoTypes.ts";
@@ -13,8 +12,10 @@ function quickTable(
   headers: string[],
   rows: string,
   emptyMsg: string,
+  fullWidth = false,
 ): string {
-  return `<section class="${RH_LISTADO_SURFACE} rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm">
+  const spanCls = fullWidth ? " lg:col-span-2" : "";
+  return `<section class="${RH_LISTADO_SURFACE} rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm${spanCls}">
     <h3 class="text-sm font-semibold text-text-primary">${escapeHtml(title)}</h3>
     <div class="mt-3 overflow-x-auto">
       ${
@@ -35,7 +36,6 @@ export function renderVistaRapida(opts: {
   empleadosCursosPendientes: CursosDashboardEmpleadoResumenItem[];
   empleadosSesionesPendientes: CursosDashboardEmpleadoResumenItem[];
   sesionesProximas: CursosDashboardSesionProximaItem[];
-  cursosCompletados: CursosDashboardCursoCompletadoItem[];
 }): string {
   const empPendRows = opts.empleadosCursosPendientes
     .map(
@@ -71,20 +71,9 @@ export function renderVistaRapida(opts: {
     })
     .join("");
 
-  const compRows = opts.cursosCompletados
-    .map(
-      (c) => `<tr class="hover:bg-slate-50/80 cursor-pointer" data-action="open-empleado" data-empleado-id="${c.empleado_id}">
-      <td class="px-2 py-2 font-medium text-text-primary">${escapeHtml(c.nombre_empleado ?? "—")}</td>
-      <td class="px-2 py-2 text-text-muted">${escapeHtml(c.curso_nombre ?? "—")}</td>
-      <td class="px-2 py-2 text-text-muted">${escapeHtml(c.fecha_finalizacion ?? "—")}</td>
-    </tr>`,
-    )
-    .join("");
-
   return `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
     ${quickTable("Empleados con cursos pendientes", ["Empleado", "No.", "Pendientes"], empPendRows, "Sin pendientes registrados")}
     ${quickTable("Empleados con sesiones pendientes", ["Empleado", "Área", "Pendientes"], empSesRows, "Sin sesiones pendientes")}
-    ${quickTable("Próximas sesiones", ["Curso", "Fecha", "Estado"], sesRows, "No hay sesiones próximas")}
-    ${quickTable("Completados recientes", ["Empleado", "Curso", "Fecha"], compRows, "Sin completados recientes")}
+    ${quickTable("Próximas sesiones", ["Curso", "Fecha", "Estado"], sesRows, "No hay sesiones próximas", true)}
   </div>`;
 }
