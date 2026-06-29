@@ -2,6 +2,8 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
+  badgeApproved,
+  badgeCancelled,
   BTN_DANGER,
   BTN_SECONDARY,
   FIELD_FOCUS,
@@ -10,6 +12,7 @@ import {
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
+  pageHeading,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import {
@@ -121,8 +124,7 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
   }
 
   function badgeActivo(activo: boolean): string {
-    if (activo) return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"><span class="size-1.5 rounded-full bg-emerald-500"></span>Activo</span>`;
-    return `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500"><span class="size-1.5 rounded-full bg-slate-400"></span>Inactivo</span>`;
+    return activo ? badgeApproved("Activo") : badgeCancelled("Inactivo");
   }
 
   function renderTableSimple(): string {
@@ -553,6 +555,10 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
       mainClass: "py-5 sm:py-6",
       mainHtml: `<div class="${RH_LISTADO_PAGE_OUTER}">
         ${renderLevelUpBackBar()}
+        ${pageHeading(
+          "Ajustes de cursos",
+          "Administra los catálogos: categorías, tipos, clasificaciones, instructores y proveedores.",
+        )}
         <div class="flex flex-col gap-5">
           ${renderTabs()}
           <div id="cursos-ajustes-content"></div>

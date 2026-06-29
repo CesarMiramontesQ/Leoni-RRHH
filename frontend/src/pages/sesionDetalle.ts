@@ -3,6 +3,7 @@ import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   BTN_SECONDARY,
   FIELD_FOCUS,
+  RH_LISTADO_BTN_DANGER,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_BTN_SECONDARY,
@@ -11,6 +12,7 @@ import {
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, updateCursoSesion, actualizarAsistencia } from "../api/cursos.ts";
@@ -35,7 +37,7 @@ const ICON_USERS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICON_CALENDAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>`;
 const ICON_MAP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>`;
 
-const SS_DETAIL_PAGE_OUTER = `${RH_LISTADO_PAGE_OUTER} ss-page ss-detail pt-3 sm:pt-5`;
+const SS_DETAIL_PAGE_OUTER = `${RH_LISTADO_PAGE_OUTER} ss-page ss-detail`;
 const MODAL_FIELD_CLS = `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}`;
 const ESTADO_SELECT_CLS = `${RH_LISTADO_SELECT} col-start-1 row-start-1 w-auto min-w-[9rem] appearance-none font-semibold ${RH_LISTADO_FOCUS_RING}`;
 
@@ -120,7 +122,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     mountAppShell(container, {
       pageTitle: "Detalle de sesión",
       activeNav: "sesiones",
-      mainClass: "py-0",
+      mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),
     });
     bindEvents();
@@ -318,7 +320,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
         </div>` : `
         <div class="overflow-x-auto">
           <table class="ss-empleados-table min-w-[640px] w-full text-left text-sm">
-            <thead class="border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <thead class="${RH_TABLE_HEAD}">
               <tr>
                 <th class="px-4 py-3.5">No. Empleado</th>
                 <th class="px-4 py-3.5">Nombre</th>
@@ -340,7 +342,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
                   </label>
                 </td>
                 <td class="px-4 py-3.5 text-right">
-                  <button type="button" data-action="quitar-empleado" data-id="${emp.id}" class="${RH_LISTADO_BTN_GHOST} !px-2 !py-1 text-xs text-red-600 hover:text-red-800">Quitar</button>
+                  <button type="button" data-action="quitar-empleado" data-id="${emp.id}" class="${RH_LISTADO_BTN_DANGER} !px-2 !py-1 text-xs">Quitar</button>
                 </td>
               </tr>`).join("")}
             </tbody>
@@ -408,7 +410,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
           ${dateInput("encuesta-fecha-limite")}
           <button type="button" data-action="encuesta-guardar-limite" class="${RH_LISTADO_BTN_SECONDARY} text-xs"${disabled}>Guardar fecha límite</button>
           <button type="button" data-action="encuesta-cerrar" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>Cerrar encuesta</button>
-          <button type="button" data-action="encuesta-deshabilitar" class="rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100${state.encuestaActionLoading ? " opacity-60" : ""}"${disabled}>Deshabilitar</button>
+          <button type="button" data-action="encuesta-deshabilitar" class="${RH_LISTADO_BTN_DANGER} text-xs${state.encuestaActionLoading ? " opacity-60" : ""}"${disabled}>Deshabilitar</button>
         </div>`;
     } else {
       actions = `

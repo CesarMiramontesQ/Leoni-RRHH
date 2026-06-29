@@ -10,6 +10,8 @@ import {
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
+  pageHeading,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getAllSesiones } from "../api/cursos.ts";
@@ -81,22 +83,10 @@ export function mountSesiones(container: HTMLElement): void {
   }
 
   function renderPageHeader(): string {
-    return `
-    <header class="ss-page-header flex flex-col gap-3">
-      <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
-        <ol class="flex flex-wrap items-center gap-1">
-          <li><a href="#/" class="font-medium transition hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">Inicio</a></li>
-          <li class="text-slate-300" aria-hidden="true">/</li>
-          <li class="font-semibold text-text-primary" aria-current="page">Sesiones</li>
-        </ol>
-      </nav>
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">Sesiones de Cursos</h1>
-        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Consulta fechas, ubicaciones, instructores e inscritos de todas las sesiones programadas.
-        </p>
-      </div>
-    </header>`;
+    return pageHeading(
+      "Sesiones de Cursos",
+      "Consulta fechas, ubicaciones, instructores e inscritos de todas las sesiones programadas.",
+    );
   }
 
   function renderKpis(): string {
@@ -290,7 +280,7 @@ export function mountSesiones(container: HTMLElement): void {
     return `
     <div class="overflow-x-auto">
       <table class="ss-sesiones-table min-w-[800px] w-full text-left text-sm">
-        <thead class="border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <thead class="${RH_TABLE_HEAD}">
           <tr>
             <th class="px-4 py-3.5">Curso</th>
             <th class="px-4 py-3.5">Fecha</th>
@@ -367,7 +357,7 @@ export function mountSesiones(container: HTMLElement): void {
     mountAppShell(container, {
       pageTitle: "Sesiones",
       activeNav: "sesiones",
-      mainClass: "py-0",
+      mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),
     });
   }

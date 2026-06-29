@@ -30,9 +30,38 @@ export const BTN_GHOST =
 export const BTN_DANGER =
   "inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2";
 
+/** Acción destructiva secundaria, tonal (Deshabilitar, Quitar) — alineada a `RH_LISTADO_BTN_*`. */
+export const RH_LISTADO_BTN_DANGER =
+  "inline-flex items-center gap-1.5 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-2";
+
 // ── Wrapper de campo de filtro (responsive) ───────────────────────────────────
 export const FILTER_FIELD_WRAP =
   "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[9rem] lg:basis-0 xl:min-w-[7.75rem]";
+
+// ── Encabezado de página (título + subtítulo) ────────────────────────────────
+/** Encabezado de página consistente: título H1 y subtítulo opcional. */
+export function pageHeading(title: string, subtitle?: string): string {
+  return `<header class="flex flex-col gap-2">
+    <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(title)}</h1>
+    ${subtitle ? `<p class="max-w-2xl text-sm leading-relaxed text-text-secondary">${escapeHtml(subtitle)}</p>` : ""}
+  </header>`;
+}
+
+// ── Encabezado de tabla estándar (thead) ─────────────────────────────────────
+/** `<thead>` consistente: borde inferior, fondo claro, texto micro en mayúsculas. */
+export const RH_TABLE_HEAD =
+  "border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500";
+
+// ── Alertas en bloque (status / error) ───────────────────────────────────────
+/** Mensaje de éxito (emerald). */
+export function alertSuccess(message: string, role = "status"): string {
+  return `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800" role="${role}">${escapeHtml(message)}</div>`;
+}
+
+/** Mensaje de error (red). */
+export function alertError(message: string, role = "alert"): string {
+  return `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="${role}">${escapeHtml(message)}</div>`;
+}
 
 // ── Badges de estado — patrón unificado: píldora + dot ───────────────────────
 

@@ -17,7 +17,7 @@ import type {
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
-import { RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
+import { pageHeading, RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
 
 const EMPLEADO_SEARCH_PAGE_SIZE = 10;
 
@@ -136,6 +136,10 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
     const resumen = state.resumen;
     return `<div class="${RH_LISTADO_PAGE_OUTER} ss-page cs-page">
       ${renderLevelUpBackBar()}
+      ${pageHeading(
+        "Seguimiento de capacitaciones",
+        "Consulta indicadores, pendientes y el historial de cursos y sesiones por empleado.",
+      )}
       ${renderCursosSeguimientoKpis(resumen?.kpis ?? null, state.loadingResumen)}
       <div class="cs-content-stack flex flex-col gap-4 sm:gap-5">
         ${

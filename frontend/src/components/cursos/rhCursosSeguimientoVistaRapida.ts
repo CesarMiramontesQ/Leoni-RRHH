@@ -4,11 +4,8 @@ import type {
 } from "../../dashboard/cursos/seguimientoTypes.ts";
 import { ESTADO_SESION_LABELS } from "../../dashboard/cursos/types.ts";
 import type { EstadoSesion } from "../../dashboard/cursos/types.ts";
-import { RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
+import { RH_LISTADO_SURFACE, RH_TABLE_HEAD } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-
-const TABLE_HEAD =
-  "border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
 function quickTable(
   title: string,
@@ -24,7 +21,7 @@ function quickTable(
       ${
         rows
           ? `<table class="cs-seguimiento-table min-w-full text-left text-sm">
-        <thead class="${TABLE_HEAD}">
+        <thead class="${RH_TABLE_HEAD}">
           <tr>${headers.map((h) => `<th class="px-4 py-3 font-medium">${escapeHtml(h)}</th>`).join("")}</tr>
         </thead>
         <tbody class="divide-y divide-slate-100">${rows}</tbody>
