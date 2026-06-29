@@ -49,6 +49,8 @@ tags:
     description: Gestion de capacitaciones (CRUD, inscripciones, catalogo)
   - name: Talento - PDI
     description: Plan de Desarrollo Individual — KPIs avanzados, recomendaciones AI, export, notificaciones
+  - name: Level Up - Catálogos Cursos
+    description: Catálogos de cursos (categorías, tipos, instructores, proveedores)
 
 components:
   securitySchemes:
@@ -4851,6 +4853,67 @@ components:
       properties:
         notificaciones_creadas: { type: integer }
         empleados_notificados: { type: integer }
+
+    # ── Level Up - Catálogos Cursos ───────────────────
+    InstructorInternoCreate:
+      type: object
+      required: [empleado_id]
+      properties:
+        empleado_id:
+          type: integer
+          minimum: 1
+        especialidad:
+          type: string
+          maxLength: 255
+          nullable: true
+
+    InstructorInternoUpdate:
+      type: object
+      properties:
+        especialidad:
+          type: string
+          maxLength: 255
+          nullable: true
+        activo:
+          type: boolean
+
+    InstructorInternoResponse:
+      type: object
+      required: [id, empleado_id, activo, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        nombre_empleado:
+          type: string
+          nullable: true
+        no_empleado:
+          type: string
+          nullable: true
+        especialidad:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    InstructorInternoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstructorInternoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -10709,3 +10772,117 @@ paths:
           description: Perfil o asignación no encontrados
         "422":
           description: competencia_requisito_ids inválidos
+
+  /api/v1/level-up/catalogos/instructores-internos:
+    get:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Listar instructores internos
+      operationId: listar_instructores_internos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Lista paginada de instructores internos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorInternoListResponse"
+    post:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Registrar empleado como instructor interno
+      operationId: crear_instructor_interno
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstructorInternoCreate"
+      responses:
+        "201":
+          description: Instructor interno creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorInternoResponse"
+        "403":
+          description: Sin permisos RH
+        "404":
+          description: Empleado no encontrado
+        "409":
+          description: Empleado ya registrado como instructor activo
+
+  /api/v1/level-up/catalogos/instructores-internos/{id}:
+    put:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Actualizar instructor interno
+      operationId: actualizar_instructor_interno
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstructorInternoUpdate"
+      responses:
+        "200":
+          description: Instructor interno actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorInternoResponse"
+        "403":
+          description: Sin permisos RH
+        "404":
+          description: Instructor interno no encontrado
+    delete:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Desactivar instructor interno
+      operationId: eliminar_instructor_interno
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Instructor interno desactivado
+        "403":
+          description: Sin permisos RH
+        "404":
+          description: Instructor interno no encontrado

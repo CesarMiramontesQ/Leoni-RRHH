@@ -10,8 +10,10 @@ from app.repositories.cursos_catalogo_repository import (
     CursoClasificacionRepository,
     CursoTipoRepository,
     InstructorExternoRepository,
+    InstructorInternoRepository,
     ProveedorRepository,
 )
+from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.cursos_catalogo import (
     CursoCatSimpleCreate,
     CursoCatSimpleListResponse,
@@ -21,6 +23,10 @@ from app.schemas.cursos_catalogo import (
     InstructorExternoListResponse,
     InstructorExternoResponse,
     InstructorExternoUpdate,
+    InstructorInternoCreate,
+    InstructorInternoListResponse,
+    InstructorInternoResponse,
+    InstructorInternoUpdate,
     ProveedorCreate,
     ProveedorListResponse,
     ProveedorResponse,
@@ -35,7 +41,22 @@ class CursosCatalogoService:
         self.tipo_repo = CursoTipoRepository(db)
         self.clasificacion_repo = CursoClasificacionRepository(db)
         self.instructor_repo = InstructorExternoRepository(db)
+        self.instructor_interno_repo = InstructorInternoRepository(db)
         self.proveedor_repo = ProveedorRepository(db)
+        self.empleado_repo = EmpleadoRepository(db)
+
+    @staticmethod
+    def _instructor_interno_response(item) -> InstructorInternoResponse:
+        emp = item.empleado_rel
+        return InstructorInternoResponse(
+            id=item.id,
+            empleado_id=item.empleado_id,
+            nombre_empleado=emp.nombre if emp else None,
+            no_empleado=str(emp.no_empleado) if emp and emp.no_empleado is not None else None,
+            especialidad=item.especialidad,
+            activo=item.activo,
+            created_at=item.created_at,
+        )
 
     @staticmethod
     def _get_rol(user: Empleado) -> str:
@@ -248,6 +269,71 @@ class CursosCatalogoService:
         if not item or not item.activo:
             raise NotFoundError(detail=f"Instructor externo {id} no encontrado")
         await self.instructor_repo.update(id, {"activo": False})
+
+    # ── Instructores Internos ──────────────────────────────────────────────────
+
+    async def listar_instructores_internos(
+        self, page: int, page_size: int, busqueda: str | None = None, solo_activos: bool = True
+    ) -> InstructorInternoListResponse:
+        offset = (page - 1) * page_size
+        items, total = await self.instructor_interno_repo.list_filtered(
+            offset, page_size, busqueda, solo_activos
+        )
+        return InstructorInternoListResponse(
+            items=[self._instructor_interno_response(i) for i in items],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def crear_instructor_interno(
+        self, data: InstructorInternoCreate, user: Empleado
+    ) -> InstructorInternoResponse:
+        self._require_rh(user)
+        empleado = await self.empleado_repo.get_by_empleado_id(data.empleado_id)
+        if not empleado:
+            raise NotFoundError(detail=f"Empleado {data.empleado_id} no encontrado")
+        existing = await self.instructor_interno_repo.get_by_empleado_id(data.empleado_id)
+        if existing:
+            if existing.activo:
+                raise ConflictError(detail="El empleado ya está registrado como instructor interno")
+            item = await self.instructor_interno_repo.update(
+                existing.id,
+                {"especialidad": data.especialidad, "activo": True},
+            )
+            item = await self.instructor_interno_repo.get_with_empleado(existing.id)
+            return self._instructor_interno_response(item)
+        item = await self.instructor_interno_repo.create({
+            "empleado_id": data.empleado_id,
+            "especialidad": data.especialidad,
+            "activo": True,
+        })
+        item = await self.instructor_interno_repo.get_with_empleado(item.id)
+        return self._instructor_interno_response(item)
+
+    async def actualizar_instructor_interno(
+        self, id: int, data: InstructorInternoUpdate, user: Empleado
+    ) -> InstructorInternoResponse:
+        self._require_rh(user)
+        item = await self.instructor_interno_repo.get(id)
+        if not item:
+            raise NotFoundError(detail=f"Instructor interno {id} no encontrado")
+        update_data: dict = {}
+        if data.especialidad is not None:
+            update_data["especialidad"] = data.especialidad
+        if data.activo is not None:
+            update_data["activo"] = data.activo
+        if update_data:
+            item = await self.instructor_interno_repo.update(id, update_data)
+        item = await self.instructor_interno_repo.get_with_empleado(id)
+        return self._instructor_interno_response(item)
+
+    async def eliminar_instructor_interno(self, id: int, user: Empleado) -> None:
+        self._require_rh(user)
+        item = await self.instructor_interno_repo.get(id)
+        if not item or not item.activo:
+            raise NotFoundError(detail=f"Instructor interno {id} no encontrado")
+        await self.instructor_interno_repo.update(id, {"activo": False})
 
     # ── Proveedores ────────────────────────────────────────────────────────────
 

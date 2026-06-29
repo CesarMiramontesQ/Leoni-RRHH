@@ -80,6 +80,40 @@ class InstructorExternoListResponse(BaseModel):
     page_size: int
 
 
+# ── Instructor Interno ─────────────────────────────────────────────────────────
+
+
+class InstructorInternoCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    empleado_id: int = Field(..., gt=0)
+    especialidad: Optional[str] = Field(None, max_length=255)
+
+
+class InstructorInternoUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    especialidad: Optional[str] = Field(None, max_length=255)
+    activo: Optional[bool] = None
+
+
+class InstructorInternoResponse(BaseModel):
+    id: int
+    empleado_id: int
+    nombre_empleado: Optional[str] = None
+    no_empleado: Optional[str] = None
+    especialidad: Optional[str] = None
+    activo: bool
+    created_at: datetime
+
+
+class InstructorInternoListResponse(BaseModel):
+    items: list[InstructorInternoResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 # ── Proveedor ──────────────────────────────────────────────────────────────────
 
 

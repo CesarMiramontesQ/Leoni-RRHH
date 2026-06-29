@@ -58,6 +58,7 @@ from app.models.cursos_catalogo import (
     CursoCategoria,
     CursoClasificacion,
     CursoInstructorExterno,
+    CursoInstructorInterno,
     CursoProveedor,
     CursoTipo,
 )
@@ -145,6 +146,7 @@ __all__ = [
     "CursoTipo",
     "CursoClasificacion",
     "CursoInstructorExterno",
+    "CursoInstructorInterno",
     "CursoProveedor",
     "Capacidad",
     "CapacidadPuestoPerfil",

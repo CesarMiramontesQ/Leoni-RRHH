@@ -15,6 +15,10 @@ from app.schemas.cursos_catalogo import (
     InstructorExternoListResponse,
     InstructorExternoResponse,
     InstructorExternoUpdate,
+    InstructorInternoCreate,
+    InstructorInternoListResponse,
+    InstructorInternoResponse,
+    InstructorInternoUpdate,
     ProveedorCreate,
     ProveedorListResponse,
     ProveedorResponse,
@@ -211,6 +215,53 @@ async def eliminar_instructor_externo(
 ):
     service = CursosCatalogoService(db)
     await service.eliminar_instructor_externo(id, current_user)
+
+
+# ── Instructores Internos ──────────────────────────────────────────────────────
+
+
+@router.get("/instructores-internos", response_model=InstructorInternoListResponse)
+async def listar_instructores_internos(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    busqueda: str | None = Query(None, max_length=200),
+    solo_activos: bool = Query(True),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CursosCatalogoService(db)
+    return await service.listar_instructores_internos(page, page_size, busqueda, solo_activos)
+
+
+@router.post("/instructores-internos", response_model=InstructorInternoResponse, status_code=status.HTTP_201_CREATED)
+async def crear_instructor_interno(
+    body: InstructorInternoCreate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CursosCatalogoService(db)
+    return await service.crear_instructor_interno(body, current_user)
+
+
+@router.put("/instructores-internos/{id}", response_model=InstructorInternoResponse)
+async def actualizar_instructor_interno(
+    id: int,
+    body: InstructorInternoUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CursosCatalogoService(db)
+    return await service.actualizar_instructor_interno(id, body, current_user)
+
+
+@router.delete("/instructores-internos/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_instructor_interno(
+    id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CursosCatalogoService(db)
+    await service.eliminar_instructor_interno(id, current_user)
 
 
 # ── Proveedores ────────────────────────────────────────────────────────────────

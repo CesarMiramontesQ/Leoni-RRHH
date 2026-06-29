@@ -52,6 +52,7 @@ import app.models.notificaciones  # noqa: F401
 import app.models.emails  # noqa: F401
 import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
+import app.models.cursos_catalogo  # noqa: F401
 import app.models.vacaciones  # noqa: F401
 import app.models.turnos_empleados  # noqa: F401
 
