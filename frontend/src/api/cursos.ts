@@ -226,6 +226,36 @@ export async function getCursoPuestos(cursoId: number): Promise<CursoPuestoDetai
   return res.json();
 }
 
+export async function agregarPuestoCurso(
+  cursoId: number,
+  puestoPerfilId: number,
+  obligatorio?: boolean,
+): Promise<CursoPuestoDetail> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/puestos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      puesto_perfil_id: puestoPerfilId,
+      ...(obligatorio !== undefined ? { obligatorio } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function quitarPuestoCurso(cursoId: number, cursoPuestoId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/puestos/${cursoPuestoId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+}
+
 export async function getCursoEmpleadosExtra(cursoId: number): Promise<CursoEmpleadoDetail[]> {
   const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/empleados-extra`);
   if (!res.ok) {

@@ -15,18 +15,20 @@ import {
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
-import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso } from "../api/cursos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso } from "../api/cursos.ts";
+import { getPerfilesList } from "../api/puestos.ts";
 import {
   getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones,
   getInstructoresInternos, getInstructoresExternos,
 } from "../api/cursosCatalogo.ts";
 import type { Proveedor, CursoCatSimple, InstructorInterno, InstructorExterno } from "../api/cursosCatalogo.ts";
-import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
+import type { PerfilPuestoListItem } from "../dashboard/puestos/types.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, InstructorTipo, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
+import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 
 
 // ── Dashboard: tipos, datos fake y helpers ──────────────────────────────────
@@ -403,6 +405,13 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionLoading: boolean;
     asignacionResult: { asignados: number; ya_asignados: number } | null;
     asignacionError: string | null;
+    showAsignacionPuestosModal: boolean;
+    asignacionPuestosCatalog: PerfilPuestoListItem[] | null;
+    asignacionPuestosCatalogLoading: boolean;
+    asignacionPuestoIds: Set<number>;
+    asignacionPuestosLoading: boolean;
+    asignacionPuestosResult: { asignados: number; ya_asignados: number } | null;
+    asignacionPuestosError: string | null;
     proveedoresCatalog: Proveedor[];
     proveedoresLoading: boolean;
     categoriasCatalog: CursoCatSimple[];
@@ -451,6 +460,13 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionLoading: false,
     asignacionResult: null,
     asignacionError: null,
+    showAsignacionPuestosModal: false,
+    asignacionPuestosCatalog: null,
+    asignacionPuestosCatalogLoading: false,
+    asignacionPuestoIds: new Set(),
+    asignacionPuestosLoading: false,
+    asignacionPuestosResult: null,
+    asignacionPuestosError: null,
     proveedoresCatalog: [],
     proveedoresLoading: false,
     categoriasCatalog: [],
@@ -1103,23 +1119,16 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   function renderDetailPuestos(): string {
     const puestos = state.detailPuestos;
-    if (puestos.length === 0) {
-      return `
-      <div class="${RH_LISTADO_SURFACE} p-6">
-        <h3 class="text-sm font-semibold text-text-primary mb-2">Puestos asignados</h3>
-        <p class="text-xs text-slate-400 italic">Sin puestos asignados a este curso.</p>
-      </div>`;
-    }
-    const totalEmps = puestos.reduce((s, p) => s + p.empleados_count, 0);
     const hasSesiones = state.detailSesiones.length > 0;
+    const totalEmps = puestos.reduce((s, p) => s + p.empleados_count, 0);
 
-    const puestoBlocks = puestos.map(p => {
-      const puestoEmpIds = p.empleados.map(e => e.empleado_id);
-      const allSelected = puestoEmpIds.length > 0 && puestoEmpIds.every(id => state.selectedEmpleados.has(id));
+    const puestoBlocks = puestos.map((p) => {
+      const puestoEmpIds = p.empleados.map((e) => e.empleado_id);
+      const allSelected = puestoEmpIds.length > 0 && puestoEmpIds.every((id) => state.selectedEmpleados.has(id));
       const isExpanded = state.expandedPuestos.has(p.id);
 
       const empRows = p.empleados.length > 0
-        ? p.empleados.map(e => {
+        ? p.empleados.map((e) => {
           const checked = state.selectedEmpleados.has(e.empleado_id);
           return `
           <li class="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-0">
@@ -1129,19 +1138,22 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${e.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">No. ${escapeHtml(e.no_empleado)}</span>` : ""}
           </li>`;
         }).join("")
-        : `<li class="text-xs text-slate-400 italic py-1">Sin empleados activos</li>`;
+        : `<li class="text-xs text-slate-400 italic py-1">Sin empleados activos en este puesto</li>`;
 
       return `
       <div class="border-b border-slate-100 last:border-0">
         <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-puesto-expand" data-puesto-id="${p.id}">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 min-w-0">
             ${hasSesiones && isRH && puestoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(puestoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
-            <svg class="size-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-            <a href="#/puestos/${p.puesto_perfil_id}" class="text-sm font-semibold text-leoni-blue hover:underline">${escapeHtml(p.puesto_nombre ?? `Puesto #${p.puesto_perfil_id}`)}</a>
-            ${p.puesto_codigo ? `<span class="text-xs text-slate-400">${escapeHtml(p.puesto_codigo)}</span>` : ""}
-            ${p.obligatorio ? `<span class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : ""}
+            <svg class="size-4 text-slate-400 transition-transform shrink-0 ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <a href="#/puestos/${p.puesto_perfil_id}" class="text-sm font-semibold text-leoni-blue hover:underline truncate">${escapeHtml(p.puesto_nombre ?? `Puesto #${p.puesto_perfil_id}`)}</a>
+            ${p.puesto_codigo ? `<span class="text-xs text-slate-400 shrink-0">${escapeHtml(p.puesto_codigo)}</span>` : ""}
+            ${p.obligatorio ? `<span class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200/70 shrink-0">Obligatorio</span>` : ""}
           </div>
-          <span class="text-xs text-slate-500 tabular-nums">${p.empleados_count} empleado${p.empleados_count !== 1 ? "s" : ""}</span>
+          <div class="flex items-center gap-3 shrink-0">
+            <span class="text-xs text-slate-500 tabular-nums">${p.empleados_count} empleado${p.empleados_count !== 1 ? "s" : ""}</span>
+            ${isRH ? `<button data-action="quitar-puesto" data-curso-puesto-id="${p.id}" class="text-xs text-red-600 hover:underline">Quitar</button>` : ""}
+          </div>
         </div>
         ${isExpanded ? `<ul class="px-5 py-2">${empRows}</ul>` : ""}
       </div>`;
@@ -1149,9 +1161,12 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
     return `
     <div class="${RH_LISTADO_SURFACE} overflow-hidden">
-      <div class="border-b border-slate-100 px-6 py-4">
-        <h3 class="text-sm font-semibold text-text-primary">Puestos asignados</h3>
-        <p class="text-xs text-slate-500 mt-0.5">${puestos.length} puesto${puestos.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total</p>
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-text-primary">Puestos asignados</h3>
+          <p class="text-xs text-slate-500 mt-0.5">${puestos.length === 0 ? "Sin puestos asignados" : `${puestos.length} puesto${puestos.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total`}</p>
+        </div>
+        ${isRH ? `<button data-action="open-asignacion-puestos" class="${BTN_SECONDARY} text-xs">+ Asignar puesto</button>` : ""}
       </div>
       ${puestoBlocks}
     </div>`;
@@ -1281,6 +1296,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       ${renderSelectionBar()}
       ${state.showAssignSesionPicker ? renderAssignSesionPicker() : ""}
       ${state.showAsignacionMasivaModal ? renderAsignacionMasivaModal() : ""}
+      ${state.showAsignacionPuestosModal ? renderAsignacionPuestosModal() : ""}
       </div>
     </div>`;
   }
@@ -1379,6 +1395,55 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
           ${state.asignacionError ? `
             <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               ${escapeHtml(state.asignacionError)}
+            </div>` : ""}
+        </div>`}
+      </div>
+    </div>`;
+  }
+
+  function renderAsignacionPuestosModal(): string {
+    const catalog = state.asignacionPuestosCatalog;
+    const assignedIds = new Set(state.detailPuestos.map((p) => p.puesto_perfil_id));
+    const disponibles = catalog?.filter((p) => !assignedIds.has(p.id)) ?? [];
+    const selectedCount = state.asignacionPuestoIds.size;
+
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="asignacion-puestos">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-text-primary">Asignar puestos al curso</h3>
+          <button data-action="close-asignacion-puestos" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        ${state.asignacionPuestosCatalogLoading ? `<p class="text-xs text-slate-400 text-center py-6">Cargando puestos...</p>` :
+          !catalog ? `<p class="text-xs text-red-500 text-center py-6">Error al cargar puestos.</p>` : `
+        <div class="space-y-4">
+          <p class="text-xs text-slate-500">Selecciona uno o más perfiles de puesto. Todos los empleados activos de cada puesto quedarán vinculados al curso.</p>
+          ${disponibles.length === 0 ? `
+            <p class="text-sm text-slate-500 text-center py-4">Todos los puestos disponibles ya están asignados a este curso.</p>
+          ` : `
+          <div class="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-slate-200 p-3">
+            ${disponibles.map((p) => `
+              <label class="flex items-start gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-slate-50">
+                <input type="checkbox" data-action="toggle-asignacion-puesto" data-puesto-perfil-id="${p.id}" ${state.asignacionPuestoIds.has(p.id) ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                <span class="min-w-0">
+                  <span class="block text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</span>
+                  <span class="block text-xs text-slate-500">${escapeHtml(p.codigo)}${p.area ? ` · ${escapeHtml(p.area)}` : ""}</span>
+                </span>
+              </label>
+            `).join("")}
+          </div>
+          <button type="button" data-action="confirmar-asignacion-puestos" class="${BTN_PRIMARY} w-full text-sm" ${selectedCount === 0 || state.asignacionPuestosLoading ? "disabled" : ""}>
+            ${state.asignacionPuestosLoading ? "Asignando…" : `Asignar ${selectedCount > 0 ? `${selectedCount} puesto${selectedCount !== 1 ? "s" : ""}` : "puestos"}`}
+          </button>`}
+          ${state.asignacionPuestosResult ? `
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              ${state.asignacionPuestosResult.asignados} puesto${state.asignacionPuestosResult.asignados !== 1 ? "s" : ""} asignado${state.asignacionPuestosResult.asignados !== 1 ? "s" : ""} correctamente.
+            </div>` : ""}
+          ${state.asignacionPuestosError ? `
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              ${escapeHtml(state.asignacionPuestosError)}
             </div>` : ""}
         </div>`}
       </div>
@@ -2119,7 +2184,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
 
     const togglePuestoExpandBtn = t.closest("[data-action='toggle-puesto-expand']") as HTMLElement | null;
-    if (togglePuestoExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("a")) {
+    if (togglePuestoExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("[data-action='quitar-puesto']") && !t.closest("a")) {
       const puestoId = Number(togglePuestoExpandBtn.dataset.puestoId);
       if (state.expandedPuestos.has(puestoId)) {
         state.expandedPuestos.delete(puestoId);
@@ -2192,6 +2257,90 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       try {
         await quitarAreaCurso(state.detailCurso!.id, areaId);
         state.detailAreas = state.detailAreas.filter((a) => a.id !== areaId);
+        render();
+      } catch { /* silently handle */ }
+      return;
+    }
+
+    if (t.closest("[data-action='open-asignacion-puestos']")) {
+      state.showAsignacionPuestosModal = true;
+      state.asignacionPuestosResult = null;
+      state.asignacionPuestosError = null;
+      state.asignacionPuestoIds = new Set();
+      state.asignacionPuestosCatalogLoading = true;
+      render();
+      try {
+        state.asignacionPuestosCatalog = await getPerfilesList({ page_size: 100 });
+      } catch {
+        state.asignacionPuestosCatalog = null;
+      }
+      state.asignacionPuestosCatalogLoading = false;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='close-asignacion-puestos']") || (t as HTMLElement).dataset.backdrop === "asignacion-puestos") {
+      state.showAsignacionPuestosModal = false;
+      render();
+      return;
+    }
+
+    if (t.matches("[data-action='toggle-asignacion-puesto']")) {
+      const puestoPerfilId = Number((t as HTMLInputElement).dataset.puestoPerfilId);
+      if (!puestoPerfilId) return;
+      if ((t as HTMLInputElement).checked) {
+        state.asignacionPuestoIds.add(puestoPerfilId);
+      } else {
+        state.asignacionPuestoIds.delete(puestoPerfilId);
+      }
+      state.asignacionPuestosResult = null;
+      state.asignacionPuestosError = null;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='confirmar-asignacion-puestos']")) {
+      const puestoIds = [...state.asignacionPuestoIds];
+      if (puestoIds.length === 0 || !state.detailCurso) return;
+      state.asignacionPuestosLoading = true;
+      state.asignacionPuestosResult = null;
+      state.asignacionPuestosError = null;
+      render();
+      let asignados = 0;
+      let lastError: string | null = null;
+      try {
+        for (const puestoPerfilId of puestoIds) {
+          try {
+            await agregarPuestoCurso(state.detailCurso.id, puestoPerfilId);
+            asignados++;
+          } catch (err: unknown) {
+            const detail = (err as { detail?: string })?.detail;
+            lastError = typeof detail === "string" ? detail : "No se pudo asignar uno o más puestos.";
+          }
+        }
+        if (asignados > 0) {
+          state.asignacionPuestosResult = { asignados, ya_asignados: puestoIds.length - asignados };
+          state.detailPuestos = await getCursoPuestos(state.detailCurso.id);
+          state.asignacionPuestoIds = new Set();
+        } else {
+          state.asignacionPuestosError = lastError ?? "No se pudo asignar ningún puesto.";
+        }
+      } catch (err: unknown) {
+        const detail = (err as { detail?: string })?.detail;
+        state.asignacionPuestosError = typeof detail === "string" ? detail : "Error al asignar puestos.";
+      }
+      state.asignacionPuestosLoading = false;
+      render();
+      return;
+    }
+
+    const quitarPuestoBtn = t.closest("[data-action='quitar-puesto']") as HTMLElement | null;
+    if (quitarPuestoBtn) {
+      const cursoPuestoId = Number(quitarPuestoBtn.dataset.cursoPuestoId);
+      if (!cursoPuestoId) return;
+      try {
+        await quitarPuestoCurso(state.detailCurso!.id, cursoPuestoId);
+        state.detailPuestos = state.detailPuestos.filter((p) => p.id !== cursoPuestoId);
         render();
       } catch { /* silently handle */ }
       return;

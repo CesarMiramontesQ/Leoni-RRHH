@@ -104,6 +104,13 @@ class CursoPuestoEmpleado(BaseModel):
     nombre: str | None = None
     no_empleado: str | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
 
 class CursoPuestoDetail(BaseModel):
     id: int
@@ -127,17 +134,53 @@ class CursoEmpleadoDetail(BaseModel):
     asistio: bool | None = None
 
 
+async def _build_curso_puesto_detail(db: AsyncSession, cp: CursoPuesto) -> CursoPuestoDetail:
+    asig_result = await db.execute(
+        select(PerfilFunciones)
+        .options(selectinload(PerfilFunciones.empleado))
+        .where(
+            PerfilFunciones.puesto_perfil_id == cp.puesto_perfil_id,
+            PerfilFunciones.activo.is_(True),
+        )
+    )
+    asignaciones = asig_result.scalars().all()
+    empleados_list = [
+        CursoPuestoEmpleado(
+            empleado_id=a.empleado_id,
+            nombre=a.empleado.nombre if a.empleado else None,
+            no_empleado=a.empleado.no_empleado if a.empleado else None,
+        )
+        for a in asignaciones
+    ]
+    return CursoPuestoDetail(
+        id=cp.id,
+        puesto_perfil_id=cp.puesto_perfil_id,
+        puesto_nombre=cp.puesto_perfil.nombre if cp.puesto_perfil else None,
+        puesto_codigo=cp.puesto_perfil.codigo if cp.puesto_perfil else None,
+        obligatorio=cp.obligatorio,
+        sesion_id=cp.sesion_id,
+        sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
+        empleados_count=len(empleados_list),
+        empleados=empleados_list,
+    )
+
+
+class CursoPuestoAssignBody(BaseModel):
+    puesto_perfil_id: int
+    obligatorio: bool | None = None
+
+
 @router.get("/{id}/puestos", response_model=list[CursoPuestoDetail])
 async def listar_puestos_del_curso(
     id: int,
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista los puestos asignados a este curso, con conteo de empleados por puesto."""
+    """Lista los perfiles de puesto asignados al curso (sin sesión), con empleados activos."""
     stmt = (
         select(CursoPuesto)
         .options(selectinload(CursoPuesto.puesto_perfil), selectinload(CursoPuesto.sesion))
-        .where(CursoPuesto.curso_id == id)
+        .where(CursoPuesto.curso_id == id, CursoPuesto.sesion_id.is_(None))
         .order_by(CursoPuesto.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -145,36 +188,65 @@ async def listar_puestos_del_curso(
 
     response = []
     for cp in items:
-        asig_result = await db.execute(
-            select(PerfilFunciones)
-            .options(selectinload(PerfilFunciones.empleado))
-            .where(
-                PerfilFunciones.puesto_perfil_id == cp.puesto_perfil_id,
-                PerfilFunciones.activo.is_(True),
-            )
-        )
-        asignaciones = asig_result.scalars().all()
-        empleados_list = [
-            CursoPuestoEmpleado(
-                empleado_id=a.empleado_id,
-                nombre=a.empleado.nombre if a.empleado else None,
-                no_empleado=a.empleado.no_empleado if a.empleado else None,
-            )
-            for a in asignaciones
-        ]
-
-        response.append(CursoPuestoDetail(
-            id=cp.id,
-            puesto_perfil_id=cp.puesto_perfil_id,
-            puesto_nombre=cp.puesto_perfil.nombre if cp.puesto_perfil else None,
-            puesto_codigo=cp.puesto_perfil.codigo if cp.puesto_perfil else None,
-            obligatorio=cp.obligatorio,
-            sesion_id=cp.sesion_id,
-            sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
-            empleados_count=len(empleados_list),
-            empleados=empleados_list,
-        ))
+        response.append(await _build_curso_puesto_detail(db, cp))
     return response
+
+
+@router.post("/{id}/puestos", response_model=CursoPuestoDetail, status_code=status.HTTP_201_CREATED)
+async def asignar_puesto_al_curso(
+    id: int,
+    body: CursoPuestoAssignBody,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna un perfil de puesto al curso. Los empleados activos del puesto quedan vinculados."""
+    from app.core.exceptions import ConflictError, NotFoundError
+    from app.models.level_up import Curso as CursoModel
+
+    curso = await db.get(CursoModel, id)
+    if not curso:
+        raise NotFoundError(entidad="Curso", id=id)
+
+    puesto_perfil = await db.get(PuestoPerfil, body.puesto_perfil_id)
+    if not puesto_perfil:
+        raise NotFoundError(entidad="Puesto perfil", id=body.puesto_perfil_id)
+
+    existing = await db.execute(
+        select(CursoPuesto).where(
+            CursoPuesto.curso_id == id,
+            CursoPuesto.puesto_perfil_id == body.puesto_perfil_id,
+            CursoPuesto.sesion_id.is_(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise ConflictError(detail="Este puesto ya está asignado al curso")
+
+    cp = CursoPuesto(
+        curso_id=id,
+        puesto_perfil_id=body.puesto_perfil_id,
+        obligatorio=body.obligatorio if body.obligatorio is not None else curso.obligatorio,
+        sesion_id=None,
+    )
+    db.add(cp)
+    await db.flush()
+    await db.refresh(cp, attribute_names=["puesto_perfil", "sesion"])
+    return await _build_curso_puesto_detail(db, cp)
+
+
+@router.delete("/{id}/puestos/{curso_puesto_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_puesto_del_curso(
+    id: int,
+    curso_puesto_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.exceptions import NotFoundError
+
+    cp = await db.get(CursoPuesto, curso_puesto_id)
+    if not cp or cp.curso_id != id or cp.sesion_id is not None:
+        raise NotFoundError(entidad="Puesto asignado al curso", id=curso_puesto_id)
+    await db.delete(cp)
+    await db.flush()
 
 
 @router.get("/{id}/empleados-extra", response_model=list[CursoEmpleadoDetail])
