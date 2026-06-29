@@ -21,18 +21,22 @@ import type {
 import { clearAuth } from "../auth/session.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
-  BTN_PRIMARY,
-  BTN_SECONDARY,
   BTN_DANGER,
+  FIELD_INPUT,
   FIELD_FOCUS,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
+  pageHeading,
   SELECT_CHEVRON,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
 } from "../ui/uiTokens.ts";
 
 // ── Iconos ──────────────────────────────────────────────────────────────
@@ -480,14 +484,14 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
   <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Tabla de perfiles de puesto">
     <div class="puestos-table-scroll overflow-x-auto overflow-y-auto">
       <table class="puestos-table min-w-[700px] w-full border-collapse text-left">
-        <thead>
+        <thead class="${RH_TABLE_HEAD}">
           <tr>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Código</th>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre</th>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Área</th>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nivel</th>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Versión</th>
-            <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
+            <th scope="col" class="px-4 py-3.5 text-left">Código</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Nombre</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Área</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Nivel</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Versión</th>
+            <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100/90">${rows}</tbody>
@@ -511,8 +515,8 @@ function renderModal(
   const submitLabel = saving ? "Guardando…" : mode === "create" ? "Crear perfil" : "Guardar cambios";
 
   return `
-  <div data-action="modal-backdrop" class="puestos-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
-    <div class="puestos-modal-panel w-full max-w-lg rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="puestos-modal-title">
+  <div data-action="modal-backdrop" class="puestos-modal-backdrop ${MODAL_OVERLAY}">
+    <div class="puestos-modal-panel ${MODAL_PANEL} max-w-lg" role="dialog" aria-modal="true" aria-labelledby="puestos-modal-title">
       <div class="border-b border-slate-100 px-6 py-5">
         <h2 id="puestos-modal-title" class="text-lg font-semibold text-text-primary">${title}</h2>
         <p class="mt-1 text-sm text-text-muted">${subtitle}</p>
@@ -526,7 +530,7 @@ function renderModal(
         <div>
           <label for="puestos-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
           <input id="puestos-modal-nombre" name="nombre_puesto" type="text" required placeholder="Operador de Producción N1" value="${escapeHtml(values.nombre_puesto)}"
-            class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
+            class="${FIELD_INPUT}" />
         </div>
         <div>
           <label for="puestos-modal-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
@@ -549,8 +553,8 @@ function renderModal(
           </div>
         </div>
         <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-          <button type="button" data-action="modal-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-          <button type="submit" class="${BTN_PRIMARY} w-full sm:w-auto" ${saving ? "disabled" : ""}>${submitLabel}</button>
+          <button type="button" data-action="modal-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+          <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto" ${saving ? "disabled" : ""}>${submitLabel}</button>
         </div>
       </form>
     </div>
@@ -559,8 +563,8 @@ function renderModal(
 
 function renderDeleteConfirm(nombre: string, saving: boolean): string {
   return `
-  <div data-action="modal-backdrop" class="puestos-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
-    <div class="puestos-modal-panel w-full max-w-sm rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-modal="true" aria-labelledby="puestos-delete-title">
+  <div data-action="modal-backdrop" class="puestos-modal-backdrop ${MODAL_OVERLAY}">
+    <div class="puestos-modal-panel ${MODAL_PANEL} max-w-sm" role="alertdialog" aria-modal="true" aria-labelledby="puestos-delete-title">
       <div class="border-b border-slate-100 px-6 py-5">
         <h2 id="puestos-delete-title" class="text-lg font-semibold text-text-primary">Eliminar perfil</h2>
       </div>
@@ -570,7 +574,7 @@ function renderDeleteConfirm(nombre: string, saving: boolean): string {
         </p>
       </div>
       <div class="flex flex-col-reverse gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end">
-        <button type="button" data-action="modal-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+        <button type="button" data-action="modal-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
         <button type="button" data-action="confirm-delete" class="${BTN_DANGER} w-full sm:w-auto" ${saving ? "disabled" : ""}>
           ${saving ? "Eliminando…" : "Eliminar"}
         </button>
@@ -598,36 +602,21 @@ function renderError(message: string): string {
       <div class="max-w-md">
         <p class="text-base font-semibold text-text-primary">Error al cargar perfiles</p>
         <p class="mt-2 text-sm text-text-secondary">${escapeHtml(message)}</p>
-        <button data-action="retry" type="button" class="${BTN_SECONDARY} mt-4">Reintentar</button>
+        <button data-action="retry" type="button" class="${RH_LISTADO_BTN_SECONDARY} mt-4">Reintentar</button>
       </div>
     </div>
   </div>`;
 }
 
 function renderPageHeader(): string {
-  return `
-  <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-    <div class="min-w-0">
-      <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
-        <ol class="flex flex-wrap items-center gap-1">
-          <li><a href="#/" class="font-medium transition hover:text-leoni-blue">Inicio</a></li>
-          <li class="text-slate-300" aria-hidden="true">/</li>
-          <li class="font-semibold text-text-primary" aria-current="page">Perfiles de Puesto</li>
-        </ol>
-      </nav>
-      <h1 class="mt-2 text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Perfiles de Puesto</h1>
-      <p class="mt-1 max-w-2xl text-sm leading-relaxed text-text-secondary">
-        Vista ejecutiva del catálogo de posiciones: cumplimiento, brechas y colaboradores vinculados por perfil.
-      </p>
-    </div>
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:shrink-0">
-      <a href="#/puestos/ajustes" class="${BTN_SECONDARY} w-full sm:w-auto text-center">Ajustes</a>
-      <button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} puestos-btn-nuevo w-full sm:w-auto">
-      ${ICON_PLUS}
-      Nuevo perfil
-    </button>
-    </div>
-  </header>`;
+  const actions = `
+    <a href="#/puestos/ajustes" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto text-center">Ajustes</a>
+    <button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} puestos-btn-nuevo w-full sm:w-auto">${ICON_PLUS} Nuevo perfil</button>`;
+  return pageHeading(
+    "Perfiles de Puesto",
+    "Vista ejecutiva del catálogo de posiciones: cumplimiento, brechas y colaboradores vinculados por perfil.",
+    actions,
+  );
 }
 
 // ── Page mount ───────────────────────────────────────────────────────────

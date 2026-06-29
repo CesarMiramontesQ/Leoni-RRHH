@@ -8,11 +8,12 @@ import {
 } from "../../dashboard/cursos/seguimientoTypes.ts";
 import { ESTADO_SESION_LABELS } from "../../dashboard/cursos/types.ts";
 import type { EstadoSesion } from "../../dashboard/cursos/types.ts";
-import { RH_LISTADO_BTN_GHOST, RH_LISTADO_BTN_SECONDARY } from "../../ui/uiTokens.ts";
+import {
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_BTN_SECONDARY,
+  RH_TABLE_HEAD,
+} from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-
-const TABLE_HEAD =
-  "border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
 const ESTADOS_FILTRO: EstadoCursoEmpleado[] = [
   "pendiente",
@@ -74,7 +75,7 @@ export function renderEmpleadoHistorialContent(
       <h3 class="text-sm font-semibold text-text-primary">Cursos</h3>
       <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200/90">
         <table class="cs-seguimiento-table min-w-full text-sm">
-          <thead class="${TABLE_HEAD}">
+          <thead class="${RH_TABLE_HEAD}">
             <tr><th class="px-4 py-3 text-left">Curso</th><th class="px-4 py-3 text-left">Estado</th><th class="px-4 py-3 text-left">Finalización</th></tr>
           </thead>
           <tbody class="divide-y divide-slate-100">${cursosRows || `<tr><td colspan="3" class="px-4 py-8 text-center text-sm text-text-secondary">Sin cursos pendientes o en curso</td></tr>`}</tbody>
@@ -85,7 +86,7 @@ export function renderEmpleadoHistorialContent(
       <h3 class="text-sm font-semibold text-text-primary">Sesiones</h3>
       <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200/90">
         <table class="cs-seguimiento-table min-w-full text-sm">
-          <thead class="${TABLE_HEAD}">
+          <thead class="${RH_TABLE_HEAD}">
             <tr><th class="px-4 py-3 text-left">Curso</th><th class="px-4 py-3 text-left">Fecha</th><th class="px-4 py-3 text-left">Estado</th><th class="px-4 py-3 text-left">Asistió</th></tr>
           </thead>
           <tbody class="divide-y divide-slate-100">${sesRows || `<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-text-secondary">Sin sesiones pendientes o en curso</td></tr>`}</tbody>

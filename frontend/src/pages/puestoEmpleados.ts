@@ -8,6 +8,8 @@ import {
   badgeChangesRequested,
   badgePending,
   FIELD_FOCUS,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_FOCUS_RING,
@@ -15,6 +17,7 @@ import {
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { deletePerfilAsignacion, getAsignacionGap, getAsignacionTareasExtra } from "../api/puestos.ts";
@@ -608,12 +611,12 @@ function renderTableSection(
   <section class="${RH_LISTADO_SURFACE} ppe-table-section overflow-hidden p-0 flex flex-col" aria-label="Colaboradores asignados">
     <div class="ppe-table-scroll overflow-x-auto">
       <table class="ppe-table min-w-[720px] w-full border-collapse text-left">
-        <thead>
+        <thead class="${RH_TABLE_HEAD}">
           <tr>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Colaborador</th>
-            <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted sm:table-cell">Grado</th>
-            <th scope="col" class="hidden px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted md:table-cell">Estado</th>
-            <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
+            <th scope="col" class="px-4 py-3.5 text-left">Colaborador</th>
+            <th scope="col" class="hidden px-4 py-3.5 text-left sm:table-cell">Grado</th>
+            <th scope="col" class="hidden px-4 py-3.5 text-left md:table-cell">Estado</th>
+            <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100/90">${renderTableRows(pg.items, showRhActions)}</tbody>
@@ -891,8 +894,8 @@ async function openDetalleModal(
   nombreEmpleado: string,
 ): Promise<void> {
   host.innerHTML = `
-    <div id="detalle-overlay" class="ppe-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppe-modal-panel w-full max-w-2xl rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)] max-h-[90vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="detalle-title">
+    <div id="detalle-overlay" class="ppe-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppe-modal-panel ${MODAL_PANEL} max-w-2xl max-h-[90vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="detalle-title">
         <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 shrink-0">
           <div>
             <h2 id="detalle-title" class="text-lg font-semibold text-text-primary">Detalle del empleado</h2>

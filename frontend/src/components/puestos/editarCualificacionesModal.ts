@@ -18,7 +18,7 @@ import {
   renderCriterioFieldsHtml,
 } from "./cualificacionCriterioFields.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { FIELD_FOCUS, MODAL_OVERLAY, MODAL_PANEL, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_SELECT, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 
 export type EditarCualificacionesModalHandle = { open: () => void; close: () => void };
 export type EditarCualificacionesModalOptions = { perfilId: number; onSuccess: () => void };
@@ -34,8 +34,8 @@ export function mountEditarCualificacionesModal(
   let error = "";
 
   function overlayHtml(): string {
-    return `<div id="editar-cualificaciones-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
-      <div class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl">
+    return `<div id="editar-cualificaciones-overlay" class="${MODAL_OVERLAY} hidden">
+      <div class="${MODAL_PANEL} max-w-lg p-6">
         <div class="mb-4 flex items-start justify-between">
           <h2 class="text-lg font-semibold text-text-primary">Editar cualificaciones</h2>
           <button type="button" data-close-cualificaciones-modal class="rounded-lg p-1 text-text-muted hover:bg-surface">✕</button>
@@ -130,13 +130,16 @@ export function mountEditarCualificacionesModal(
         ${hint}
         <div>
           <label class="text-xs font-medium text-text-muted">Cualificación</label>
-          <select id="cual-tipo-select" class="mt-1 w-full ${RH_LISTADO_SELECT} ${SELECT_CHEVRON} ${FIELD_FOCUS}" ${canAdd ? "" : "disabled"}>
-            <option value="">${disponibles.length ? "Seleccionar…" : "Sin opciones disponibles"}</option>${options}
-          </select>
+          <div class="relative mt-1 grid grid-cols-1">
+            <select id="cual-tipo-select" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}" ${canAdd ? "" : "disabled"}>
+              <option value="">${disponibles.length ? "Seleccionar…" : "Sin opciones disponibles"}</option>${options}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
         <div id="criterio-fields-wrap">${criterioHtml}</div>
         ${error ? `<p class="text-sm text-red-700">${escapeHtml(error)}</p>` : ""}
-        <button type="submit" class="${BTN_PRIMARY} w-full" ${loading || !canAdd ? "disabled" : ""}>${loading ? "Guardando…" : "Agregar"}</button>
+        <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} w-full" ${loading || !canAdd ? "disabled" : ""}>${loading ? "Guardando…" : "Agregar"}</button>
       </form>`;
   }
 

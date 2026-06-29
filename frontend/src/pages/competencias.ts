@@ -23,19 +23,24 @@ import {
   type MatrizRequisitosModel,
 } from "../components/competencias/matrizRequisitosTab.ts";
 import {
-  BTN_PRIMARY,
-  BTN_SECONDARY,
   BTN_DANGER,
   FIELD_FOCUS,
+  FIELD_INPUT,
+  FIELD_TEXTAREA,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
+  pageHeading,
   SELECT_CHEVRON,
   badgeOpen,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
 } from "../ui/uiTokens.ts";
 import { getTiposCompetencia } from "../api/tiposCompetencia.ts";
 import type { TipoCompetencia } from "../dashboard/tiposCompetencia/types.ts";
@@ -367,13 +372,13 @@ function renderCatalogoTab(
       <div class="${RH_LISTADO_SURFACE} comp-catalogo-table-wrap overflow-hidden p-0">
         <div class="comp-catalogo-scroll overflow-x-auto overflow-y-auto">
           <table class="comp-catalogo-table min-w-full w-full border-collapse text-left">
-            <thead>
+            <thead class="${RH_TABLE_HEAD}">
               <tr>
-                <th scope="col" class="comp-col-nombre px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre</th>
-                <th scope="col" class="comp-col-desc px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Descripción</th>
-                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Grupo</th>
-                <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Tipo</th>
-                <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
+                <th scope="col" class="comp-col-nombre px-4 py-3.5 text-left">Nombre</th>
+                <th scope="col" class="comp-col-desc px-4 py-3.5 text-left">Descripción</th>
+                <th scope="col" class="px-4 py-3.5 text-left">Grupo</th>
+                <th scope="col" class="px-4 py-3.5 text-left">Tipo</th>
+                <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100/90">${tableBody}</tbody>
@@ -411,7 +416,7 @@ function renderError(message: string | null): string {
         <div class="flex max-w-md flex-col items-center gap-4">
           <p class="text-base font-semibold text-text-primary">Error al cargar datos</p>
           <p class="text-sm leading-relaxed text-text-secondary">${escapeHtml(message || "Error inesperado")}</p>
-          <button type="button" data-action="retry" class="${BTN_SECONDARY}">Reintentar</button>
+          <button type="button" data-action="retry" class="${RH_LISTADO_BTN_SECONDARY}">Reintentar</button>
         </div>
       </div>
     </div>`;
@@ -419,21 +424,10 @@ function renderError(message: string | null): string {
 
 function renderPageHeader(): string {
   return `
-    <header class="comp-page-header flex flex-col gap-2">
-      <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
-        <ol class="flex flex-wrap items-center gap-1">
-          <li><a href="#/" class="font-medium transition hover:text-leoni-blue">Inicio</a></li>
-          <li class="text-slate-300" aria-hidden="true">/</li>
-          <li class="font-semibold text-text-primary" aria-current="page">Competencias</li>
-        </ol>
-      </nav>
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Matriz de Competencias</h1>
-        <p class="mt-1 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Administra el catálogo corporativo y los niveles mínimos exigidos por perfil de puesto.
-        </p>
-      </div>
-    </header>`;
+    ${pageHeading(
+      "Matriz de Competencias",
+      "Administra el catálogo corporativo y los niveles mínimos exigidos por perfil de puesto.",
+    )}`;
 }
 
 // ── Modales ─────────────────────────────────────────────────────────────
@@ -459,9 +453,9 @@ function renderCompetenciaModal(comp: Competencia | null, tipos: TipoCompetencia
       : `<option value="" disabled selected>No hay tipos registrados</option>`;
 
   return `
-    <div id="comp-modal-backdrop" data-action="close-modal" class="comp-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+    <div id="comp-modal-backdrop" data-action="close-modal" class="comp-modal-backdrop ${MODAL_OVERLAY}">
       <div
-        class="comp-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]"
+        class="comp-modal-panel ${MODAL_PANEL} max-w-md"
         data-modal-inner
         role="dialog"
         aria-modal="true"
@@ -477,12 +471,12 @@ function renderCompetenciaModal(comp: Competencia | null, tipos: TipoCompetencia
           <div>
             <label for="comp-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
             <input id="comp-modal-nombre" type="text" name="nombre" value="${escapeHtml(nombre)}" required
-              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
+              class="${FIELD_INPUT}" />
           </div>
           <div>
             <label for="comp-modal-descripcion" class="${RH_LISTADO_LABEL}">Descripción <span class="text-red-600" aria-hidden="true">*</span></label>
             <textarea id="comp-modal-descripcion" name="descripcion" rows="3" required
-              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">${escapeHtml(descripcion)}</textarea>
+              class="${FIELD_TEXTAREA}">${escapeHtml(descripcion)}</textarea>
           </div>
           <div>
             <label for="comp-modal-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
@@ -496,8 +490,8 @@ function renderCompetenciaModal(comp: Competencia | null, tipos: TipoCompetencia
             <p class="mt-1.5 text-xs text-text-muted">El tipo determina el grupo (técnica o habilidad blanda). Administra tipos en Ajustes → Perfil de puesto.</p>
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            <button type="button" data-action="close-modal" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-            <button type="submit" class="${BTN_PRIMARY} w-full sm:w-auto">${isEdit ? "Guardar cambios" : "Crear competencia"}</button>
+            <button type="button" data-action="close-modal" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto">${isEdit ? "Guardar cambios" : "Crear competencia"}</button>
           </div>
         </form>
       </div>
@@ -518,8 +512,8 @@ function renderDeleteConfirmModal(
          </ul>`;
 
   return `
-    <div class="comp-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
-      <div class="comp-modal-panel w-full max-w-sm rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-labelledby="comp-delete-title" aria-modal="true">
+    <div class="comp-modal-backdrop ${MODAL_OVERLAY}">
+      <div class="comp-modal-panel ${MODAL_PANEL} max-w-sm" role="alertdialog" aria-labelledby="comp-delete-title" aria-modal="true">
         <div class="border-b border-slate-100 px-6 py-5">
           <h3 id="comp-delete-title" class="text-lg font-semibold text-text-primary">Eliminar competencia</h3>
         </div>
@@ -528,7 +522,7 @@ function renderDeleteConfirmModal(
           <div class="mt-4">${puestosHtml}</div>
         </div>
         <div class="flex flex-col-reverse gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end">
-          <button type="button" data-action="cancel-delete-competencia" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+          <button type="button" data-action="cancel-delete-competencia" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
           <button type="button" data-action="confirm-delete-competencia" data-id="${id}" class="${BTN_DANGER} w-full sm:w-auto">Eliminar</button>
         </div>
       </div>

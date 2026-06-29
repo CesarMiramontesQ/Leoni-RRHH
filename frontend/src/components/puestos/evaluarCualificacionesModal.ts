@@ -15,7 +15,7 @@ import {
   renderCriterioFieldsHtml,
 } from "./cualificacionCriterioFields.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, badgeApproved, badgeRejected, badgeOpen } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, RH_LISTADO_BTN_PRIMARY, badgeApproved, badgeRejected, badgeOpen } from "../../ui/uiTokens.ts";
 
 export type EvaluarCualificacionesModalHandle = { open: () => void; close: () => void };
 export type EvaluarCualificacionesModalOptions = {
@@ -40,8 +40,8 @@ export function mountEvaluarCualificacionesModal(
   let error = "";
 
   function overlayHtml(): string {
-    return `<div id="evaluar-cualificaciones-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
-      <div class="w-full max-w-2xl rounded-xl border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+    return `<div id="evaluar-cualificaciones-overlay" class="${MODAL_OVERLAY} hidden">
+      <div class="${MODAL_PANEL} max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
         <div class="mb-4 flex items-start justify-between">
           <div>
             <h2 class="text-lg font-semibold">Evaluar cualificaciones</h2>
@@ -86,7 +86,7 @@ export function mountEvaluarCualificacionesModal(
       <form id="eval-cual-form">
         ${gaps.map(renderGapRow).join("")}
         ${error ? `<p class="text-sm text-red-700 mt-2">${escapeHtml(error)}</p>` : ""}
-        <button type="submit" class="${BTN_PRIMARY} mt-4 w-full" ${loading ? "disabled" : ""}>${loading ? "Guardando…" : "Guardar evaluación"}</button>
+        <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} mt-4 w-full" ${loading ? "disabled" : ""}>${loading ? "Guardando…" : "Guardar evaluación"}</button>
       </form>`;
   }
 

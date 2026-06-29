@@ -1,9 +1,12 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
+  alertError,
+  alertSuccess,
   BTN_GHOST,
   BTN_PRIMARY,
   BTN_SECONDARY,
+  FIELD_FOCUS,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
 } from "../ui/uiTokens.ts";
@@ -130,14 +133,14 @@ export function mountMisEncuestas(container: HTMLElement, signal?: AbortSignal):
         </p>
       </div>
       <div class="px-5 py-4 sm:px-6">
-        ${state.formError ? `<div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">${escapeHtml(state.formError)}</div>` : ""}
+        ${state.formError ? `<div class="mb-4">${alertError(state.formError)}</div>` : ""}
         <div class="flex flex-col">
           ${DIMENSIONES.map((d) => starRow(d.dim, d.label, d.hint, state.form[d.dim])).join("")}
         </div>
         <div class="mt-4">
           <label for="encuesta-comentario" class="mb-1 block text-sm font-semibold text-text-primary">Comentario (opcional)</label>
           <textarea id="encuesta-comentario" data-action="comentario" rows="3"
-            class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm placeholder:text-slate-400 outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:-outline-offset-2 focus:outline-leoni-blue"
+            class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}"
             placeholder="Comparte qué te pareció el curso…">${escapeHtml(state.form.comentario)}</textarea>
         </div>
       </div>
@@ -202,7 +205,7 @@ export function mountMisEncuestas(container: HTMLElement, signal?: AbortSignal):
         <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Mis encuestas pendientes</h1>
         <p class="text-sm text-text-muted">Califica los cursos que tomaste para ayudarnos a mejorar la capacitación.</p>
       </header>
-      ${state.successMessage ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800" role="status">${escapeHtml(state.successMessage)}</div>` : ""}
+      ${state.successMessage ? alertSuccess(state.successMessage) : ""}
       ${renderContent()}
     </div>`;
   }

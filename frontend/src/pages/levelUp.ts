@@ -13,6 +13,7 @@ import {
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  pageHeading,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso, getCursoCatalogosPuestos, buscarEmpleadosExtraCurso, agregarEmpleadoExtraCurso, quitarEmpleadoExtraCurso } from "../api/cursos.ts";
@@ -3952,14 +3953,10 @@ function renderEncComentarios(comentarios: ComentarioItem[]): string {
 }
 
 function renderEncuestasHeader(): string {
-  return `
-    <div class="flex items-start justify-between">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Encuestas Post Curso</p>
-        <h1 class="mt-1 text-lg font-semibold text-text-primary">Resultados post curso</h1>
-        <p class="mt-1 text-sm text-text-muted max-w-3xl">Score consolidado por curso, instructor y proveedor; insumo para la mejora continua de la oferta formativa de la planta.</p>
-      </div>
-    </div>`;
+  return pageHeading(
+    "Encuestas post curso",
+    "Score consolidado por curso, instructor y proveedor; insumo para la mejora continua de la oferta formativa de la planta.",
+  );
 }
 
 function renderEncuestasPage(data: EncuestasDashboard | null, loading: boolean, error: string | null): string {
@@ -3986,7 +3983,7 @@ function renderEncuestasPage(data: EncuestasDashboard | null, loading: boolean, 
       </div>`;
   }
   return `
-  <div class="flex flex-col gap-5">
+  <div class="${RH_LISTADO_PAGE_OUTER}">
     ${renderEncuestasHeader()}
     ${body}
   </div>`;
@@ -4001,6 +3998,7 @@ export function mountEncuestas(container: HTMLElement): void {
     mountAppShell(container, {
       pageTitle: "Encuestas Post Curso",
       activeNav: "encuestas",
+      mainClass: "py-5 sm:py-6",
       mainHtml: renderEncuestasPage(data, loading, error),
     });
   };

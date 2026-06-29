@@ -3,7 +3,7 @@ import { getGradosPuesto } from "../../api/gradosPuesto.ts";
 import { createPerfilAsignacion } from "../../api/puestos.ts";
 import type { GradoPuesto } from "../../dashboard/gradosPuesto/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, RH_LISTADO_LABEL, RH_LISTADO_SELECT, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, FIELD_FOCUS, RH_LISTADO_LABEL, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
 export type AsignarEmpleadoModalHandle = {
   open: () => void;
@@ -26,11 +26,11 @@ function overlayHtml(): string {
   return `
     <div
       id="asignar-empleado-overlay"
-      class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-xl"
+        class="${MODAL_PANEL} max-w-md p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="asignar-empleado-title"
@@ -53,15 +53,15 @@ function overlayHtml(): string {
             <div>
               <label for="asignar-search" class="mb-1 block text-xs font-medium text-slate-600">Buscar empleado</label>
               <input id="asignar-search" type="text" autocomplete="off"
-                class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+                class="${FIELD_INPUT}"
                 placeholder="Nombre o numero de empleado..." />
             </div>
             <div id="asignar-resultados" class="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
             <div id="asignar-seleccion" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 px-3 py-2.5"></div>
             <div>
               <label for="asignar-grado" class="${RH_LISTADO_LABEL}">Grado de progresión <span class="text-red-600">*</span></label>
-              <div class="grid grid-cols-1">
-                <select id="asignar-grado" name="grado_id" required class="col-start-1 row-start-1 ${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+              <div class="relative grid grid-cols-1">
+                <select id="asignar-grado" name="grado_id" required class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
                   <option value="">Cargando grados…</option>
                 </select>
                 ${SELECT_CHEVRON}
@@ -70,8 +70,8 @@ function overlayHtml(): string {
             </div>
             <p id="asignar-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
             <div class="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
-              <button type="button" data-close-asignar-modal class="${BTN_GHOST} text-sm">Cancelar</button>
-              <button type="submit" id="asignar-submit" disabled class="${BTN_PRIMARY} text-sm opacity-50 cursor-not-allowed">Asignar</button>
+              <button type="button" data-close-asignar-modal class="${RH_LISTADO_BTN_GHOST} text-sm">Cancelar</button>
+              <button type="submit" id="asignar-submit" disabled class="${RH_LISTADO_BTN_PRIMARY} text-sm opacity-50 cursor-not-allowed">Asignar</button>
             </div>
           </form>
         </div>

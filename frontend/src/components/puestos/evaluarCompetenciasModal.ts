@@ -15,7 +15,7 @@ import {
   ensureMetodosCalificacionCompetenciaLoaded,
 } from "../../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
 export type EvaluarCompetenciasModalHandle = {
   open: () => void;
@@ -109,9 +109,9 @@ export function mountEvaluarCompetenciasModal(
         return `
           <div class="flex items-center gap-3 py-2">
             <span class="flex-1 text-sm text-text-primary">${escapeHtml(item.competencia_nombre)}</span>
-            <div class="grid grid-cols-1 w-40 shrink-0">
+            <div class="relative grid grid-cols-1 w-40 shrink-0">
               <select data-nivel-req="${reqId}"
-                class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-2.5 py-1.5 pr-7 text-xs text-text-primary ${FIELD_FOCUS}">
+                class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
                 ${opts}
               </select>
               ${SELECT_CHEVRON}
@@ -138,8 +138,8 @@ export function mountEvaluarCompetenciasModal(
     body.innerHTML = hasItems ? `
       <div class="space-y-1">${sections}</div>
       <div class="mt-5 flex justify-end gap-2">
-        <button type="button" data-cancel class="${BTN_GHOST} text-sm">Cancelar</button>
-        <button type="button" data-save class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar evaluación</button>
+        <button type="button" data-cancel class="${RH_LISTADO_BTN_GHOST} text-sm">Cancelar</button>
+        <button type="button" data-save class="${RH_LISTADO_BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar evaluación</button>
       </div>
     ` : `<p class="text-sm text-slate-500 italic">Sin competencias requeridas para este perfil.</p>`;
   }
@@ -219,11 +219,11 @@ function overlayHtml(nombre: string, gradoNombre?: string): string {
   return `
     <div
       id="evaluar-comp-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-2xl rounded-xl border border-border bg-white shadow-xl max-h-[90vh] flex flex-col"
+        class="${MODAL_PANEL} max-w-2xl max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="evaluar-comp-title"

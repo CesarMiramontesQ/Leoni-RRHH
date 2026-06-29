@@ -20,7 +20,7 @@ import {
   type TareaCatalogoFetchError,
 } from "../../api/tareasCatalogo.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, BTN_DANGER, FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST, RH_LISTADO_BTN_DANGER } from "../../ui/uiTokens.ts";
 
 export type EditarTareasModalHandle = {
   open: () => void;
@@ -36,11 +36,11 @@ function overlayHtml(): string {
   return `
     <div
       id="editar-tareas-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        class="${MODAL_PANEL} max-w-lg p-6 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="editar-tareas-title"
@@ -82,7 +82,7 @@ function renderTareasList(tareas: PerfilTarea[]): string {
             <span class="text-sm text-text-primary truncate">${escapeHtml(t.descripcion)}</span>
             ${t.es_complemento ? `<span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Comp.</span>` : ""}
           </div>
-          <button type="button" data-delete-tarea="${t.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
+          <button type="button" data-delete-tarea="${t.id}" class="${RH_LISTADO_BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
@@ -98,7 +98,7 @@ function renderAddForm(showCreateNew: boolean): string {
       <!-- Search -->
       <div>
         <input id="tarea-search" type="text" autocomplete="off"
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          class="${FIELD_INPUT}"
           placeholder="Buscar tarea por nombre..." />
       </div>
       <div id="tarea-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
@@ -107,13 +107,13 @@ function renderAddForm(showCreateNew: boolean): string {
       <div id="tarea-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="tarea-selected-info" class="flex items-center justify-between"></div>
         <div class="flex justify-end mt-2">
-          <button type="button" id="tarea-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar al perfil</button>
+          <button type="button" id="tarea-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Agregar al perfil</button>
         </div>
       </div>
 
       <!-- Create new toggle -->
       <div class="pt-2 border-t border-slate-100">
-        <button type="button" id="tarea-toggle-create" class="${BTN_GHOST} text-xs">
+        <button type="button" id="tarea-toggle-create" class="${RH_LISTADO_BTN_GHOST} text-xs">
           ${showCreateNew ? "Cerrar" : "+ Crear nueva tarea"}
         </button>
       </div>
@@ -125,13 +125,13 @@ function renderAddForm(showCreateNew: boolean): string {
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
           <input id="tarea-new-nombre" type="text" required
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            class="${FIELD_INPUT}"
             placeholder="Descripcion de la tarea" />
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Categoria (opcional)</label>
           <input id="tarea-new-categoria" type="text"
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            class="${FIELD_INPUT}"
             placeholder="Ej: logistica, calidad, seguridad..." />
         </div>
         <div class="flex items-end pb-1">
@@ -142,7 +142,7 @@ function renderAddForm(showCreateNew: boolean): string {
           </label>
         </div>
         <div class="flex justify-end">
-          <button type="button" id="tarea-create-submit" class="${BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
+          <button type="button" id="tarea-create-submit" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
         </div>
       </div>` : ""}
     </div>`;

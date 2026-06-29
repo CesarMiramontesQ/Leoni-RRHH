@@ -23,10 +23,11 @@ import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
   BTN_GHOST,
-  BTN_SECONDARY,
   FIELD_FOCUS,
+  MODAL_OVERLAY_NESTED,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_SELECT,
@@ -59,7 +60,7 @@ import {
 type MetodoModalMode = "create" | "edit" | null;
 type OpcionModalMode = "create" | "delete" | null;
 
-const OPCION_SUBMODAL_OVERLAY = `${AJUSTES_MODAL_OVERLAY} z-[60]`;
+const OPCION_SUBMODAL_OVERLAY = MODAL_OVERLAY_NESTED;
 
 export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: AbortSignal): void {
   let items: MetodoCalificacion[] = [];
@@ -89,7 +90,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
   function renderMetodoTable(): string {
     if (loading) return ajustesLoadingState("Cargando métodos…");
     if (error) return ajustesErrorAlert(error);
-    if (items.length === 0) return ajustesEmptyState("No hay métodos registrados. Crea el primero.");
+    if (items.length === 0) return ajustesEmptyState("No hay métodos registrados. Crea el primero.", `<button type="button" data-metodo-create class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo método</span></button>`);
     const rows = items
       .map(
         (m) => `
@@ -200,7 +201,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
             ${renderOpcionesTableBody()}
           </div>
           <footer class="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <button type="button" data-opciones-modal-close class="${BTN_SECONDARY}">Cerrar</button>
+            <button type="button" data-opciones-modal-close class="${RH_LISTADO_BTN_SECONDARY}">Cerrar</button>
             <button type="button" data-opcion-create class="${RH_LISTADO_BTN_PRIMARY} shrink-0" ${opcionesLoading ? "disabled" : ""}>
               ${AJUSTES_ICON_PLUS}<span>Nueva opción</span>
             </button>
@@ -253,7 +254,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
             </div>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-metodo-cancel class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-metodo-cancel class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>
@@ -270,7 +271,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
           <p class="mt-2 text-sm text-text-secondary">¿Eliminar <strong>${escapeHtml(deletingMetodo.nombre)}</strong>? Las cualificaciones que lo usen dejarán de funcionar correctamente.</p>
           ${modalError ? ajustesModalError(modalError) : ""}
           <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" data-metodo-delete-cancel class="${BTN_SECONDARY}">Cancelar</button>
+            <button type="button" data-metodo-delete-cancel class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
             <button type="button" data-metodo-delete-confirm class="${BTN_DANGER}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Eliminando…" : "Eliminar"}</button>
           </div>
         </div>
@@ -287,7 +288,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
             <p class="mt-2 text-sm text-text-secondary">¿Eliminar la opción <strong>${escapeHtml(deletingOpcion.etiqueta)}</strong>?</p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-opcion-modal-cancel class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-opcion-modal-cancel class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="button" data-opcion-modal-confirm-delete class="${BTN_DANGER}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Eliminando…" : "Eliminar"}</button>
             </div>
           </div>
@@ -312,7 +313,7 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
             </div>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-opcion-modal-cancel class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-opcion-modal-cancel class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>
