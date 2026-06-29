@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, field_validator
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import cast, select, func as sa_func, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -132,6 +132,13 @@ class CursoEmpleadoDetail(BaseModel):
     sesion_id: int | None = None
     sesion_fecha: str | None = None
     asistio: bool | None = None
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
 
 
 async def _build_curso_puesto_detail(db: AsyncSession, cp: CursoPuesto) -> CursoPuestoDetail:
@@ -298,13 +305,21 @@ async def listar_empleados_extra_del_curso(
     covered_by_puesto = (
         select(PerfilFunciones.empleado_id)
         .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
-        .where(CursoPuesto.curso_id == id, PerfilFunciones.activo.is_(True))
+        .where(
+            CursoPuesto.curso_id == id,
+            CursoPuesto.sesion_id.is_(None),
+            PerfilFunciones.activo.is_(True),
+        )
     ).scalar_subquery()
 
     stmt = (
         select(CursoEmpleado)
         .options(selectinload(CursoEmpleado.empleado), selectinload(CursoEmpleado.sesion))
-        .where(CursoEmpleado.curso_id == id, CursoEmpleado.empleado_id.notin_(covered_by_puesto))
+        .where(
+            CursoEmpleado.curso_id == id,
+            CursoEmpleado.sesion_id.is_(None),
+            CursoEmpleado.empleado_id.notin_(covered_by_puesto),
+        )
         .order_by(CursoEmpleado.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -326,6 +341,139 @@ async def listar_empleados_extra_del_curso(
             asistio=ce.asistio,
         ))
     return response
+
+
+class EmpleadoExtraElegibleItem(BaseModel):
+    id: int
+    nombre: str | None = None
+    no_empleado: str | None = None
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
+
+class CursoEmpleadoExtraAssignBody(BaseModel):
+    empleado_id: int
+
+
+@router.get("/{id}/empleados-elegibles-extra", response_model=list[EmpleadoExtraElegibleItem])
+async def buscar_empleados_elegibles_extra(
+    id: int,
+    q: str = Query("", max_length=100),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Busca empleados activos que pueden asignarse individualmente al curso."""
+    from app.core.config import settings
+
+    covered_by_puesto = (
+        select(PerfilFunciones.empleado_id)
+        .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
+        .where(
+            CursoPuesto.curso_id == id,
+            CursoPuesto.sesion_id.is_(None),
+            PerfilFunciones.activo.is_(True),
+        )
+    ).scalar_subquery()
+
+    already_extra = (
+        select(CursoEmpleado.empleado_id).where(
+            CursoEmpleado.curso_id == id,
+            CursoEmpleado.sesion_id.is_(None),
+        )
+    ).scalar_subquery()
+
+    stmt = (
+        select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
+        .where(
+            Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+            Empleado.id.notin_(already_extra),
+            Empleado.id.notin_(covered_by_puesto),
+        )
+        .order_by(Empleado.nombre)
+        .limit(25)
+    )
+    if q.strip():
+        search = f"%{q.strip()}%"
+        stmt = stmt.where(
+            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
+        )
+
+    result = await db.execute(stmt)
+    return [
+        EmpleadoExtraElegibleItem(id=row[0], nombre=row[1], no_empleado=row[2])
+        for row in result.all()
+    ]
+
+
+@router.post("/{id}/empleados-extra", response_model=CursoEmpleadoDetail, status_code=status.HTTP_201_CREATED)
+async def asignar_empleado_extra_al_curso(
+    id: int,
+    body: CursoEmpleadoExtraAssignBody,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna un empleado individualmente al curso (sin sesión)."""
+    from app.core.exceptions import ConflictError, NotFoundError
+    from app.models.level_up import Curso as CursoModel
+
+    curso = await db.get(CursoModel, id)
+    if not curso:
+        raise NotFoundError(entidad="Curso", id=id)
+
+    emp = await db.get(Empleado, body.empleado_id)
+    if not emp:
+        raise NotFoundError(entidad="Empleado", id=body.empleado_id)
+
+    existing = await db.execute(
+        select(CursoEmpleado).where(
+            CursoEmpleado.curso_id == id,
+            CursoEmpleado.empleado_id == body.empleado_id,
+            CursoEmpleado.sesion_id.is_(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise ConflictError(detail="Este empleado ya está asignado al curso")
+
+    ce = CursoEmpleado(
+        curso_id=id,
+        empleado_id=body.empleado_id,
+        sesion_id=None,
+        obligatorio=curso.obligatorio,
+    )
+    db.add(ce)
+    await db.flush()
+    await db.refresh(ce, attribute_names=["empleado", "sesion"])
+
+    return CursoEmpleadoDetail(
+        id=ce.id,
+        empleado_id=ce.empleado_id,
+        nombre_empleado=ce.empleado.nombre if ce.empleado else None,
+        no_empleado=ce.empleado.no_empleado if ce.empleado else None,
+        sesion_id=ce.sesion_id,
+        sesion_fecha=str(ce.sesion.fecha_inicio) if ce.sesion else None,
+        asistio=ce.asistio,
+    )
+
+
+@router.delete("/{id}/empleados-extra/{curso_empleado_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_empleado_extra_del_curso(
+    id: int,
+    curso_empleado_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.exceptions import NotFoundError
+
+    ce = await db.get(CursoEmpleado, curso_empleado_id)
+    if not ce or ce.curso_id != id or ce.sesion_id is not None:
+        raise NotFoundError(entidad="Empleado extra del curso", id=curso_empleado_id)
+    await db.delete(ce)
+    await db.flush()
 
 
 # ── Grupos asignados a un curso (áreas, subáreas, puestos) ───────────────────

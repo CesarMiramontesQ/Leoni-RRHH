@@ -4900,6 +4900,50 @@ components:
           type: string
           format: date-time
 
+    CursoEmpleadoDetail:
+      type: object
+      required: [id, empleado_id]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        nombre_empleado:
+          type: string
+          nullable: true
+        no_empleado:
+          type: string
+          nullable: true
+        sesion_id:
+          type: integer
+          nullable: true
+        sesion_fecha:
+          type: string
+          nullable: true
+        asistio:
+          type: boolean
+          nullable: true
+
+    EmpleadoExtraElegibleItem:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+          nullable: true
+        no_empleado:
+          type: string
+          nullable: true
+
+    CursoEmpleadoExtraAssignBody:
+      type: object
+      required: [empleado_id]
+      properties:
+        empleado_id:
+          type: integer
+
     InstructorInternoListResponse:
       type: object
       required: [items, total, page, page_size]
@@ -10772,6 +10816,110 @@ paths:
           description: Perfil o asignación no encontrados
         "422":
           description: competencia_requisito_ids inválidos
+
+  /api/v1/level-up/cursos/{id}/empleados-extra:
+    get:
+      tags: [Level Up - Cursos]
+      summary: Listar empleados asignados individualmente al curso
+      operationId: listar_empleados_extra_del_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Empleados extra del curso (sin sesión)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CursoEmpleadoDetail"
+    post:
+      tags: [Level Up - Cursos]
+      summary: Asignar empleado individual al curso
+      operationId: asignar_empleado_extra_al_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CursoEmpleadoExtraAssignBody"
+      responses:
+        "201":
+          description: Empleado asignado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursoEmpleadoDetail"
+        "404":
+          description: Curso o empleado no encontrado
+        "409":
+          description: Empleado ya asignado
+
+  /api/v1/level-up/cursos/{id}/empleados-extra/{curso_empleado_id}:
+    delete:
+      tags: [Level Up - Cursos]
+      summary: Quitar empleado individual del curso
+      operationId: quitar_empleado_extra_del_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: curso_empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Asignación eliminada
+        "404":
+          description: Asignación no encontrada
+
+  /api/v1/level-up/cursos/{id}/empleados-elegibles-extra:
+    get:
+      tags: [Level Up - Cursos]
+      summary: Buscar empleados elegibles para asignación individual
+      operationId: buscar_empleados_elegibles_extra
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Empleados activos no asignados ni cubiertos por puesto
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmpleadoExtraElegibleItem"
 
   /api/v1/level-up/catalogos/instructores-internos:
     get:

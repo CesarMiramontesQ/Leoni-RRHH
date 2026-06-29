@@ -15,13 +15,13 @@ import {
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
-import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso, getCursoCatalogosPuestos } from "../api/cursos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso, getCursoCatalogosPuestos, buscarEmpleadosExtraCurso, agregarEmpleadoExtraCurso, quitarEmpleadoExtraCurso } from "../api/cursos.ts";
 import {
   getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones,
   getInstructoresInternos, getInstructoresExternos,
 } from "../api/cursosCatalogo.ts";
 import type { Proveedor, CursoCatSimple, InstructorInterno, InstructorExterno } from "../api/cursosCatalogo.ts";
-import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos, CatalogoPuestoPerfilItem } from "../api/cursos.ts";
+import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos, CatalogoPuestoPerfilItem, EmpleadoExtraElegible } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, InstructorTipo, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
@@ -410,6 +410,11 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionPuestosLoading: boolean;
     asignacionPuestosResult: { asignados: number; ya_asignados: number } | null;
     asignacionPuestosError: string | null;
+    showAsignacionExtrasModal: boolean;
+    extraSearchQuery: string;
+    extraSearchResults: EmpleadoExtraElegible[];
+    extraSearchLoading: boolean;
+    asignacionExtrasError: string | null;
     proveedoresCatalog: Proveedor[];
     proveedoresLoading: boolean;
     categoriasCatalog: CursoCatSimple[];
@@ -465,6 +470,11 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionPuestosLoading: false,
     asignacionPuestosResult: null,
     asignacionPuestosError: null,
+    showAsignacionExtrasModal: false,
+    extraSearchQuery: "",
+    extraSearchResults: [],
+    extraSearchLoading: false,
+    asignacionExtrasError: null,
     proveedoresCatalog: [],
     proveedoresLoading: false,
     categoriasCatalog: [],
@@ -1172,43 +1182,41 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   function renderDetailEmpleadosExtra(): string {
     const emps = state.detailEmpleadosExtra;
-    if (emps.length === 0) {
-      return `
-      <div class="${RH_LISTADO_SURFACE} p-6">
-        <h3 class="text-sm font-semibold text-text-primary mb-2">Empleados extra (individuales)</h3>
-        <p class="text-xs text-slate-400 italic">Sin empleados extra asignados individualmente.</p>
-      </div>`;
-    }
     const hasSesiones = state.detailSesiones.length > 0;
-    const allExtraIds = emps.map(e => e.empleado_id);
-    const allSelected = allExtraIds.every(id => state.selectedEmpleados.has(id));
+    const allExtraIds = emps.map((e) => e.empleado_id);
+    const allSelected = allExtraIds.length > 0 && allExtraIds.every((id) => state.selectedEmpleados.has(id));
 
-    const rows = emps.map(e => {
+    const rows = emps.map((e) => {
       const checked = state.selectedEmpleados.has(e.empleado_id);
       return `
       <tr class="border-b border-slate-100 hover:bg-slate-50/60">
         ${hasSesiones && isRH ? `<td class="px-4 py-2.5"><input type="checkbox" data-action="toggle-emp" data-emp-id="${e.empleado_id}" ${checked ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></td>` : ""}
         <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(e.nombre_empleado ?? `Empleado #${e.empleado_id}`)}</td>
         <td class="px-4 py-2.5 text-sm text-slate-500 tabular-nums">${escapeHtml(e.no_empleado ?? "—")}</td>
+        ${isRH ? `<td class="px-4 py-2.5 text-right"><button data-action="quitar-extra" data-curso-empleado-id="${e.id}" class="text-xs text-red-600 hover:underline">Quitar</button></td>` : ""}
       </tr>`;
     }).join("");
 
     return `
     <div class="${RH_LISTADO_SURFACE} overflow-hidden">
-      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between cursor-pointer" data-action="toggle-extras-expand">
-        <div class="flex items-center gap-2">
-          <svg class="size-4 text-slate-400 transition-transform ${state.expandedExtras ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-          <h3 class="text-sm font-semibold text-text-primary">Empleados extra (individuales)</h3>
+      <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0 cursor-pointer" data-action="toggle-extras-expand">
+          <svg class="size-4 text-slate-400 transition-transform shrink-0 ${state.expandedExtras ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          <div>
+            <h3 class="text-sm font-semibold text-text-primary">Empleados extra (individuales)</h3>
+            <p class="text-xs text-slate-500 mt-0.5">${emps.length === 0 ? "Sin empleados asignados individualmente" : `${emps.length} empleado${emps.length !== 1 ? "s" : ""} asignado${emps.length !== 1 ? "s" : ""}`}</p>
+          </div>
         </div>
-        <span class="text-xs text-slate-500">${emps.length} empleado${emps.length !== 1 ? "s" : ""}</span>
+        ${isRH ? `<button data-action="open-asignacion-extras" class="${BTN_SECONDARY} text-xs shrink-0">+ Asignar empleado</button>` : ""}
       </div>
-      ${state.expandedExtras ? `
+      ${state.expandedExtras && emps.length > 0 ? `
       <table class="w-full text-left">
         <thead class="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
             ${hasSesiones && isRH ? `<th class="px-4 py-2.5 w-10"><input type="checkbox" data-action="toggle-all-extras" data-extra-emps='${JSON.stringify(allExtraIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" /></th>` : ""}
             <th class="px-4 py-2.5">Empleado</th>
             <th class="px-4 py-2.5">No. Empleado</th>
+            ${isRH ? `<th class="px-4 py-2.5 text-right">Acciones</th>` : ""}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -1295,6 +1303,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       ${state.showAssignSesionPicker ? renderAssignSesionPicker() : ""}
       ${state.showAsignacionMasivaModal ? renderAsignacionMasivaModal() : ""}
       ${state.showAsignacionPuestosModal ? renderAsignacionPuestosModal() : ""}
+      ${state.showAsignacionExtrasModal ? renderAsignacionExtrasModal() : ""}
       </div>
     </div>`;
   }
@@ -1446,6 +1455,48 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
               ${escapeHtml(state.asignacionPuestosError)}
             </div>` : ""}
         </div>`}
+      </div>
+    </div>`;
+  }
+
+  function renderAsignacionExtrasModal(): string {
+    return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="asignacion-extras">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-text-primary">Asignar empleado al curso</h3>
+          <button data-action="close-asignacion-extras" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="space-y-4">
+          <p class="text-xs text-slate-500">Busca un empleado activo que no esté ya vinculado por puesto ni asignado individualmente.</p>
+          <div>
+            <label for="search-extra-elegible-input" class="${RH_LISTADO_LABEL}">Buscar empleado</label>
+            <div class="relative mt-1">
+              <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ICON_SEARCH}</span>
+              <input id="search-extra-elegible-input" type="text" data-action="search-extra-elegible" autocomplete="off" placeholder="Nombre o número de empleado…"
+                value="${escapeHtml(state.extraSearchQuery)}"
+                class="block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
+            </div>
+          </div>
+          <div class="max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-1">
+            ${state.extraSearchLoading ? `<p class="py-6 text-center text-xs text-slate-400">Buscando...</p>` :
+              state.extraSearchResults.length === 0 && state.extraSearchQuery.trim().length >= 2 ? `<p class="py-6 text-center text-xs text-slate-400">Sin resultados.</p>` :
+              state.extraSearchQuery.trim().length < 2 ? `<p class="py-6 text-center text-xs text-slate-400">Escribe al menos 2 caracteres.</p>` :
+              state.extraSearchResults.map((emp) => `
+                <button type="button" data-action="asignar-empleado-extra" data-empleado-id="${emp.id}" class="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition hover:bg-white">
+                  <div class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-text-primary">${escapeHtml(emp.nombre ?? "—")}</span>
+                    <span class="text-xs text-slate-400">#${escapeHtml(emp.no_empleado ?? "")}</span>
+                  </div>
+                </button>`).join("")}
+          </div>
+          ${state.asignacionExtrasError ? `
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              ${escapeHtml(state.asignacionExtrasError)}
+            </div>` : ""}
+        </div>
       </div>
     </div>`;
   }
@@ -1884,6 +1935,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   }
 
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let extraSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let sesionEmpSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   function bindSesionEmpleadoSearch(): void {
@@ -2348,6 +2400,57 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
+    if (t.closest("[data-action='open-asignacion-extras']")) {
+      state.showAsignacionExtrasModal = true;
+      state.asignacionExtrasError = null;
+      state.extraSearchQuery = "";
+      state.extraSearchResults = [];
+      render();
+      const input = container.querySelector("[data-action='search-extra-elegible']") as HTMLInputElement | null;
+      input?.focus();
+      return;
+    }
+
+    if (t.closest("[data-action='close-asignacion-extras']") || (t as HTMLElement).dataset.backdrop === "asignacion-extras") {
+      state.showAsignacionExtrasModal = false;
+      state.extraSearchQuery = "";
+      state.extraSearchResults = [];
+      state.asignacionExtrasError = null;
+      render();
+      return;
+    }
+
+    const asignarExtraBtn = t.closest("[data-action='asignar-empleado-extra']") as HTMLElement | null;
+    if (asignarExtraBtn) {
+      const empleadoId = Number(asignarExtraBtn.dataset.empleadoId);
+      if (!empleadoId || !state.detailCurso) return;
+      state.asignacionExtrasError = null;
+      try {
+        await agregarEmpleadoExtraCurso(state.detailCurso.id, empleadoId);
+        state.detailEmpleadosExtra = await getCursoEmpleadosExtra(state.detailCurso.id);
+        state.extraSearchResults = state.extraSearchResults.filter((r) => r.id !== empleadoId);
+        if (!state.expandedExtras) state.expandedExtras = true;
+        render();
+      } catch (err: unknown) {
+        const detail = (err as { detail?: string })?.detail;
+        state.asignacionExtrasError = typeof detail === "string" ? detail : "No se pudo asignar el empleado.";
+        render();
+      }
+      return;
+    }
+
+    const quitarExtraBtn = t.closest("[data-action='quitar-extra']") as HTMLElement | null;
+    if (quitarExtraBtn) {
+      const cursoEmpleadoId = Number(quitarExtraBtn.dataset.cursoEmpleadoId);
+      if (!cursoEmpleadoId) return;
+      try {
+        await quitarEmpleadoExtraCurso(state.detailCurso!.id, cursoEmpleadoId);
+        state.detailEmpleadosExtra = state.detailEmpleadosExtra.filter((e) => e.id !== cursoEmpleadoId);
+        render();
+      } catch { /* silently handle */ }
+      return;
+    }
+
     if (t.closest("[data-action='open-assign-sesion-picker']")) {
       state.showAssignSesionPicker = true;
       render();
@@ -2543,6 +2646,37 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         ).join("");
       }
       dropdown.classList.remove("hidden");
+    }
+
+    if (t.matches("[data-action='search-extra-elegible']")) {
+      state.extraSearchQuery = t.value;
+      if (extraSearchTimeout) clearTimeout(extraSearchTimeout);
+      if (t.value.trim().length < 2) {
+        state.extraSearchResults = [];
+        state.asignacionExtrasError = null;
+        render();
+        return;
+      }
+      extraSearchTimeout = setTimeout(async () => {
+        if (!state.detailCurso) return;
+        state.extraSearchLoading = true;
+        state.asignacionExtrasError = null;
+        render();
+        try {
+          state.extraSearchResults = await buscarEmpleadosExtraCurso(state.detailCurso.id, state.extraSearchQuery);
+        } catch (err: unknown) {
+          state.extraSearchResults = [];
+          const detail = (err as { detail?: string })?.detail;
+          state.asignacionExtrasError = typeof detail === "string" ? detail : "Error al buscar empleados.";
+        }
+        state.extraSearchLoading = false;
+        render();
+        const input = container.querySelector("[data-action='search-extra-elegible']") as HTMLInputElement | null;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 300);
     }
   }
 

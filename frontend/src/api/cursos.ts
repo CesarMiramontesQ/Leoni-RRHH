@@ -281,6 +281,52 @@ export async function getCursoEmpleadosExtra(cursoId: number): Promise<CursoEmpl
   return res.json();
 }
 
+export type EmpleadoExtraElegible = {
+  id: number;
+  nombre: string | null;
+  no_empleado: string | null;
+};
+
+export async function buscarEmpleadosExtraCurso(cursoId: number, q: string): Promise<EmpleadoExtraElegible[]> {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set("q", q.trim());
+  const res = await fetchWithAuth(
+    `/api/v1/level-up/cursos/${cursoId}/empleados-elegibles-extra?${params.toString()}`,
+  );
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function agregarEmpleadoExtraCurso(
+  cursoId: number,
+  empleadoId: number,
+): Promise<CursoEmpleadoDetail> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/empleados-extra`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ empleado_id: empleadoId }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function quitarEmpleadoExtraCurso(cursoId: number, cursoEmpleadoId: number): Promise<void> {
+  const res = await fetchWithAuth(
+    `/api/v1/level-up/cursos/${cursoId}/empleados-extra/${cursoEmpleadoId}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+}
+
 // ── Sesiones de un curso ──────────────────────────────────────────────────────
 
 export async function getCursoSesiones(cursoId: number): Promise<CursoSesionListResponse> {
