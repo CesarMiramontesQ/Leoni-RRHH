@@ -208,6 +208,8 @@ class CursoResponse(BaseModel):
     requisitos: Optional[str] = None
     centro_costos: Optional[int] = None
     activo: bool
+    calificacion_promedio: Optional[float] = None
+    total_evaluaciones: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -396,30 +398,8 @@ class EvidenciaFirmaResponse(BaseModel):
 
 
 # ── EncuestaPostCurso ────────────────────────────────────────────────────────
-
-
-class EncuestaPostCursoCreate(BaseModel):
-    model_config = {"str_strip_whitespace": True}
-    capacitacion_id: int
-    empleado_id: int
-    score_general: int = Field(..., ge=1, le=5)
-    score_instructor: int = Field(..., ge=1, le=5)
-    score_contenido: int = Field(..., ge=1, le=5)
-    score_aplicabilidad: int = Field(..., ge=1, le=5)
-    comentario: Optional[str] = None
-
-
-class EncuestaPostCursoResponse(BaseModel):
-    model_config = {"from_attributes": True}
-    id: int
-    capacitacion_id: int
-    empleado_id: int
-    score_general: int
-    score_instructor: int
-    score_contenido: int
-    score_aplicabilidad: int
-    comentario: Optional[str] = None
-    fecha: datetime
+# Los schemas del flujo de encuestas post curso viven en
+# app/schemas/level_up_encuestas.py (habilitación por sesión + respuestas).
 
 
 # ── SugerenciaCapacitacion ───────────────────────────────────────────────────

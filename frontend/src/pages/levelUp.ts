@@ -27,6 +27,18 @@ import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABE
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
+import { getEncuestasDashboard, getCursoEncuestasResumen } from "../api/encuestas.ts";
+import type {
+  EncuestasDashboard,
+  DashboardCursoItem,
+  DistribucionItem,
+  ComentarioItem,
+  CursoEncuestasResumen,
+} from "../dashboard/cursos/encuestasTypes.ts";
+import {
+  ESTADO_ENCUESTA_BADGE,
+  ESTADO_ENCUESTA_LABELS,
+} from "../dashboard/cursos/encuestasTypes.ts";
 
 
 // ── Dashboard: tipos, datos fake y helpers ──────────────────────────────────
@@ -383,6 +395,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailEmpleadosExtra: CursoEmpleadoDetail[];
     detailAreas: CursoGrupoItem[];
     detailSesiones: CursoSesion[];
+    detailEncuestas: CursoEncuestasResumen | null;
     detailDataLoading: boolean;
     showCreateSesionModal: boolean;
     instructoresInternos: InstructorInterno[];
@@ -443,6 +456,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailEmpleadosExtra: [],
     detailAreas: [],
     detailSesiones: [],
+    detailEncuestas: null,
     detailDataLoading: false,
     showCreateSesionModal: false,
     instructoresInternos: [],
@@ -1262,6 +1276,8 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${field("Centro de costos", c.centro_costos ? String(c.centro_costos) : null)}
             ${field("Obligatorio", c.obligatorio ? "Sí" : "No")}
             ${field("Activo", c.activo ? "Sí" : "No")}
+            ${field("Calificación promedio", c.calificacion_promedio != null ? `${c.calificacion_promedio.toFixed(1)} / 5` : "Sin evaluaciones")}
+            ${field("Evaluaciones", String(c.total_evaluaciones))}
           </dl>
         </div>
 
@@ -1290,6 +1306,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       </div>
 
       ${renderDetailSesiones()}
+      ${renderDetailEncuestas()}
       ${renderDetailAreas()}
       ${renderDetailPuestos()}
       ${renderDetailEmpleadosExtra()}
@@ -1299,6 +1316,109 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       ${state.showAsignacionPuestosModal ? renderAsignacionPuestosModal() : ""}
       ${state.showAsignacionExtrasModal ? renderAsignacionExtrasModal() : ""}
       </div>
+    </div>`;
+  }
+
+  function renderDetailEncuestas(): string {
+    const header = `
+      <div class="flex flex-col gap-1 border-b border-slate-100 px-6 py-4">
+        <h3 class="text-base font-semibold text-text-primary">Encuestas post curso</h3>
+        <p class="text-xs text-text-muted">Resultados consolidados y comparativo por sesión.</p>
+      </div>`;
+
+    if (state.detailDataLoading && !state.detailEncuestas) {
+      return `<div class="${RH_LISTADO_SURFACE} overflow-hidden">${header}<div class="p-6"><div class="h-24 animate-pulse rounded-lg bg-slate-100"></div></div></div>`;
+    }
+
+    const r = state.detailEncuestas;
+    if (!r || r.total_evaluaciones === 0) {
+      return `<div class="${RH_LISTADO_SURFACE} overflow-hidden">${header}
+        <div class="px-6 py-10 text-center">
+          <p class="text-sm font-semibold text-text-primary">Sin evaluaciones todavía</p>
+          <p class="mt-1 text-xs text-text-muted">Aún no hay encuestas respondidas para este curso.</p>
+        </div>
+      </div>`;
+    }
+
+    const resumenChips = `
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        ${[
+          { label: "Promedio general", value: encFmtScore(r.calificacion_promedio) },
+          { label: "Instructor", value: encFmtScore(r.promedio_instructor) },
+          { label: "Contenido", value: encFmtScore(r.promedio_contenido) },
+          { label: "Aplicabilidad", value: encFmtScore(r.promedio_aplicabilidad) },
+        ].map((k) => `
+          <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
+            <p class="text-[11px] font-medium text-text-muted">${escapeHtml(k.label)}</p>
+            <p class="mt-0.5 text-xl font-bold tabular-nums text-text-primary">${k.value}<span class="text-xs font-medium text-slate-400">/5</span></p>
+          </div>`).join("")}
+      </div>`;
+
+    const totalDist = r.distribucion.reduce((acc, item) => acc + item.cantidad, 0);
+    const distByScore = new Map<number, number>();
+    for (const item of r.distribucion) distByScore.set(item.score, item.cantidad);
+    const distribucion = `
+      <div class="flex flex-col gap-2">
+        <p class="text-xs font-semibold text-text-primary">Distribución de respuestas</p>
+        ${[5, 4, 3, 2, 1].map((star) => {
+          const count = distByScore.get(star) ?? 0;
+          const pct = totalDist > 0 ? Math.round((count / totalDist) * 100) : 0;
+          return `
+          <div class="flex items-center gap-2.5">
+            <span class="w-3 text-right text-xs font-semibold tabular-nums text-slate-700">${star}</span>
+            <div class="h-2.5 flex-1 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full ${ENC_DIST_COLORS[star]}" style="width: ${pct}%"></div></div>
+            <span class="w-8 text-right font-mono text-[11px] font-semibold tabular-nums text-slate-700">${count}</span>
+          </div>`;
+        }).join("")}
+      </div>`;
+
+    const sesionesRows = r.sesiones.map((s) => {
+      const fecha = s.fecha_sesion
+        ? new Date(s.fecha_sesion + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })
+        : "—";
+      const badge = ESTADO_ENCUESTA_BADGE[s.estado_efectivo];
+      const tasa = Math.round(s.tasa_participacion * 100);
+      return `
+      <tr class="border-t border-slate-100">
+        <td class="px-3 py-2.5 text-xs text-slate-700">${escapeHtml(fecha)}</td>
+        <td class="px-3 py-2.5"><span class="inline-flex items-center rounded-full border ${badge} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(ESTADO_ENCUESTA_LABELS[s.estado_efectivo])}</span></td>
+        <td class="px-3 py-2.5 text-center text-xs tabular-nums text-slate-700">${s.respondidas}/${s.total_asistentes}</td>
+        <td class="px-3 py-2.5 text-center text-xs tabular-nums text-slate-700">${tasa}%</td>
+        <td class="px-3 py-2.5 text-center">${s.promedio_general != null ? encScorePill(s.promedio_general) : `<span class="text-[10px] text-slate-400">—</span>`}</td>
+        <td class="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">${encFmtScore(s.promedio_instructor)}</td>
+        <td class="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">${encFmtScore(s.promedio_contenido)}</td>
+        <td class="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">${encFmtScore(s.promedio_aplicabilidad)}</td>
+      </tr>`;
+    }).join("");
+
+    const sesionesTabla = r.sesiones.length === 0 ? "" : `
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[640px] border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-slate-200 bg-slate-50">
+              <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Sesión</th>
+              <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Encuesta</th>
+              <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Resp./Asist.</th>
+              <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Participación</th>
+              <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">General</th>
+              <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instr.</th>
+              <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Conten.</th>
+              <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Aplic.</th>
+            </tr>
+          </thead>
+          <tbody>${sesionesRows}</tbody>
+        </table>
+      </div>`;
+
+    return `
+    <div class="${RH_LISTADO_SURFACE} overflow-hidden">
+      ${header}
+      <div class="flex flex-col gap-5 p-6">
+        <p class="text-xs text-text-muted">${r.total_evaluaciones} ${r.total_evaluaciones === 1 ? "evaluación recibida" : "evaluaciones recibidas"}.</p>
+        ${resumenChips}
+        ${distribucion}
+      </div>
+      ${sesionesTabla ? `<div class="border-t border-slate-100">${sesionesTabla}</div>` : ""}
     </div>`;
   }
 
@@ -1897,11 +2017,12 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.detailDataLoading = true;
     render();
 
-    const [puestosR, empExtraR, sesionesR, areasR] = await Promise.allSettled([
+    const [puestosR, empExtraR, sesionesR, areasR, encuestasR] = await Promise.allSettled([
       getCursoPuestos(cursoId),
       getCursoEmpleadosExtra(cursoId),
       getCursoSesiones(cursoId),
       getCursoAreas(cursoId),
+      getCursoEncuestasResumen(cursoId),
     ]);
 
     if (token !== detailLoadToken || state.detailCurso?.id !== cursoId) return;
@@ -1910,6 +2031,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     if (empExtraR.status === "fulfilled") state.detailEmpleadosExtra = empExtraR.value;
     if (sesionesR.status === "fulfilled") state.detailSesiones = sesionesR.value.items;
     if (areasR.status === "fulfilled") state.detailAreas = areasR.value;
+    state.detailEncuestas = encuestasR.status === "fulfilled" ? encuestasR.value : null;
 
     state.detailDataLoading = false;
     render();
@@ -1921,6 +2043,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.detailEmpleadosExtra = [];
     state.detailAreas = [];
     state.detailSesiones = [];
+    state.detailEncuestas = null;
     state.detailDataLoading = true;
     state.selectedEmpleados = new Set();
     history.replaceState(null, "", `#/cursos/${curso.id}`);
@@ -3634,68 +3757,10 @@ export function mountSugerencias(container: HTMLElement): void {
   });
 }
 
-// ── Encuestas: tipos y datos fake ───────────────────────────────────────────
+// ── Encuestas: helpers de render (datos reales del dashboard) ────────────────
 
-interface EncuestaCurso {
-  id: string;
-  nombre: string;
-  instructor: string;
-  proveedor: string;
-  n: number;
-  contenido: number;
-  instructorScore: number;
-  utilidad: number;
-  trend: number[];
-  score: number;
-  warn: boolean;
-}
-
-interface EncuestaComentario {
-  score: number;
-  nombre: string;
-  curso: string;
-  texto: string;
-  sentimiento: "positivo" | "neutro" | "mejora";
-}
-
-const FAKE_ENC_CURSOS: EncuestaCurso[] = [
-  { id: "CR-101", nombre: "Crimpado manual · Inducción", instructor: "Jorge Salazar", proveedor: "Interno", n: 42, contenido: 4.6, instructorScore: 4.8, utilidad: 4.5, trend: [4.2, 4.4, 4.5, 4.6, 4.6], score: 4.6, warn: false },
-  { id: "QA-006", nombre: "IPC-A-620 · Inspección visual", instructor: "Sandra Peña", proveedor: "IPC México", n: 38, contenido: 4.8, instructorScore: 4.7, utilidad: 4.9, trend: [4.5, 4.6, 4.7, 4.7, 4.8], score: 4.8, warn: false },
-  { id: "SE-001", nombre: "Seguridad eléctrica LOTO", instructor: "Hugo Cárdenas", proveedor: "Interno", n: 56, contenido: 4.4, instructorScore: 4.3, utilidad: 4.5, trend: [4.1, 4.2, 4.3, 4.3, 4.4], score: 4.4, warn: false },
-  { id: "OP-110", nombre: "5S en piso de producción", instructor: "Mariana Cervantes", proveedor: "Interno", n: 48, contenido: 4.9, instructorScore: 4.8, utilidad: 4.7, trend: [4.6, 4.7, 4.8, 4.8, 4.9], score: 4.8, warn: false },
-  { id: "CT-021", nombre: "Continuidad eléctrica · básico", instructor: "Patricia Loera", proveedor: "Interno", n: 32, contenido: 4.5, instructorScore: 4.6, utilidad: 4.4, trend: [4.3, 4.4, 4.4, 4.5, 4.5], score: 4.5, warn: false },
-  { id: "BL-040", nombre: "Comunicación operativa", instructor: "Ext. · Crehana", proveedor: "Crehana", n: 24, contenido: 3.2, instructorScore: 3.0, utilidad: 3.4, trend: [3.8, 3.6, 3.4, 3.2, 3.2], score: 3.2, warn: true },
-  { id: "MT-031", nombre: "Cambio de herramental", instructor: "Rafael Cuevas", proveedor: "Interno", n: 28, contenido: 4.4, instructorScore: 4.5, utilidad: 4.3, trend: [4.2, 4.3, 4.3, 4.4, 4.4], score: 4.4, warn: false },
-  { id: "CR-203", nombre: "Crimpado especial · alta corriente", instructor: "Jorge Salazar", proveedor: "Interno", n: 16, contenido: 4.1, instructorScore: 4.3, utilidad: 4.0, trend: [4.0, 4.0, 4.1, 4.1, 4.1], score: 4.2, warn: false },
-  { id: "SE-015", nombre: "Manejo de químicos industriales", instructor: "Hugo Cárdenas", proveedor: "Interno", n: 44, contenido: 4.6, instructorScore: 4.4, utilidad: 4.5, trend: [4.3, 4.4, 4.5, 4.5, 4.6], score: 4.5, warn: false },
-  { id: "BL-055", nombre: "Liderazgo de equipos operativos", instructor: "Ext. · Crehana", proveedor: "Crehana", n: 18, contenido: 3.1, instructorScore: 2.8, utilidad: 3.3, trend: [3.6, 3.4, 3.2, 3.0, 3.1], score: 3.1, warn: true },
-  { id: "QA-310", nombre: "Metrología aplicada a arneses", instructor: "Sandra Peña", proveedor: "Interno", n: 22, contenido: 4.4, instructorScore: 4.5, utilidad: 4.3, trend: [4.2, 4.3, 4.3, 4.4, 4.4], score: 4.4, warn: false },
-  { id: "SE-022", nombre: "Primeros auxilios · NOM-030", instructor: "Ext. · Cruz Roja", proveedor: "Cruz Roja", n: 52, contenido: 4.7, instructorScore: 4.8, utilidad: 4.6, trend: [4.5, 4.6, 4.7, 4.7, 4.7], score: 4.7, warn: false },
-];
-
-const FAKE_ENC_COMENTARIOS: EncuestaComentario[] = [
-  { score: 5, nombre: "María Ortega Reyes", curso: "Crimpado manual", texto: "Excelente curso, aprendí técnicas que aplico diario en la línea. El instructor domina el tema.", sentimiento: "positivo" },
-  { score: 5, nombre: "Lucía Mendoza Vargas", curso: "5S en producción", texto: "Muy práctico y dinámico. Las fotos de antes/después en nuestra propia línea hicieron la diferencia.", sentimiento: "positivo" },
-  { score: 4, nombre: "Rafael Cuevas Trejo", curso: "IPC-A-620", texto: "Buen contenido técnico, aunque el ritmo fue rápido para quienes no tienen experiencia previa en inspección.", sentimiento: "neutro" },
-  { score: 2, nombre: "Adrián Carmona Soto", curso: "Comunicación operativa", texto: "El instructor no conocía nuestro contexto de planta. Los ejemplos eran de oficina, no de piso de producción.", sentimiento: "mejora" },
-  { score: 5, nombre: "Patricia Loera Beltrán", curso: "Continuidad eléctrica", texto: "Muy útil la práctica con el equipo real. Ahora puedo diagnosticar fallas sin esperar al técnico.", sentimiento: "positivo" },
-  { score: 3, nombre: "Diego Hurtado Vidal", curso: "Liderazgo equipos", texto: "El tema es relevante pero la plataforma en línea tuvo muchos problemas de conexión. Difícil concentrarse.", sentimiento: "mejora" },
-];
-
-function encSparkline(values: number[], color: string): string {
-  if (values.length < 2) return "";
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const w = 48;
-  const h = 20;
-  const padding = 2;
-  const points = values.map((v, i) => {
-    const x = padding + (i / (values.length - 1)) * (w - padding * 2);
-    const y = h - padding - ((v - min) / range) * (h - padding * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  return `<svg width="${w}" height="${h}" class="shrink-0" aria-hidden="true"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function encFmtScore(v: number | null | undefined): string {
+  return v == null ? "—" : v.toFixed(1);
 }
 
 function encScorePill(score: number): string {
@@ -3718,46 +3783,49 @@ function encHorizBar(value: number, max: number, color: string): string {
   </div>`;
 }
 
-function renderEncKpis(): string {
+function renderEncKpis(d: EncuestasDashboard): string {
   const kpis: Array<{ label: string; value: string; sub: string; sup?: string; isText?: boolean }> = [
-    { label: "Encuestas recibidas", value: "612", sub: "Tasa de respuesta 84%" },
-    { label: "Score medio", value: "4.4", sup: "/5", sub: "+0.2 vs. trimestre anterior" },
-    { label: "NPS interno", value: "+58", sub: "Excelente · ≥ 50" },
-    { label: "Cursos en alerta", value: "2", sub: "Score < 3.5 o NPS < 20" },
-    { label: "Proveedor mejor calif.", value: "IPC México", sub: "4.7 promedio · 3 cursos", isText: true },
+    { label: "Encuestas recibidas", value: String(d.total_evaluaciones), sub: "Respuestas registradas" },
+    { label: "Score medio", value: encFmtScore(d.score_medio), sup: "/5", sub: "Promedio general" },
+    { label: "Cursos evaluados", value: String(d.cursos_evaluados), sub: "Con al menos una respuesta" },
+    { label: "Cursos en alerta", value: String(d.cursos_en_alerta), sub: "Score promedio < 3.5" },
   ];
   return `
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
     ${kpis.map(k => `
       <div class="rounded-xl border border-border bg-white p-4">
         <p class="text-xs font-medium text-text-muted">${escapeHtml(k.label)}</p>
-        <p class="mt-1 ${k.isText ? "text-base" : "text-2xl"} font-bold tabular-nums text-text-primary">${k.value}${k.sup ? `<span class="text-sm font-medium text-slate-400">${k.sup}</span>` : ""}</p>
+        <p class="mt-1 ${k.isText ? "text-base" : "text-2xl"} font-bold tabular-nums text-text-primary">${escapeHtml(k.value)}${k.sup ? `<span class="text-sm font-medium text-slate-400">${k.sup}</span>` : ""}</p>
         <p class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(k.sub)}</p>
       </div>
     `).join("")}
   </div>`;
 }
 
-function renderEncTabla(): string {
-  const rows = FAKE_ENC_CURSOS.map(c => {
-    const alertBadge = c.warn ? `<span class="ml-1.5 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700">Alerta</span>` : "";
-    const trendColor = c.warn ? "var(--color-red-500, #ef4444)" : "var(--color-slate-400, #94a3b8)";
+function encBarCell(value: number | null): string {
+  if (value == null) return `<span class="text-[10px] text-slate-400">—</span>`;
+  return encHorizBar(value, 5, value >= 4.0 ? "bg-blue-500" : value >= 3.5 ? "bg-amber-400" : "bg-red-400");
+}
+
+function renderEncTabla(cursos: DashboardCursoItem[]): string {
+  const rows = cursos.map(c => {
+    const warn = c.promedio_general != null && c.promedio_general < 3.5;
+    const alertBadge = warn ? `<span class="ml-1.5 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700">Alerta</span>` : "";
     return `
     <tr class="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
       <td class="px-3 py-2.5">
         <div class="flex items-center gap-1.5">
-          <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-500">${escapeHtml(c.id)}</span>
-          <span class="text-xs font-medium text-slate-900 truncate max-w-[180px]">${escapeHtml(c.nombre)}</span>
+          <span class="text-xs font-medium text-slate-900 truncate max-w-[200px]">${escapeHtml(c.curso_nombre)}</span>
           ${alertBadge}
         </div>
       </td>
-      <td class="px-3 py-2.5 text-xs text-slate-600">${escapeHtml(c.instructor)}</td>
-      <td class="px-3 py-2.5 text-center font-mono text-xs font-semibold tabular-nums text-slate-700">${c.n}</td>
-      <td class="px-3 py-2.5">${encHorizBar(c.contenido, 5, c.contenido >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
-      <td class="px-3 py-2.5">${encHorizBar(c.instructorScore, 5, c.instructorScore >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
-      <td class="px-3 py-2.5">${encHorizBar(c.utilidad, 5, c.utilidad >= 4.0 ? "bg-blue-500" : "bg-red-400")}</td>
-      <td class="px-3 py-2.5 text-center">${encSparkline(c.trend, trendColor)}</td>
-      <td class="px-3 py-2.5 text-center">${encScorePill(c.score)}</td>
+      <td class="px-3 py-2.5 text-xs text-slate-600">${escapeHtml(c.instructor_nombre ?? "—")}</td>
+      <td class="px-3 py-2.5 text-xs text-slate-600">${escapeHtml(c.proveedor_nombre ?? "—")}</td>
+      <td class="px-3 py-2.5 text-center font-mono text-xs font-semibold tabular-nums text-slate-700">${c.total_evaluaciones}</td>
+      <td class="px-3 py-2.5">${encBarCell(c.promedio_contenido)}</td>
+      <td class="px-3 py-2.5">${encBarCell(c.promedio_instructor)}</td>
+      <td class="px-3 py-2.5">${encBarCell(c.promedio_aplicabilidad)}</td>
+      <td class="px-3 py-2.5 text-center">${c.promedio_general != null ? encScorePill(c.promedio_general) : `<span class="text-[10px] text-slate-400">—</span>`}</td>
     </tr>`;
   }).join("");
 
@@ -3766,25 +3834,21 @@ function renderEncTabla(): string {
     <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
       <div>
         <p class="text-sm font-semibold text-text-primary">Score por curso</p>
-        <p class="text-[11px] text-slate-500">Promedio &uacute;ltimos 90 d&iacute;as &middot; 218 encuestas activas</p>
-      </div>
-      <div class="flex items-center gap-1 rounded-lg border border-border bg-slate-50 p-1" role="tablist">
-        <button type="button" role="tab" aria-selected="true" class="rounded-md bg-leoni-blue px-3 py-1.5 text-xs font-semibold text-white">Curso</button>
-        <button type="button" role="tab" aria-selected="false" class="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 opacity-60 cursor-not-allowed" disabled>Instructor</button>
-        <button type="button" role="tab" aria-selected="false" class="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 opacity-60 cursor-not-allowed" disabled>Proveedor</button>
+        <p class="text-[11px] text-slate-500">Promedio de las encuestas respondidas</p>
       </div>
     </div>
+    ${cursos.length === 0 ? `<p class="px-5 py-10 text-center text-sm text-slate-500">Aún no hay cursos con evaluaciones.</p>` : `
     <div class="overflow-x-auto">
       <table class="w-full min-w-[800px] border-collapse text-sm">
         <thead>
           <tr class="border-b border-slate-200 bg-slate-50">
             <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Curso</th>
             <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instructor</th>
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Proveedor</th>
             <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">N</th>
             <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Contenido</th>
             <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instructor</th>
-            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Utilidad</th>
-            <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tendencia</th>
+            <th class="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">Aplicabilidad</th>
             <th class="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Score</th>
           </tr>
         </thead>
@@ -3792,18 +3856,27 @@ function renderEncTabla(): string {
           ${rows}
         </tbody>
       </table>
-    </div>
+    </div>`}
   </div>`;
 }
 
-function renderEncDistribucion(): string {
-  const data = [
-    { star: 5, count: 412, pct: 67, color: "bg-emerald-500" },
-    { star: 4, count: 128, pct: 21, color: "bg-blue-500" },
-    { star: 3, count: 44, pct: 7, color: "bg-amber-400" },
-    { star: 2, count: 18, pct: 3, color: "bg-blue-400" },
-    { star: 1, count: 10, pct: 2, color: "bg-red-500" },
-  ];
+const ENC_DIST_COLORS: Record<number, string> = {
+  5: "bg-emerald-500",
+  4: "bg-blue-500",
+  3: "bg-amber-400",
+  2: "bg-blue-400",
+  1: "bg-red-500",
+};
+
+function renderEncDistribucion(distribucion: DistribucionItem[]): string {
+  const byScore = new Map<number, number>();
+  for (const item of distribucion) byScore.set(item.score, item.cantidad);
+  const total = distribucion.reduce((acc, item) => acc + item.cantidad, 0);
+  const data = [5, 4, 3, 2, 1].map((star) => {
+    const count = byScore.get(star) ?? 0;
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    return { star, count, pct, color: ENC_DIST_COLORS[star] };
+  });
   const rows = data.map(d => `
     <div class="flex items-center gap-2.5">
       <span class="w-3 text-right text-xs font-semibold tabular-nums text-slate-700">${d.star}</span>
@@ -3820,7 +3893,7 @@ function renderEncDistribucion(): string {
   <div class="rounded-xl border border-border bg-white p-5 flex flex-col gap-4">
     <div>
       <p class="text-sm font-semibold text-text-primary">Distribuci&oacute;n de respuestas</p>
-      <p class="text-[11px] text-slate-500">Escala 1 a 5 &middot; 612 encuestas</p>
+      <p class="text-[11px] text-slate-500">Escala 1 a 5 &middot; ${total} ${total === 1 ? "respuesta" : "respuestas"}</p>
     </div>
     <div class="flex flex-col gap-2.5">
       ${rows}
@@ -3828,22 +3901,39 @@ function renderEncDistribucion(): string {
   </div>`;
 }
 
-function renderEncComentarios(): string {
+function encComentarioSentimiento(score: number): "positivo" | "neutro" | "mejora" {
+  if (score >= 4) return "positivo";
+  if (score >= 3) return "neutro";
+  return "mejora";
+}
+
+function renderEncComentarios(comentarios: ComentarioItem[]): string {
   const sentColors: Record<string, string> = {
     positivo: "border-l-emerald-400",
     neutro: "border-l-amber-400",
     mejora: "border-l-blue-400",
   };
-  const items = FAKE_ENC_COMENTARIOS.map(c => {
-    const cursoPill = `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">${escapeHtml(c.curso)}</span>`;
+  if (comentarios.length === 0) {
     return `
-    <div class="border-l-[3px] ${sentColors[c.sentimiento]} rounded-r-lg bg-slate-50 px-3 py-2.5">
+    <div class="rounded-xl border border-border bg-white p-5 flex flex-col gap-3">
+      <p class="text-sm font-semibold text-text-primary">Comentarios destacados</p>
+      <p class="text-xs text-slate-500">Aún no hay comentarios registrados.</p>
+    </div>`;
+  }
+  const items = comentarios.map(c => {
+    const sentimiento = encComentarioSentimiento(c.score_general);
+    const fecha = (() => {
+      const d = new Date(c.fecha);
+      return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+    })();
+    return `
+    <div class="border-l-[3px] ${sentColors[sentimiento]} rounded-r-lg bg-slate-50 px-3 py-2.5">
       <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-[11px] font-semibold text-amber-500">&starf; ${c.score}</span>
-        <span class="text-[11px] font-medium text-slate-700">${escapeHtml(c.nombre)}</span>
-        ${cursoPill}
+        <span class="text-[11px] font-semibold text-amber-500">&starf; ${c.score_general}</span>
+        <span class="text-[11px] font-medium text-slate-700">${escapeHtml(c.empleado_nombre ?? "Anónimo")}</span>
+        ${fecha ? `<span class="text-[10px] text-slate-400">${escapeHtml(fecha)}</span>` : ""}
       </div>
-      <p class="mt-1.5 text-xs italic text-slate-600 leading-relaxed">&ldquo;${escapeHtml(c.texto)}&rdquo;</p>
+      <p class="mt-1.5 text-xs italic text-slate-600 leading-relaxed">&ldquo;${escapeHtml(c.comentario)}&rdquo;</p>
     </div>`;
   }).join("");
 
@@ -3852,9 +3942,8 @@ function renderEncComentarios(): string {
     <div class="flex items-center justify-between">
       <div>
         <p class="text-sm font-semibold text-text-primary">Comentarios destacados</p>
-        <p class="text-[11px] text-slate-500">Filtrados por sentimiento y curso</p>
+        <p class="text-[11px] text-slate-500">Retroalimentación de los asistentes</p>
       </div>
-      <button class="text-xs font-medium text-blue-600 hover:text-blue-800 transition opacity-60 cursor-not-allowed" disabled>Ver todos &rsaquo;</button>
     </div>
     <div class="flex flex-col gap-2.5">
       ${items}
@@ -3862,37 +3951,71 @@ function renderEncComentarios(): string {
   </div>`;
 }
 
-function renderEncuestasPage(): string {
+function renderEncuestasHeader(): string {
   return `
-  <div class="flex flex-col gap-5">
     <div class="flex items-start justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Encuestas &middot; &Uacute;ltimos 90 d&iacute;as</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Encuestas Post Curso</p>
         <h1 class="mt-1 text-lg font-semibold text-text-primary">Resultados post curso</h1>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">Score consolidado por curso, instructor y proveedor; insumo para la mejora continua de la oferta formativa de la planta.</p>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Q2 2026</button>
-        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Reporte ejecutivo</button>
-      </div>
-    </div>
+    </div>`;
+}
 
-    ${renderEncKpis()}
-
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr]">
-      ${renderEncTabla()}
-      <div class="flex flex-col gap-5">
-        ${renderEncDistribucion()}
-        ${renderEncComentarios()}
-      </div>
-    </div>
+function renderEncuestasPage(data: EncuestasDashboard | null, loading: boolean, error: string | null): string {
+  let body: string;
+  if (loading) {
+    body = `<div class="rounded-xl border border-border bg-white px-6 py-16 text-center text-sm text-text-muted" aria-busy="true">Cargando resultados…</div>`;
+  } else if (error) {
+    body = `<div class="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center text-sm text-red-700" role="alert">${escapeHtml(error)}</div>`;
+  } else if (!data || data.total_evaluaciones === 0) {
+    body = `
+      <div class="rounded-xl border border-border bg-white px-6 py-16 text-center">
+        <p class="text-base font-semibold text-text-primary">Sin evaluaciones todavía</p>
+        <p class="mt-1 text-sm text-text-muted">Cuando los asistentes respondan las encuestas habilitadas, aquí verás el resumen consolidado.</p>
+      </div>`;
+  } else {
+    body = `
+      ${renderEncKpis(data)}
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr]">
+        ${renderEncTabla(data.cursos)}
+        <div class="flex flex-col gap-5">
+          ${renderEncDistribucion(data.distribucion)}
+          ${renderEncComentarios(data.comentarios)}
+        </div>
+      </div>`;
+  }
+  return `
+  <div class="flex flex-col gap-5">
+    ${renderEncuestasHeader()}
+    ${body}
   </div>`;
 }
 
 export function mountEncuestas(container: HTMLElement): void {
-  mountAppShell(container, {
-    pageTitle: "Encuestas Post Curso",
-    activeNav: "encuestas",
-    mainHtml: renderEncuestasPage(),
-  });
+  let data: EncuestasDashboard | null = null;
+  let loading = true;
+  let error: string | null = null;
+
+  const render = (): void => {
+    mountAppShell(container, {
+      pageTitle: "Encuestas Post Curso",
+      activeNav: "encuestas",
+      mainHtml: renderEncuestasPage(data, loading, error),
+    });
+  };
+
+  render();
+
+  void getEncuestasDashboard()
+    .then((d) => {
+      data = d;
+      loading = false;
+      render();
+    })
+    .catch((e: unknown) => {
+      error = (e as Error)?.message ?? "No se pudo cargar el dashboard de encuestas";
+      loading = false;
+      render();
+    });
 }

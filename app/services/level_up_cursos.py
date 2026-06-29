@@ -5,6 +5,7 @@ from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.level_up import Curso
 from app.repositories.level_up_cursos import CursoRepository
+from app.repositories.level_up_encuestas import EncuestaRepository
 from app.schemas.level_up import (
     CursoCreate,
     CursoListResponse,
@@ -17,6 +18,7 @@ class CursoService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = CursoRepository(db)
+        self.encuestas = EncuestaRepository(db)
 
     @staticmethod
     def _get_rol(user: Empleado) -> str:
@@ -32,7 +34,11 @@ class CursoService:
         return None
 
     @staticmethod
-    def _to_response(curso: Curso) -> CursoResponse:
+    def _to_response(
+        curso: Curso,
+        calificacion_promedio: float | None = None,
+        total_evaluaciones: int = 0,
+    ) -> CursoResponse:
         instructor_nombre = CursoService._resolve_instructor_nombre(curso)
         return CursoResponse(
             id=curso.id,
@@ -58,6 +64,12 @@ class CursoService:
             requisitos=curso.requisitos,
             centro_costos=curso.centro_costos,
             activo=curso.activo,
+            calificacion_promedio=(
+                round(calificacion_promedio, 2)
+                if calificacion_promedio is not None
+                else None
+            ),
+            total_evaluaciones=total_evaluaciones,
             created_at=curso.created_at,
             updated_at=curso.updated_at,
         )
@@ -82,8 +94,11 @@ class CursoService:
             categoria=categoria,
             busqueda=busqueda,
         )
+        ratings = await self.encuestas.promedios_por_curso([i.id for i in items])
         return CursoListResponse(
-            items=[self._to_response(i) for i in items],
+            items=[
+                self._to_response(i, *ratings.get(i.id, (None, 0))) for i in items
+            ],
             total=total,
             page=page,
             page_size=page_size,
@@ -93,7 +108,10 @@ class CursoService:
         curso = await self.repo.get(id)
         if not curso or not curso.activo:
             raise NotFoundError(entidad="Curso", id=id)
-        return self._to_response(curso)
+        promedio, total = (await self.encuestas.promedios_por_curso([id])).get(
+            id, (None, 0)
+        )
+        return self._to_response(curso, promedio, total)
 
     async def crear(
         self, data: CursoCreate, current_user: Empleado

@@ -60,10 +60,46 @@ import type { RhSolicitudTablaFila } from "../solicitudes/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import { getMisEncuestasPendientes } from "../api/encuestas.ts";
 
 /** Mismo ancho y padding X que Solicitudes, Actas e Incidencias sobre `.rh-dashboard-page`. */
 function wrapDashboardPageContent(innerHtml: string): string {
   return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">${innerHtml}</div>`;
+}
+
+/**
+ * Banner no intrusivo en el dashboard del colaborador cuando tiene encuestas
+ * post curso por responder. Se inyecta una sola vez sobre el contenido del
+ * dashboard y enlaza a `#/mis-encuestas`. Si no hay pendientes no muestra nada.
+ */
+async function injectEncuestasPendientesBanner(container: HTMLElement): Promise<void> {
+  try {
+    const res = await getMisEncuestasPendientes();
+    if (!res || res.total <= 0) return;
+    const anchor =
+      container.querySelector<HTMLElement>("#empleado-dashboard-root") ??
+      container.querySelector<HTMLElement>("#lider-dashboard-root");
+    const host = anchor?.parentElement;
+    if (!host) return;
+    if (host.querySelector("#mis-encuestas-banner")) return;
+    const banner = document.createElement("div");
+    banner.id = "mis-encuestas-banner";
+    const plural = res.total === 1 ? "encuesta" : "encuestas";
+    banner.innerHTML = `
+      <a href="#/mis-encuestas" class="group flex items-center gap-3 rounded-2xl border border-[#bfdbfe] bg-gradient-to-br from-blue-50 via-white to-blue-50/40 px-4 py-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:border-[#1e40af]/40 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2">
+        <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1e40af]/10 text-[#1e40af]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 3h1A2.25 2.25 0 0 1 16.65 3.836m-5.8 0c-.376.023-.75.05-1.124.08C8.095 4.01 7.25 4.973 7.25 6.108V8.25m0 0H5.625c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75"/></svg>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold text-text-primary">Tienes ${res.total} ${plural} por responder</span>
+          <span class="block text-xs text-text-secondary">Califica los cursos que tomaste para ayudarnos a mejorar.</span>
+        </span>
+        <svg viewBox="0 0 20 20" fill="currentColor" class="size-5 shrink-0 text-[#1e40af] transition-transform group-hover:translate-x-0.5" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd"/></svg>
+      </a>`;
+    host.insertBefore(banner, anchor);
+  } catch {
+    /* sin banner si falla la consulta */
+  }
 }
 
 function renderError(message: string): string {
@@ -345,6 +381,7 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   bindEmpleadoCalendarNavigation(container, payload, calYear, calMonth, {
     loadMonthData: async (target) => fetchEmpleadoDashboard(target).catch(() => null),
   });
+  void injectEncuestasPendientesBanner(container);
 }
 
 function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
@@ -432,6 +469,8 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
       loadMonthData: async (target) => fetchLiderDashboard(target).catch(() => null),
     });
   }
+
+  void injectEncuestasPendientesBanner(container);
 
   if (root.dataset.liderApprovalBound !== "1") {
     root.dataset.liderApprovalBound = "1";

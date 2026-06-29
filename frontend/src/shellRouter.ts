@@ -50,6 +50,7 @@ import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
 import { mountCursosAjustes } from "./pages/cursosAjustes.ts";
 import { mountCursosSeguimiento } from "./pages/cursosSeguimiento.ts";
+import { mountMisEncuestas } from "./pages/misEncuestas.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import { destroyAllCharts } from "./charts/index.ts";
 import {
@@ -250,6 +251,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/sugerencias")) {
       mountSugerencias(container);
+      return;
+    }
+    if (h.startsWith("#/mis-encuestas")) {
+      mountMisEncuestas(container, signal);
       return;
     }
     if (h.startsWith("#/encuestas")) {

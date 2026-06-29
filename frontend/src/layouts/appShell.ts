@@ -125,6 +125,7 @@ export type ShellNavKey =
   | "evidencias"
   | "sugerencias"
   | "encuestas"
+  | "mis-encuestas"
   | "level-up"
   | "nominas"
   | "horas-extra"

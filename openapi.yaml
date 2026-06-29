@@ -5048,6 +5048,183 @@ components:
         page_size:
           type: integer
 
+    # ── Encuestas Post Curso ──────────────────────────────────────────────
+    EncuestaHabilitarRequest:
+      type: object
+      properties:
+        fecha_limite:
+          type: string
+          format: date-time
+          nullable: true
+    EncuestaUpdateRequest:
+      type: object
+      properties:
+        estado:
+          type: string
+          enum: [activa, cerrada]
+          nullable: true
+        fecha_limite:
+          type: string
+          format: date-time
+          nullable: true
+    EncuestaEstadoResponse:
+      type: object
+      required: [curso_id, sesion_id, estado_efectivo, total_asistentes, respondidas, pendientes]
+      properties:
+        id:
+          type: integer
+          nullable: true
+        curso_id:
+          type: integer
+        sesion_id:
+          type: integer
+        estado_efectivo:
+          type: string
+          enum: [no_habilitada, activa, cerrada]
+        fecha_limite:
+          type: string
+          format: date-time
+          nullable: true
+        fecha_cierre:
+          type: string
+          format: date-time
+          nullable: true
+        total_asistentes:
+          type: integer
+        respondidas:
+          type: integer
+        pendientes:
+          type: integer
+    EncuestaRespuestaCreate:
+      type: object
+      required: [score_general, score_instructor, score_contenido, score_aplicabilidad]
+      properties:
+        score_general: { type: integer, minimum: 1, maximum: 5 }
+        score_instructor: { type: integer, minimum: 1, maximum: 5 }
+        score_contenido: { type: integer, minimum: 1, maximum: 5 }
+        score_aplicabilidad: { type: integer, minimum: 1, maximum: 5 }
+        comentario: { type: string, nullable: true, maxLength: 2000 }
+    EncuestaRespuestaResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        encuesta_id: { type: integer }
+        curso_id: { type: integer }
+        sesion_id: { type: integer }
+        empleado_id: { type: integer }
+        score_general: { type: integer }
+        score_instructor: { type: integer }
+        score_contenido: { type: integer }
+        score_aplicabilidad: { type: integer }
+        comentario: { type: string, nullable: true }
+        fecha: { type: string, format: date-time }
+    EncuestaPendienteItem:
+      type: object
+      properties:
+        encuesta_id: { type: integer }
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        sesion_id: { type: integer }
+        fecha_sesion: { type: string, format: date, nullable: true }
+        fecha_limite: { type: string, format: date-time, nullable: true }
+    EncuestaPendienteListResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EncuestaPendienteItem"
+        total: { type: integer }
+    EncuestaDetalleResponse:
+      type: object
+      properties:
+        encuesta_id: { type: integer }
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        sesion_id: { type: integer }
+        fecha_sesion: { type: string, format: date, nullable: true }
+        estado_efectivo:
+          type: string
+          enum: [no_habilitada, activa, cerrada]
+        fecha_limite: { type: string, format: date-time, nullable: true }
+        ya_respondida: { type: boolean }
+    DistribucionItem:
+      type: object
+      properties:
+        score: { type: integer }
+        cantidad: { type: integer }
+    ComentarioItem:
+      type: object
+      properties:
+        sesion_id: { type: integer }
+        empleado_nombre: { type: string, nullable: true }
+        score_general: { type: integer }
+        comentario: { type: string }
+        fecha: { type: string, format: date-time }
+    EncuestaSesionResultado:
+      type: object
+      properties:
+        sesion_id: { type: integer }
+        fecha_sesion: { type: string, format: date, nullable: true }
+        estado_efectivo:
+          type: string
+          enum: [no_habilitada, activa, cerrada]
+        total_asistentes: { type: integer }
+        respondidas: { type: integer }
+        tasa_participacion: { type: number }
+        promedio_general: { type: number, nullable: true }
+        promedio_instructor: { type: number, nullable: true }
+        promedio_contenido: { type: number, nullable: true }
+        promedio_aplicabilidad: { type: number, nullable: true }
+    CursoEncuestasResumenResponse:
+      type: object
+      properties:
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        calificacion_promedio: { type: number, nullable: true }
+        total_evaluaciones: { type: integer }
+        promedio_instructor: { type: number, nullable: true }
+        promedio_contenido: { type: number, nullable: true }
+        promedio_aplicabilidad: { type: number, nullable: true }
+        distribucion:
+          type: array
+          items: { $ref: "#/components/schemas/DistribucionItem" }
+        sesiones:
+          type: array
+          items: { $ref: "#/components/schemas/EncuestaSesionResultado" }
+        comentarios:
+          type: array
+          items: { $ref: "#/components/schemas/ComentarioItem" }
+    DashboardCursoItem:
+      type: object
+      properties:
+        curso_id: { type: integer }
+        curso_nombre: { type: string }
+        instructor_nombre: { type: string, nullable: true }
+        proveedor_nombre: { type: string, nullable: true }
+        total_evaluaciones: { type: integer }
+        promedio_general: { type: number, nullable: true }
+        promedio_instructor: { type: number, nullable: true }
+        promedio_contenido: { type: number, nullable: true }
+        promedio_aplicabilidad: { type: number, nullable: true }
+    EncuestasDashboardResponse:
+      type: object
+      properties:
+        total_evaluaciones: { type: integer }
+        score_medio: { type: number, nullable: true }
+        cursos_evaluados: { type: integer }
+        cursos_en_alerta: { type: integer }
+        distribucion:
+          type: array
+          items: { $ref: "#/components/schemas/DistribucionItem" }
+        cursos:
+          type: array
+          items: { $ref: "#/components/schemas/DashboardCursoItem" }
+        comentarios:
+          type: array
+          items: { $ref: "#/components/schemas/ComentarioItem" }
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -11245,3 +11422,187 @@ paths:
           description: Sin permisos RH
         "404":
           description: Instructor interno no encontrado
+
+  # ── Encuestas Post Curso ────────────────────────────────────────────────
+  /api/v1/level-up/cursos/{curso_id}/sesiones/{sesion_id}/encuesta:
+    parameters:
+      - name: curso_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: sesion_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Estado de la encuesta de una sesión (RH)
+      operationId: estado_encuesta_sesion
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Estado y conteos de participación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaEstadoResponse"
+    post:
+      tags: [Level Up - Encuestas]
+      summary: Habilitar encuesta para una sesión finalizada (RH)
+      operationId: habilitar_encuesta_sesion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncuestaHabilitarRequest"
+      responses:
+        "201":
+          description: Encuesta habilitada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaEstadoResponse"
+        "409":
+          description: La encuesta ya está habilitada
+        "422":
+          description: La sesión no está finalizada
+    patch:
+      tags: [Level Up - Encuestas]
+      summary: Cerrar/reabrir o fijar fecha límite de la encuesta (RH)
+      operationId: actualizar_encuesta_sesion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncuestaUpdateRequest"
+      responses:
+        "200":
+          description: Encuesta actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaEstadoResponse"
+        "404":
+          description: Encuesta no encontrada
+    delete:
+      tags: [Level Up - Encuestas]
+      summary: Deshabilitar encuesta (RH); si tiene respuestas se cierra
+      operationId: deshabilitar_encuesta_sesion
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Encuesta deshabilitada
+        "409":
+          description: Tiene respuestas; se cerró en lugar de eliminarse
+
+  /api/v1/level-up/cursos/{curso_id}/encuestas/resumen:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Resumen de resultados de encuestas del curso (RH)
+      operationId: resumen_encuestas_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: curso_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Promedios, distribución, comparativo por sesión y comentarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursoEncuestasResumenResponse"
+
+  /api/v1/level-up/cursos/dashboard/encuestas:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Dashboard global de encuestas post curso (RH)
+      operationId: dashboard_encuestas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: KPIs, score por curso, distribución y comentarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestasDashboardResponse"
+
+  /api/v1/level-up/encuestas/pendientes:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Encuestas pendientes del empleado autenticado
+      operationId: mis_encuestas_pendientes
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de encuestas pendientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaPendienteListResponse"
+
+  /api/v1/level-up/encuestas/{encuesta_id}:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Detalle de la encuesta para responder (empleado)
+      operationId: detalle_encuesta
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: encuesta_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Detalle de la encuesta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaDetalleResponse"
+        "404":
+          description: Encuesta no encontrada
+        "422":
+          description: El empleado no asistió a la sesión
+
+  /api/v1/level-up/encuestas/{encuesta_id}/respuesta:
+    post:
+      tags: [Level Up - Encuestas]
+      summary: Responder la encuesta (empleado asistente)
+      operationId: responder_encuesta
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: encuesta_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncuestaRespuestaCreate"
+      responses:
+        "201":
+          description: Respuesta registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaRespuestaResponse"
+        "409":
+          description: Ya respondiste la encuesta de esta sesión
+        "422":
+          description: Encuesta no activa o empleado no asistente

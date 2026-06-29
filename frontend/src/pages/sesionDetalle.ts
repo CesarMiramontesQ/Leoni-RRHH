@@ -17,6 +17,17 @@ import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesi
 import type { EmpleadoElegible } from "../api/cursos.ts";
 import { ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import type { Curso, CursoSesion, EstadoSesion, SesionEmpleadoItem, CursoSesionUpdatePayload } from "../dashboard/cursos/types.ts";
+import {
+  getEncuestaEstado,
+  habilitarEncuesta,
+  actualizarEncuesta,
+  deshabilitarEncuesta,
+} from "../api/encuestas.ts";
+import {
+  ESTADO_ENCUESTA_BADGE,
+  ESTADO_ENCUESTA_LABELS,
+} from "../dashboard/cursos/encuestasTypes.ts";
+import type { EncuestaEstado } from "../dashboard/cursos/encuestasTypes.ts";
 
 const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>`;
 const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
@@ -47,6 +58,10 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchLoading: boolean;
     showAddModal: boolean;
     showEditModal: boolean;
+    encuesta: EncuestaEstado | null;
+    encuestaLoading: boolean;
+    encuestaActionLoading: boolean;
+    encuestaError: string | null;
   }
 
   const state: State = {
@@ -60,6 +75,10 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchLoading: false,
     showAddModal: false,
     showEditModal: false,
+    encuesta: null,
+    encuestaLoading: false,
+    encuestaActionLoading: false,
+    encuestaError: null,
   };
 
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -79,6 +98,22 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       const e = err as { detail?: string };
       state.error = e?.detail ?? "Error al cargar la sesión";
     }
+  }
+
+  async function loadEncuesta(): Promise<void> {
+    if (!state.sesion || state.sesion.estado !== "completada") {
+      state.encuesta = null;
+      return;
+    }
+    state.encuestaLoading = true;
+    try {
+      state.encuesta = await getEncuestaEstado(cursoId, sesionId);
+      state.encuestaError = null;
+    } catch (err: unknown) {
+      state.encuesta = null;
+      state.encuestaError = (err as Error)?.message ?? "No se pudo cargar la encuesta";
+    }
+    state.encuestaLoading = false;
   }
 
   function render(): void {
@@ -266,6 +301,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
         </div>
       </section>
 
+      ${renderEncuestaPanel()}
+
       <section class="${RH_LISTADO_SURFACE} ss-detail-empleados flex flex-col overflow-hidden p-0" aria-label="Empleados inscritos">
         <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
@@ -314,6 +351,91 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       ${state.showAddModal ? renderAddModal() : ""}
       ${state.showEditModal ? renderEditModal() : ""}
     </div>`;
+  }
+
+  function renderEncuestaPanel(): string {
+    const s = state.sesion!;
+    const headerCls = "flex flex-col gap-1 border-b border-slate-100 px-5 py-4 sm:px-6";
+    const titleHtml = `
+      <div class="${headerCls}">
+        <h2 class="text-base font-semibold text-text-primary">Encuesta post curso</h2>
+        <p class="text-xs text-text-muted">Retroalimentación de los asistentes sobre el curso e instructor.</p>
+      </div>`;
+
+    if (s.estado !== "completada") {
+      return `
+      <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Encuesta post curso">
+        ${titleHtml}
+        <div class="px-5 py-5 sm:px-6">
+          <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">La encuesta se habilita cuando la sesión esté marcada como <strong class="text-text-primary">Completada</strong>.</p>
+        </div>
+      </section>`;
+    }
+
+    if (state.encuestaLoading && !state.encuesta) {
+      return `
+      <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Encuesta post curso">
+        ${titleHtml}
+        <div class="px-5 py-6 sm:px-6"><div class="h-20 animate-pulse rounded-lg bg-slate-100"></div></div>
+      </section>`;
+    }
+
+    const enc = state.encuesta;
+    const estado = enc?.estado_efectivo ?? "no_habilitada";
+    const badgeCls = ESTADO_ENCUESTA_BADGE[estado];
+    const fechaLimiteVal = enc?.fecha_limite ? enc.fecha_limite.slice(0, 10) : "";
+    const respondidas = enc?.respondidas ?? 0;
+    const pendientes = enc?.pendientes ?? 0;
+    const totalAsistentes = enc?.total_asistentes ?? 0;
+    const disabled = state.encuestaActionLoading ? " disabled" : "";
+
+    const dateInput = (id: string) => `
+      <div class="flex flex-col gap-1">
+        <label for="${id}" class="text-xs font-medium text-text-muted">Fecha límite (opcional)</label>
+        <input type="date" id="${id}" value="${fechaLimiteVal}" class="${MODAL_FIELD_CLS} w-auto" />
+      </div>`;
+
+    let actions = "";
+    if (estado === "no_habilitada") {
+      actions = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          ${dateInput("encuesta-fecha-limite")}
+          <button type="button" data-action="encuesta-habilitar" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>${state.encuestaActionLoading ? "Procesando…" : "Habilitar encuesta"}</button>
+        </div>`;
+    } else if (estado === "activa") {
+      actions = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap">
+          ${dateInput("encuesta-fecha-limite")}
+          <button type="button" data-action="encuesta-guardar-limite" class="${RH_LISTADO_BTN_SECONDARY} text-xs"${disabled}>Guardar fecha límite</button>
+          <button type="button" data-action="encuesta-cerrar" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>Cerrar encuesta</button>
+          <button type="button" data-action="encuesta-deshabilitar" class="rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100${state.encuestaActionLoading ? " opacity-60" : ""}"${disabled}>Deshabilitar</button>
+        </div>`;
+    } else {
+      actions = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button type="button" data-action="encuesta-reabrir" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>Reabrir encuesta</button>
+        </div>`;
+    }
+
+    return `
+    <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Encuesta post curso">
+      ${titleHtml}
+      <div class="flex flex-col gap-5 px-5 py-5 sm:px-6">
+        ${state.encuestaError ? `<p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900" role="alert">${escapeHtml(state.encuestaError)}</p>` : ""}
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium text-text-muted">Estado</span>
+            <span class="inline-flex items-center rounded-full border ${badgeCls} px-2.5 py-0.5 text-xs font-semibold">${escapeHtml(ESTADO_ENCUESTA_LABELS[estado])}</span>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <span><strong class="text-emerald-600 tabular-nums">${respondidas}</strong> <span class="text-text-muted">respondidas</span></span>
+            <span><strong class="text-amber-600 tabular-nums">${pendientes}</strong> <span class="text-text-muted">pendientes</span></span>
+            <span><strong class="text-text-primary tabular-nums">${totalAsistentes}</strong> <span class="text-text-muted">asistentes</span></span>
+          </div>
+        </div>
+        ${actions}
+      </div>
+    </section>`;
   }
 
   function renderEditModal(): string {
@@ -479,6 +601,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
         const updated = await updateCursoSesion(cursoId, sesionId, { estado: newEstado });
         state.sesion = updated;
         render();
+        await loadEncuesta();
+        render();
       } catch {
         render();
       }
@@ -500,8 +624,54 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     }
   }
 
+  function readEncuestaFechaLimite(): string | null {
+    const input = container.querySelector<HTMLInputElement>("#encuesta-fecha-limite");
+    const val = input?.value?.trim();
+    return val ? val : null;
+  }
+
+  async function runEncuestaAction(fn: () => Promise<unknown>): Promise<void> {
+    if (state.encuestaActionLoading) return;
+    state.encuestaActionLoading = true;
+    state.encuestaError = null;
+    render();
+    try {
+      await fn();
+    } catch (err: unknown) {
+      // El backend cierra la encuesta y responde 409 si ya hay respuestas al
+      // intentar deshabilitar: mostramos el mensaje y refrescamos el estado.
+      state.encuestaError = (err as Error)?.message ?? "No se pudo actualizar la encuesta";
+    }
+    await loadEncuesta();
+    state.encuestaActionLoading = false;
+    render();
+  }
+
   async function handleClick(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
+
+    if (t.closest("[data-action='encuesta-habilitar']")) {
+      const limite = readEncuestaFechaLimite();
+      await runEncuestaAction(() => habilitarEncuesta(cursoId, sesionId, limite));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-guardar-limite']")) {
+      const limite = readEncuestaFechaLimite();
+      await runEncuestaAction(() => actualizarEncuesta(cursoId, sesionId, { fecha_limite: limite }));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-cerrar']")) {
+      await runEncuestaAction(() => actualizarEncuesta(cursoId, sesionId, { estado: "cerrada" }));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-reabrir']")) {
+      await runEncuestaAction(() => actualizarEncuesta(cursoId, sesionId, { estado: "activa" }));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-deshabilitar']")) {
+      await runEncuestaAction(() => deshabilitarEncuesta(cursoId, sesionId));
+      return;
+    }
 
     if ((t as HTMLElement).matches("[data-backdrop='add-empleado-modal']")) {
       state.showAddModal = false;
@@ -601,6 +771,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   (async () => {
     await loadData();
     state.loading = false;
+    render();
+    await loadEncuesta();
     render();
   })();
 }

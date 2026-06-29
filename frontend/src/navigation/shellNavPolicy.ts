@@ -145,6 +145,7 @@ export type AppShellNavItemId =
   | "sugerencias"
   | "sesiones"
   | "encuestas"
+  | "mis-encuestas"
   | "level-up"
   | "nominas"
   | "horas-extra"
@@ -157,6 +158,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "solicitudes",
   "comedor",
+  "mis-encuestas",
 ]);
 
 /** Rol con menú lateral plano (sin hubs ni submenús). */
@@ -314,6 +316,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
+  if (h.startsWith("#/mis-encuestas")) return true;
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith("#/metricas")) return false;
   return false;
