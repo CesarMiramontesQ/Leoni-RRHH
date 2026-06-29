@@ -14,7 +14,6 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/notificaciones"), titulo: "Notificaciones" },
   { match: (h) => h.startsWith("#/metricas"), titulo: "Métricas" },
   { match: (h) => h.startsWith("#/solicitudes"), titulo: "Solicitudes" },
-  { match: (h) => h.startsWith("#/capacitaciones"), titulo: "Capacitaciones" },
   { match: (h) => h.startsWith("#/evaluaciones"), titulo: "Evaluaciones" },
   { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/faltas-retardos"), titulo: "Faltas y retardos" },

@@ -44,7 +44,6 @@ const allowedModules = new Set<string>([
   "cursos",
   "cursos-ajustes",
   "sesiones",
-  "capacitaciones",
   "puestos",
   "competencias",
   "tareas-catalogo",
@@ -65,7 +64,6 @@ describe("rhNav sections", () => {
     allowedModules.add("cursos");
     allowedModules.add("cursos-ajustes");
     allowedModules.add("sesiones");
-    allowedModules.add("capacitaciones");
     allowedModules.add("puestos");
     allowedModules.add("competencias");
     allowedModules.add("tareas-catalogo");
@@ -90,13 +88,11 @@ describe("rhNav sections", () => {
     expect(cursosSection?.items.map((item) => item.key)).toEqual([
       "cursos",
       "sesiones",
-      "capacitaciones",
       "encuestas",
       "cursos-ajustes",
     ]);
     expect(levelUpSection?.items.some((item) => item.key === "cursos")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "sesiones")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "capacitaciones")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
   });
 
@@ -156,11 +152,6 @@ describe("rhNav sections", () => {
         key: "sesiones",
         href: "#/sesiones",
         label: "Sesiones",
-      }),
-      expect.objectContaining({
-        key: "capacitaciones",
-        href: "#/capacitaciones",
-        label: "Capacitaciones",
       }),
       expect.objectContaining({
         key: "encuestas",
@@ -243,7 +234,6 @@ describe("rhNav sections", () => {
   it("omite Cursos cuando no hay ítems visibles", async () => {
     allowedModules.delete("cursos");
     allowedModules.delete("sesiones");
-    allowedModules.delete("capacitaciones");
     allowedModules.delete("encuestas");
     allowedModules.delete("cursos-ajustes");
 

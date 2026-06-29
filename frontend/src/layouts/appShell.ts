@@ -117,7 +117,6 @@ export type ShellNavKey =
   | "competencias"
   | "evaluaciones"
   | "evaluacion-360"
-  | "capacitaciones"
   | "capacidades"
   | "cursos"
   | "sesiones"

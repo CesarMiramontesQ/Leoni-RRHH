@@ -94,7 +94,7 @@ export function renderEval360Resultados(): string {
         Integración: <a href="#/puestos" class="font-medium text-accent hover:underline">Perfiles de puesto</a> ·
         <a href="#/competencias" class="font-medium text-accent hover:underline">Competencias</a> ·
         <a href="#/capacidades" class="font-medium text-accent hover:underline">Matriz multihabilidad</a> ·
-        <a href="#/capacitaciones" class="font-medium text-accent hover:underline">Capacitaciones</a>
+        <a href="#/cursos" class="font-medium text-accent hover:underline">Cursos</a>
       </p>
     </div>
 

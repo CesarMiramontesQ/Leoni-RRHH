@@ -6,7 +6,7 @@ import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import { LEVEL_UP_CURSOS, LEVEL_UP_CURSOS_RH_SIDEBAR } from "./levelUpNav.ts";
 
-export type CursosNavKey = "cursos" | "sesiones" | "capacitaciones" | "encuestas" | "cursos-ajustes";
+export type CursosNavKey = "cursos" | "sesiones" | "encuestas" | "cursos-ajustes";
 
 export type CursosNavItem = {
   id: AppShellNavItemId;
