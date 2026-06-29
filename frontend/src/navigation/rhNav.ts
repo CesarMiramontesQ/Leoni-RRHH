@@ -33,6 +33,7 @@ export type RhNavKey =
   | "evaluaciones"
   | "capacidades"
   | "cursos"
+  | "cursos-seguimiento"
   | "cursos-ajustes"
   | "sesiones"
   | "opls"

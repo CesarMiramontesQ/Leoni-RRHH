@@ -49,6 +49,7 @@ import { mountCapacidades } from "./pages/capacidades.ts";
 import { mountSesiones } from "./pages/sesiones.ts";
 import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
 import { mountCursosAjustes } from "./pages/cursosAjustes.ts";
+import { mountCursosSeguimiento } from "./pages/cursosSeguimiento.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import { destroyAllCharts } from "./charts/index.ts";
 import {
@@ -229,6 +230,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h === "#/cursos/ajustes") {
       mountCursosAjustes(container, signal);
+      return;
+    }
+    if (h === "#/cursos/seguimiento" || h.startsWith("#/cursos/seguimiento/")) {
+      mountCursosSeguimiento(container);
       return;
     }
     if (h.startsWith("#/cursos")) {

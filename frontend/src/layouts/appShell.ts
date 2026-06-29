@@ -119,6 +119,7 @@ export type ShellNavKey =
   | "evaluacion-360"
   | "capacidades"
   | "cursos"
+  | "cursos-seguimiento"
   | "sesiones"
   | "opls"
   | "evidencias"

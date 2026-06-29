@@ -301,16 +301,10 @@ async def listar_empleados_extra_del_curso(
     db: AsyncSession = Depends(get_db),
 ):
     """Lista empleados asignados directamente (no via puesto), deduplicados."""
-    # Empleados cubiertos por un puesto que tiene este curso
-    covered_by_puesto = (
-        select(PerfilFunciones.empleado_id)
-        .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
-        .where(
-            CursoPuesto.curso_id == id,
-            CursoPuesto.sesion_id.is_(None),
-            PerfilFunciones.activo.is_(True),
-        )
-    ).scalar_subquery()
+    from app.services.level_up_asignaciones import LevelUpAsignacionesService
+
+    asig_svc = LevelUpAsignacionesService(db)
+    covered_by_puesto = asig_svc.covered_by_puesto_subquery(id)
 
     stmt = (
         select(CursoEmpleado)
@@ -369,16 +363,10 @@ async def buscar_empleados_elegibles_extra(
 ):
     """Busca empleados activos que pueden asignarse individualmente al curso."""
     from app.core.config import settings
+    from app.services.level_up_asignaciones import LevelUpAsignacionesService
 
-    covered_by_puesto = (
-        select(PerfilFunciones.empleado_id)
-        .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
-        .where(
-            CursoPuesto.curso_id == id,
-            CursoPuesto.sesion_id.is_(None),
-            PerfilFunciones.activo.is_(True),
-        )
-    ).scalar_subquery()
+    asig_svc = LevelUpAsignacionesService(db)
+    covered_by_puesto = asig_svc.covered_by_puesto_subquery(id)
 
     already_extra = (
         select(CursoEmpleado.empleado_id).where(

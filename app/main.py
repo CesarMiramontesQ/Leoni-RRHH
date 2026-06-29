@@ -182,6 +182,7 @@ from app.api.v1.capacitaciones.router import router as capacitaciones_router
 from app.api.v1.level_up.router_habilidades import router as level_up_habilidades_router
 from app.api.v1.level_up.router_cursos import router as level_up_cursos_router
 from app.api.v1.level_up.router_curso_sesiones import router as level_up_curso_sesiones_router, all_sesiones_router
+from app.api.v1.level_up.router_cursos_dashboard import router as level_up_cursos_dashboard_router
 from app.api.v1.level_up.router_cursos_catalogo import router as cursos_catalogo_router
 from app.api.v1.tareas_catalogo.router import router as tareas_catalogo_router
 from app.api.v1.niveles_puesto.router import router as niveles_puesto_router
@@ -215,6 +216,7 @@ app.include_router(evaluaciones_router)
 app.include_router(capacitaciones_router)
 app.include_router(level_up_habilidades_router)
 app.include_router(level_up_cursos_router)
+app.include_router(level_up_cursos_dashboard_router)
 app.include_router(level_up_curso_sesiones_router)
 app.include_router(all_sesiones_router)
 app.include_router(cursos_catalogo_router)

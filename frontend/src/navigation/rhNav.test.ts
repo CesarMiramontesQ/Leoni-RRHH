@@ -42,6 +42,7 @@ let adminUser = true;
 
 const allowedModules = new Set<string>([
   "cursos",
+  "cursos-seguimiento",
   "cursos-ajustes",
   "sesiones",
   "puestos",
@@ -62,6 +63,7 @@ describe("rhNav sections", () => {
     adminUser = true;
     allowedModules.clear();
     allowedModules.add("cursos");
+    allowedModules.add("cursos-seguimiento");
     allowedModules.add("cursos-ajustes");
     allowedModules.add("sesiones");
     allowedModules.add("puestos");
@@ -86,6 +88,7 @@ describe("rhNav sections", () => {
 
     expect(cursosSection?.title).toBe("Cursos");
     expect(cursosSection?.items.map((item) => item.key)).toEqual([
+      "cursos-seguimiento",
       "cursos",
       "sesiones",
       "encuestas",
@@ -143,6 +146,11 @@ describe("rhNav sections", () => {
     const cursosSection = getVisibleRhNavSections("supervisor").find((section) => section.id === "cursos");
 
     expect(cursosSection?.items).toEqual([
+      expect.objectContaining({
+        key: "cursos-seguimiento",
+        href: "#/cursos/seguimiento",
+        label: "Seguimiento",
+      }),
       expect.objectContaining({
         key: "cursos",
         href: "#/cursos",
@@ -233,6 +241,7 @@ describe("rhNav sections", () => {
 
   it("omite Cursos cuando no hay ítems visibles", async () => {
     allowedModules.delete("cursos");
+    allowedModules.delete("cursos-seguimiento");
     allowedModules.delete("sesiones");
     allowedModules.delete("encuestas");
     allowedModules.delete("cursos-ajustes");

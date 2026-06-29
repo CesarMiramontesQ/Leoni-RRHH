@@ -415,93 +415,21 @@ async def listar_empleados_elegibles(
     db: AsyncSession = Depends(get_db),
 ):
     """Empleados que pueden inscribirse: por puestos, extras, o grupos asignados al curso."""
-    from app.models.level_up import CursoGrupo, TipoGrupoCurso
-    from sqlalchemy import or_
+    from app.services.level_up_asignaciones import LevelUpAsignacionesService
 
     sesion = await db.get(CursoSesion, sesion_id)
     if not sesion or sesion.curso_id != curso_id:
         from app.core.exceptions import NotFoundError
         raise NotFoundError(entidad="Sesión", id=sesion_id)
 
-    already_inscribed = select(CursoEmpleado.empleado_id).where(
-        CursoEmpleado.sesion_id == sesion_id
-    ).scalar_subquery()
-
-    # Empleados en puestos que tienen el curso asignado
-    from_puestos = (
-        select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
-        .join(PerfilFunciones, PerfilFunciones.empleado_id == Empleado.id)
-        .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
-        .where(
-            CursoPuesto.curso_id == curso_id,
-            PerfilFunciones.activo.is_(True),
-            Empleado.id.notin_(already_inscribed),
-        )
+    asig_svc = LevelUpAsignacionesService(db)
+    rows = await asig_svc.empleados_elegibles_sesion(
+        curso_id=curso_id, sesion_id=sesion_id, q=q, limit=30
     )
-
-    # Empleados con curso extra asignado
-    from_extras = (
-        select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
-        .join(CursoEmpleado, CursoEmpleado.empleado_id == Empleado.id)
-        .where(
-            CursoEmpleado.curso_id == curso_id,
-            CursoEmpleado.sesion_id.is_(None),
-            Empleado.id.notin_(already_inscribed),
-        )
-    )
-
-    # Empleados de grupos asignados al curso (dinámico)
-    grupos_result = await db.execute(
-        select(CursoGrupo).where(CursoGrupo.curso_id == curso_id)
-    )
-    grupos = grupos_result.scalars().all()
-
-    from_grupos_conditions = []
-    for g in grupos:
-        if g.tipo == TipoGrupoCurso.area:
-            from_grupos_conditions.append(Empleado.area_id == g.referencia_id)
-        elif g.tipo == TipoGrupoCurso.subarea:
-            from_grupos_conditions.append(Empleado.subarea_id == g.referencia_id)
-        elif g.tipo == TipoGrupoCurso.puesto:
-            from_grupos_conditions.append(Empleado.puesto_id == g.referencia_id)
-
-    from_grupos = None
-    if from_grupos_conditions:
-        from_grupos = (
-            select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
-            .where(or_(*from_grupos_conditions), Empleado.id.notin_(already_inscribed))
-        )
-
-    if q.strip():
-        search = f"%{q.strip()}%"
-        from_puestos = from_puestos.where(
-            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
-        )
-        from_extras = from_extras.where(
-            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
-        )
-        if from_grupos is not None:
-            from_grupos = from_grupos.where(
-                Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
-            )
-
-    queries = [from_puestos, from_extras]
-    if from_grupos is not None:
-        queries.append(from_grupos)
-    combined = union_all(*queries).limit(30)
-    result = await db.execute(combined)
-    rows = result.all()
-
-    seen: set[int] = set()
-    response: list[EmpleadoElegibleResponse] = []
-    for row in rows:
-        if row[0] in seen:
-            continue
-        seen.add(row[0])
-        response.append(EmpleadoElegibleResponse(
-            id=row[0], nombre=row[1], no_empleado=row[2], origen="puesto",
-        ))
-    return response
+    return [
+        EmpleadoElegibleResponse(id=row[0], nombre=row[1], no_empleado=row[2], origen=row[3])
+        for row in rows
+    ]
 
 
 @router.post(

@@ -4900,6 +4900,95 @@ components:
           type: string
           format: date-time
 
+    CursosDashboardKpis:
+      type: object
+      properties:
+        cursos_asignados: { type: integer }
+        cursos_pendientes: { type: integer }
+        cursos_completados: { type: integer }
+        cursos_con_sesion_proxima: { type: integer }
+        sesiones_pendientes: { type: integer }
+        sesiones_programadas: { type: integer }
+        sesiones_completadas: { type: integer }
+        empleados_con_cursos_pendientes: { type: integer }
+        empleados_con_sesiones_pendientes: { type: integer }
+        empleados_sin_completar_obligatorio: { type: integer }
+
+    CursosDashboardResumenResponse:
+      type: object
+      required: [kpis]
+      properties:
+        kpis:
+          $ref: "#/components/schemas/CursosDashboardKpis"
+        empleados_cursos_pendientes:
+          type: array
+          items:
+            type: object
+        empleados_sesiones_pendientes:
+          type: array
+          items:
+            type: object
+        sesiones_proximas:
+          type: array
+          items:
+            type: object
+        cursos_completados_recientes:
+          type: array
+          items:
+            type: object
+
+    CursosDashboardRegistroItem:
+      type: object
+      required: [empleado_id, curso_id, estado_curso]
+      properties:
+        empleado_id: { type: integer }
+        nombre_empleado: { type: string, nullable: true }
+        no_empleado: { type: string, nullable: true }
+        area_nombre: { type: string, nullable: true }
+        puesto_nombre: { type: string, nullable: true }
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        curso_obligatorio: { type: boolean }
+        estado_curso:
+          type: string
+          enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+        origen_asignacion: { type: string, nullable: true }
+        sesion_id: { type: integer, nullable: true }
+        sesion_fecha_inicio: { type: string, nullable: true }
+        estado_sesion: { type: string, nullable: true }
+        asistio: { type: boolean, nullable: true }
+        fecha_finalizacion: { type: string, nullable: true }
+
+    CursosDashboardRegistrosResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CursosDashboardRegistroItem"
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
+    CursosDashboardEmpleadoHistorialResponse:
+      type: object
+      required: [empleado_id, cursos, sesiones]
+      properties:
+        empleado_id: { type: integer }
+        nombre_empleado: { type: string, nullable: true }
+        no_empleado: { type: string, nullable: true }
+        area_nombre: { type: string, nullable: true }
+        puesto_nombre: { type: string, nullable: true }
+        cursos:
+          type: array
+          items:
+            type: object
+        sesiones:
+          type: array
+          items:
+            type: object
+
     CursoEmpleadoDetail:
       type: object
       required: [id, empleado_id]
@@ -10816,6 +10905,115 @@ paths:
           description: Perfil o asignación no encontrados
         "422":
           description: competencia_requisito_ids inválidos
+
+  /api/v1/level-up/cursos/dashboard/resumen:
+    get:
+      tags: [Level Up - Cursos Dashboard]
+      summary: KPIs y vista rápida de seguimiento de capacitaciones
+      operationId: cursos_dashboard_resumen
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Resumen del dashboard de seguimiento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursosDashboardResumenResponse"
+
+  /api/v1/level-up/cursos/dashboard/registros:
+    get:
+      tags: [Level Up - Cursos Dashboard]
+      summary: Registros paginados de seguimiento empleado-curso
+      operationId: cursos_dashboard_registros
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: curso_id
+          in: query
+          schema:
+            type: integer
+        - name: area_id
+          in: query
+          schema:
+            type: integer
+        - name: puesto_id
+          in: query
+          schema:
+            type: integer
+        - name: estado_curso
+          in: query
+          schema:
+            type: string
+            enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+        - name: estado_sesion
+          in: query
+          schema:
+            type: string
+            enum: [programada, en_curso, completada, cancelada]
+        - name: fecha_desde
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_hasta
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista paginada de registros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursosDashboardRegistrosResponse"
+
+  /api/v1/level-up/cursos/dashboard/empleados/{empleado_id}/historial:
+    get:
+      tags: [Level Up - Cursos Dashboard]
+      summary: Historial de capacitación de un empleado
+      operationId: cursos_dashboard_historial_empleado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: estado_curso
+          in: query
+          schema:
+            type: string
+            enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+      responses:
+        "200":
+          description: Historial del empleado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursosDashboardEmpleadoHistorialResponse"
+        "404":
+          description: Empleado no encontrado
 
   /api/v1/level-up/cursos/{id}/empleados-extra:
     get:
