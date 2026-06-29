@@ -16,10 +16,13 @@ import {
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
-import { getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones } from "../api/cursosCatalogo.ts";
-import type { Proveedor, CursoCatSimple } from "../api/cursosCatalogo.ts";
+import {
+  getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones,
+  getInstructoresInternos, getInstructoresExternos,
+} from "../api/cursosCatalogo.ts";
+import type { Proveedor, CursoCatSimple, InstructorInterno, InstructorExterno } from "../api/cursosCatalogo.ts";
 import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
-import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
+import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, InstructorTipo, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
@@ -381,6 +384,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailGrupos: CursoGrupoItem[];
     detailSesiones: CursoSesion[];
     showCreateSesionModal: boolean;
+    instructoresInternos: InstructorInterno[];
+    instructoresExternos: InstructorExterno[];
+    instructoresCatalogLoading: boolean;
+    sesionModalTipo: "" | "interno" | "externo";
     viewingSesion: CursoSesion | null;
     sesionEmpleados: SesionEmpleadoItem[];
     selectedEmpleados: Set<number>;
@@ -425,6 +432,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailGrupos: [],
     detailSesiones: [],
     showCreateSesionModal: false,
+    instructoresInternos: [],
+    instructoresExternos: [],
+    instructoresCatalogLoading: false,
+    sesionModalTipo: "",
     viewingSesion: null,
     sesionEmpleados: [],
     selectedEmpleados: new Set(),
@@ -470,6 +481,42 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       state.empleados = all;
       state.empleadosLoaded = true;
     } catch { /* ignore */ }
+  }
+
+  function setSesionInstructorBlockVisible(el: Element | null, visible: boolean): void {
+    if (!el) return;
+    el.classList.toggle("hidden", !visible);
+    if (visible) el.removeAttribute("hidden");
+    else el.setAttribute("hidden", "");
+  }
+
+  function toggleSesionInstructorFields(tipo: string): void {
+    const form = container.querySelector("[data-form='create-sesion']");
+    if (!form) return;
+    const showInterno = tipo === "interno";
+    const showExterno = tipo === "externo";
+    setSesionInstructorBlockVisible(form.querySelector("[data-sesion-instructor-placeholder]"), !showInterno && !showExterno);
+    setSesionInstructorBlockVisible(form.querySelector("[data-sesion-instructor-interno]"), showInterno);
+    setSesionInstructorBlockVisible(form.querySelector("[data-sesion-instructor-externo]"), showExterno);
+  }
+
+  async function loadInstructoresForSesionModal(): Promise<void> {
+    state.instructoresCatalogLoading = true;
+    render();
+    try {
+      const [internos, externos] = await Promise.all([
+        getInstructoresInternos({ page: 1, page_size: 200, solo_activos: true }),
+        getInstructoresExternos({ page: 1, page_size: 200, solo_activos: true }),
+      ]);
+      state.instructoresInternos = internos.items;
+      state.instructoresExternos = externos.items;
+    } catch {
+      state.instructoresInternos = [];
+      state.instructoresExternos = [];
+    }
+    state.instructoresCatalogLoading = false;
+    render();
+    toggleSesionInstructorFields(state.sesionModalTipo);
   }
 
   async function loadCursos() {
@@ -1505,6 +1552,50 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     </div>`;
   }
 
+  function renderSesionInstructorFields(): string {
+    const tipo = state.sesionModalTipo;
+    const placeholderCls = tipo === "interno" || tipo === "externo" ? "hidden" : "";
+    const internoCls = tipo === "interno" ? "" : "hidden";
+    const externoCls = tipo === "externo" ? "" : "hidden";
+
+    const loadingBlock = state.instructoresCatalogLoading
+      ? `<p class="text-xs text-slate-500">Cargando instructores…</p>`
+      : "";
+
+    const internoOptions = state.instructoresInternos.length === 0
+      ? `<option value="">Sin instructores internos en catálogo</option>`
+      : `<option value="">Seleccionar instructor…</option>${state.instructoresInternos.map((i) => {
+          const label = [i.nombre_empleado, i.no_empleado ? `#${i.no_empleado}` : "", i.especialidad].filter(Boolean).join(" · ");
+          return `<option value="${i.empleado_id}">${escapeHtml(label)}</option>`;
+        }).join("")}`;
+
+    const externoOptions = state.instructoresExternos.length === 0
+      ? `<option value="">Sin instructores externos en catálogo</option>`
+      : `<option value="">Seleccionar instructor…</option>${state.instructoresExternos.map((i) => {
+          const label = [i.nombre, i.especialidad, i.empresa].filter(Boolean).join(" · ");
+          return `<option value="${i.id}">${escapeHtml(label)}</option>`;
+        }).join("")}`;
+
+    return `
+      ${loadingBlock}
+      <div data-sesion-instructor-placeholder class="${placeholderCls}">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>
+        <p class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">Selecciona primero el tipo (Interno o Externo).</p>
+      </div>
+      <div data-sesion-instructor-interno class="${internoCls}">
+        <label for="sesion-instructor-interno" class="block text-xs font-medium text-slate-600 mb-1">Instructor interno</label>
+        <select id="sesion-instructor-interno" name="instructor_interno_id" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" ${state.instructoresCatalogLoading ? "disabled" : ""}>
+          ${internoOptions}
+        </select>
+      </div>
+      <div data-sesion-instructor-externo class="${externoCls}">
+        <label for="sesion-instructor-externo" class="block text-xs font-medium text-slate-600 mb-1">Instructor externo</label>
+        <select id="sesion-instructor-externo" name="instructor_externo_id" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" ${state.instructoresCatalogLoading ? "disabled" : ""}>
+          ${externoOptions}
+        </select>
+      </div>`;
+  }
+
   function renderCreateSesionModal(): string {
     return `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="create-sesion">
@@ -1532,10 +1623,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
-              <select name="tipo" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}">
-                <option value="">—</option>
-                <option value="interno">Interno</option>
-                <option value="externo">Externo</option>
+              <select name="tipo" data-action="sesion-tipo-change" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}">
+                <option value="" ${state.sesionModalTipo === "" ? "selected" : ""}>—</option>
+                <option value="interno" ${state.sesionModalTipo === "interno" ? "selected" : ""}>Interno</option>
+                <option value="externo" ${state.sesionModalTipo === "externo" ? "selected" : ""}>Externo</option>
               </select>
             </div>
             <div>
@@ -1543,10 +1634,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
               <input type="text" name="ubicacion" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
             </div>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Instructor</label>
-            <input type="text" name="instructor" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
-          </div>
+          ${renderSesionInstructorFields()}
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Costo</label>
             <input type="number" name="costo" min="0" step="0.01" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
@@ -1909,12 +1997,18 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
     if (t.closest("[data-action='open-create-sesion']")) {
       state.showCreateSesionModal = true;
+      state.sesionModalTipo = "";
+      void loadInstructoresForSesionModal();
       render();
       return;
     }
 
     if (t.closest("[data-action='close-sesion-modal']") || (t as HTMLElement).dataset.backdrop === "create-sesion") {
       state.showCreateSesionModal = false;
+      state.instructoresInternos = [];
+      state.instructoresExternos = [];
+      state.instructoresCatalogLoading = false;
+      state.sesionModalTipo = "";
       render();
       return;
     }
@@ -2147,6 +2241,13 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   async function handleChange(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
 
+    if ((t as HTMLSelectElement).matches("[data-action='sesion-tipo-change']")) {
+      const tipo = (t as HTMLSelectElement).value as "" | "interno" | "externo";
+      state.sesionModalTipo = tipo;
+      toggleSesionInstructorFields(tipo);
+      return;
+    }
+
     // ── Checkbox: toggle individual employee ──
     if (t.matches("[data-action='toggle-emp']")) {
       const empId = Number((t as HTMLInputElement).dataset.empId);
@@ -2300,10 +2401,36 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         costo: fd.get("costo") ? Number(fd.get("costo")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
+      const tipo = (fd.get("tipo") as string) || "";
+      if (tipo) {
+        payload.tipo = tipo;
+        payload.instructor_tipo = tipo as InstructorTipo;
+        if (tipo === "interno") {
+          const empId = Number(fd.get("instructor_interno_id"));
+          if (!empId || Number.isNaN(empId)) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; }
+            alert("Selecciona un instructor interno.");
+            return;
+          }
+          payload.instructor_empleado_id = empId;
+        } else if (tipo === "externo") {
+          const extId = Number(fd.get("instructor_externo_id"));
+          if (!extId || Number.isNaN(extId)) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; }
+            alert("Selecciona un instructor externo.");
+            return;
+          }
+          payload.instructor_externo_id = extId;
+        }
+      }
       if (!payload.fecha_inicio) { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Crear"; } return; }
       try {
         await createCursoSesion(cursoId, payload);
         state.showCreateSesionModal = false;
+        state.instructoresInternos = [];
+        state.instructoresExternos = [];
+        state.instructoresCatalogLoading = false;
+        state.sesionModalTipo = "";
         const resp = await getCursoSesiones(cursoId);
         state.detailSesiones = resp.items;
         render();
@@ -2374,6 +2501,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
     if (e.key === "Escape" && state.showCreateSesionModal) {
       state.showCreateSesionModal = false;
+      state.instructoresInternos = [];
+      state.instructoresExternos = [];
+      state.instructoresCatalogLoading = false;
+      state.sesionModalTipo = "";
       render();
       return;
     }
