@@ -453,3 +453,17 @@ export async function quitarGrupoCurso(cursoId: number, grupoId: number): Promis
     throw { status: res.status, detail };
   }
 }
+
+/** Áreas asignadas al curso (filtra grupos con tipo area). */
+export async function getCursoAreas(cursoId: number): Promise<CursoGrupoItem[]> {
+  const grupos = await getCursoGrupos(cursoId);
+  return grupos.filter((g) => g.tipo === "area");
+}
+
+export async function agregarAreaCurso(cursoId: number, areaId: number): Promise<CursoGrupoItem> {
+  return agregarGrupoCurso(cursoId, "area", areaId);
+}
+
+export async function quitarAreaCurso(cursoId: number, asignacionId: number): Promise<void> {
+  return quitarGrupoCurso(cursoId, asignacionId);
+}

@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -268,6 +268,13 @@ class CursoGrupoEmpleadoItem(BaseModel):
     nombre: str | None = None
     no_empleado: str | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
 
 class CursoGrupoResponse(BaseModel):
     id: int
@@ -374,21 +381,27 @@ async def agregar_grupo_al_curso(
         if not area:
             raise NotFoundError(entidad="Área", id=body.referencia_id)
         nombre = area.descripcion
-        count_r = await db.execute(select(sa_func.count()).where(Empleado.area_id == body.referencia_id))
+        count_r = await db.execute(
+            select(sa_func.count()).select_from(Empleado).where(Empleado.area_id == body.referencia_id)
+        )
         emp_count = count_r.scalar() or 0
     elif body.tipo == "subarea":
         sub = await db.get(Subarea, body.referencia_id)
         if not sub:
             raise NotFoundError(entidad="Subárea", id=body.referencia_id)
         nombre = sub.descripcion
-        count_r = await db.execute(select(sa_func.count()).where(Empleado.subarea_id == body.referencia_id))
+        count_r = await db.execute(
+            select(sa_func.count()).select_from(Empleado).where(Empleado.subarea_id == body.referencia_id)
+        )
         emp_count = count_r.scalar() or 0
     elif body.tipo == "puesto":
         puesto = await db.get(Puesto, body.referencia_id)
         if not puesto:
             raise NotFoundError(entidad="Puesto", id=body.referencia_id)
         nombre = puesto.descripcion
-        count_r = await db.execute(select(sa_func.count()).where(Empleado.puesto_id == body.referencia_id))
+        count_r = await db.execute(
+            select(sa_func.count()).select_from(Empleado).where(Empleado.puesto_id == body.referencia_id)
+        )
         emp_count = count_r.scalar() or 0
 
     grupo = CursoGrupo(curso_id=id, tipo=tipo_enum, referencia_id=body.referencia_id)
@@ -397,7 +410,7 @@ async def agregar_grupo_al_curso(
 
     return CursoGrupoResponse(
         id=grupo.id, tipo=body.tipo, referencia_id=body.referencia_id,
-        nombre=nombre, empleados_count=emp_count,
+        nombre=nombre, empleados_count=emp_count, empleados=[],
     )
 
 

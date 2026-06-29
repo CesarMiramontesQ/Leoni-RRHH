@@ -15,7 +15,7 @@ import {
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
-import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso } from "../api/cursos.ts";
 import {
   getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones,
   getInstructoresInternos, getInstructoresExternos,
@@ -381,7 +381,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailCurso: Curso | null;
     detailPuestos: CursoPuestoDetail[];
     detailEmpleadosExtra: CursoEmpleadoDetail[];
-    detailGrupos: CursoGrupoItem[];
+    detailAreas: CursoGrupoItem[];
     detailSesiones: CursoSesion[];
     detailDataLoading: boolean;
     showCreateSesionModal: boolean;
@@ -393,17 +393,16 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     sesionEmpleados: SesionEmpleadoItem[];
     selectedEmpleados: Set<number>;
     showAssignSesionPicker: boolean;
-    expandedGrupos: Set<number>;
+    expandedAreas: Set<number>;
     expandedPuestos: Set<number>;
     expandedExtras: boolean;
     showAsignacionMasivaModal: boolean;
     asignacionCatalogos: CursoCatalogos | null;
     asignacionCatalogosLoading: boolean;
-    asignacionAreaId: number | null;
-    asignacionSubareaId: number | null;
-    asignacionPuestoId: number | null;
+    asignacionAreaIds: Set<number>;
     asignacionLoading: boolean;
     asignacionResult: { asignados: number; ya_asignados: number } | null;
+    asignacionError: string | null;
     proveedoresCatalog: Proveedor[];
     proveedoresLoading: boolean;
     categoriasCatalog: CursoCatSimple[];
@@ -430,7 +429,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailCurso: null,
     detailPuestos: [],
     detailEmpleadosExtra: [],
-    detailGrupos: [],
+    detailAreas: [],
     detailSesiones: [],
     detailDataLoading: false,
     showCreateSesionModal: false,
@@ -442,17 +441,16 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     sesionEmpleados: [],
     selectedEmpleados: new Set(),
     showAssignSesionPicker: false,
-    expandedGrupos: new Set(),
+    expandedAreas: new Set(),
     expandedPuestos: new Set(),
     expandedExtras: false,
     showAsignacionMasivaModal: false,
     asignacionCatalogos: null,
     asignacionCatalogosLoading: false,
-    asignacionAreaId: null,
-    asignacionSubareaId: null,
-    asignacionPuestoId: null,
+    asignacionAreaIds: new Set(),
     asignacionLoading: false,
     asignacionResult: null,
+    asignacionError: null,
     proveedoresCatalog: [],
     proveedoresLoading: false,
     categoriasCatalog: [],
@@ -1277,7 +1275,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       </div>
 
       ${renderDetailSesiones()}
-      ${renderDetailGrupos()}
+      ${renderDetailAreas()}
       ${renderDetailPuestos()}
       ${renderDetailEmpleadosExtra()}
       ${renderSelectionBar()}
@@ -1287,25 +1285,19 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     </div>`;
   }
 
-  function renderDetailGrupos(): string {
-    const grupos = state.detailGrupos;
+  function renderDetailAreas(): string {
+    const areas = state.detailAreas;
     const hasSesiones = state.detailSesiones.length > 0;
-    const tipoLabel = (t: string) => t === "area" ? "Área" : t === "subarea" ? "Subárea" : "Puesto";
-    const tipoCls = (t: string) => t === "area"
-      ? "border-blue-200 bg-blue-50 text-blue-800"
-      : t === "subarea"
-      ? "border-violet-200 bg-violet-50 text-violet-800"
-      : "border-amber-200 bg-amber-50 text-amber-800";
 
-    const totalEmps = grupos.reduce((s, g) => s + g.empleados_count, 0);
+    const totalEmps = areas.reduce((s, a) => s + a.empleados_count, 0);
 
-    const grupoBlocks = grupos.map(g => {
-      const grupoEmpIds = g.empleados.map(e => e.empleado_id);
-      const allSelected = grupoEmpIds.length > 0 && grupoEmpIds.every(id => state.selectedEmpleados.has(id));
-      const isExpanded = state.expandedGrupos.has(g.id);
+    const areaBlocks = areas.map((a) => {
+      const areaEmpIds = a.empleados.map((e) => e.empleado_id);
+      const allSelected = areaEmpIds.length > 0 && areaEmpIds.every((id) => state.selectedEmpleados.has(id));
+      const isExpanded = state.expandedAreas.has(a.id);
 
-      const empRows = g.empleados.length > 0
-        ? g.empleados.map(e => {
+      const empRows = a.empleados.length > 0
+        ? a.empleados.map((e) => {
           const checked = state.selectedEmpleados.has(e.empleado_id);
           return `
           <li class="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-0">
@@ -1315,20 +1307,19 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${e.no_empleado ? `<span class="text-xs text-slate-400 tabular-nums">No. ${escapeHtml(e.no_empleado)}</span>` : ""}
           </li>`;
         }).join("")
-        : `<li class="text-xs text-slate-400 italic py-1">Sin empleados en este grupo</li>`;
+        : `<li class="text-xs text-slate-400 italic py-1">Sin empleados en esta área</li>`;
 
       return `
       <div class="border-b border-slate-100 last:border-0">
-        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-grupo-expand" data-grupo-id="${g.id}">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50/50 cursor-pointer" data-action="toggle-area-expand" data-area-id="${a.id}">
           <div class="flex items-center gap-2">
-            ${hasSesiones && isRH && grupoEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(grupoEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
+            ${hasSesiones && isRH && areaEmpIds.length > 0 ? `<input type="checkbox" data-action="toggle-puesto" data-puesto-emps='${JSON.stringify(areaEmpIds)}' ${allSelected ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />` : ""}
             <svg class="size-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-            <span class="inline-flex items-center rounded-full border ${tipoCls(g.tipo)} px-2 py-0.5 text-[10px] font-semibold">${tipoLabel(g.tipo)}</span>
-            <span class="text-sm font-semibold text-text-primary">${escapeHtml(g.nombre)}</span>
+            <span class="text-sm font-semibold text-text-primary">${escapeHtml(a.nombre)}</span>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500 tabular-nums">${g.empleados_count} empleado${g.empleados_count !== 1 ? "s" : ""}</span>
-            ${isRH ? `<button data-action="quitar-grupo" data-grupo-id="${g.id}" class="text-xs text-red-600 hover:underline">Quitar</button>` : ""}
+            <span class="text-xs text-slate-500 tabular-nums">${a.empleados_count} empleado${a.empleados_count !== 1 ? "s" : ""}</span>
+            ${isRH ? `<button data-action="quitar-area" data-area-id="${a.id}" class="text-xs text-red-600 hover:underline">Quitar</button>` : ""}
           </div>
         </div>
         ${isExpanded ? `<ul class="px-5 py-2">${empRows}</ul>` : ""}
@@ -1339,59 +1330,55 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     <div class="${RH_LISTADO_SURFACE} overflow-hidden">
       <div class="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-semibold text-text-primary">Grupos asignados</h3>
-          <p class="text-xs text-slate-500 mt-0.5">${grupos.length === 0 ? "Sin grupos asignados" : `${grupos.length} grupo${grupos.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total`}</p>
+          <h3 class="text-sm font-semibold text-text-primary">Áreas asignadas</h3>
+          <p class="text-xs text-slate-500 mt-0.5">${areas.length === 0 ? "Sin áreas asignadas" : `${areas.length} área${areas.length !== 1 ? "s" : ""} · ${totalEmps} empleado${totalEmps !== 1 ? "s" : ""} en total`}</p>
         </div>
-        ${isRH ? `<button data-action="open-asignacion-masiva" class="${BTN_SECONDARY} text-xs">+ Asignar grupo</button>` : ""}
+        ${isRH ? `<button data-action="open-asignacion-areas" class="${BTN_SECONDARY} text-xs">+ Asignar área</button>` : ""}
       </div>
-      ${grupoBlocks}
+      ${areaBlocks}
     </div>`;
   }
 
   function renderAsignacionMasivaModal(): string {
-    const selectCls = `w-full rounded-lg border border-border bg-white px-3 py-2 text-sm ${FIELD_FOCUS}`;
     const cat = state.asignacionCatalogos;
+    const assignedIds = new Set(state.detailAreas.map((a) => a.referencia_id));
+    const disponibles = cat?.areas.filter((a) => !assignedIds.has(a.id)) ?? [];
+    const selectedCount = state.asignacionAreaIds.size;
 
     return `
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="asignacion-masiva">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-backdrop="asignacion-areas">
       <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-text-primary">Asignar grupo al curso</h3>
-          <button data-action="close-asignacion-masiva" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
+          <h3 class="text-lg font-semibold text-text-primary">Asignar áreas al curso</h3>
+          <button data-action="close-asignacion-areas" class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
-        ${state.asignacionCatalogosLoading ? `<p class="text-xs text-slate-400 text-center py-6">Cargando catálogos...</p>` :
-          !cat ? `<p class="text-xs text-red-500 text-center py-6">Error al cargar catálogos.</p>` : `
-        <div class="space-y-3">
-          <p class="text-xs text-slate-500">Selecciona un área, subárea o puesto. Todos los empleados de ese grupo quedarán asignados al curso dinámicamente.</p>
-          <div>
-            <label class="text-xs font-medium text-slate-600 mb-1 block">Área</label>
-            <select data-action="asignacion-area" class="${selectCls}">
-              <option value="">— Seleccionar —</option>
-              ${cat.areas.map(a => `<option value="${a.id}" ${state.asignacionAreaId === a.id ? "selected" : ""}>${escapeHtml(a.descripcion)}</option>`).join("")}
-            </select>
-            ${state.asignacionAreaId ? `<button data-action="agregar-grupo" data-tipo="area" data-ref-id="${state.asignacionAreaId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar esta área como grupo</button>` : ""}
+        ${state.asignacionCatalogosLoading ? `<p class="text-xs text-slate-400 text-center py-6">Cargando áreas...</p>` :
+          !cat ? `<p class="text-xs text-red-500 text-center py-6">Error al cargar áreas.</p>` : `
+        <div class="space-y-4">
+          <p class="text-xs text-slate-500">Selecciona una o más áreas. Todos los empleados de cada área quedarán vinculados al curso de forma dinámica.</p>
+          ${disponibles.length === 0 ? `
+            <p class="text-sm text-slate-500 text-center py-4">Todas las áreas disponibles ya están asignadas a este curso.</p>
+          ` : `
+          <div class="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-slate-200 p-3">
+            ${disponibles.map((a) => `
+              <label class="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-slate-50">
+                <input type="checkbox" data-action="toggle-asignacion-area" data-area-ref-id="${a.id}" ${state.asignacionAreaIds.has(a.id) ? "checked" : ""} class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                <span class="text-sm text-text-primary">${escapeHtml(a.descripcion)}</span>
+              </label>
+            `).join("")}
           </div>
-          <div>
-            <label class="text-xs font-medium text-slate-600 mb-1 block">Subárea</label>
-            <select data-action="asignacion-subarea" class="${selectCls}">
-              <option value="">— Seleccionar —</option>
-              ${cat.subareas.map(s => `<option value="${s.id}" ${state.asignacionSubareaId === s.id ? "selected" : ""}>${escapeHtml(s.descripcion)}</option>`).join("")}
-            </select>
-            ${state.asignacionSubareaId ? `<button data-action="agregar-grupo" data-tipo="subarea" data-ref-id="${state.asignacionSubareaId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar esta subárea como grupo</button>` : ""}
-          </div>
-          <div>
-            <label class="text-xs font-medium text-slate-600 mb-1 block">Puesto</label>
-            <select data-action="asignacion-puesto" class="${selectCls}">
-              <option value="">— Seleccionar —</option>
-              ${cat.puestos.map(p => `<option value="${p.id}" ${state.asignacionPuestoId === p.id ? "selected" : ""}>${escapeHtml(p.descripcion)}</option>`).join("")}
-            </select>
-            ${state.asignacionPuestoId ? `<button data-action="agregar-grupo" data-tipo="puesto" data-ref-id="${state.asignacionPuestoId}" class="mt-1 text-xs text-blue-600 hover:underline">+ Agregar este puesto como grupo</button>` : ""}
-          </div>
+          <button type="button" data-action="confirmar-asignacion-areas" class="${BTN_PRIMARY} w-full text-sm" ${selectedCount === 0 || state.asignacionLoading ? "disabled" : ""}>
+            ${state.asignacionLoading ? "Asignando…" : `Asignar ${selectedCount > 0 ? `${selectedCount} área${selectedCount !== 1 ? "s" : ""}` : "áreas"}`}
+          </button>`}
           ${state.asignacionResult ? `
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              Grupo asignado correctamente.
+              ${state.asignacionResult.asignados} área${state.asignacionResult.asignados !== 1 ? "s" : ""} asignada${state.asignacionResult.asignados !== 1 ? "s" : ""} correctamente.
+            </div>` : ""}
+          ${state.asignacionError ? `
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              ${escapeHtml(state.asignacionError)}
             </div>` : ""}
         </div>`}
       </div>
@@ -1800,11 +1787,11 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.detailDataLoading = true;
     render();
 
-    const [puestosR, empExtraR, sesionesR, gruposR] = await Promise.allSettled([
+    const [puestosR, empExtraR, sesionesR, areasR] = await Promise.allSettled([
       getCursoPuestos(cursoId),
       getCursoEmpleadosExtra(cursoId),
       getCursoSesiones(cursoId),
-      getCursoGrupos(cursoId),
+      getCursoAreas(cursoId),
     ]);
 
     if (token !== detailLoadToken || state.detailCurso?.id !== cursoId) return;
@@ -1812,7 +1799,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     if (puestosR.status === "fulfilled") state.detailPuestos = puestosR.value;
     if (empExtraR.status === "fulfilled") state.detailEmpleadosExtra = empExtraR.value;
     if (sesionesR.status === "fulfilled") state.detailSesiones = sesionesR.value.items;
-    if (gruposR.status === "fulfilled") state.detailGrupos = gruposR.value;
+    if (areasR.status === "fulfilled") state.detailAreas = areasR.value;
 
     state.detailDataLoading = false;
     render();
@@ -1822,7 +1809,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.detailCurso = curso;
     state.detailPuestos = [];
     state.detailEmpleadosExtra = [];
-    state.detailGrupos = [];
+    state.detailAreas = [];
     state.detailSesiones = [];
     state.detailDataLoading = true;
     state.selectedEmpleados = new Set();
@@ -2098,12 +2085,11 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
 
     // ── Selection & assign to session handlers ──
-    if (t.closest("[data-action='open-asignacion-masiva']")) {
+    if (t.closest("[data-action='open-asignacion-areas']")) {
       state.showAsignacionMasivaModal = true;
       state.asignacionResult = null;
-      state.asignacionAreaId = null;
-      state.asignacionSubareaId = null;
-      state.asignacionPuestoId = null;
+      state.asignacionError = null;
+      state.asignacionAreaIds = new Set();
       state.asignacionCatalogosLoading = true;
       render();
       try {
@@ -2114,19 +2100,19 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
-    if (t.closest("[data-action='close-asignacion-masiva']") || (t as HTMLElement).dataset.backdrop === "asignacion-masiva") {
+    if (t.closest("[data-action='close-asignacion-areas']") || (t as HTMLElement).dataset.backdrop === "asignacion-areas") {
       state.showAsignacionMasivaModal = false;
       render();
       return;
     }
 
-    const toggleExpandBtn = t.closest("[data-action='toggle-grupo-expand']") as HTMLElement | null;
-    if (toggleExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("[data-action='quitar-grupo']")) {
-      const grupoId = Number(toggleExpandBtn.dataset.grupoId);
-      if (state.expandedGrupos.has(grupoId)) {
-        state.expandedGrupos.delete(grupoId);
+    const toggleAreaExpandBtn = t.closest("[data-action='toggle-area-expand']") as HTMLElement | null;
+    if (toggleAreaExpandBtn && !t.closest("[data-action='toggle-puesto']") && !t.closest("[data-action='quitar-area']")) {
+      const areaId = Number(toggleAreaExpandBtn.dataset.areaId);
+      if (state.expandedAreas.has(areaId)) {
+        state.expandedAreas.delete(areaId);
       } else {
-        state.expandedGrupos.add(grupoId);
+        state.expandedAreas.add(areaId);
       }
       render();
       return;
@@ -2150,31 +2136,62 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
-    const agregarGrupoBtn = t.closest("[data-action='agregar-grupo']") as HTMLElement | null;
-    if (agregarGrupoBtn) {
-      const tipo = agregarGrupoBtn.dataset.tipo!;
-      const refId = Number(agregarGrupoBtn.dataset.refId);
-      if (!tipo || !refId) return;
+    if (t.matches("[data-action='toggle-asignacion-area']")) {
+      const areaRefId = Number((t as HTMLInputElement).dataset.areaRefId);
+      if (!areaRefId) return;
+      if ((t as HTMLInputElement).checked) {
+        state.asignacionAreaIds.add(areaRefId);
+      } else {
+        state.asignacionAreaIds.delete(areaRefId);
+      }
+      state.asignacionResult = null;
+      state.asignacionError = null;
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='confirmar-asignacion-areas']")) {
+      const areaIds = [...state.asignacionAreaIds];
+      if (areaIds.length === 0 || !state.detailCurso) return;
       state.asignacionLoading = true;
       state.asignacionResult = null;
+      state.asignacionError = null;
       render();
+      let asignados = 0;
+      let lastError: string | null = null;
       try {
-        await agregarGrupoCurso(state.detailCurso!.id, tipo, refId);
-        state.asignacionResult = { asignados: 1, ya_asignados: 0 };
-        state.detailGrupos = await getCursoGrupos(state.detailCurso!.id);
-      } catch { /* silently handle */ }
+        for (const areaId of areaIds) {
+          try {
+            await agregarAreaCurso(state.detailCurso.id, areaId);
+            asignados++;
+          } catch (err: unknown) {
+            const detail = (err as { detail?: string })?.detail;
+            lastError = typeof detail === "string" ? detail : "No se pudo asignar una o más áreas.";
+          }
+        }
+        if (asignados > 0) {
+          state.asignacionResult = { asignados, ya_asignados: areaIds.length - asignados };
+          state.detailAreas = await getCursoAreas(state.detailCurso.id);
+          state.asignacionAreaIds = new Set();
+        } else {
+          state.asignacionError = lastError ?? "No se pudo asignar ninguna área.";
+        }
+      } catch (err: unknown) {
+        const detail = (err as { detail?: string })?.detail;
+        state.asignacionError = typeof detail === "string" ? detail : "Error al asignar áreas.";
+      }
       state.asignacionLoading = false;
       render();
       return;
     }
 
-    const quitarGrupoBtn = t.closest("[data-action='quitar-grupo']") as HTMLElement | null;
-    if (quitarGrupoBtn) {
-      const grupoId = Number(quitarGrupoBtn.dataset.grupoId);
-      if (!grupoId) return;
+    const quitarAreaBtn = t.closest("[data-action='quitar-area']") as HTMLElement | null;
+    if (quitarAreaBtn) {
+      const areaId = Number(quitarAreaBtn.dataset.areaId);
+      if (!areaId) return;
       try {
-        await quitarGrupoCurso(state.detailCurso!.id, grupoId);
-        state.detailGrupos = state.detailGrupos.filter(g => g.id !== grupoId);
+        await quitarAreaCurso(state.detailCurso!.id, areaId);
+        state.detailAreas = state.detailAreas.filter((a) => a.id !== areaId);
         render();
       } catch { /* silently handle */ }
       return;
@@ -2313,35 +2330,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
 
     const sel = t as HTMLSelectElement;
-
-    if (sel.matches("[data-action='asignacion-area']")) {
-      state.asignacionAreaId = sel.value ? Number(sel.value) : null;
-      state.asignacionSubareaId = null;
-      state.asignacionPuestoId = null;
-      state.asignacionResult = null;
-      state.asignacionCatalogosLoading = true;
-      render();
-      try {
-        state.asignacionCatalogos = await getCursoCatalogosAsignacion(state.detailCurso!.id, state.asignacionAreaId ?? undefined);
-      } catch { state.asignacionCatalogos = null; }
-      state.asignacionCatalogosLoading = false;
-      render();
-      return;
-    }
-
-    if (sel.matches("[data-action='asignacion-subarea']")) {
-      state.asignacionSubareaId = sel.value ? Number(sel.value) : null;
-      state.asignacionResult = null;
-      render();
-      return;
-    }
-
-    if (sel.matches("[data-action='asignacion-puesto']")) {
-      state.asignacionPuestoId = sel.value ? Number(sel.value) : null;
-      state.asignacionResult = null;
-      render();
-      return;
-    }
 
     if (sel.matches("[data-action='cursos-filter-tipo']")) {
       state.filters.tipo = sel.value;
