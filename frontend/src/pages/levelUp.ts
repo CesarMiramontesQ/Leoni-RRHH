@@ -383,6 +383,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailEmpleadosExtra: CursoEmpleadoDetail[];
     detailGrupos: CursoGrupoItem[];
     detailSesiones: CursoSesion[];
+    detailDataLoading: boolean;
     showCreateSesionModal: boolean;
     instructoresInternos: InstructorInterno[];
     instructoresExternos: InstructorExterno[];
@@ -431,6 +432,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     detailEmpleadosExtra: [],
     detailGrupos: [],
     detailSesiones: [],
+    detailDataLoading: false,
     showCreateSesionModal: false,
     instructoresInternos: [],
     instructoresExternos: [],
@@ -1441,6 +1443,14 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     const sesiones = state.detailSesiones;
     const cursoId = state.detailCurso?.id;
 
+    if (state.detailDataLoading) {
+      return `
+      <div class="${RH_LISTADO_SURFACE} p-6">
+        <h3 class="text-sm font-semibold text-text-primary mb-2">Sesiones programadas</h3>
+        <p class="text-xs text-slate-400 italic">Cargando sesiones…</p>
+      </div>`;
+    }
+
     if (sesiones.length === 0 && !isRH) {
       return `
       <div class="${RH_LISTADO_SURFACE} p-6">
@@ -1783,24 +1793,42 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     });
   }
 
+  let detailLoadToken = 0;
+
+  async function loadDetailData(cursoId: number): Promise<void> {
+    const token = ++detailLoadToken;
+    state.detailDataLoading = true;
+    render();
+
+    const [puestosR, empExtraR, sesionesR, gruposR] = await Promise.allSettled([
+      getCursoPuestos(cursoId),
+      getCursoEmpleadosExtra(cursoId),
+      getCursoSesiones(cursoId),
+      getCursoGrupos(cursoId),
+    ]);
+
+    if (token !== detailLoadToken || state.detailCurso?.id !== cursoId) return;
+
+    if (puestosR.status === "fulfilled") state.detailPuestos = puestosR.value;
+    if (empExtraR.status === "fulfilled") state.detailEmpleadosExtra = empExtraR.value;
+    if (sesionesR.status === "fulfilled") state.detailSesiones = sesionesR.value.items;
+    if (gruposR.status === "fulfilled") state.detailGrupos = gruposR.value;
+
+    state.detailDataLoading = false;
+    render();
+  }
+
   function navigateToDetail(curso: Curso): void {
     state.detailCurso = curso;
     state.detailPuestos = [];
     state.detailEmpleadosExtra = [];
     state.detailGrupos = [];
     state.detailSesiones = [];
+    state.detailDataLoading = true;
     state.selectedEmpleados = new Set();
     history.replaceState(null, "", `#/cursos/${curso.id}`);
     render();
-    Promise.all([getCursoPuestos(curso.id), getCursoEmpleadosExtra(curso.id), getCursoSesiones(curso.id), getCursoGrupos(curso.id)])
-      .then(([puestos, empExtra, sesionesResp, grupos]) => {
-        state.detailPuestos = puestos;
-        state.detailEmpleadosExtra = empExtra;
-        state.detailSesiones = sesionesResp.items;
-        state.detailGrupos = grupos;
-        render();
-      })
-      .catch(() => {});
+    void loadDetailData(curso.id);
   }
 
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
