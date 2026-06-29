@@ -110,7 +110,7 @@ test.describe("Cursos UI - QA Tests", () => {
     await page.waitForTimeout(2000);
 
     // Verify it's in the list
-    const cursoInList = page.locator(`button[data-action="view-curso"]:has-text("${CURSO_NAME}")`).first();
+    const cursoInList = page.locator(`tr[data-action="view-curso"]:has-text("${CURSO_NAME}")`).first();
     await expect(cursoInList).toBeVisible({ timeout: 10000 });
     await page.screenshot({ path: "tests/e2e/cursos-04-created-visible.png" });
     console.log("    PASS: Curso created and visible in list");
@@ -149,31 +149,15 @@ test.describe("Cursos UI - QA Tests", () => {
     console.log("    PASS: Detail view loaded with all sections");
 
     // ─── STEP 6: Edit curso ────────────────────────────────────────────────
-    // NOTE: BUG FOUND - Clicking "Editar" from detail view does NOT show the
-    // edit modal because renderDetailView() does not include the modal HTML.
-    // The modal is only rendered in renderPage(). Workaround: go back to list to edit.
     console.log(">>> Step 6: Edit curso");
-    console.log("    BUG: Edit button in detail view does NOT open modal (renderDetailView lacks modal HTML)");
-
-    // Go back to list view
-    const backBtn = page.locator('[data-action="back-to-list"]');
-    await backBtn.click();
-    await page.waitForTimeout(1500);
-
-    // Search for our curso in the list
-    const searchForEdit = page.locator('[data-action="cursos-search"]');
-    await searchForEdit.fill(CURSO_NAME);
-    await page.waitForTimeout(2000);
-
-    // Click the edit button in the table/list row
-    const editBtnList = page.locator('[data-action="edit-curso"]').first();
-    await expect(editBtnList).toBeVisible({ timeout: 5000 });
-    await editBtnList.click();
+    const editBtnDetail = page.locator('[data-action="edit-curso"]').first();
+    await expect(editBtnDetail).toBeVisible({ timeout: 5000 });
+    await editBtnDetail.click();
     await page.waitForTimeout(1000);
 
     // Wait for modal
     await expect(modal).toBeVisible({ timeout: 5000 });
-    console.log("    Edit modal opened (from list view)");
+    console.log("    Edit modal opened (from detail view)");
 
     // Change name
     const nombreInput = page.locator('#curso-modal-backdrop input[name="nombre"]');
@@ -212,7 +196,7 @@ test.describe("Cursos UI - QA Tests", () => {
       const searchInput3 = page.locator('[data-action="cursos-search"]');
       await searchInput3.fill(CURSO_NAME_EDITED);
       await page.waitForTimeout(2000);
-      const cursoBtn = page.locator(`button[data-action="view-curso"]:has-text("${CURSO_NAME_EDITED}")`).first();
+      const cursoBtn = page.locator(`tr[data-action="view-curso"]:has-text("${CURSO_NAME_EDITED}")`).first();
       await cursoBtn.click();
       await page.waitForTimeout(2000);
       console.log("    PASS: Navigated to detail via search + click");
@@ -286,18 +270,7 @@ test.describe("Cursos UI - QA Tests", () => {
       await page.waitForTimeout(2000);
       console.log("    Cleanup: curso deleted");
     } else {
-      // Navigate back to list and delete
-      await page.goto(`${BASE_URL}/#/cursos`);
-      await page.waitForTimeout(2000);
-      const searchInput4 = page.locator('[data-action="cursos-search"]');
-      await searchInput4.fill(CURSO_NAME_EDITED);
-      await page.waitForTimeout(1500);
-      const deleteBtnList = page.locator('[data-action="delete-curso"]').first();
-      if (await deleteBtnList.isVisible()) {
-        await deleteBtnList.click();
-        await page.waitForTimeout(2000);
-        console.log("    Cleanup: curso deleted from list");
-      }
+      console.log("    Cleanup: delete button not visible on detail");
     }
     await page.screenshot({ path: "tests/e2e/cursos-10-cleanup.png" });
     console.log(">>> ALL STEPS PASSED");

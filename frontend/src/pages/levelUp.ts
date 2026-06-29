@@ -1590,14 +1590,20 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             <th class="px-4 py-3.5">Clasificación</th>
             <th class="px-4 py-3.5">Horas</th>
             <th class="px-4 py-3.5">Obligatorio</th>
-            ${isRH ? `<th class="px-4 py-3.5 text-right">Acciones</th>` : ""}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
           ${items.map(c => `
-          <tr class="cc-catalogo-row transition hover:bg-slate-50/70">
+          <tr
+            class="cc-catalogo-row cursor-pointer transition hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue/40"
+            data-action="view-curso"
+            data-id="${c.id}"
+            tabindex="0"
+            role="link"
+            aria-label="Ver curso ${escapeHtml(c.nombre)}"
+          >
             <td class="px-4 py-3.5 align-middle">
-              <button data-action="view-curso" data-id="${c.id}" class="max-w-[280px] truncate text-left text-sm font-semibold text-text-primary transition hover:text-leoni-blue hover:underline" title="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</button>
+              <span class="block max-w-[280px] truncate text-sm font-semibold text-text-primary" title="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</span>
             </td>
             <td class="px-4 py-3.5 align-middle">${c.categoria_nombre ? cursoCatBadge(c.categoria_nombre) : `<span class="text-slate-400">—</span>`}</td>
             <td class="px-4 py-3.5 align-middle text-slate-600">${c.tipo_nombre ? escapeHtml(TIPO_LABELS[c.tipo_nombre] ?? c.tipo_nombre) : "—"}</td>
@@ -1606,10 +1612,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             <td class="px-4 py-3.5 align-middle">${c.obligatorio
               ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Sí</span>`
               : `<span class="text-slate-400">No</span>`}</td>
-            ${isRH ? `<td class="px-4 py-3.5 align-middle text-right whitespace-nowrap">
-              <button data-action="edit-curso" data-id="${c.id}" class="${RH_LISTADO_BTN_GHOST} !px-2 !py-1 text-xs">Editar</button>
-              <button data-action="delete-curso" data-id="${c.id}" class="ml-1 text-xs font-semibold text-red-600 transition hover:text-red-800">Eliminar</button>
-            </td>` : ""}
           </tr>`).join("")}
         </tbody>
       </table>
@@ -1778,16 +1780,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
-    const viewBtn = t.closest<HTMLElement>("[data-action='view-curso']");
-    if (viewBtn) {
-      const id = Number(viewBtn.dataset.id);
-      const curso = state.cursos.items.find(c => c.id === id);
-      if (curso) {
-        navigateToDetail(curso);
-      }
-      return;
-    }
-
     if (t.closest("[data-action='cursos-clear-filters']")) {
       state.filters = { tipo: "", clasificacion: "", obligatorio: "", categoria: "", busqueda: "" };
       state.page = 1;
@@ -1892,6 +1884,16 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         } catch (err: any) {
           alert(err?.detail ?? "No se pudo eliminar el curso.");
         }
+      }
+      return;
+    }
+
+    const viewBtn = t.closest<HTMLElement>("[data-action='view-curso']");
+    if (viewBtn && !t.closest("[data-action-stop]")) {
+      const id = Number(viewBtn.dataset.id);
+      const curso = state.cursos.items.find(c => c.id === id);
+      if (curso) {
+        navigateToDetail(curso);
       }
       return;
     }
@@ -2355,6 +2357,15 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   }
 
   function handleKeydown(e: KeyboardEvent): void {
+    const t = e.target as HTMLElement;
+    const viewRow = t.closest<HTMLElement>("[data-action='view-curso'][tabindex='0']");
+    if (viewRow && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      const id = Number(viewRow.dataset.id);
+      const curso = state.cursos.items.find(c => c.id === id);
+      if (curso) navigateToDetail(curso);
+      return;
+    }
     if (e.key === "Escape" && state.viewingSesion) {
       state.viewingSesion = null;
       state.sesionEmpleados = [];
