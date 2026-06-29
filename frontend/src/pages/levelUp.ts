@@ -1537,7 +1537,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   }
 
   function renderDetailSesiones(): string {
-    const sesiones = state.detailSesiones;
+    const sesiones = state.detailSesiones.filter((s) => s.estado !== "cancelada");
     const cursoId = state.detailCurso?.id;
 
     if (state.detailDataLoading) {
@@ -1567,19 +1567,19 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       const horario = s.hora_inicio ? `${s.hora_inicio.slice(0, 5)}${s.hora_fin ? " – " + s.hora_fin.slice(0, 5) : ""}` : "—";
       const cupo = `${s.inscritos_count}`;
       return `
-      <tr class="border-b border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
-        <td class="px-4 py-2.5 text-sm font-medium text-text-primary">${escapeHtml(fecha)}</td>
-        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(horario)}</td>
-        <td class="px-4 py-2.5 text-sm text-slate-600">${s.tipo ? escapeHtml(s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1)) : "—"}</td>
-        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.ubicacion ?? "—")}</td>
-        <td class="px-4 py-2.5 text-sm text-slate-600">${escapeHtml(s.instructor_nombre ?? "—")}</td>
-        <td class="px-4 py-2.5">
+      <tr class="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+        <td class="px-4 py-2.5 text-sm font-medium text-text-primary cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">${escapeHtml(fecha)}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600 cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">${escapeHtml(horario)}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600 cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">${s.tipo ? escapeHtml(s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1)) : "—"}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600 cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">${escapeHtml(s.ubicacion ?? "—")}</td>
+        <td class="px-4 py-2.5 text-sm text-slate-600 cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">${escapeHtml(s.instructor_nombre ?? "—")}</td>
+        <td class="px-4 py-2.5 cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
           <span class="text-sm tabular-nums text-blue-600 font-medium">${cupo}</span>
         </td>
-        <td class="px-4 py-2.5">
+        <td class="px-4 py-2.5 cursor-pointer" data-action="go-sesion-detail" data-curso-id="${cursoId}" data-sesion-id="${s.id}">
           <span class="inline-flex items-center rounded-full border ${estadoCls(s.estado)} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(ESTADO_SESION_LABELS[s.estado] ?? s.estado)}</span>
         </td>
-        ${isRH ? `<td class="px-4 py-2.5"><button data-action="delete-sesion" data-curso-id="${cursoId}" data-sesion-id="${s.id}" class="text-xs text-red-600 hover:underline">Eliminar</button></td>` : ""}
+        ${isRH ? `<td class="px-4 py-2.5"><button type="button" data-action="delete-sesion" data-action-stop data-curso-id="${cursoId}" data-sesion-id="${s.id}" class="text-xs text-red-600 hover:underline">Eliminar</button></td>` : ""}
       </tr>`;
     }).join("");
 
@@ -2104,8 +2104,36 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
 
     // ── Session handlers ──
+    const deleteSesionBtn = t.closest<HTMLElement>("[data-action='delete-sesion']");
+    if (deleteSesionBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const cursoId = Number(deleteSesionBtn.dataset.cursoId);
+      const sesionId = Number(deleteSesionBtn.dataset.sesionId);
+      const sesion = state.detailSesiones.find((s) => s.id === sesionId);
+      const tieneInscritos = (sesion?.inscritos_count ?? 0) > 0;
+      const confirmMsg = tieneInscritos
+        ? "Esta sesión tiene inscritos y se marcará como cancelada. ¿Continuar?"
+        : "¿Eliminar esta sesión?";
+      if (cursoId && sesionId && confirm(confirmMsg)) {
+        try {
+          await deleteCursoSesion(cursoId, sesionId);
+          const resp = await getCursoSesiones(cursoId);
+          state.detailSesiones = resp.items;
+          if (state.viewingSesion?.id === sesionId) {
+            state.viewingSesion = null;
+            state.sesionEmpleados = [];
+          }
+          render();
+        } catch (err: any) {
+          alert(err?.detail ?? "No se pudo eliminar la sesión.");
+        }
+      }
+      return;
+    }
+
     const goSesionRow = t.closest<HTMLElement>("[data-action='go-sesion-detail']");
-    if (goSesionRow && !t.closest("[data-action='delete-sesion']")) {
+    if (goSesionRow && !t.closest("[data-action-stop]")) {
       const cId = goSesionRow.dataset.cursoId;
       const sId = goSesionRow.dataset.sesionId;
       if (cId && sId) window.location.hash = `#/sesiones/${cId}/${sId}`;
@@ -2169,25 +2197,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
-    const deleteSesionBtn = t.closest<HTMLElement>("[data-action='delete-sesion']");
-    if (deleteSesionBtn) {
-      const cursoId = Number(deleteSesionBtn.dataset.cursoId);
-      const sesionId = Number(deleteSesionBtn.dataset.sesionId);
-      if (cursoId && sesionId && confirm("¿Eliminar esta sesión?")) {
-        try {
-          await deleteCursoSesion(cursoId, sesionId);
-          const resp = await getCursoSesiones(cursoId);
-          state.detailSesiones = resp.items;
-          render();
-        } catch (err: any) {
-          alert(err?.detail ?? "No se pudo eliminar la sesión.");
-        }
-      }
-      return;
-    }
-
-    // ── Selection & assign to session handlers ──
-    if (t.closest("[data-action='open-asignacion-areas']")) {
+    if (t.closest("[data-action='open-create-sesion']")) {
       state.showAsignacionMasivaModal = true;
       state.asignacionResult = null;
       state.asignacionError = null;
