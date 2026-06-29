@@ -362,7 +362,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     proveedor_id: string;
     centro_costos: string;
     descripcion: string;
-    requisitos: string;
     obligatorio: boolean;
   }
 
@@ -503,7 +502,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       proveedor_id: String(fd.get("proveedor_id") ?? ""),
       centro_costos: String(fd.get("centro_costos") ?? ""),
       descripcion: String(fd.get("descripcion") ?? ""),
-      requisitos: String(fd.get("requisitos") ?? ""),
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
     };
   }
@@ -1040,11 +1038,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             <label class="${RH_LISTADO_LABEL}">Descripción</label>
             <textarea name="descripcion" rows="3" class="${modalFieldCls}">${escapeHtml(d?.descripcion ?? c?.descripcion ?? "")}</textarea>
           </div>
-          ${isEdit ? `
-          <div>
-            <label class="${RH_LISTADO_LABEL}">Requisitos</label>
-            <textarea name="requisitos" rows="3" class="${modalFieldCls}">${escapeHtml(d?.requisitos ?? c?.requisitos ?? "")}</textarea>
-          </div>` : ""}
           <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
             <input type="checkbox" name="obligatorio" id="curso-obligatorio" ${(d?.obligatorio ?? c?.obligatorio) ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
             <div>
@@ -1588,16 +1581,14 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
     return `
     <div class="overflow-x-auto">
-      <table class="cc-catalogo-table min-w-[960px] w-full text-left text-sm">
+      <table class="cc-catalogo-table min-w-[800px] w-full text-left text-sm">
         <thead class="border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           <tr>
             <th class="px-4 py-3.5">Nombre</th>
             <th class="px-4 py-3.5">Categoría</th>
             <th class="px-4 py-3.5">Tipo</th>
             <th class="px-4 py-3.5">Clasificación</th>
-            <th class="px-4 py-3.5">Instructor</th>
             <th class="px-4 py-3.5">Horas</th>
-            <th class="px-4 py-3.5">Modalidad</th>
             <th class="px-4 py-3.5">Obligatorio</th>
             ${isRH ? `<th class="px-4 py-3.5 text-right">Acciones</th>` : ""}
           </tr>
@@ -1611,9 +1602,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             <td class="px-4 py-3.5 align-middle">${c.categoria_nombre ? cursoCatBadge(c.categoria_nombre) : `<span class="text-slate-400">—</span>`}</td>
             <td class="px-4 py-3.5 align-middle text-slate-600">${c.tipo_nombre ? escapeHtml(TIPO_LABELS[c.tipo_nombre] ?? c.tipo_nombre) : "—"}</td>
             <td class="px-4 py-3.5 align-middle text-slate-600">${c.clasificacion_nombre ? escapeHtml(CLASIFICACION_LABELS[c.clasificacion_nombre] ?? c.clasificacion_nombre) : "—"}</td>
-            <td class="px-4 py-3.5 align-middle max-w-[180px] truncate text-slate-600" title="${escapeHtml(c.instructor_nombre ?? "")}">${c.instructor_nombre ? escapeHtml(c.instructor_nombre) : "—"}</td>
             <td class="px-4 py-3.5 align-middle tabular-nums text-slate-600">${c.duracion_horas ?? "—"}</td>
-            <td class="px-4 py-3.5 align-middle text-slate-600">${c.modalidad ? escapeHtml(c.modalidad) : "—"}</td>
             <td class="px-4 py-3.5 align-middle">${c.obligatorio
               ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Sí</span>`
               : `<span class="text-slate-400">No</span>`}</td>
@@ -2348,9 +2337,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     if (tipoIdRaw) payload.tipo_id = Number(tipoIdRaw);
     if (clasificacionIdRaw) payload.clasificacion_id = Number(clasificacionIdRaw);
     if (proveedorIdRaw) payload.proveedor_id = Number(proveedorIdRaw);
-    if (state.editingCurso) {
-      payload.requisitos = (fd.get("requisitos") as string) || undefined;
-    }
 
     if (!payload.nombre) return;
 
