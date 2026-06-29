@@ -102,7 +102,6 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   function renderLoading(): string {
     return `
     <div class="${SS_DETAIL_PAGE_OUTER}" aria-busy="true" aria-label="Cargando detalle de sesión">
-      <div class="h-5 w-32 animate-pulse rounded bg-slate-200/90"></div>
       <div class="h-16 w-full max-w-3xl animate-pulse rounded-xl bg-slate-100/90"></div>
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
       <div class="h-48 animate-pulse rounded-2xl border border-slate-200/80 bg-white"></div>
@@ -114,26 +113,12 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   function renderError(): string {
     return `
     <div class="${SS_DETAIL_PAGE_OUTER}">
-      ${renderBreadcrumb()}
       <div class="${RH_LISTADO_SURFACE} flex min-h-[240px] flex-col items-center justify-center px-6 py-14 text-center" role="alert">
         <p class="text-base font-semibold text-text-primary">Error al cargar la sesión</p>
         <p class="mt-2 max-w-md text-sm text-red-700">${escapeHtml(state.error ?? "Error inesperado")}</p>
         <a href="#/sesiones" class="${RH_LISTADO_BTN_SECONDARY} mt-6">← Sesiones</a>
       </div>
     </div>`;
-  }
-
-  function renderBreadcrumb(): string {
-    return `
-    <nav class="ss-detail-breadcrumb text-xs text-text-muted" aria-label="Breadcrumb">
-      <ol class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-        <li>
-          <a href="#/sesiones" class="font-medium transition hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">← Sesiones</a>
-        </li>
-        <li class="text-slate-300" aria-hidden="true">/</li>
-        <li class="font-semibold text-text-primary" aria-current="page">Detalle de sesión</li>
-      </ol>
-    </nav>`;
   }
 
   function renderKpis(s: CursoSesion): string {
@@ -211,7 +196,6 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     return `
     <div class="${SS_DETAIL_PAGE_OUTER}">
       <header class="ss-detail-header flex flex-col gap-4 sm:gap-5">
-        ${renderBreadcrumb()}
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Sesión #${s.id}</p>

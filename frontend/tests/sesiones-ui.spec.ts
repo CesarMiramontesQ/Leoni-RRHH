@@ -165,14 +165,7 @@ test.describe("Sesion Detalle - Session Detail Page", () => {
     await page.waitForTimeout(800);
   });
 
-  test("9. Detail page shows breadcrumb navigation", async ({ page }) => {
-    // Use text-based locator to distinguish breadcrumb from sidebar nav links
-    const breadcrumb = page.getByRole("link", { name: "← Sesiones" });
-    await expect(breadcrumb).toBeVisible();
-    await expect(breadcrumb).toHaveText("← Sesiones");
-  });
-
-  test("10. Detail page shows curso info card", async ({ page }) => {
+  test("9. Detail page shows curso info card", async ({ page }) => {
     // Wait for the detail page to finish loading (the "Cargando..." message disappears)
     await page.waitForFunction(
       () => !document.body.textContent?.includes("Cargando..."),
@@ -309,19 +302,6 @@ test.describe("Sesion Detalle - Session Detail Page", () => {
     await expect(modal).not.toBeVisible();
   });
 
-  test("20. Navigate back to list via breadcrumb", async ({ page }) => {
-    // Use text-based locator to click the breadcrumb, not sidebar nav
-    const breadcrumb = page.getByRole("link", { name: "← Sesiones" });
-    await breadcrumb.click();
-    await page.waitForTimeout(500);
-
-    const hash = await page.evaluate(() => window.location.hash);
-    expect(hash).toBe("#/sesiones");
-
-    // Should show the list title again
-    const title = page.locator("h1:has-text('Sesiones de Cursos')");
-    await expect(title).toBeVisible();
-  });
 });
 
 test.describe("Sesion Detalle - Inscribir y Quitar Empleado (si hay elegibles)", () => {

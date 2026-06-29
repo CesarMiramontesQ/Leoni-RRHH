@@ -1240,13 +1240,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     <div class="${RH_LISTADO_PAGE_OUTER} cc-page cc-detail">
       ${renderLevelUpBackBar()}
       <div class="flex flex-col gap-5">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <button data-action="back-to-list" class="${BTN_SECONDARY} w-full shrink-0 gap-1.5 sm:w-auto">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-          Volver al catálogo
-        </button>
-        <h2 class="min-w-0 text-xl font-bold tracking-tight text-text-primary sm:text-2xl truncate">${escapeHtml(c.nombre)}</h2>
-      </div>
+      <h2 class="min-w-0 text-xl font-bold tracking-tight text-text-primary sm:text-2xl truncate">${escapeHtml(c.nombre)}</h2>
 
       <div class="${RH_LISTADO_SURFACE} overflow-hidden">
         <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-6 py-4">
@@ -1990,15 +1984,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   async function handleClick(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
-
-    if (t.closest("[data-action='back-to-list']")) {
-      state.detailCurso = null;
-      state.selectedEmpleados = new Set();
-      state.showAssignSesionPicker = false;
-      history.replaceState(null, "", "#/cursos");
-      render();
-      return;
-    }
 
     if (t.closest("[data-action='cursos-clear-filters']")) {
       state.filters = { tipo: "", clasificacion: "", obligatorio: "", categoria: "", busqueda: "" };

@@ -3318,10 +3318,6 @@ body {
 }
 
 /* ── Detalle de sesión (.ss-page.ss-detail) ─────────────────────────────── */
-.ss-page.ss-detail .ss-detail-breadcrumb {
-  padding-top: 0.125rem;
-}
-
 .ss-page.ss-detail .ss-detail-header {
   padding-bottom: 0.25rem;
 }
