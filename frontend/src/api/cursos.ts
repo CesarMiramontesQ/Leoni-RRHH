@@ -256,6 +256,22 @@ export async function quitarPuestoCurso(cursoId: number, cursoPuestoId: number):
   }
 }
 
+export type CatalogoPuestoPerfilItem = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  area_nombre: string | null;
+};
+
+export async function getCursoCatalogosPuestos(cursoId: number): Promise<CatalogoPuestoPerfilItem[]> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/catalogos-puestos`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
 export async function getCursoEmpleadosExtra(cursoId: number): Promise<CursoEmpleadoDetail[]> {
   const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/empleados-extra`);
   if (!res.ok) {

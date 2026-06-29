@@ -82,3 +82,27 @@ async def test_quitar_puesto_asignado_al_curso(client: AsyncClient, db: AsyncSes
     )
     assert list_resp.status_code == 200
     assert list_resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_catalogos_puestos_curso_solo_modulo_cursos(
+    client: AsyncClient, db: AsyncSession
+):
+    rh = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_curso_cat_puestos@leoni.test",
+        modulos_rh={"cursos": True},
+        inscrito_modulos_rh=True,
+    )
+    perfil = await make_puesto_perfil(db, nombre="Perfil catálogo")
+    curso = await _make_curso(db, "Curso catálogo puestos")
+    headers = await auth_headers(client, rh)
+
+    resp = await client.get(
+        f"/api/v1/level-up/cursos/{curso.id}/catalogos-puestos",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert any(i["id"] == perfil.id for i in items)

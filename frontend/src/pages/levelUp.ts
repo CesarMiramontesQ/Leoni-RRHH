@@ -15,20 +15,18 @@ import {
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
-import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso } from "../api/cursos.ts";
-import { getPerfilesList } from "../api/puestos.ts";
+import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso, getCursoCatalogosPuestos } from "../api/cursos.ts";
 import {
   getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones,
   getInstructoresInternos, getInstructoresExternos,
 } from "../api/cursosCatalogo.ts";
 import type { Proveedor, CursoCatSimple, InstructorInterno, InstructorExterno } from "../api/cursosCatalogo.ts";
-import type { PerfilPuestoListItem } from "../dashboard/puestos/types.ts";
+import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos, CatalogoPuestoPerfilItem } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, InstructorTipo, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
-import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 
 
 // ── Dashboard: tipos, datos fake y helpers ──────────────────────────────────
@@ -406,7 +404,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionResult: { asignados: number; ya_asignados: number } | null;
     asignacionError: string | null;
     showAsignacionPuestosModal: boolean;
-    asignacionPuestosCatalog: PerfilPuestoListItem[] | null;
+    asignacionPuestosCatalog: CatalogoPuestoPerfilItem[] | null;
     asignacionPuestosCatalogLoading: boolean;
     asignacionPuestoIds: Set<number>;
     asignacionPuestosLoading: boolean;
@@ -1420,16 +1418,18 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
           !catalog ? `<p class="text-xs text-red-500 text-center py-6">Error al cargar puestos.</p>` : `
         <div class="space-y-4">
           <p class="text-xs text-slate-500">Selecciona uno o más perfiles de puesto. Todos los empleados activos de cada puesto quedarán vinculados al curso.</p>
-          ${disponibles.length === 0 ? `
-            <p class="text-sm text-slate-500 text-center py-4">Todos los puestos disponibles ya están asignados a este curso.</p>
+          ${catalog.length === 0 ? `
+            <p class="text-sm text-slate-500 text-center py-4">No hay perfiles de puesto registrados en el sistema.</p>
+          ` : disponibles.length === 0 ? `
+            <p class="text-sm text-slate-500 text-center py-4">Todos los perfiles de puesto ya están asignados a este curso.</p>
           ` : `
           <div class="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-slate-200 p-3">
             ${disponibles.map((p) => `
               <label class="flex items-start gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-slate-50">
                 <input type="checkbox" data-action="toggle-asignacion-puesto" data-puesto-perfil-id="${p.id}" ${state.asignacionPuestoIds.has(p.id) ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                 <span class="min-w-0">
-                  <span class="block text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</span>
-                  <span class="block text-xs text-slate-500">${escapeHtml(p.codigo)}${p.area ? ` · ${escapeHtml(p.area)}` : ""}</span>
+                  <span class="block text-sm font-medium text-text-primary">${escapeHtml(p.nombre)}</span>
+                  <span class="block text-xs text-slate-500">${escapeHtml(p.codigo)}${p.area_nombre ? ` · ${escapeHtml(p.area_nombre)}` : ""}</span>
                 </span>
               </label>
             `).join("")}
@@ -2270,9 +2270,11 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       state.asignacionPuestosCatalogLoading = true;
       render();
       try {
-        state.asignacionPuestosCatalog = await getPerfilesList({ page_size: 100 });
-      } catch {
+        state.asignacionPuestosCatalog = await getCursoCatalogosPuestos(state.detailCurso!.id);
+      } catch (err: unknown) {
         state.asignacionPuestosCatalog = null;
+        const detail = (err as { detail?: string })?.detail;
+        state.asignacionPuestosError = typeof detail === "string" ? detail : "Error al cargar perfiles de puesto.";
       }
       state.asignacionPuestosCatalogLoading = false;
       render();

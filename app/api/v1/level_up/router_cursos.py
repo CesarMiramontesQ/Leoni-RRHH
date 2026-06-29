@@ -249,6 +249,44 @@ async def quitar_puesto_del_curso(
     await db.flush()
 
 
+class CatalogoPuestoPerfilItem(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    area_nombre: str | None = None
+
+
+@router.get("/{id}/catalogos-puestos", response_model=list[CatalogoPuestoPerfilItem])
+async def catalogos_puestos_curso(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Perfiles de puesto activos disponibles para asignar al curso (módulo cursos)."""
+    from app.models.catalogos import Area
+
+    result = await db.execute(
+        select(
+            PuestoPerfil.id,
+            PuestoPerfil.codigo,
+            PuestoPerfil.nombre,
+            Area.descripcion,
+        )
+        .outerjoin(Area, PuestoPerfil.area_id == Area.area_id)
+        .where(PuestoPerfil.activo.is_(True))
+        .order_by(PuestoPerfil.nombre)
+    )
+    return [
+        CatalogoPuestoPerfilItem(
+            id=row[0],
+            codigo=row[1],
+            nombre=row[2],
+            area_nombre=row[3],
+        )
+        for row in result.all()
+    ]
+
+
 @router.get("/{id}/empleados-extra", response_model=list[CursoEmpleadoDetail])
 async def listar_empleados_extra_del_curso(
     id: int,
