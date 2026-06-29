@@ -2,15 +2,18 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { getAccessToken } from "../auth/session.ts";
 import {
-  BTN_PRIMARY,
-  BTN_SECONDARY,
   FIELD_FOCUS,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  SELECT_CHEVRON,
   badgeCancelled,
   badgeOpen,
 } from "../ui/uiTokens.ts";
@@ -770,12 +773,12 @@ async function openEditarCompetenciasModal(
 function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
   const overlayId = "perfil-detalle-notice-overlay";
   host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-modal="true" aria-labelledby="perfil-detalle-notice-title">
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md p-6" role="alertdialog" aria-modal="true" aria-labelledby="perfil-detalle-notice-title">
         <h2 id="perfil-detalle-notice-title" class="text-lg font-semibold text-text-primary">No se puede editar competencias</h2>
         <p class="mt-2 text-sm text-text-secondary">${escapeHtml(message)}</p>
         <div class="mt-6 flex justify-end">
-          <button type="button" data-perfil-detalle-notice-close class="${BTN_PRIMARY}">Entendido</button>
+          <button type="button" data-perfil-detalle-notice-close class="${RH_LISTADO_BTN_PRIMARY}">Entendido</button>
         </div>
       </div>
     </div>`;
@@ -1033,8 +1036,8 @@ function openAsignarCursoModal(
   const assignedIds = new Set(existingCursos.map((c) => c.curso_id));
 
   host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="add-curso-title">
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md" role="dialog" aria-modal="true" aria-labelledby="add-curso-title">
         <div class="border-b border-slate-100 px-6 py-5">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -1058,17 +1061,20 @@ function openAsignarCursoModal(
           </div>
           <div id="add-curso-sesiones" class="hidden">
             <label class="${RH_LISTADO_LABEL}">Sesión</label>
-            <select id="add-curso-sesion-select" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS}">
-              <option value="">Sin sesión (asignar directo)</option>
-            </select>
+            <div class="relative mt-1 grid grid-cols-1">
+              <select id="add-curso-sesion-select" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+                <option value="">Sin sesión (asignar directo)</option>
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <input id="add-curso-obligatorio" type="checkbox" class="rounded border-slate-300" />
             <label for="add-curso-obligatorio" class="text-sm text-text-secondary">Marcar como obligatorio</label>
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            <button type="button" id="add-curso-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-            <button type="button" id="add-curso-submit" disabled class="${BTN_PRIMARY} w-full sm:w-auto disabled:opacity-50">Asignar</button>
+            <button type="button" id="add-curso-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="button" id="add-curso-submit" disabled class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto disabled:opacity-50">Asignar</button>
           </div>
         </div>
       </div>
@@ -1199,8 +1205,8 @@ function openEditBaseModal(
   const overlayId = "edit-base-overlay";
 
   host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
         <div class="border-b border-slate-100 px-6 py-5">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -1227,8 +1233,8 @@ function openEditBaseModal(
               class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            <button type="button" id="edit-base-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-            <button type="submit" id="edit-base-submit" class="${BTN_PRIMARY} w-full sm:w-auto">Guardar</button>
+            <button type="button" id="edit-base-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="submit" id="edit-base-submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto">Guardar</button>
           </div>
         </form>
       </div>

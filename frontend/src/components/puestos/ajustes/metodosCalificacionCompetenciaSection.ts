@@ -13,7 +13,7 @@ import {
   setMetodosCalificacionCompetenciaCache,
 } from "../../../ui/metodosCalificacionCompetencia.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
-import { BTN_DANGER, BTN_SECONDARY, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_LABEL } from "../../../ui/uiTokens.ts";
+import { BTN_DANGER, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_SECONDARY, RH_LISTADO_LABEL } from "../../../ui/uiTokens.ts";
 import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
@@ -56,7 +56,7 @@ export function mountMetodosCalificacionCompetenciaSection(
     if (loading) return ajustesLoadingState("Cargando niveles…");
     if (error) return ajustesErrorAlert(error);
     if (items.length === 0) {
-      return ajustesEmptyState("No hay niveles configurados. Crea el primero.");
+      return ajustesEmptyState("No hay niveles configurados. Crea el primero.", `<button type="button" data-mcc-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo nivel</span></button>`);
     }
     const rows = items
       .map(
@@ -98,7 +98,7 @@ export function mountMetodosCalificacionCompetenciaSection(
             <p class="mt-2 text-sm text-text-secondary">¿Desactivar <strong>${escapeHtml(deletingItem.nombre)}</strong> (valor ${deletingItem.valor})? No podrás desactivarlo si hay requisitos de competencia que lo usen.</p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-mcc-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-mcc-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="button" data-mcc-modal="confirm-delete" class="${BTN_DANGER}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Desactivando…" : "Desactivar"}</button>
             </div>
           </div>
@@ -122,7 +122,7 @@ export function mountMetodosCalificacionCompetenciaSection(
             </div>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex justify-end gap-2 pt-1">
-              <button type="button" data-mcc-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-mcc-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>

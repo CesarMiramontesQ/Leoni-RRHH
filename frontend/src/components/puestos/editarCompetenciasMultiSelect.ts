@@ -8,7 +8,7 @@ import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
 import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { getNivelRequeridoOptions, ensureMetodosCalificacionCompetenciaLoaded } from "../../ui/nivelCompetencia.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
 export type EditarCompetenciasModalHandle = {
   open: () => void;
@@ -264,8 +264,8 @@ export function mountEditarCompetenciasModal(
       ${sections || `<p class="text-sm text-slate-400 italic mb-4">Sin competencias asignadas</p>`}
 
       <div class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
-        <button type="button" data-toggle-search class="${BTN_GHOST} text-xs">+ Agregar del catálogo</button>
-        <button type="button" data-toggle-create class="${BTN_GHOST} text-xs">+ Crear nueva</button>
+        <button type="button" data-toggle-search class="${RH_LISTADO_BTN_GHOST} text-xs">+ Agregar del catálogo</button>
+        <button type="button" data-toggle-create class="${RH_LISTADO_BTN_GHOST} text-xs">+ Crear nueva</button>
         <span class="ml-auto text-[10px] text-slate-400">${totalCount} total</span>
       </div>
 
@@ -281,8 +281,8 @@ export function mountEditarCompetenciasModal(
             ${pendingRemovals.size ? `−${pendingRemovals.size} por quitar` : ""}
           </span>
           <div class="flex gap-2">
-            <button type="button" data-discard class="${BTN_GHOST} text-xs">Descartar</button>
-            <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
+            <button type="button" data-discard class="${RH_LISTADO_BTN_GHOST} text-xs">Descartar</button>
+            <button type="button" data-save-all class="${RH_LISTADO_BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
           </div>
         </div>` : ""}
     `;
@@ -313,8 +313,8 @@ export function mountEditarCompetenciasModal(
             ${pendingRemovals.size ? `−${pendingRemovals.size} por quitar` : ""}
           </span>
           <div class="flex gap-2">
-            <button type="button" data-discard class="${BTN_GHOST} text-xs">Descartar</button>
-            <button type="button" data-save-all class="${BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
+            <button type="button" data-discard class="${RH_LISTADO_BTN_GHOST} text-xs">Descartar</button>
+            <button type="button" data-save-all class="${RH_LISTADO_BTN_PRIMARY} text-sm ${saving ? "opacity-50 pointer-events-none" : ""}">Guardar cambios</button>
           </div>
         </div>`
       : "";
@@ -364,11 +364,11 @@ export function mountEditarCompetenciasModal(
           <p class="text-xs font-semibold text-slate-700 mb-2">Nivel mínimo para <span class="text-leoni-blue">${escapeHtml(comp.nombre)}</span></p>
           <div class="flex flex-wrap items-end gap-2">
             <div class="relative grid grid-cols-1 flex-1 min-w-[12rem]">
-              <select data-pick-nivel-select class="relative z-[1] col-start-1 row-start-1 w-full cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
+              <select data-pick-nivel-select class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} cursor-pointer">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
               ${SELECT_CHEVRON}
             </div>
-            <button type="button" data-confirm-pick-nivel class="${BTN_PRIMARY} !py-1.5 text-xs">Agregar</button>
-            <button type="button" data-cancel-pick-nivel class="${BTN_GHOST} !py-1.5 text-xs">Cancelar</button>
+            <button type="button" data-confirm-pick-nivel class="${RH_LISTADO_BTN_PRIMARY} !py-1.5 text-xs">Agregar</button>
+            <button type="button" data-cancel-pick-nivel class="${RH_LISTADO_BTN_GHOST} !py-1.5 text-xs">Cancelar</button>
           </div>
         </div>`;
           })()
@@ -425,11 +425,11 @@ export function mountEditarCompetenciasModal(
           <div>
             <label class="mb-1 block text-[10px] font-semibold text-slate-500">Nivel mínimo requerido</label>
             <div class="relative grid grid-cols-1">
-              <select data-create-nivel required class="relative z-[1] col-start-1 row-start-1 w-full min-w-[11rem] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm ${FIELD_FOCUS}">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
+              <select data-create-nivel required class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} min-w-[11rem] cursor-pointer">${nivelOptionsHtml(resolveNivelForSelect(optsFirstValue()))}</select>
               ${SELECT_CHEVRON}
             </div>
           </div>
-          <button type="button" data-do-create class="${BTN_PRIMARY} !px-3 !py-1.5 text-xs">Crear y agregar</button>
+          <button type="button" data-do-create class="${RH_LISTADO_BTN_PRIMARY} !px-3 !py-1.5 text-xs">Crear y agregar</button>
           <button type="button" data-close-create class="text-slate-400 hover:text-slate-600 text-lg leading-none self-center">&times;</button>
         </div>
       </div>`;
@@ -730,11 +730,11 @@ function overlayHtml(gradoNombre?: string): string {
   return `
     <div
       id="editar-competencias-overlay"
-      class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-xl rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        class="${MODAL_PANEL} max-w-xl p-6 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="editar-competencias-title"

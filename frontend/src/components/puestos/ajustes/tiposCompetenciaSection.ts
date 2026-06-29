@@ -14,9 +14,9 @@ import {
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
-  BTN_SECONDARY,
   FIELD_FOCUS,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_SELECT,
@@ -68,7 +68,7 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
   function renderTable(): string {
     if (loading) return ajustesLoadingState("Cargando tipos…");
     if (error) return ajustesErrorAlert(error);
-    if (items.length === 0) return ajustesEmptyState("No hay tipos registrados. Crea el primero.");
+    if (items.length === 0) return ajustesEmptyState("No hay tipos registrados. Crea el primero.", `<button type="button" data-tipo-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo tipo</span></button>`);
     const rows = items
       .map(
         (t) => `
@@ -124,7 +124,7 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
             <p class="mt-2 text-sm text-text-secondary">¿Eliminar <strong>${escapeHtml(deletingItem.nombre)}</strong>? No podrás eliminarlo si hay competencias que lo usen.</p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-tipo-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-tipo-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="button" data-tipo-modal="confirm-delete" class="${BTN_DANGER}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Eliminando…" : "Eliminar"}</button>
             </div>
           </div>
@@ -149,7 +149,7 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
             </div>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-tipo-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-tipo-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}" ${modalSaving ? "disabled" : ""} ${grupos.length === 0 ? "disabled" : ""}>${modalSaving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>

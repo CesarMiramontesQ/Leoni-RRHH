@@ -86,10 +86,13 @@ export function renderCriterioFieldsHtml(opts: {
       html += `
         <div class="mb-3">
           <label class="${RH_LISTADO_LABEL}" for="${prefix}-opcion">Opción</label>
-          <select id="${prefix}-opcion" data-criterio-opcion class="${RH_LISTADO_SELECT} ${SELECT_CHEVRON} ${FIELD_FOCUS} mt-1 w-full">
-            <option value="">Seleccionar…</option>
-            ${options}
-          </select>
+          <div class="relative mt-1 grid grid-cols-1">
+            <select id="${prefix}-opcion" data-criterio-opcion class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+              <option value="">Seleccionar…</option>
+              ${options}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>`;
     }
   }
