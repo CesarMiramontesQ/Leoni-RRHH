@@ -16,6 +16,8 @@ import {
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
+import { getProveedores } from "../api/cursosCatalogo.ts";
+import type { Proveedor } from "../api/cursosCatalogo.ts";
 import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
@@ -382,6 +384,8 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionPuestoId: number | null;
     asignacionLoading: boolean;
     asignacionResult: { asignados: number; ya_asignados: number } | null;
+    proveedoresCatalog: Proveedor[];
+    proveedoresLoading: boolean;
   }
 
   const state: CursosState = {
@@ -415,6 +419,8 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionPuestoId: null,
     asignacionLoading: false,
     asignacionResult: null,
+    proveedoresCatalog: [],
+    proveedoresLoading: false,
   };
 
   async function loadEmpleados() {
@@ -450,6 +456,68 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     } catch {
       state.cursos = { items: [], total: 0, page: 1, page_size: 20 };
     }
+  }
+
+  async function loadProveedoresForCursoModal(): Promise<void> {
+    state.proveedoresLoading = true;
+    render();
+    try {
+      const result = await getProveedores({ page: 1, page_size: 200, solo_activos: true });
+      state.proveedoresCatalog = result.items;
+    } catch {
+      state.proveedoresCatalog = [];
+    }
+    state.proveedoresLoading = false;
+    render();
+  }
+
+  async function openCursoModal(curso: Curso | null): Promise<void> {
+    if (curso) {
+      state.editingCurso = curso;
+      state.showCreateModal = false;
+    } else {
+      state.showCreateModal = true;
+      state.editingCurso = null;
+    }
+    state.proveedoresCatalog = [];
+    render();
+    await loadProveedoresForCursoModal();
+  }
+
+  function closeCursoModal(): void {
+    state.showCreateModal = false;
+    state.editingCurso = null;
+    state.proveedoresCatalog = [];
+    state.proveedoresLoading = false;
+  }
+
+  function renderProveedorSelectForCurso(selectedId: number | null | undefined, selectedNombre: string | null | undefined): string {
+    const proveedores = state.proveedoresCatalog;
+    const matched = proveedores.some((p) => p.id === selectedId);
+    const disabled = state.proveedoresLoading ? " disabled" : "";
+    let options = state.proveedoresLoading
+      ? `<option value="" selected>Cargando proveedores…</option>`
+      : `<option value="">Seleccionar proveedor…</option>`;
+    if (!state.proveedoresLoading) {
+      for (const p of proveedores) {
+        const isSelected = p.id === selectedId ? " selected" : "";
+        options += `<option value="${p.id}"${isSelected}>${escapeHtml(p.nombre)}</option>`;
+      }
+      if (selectedId && !matched) {
+        options += `<option value="${selectedId}" selected>${escapeHtml(selectedNombre ?? "Proveedor")} (inactivo)</option>`;
+      }
+    }
+    const emptyHint = proveedores.length === 0 && !state.proveedoresLoading
+      ? `<p class="mt-1 text-xs text-text-muted">No hay proveedores activos. Regístralos en Ajustes de cursos.</p>`
+      : "";
+    return `
+      <div class="grid grid-cols-1">
+        <select name="proveedor_id" class="${FILTER_SELECT_CLS}"${disabled}>
+          ${options}
+        </select>
+        ${SELECT_CHEVRON}
+      </div>
+      ${emptyHint}`;
   }
 
   function cursoCatBadge(cat: string | null): string {
@@ -779,7 +847,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Proveedor</label>
-            <input type="text" name="proveedor" value="${escapeHtml(c?.proveedor_nombre ?? "")}" class="${modalFieldCls} disabled:bg-slate-50 disabled:text-slate-500" placeholder="Se asigna desde catálogo" disabled />
+            ${renderProveedorSelectForCurso(c?.proveedor_id, c?.proveedor_nombre)}
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Centro de costos</label>
@@ -789,10 +857,11 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             <label class="${RH_LISTADO_LABEL}">Descripción</label>
             <textarea name="descripcion" rows="3" class="${modalFieldCls}">${escapeHtml(c?.descripcion ?? "")}</textarea>
           </div>
+          ${isEdit ? `
           <div>
             <label class="${RH_LISTADO_LABEL}">Requisitos</label>
             <textarea name="requisitos" rows="3" class="${modalFieldCls}">${escapeHtml(c?.requisitos ?? "")}</textarea>
-          </div>
+          </div>` : ""}
           <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
             <input type="checkbox" name="obligatorio" id="curso-obligatorio" ${c?.obligatorio ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
             <div>
@@ -1582,17 +1651,14 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
     if (t.closest("[data-action='open-create-curso']")) {
       await loadEmpleados();
-      state.showCreateModal = true;
-      state.editingCurso = null;
-      render();
+      await openCursoModal(null);
       return;
     }
 
     const closeBtn = t.closest<HTMLElement>("[data-action='close-curso-modal']");
     if (closeBtn) {
       if (!(closeBtn.id === "curso-modal-backdrop" && t.closest("[data-modal-inner]"))) {
-        state.showCreateModal = false;
-        state.editingCurso = null;
+        closeCursoModal();
         render();
       }
       return;
@@ -1605,9 +1671,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         ?? (state.detailCurso?.id === id ? state.detailCurso : null);
       if (curso) {
         await loadEmpleados();
-        state.editingCurso = curso;
-        state.showCreateModal = false;
-        render();
+        await openCursoModal(curso);
       }
       return;
     }
@@ -2044,15 +2108,24 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     if (!form.matches("[data-action='submit-curso']")) return;
     e.preventDefault();
 
+    if (state.proveedoresLoading) {
+      alert("Espera a que carguen los proveedores.");
+      return;
+    }
+
     const fd = new FormData(form);
     const payload: CursoCreatePayload = {
       nombre: fd.get("nombre") as string,
       duracion_horas: fd.get("duracion_horas") ? Number(fd.get("duracion_horas")) : undefined,
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
       descripcion: (fd.get("descripcion") as string) || undefined,
-      requisitos: (fd.get("requisitos") as string) || undefined,
       centro_costos: fd.get("centro_costos") ? Number(fd.get("centro_costos")) : undefined,
     };
+    const proveedorIdRaw = fd.get("proveedor_id");
+    if (proveedorIdRaw) payload.proveedor_id = Number(proveedorIdRaw);
+    if (state.editingCurso) {
+      payload.requisitos = (fd.get("requisitos") as string) || undefined;
+    }
 
     if (!payload.nombre) return;
 
@@ -2062,8 +2135,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       } else {
         await createCurso(payload);
       }
-      state.showCreateModal = false;
-      state.editingCurso = null;
+      closeCursoModal();
       await loadCursos();
       render();
     } catch (err: any) {
@@ -2084,8 +2156,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
     if (e.key === "Escape" && (state.showCreateModal || state.editingCurso)) {
-      state.showCreateModal = false;
-      state.editingCurso = null;
+      closeCursoModal();
       render();
     }
   }

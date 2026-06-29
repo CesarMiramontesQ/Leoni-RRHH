@@ -73,7 +73,12 @@ test.describe("Cursos UI - QA Tests", () => {
     await page.selectOption('#curso-modal-backdrop select[name="clasificacion"]', "adicional");
     await page.fill('#curso-modal-backdrop input[name="duracion_horas"]', "16");
     await page.selectOption('#curso-modal-backdrop select[name="categoria"]', "tecnico");
-    await page.fill('#curso-modal-backdrop input[name="proveedor"]', "Proveedor QA Test");
+    const proveedorSelect = page.locator('#curso-modal-backdrop select[name="proveedor_id"]');
+    await expect(proveedorSelect).toBeVisible({ timeout: 5000 });
+    const proveedorOptions = proveedorSelect.locator("option[value]:not([value=''])");
+    if (await proveedorOptions.count() > 0) {
+      await proveedorSelect.selectOption({ index: 1 });
+    }
     await page.fill('#curso-modal-backdrop textarea[name="descripcion"]', "Curso creado por prueba automatizada Playwright");
     await page.check('#curso-modal-backdrop input[name="obligatorio"]');
 
