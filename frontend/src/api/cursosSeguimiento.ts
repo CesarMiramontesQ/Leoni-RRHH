@@ -18,8 +18,14 @@ function buildQuery(params: Record<string, string | number | undefined>): string
   return qs ? `?${qs}` : "";
 }
 
-export async function getCursosDashboardResumen(): Promise<CursosDashboardResumen> {
-  const res = await fetchWithAuth(`${BASE}/resumen`);
+export async function getCursosDashboardResumen(
+  opts?: { soloActivos?: boolean },
+): Promise<CursosDashboardResumen> {
+  const res = await fetchWithAuth(
+    `${BASE}/resumen${buildQuery({
+      solo_activos: (opts?.soloActivos ?? true) ? "true" : "false",
+    })}`,
+  );
   if (!res.ok) throw new Error("No se pudo cargar el resumen de seguimiento");
   return res.json() as Promise<CursosDashboardResumen>;
 }
@@ -48,10 +54,17 @@ export async function getCursosDashboardRegistros(
 
 export async function getCursosDashboardHistorialEmpleado(
   empleadoId: number,
-  estadoCurso?: EstadoCursoEmpleado,
+  opts?: {
+    estadoCurso?: EstadoCursoEmpleado;
+    soloActivos?: boolean;
+  },
 ): Promise<CursosDashboardEmpleadoHistorial> {
-  const qs = estadoCurso ? `?estado_curso=${encodeURIComponent(estadoCurso)}` : "";
-  const res = await fetchWithAuth(`${BASE}/empleados/${empleadoId}/historial${qs}`);
+  const res = await fetchWithAuth(
+    `${BASE}/empleados/${empleadoId}/historial${buildQuery({
+      estado_curso: opts?.estadoCurso,
+      solo_activos: opts?.soloActivos ?? true ? "true" : "false",
+    })}`,
+  );
   if (!res.ok) throw new Error("No se pudo cargar el historial del empleado");
   return res.json() as Promise<CursosDashboardEmpleadoHistorial>;
 }

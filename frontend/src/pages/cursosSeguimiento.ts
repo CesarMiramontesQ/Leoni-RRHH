@@ -15,6 +15,7 @@ import type {
   EstadoCursoEmpleado,
 } from "../dashboard/cursos/seguimientoTypes.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import { RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
 
@@ -54,9 +55,8 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
 
   async function loadResumen(): Promise<void> {
     state.loadingResumen = true;
-    render();
     try {
-      state.resumen = await getCursosDashboardResumen();
+      state.resumen = await getCursosDashboardResumen({ soloActivos: true });
     } catch {
       state.resumen = null;
     }
@@ -70,10 +70,10 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
     state.historial = null;
     render();
     try {
-      state.historial = await getCursosDashboardHistorialEmpleado(
-        empleadoId,
-        (state.historialFiltroEstado || undefined) as EstadoCursoEmpleado | undefined,
-      );
+      state.historial = await getCursosDashboardHistorialEmpleado(empleadoId, {
+        estadoCurso: (state.historialFiltroEstado || undefined) as EstadoCursoEmpleado | undefined,
+        soloActivos: true,
+      });
     } catch {
       state.historial = null;
     }
@@ -134,36 +134,43 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
 
   function renderContent(): string {
     const resumen = state.resumen;
-    return `<div class="${RH_LISTADO_PAGE_OUTER} space-y-6">
+    return `<div class="${RH_LISTADO_PAGE_OUTER} ss-page cs-page">
+      ${renderLevelUpBackBar()}
       ${renderCursosSeguimientoKpis(resumen?.kpis ?? null, state.loadingResumen)}
-
-      ${
-        resumen && !state.loadingResumen
-          ? `<div class="space-y-3">
-              <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Vista rápida</h2>
-              ${renderVistaRapida({
-                empleadosCursosPendientes: resumen.empleados_cursos_pendientes,
-                empleadosSesionesPendientes: resumen.empleados_sesiones_pendientes,
-                sesionesProximas: resumen.sesiones_proximas,
-              })}
-            </div>`
-          : ""
-      }
-
-      <div class="space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Consulta por empleado</h2>
-        ${renderCursosEmpleadoConsulta({
-          searchQ: state.empleadoSearchQ,
-          searching: state.empleadoSearching,
-          results: state.empleadoSearchResults,
-          resultsPage: state.empleadoSearchPage,
-          resultsTotal: state.empleadoSearchTotal,
-          resultsPageSize: EMPLEADO_SEARCH_PAGE_SIZE,
-          selectedEmpleadoId: state.selectedEmpleadoId,
-          historial: state.historial,
-          historialLoading: state.historialLoading,
-          historialFiltroEstado: state.historialFiltroEstado,
-        })}
+      <div class="cs-content-stack flex flex-col gap-4 sm:gap-5">
+        ${
+          resumen && !state.loadingResumen
+            ? `<section class="flex flex-col gap-3" aria-labelledby="cs-vista-rapida-heading">
+                <div>
+                  <h2 id="cs-vista-rapida-heading" class="text-sm font-semibold text-text-primary">Vista rápida</h2>
+                  <p class="mt-0.5 text-xs text-text-muted">Accesos directos a pendientes y sesiones próximas.</p>
+                </div>
+                ${renderVistaRapida({
+                  empleadosCursosPendientes: resumen.empleados_cursos_pendientes,
+                  empleadosSesionesPendientes: resumen.empleados_sesiones_pendientes,
+                  sesionesProximas: resumen.sesiones_proximas,
+                })}
+              </section>`
+            : ""
+        }
+        <section class="flex flex-col gap-3" aria-labelledby="cs-consulta-heading">
+          <div>
+            <h2 id="cs-consulta-heading" class="text-sm font-semibold text-text-primary">Consulta por empleado</h2>
+            <p class="mt-0.5 text-xs text-text-muted">Revisa cursos y sesiones pendientes o en curso del colaborador.</p>
+          </div>
+          ${renderCursosEmpleadoConsulta({
+            searchQ: state.empleadoSearchQ,
+            searching: state.empleadoSearching,
+            results: state.empleadoSearchResults,
+            resultsPage: state.empleadoSearchPage,
+            resultsTotal: state.empleadoSearchTotal,
+            resultsPageSize: EMPLEADO_SEARCH_PAGE_SIZE,
+            selectedEmpleadoId: state.selectedEmpleadoId,
+            historial: state.historial,
+            historialLoading: state.historialLoading,
+            historialFiltroEstado: state.historialFiltroEstado,
+          })}
+        </section>
       </div>
     </div>`;
   }
@@ -190,6 +197,19 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
       }
       return;
     }
+    if (action === "emp-search-prev") {
+      if (state.empleadoSearchPage > 1) {
+        await searchEmpleados(state.empleadoSearchQ, state.empleadoSearchPage - 1);
+      }
+      return;
+    }
+    if (action === "emp-search-next") {
+      const totalPages = Math.max(1, Math.ceil(state.empleadoSearchTotal / EMPLEADO_SEARCH_PAGE_SIZE));
+      if (state.empleadoSearchPage < totalPages) {
+        await searchEmpleados(state.empleadoSearchQ, state.empleadoSearchPage + 1);
+      }
+      return;
+    }
     if (action === "open-empleado" || action === "pick-empleado") {
       const id = Number(actionEl.dataset.empleadoId);
       if (id) {
@@ -198,6 +218,7 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
         state.empleadoSearchPage = 1;
         state.empleadoSearchTotal = 0;
         await loadHistorialEmpleado(id);
+        document.getElementById("cs-consulta-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
       return;
     }

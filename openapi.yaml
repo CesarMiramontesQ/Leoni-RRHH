@@ -10913,6 +10913,13 @@ paths:
       operationId: cursos_dashboard_resumen
       security:
         - BearerAuth: []
+      parameters:
+        - name: solo_activos
+          in: query
+          description: Si es true, excluye cursos completados y sesiones cerradas con asistencia.
+          schema:
+            type: boolean
+            default: true
       responses:
         "200":
           description: Resumen del dashboard de seguimiento
@@ -11005,6 +11012,12 @@ paths:
           schema:
             type: string
             enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+        - name: solo_activos
+          in: query
+          description: Si es true, excluye cursos completados y sesiones cerradas con asistencia.
+          schema:
+            type: boolean
+            default: true
       responses:
         "200":
           description: Historial del empleado

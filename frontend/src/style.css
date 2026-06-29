@@ -3317,6 +3317,25 @@ body {
   }
 }
 
+/* ── Seguimiento de capacitaciones (.cs-page) ───────────────────────────── */
+.cs-page .cs-seguimiento-row {
+  transition: background-color 140ms ease;
+}
+
+.cs-page .cs-seguimiento-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.cs-page .cs-seguimiento-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-page .cs-seguimiento-row {
+    transition: none;
+  }
+}
+
 /* ── Detalle de sesión (.ss-page.ss-detail) ─────────────────────────────── */
 .ss-page.ss-detail .ss-detail-header {
   padding-bottom: 0.25rem;

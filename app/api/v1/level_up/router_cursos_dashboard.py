@@ -23,11 +23,15 @@ router = APIRouter(
 
 @router.get("/resumen", response_model=CursosDashboardResumenResponse)
 async def dashboard_resumen(
+    solo_activos: bool = Query(
+        True,
+        description="Si es true, excluye cursos completados y sesiones ya cerradas con asistencia.",
+    ),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = LevelUpCursosDashboardService(db)
-    return await service.obtener_resumen()
+    return await service.obtener_resumen(solo_activos=solo_activos)
 
 
 @router.get("/registros", response_model=CursosDashboardRegistrosResponse)
@@ -69,8 +73,16 @@ async def dashboard_registros(
 async def dashboard_historial_empleado(
     empleado_id: int,
     estado_curso: EstadoCursoEmpleadoLiteral | None = Query(None),
+    solo_activos: bool = Query(
+        True,
+        description="Si es true, excluye cursos completados y sesiones ya cerradas con asistencia.",
+    ),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = LevelUpCursosDashboardService(db)
-    return await service.historial_empleado(empleado_id=empleado_id, estado_curso=estado_curso)
+    return await service.historial_empleado(
+        empleado_id=empleado_id,
+        estado_curso=estado_curso,
+        solo_activos=solo_activos,
+    )

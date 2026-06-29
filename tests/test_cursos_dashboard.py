@@ -64,7 +64,7 @@ async def test_dashboard_registros_empleado_extra_pendiente(
 
 
 @pytest.mark.asyncio
-async def test_dashboard_historial_empleado_completado(
+async def test_dashboard_historial_empleado_completado_excluido_por_defecto(
     client: AsyncClient, db: AsyncSession
 ):
     rh = await make_empleado(db, rol="rh", email="rh_dash_hist@leoni.test")
@@ -100,6 +100,47 @@ async def test_dashboard_historial_empleado_completado(
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["empleado_id"] == emp.empleado_id
+    assert data["cursos"] == []
+    assert data["sesiones"] == []
+
+
+@pytest.mark.asyncio
+async def test_dashboard_historial_empleado_incluye_completado_si_solo_activos_false(
+    client: AsyncClient, db: AsyncSession
+):
+    rh = await make_empleado(db, rol="rh", email="rh_dash_hist_full@leoni.test")
+    curso = await _make_curso(db, "Curso historial completo")
+    emp = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_hist_full@leoni.test",
+        empleado_id=883003,
+    )
+    sesion = CursoSesion(
+        curso_id=curso.id,
+        fecha_inicio=__import__("datetime").date(2026, 1, 15),
+        estado=EstadoSesion.completada,
+    )
+    db.add(sesion)
+    await db.flush()
+    db.add(
+        CursoEmpleado(
+            curso_id=curso.id,
+            empleado_id=emp.empleado_id,
+            sesion_id=sesion.id,
+            asistio=True,
+        )
+    )
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    resp = await client.get(
+        f"/api/v1/level-up/cursos/dashboard/empleados/{emp.empleado_id}/historial",
+        params={"solo_activos": "false"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
     assert len(data["cursos"]) == 1
     assert data["cursos"][0]["estado_curso"] == "completado"
     assert len(data["sesiones"]) == 1

@@ -7,6 +7,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.empleados import Empleado
 from app.models.level_up import Curso, CursoEmpleado, CursoGrupo, CursoPuesto, CursoSesion
 from app.repositories.level_up_cursos_dashboard import LevelUpCursosDashboardRepository
 from app.schemas.level_up_dashboard import (
@@ -41,6 +42,9 @@ class _ParCursoEmpleado:
 
 class LevelUpCursosDashboardService:
     TOP_N = 8
+    ESTADOS_CURSO_ACTIVOS: frozenset[str] = frozenset(
+        {"pendiente", "programado", "no_acreditado", "en_progreso"}
+    )
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -104,6 +108,7 @@ class LevelUpCursosDashboardService:
     async def _build_pares(
         self,
         cursos: list[Curso] | None = None,
+        solo_activos: bool = False,
     ) -> tuple[dict[int, Curso], dict[tuple[int, int], _ParCursoEmpleado]]:
         if cursos is None:
             cursos = await self.repo.list_cursos_activos()
@@ -112,7 +117,12 @@ class LevelUpCursosDashboardService:
         curso_puestos = await self.repo.list_all_curso_puestos()
         grupos = await self.repo.list_all_grupos()
         extras = await self.repo.list_extras_sin_sesion()
-        inscripciones = await self.repo.list_inscripciones_con_sesion()
+        completed_pairs: set[tuple[int, int]] = set()
+        if solo_activos:
+            completed_pairs = await self.repo.completed_curso_pairs()
+            inscripciones = await self.repo.list_inscripciones_activas_con_sesion()
+        else:
+            inscripciones = await self.repo.list_inscripciones_con_sesion()
 
         assignment_index = await self._build_assignment_index(cursos, curso_puestos, grupos, extras)
 
@@ -120,6 +130,8 @@ class LevelUpCursosDashboardService:
 
         for (emp_id, curso_id), origen in assignment_index.items():
             if curso_id not in curso_map:
+                continue
+            if solo_activos and (emp_id, curso_id) in completed_pairs:
                 continue
             pares[(emp_id, curso_id)] = _ParCursoEmpleado(
                 empleado_id=emp_id,
@@ -132,6 +144,8 @@ class LevelUpCursosDashboardService:
             if ce.curso_id not in curso_map:
                 continue
             key = (ce.empleado_id, ce.curso_id)
+            if solo_activos and key in completed_pairs:
+                continue
             par = pares.get(key)
             if par is None:
                 par = _ParCursoEmpleado(empleado_id=ce.empleado_id, curso_id=ce.curso_id, asignado=False)
@@ -141,6 +155,59 @@ class LevelUpCursosDashboardService:
                 par.inscripciones.append(ins)
 
         return curso_map, pares
+
+    async def _build_pares_empleado(
+        self,
+        empleado_id: int,
+    ) -> tuple[dict[int, Curso], dict[tuple[int, int], _ParCursoEmpleado]]:
+        cursos_asignados = await self.asig.cursos_asignados_a_empleado(empleado_id)
+        inscripciones = await self.repo.list_inscripciones_empleado_con_sesion(empleado_id)
+
+        curso_ids = set(cursos_asignados)
+        curso_ids.update(ce.curso_id for ce in inscripciones)
+        if not curso_ids:
+            return {}, {}
+
+        cursos = await self.repo.list_cursos_by_ids(curso_ids)
+        curso_map = {c.id: c for c in cursos}
+
+        pares: dict[tuple[int, int], _ParCursoEmpleado] = {}
+        for cid in cursos_asignados:
+            if cid not in curso_map:
+                continue
+            origen = await self.asig.origen_asignacion(empleado_id, cid)
+            pares[(empleado_id, cid)] = _ParCursoEmpleado(
+                empleado_id=empleado_id,
+                curso_id=cid,
+                asignado=True,
+                origen=origen,
+            )
+
+        for ce in inscripciones:
+            if ce.curso_id not in curso_map:
+                continue
+            key = (empleado_id, ce.curso_id)
+            par = pares.get(key)
+            if par is None:
+                par = _ParCursoEmpleado(
+                    empleado_id=empleado_id,
+                    curso_id=ce.curso_id,
+                    asignado=False,
+                )
+                pares[key] = par
+            ins = self._inscripcion_input(ce)
+            if ins:
+                par.inscripciones.append(ins)
+
+        return curso_map, pares
+
+    @staticmethod
+    def _sesion_es_activa(estado_sesion: str, asistio: bool | None) -> bool:
+        if estado_sesion in ("programada", "en_curso"):
+            return True
+        if estado_sesion == "completada":
+            return asistio is not True
+        return False
 
     def _estado_par(self, par: _ParCursoEmpleado) -> EstadoCursoEmpleadoLiteral | None:
         estado = compute_estado_curso_empleado(par.asignado, par.inscripciones)
@@ -269,52 +336,106 @@ class LevelUpCursosDashboardService:
             ]
         return filtered
 
-    async def obtener_resumen(self) -> CursosDashboardResumenResponse:
-        curso_map, pares = await self._build_pares()
-        inscripciones_raw = await self.repo.list_inscripciones_con_sesion()
-        registros = await self._enrich_registros(pares, curso_map, inscripciones_raw)
-        sesiones = await self.repo.list_sesiones()
-        inscritos = await self.repo.count_inscritos_por_sesion()
-
-        estados_curso = [r.estado_curso for r in registros]
-        kpis = CursosDashboardKpis(
-            cursos_asignados=len({r.curso_id for r in registros if r.origen_asignacion}),
-            cursos_pendientes=estados_curso.count("pendiente"),
-            cursos_completados=estados_curso.count("completado"),
-            cursos_con_sesion_proxima=estados_curso.count("programado") + estados_curso.count("en_progreso"),
-            sesiones_pendientes=sum(1 for s in sesiones if s.estado.value in ("programada", "en_curso")),
-            sesiones_programadas=sum(1 for s in sesiones if s.estado.value == "programada"),
-            sesiones_completadas=sum(1 for s in sesiones if s.estado.value == "completada"),
-            empleados_con_cursos_pendientes=len({r.empleado_id for r in registros if r.estado_curso == "pendiente"}),
-            empleados_con_sesiones_pendientes=len({
-                r.empleado_id for r in registros
-                if r.estado_curso in ("programado", "en_progreso")
-            }),
-            empleados_sin_completar_obligatorio=len({
-                r.empleado_id for r in registros
-                if r.curso_obligatorio and r.estado_curso != "completado"
-            }),
-        )
-
-        pendientes_por_emp: dict[int, int] = {}
-        sesiones_pend_por_emp: dict[int, int] = {}
-        for r in registros:
-            if r.estado_curso == "pendiente":
-                pendientes_por_emp[r.empleado_id] = pendientes_por_emp.get(r.empleado_id, 0) + 1
-            if r.estado_curso in ("programado", "en_progreso"):
-                sesiones_pend_por_emp[r.empleado_id] = sesiones_pend_por_emp.get(r.empleado_id, 0) + 1
-
-        def emp_resumen(emp_counts: dict[int, int]) -> list[CursosDashboardEmpleadoResumenItem]:
-            sorted_ids = sorted(emp_counts.keys(), key=lambda e: (-emp_counts[e], e))[: self.TOP_N]
-            return [
+    def _empleados_resumen_items(
+        self,
+        emp_counts: dict[int, int],
+        empleados: dict[int, Empleado],
+    ) -> list[CursosDashboardEmpleadoResumenItem]:
+        sorted_ids = sorted(emp_counts.keys(), key=lambda e: (-emp_counts[e], e))[: self.TOP_N]
+        items: list[CursosDashboardEmpleadoResumenItem] = []
+        for eid in sorted_ids:
+            emp = empleados.get(eid)
+            area_nombre = emp.area.descripcion if emp and getattr(emp, "area", None) else None
+            items.append(
                 CursosDashboardEmpleadoResumenItem(
                     empleado_id=eid,
-                    nombre_empleado=next((r.nombre_empleado for r in registros if r.empleado_id == eid), None),
-                    no_empleado=next((r.no_empleado for r in registros if r.empleado_id == eid), None),
-                    area_nombre=next((r.area_nombre for r in registros if r.empleado_id == eid), None),
+                    nombre_empleado=emp.nombre if emp else None,
+                    no_empleado=str(emp.no_empleado) if emp and emp.no_empleado is not None else None,
+                    area_nombre=area_nombre,
                     pendientes_count=emp_counts[eid],
                 )
-                for eid in sorted_ids
+            )
+        return items
+
+    async def obtener_resumen(self, solo_activos: bool = True) -> CursosDashboardResumenResponse:
+        curso_map, pares = await self._build_pares(solo_activos=solo_activos)
+
+        estados_curso: list[str] = []
+        pendientes_por_emp: dict[int, int] = {}
+        sesiones_pend_por_emp: dict[int, int] = {}
+        cursos_asignados_ids: set[int] = set()
+        empleados_sin_obligatorio: set[int] = set()
+        completados_light: list[tuple[int, int, str, str | None]] = []
+
+        for (emp_id, curso_id), par in pares.items():
+            estado = self._estado_par(par)
+            if estado is None:
+                continue
+            if solo_activos and estado not in self.ESTADOS_CURSO_ACTIVOS:
+                continue
+            estados_curso.append(estado)
+            curso = curso_map.get(curso_id)
+            if par.origen:
+                cursos_asignados_ids.add(curso_id)
+            if estado == "pendiente":
+                pendientes_por_emp[emp_id] = pendientes_por_emp.get(emp_id, 0) + 1
+            if estado in ("programado", "en_progreso"):
+                sesiones_pend_por_emp[emp_id] = sesiones_pend_por_emp.get(emp_id, 0) + 1
+            if curso and curso.obligatorio and estado != "completado":
+                empleados_sin_obligatorio.add(emp_id)
+            if not solo_activos and estado == "completado":
+                fin = fecha_finalizacion_curso(par.inscripciones)
+                if fin:
+                    completados_light.append(
+                        (emp_id, curso_id, str(fin), curso.nombre if curso else None),
+                    )
+
+        if solo_activos:
+            sesiones = await self.repo.list_sesiones_activas()
+            cursos_completados_kpi = await self.repo.count_completed_curso_pairs()
+            sesiones_completadas_kpi = 0
+        else:
+            sesiones = await self.repo.list_sesiones()
+            cursos_completados_kpi = estados_curso.count("completado")
+            sesiones_completadas_kpi = sum(1 for s in sesiones if s.estado.value == "completada")
+
+        inscritos = await self.repo.count_inscritos_por_sesion()
+
+        kpis = CursosDashboardKpis(
+            cursos_asignados=len(cursos_asignados_ids),
+            cursos_pendientes=estados_curso.count("pendiente"),
+            cursos_completados=cursos_completados_kpi,
+            cursos_con_sesion_proxima=estados_curso.count("programado") + estados_curso.count("en_progreso"),
+            sesiones_pendientes=len(sesiones) if solo_activos else sum(
+                1 for s in sesiones if s.estado.value in ("programada", "en_curso")
+            ),
+            sesiones_programadas=sum(1 for s in sesiones if s.estado.value == "programada"),
+            sesiones_completadas=sesiones_completadas_kpi,
+            empleados_con_cursos_pendientes=len(pendientes_por_emp),
+            empleados_con_sesiones_pendientes=len(sesiones_pend_por_emp),
+            empleados_sin_completar_obligatorio=len(empleados_sin_obligatorio),
+        )
+
+        top_emp_ids: set[int] = set()
+        for emp_counts in (pendientes_por_emp, sesiones_pend_por_emp):
+            top_emp_ids.update(
+                sorted(emp_counts.keys(), key=lambda e: (-emp_counts[e], e))[: self.TOP_N],
+            )
+        completados_recientes: list[CursosDashboardCursoCompletadoItem] = []
+        if not solo_activos:
+            completados_light.sort(key=lambda row: row[2], reverse=True)
+            top_emp_ids.update(row[0] for row in completados_light[: self.TOP_N])
+        empleados = await self.repo.get_empleados_map(top_emp_ids)
+        if not solo_activos:
+            completados_recientes = [
+                CursosDashboardCursoCompletadoItem(
+                    empleado_id=emp_id,
+                    nombre_empleado=empleados[emp_id].nombre if emp_id in empleados else None,
+                    curso_id=curso_id,
+                    curso_nombre=curso_nombre,
+                    fecha_finalizacion=fecha_fin,
+                )
+                for emp_id, curso_id, fecha_fin, curso_nombre in completados_light[: self.TOP_N]
             ]
 
         hoy = date.today()
@@ -335,26 +456,12 @@ class LevelUpCursosDashboardService:
             for s in proximas[: self.TOP_N]
         ]
 
-        completados = [
-            r for r in registros if r.estado_curso == "completado" and r.fecha_finalizacion
-        ]
-        completados.sort(key=lambda r: r.fecha_finalizacion or "", reverse=True)
-
         return CursosDashboardResumenResponse(
             kpis=kpis,
-            empleados_cursos_pendientes=emp_resumen(pendientes_por_emp),
-            empleados_sesiones_pendientes=emp_resumen(sesiones_pend_por_emp),
+            empleados_cursos_pendientes=self._empleados_resumen_items(pendientes_por_emp, empleados),
+            empleados_sesiones_pendientes=self._empleados_resumen_items(sesiones_pend_por_emp, empleados),
             sesiones_proximas=sesiones_proximas,
-            cursos_completados_recientes=[
-                CursosDashboardCursoCompletadoItem(
-                    empleado_id=r.empleado_id,
-                    nombre_empleado=r.nombre_empleado,
-                    curso_id=r.curso_id,
-                    curso_nombre=r.curso_nombre,
-                    fecha_finalizacion=r.fecha_finalizacion,
-                )
-                for r in completados[: self.TOP_N]
-            ],
+            cursos_completados_recientes=completados_recientes,
         )
 
     async def listar_registros(
@@ -409,6 +516,7 @@ class LevelUpCursosDashboardService:
         self,
         empleado_id: int,
         estado_curso: str | None = None,
+        solo_activos: bool = True,
     ) -> CursosDashboardEmpleadoHistorialResponse:
         from app.core.exceptions import NotFoundError
 
@@ -416,30 +524,15 @@ class LevelUpCursosDashboardService:
         if not emp:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
 
-        cursos_asignados = await self.asig.cursos_asignados_a_empleado(empleado_id)
-        curso_map, all_pares = await self._build_pares()
-        pares = {k: v for k, v in all_pares.items() if k[0] == empleado_id}
-
-        for cid in cursos_asignados:
-            key = (empleado_id, cid)
-            if key not in pares:
-                origen = await self.asig.origen_asignacion(empleado_id, cid)
-                pares[key] = _ParCursoEmpleado(
-                    empleado_id=empleado_id,
-                    curso_id=cid,
-                    asignado=True,
-                    origen=origen,
-                )
-
-        inscripciones_raw = [
-            ce for ce in await self.repo.list_inscripciones_con_sesion()
-            if ce.empleado_id == empleado_id
-        ]
+        curso_map, pares = await self._build_pares_empleado(empleado_id)
+        inscripciones_raw = await self.repo.list_inscripciones_empleado_con_sesion(empleado_id)
 
         cursos_items: list[CursosDashboardHistorialCursoItem] = []
         for (_, curso_id), par in pares.items():
             estado = self._estado_par(par)
             if estado is None:
+                continue
+            if solo_activos and estado not in self.ESTADOS_CURSO_ACTIVOS:
                 continue
             if estado_curso and estado != estado_curso:
                 continue
@@ -463,8 +556,10 @@ class LevelUpCursosDashboardService:
             if not ce.sesion:
                 continue
             s = ce.sesion
-            curso = curso_map.get(ce.curso_id)
             estado_s = s.estado.value if hasattr(s.estado, "value") else str(s.estado)
+            if solo_activos and not self._sesion_es_activa(estado_s, ce.asistio):
+                continue
+            curso = curso_map.get(ce.curso_id)
             es_proxima = estado_s in ("programada", "en_curso") and s.fecha_inicio >= hoy
             sesiones_items.append(
                 CursosDashboardHistorialSesionItem(
