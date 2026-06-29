@@ -133,6 +133,7 @@ export function mountEditarCompetenciasModal(
   }
 
   async function load(): Promise<void> {
+    saving = false;
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
       await ensureMetodosCalificacionCompetenciaLoaded(true);
@@ -635,6 +636,7 @@ export function mountEditarCompetenciasModal(
       options.onSuccess();
     } catch {
       saving = false;
+      saveError = "No se pudo crear la competencia. Intenta de nuevo.";
       render();
     }
   }
