@@ -16,8 +16,8 @@ import {
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoGrupos, agregarGrupoCurso, quitarGrupoCurso } from "../api/cursos.ts";
-import { getProveedores } from "../api/cursosCatalogo.ts";
-import type { Proveedor } from "../api/cursosCatalogo.ts";
+import { getProveedores, createProveedor, getCategorias, getTipos, getClasificaciones } from "../api/cursosCatalogo.ts";
+import type { Proveedor, CursoCatSimple } from "../api/cursosCatalogo.ts";
 import type { CursoPuestoDetail, CursoEmpleadoDetail, EmpleadoElegible, CursoGrupoItem, CursoCatalogos } from "../api/cursos.ts";
 import type { Curso, CursoListResponse, CursoCreatePayload, CursoSesion, CursoSesionCreatePayload, SesionEmpleadoItem } from "../dashboard/cursos/types.ts";
 import { TIPO_LABELS, CLASIFICACION_LABELS, CATEGORIA_LABELS, ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
@@ -353,6 +353,19 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   const FILTER_SELECT_CLS = `${RH_LISTADO_SELECT} col-start-1 row-start-1 appearance-none ${RH_LISTADO_FOCUS_RING}`;
   const FILTER_INPUT_CLS = `block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}`;
 
+  interface CursoModalDraft {
+    nombre: string;
+    clasificacion_id: string;
+    tipo_id: string;
+    duracion_horas: string;
+    categoria_id: string;
+    proveedor_id: string;
+    centro_costos: string;
+    descripcion: string;
+    requisitos: string;
+    obligatorio: boolean;
+  }
+
   interface CursosState {
     cursos: CursoListResponse;
     loading: boolean;
@@ -386,6 +399,15 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionResult: { asignados: number; ya_asignados: number } | null;
     proveedoresCatalog: Proveedor[];
     proveedoresLoading: boolean;
+    categoriasCatalog: CursoCatSimple[];
+    tiposCatalog: CursoCatSimple[];
+    clasificacionesCatalog: CursoCatSimple[];
+    showNuevoProveedorPanel: boolean;
+    nuevoProveedorNombre: string;
+    nuevoProveedorSaving: boolean;
+    nuevoProveedorError: string;
+    pendingProveedorId: number | null;
+    cursoModalDraft: CursoModalDraft | null;
   }
 
   const state: CursosState = {
@@ -421,6 +443,15 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     asignacionResult: null,
     proveedoresCatalog: [],
     proveedoresLoading: false,
+    categoriasCatalog: [],
+    tiposCatalog: [],
+    clasificacionesCatalog: [],
+    showNuevoProveedorPanel: false,
+    nuevoProveedorNombre: "",
+    nuevoProveedorSaving: false,
+    nuevoProveedorError: "",
+    pendingProveedorId: null,
+    cursoModalDraft: null,
   };
 
   async function loadEmpleados() {
@@ -458,17 +489,91 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     }
   }
 
-  async function loadProveedoresForCursoModal(): Promise<void> {
+  function captureCursoModalDraft(): void {
+    if (!state.showCreateModal && !state.editingCurso) return;
+    const form = container.querySelector<HTMLFormElement>('form[data-action="submit-curso"]');
+    if (!form) return;
+    const fd = new FormData(form);
+    state.cursoModalDraft = {
+      nombre: String(fd.get("nombre") ?? ""),
+      clasificacion_id: String(fd.get("clasificacion_id") ?? ""),
+      tipo_id: String(fd.get("tipo_id") ?? ""),
+      duracion_horas: String(fd.get("duracion_horas") ?? ""),
+      categoria_id: String(fd.get("categoria_id") ?? ""),
+      proveedor_id: String(fd.get("proveedor_id") ?? ""),
+      centro_costos: String(fd.get("centro_costos") ?? ""),
+      descripcion: String(fd.get("descripcion") ?? ""),
+      requisitos: String(fd.get("requisitos") ?? ""),
+      obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
+    };
+  }
+
+  function resetProveedorPanelState(): void {
+    state.showNuevoProveedorPanel = false;
+    state.nuevoProveedorNombre = "";
+    state.nuevoProveedorSaving = false;
+    state.nuevoProveedorError = "";
+    state.pendingProveedorId = null;
+  }
+
+  async function loadCursoModalCatalogos(): Promise<void> {
     state.proveedoresLoading = true;
     render();
+    const params = { page: 1, page_size: 200, solo_activos: true };
     try {
-      const result = await getProveedores({ page: 1, page_size: 200, solo_activos: true });
-      state.proveedoresCatalog = result.items;
+      const [categorias, tipos, clasificaciones, proveedores] = await Promise.all([
+        getCategorias(params),
+        getTipos(params),
+        getClasificaciones(params),
+        getProveedores(params),
+      ]);
+      state.categoriasCatalog = categorias.items;
+      state.tiposCatalog = tipos.items;
+      state.clasificacionesCatalog = clasificaciones.items;
+      state.proveedoresCatalog = proveedores.items;
     } catch {
+      state.categoriasCatalog = [];
+      state.tiposCatalog = [];
+      state.clasificacionesCatalog = [];
       state.proveedoresCatalog = [];
     }
     state.proveedoresLoading = false;
     render();
+  }
+
+  function catalogItemLabel(nombre: string, labels: Record<string, string>): string {
+    return labels[nombre] ?? nombre;
+  }
+
+  function renderCatalogSelect(
+    name: string,
+    items: CursoCatSimple[],
+    selectedId: number | null | undefined,
+    draftValue: string | undefined,
+    labels: Record<string, string>,
+    modalFieldCls: string,
+    inactiveLabel: string | null | undefined,
+  ): string {
+    const selected = draftValue || (selectedId != null ? String(selectedId) : "");
+    const matched = items.some((item) => String(item.id) === selected);
+    const disabled = state.proveedoresLoading ? " disabled" : "";
+    let options = state.proveedoresLoading
+      ? `<option value="" selected>Cargando…</option>`
+      : `<option value="">—</option>`;
+    if (!state.proveedoresLoading) {
+      for (const item of items) {
+        const isSelected = String(item.id) === selected ? " selected" : "";
+        options += `<option value="${item.id}"${isSelected}>${escapeHtml(catalogItemLabel(item.nombre, labels))}</option>`;
+      }
+      if (selected && !matched) {
+        options += `<option value="${escapeHtml(selected)}" selected>${escapeHtml(inactiveLabel ?? "Registro")} (inactivo)</option>`;
+      }
+    }
+    return `<select name="${name}" class="${modalFieldCls}"${disabled}>${options}</select>`;
+  }
+
+  async function loadProveedoresForCursoModal(): Promise<void> {
+    await loadCursoModalCatalogos();
   }
 
   async function openCursoModal(curso: Curso | null): Promise<void> {
@@ -480,18 +585,65 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       state.editingCurso = null;
     }
     state.proveedoresCatalog = [];
+    state.categoriasCatalog = [];
+    state.tiposCatalog = [];
+    state.clasificacionesCatalog = [];
+    state.cursoModalDraft = null;
+    resetProveedorPanelState();
     render();
-    await loadProveedoresForCursoModal();
+    await loadCursoModalCatalogos();
   }
 
   function closeCursoModal(): void {
     state.showCreateModal = false;
     state.editingCurso = null;
     state.proveedoresCatalog = [];
+    state.categoriasCatalog = [];
+    state.tiposCatalog = [];
+    state.clasificacionesCatalog = [];
     state.proveedoresLoading = false;
+    state.cursoModalDraft = null;
+    resetProveedorPanelState();
   }
 
-  function renderProveedorSelectForCurso(selectedId: number | null | undefined, selectedNombre: string | null | undefined): string {
+  async function saveNuevoProveedorFromCursoModal(): Promise<void> {
+    const nombre = state.nuevoProveedorNombre.trim();
+    if (nombre.length < 2) {
+      state.nuevoProveedorError = "El nombre debe tener al menos 2 caracteres.";
+      render();
+      return;
+    }
+    state.nuevoProveedorSaving = true;
+    state.nuevoProveedorError = "";
+    render();
+    try {
+      const created = await createProveedor({ nombre });
+      state.proveedoresCatalog = [...state.proveedoresCatalog, created]
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
+      if (state.cursoModalDraft) state.cursoModalDraft.proveedor_id = String(created.id);
+      state.pendingProveedorId = created.id;
+      state.showNuevoProveedorPanel = false;
+      state.nuevoProveedorNombre = "";
+      state.nuevoProveedorSaving = false;
+      state.nuevoProveedorError = "";
+      render();
+      container.querySelector<HTMLInputElement>('form[data-action="submit-curso"] input[name="nombre"]')?.focus();
+    } catch (err: unknown) {
+      state.nuevoProveedorSaving = false;
+      state.nuevoProveedorError = (err as { detail?: string }).detail ?? "No se pudo crear el proveedor.";
+      render();
+    }
+  }
+
+  function renderProveedorSectionForCurso(
+    c: Curso | null,
+    draft: CursoModalDraft | null,
+    modalFieldCls: string,
+  ): string {
+    const selectedId = state.pendingProveedorId
+      ?? (draft?.proveedor_id ? Number(draft.proveedor_id) : null)
+      ?? c?.proveedor_id
+      ?? null;
     const proveedores = state.proveedoresCatalog;
     const matched = proveedores.some((p) => p.id === selectedId);
     const disabled = state.proveedoresLoading ? " disabled" : "";
@@ -504,12 +656,22 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         options += `<option value="${p.id}"${isSelected}>${escapeHtml(p.nombre)}</option>`;
       }
       if (selectedId && !matched) {
-        options += `<option value="${selectedId}" selected>${escapeHtml(selectedNombre ?? "Proveedor")} (inactivo)</option>`;
+        options += `<option value="${selectedId}" selected>${escapeHtml(c?.proveedor_nombre ?? "Proveedor")} (inactivo)</option>`;
       }
     }
-    const emptyHint = proveedores.length === 0 && !state.proveedoresLoading
-      ? `<p class="mt-1 text-xs text-text-muted">No hay proveedores activos. Regístralos en Ajustes de cursos.</p>`
-      : "";
+    const panel = state.showNuevoProveedorPanel ? `
+      <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3 space-y-3">
+        <p class="text-xs font-semibold text-text-primary">Nuevo proveedor</p>
+        <div>
+          <label for="nuevo-proveedor-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
+          <input id="nuevo-proveedor-nombre" type="text" data-action="nuevo-proveedor-nombre" maxlength="255" value="${escapeHtml(state.nuevoProveedorNombre)}" class="${modalFieldCls}" />
+        </div>
+        ${state.nuevoProveedorError ? `<p class="text-xs text-red-700" role="alert">${escapeHtml(state.nuevoProveedorError)}</p>` : ""}
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-action="save-nuevo-proveedor" class="${RH_LISTADO_BTN_PRIMARY} text-xs" ${state.nuevoProveedorSaving ? "disabled" : ""}>${state.nuevoProveedorSaving ? "Guardando…" : "Guardar proveedor"}</button>
+          <button type="button" data-action="cancel-nuevo-proveedor" class="${BTN_SECONDARY} text-xs">Cancelar</button>
+        </div>
+      </div>` : "";
     return `
       <div class="grid grid-cols-1">
         <select name="proveedor_id" class="${FILTER_SELECT_CLS}"${disabled}>
@@ -517,7 +679,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         </select>
         ${SELECT_CHEVRON}
       </div>
-      ${emptyHint}`;
+      <button type="button" data-action="toggle-nuevo-proveedor" class="mt-2 ${RH_LISTADO_BTN_GHOST} text-xs">
+        ${state.showNuevoProveedorPanel ? "Ocultar formulario" : "+ Crear nuevo proveedor"}
+      </button>
+      ${panel}`;
   }
 
   function cursoCatBadge(cat: string | null): string {
@@ -801,6 +966,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   function renderCreateEditModal(): string {
     const c = state.editingCurso;
+    const d = state.cursoModalDraft;
     const isEdit = !!c;
     const title = isEdit ? "Editar curso" : "Nuevo curso";
     const subtitle = isEdit
@@ -818,52 +984,69 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         <form data-action="submit-curso" class="flex flex-col gap-4 px-6 py-5">
           <div>
             <label class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
-            <input type="text" name="nombre" required value="${escapeHtml(c?.nombre ?? "")}" class="${modalFieldCls}" />
+            <input type="text" name="nombre" required value="${escapeHtml(d?.nombre ?? c?.nombre ?? "")}" class="${modalFieldCls}" />
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Clasificación</label>
-            <select name="clasificacion" class="${modalFieldCls}">
-              <option value="">—</option>
-              <option value="adicional" ${c?.clasificacion_nombre === "adicional" ? "selected" : ""}>Adicional</option>
-              <option value="contemplado" ${c?.clasificacion_nombre === "contemplado" ? "selected" : ""}>Contemplado</option>
-            </select>
+            ${renderCatalogSelect(
+              "clasificacion_id",
+              state.clasificacionesCatalog,
+              c?.clasificacion_id,
+              d?.clasificacion_id,
+              CLASIFICACION_LABELS,
+              modalFieldCls,
+              c?.clasificacion_nombre ? catalogItemLabel(c.clasificacion_nombre, CLASIFICACION_LABELS) : null,
+            )}
+          </div>
+          <div>
+            <label class="${RH_LISTADO_LABEL}">Tipo</label>
+            ${renderCatalogSelect(
+              "tipo_id",
+              state.tiposCatalog,
+              c?.tipo_id,
+              d?.tipo_id,
+              TIPO_LABELS,
+              modalFieldCls,
+              c?.tipo_nombre ? catalogItemLabel(c.tipo_nombre, TIPO_LABELS) : null,
+            )}
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="${RH_LISTADO_LABEL}">Duración (horas)</label>
-              <input type="number" name="duracion_horas" step="0.5" min="0.5" value="${c?.duracion_horas ?? ""}" class="${modalFieldCls}" />
+              <input type="number" name="duracion_horas" step="0.5" min="0.5" value="${d?.duracion_horas ?? c?.duracion_horas ?? ""}" class="${modalFieldCls}" />
             </div>
             <div>
               <label class="${RH_LISTADO_LABEL}">Categoría</label>
-              <select name="categoria" class="${modalFieldCls}">
-                <option value="">—</option>
-                <option value="tecnico" ${c?.categoria_nombre === "tecnico" ? "selected" : ""}>Técnico</option>
-                <option value="calidad" ${c?.categoria_nombre === "calidad" ? "selected" : ""}>Calidad</option>
-                <option value="seguridad" ${c?.categoria_nombre === "seguridad" ? "selected" : ""}>Seguridad</option>
-                <option value="operativo" ${c?.categoria_nombre === "operativo" ? "selected" : ""}>Operativo</option>
-                <option value="blanda" ${c?.categoria_nombre === "blanda" ? "selected" : ""}>Blanda</option>
-              </select>
+              ${renderCatalogSelect(
+                "categoria_id",
+                state.categoriasCatalog,
+                c?.categoria_id,
+                d?.categoria_id,
+                CATEGORIA_LABELS,
+                modalFieldCls,
+                c?.categoria_nombre ? catalogItemLabel(c.categoria_nombre, CATEGORIA_LABELS) : null,
+              )}
             </div>
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Proveedor</label>
-            ${renderProveedorSelectForCurso(c?.proveedor_id, c?.proveedor_nombre)}
+            ${renderProveedorSectionForCurso(c, d, modalFieldCls)}
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Centro de costos</label>
-            <input type="number" name="centro_costos" value="${c?.centro_costos ?? ""}" class="${modalFieldCls}" />
+            <input type="number" name="centro_costos" value="${d?.centro_costos ?? c?.centro_costos ?? ""}" class="${modalFieldCls}" />
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Descripción</label>
-            <textarea name="descripcion" rows="3" class="${modalFieldCls}">${escapeHtml(c?.descripcion ?? "")}</textarea>
+            <textarea name="descripcion" rows="3" class="${modalFieldCls}">${escapeHtml(d?.descripcion ?? c?.descripcion ?? "")}</textarea>
           </div>
           ${isEdit ? `
           <div>
             <label class="${RH_LISTADO_LABEL}">Requisitos</label>
-            <textarea name="requisitos" rows="3" class="${modalFieldCls}">${escapeHtml(c?.requisitos ?? "")}</textarea>
+            <textarea name="requisitos" rows="3" class="${modalFieldCls}">${escapeHtml(d?.requisitos ?? c?.requisitos ?? "")}</textarea>
           </div>` : ""}
           <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
-            <input type="checkbox" name="obligatorio" id="curso-obligatorio" ${c?.obligatorio ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+            <input type="checkbox" name="obligatorio" id="curso-obligatorio" ${(d?.obligatorio ?? c?.obligatorio) ? "checked" : ""} class="mt-0.5 size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
             <div>
               <label for="curso-obligatorio" class="text-sm font-medium text-text-primary">Obligatorio</label>
               <p class="mt-0.5 text-xs text-text-muted">Marca el curso como requisito obligatorio para los puestos asignados.</p>
@@ -1512,6 +1695,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
   }
 
   function render(): void {
+    captureCursoModalDraft();
     mountAppShell(container, {
       pageTitle: "Catálogo de cursos",
       activeNav: "cursos",
@@ -1652,6 +1836,37 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     if (t.closest("[data-action='open-create-curso']")) {
       await loadEmpleados();
       await openCursoModal(null);
+      return;
+    }
+
+    if (t.closest("[data-action='toggle-nuevo-proveedor']")) {
+      captureCursoModalDraft();
+      state.showNuevoProveedorPanel = !state.showNuevoProveedorPanel;
+      if (!state.showNuevoProveedorPanel) {
+        state.nuevoProveedorNombre = "";
+        state.nuevoProveedorError = "";
+      }
+      render();
+      if (state.showNuevoProveedorPanel) {
+        container.querySelector<HTMLInputElement>("#nuevo-proveedor-nombre")?.focus();
+      }
+      return;
+    }
+
+    if (t.closest("[data-action='cancel-nuevo-proveedor']")) {
+      captureCursoModalDraft();
+      state.showNuevoProveedorPanel = false;
+      state.nuevoProveedorNombre = "";
+      state.nuevoProveedorError = "";
+      render();
+      return;
+    }
+
+    if (t.closest("[data-action='save-nuevo-proveedor']")) {
+      captureCursoModalDraft();
+      const input = container.querySelector<HTMLInputElement>("[data-action='nuevo-proveedor-nombre']");
+      state.nuevoProveedorNombre = input?.value ?? state.nuevoProveedorNombre;
+      await saveNuevoProveedorFromCursoModal();
       return;
     }
 
@@ -2033,6 +2248,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   function handleInput(e: Event): void {
     const t = e.target as HTMLInputElement;
+    if (t.matches("[data-action='nuevo-proveedor-nombre']")) {
+      state.nuevoProveedorNombre = t.value;
+      return;
+    }
     if (t.matches("[data-action='cursos-search']")) {
       state.filters.busqueda = t.value;
       if (searchTimeout) clearTimeout(searchTimeout);
@@ -2121,7 +2340,13 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       descripcion: (fd.get("descripcion") as string) || undefined,
       centro_costos: fd.get("centro_costos") ? Number(fd.get("centro_costos")) : undefined,
     };
+    const categoriaIdRaw = fd.get("categoria_id");
+    const tipoIdRaw = fd.get("tipo_id");
+    const clasificacionIdRaw = fd.get("clasificacion_id");
     const proveedorIdRaw = fd.get("proveedor_id");
+    if (categoriaIdRaw) payload.categoria_id = Number(categoriaIdRaw);
+    if (tipoIdRaw) payload.tipo_id = Number(tipoIdRaw);
+    if (clasificacionIdRaw) payload.clasificacion_id = Number(clasificacionIdRaw);
     if (proveedorIdRaw) payload.proveedor_id = Number(proveedorIdRaw);
     if (state.editingCurso) {
       payload.requisitos = (fd.get("requisitos") as string) || undefined;

@@ -69,10 +69,19 @@ test.describe("Cursos UI - QA Tests", () => {
 
     // Fill form
     await page.fill('#curso-modal-backdrop input[name="nombre"]', CURSO_NAME);
-    await page.selectOption('#curso-modal-backdrop select[name="tipo"]', "interno");
-    await page.selectOption('#curso-modal-backdrop select[name="clasificacion"]', "adicional");
+    const tipoSelect = page.locator('#curso-modal-backdrop select[name="tipo_id"]');
+    const clasificacionSelect = page.locator('#curso-modal-backdrop select[name="clasificacion_id"]');
+    const categoriaSelect = page.locator('#curso-modal-backdrop select[name="categoria_id"]');
+    if (await tipoSelect.locator("option[value]:not([value=''])").count() > 0) {
+      await tipoSelect.selectOption({ index: 1 });
+    }
+    if (await clasificacionSelect.locator("option[value]:not([value=''])").count() > 0) {
+      await clasificacionSelect.selectOption({ index: 1 });
+    }
     await page.fill('#curso-modal-backdrop input[name="duracion_horas"]', "16");
-    await page.selectOption('#curso-modal-backdrop select[name="categoria"]', "tecnico");
+    if (await categoriaSelect.locator("option[value]:not([value=''])").count() > 0) {
+      await categoriaSelect.selectOption({ index: 1 });
+    }
     const proveedorSelect = page.locator('#curso-modal-backdrop select[name="proveedor_id"]');
     await expect(proveedorSelect).toBeVisible({ timeout: 5000 });
     const proveedorOptions = proveedorSelect.locator("option[value]:not([value=''])");
