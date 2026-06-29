@@ -1,7 +1,17 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
-import { BTN_DANGER, BTN_SECONDARY, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_LABEL, RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
+import {
+  BTN_DANGER,
+  BTN_SECONDARY,
+  FIELD_FOCUS,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_FOCUS_RING,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
+  SELECT_CHEVRON,
+} from "../ui/uiTokens.ts";
 import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
@@ -44,6 +54,8 @@ interface State {
   modalSaving: boolean;
   modalError: string;
   editingItem: (CursoCatSimple | InstructorExterno | Proveedor) | null;
+  proveedoresCatalog: Proveedor[];
+  proveedoresLoading: boolean;
 }
 
 const TABS: { id: TabId; label: string }[] = [
@@ -65,6 +77,8 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     modalSaving: false,
     modalError: "",
     editingItem: null,
+    proveedoresCatalog: [],
+    proveedoresLoading: false,
   };
 
   function tabButtonClass(isActive: boolean): string {
@@ -226,6 +240,37 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     </div>`;
   }
 
+  function renderProveedorSelect(selectedEmpresa: string | null | undefined): string {
+    const proveedores = state.proveedoresCatalog;
+    const selected = selectedEmpresa?.trim() ?? "";
+    const matched = proveedores.some((p) => p.nombre === selected);
+    const disabled = state.proveedoresLoading ? " disabled" : "";
+    const loadingOption = state.proveedoresLoading
+      ? `<option value="" selected>Cargando proveedores…</option>`
+      : `<option value="">Seleccionar proveedor…</option>`;
+    let options = loadingOption;
+    if (!state.proveedoresLoading) {
+      for (const p of proveedores) {
+        const isSelected = p.nombre === selected ? " selected" : "";
+        options += `<option value="${escapeHtml(p.nombre)}"${isSelected}>${escapeHtml(p.nombre)}</option>`;
+      }
+      if (selected && !matched) {
+        options += `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)} (sin catálogo)</option>`;
+      }
+    }
+    const emptyHint = proveedores.length === 0 && !state.proveedoresLoading
+      ? `<p class="mt-1 text-xs text-text-muted">No hay proveedores activos. Regístralos en la pestaña Proveedores.</p>`
+      : "";
+    return `
+      <div class="grid grid-cols-1">
+        <select id="cat-empresa" name="empresa" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"${disabled}>
+          ${options}
+        </select>
+        ${SELECT_CHEVRON}
+      </div>
+      ${emptyHint}`;
+  }
+
   function renderModalInstructor(): string {
     if (!state.modalMode) return "";
     if (state.modalMode === "delete") {
@@ -258,12 +303,8 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
             <input id="cat-especialidad" name="especialidad" type="text" maxlength="255" value="${escapeHtml(item?.especialidad ?? "")}" class="${AJUSTES_INPUT}" />
           </div>
           <div>
-            <label for="cat-empresa" class="${RH_LISTADO_LABEL}">Empresa</label>
-            <input id="cat-empresa" name="empresa" type="text" maxlength="255" value="${escapeHtml(item?.empresa ?? "")}" class="${AJUSTES_INPUT}" />
-          </div>
-          <div>
-            <label for="cat-contacto" class="${RH_LISTADO_LABEL}">Contacto</label>
-            <input id="cat-contacto" name="contacto" type="text" maxlength="255" value="${escapeHtml(item?.contacto ?? "")}" class="${AJUSTES_INPUT}" />
+            <label for="cat-empresa" class="${RH_LISTADO_LABEL}">Proveedor</label>
+            ${renderProveedorSelect(item?.empresa)}
           </div>
           ${state.modalError ? ajustesModalError(state.modalError) : ""}
           <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -407,7 +448,30 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     state.modalSaving = false;
     state.modalError = "";
     state.editingItem = null;
+    state.proveedoresCatalog = [];
+    state.proveedoresLoading = false;
     paint();
+  }
+
+  async function loadProveedoresForModal(): Promise<void> {
+    state.proveedoresLoading = true;
+    paint();
+    try {
+      const result = await getProveedores({ page: 1, page_size: 200, solo_activos: true });
+      state.proveedoresCatalog = result.items;
+    } catch {
+      state.proveedoresCatalog = [];
+    }
+    state.proveedoresLoading = false;
+    paint();
+    container.querySelector<HTMLInputElement>("#cat-nombre")?.focus();
+  }
+
+  function openInstructorModal(mode: "create" | "edit", item: InstructorExterno | null): void {
+    state.modalMode = mode;
+    state.editingItem = item;
+    state.modalError = "";
+    void loadProveedoresForModal();
   }
 
   async function submitForm(form: HTMLFormElement): Promise<void> {
@@ -415,6 +479,11 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     const nombre = String(fd.get("nombre") ?? "").trim();
     if (nombre.length < 2) {
       state.modalError = "El nombre debe tener al menos 2 caracteres.";
+      paint();
+      return;
+    }
+    if (state.activeTab === "instructores" && state.proveedoresLoading) {
+      state.modalError = "Espera a que carguen los proveedores.";
       paint();
       return;
     }
@@ -439,7 +508,6 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
           nombre,
           especialidad: String(fd.get("especialidad") ?? "").trim() || undefined,
           empresa: String(fd.get("empresa") ?? "").trim() || undefined,
-          contacto: String(fd.get("contacto") ?? "").trim() || undefined,
         };
         if (state.modalMode === "create") await createInstructorExterno(payload);
         else if (state.modalMode === "edit" && state.editingItem) await updateInstructorExterno(state.editingItem.id, payload);
@@ -508,19 +576,27 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     if (actionBtn) {
       const action = actionBtn.dataset.catAction;
       if (action === "create") {
-        state.modalMode = "create";
-        state.editingItem = null;
-        state.modalError = "";
-        paint();
+        if (state.activeTab === "instructores") {
+          openInstructorModal("create", null);
+        } else {
+          state.modalMode = "create";
+          state.editingItem = null;
+          state.modalError = "";
+          paint();
+        }
         container.querySelector<HTMLInputElement>("#cat-nombre")?.focus();
       } else if (action === "edit") {
         const id = Number(actionBtn.dataset.id);
         const item = state.items.find((i) => i.id === id);
         if (!item) return;
-        state.modalMode = "edit";
-        state.editingItem = item;
-        state.modalError = "";
-        paint();
+        if (state.activeTab === "instructores") {
+          openInstructorModal("edit", item as InstructorExterno);
+        } else {
+          state.modalMode = "edit";
+          state.editingItem = item;
+          state.modalError = "";
+          paint();
+        }
       } else if (action === "delete") {
         const id = Number(actionBtn.dataset.id);
         const item = state.items.find((i) => i.id === id);
