@@ -57,17 +57,45 @@ class EvaluacionBulkCreate(BaseModel):
     evaluaciones: list[EvaluacionCreate]
 
 
+class GradoNivelInfo(BaseModel):
+    grado_id: int
+    grado_nombre: str
+    orden: int
+
+
 class EmpleadoCompetenciaResumen(BaseModel):
     competencia_id: int
     competencia_nombre: str
     categoria: str
     nivel_requerido: int
     nivel_actual: int
+    niveles_por_grado: dict[int, int] = {}
     gap: int
     brecha_pct: float = 0.0
     severidad: str = "alineado"
     accion_recomendada: Optional[str] = None
     accion_color: Optional[str] = None
+
+
+class EmpleadoConPerfilItem(BaseModel):
+    """Empleado ligado a un perfil de puesto (asignación PerfilFunciones activa)."""
+
+    empleado_id: int
+    empleado_nombre: str
+    no_empleado: Optional[int] = None
+    puesto_perfil_id: int
+    puesto_nombre: Optional[str] = None
+    puesto_codigo: Optional[str] = None
+    nivel_puesto: Optional[str] = None
+    grado_id: Optional[int] = None
+    grado_nombre: Optional[str] = None
+    departamento: Optional[str] = None
+    area_nombre: Optional[str] = None
+    readiness_score: float = 100.0
+    brechas_identificadas: int = 0
+    severidad_promedio: str = "alineado"
+    competencias_alineadas: int = 0
+    total_competencias: int = 0
 
 
 class EmpleadoResumenResponse(BaseModel):
@@ -88,6 +116,8 @@ class EmpleadoResumenResponse(BaseModel):
     total_competencias: int = 0
     evaluadas: int = 0
     con_gap: int = 0
+    grados: list[GradoNivelInfo] = []
+    grado_actual_id: Optional[int] = None
 
 
 

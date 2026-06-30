@@ -8,6 +8,7 @@ Endpoints:
   GET  /api/v1/evaluaciones/{id}                  — Detalle
   PUT  /api/v1/evaluaciones/{id}                  — Actualizar
   DELETE /api/v1/evaluaciones/{id}                — Eliminar (solo borrador)
+  GET  /api/v1/evaluaciones/empleados-con-perfil  — Empleados ligados a un perfil (selector)
   GET  /api/v1/evaluaciones/empleado/{empleado_id} — Evaluaciones de un empleado
   POST /api/v1/evaluaciones/bulk                  — Bulk create (RH)
 
@@ -29,6 +30,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.evaluaciones import (
+    EmpleadoConPerfilItem,
     EmpleadoResumenResponse,
     EvaluacionBulkCreate,
     EvaluacionCreate,
@@ -196,6 +198,16 @@ async def patch_pdi_estado(
         nuevo_estado=body.estado,
         current_user=current_user,
     )
+
+
+@router.get("/empleados-con-perfil", response_model=list[EmpleadoConPerfilItem])
+async def empleados_con_perfil(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Empleados con una asignación activa a un perfil de puesto (para el selector)."""
+    service = EvaluacionService(db)
+    return await service.listar_empleados_con_perfil(current_user=current_user)
 
 
 @router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])
