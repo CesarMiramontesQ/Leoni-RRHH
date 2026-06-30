@@ -4,7 +4,8 @@ import {
   getEmpleadosConPerfil,
   type EmpleadoConPerfil,
 } from "../api/evaluaciones.ts";
-import { BTN_SECONDARY, FIELD_FOCUS } from "../ui/uiTokens.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
+import { BTN_SECONDARY, FIELD_FOCUS, RH_LISTADO_SURFACE } from "../ui/uiTokens.ts";
 
 interface SeveridadCfg {
   dot: string;
@@ -24,10 +25,12 @@ const MAX_TARJETAS = 10;
 interface State {
   empleadosConPerfil: EmpleadoConPerfil[];
   loading: boolean;
+  error: string | null;
+  search: string;
 }
 
 export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): void {
-  const state: State = { empleadosConPerfil: [], loading: true };
+  const state: State = { empleadosConPerfil: [], loading: true, error: null, search: "" };
 
   mountAppShell(container, {
     activeNav: "evaluaciones",
@@ -40,6 +43,22 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   function empleadoPerfilLabel(e: EmpleadoConPerfil): string {
     const partes = [e.puesto_nombre, e.grado_nombre].filter(Boolean);
     return partes.length > 0 ? `${e.empleado_nombre} — ${partes.join(" · ")}` : e.empleado_nombre;
+  }
+
+  function filteredEmpleados(): EmpleadoConPerfil[] {
+    const q = state.search.trim().toLowerCase();
+    if (!q) return state.empleadosConPerfil;
+    return state.empleadosConPerfil.filter((e) => {
+      const hay = [
+        e.empleado_nombre,
+        e.puesto_nombre ?? "",
+        e.grado_nombre ?? "",
+        e.area_nombre ?? "",
+        e.departamento ?? "",
+        e.no_empleado != null ? String(e.no_empleado) : "",
+      ];
+      return hay.some((s) => s.toLowerCase().includes(q));
+    });
   }
 
   function readinessColor(score: number): string {
@@ -55,7 +74,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
           class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}" />
         <input type="hidden" name="${name}" />
         <ul data-dropdown="${name}" class="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg hidden">
-          ${options.map((o) => `<li data-action="pick-${name}" data-value="${o.id}" class="cursor-pointer px-3 py-2 text-sm hover:bg-blue-50">${o.label}</li>`).join("")}
+          ${options.map((o) => `<li data-action="pick-${name}" data-value="${o.id}" class="cursor-pointer px-3 py-2 text-sm hover:bg-blue-50">${escapeHtml(o.label)}</li>`).join("")}
         </ul>
       </div>
     `;
@@ -86,8 +105,8 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
       <div class="rounded-lg border border-gray-200 bg-white p-4 flex flex-col gap-3">
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
-            <p class="text-sm font-semibold text-gray-900 truncate">${e.empleado_nombre}</p>
-            <p class="text-xs text-gray-500 truncate">${puestoGrado}</p>
+            <p class="text-sm font-semibold text-gray-900 truncate">${escapeHtml(e.empleado_nombre)}</p>
+            <p class="text-xs text-gray-500 truncate">${escapeHtml(puestoGrado)}</p>
           </div>
           <span class="shrink-0 flex size-6 items-center justify-center rounded bg-gray-100 text-xs font-bold text-gray-500">#${rank}</span>
         </div>
@@ -109,14 +128,114 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
       </div>`;
   }
 
+  function renderEmpleadosTable(rows: EmpleadoConPerfil[]): string {
+    if (rows.length === 0) {
+      return `
+        <div class="rounded-lg border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500">
+          ${state.search.trim() ? "Sin resultados para la búsqueda." : "No hay colaboradores con perfil asignado."}
+        </div>`;
+    }
+
+    const body = rows
+      .map((e) => {
+        const puestoGrado = [e.puesto_nombre, e.grado_nombre].filter(Boolean).join(" · ") || "—";
+        const sev = SEVERIDAD_CONFIG[e.severidad_promedio] ?? SEVERIDAD_CONFIG.alineado;
+        const evaluadas = e.competencias_evaluadas ?? 0;
+        const total = e.total_competencias ?? 0;
+        const evalLabel =
+          total > 0
+            ? `${evaluadas}/${total}`
+            : evaluadas > 0
+              ? String(evaluadas)
+              : "—";
+        return `
+        <tr class="border-b border-slate-100 hover:bg-slate-50/80">
+          <td class="px-4 py-3">
+            <p class="text-sm font-medium text-text-primary">${escapeHtml(e.empleado_nombre)}</p>
+            ${e.no_empleado != null ? `<p class="text-xs tabular-nums text-text-muted">No. ${e.no_empleado}</p>` : ""}
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(puestoGrado)}</td>
+          <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(e.area_nombre ?? e.departamento ?? "—")}</td>
+          <td class="px-4 py-3 text-sm tabular-nums text-slate-700">${evalLabel}</td>
+          <td class="px-4 py-3 text-sm font-semibold tabular-nums">${Math.round(e.readiness_score)}%</td>
+          <td class="px-4 py-3">
+            <span class="inline-flex items-center gap-1.5 text-xs ${sev.text}">
+              <span class="size-1.5 rounded-full ${sev.dot}"></span>${sev.label}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <a href="#/evaluaciones/empleado/${e.empleado_id}" class="text-xs font-semibold text-accent hover:underline">Ver evaluación</a>
+          </td>
+        </tr>`;
+      })
+      .join("");
+
+    return `
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              <th class="px-4 py-3">Colaborador</th>
+              <th class="px-4 py-3">Puesto · Grado</th>
+              <th class="px-4 py-3">Área</th>
+              <th class="px-4 py-3">Competencias evaluadas</th>
+              <th class="px-4 py-3">Readiness</th>
+              <th class="px-4 py-3">Brecha</th>
+              <th class="px-4 py-3 text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderListaEmpleados(): string {
+    const rows = filteredEmpleados();
+    const conEvaluacion = state.empleadosConPerfil.filter(
+      (e) => (e.competencias_evaluadas ?? 0) > 0,
+    ).length;
+
+    return `
+      <section class="${RH_LISTADO_SURFACE} mt-6 overflow-hidden" aria-labelledby="eval-empleados-title">
+        <header class="border-b border-slate-100 px-4 py-4 sm:px-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="eval-empleados-title" class="text-sm font-semibold text-text-primary">Colaboradores con perfil asignado</h2>
+              <p class="mt-0.5 text-xs text-text-muted">
+                ${state.empleadosConPerfil.length} con perfil · ${conEvaluacion} con al menos una competencia evaluada
+              </p>
+            </div>
+            <div class="w-full sm:max-w-xs">
+              <label class="mb-1 block text-xs font-medium text-text-muted">Buscar</label>
+              <input
+                type="search"
+                data-input="eval-empleados-search"
+                value="${escapeHtml(state.search)}"
+                placeholder="Nombre, puesto, área o número…"
+                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm ${FIELD_FOCUS}"
+              />
+            </div>
+          </div>
+        </header>
+        <div class="p-4 sm:p-5">${renderEmpleadosTable(rows)}</div>
+      </section>`;
+  }
+
   function renderTarjetas(): string {
     if (state.loading) {
       return `<div class="text-center py-12 text-gray-500">Cargando...</div>`;
     }
+    if (state.error) {
+      return `
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-center">
+          <p class="text-sm font-medium text-red-800">No se pudieron cargar los colaboradores</p>
+          <p class="mt-1 text-xs text-red-700">${escapeHtml(state.error)}</p>
+        </div>`;
+    }
     if (state.empleadosConPerfil.length === 0) {
       return `<div class="text-center py-12 text-gray-500 border border-dashed border-gray-300 rounded-lg">
         <p class="text-sm">No hay empleados ligados a un perfil de puesto.</p>
-        <p class="text-xs mt-1">Asigna empleados a un perfil desde el módulo de Puestos.</p>
+        <p class="text-xs mt-1">Asigna empleados a un perfil desde el módulo de Puestos y evalúa competencias desde «Ver empleados».</p>
       </div>`;
     }
 
@@ -139,14 +258,14 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
           <h1 class="text-xl font-semibold text-gray-900">Evaluaciones de Competencias</h1>
         </div>
 
-        ${renderSelectorPerfil()}
+        ${state.loading || state.error || state.empleadosConPerfil.length === 0 ? "" : renderSelectorPerfil()}
 
         ${renderTarjetas()}
+        ${!state.loading && !state.error && state.empleadosConPerfil.length > 0 ? renderListaEmpleados() : ""}
       </div>
     `;
   }
 
-  // ── Search-select handlers ──────────────────────────────────────────────
   function handleSearchSelect(e: Event) {
     const input = e.target as HTMLInputElement;
     const name = input.dataset.action?.replace("search-", "");
@@ -179,7 +298,29 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
   root.addEventListener("click", handlePickOption, { signal });
   root.addEventListener("input", (e) => {
     const t = e.target as HTMLElement;
-    if (t.matches("[data-action^='search-']")) handleSearchSelect(e);
+    if (t.matches("[data-action^='search-']")) {
+      handleSearchSelect(e);
+      return;
+    }
+    if (t.matches("[data-input='eval-empleados-search']")) {
+      state.search = (t as HTMLInputElement).value;
+      const lista = root.querySelector("#eval-empleados-title")?.closest("section");
+      if (lista) {
+        const tableHost = lista.querySelector(".p-4, .sm\\:p-5");
+        if (tableHost) {
+          tableHost.innerHTML = renderEmpleadosTable(filteredEmpleados());
+        }
+        const subtitle = lista.querySelector("header p.text-xs");
+        if (subtitle) {
+          const conEvaluacion = state.empleadosConPerfil.filter(
+            (x) => (x.competencias_evaluadas ?? 0) > 0,
+          ).length;
+          subtitle.textContent = `${state.empleadosConPerfil.length} con perfil · ${conEvaluacion} con al menos una competencia evaluada`;
+        }
+      } else {
+        render();
+      }
+    }
   }, { signal });
   root.addEventListener("focusin", (e) => {
     const t = e.target as HTMLInputElement;
@@ -200,10 +341,15 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
     }
   }, { signal });
 
-  // Initial load
   (async () => {
     render();
-    state.empleadosConPerfil = await getEmpleadosConPerfil();
+    try {
+      state.empleadosConPerfil = await getEmpleadosConPerfil();
+      state.error = null;
+    } catch (err) {
+      state.empleadosConPerfil = [];
+      state.error = err instanceof Error ? err.message : "Error al cargar empleados";
+    }
     state.loading = false;
     render();
   })();

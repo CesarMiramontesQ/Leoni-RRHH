@@ -33,6 +33,7 @@ import {
 import {
   isEmpleadoFlatNavRol,
   isRhStructuredNavRol,
+  usesRhStructuredSidebar,
   isShellNavItemVisibleForRol,
   isSupervisorStructuredNavRol,
   type AppShellNavItemId,
@@ -431,7 +432,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
   // No-RH en Modo RH: sidebar estructurado (secciones Laborales, Comedor, etc.);
   // cada ítem se filtra por grant en isShellNavItemVisibleForRol.
   const nonRhRhMode = isNonRhRhMode();
-  const rhStructuredSidebar = isRhStructuredNavRol(rol) || nonRhRhMode;
+  const rhStructuredSidebar = usesRhStructuredSidebar(rol);
   const mainMenuLis = (!nonRhRhMode && isEmpleadoFlatNavRol(rol))
     ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
         navItemLi(sidebarActiveNav, rol, {

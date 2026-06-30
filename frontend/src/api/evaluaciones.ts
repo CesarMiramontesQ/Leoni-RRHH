@@ -188,11 +188,24 @@ export interface EmpleadoConPerfil {
   severidad_promedio: string;
   competencias_alineadas: number;
   total_competencias: number;
+  competencias_evaluadas: number;
 }
 
 export async function getEmpleadosConPerfil(): Promise<EmpleadoConPerfil[]> {
   const res = await fetchWithAuth("/api/v1/evaluaciones/empleados-con-perfil");
-  if (!res.ok) return [];
+  if (!res.ok) {
+    const raw = await res.text();
+    let detail = raw.trim() || res.statusText || "Error al cargar empleados";
+    try {
+      const parsed = JSON.parse(raw) as { detail?: unknown };
+      if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+        detail = parsed.detail.trim();
+      }
+    } catch {
+      /* noop */
+    }
+    throw new Error(detail);
+  }
   return res.json();
 }
 

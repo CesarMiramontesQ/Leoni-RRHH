@@ -53,3 +53,18 @@ async def test_scope_rh_sin_restriccion(db: AsyncSession):
     svc = IncidenciaFuentesService(db)
     scope = await svc._empleado_ids_scope(rh, None)
     assert scope is None
+
+
+@pytest.mark.asyncio
+async def test_scope_no_rh_con_modulo_incidencias_ve_global(db: AsyncSession):
+    """No-RH con el módulo 'incidencias' otorgado → sin restricción (vista global)."""
+    grantee = await make_empleado(
+        db,
+        rol="supervisor",
+        email="inc_grant@leoni.test",
+        modulos_rh={"incidencias": True},
+        inscrito_modulos_rh=True,
+    )
+    svc = IncidenciaFuentesService(db)
+    scope = await svc._empleado_ids_scope(grantee, None)
+    assert scope is None

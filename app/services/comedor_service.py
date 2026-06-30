@@ -23,7 +23,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.data_scope import effective_data_scope_rol, equipo_empleado_ids_comedor
+from app.core.data_scope import (
+    effective_data_scope_rol,
+    effective_data_scope_for_module,
+    equipo_empleado_ids_comedor,
+)
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -1613,7 +1617,7 @@ class ComedorService:
         semana: date | None = None,
         rh_ui_mode: str | None = None,
     ) -> dict:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "reportes", rh_ui_mode)
         if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver estadisticas de comedor")
 
@@ -1664,7 +1668,7 @@ class ComedorService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> dict:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "reportes", rh_ui_mode)
         if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver proyecciones")
 

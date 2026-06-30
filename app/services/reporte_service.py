@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.data_scope import effective_data_scope_rol
+from app.core.data_scope import effective_data_scope_for_module
 from app.core.exceptions import ForbiddenError
 from app.models.actas import ActaAdministrativa
 from app.models.empleados import Empleado
@@ -37,7 +37,7 @@ class ReporteService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> dict:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "metricas", rh_ui_mode)
         if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para ver KPIs")
 
@@ -79,7 +79,7 @@ class ReporteService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> dict:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "metricas", rh_ui_mode)
         if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para exportar reportes")
 
@@ -102,7 +102,7 @@ class ReporteService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> dict:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "metricas", rh_ui_mode)
         if scope not in ("rh", "gerente", "director"):
             raise ForbiddenError(detail="No tienes permiso para exportar reportes")
 

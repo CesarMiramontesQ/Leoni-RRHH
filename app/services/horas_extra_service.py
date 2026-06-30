@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
+from app.core.data_scope import effective_data_scope_for_module, empleado_ids_en_alcance
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.horas_extra import HorasExtraSolicitud, HorasExtraSolicitudDetalle
@@ -40,7 +40,7 @@ class HorasExtraService:
         self.solicitud_svc = HorasExtraSolicitudService(db)
 
     def _require_acceso(self, current_user: Empleado, rh_ui_mode: str | None = None) -> None:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "nominas-horas-extra", rh_ui_mode)
         if scope not in _ROLES_PERMITIDOS:
             raise ForbiddenError(detail="No tienes acceso a Horas Extra")
 
@@ -49,7 +49,7 @@ class HorasExtraService:
         current_user: Empleado,
         rh_ui_mode: str | None,
     ) -> list[int] | None:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "nominas-horas-extra", rh_ui_mode)
         if scope in ("rh", "director"):
             return None
         if scope == "gerente":

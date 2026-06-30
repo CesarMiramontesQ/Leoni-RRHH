@@ -27,8 +27,8 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.data_scope import effective_data_scope_for_module
 from app.core.rh_ui_mode import (
-    effective_solicitud_scope_rol,
     is_rh_empleado_ui_mode,
     rh_tiene_alcance_gestor,
 )
@@ -427,7 +427,7 @@ class SolicitudService:
         - gerente: propias + todo el subarbol jerarquico bajo el gerente
         - director/rh: todas
         """
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
 
         if scope_rol in ("director", "rh"):
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
@@ -491,7 +491,7 @@ class SolicitudService:
         if not solicitud:
             raise NotFoundError(entidad="Solicitud", id=solicitud_id)
 
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
 
         if scope_rol in ("director", "rh"):
             pass
@@ -700,7 +700,7 @@ class SolicitudService:
                 raise ForbiddenError(detail="No puedes crear solicitudes para otro empleado")
             return current_user
 
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
         requested = data.empleado_id
 
         if requested is None or requested == current_user.id:
@@ -750,7 +750,7 @@ class SolicitudService:
         2) Saldo de vacaciones (solo tipo vacaciones, tabla local `vacaciones`).
         3) Persistencia y notificaciones.
         """
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
         target = await self._resolver_empleado_objetivo_crear_solicitud(
             data, current_user, rh_ui_mode=rh_ui_mode,
         )
@@ -1003,7 +1003,7 @@ class SolicitudService:
                 detail=f"No se puede aprobar una solicitud en estado '{solicitud.estado}'"
             )
 
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
         _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, scope_rol)
         emp = solicitud.empleado
 
@@ -1053,7 +1053,7 @@ class SolicitudService:
                 detail=f"No se puede rechazar una solicitud en estado '{solicitud.estado}'"
             )
 
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
         _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, scope_rol)
         emp = solicitud.empleado
 
@@ -1175,7 +1175,7 @@ class SolicitudService:
                 )
             )
 
-        scope_rol = effective_solicitud_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
         _asegurar_no_autopaprobacion_jerarquica(solicitud, current_user, scope_rol)
         emp = solicitud.empleado
 

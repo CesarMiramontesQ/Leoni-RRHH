@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.data_scope import effective_data_scope_rol
+from app.core.data_scope import effective_data_scope_for_module
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError, ServiceUnavailableError
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
 from app.models.empleados import Empleado
@@ -50,7 +50,7 @@ class FaltasRetardosService:
         current_user: Empleado,
         rh_ui_mode: str | None,
     ) -> list[int] | None:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "faltas-retardos", rh_ui_mode)
         if scope in ("director", "rh"):
             return None
         if scope == "supervisor":

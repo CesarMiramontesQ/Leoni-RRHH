@@ -3991,6 +3991,9 @@ components:
           type: integer
         total_competencias:
           type: integer
+        competencias_evaluadas:
+          type: integer
+          description: Competencias del grado asignado con nivel actual mayor a 0.
 
     TransicionRequest:
       type: object

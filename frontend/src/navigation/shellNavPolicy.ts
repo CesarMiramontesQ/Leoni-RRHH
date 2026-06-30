@@ -192,6 +192,11 @@ export function isRhStructuredNavRol(rol: string | null): boolean {
   return isRhOperativoUiMode();
 }
 
+/** Usa el sidebar RH estructurado (acordeón): admin operativo o no-RH en Modo RH. */
+export function usesRhStructuredSidebar(rol: string | null): boolean {
+  return isRhStructuredNavRol(rol) || isNonRhRhMode();
+}
+
 /** Supervisor y gerente comparten política de rutas permitidas (sin hubs ni módulos extra). */
 export function usesSupervisorRoutePolicy(rol: string | null): boolean {
   if (isRhGestorTeamUiMode()) return true;

@@ -13,7 +13,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.data_scope import effective_data_scope_rol
+from app.core.data_scope import effective_data_scope_for_module
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.incidencias import Incidencia
@@ -80,7 +80,7 @@ class IncidenciaService:
 
     @staticmethod
     def _scope_rol(user: Empleado, rh_ui_mode: str | None = None) -> str:
-        return effective_data_scope_rol(user, rh_ui_mode)
+        return effective_data_scope_for_module(user, "incidencias", rh_ui_mode)
 
     async def _scope_filters_for_list(
         self,
@@ -88,7 +88,7 @@ class IncidenciaService:
         rh_ui_mode: str | None = None,
     ) -> list:
         """Restricción por rol efectivo sobre empleado_id (vacío = sin restricción adicional)."""
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "incidencias", rh_ui_mode)
         if scope in ("director", "rh"):
             return []
         if scope == "supervisor":

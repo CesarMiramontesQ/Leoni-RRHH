@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError
-from app.core.data_scope import effective_data_scope_rol
+from app.core.data_scope import effective_data_scope_for_module
 from app.core.rh_module_registry import user_has_module
 from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
@@ -107,6 +107,10 @@ class EvaluacionService:
         self.repo = EvaluacionRepository(db)
 
     # ── Permission helpers ─────────────────────────────────────────────────────
+
+    def _eval_data_scope(self, current_user: Empleado, rh_ui_mode: str | None = None) -> str:
+        """Alcance de datos de evaluaciones: módulo ``evaluaciones`` otorgado = vista global."""
+        return effective_data_scope_for_module(current_user, "evaluaciones", rh_ui_mode)
 
     def _check_create_permission(self, current_user: Empleado, target_empleado: Empleado):
         if user_has_module(current_user, "evaluaciones"):
@@ -409,7 +413,7 @@ class EvaluacionService:
     async def listar_por_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> list[EvaluacionResponse]:
-        scope = effective_data_scope_rol(current_user)
+        scope = self._eval_data_scope(current_user)
         if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
             raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
         if scope == "supervisor" and current_user.id != empleado_id:
@@ -466,13 +470,15 @@ class EvaluacionService:
         return None, None
 
     async def listar_empleados_con_perfil(
-        self, current_user: Empleado
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> list[EmpleadoConPerfilItem]:
         """Lista empleados con una asignación activa a un perfil de puesto (PerfilFunciones).
 
         Aplica scope: RH ve todos, supervisor solo su área, cualquier otro solo a sí mismo.
         """
-        scope = effective_data_scope_rol(current_user)
+        scope = self._eval_data_scope(current_user, rh_ui_mode)
         pf_repo = PerfilFuncionesRepository(self.db)
         asignaciones = await pf_repo.list_all_active()
 
@@ -553,6 +559,9 @@ class EvaluacionService:
             total = len(brechas_pct)
             brechas_identificadas = sum(1 for p in brechas_pct if p > 0)
             competencias_alineadas = sum(1 for p in brechas_pct if p == 0)
+            competencias_evaluadas = sum(
+                1 for comp_id in comp_reqs if eval_map.get(comp_id, 0) > 0
+            )
             brecha_promedio = round(sum(brechas_pct) / total, 1) if total > 0 else 0.0
             readiness_score = round(100 - brecha_promedio, 1)
             severidad_promedio = self._classify_severidad(brecha_promedio)
@@ -574,6 +583,7 @@ class EvaluacionService:
                 severidad_promedio=severidad_promedio,
                 competencias_alineadas=competencias_alineadas,
                 total_competencias=total,
+                competencias_evaluadas=competencias_evaluadas,
             ))
 
         items.sort(key=lambda i: i.readiness_score, reverse=True)
@@ -582,7 +592,7 @@ class EvaluacionService:
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
-        scope = effective_data_scope_rol(current_user)
+        scope = self._eval_data_scope(current_user)
         if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
             raise ForbiddenError("Solo puedes ver tu propio resumen")
         if scope == "supervisor" and current_user.id != empleado_id:

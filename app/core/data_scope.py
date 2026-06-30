@@ -17,6 +17,29 @@ def effective_data_scope_rol(user: "Empleado", rh_ui_mode: str | None = None) ->
     return effective_solicitud_scope_rol(user, rh_ui_mode)
 
 
+def effective_data_scope_for_module(
+    user: "Empleado", module_key: str, rh_ui_mode: str | None = None
+) -> str:
+    """Scope de datos elevado por permiso de módulo RH.
+
+    Modelo de permisos RH: un módulo otorgado da **vista global** (``"rh"``),
+    no acotada por el rol base. Solo se eleva a un **no-admin con rol base
+    distinto de "rh"** que tenga ``module_key`` otorgado; el admin y los usuarios
+    con rol legacy "rh" conservan el alcance de su modo simulado (ya resuelto por
+    ``effective_data_scope_rol``: p.ej. RH en Modo Empleado ve solo lo suyo).
+    """
+    from app.core.rh_module_registry import user_has_module
+    from app.core.rh_ui_mode import is_admin_user
+
+    scope = effective_data_scope_rol(user, rh_ui_mode)
+    if scope == "rh":
+        return scope
+    rol = user.rol.nombre if user.rol else "empleado"
+    if rol != "rh" and not is_admin_user(user) and user_has_module(user, module_key):
+        return "rh"
+    return scope
+
+
 async def empleado_ids_en_alcance(
     empleado_repo: "EmpleadoRepository",
     user: "Empleado",

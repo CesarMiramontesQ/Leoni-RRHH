@@ -96,6 +96,7 @@ class EmpleadoConPerfilItem(BaseModel):
     severidad_promedio: str = "alineado"
     competencias_alineadas: int = 0
     total_competencias: int = 0
+    competencias_evaluadas: int = 0
 
 
 class EmpleadoResumenResponse(BaseModel):

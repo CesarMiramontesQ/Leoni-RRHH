@@ -233,7 +233,9 @@ function computeKpiMetrics(
   empleados: MultihabilidadesEmpleado[],
 ): { numCaps: number; numEvals: number; promedio: string; brechas: number } {
   const numCaps = competencias.length;
-  const numEvals = empleados.length;
+  const numEvals = empleados.filter((e) =>
+    Object.values(e.niveles ?? {}).some((n) => n > 0),
+  ).length;
   let totalLevel = 0;
   let totalCells = 0;
   let brechas = 0;
@@ -276,7 +278,7 @@ function renderKpis(
     {
       label: "Personas evaluadas",
       value: String(numEvals),
-      sub: "Asignadas al puesto",
+      sub: "Con al menos una competencia calificada",
       icon: ICON_USERS,
       iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
     },
