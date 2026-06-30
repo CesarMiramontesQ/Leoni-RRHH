@@ -20,6 +20,7 @@ from app.models.talento import (
     PerfilFuncionesCompetencia,
     PerfilFuncionesTarea,
     PerfilTarea,
+    PuestoPerfil,
 )
 from app.repositories.base import BaseRepository
 
@@ -109,6 +110,20 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
                 PerfilFunciones.puesto_perfil_id == puesto_perfil_id,
                 PerfilFunciones.activo.is_(True),
             )
+            .order_by(PerfilFunciones.id.desc())
+        )
+        return list(result.scalars().all())
+
+    async def list_all_active(self) -> list[PerfilFunciones]:
+        """Lista todas las asignaciones activas (todos los perfiles) con empleado, puesto y grado."""
+        result = await self.db.execute(
+            select(PerfilFunciones)
+            .options(
+                selectinload(PerfilFunciones.empleado),
+                selectinload(PerfilFunciones.puesto_perfil).selectinload(PuestoPerfil.nivel),
+                selectinload(PerfilFunciones.grado),
+            )
+            .where(PerfilFunciones.activo.is_(True))
             .order_by(PerfilFunciones.id.desc())
         )
         return list(result.scalars().all())

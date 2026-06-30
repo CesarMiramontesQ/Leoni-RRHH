@@ -3943,6 +3943,55 @@ components:
           type: string
           format: date-time
 
+    EmpleadoConPerfilItem:
+      type: object
+      description: Empleado ligado a un perfil de puesto (asignacion PerfilFunciones activa).
+      required: [empleado_id, empleado_nombre, puesto_perfil_id]
+      properties:
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: string
+        no_empleado:
+          type: integer
+          nullable: true
+        puesto_perfil_id:
+          type: integer
+        puesto_nombre:
+          type: string
+          nullable: true
+        puesto_codigo:
+          type: string
+          nullable: true
+        nivel_puesto:
+          type: string
+          nullable: true
+        grado_id:
+          type: integer
+          nullable: true
+        grado_nombre:
+          type: string
+          nullable: true
+        departamento:
+          type: string
+          nullable: true
+        area_nombre:
+          type: string
+          nullable: true
+        readiness_score:
+          type: number
+          format: float
+          description: 100 - brecha promedio (qué tan alineado al perfil ideal).
+        brechas_identificadas:
+          type: integer
+        severidad_promedio:
+          type: string
+          enum: [alineado, media, alta, critica]
+        competencias_alineadas:
+          type: integer
+        total_competencias:
+          type: integer
+
     TransicionRequest:
       type: object
       required: [comentario]
@@ -10202,6 +10251,27 @@ paths:
           description: Sin permiso (solo RH)
         "404":
           description: Evaluacion no encontrada
+
+  /api/v1/evaluaciones/empleados-con-perfil:
+    get:
+      tags: [Talento - Evaluaciones]
+      summary: Empleados ligados a un perfil de puesto
+      description: >-
+        Lista los empleados con una asignacion activa a un perfil de puesto
+        (PerfilFunciones), para el selector de "Evaluacion Individual vs Perfil
+        Ideal". RH ve todos; supervisor solo su area; otro rol solo a si mismo.
+      operationId: evaluaciones_empleados_con_perfil
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de empleados con perfil asignado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmpleadoConPerfilItem"
 
   /api/v1/evaluaciones/empleado/{empleado_id}:
     get:

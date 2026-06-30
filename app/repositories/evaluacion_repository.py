@@ -115,6 +115,20 @@ class EvaluacionRepository:
         )
         return list(result.scalars().all())
 
+    async def list_cerradas_by_empleados(
+        self, empleado_ids: list[int]
+    ) -> list[EvaluacionCompetencia]:
+        """Evaluaciones cerradas de varios empleados (batch, para ranking)."""
+        if not empleado_ids:
+            return []
+        result = await self.db.execute(
+            select(EvaluacionCompetencia).where(
+                EvaluacionCompetencia.empleado_id.in_(empleado_ids),
+                EvaluacionCompetencia.estado == "cerrado",
+            )
+        )
+        return list(result.scalars().all())
+
     async def list_by_area(self, area_id: int) -> list[EvaluacionCompetencia]:
         result = await self.db.execute(
             select(EvaluacionCompetencia)

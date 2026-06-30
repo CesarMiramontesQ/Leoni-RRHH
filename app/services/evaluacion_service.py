@@ -23,13 +23,16 @@ from app.models.talento import (
     Competencia,
     CompetenciaRequisito,
     EvaluacionCompetencia,
+    GradoPuesto,
     NivelPuesto,
     PerfilFunciones,
     PuestoPerfil,
 )
 from app.repositories.evaluacion_repository import EvaluacionRepository
+from app.repositories.perfil_funciones_repository import PerfilFuncionesRepository
 from app.schemas.evaluaciones import (
     EmpleadoCompetenciaResumen,
+    EmpleadoConPerfilItem,
     EmpleadoResumenResponse,
     EvaluacionBulkCreate,
     EvaluacionCreate,
@@ -450,6 +453,105 @@ class EvaluacionService:
                 return a.etiqueta, a.color
         return None, None
 
+    async def listar_empleados_con_perfil(
+        self, current_user: Empleado
+    ) -> list[EmpleadoConPerfilItem]:
+        """Lista empleados con una asignación activa a un perfil de puesto (PerfilFunciones).
+
+        Aplica scope: RH ve todos, supervisor solo su área, cualquier otro solo a sí mismo.
+        """
+        scope = effective_data_scope_rol(current_user)
+        pf_repo = PerfilFuncionesRepository(self.db)
+        asignaciones = await pf_repo.list_all_active()
+
+        if scope == "supervisor":
+            asignaciones = [
+                a for a in asignaciones
+                if a.empleado and a.empleado.area_id == current_user.area_id
+            ]
+        elif scope != "rh":
+            asignaciones = [a for a in asignaciones if a.empleado_id == current_user.id]
+
+        # Nombres de área en batch
+        area_ids = {a.empleado.area_id for a in asignaciones if a.empleado and a.empleado.area_id}
+        area_map: dict[int, str] = {}
+        if area_ids:
+            from app.models.catalogos import Area
+            area_result = await self.db.execute(
+                select(Area.area_id, Area.descripcion).where(Area.area_id.in_(area_ids))
+            )
+            area_map = {row[0]: row[1] for row in area_result.all()}
+
+        # Requisitos por (puesto_perfil, grado, competencia) en batch.
+        puesto_ids = {a.puesto_perfil_id for a in asignaciones}
+        reqs_por_pp_grado: dict[tuple[int, int], dict[int, int]] = {}
+        if puesto_ids:
+            req_result = await self.db.execute(
+                select(CompetenciaRequisito)
+                .options(selectinload(CompetenciaRequisito.competencia))
+                .where(CompetenciaRequisito.puesto_perfil_id.in_(puesto_ids))
+            )
+            for req in req_result.scalars().all():
+                comp = req.competencia
+                if not comp or not comp.activo:
+                    continue
+                key = (req.puesto_perfil_id, req.grado_id)
+                comp_map = reqs_por_pp_grado.setdefault(key, {})
+                existing = comp_map.get(req.competencia_id)
+                if existing is None or req.nivel_requerido > existing:
+                    comp_map[req.competencia_id] = req.nivel_requerido
+
+        # Evaluaciones cerradas (nivel actual) por empleado en batch.
+        empleado_ids = [a.empleado_id for a in asignaciones]
+        cerradas = await self.repo.list_cerradas_by_empleados(empleado_ids)
+        eval_por_empleado: dict[int, dict[int, int]] = {}
+        for ev in cerradas:
+            eval_por_empleado.setdefault(ev.empleado_id, {})[ev.competencia_id] = ev.nivel_actual
+
+        items: list[EmpleadoConPerfilItem] = []
+        for a in asignaciones:
+            emp = a.empleado
+            pp = a.puesto_perfil
+            nivel_nombre = pp.nivel.nombre if pp and pp.nivel else None
+            area_nombre = area_map.get(emp.area_id) if emp and emp.area_id else None
+
+            comp_reqs = reqs_por_pp_grado.get((a.puesto_perfil_id, a.grado_id), {})
+            eval_map = eval_por_empleado.get(a.empleado_id, {})
+            brechas_pct: list[float] = []
+            for comp_id, nivel_req in comp_reqs.items():
+                nivel_act = eval_map.get(comp_id, 0)
+                pct = round(max(0, (nivel_req - nivel_act) / nivel_req * 100), 1) if nivel_req > 0 else 0.0
+                brechas_pct.append(pct)
+
+            total = len(brechas_pct)
+            brechas_identificadas = sum(1 for p in brechas_pct if p > 0)
+            competencias_alineadas = sum(1 for p in brechas_pct if p == 0)
+            brecha_promedio = round(sum(brechas_pct) / total, 1) if total > 0 else 0.0
+            readiness_score = round(100 - brecha_promedio, 1)
+            severidad_promedio = self._classify_severidad(brecha_promedio)
+
+            items.append(EmpleadoConPerfilItem(
+                empleado_id=a.empleado_id,
+                empleado_nombre=emp.nombre if emp else f"ID {a.empleado_id}",
+                no_empleado=emp.no_empleado if emp else None,
+                puesto_perfil_id=a.puesto_perfil_id,
+                puesto_nombre=pp.nombre if pp else None,
+                puesto_codigo=pp.codigo if pp else None,
+                nivel_puesto=nivel_nombre,
+                grado_id=a.grado_id,
+                grado_nombre=a.grado.nombre if a.grado else None,
+                departamento=a.departamento,
+                area_nombre=area_nombre,
+                readiness_score=readiness_score,
+                brechas_identificadas=brechas_identificadas,
+                severidad_promedio=severidad_promedio,
+                competencias_alineadas=competencias_alineadas,
+                total_competencias=total,
+            ))
+
+        items.sort(key=lambda i: i.readiness_score, reverse=True)
+        return items
+
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
@@ -508,6 +610,26 @@ class EvaluacionService:
 
         requisitos = requisitos_result.scalars().all()
 
+        # Nivel requerido en el grado base (Grado 1, menor 'orden') del mismo puesto.
+        # Solo aplica cuando hay perfil asignado; en el fallback por area queda en 0.
+        grado1_map: dict[int, int] = {}
+        if perfil_funciones:
+            grado_base_result = await self.db.execute(
+                select(GradoPuesto.id).order_by(GradoPuesto.orden).limit(1)
+            )
+            grado_base_id = grado_base_result.scalar_one_or_none()
+            if grado_base_id is not None:
+                grado1_req_result = await self.db.execute(
+                    select(CompetenciaRequisito).where(
+                        CompetenciaRequisito.puesto_perfil_id == perfil_funciones.puesto_perfil_id,
+                        CompetenciaRequisito.grado_id == grado_base_id,
+                    )
+                )
+                for req in grado1_req_result.scalars().all():
+                    existing = grado1_map.get(req.competencia_id)
+                    if existing is None or req.nivel_requerido > existing:
+                        grado1_map[req.competencia_id] = req.nivel_requerido
+
         evaluaciones = await self.repo.list_by_empleado_cerradas(empleado_id)
         eval_map = {ev.competencia_id: ev.nivel_actual for ev in evaluaciones}
 
@@ -548,6 +670,7 @@ class EvaluacionService:
                 categoria=categoria,
                 nivel_requerido=nivel_req,
                 nivel_actual=nivel_act,
+                nivel_grado1=grado1_map.get(comp_id, 0),
                 gap=gap,
                 brecha_pct=brecha_pct,
                 severidad=severidad,

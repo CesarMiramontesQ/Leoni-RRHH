@@ -63,11 +63,33 @@ class EmpleadoCompetenciaResumen(BaseModel):
     categoria: str
     nivel_requerido: int
     nivel_actual: int
+    nivel_grado1: int = 0
     gap: int
     brecha_pct: float = 0.0
     severidad: str = "alineado"
     accion_recomendada: Optional[str] = None
     accion_color: Optional[str] = None
+
+
+class EmpleadoConPerfilItem(BaseModel):
+    """Empleado ligado a un perfil de puesto (asignación PerfilFunciones activa)."""
+
+    empleado_id: int
+    empleado_nombre: str
+    no_empleado: Optional[int] = None
+    puesto_perfil_id: int
+    puesto_nombre: Optional[str] = None
+    puesto_codigo: Optional[str] = None
+    nivel_puesto: Optional[str] = None
+    grado_id: Optional[int] = None
+    grado_nombre: Optional[str] = None
+    departamento: Optional[str] = None
+    area_nombre: Optional[str] = None
+    readiness_score: float = 100.0
+    brechas_identificadas: int = 0
+    severidad_promedio: str = "alineado"
+    competencias_alineadas: int = 0
+    total_competencias: int = 0
 
 
 class EmpleadoResumenResponse(BaseModel):

@@ -289,6 +289,9 @@ export function mountEvaluacionEmpleado(
           <div class="text-sm font-medium text-gray-900">${item.competencia_nombre}</div>
           <div class="text-xs text-gray-500 capitalize">${item.categoria}</div>
         </td>
+        <td class="px-4 py-3 text-center bg-blue-50/60">
+          ${renderCircularGauge(item.nivel_grado1, maxNivel, "#3B82F6")}
+        </td>
         <td class="px-4 py-3 text-center">
           ${renderCircularGauge(item.nivel_actual, maxNivel, gaugeColor(item.nivel_actual))}
         </td>
@@ -329,6 +332,12 @@ export function mountEvaluacionEmpleado(
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-blue-700 uppercase bg-blue-50">
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 3a1 1 0 011-1h12a1 1 0 01.78 1.625L13.28 7l3.5 3.375A1 1 0 0116 12H5v6a1 1 0 11-2 0V3z"/></svg>
+                    Nivel 1 Actual
+                  </span>
+                </th>
                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Actual</th>
                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Ideal</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brecha (%)</th>
@@ -363,7 +372,7 @@ export function mountEvaluacionEmpleado(
     }).join("");
 
     return `
-      <div class="mt-8">
+      <div>
         <h2 class="text-sm font-semibold text-gray-900 mb-4">Visualización de Brechas</h2>
         <div class="rounded-lg border border-gray-200 bg-white p-5 space-y-3">
           ${bars}
@@ -373,6 +382,62 @@ export function mountEvaluacionEmpleado(
             <span>100% CRÍTICO</span>
           </div>
         </div>
+      </div>`;
+  }
+
+  const REC_BORDER: Record<Severidad, string> = {
+    alineado: "border-green-500",
+    media: "border-yellow-500",
+    alta: "border-orange-500",
+    critica: "border-red-500",
+  };
+
+  const REC_DESC: Record<Severidad, string> = {
+    critica: "Prioridad crítica: definir una acción inmediata y asignar responsable.",
+    alta: "Brecha alta: programar capacitación o mentoring en el corto plazo.",
+    media: "Brecha media: reforzar con práctica guiada y seguimiento.",
+    alineado: "Mantener el nivel con actividades de refuerzo.",
+  };
+
+  function renderRecomendaciones(data: EmpleadoResumen): string {
+    const top = data.competencias
+      .filter(c => c.brecha_pct > 0)
+      .sort((a, b) => b.brecha_pct - a.brecha_pct)
+      .slice(0, 3);
+
+    const body = top.length > 0
+      ? top.map((c, i) => {
+          const border = REC_BORDER[c.severidad] ?? REC_BORDER.media;
+          const sevCfg = SEVERIDAD_CONFIG[c.severidad] ?? SEVERIDAD_CONFIG.media;
+          const accionClasses = c.accion_color ? (ACCION_COLORS[c.accion_color] ?? ACCION_COLORS.green) : "";
+          return `
+            <div class="flex items-start gap-3 rounded-r border-l-4 ${border} bg-white p-3 shadow-sm">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded ${sevCfg.bg} text-xs font-bold ${sevCfg.text}">#${i + 1}</span>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-900">${c.competencia_nombre}</p>
+                <p class="text-xs text-gray-500 mt-0.5">Brecha ${c.brecha_pct}% — ${REC_DESC[c.severidad] ?? REC_DESC.media}</p>
+                ${c.accion_recomendada
+                  ? `<span class="mt-1.5 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${accionClasses}">${c.accion_recomendada}</span>`
+                  : ""}
+              </div>
+            </div>`;
+        }).join("")
+      : `<p class="text-sm text-gray-400 py-4 text-center">Sin brechas: el empleado está alineado al perfil.</p>`;
+
+    return `
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900 mb-4">Recomendaciones Prioritarias</h2>
+        <div class="space-y-3">
+          ${body}
+        </div>
+      </div>`;
+  }
+
+  function renderBrechasYRecomendaciones(data: EmpleadoResumen): string {
+    return `
+      <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        ${renderBreachBars(data) || `<div></div>`}
+        ${renderRecomendaciones(data)}
       </div>`;
   }
 
@@ -728,7 +793,7 @@ export function mountEvaluacionEmpleado(
           ${renderKPIs(data)}
           ${renderWorkflowSection(evaluaciones)}
           ${renderComparisonTable(data)}
-          ${renderBreachBars(data)}
+          ${renderBrechasYRecomendaciones(data)}
           ${renderPDISection(pdiItems, data.competencias)}
           ${renderGanttTimeline(pdiItems)}
         </div>
