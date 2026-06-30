@@ -503,6 +503,33 @@ export async function deletePerfilAsignacion(perfilId: number, asignacionId: num
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
 }
 
+/**
+ * POST /api/v1/perfiles/:id/asignaciones/:asignacionId/firmar
+ * Registra el acuse (firma). El backend decide superior vs empleado según el rol del usuario:
+ * rh/supervisor → firma del superior; el propio empleado → firma del empleado.
+ */
+export async function firmarAcuseAsignacion(
+  perfilId: number,
+  asignacionId: number,
+  body: {
+    fecha_firma_superior?: string;
+    firma_superior_id?: string;
+    fecha_firma_empleado?: string;
+    firma_empleado_id?: string;
+  },
+): Promise<unknown> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/${perfilId}/asignaciones/${asignacionId}/firmar`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return await res.json();
+}
+
 // ── Tareas Extra (per-employee) ──────────────────────────────────────────────
 
 export type PerfilTareaExtra = {

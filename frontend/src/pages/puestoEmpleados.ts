@@ -27,6 +27,7 @@ import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts
 import { mountCursosExtraModal } from "../components/puestos/cursosExtraModal.ts";
 import { mountEvaluarCualificacionesModal } from "../components/puestos/evaluarCualificacionesModal.ts";
 import { mountEvaluarCompetenciasModal } from "../components/puestos/evaluarCompetenciasModal.ts";
+import { mountRegistrarAcuseModal } from "../components/puestos/registrarAcuseModal.ts";
 
 // ── Tipos (misma forma de respuesta API) ────────────────────────────────
 
@@ -457,6 +458,9 @@ function renderActionMenu(a: AsignacionItem, showRhActions: boolean): string {
       <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="cursos-extra" data-id="${a.id}" data-nombre="${nombre}">
         Administrar cursos extra
       </button>
+      <button type="button" role="menuitem" class="ppe-menu-item" data-ppe-action="registrar-acuse" data-id="${a.id}" data-nombre="${nombre}">
+        Registrar acuse
+      </button>
       <div class="my-1 border-t border-slate-100" role="separator"></div>
       <button type="button" role="menuitem" class="ppe-menu-item ppe-menu-item--danger" data-ppe-action="desasignar" data-id="${a.id}">
         Desasignar empleado
@@ -769,6 +773,15 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         perfilId,
         asignacionId,
         nombreEmpleado,
+        onSuccess: () => void loadData(),
+      }).open();
+    } else if (action === "registrar-acuse") {
+      const item = asignaciones.find((a) => a.id === asignacionId);
+      mountRegistrarAcuseModal(ensurePpeModalHost("modal-host-acuse"), {
+        perfilId,
+        asignacionId,
+        nombreEmpleado,
+        fechaFirmaSuperior: item?.fecha_firma_superior ?? null,
         onSuccess: () => void loadData(),
       }).open();
     } else if (action === "desasignar") {
