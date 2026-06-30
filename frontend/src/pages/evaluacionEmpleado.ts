@@ -31,6 +31,7 @@ import {
   BTN_DANGER,
   FIELD_FOCUS,
   SELECT_CHEVRON,
+  pageHeading,
   badgeCancelled,
   badgeOpen,
   badgeInProgress,
@@ -39,6 +40,7 @@ import {
   badgeRejected,
   badgePending,
 } from "../ui/uiTokens.ts";
+import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 
 const SEVERIDAD_CONFIG: Record<Severidad, { dot: string; bg: string; text: string; label: string }> = {
   alineado: { dot: "bg-green-500", bg: "bg-green-50", text: "text-green-700", label: "Alineado" },
@@ -156,6 +158,15 @@ function gaugeColor(nivel: number): string {
   return "#D1D5DB";
 }
 
+/** Encabezado de sección consistente: título + pista opcional a la derecha. */
+function renderSectionHeading(title: string, hint?: string): string {
+  return `
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <h2 class="text-base font-semibold tracking-tight text-text-primary">${title}</h2>
+      ${hint ? `<span class="text-xs font-medium uppercase tracking-wide text-text-muted">${hint}</span>` : ""}
+    </div>`;
+}
+
 export function mountEvaluacionEmpleado(
   container: HTMLElement,
   empleadoId: number,
@@ -196,33 +207,44 @@ export function mountEvaluacionEmpleado(
       </div>`;
   }
 
-  function renderHeader(data: EmpleadoResumen): string {
-    const puestoInfo = data.puesto_nombre
-      ? `${data.nivel_puesto ?? ""} ${data.nivel_puesto ? "•" : ""} ${data.departamento ?? data.area_nombre ?? ""}`.trim()
-      : data.area_nombre ?? "Sin puesto asignado";
-    const evaluador = data.evaluador_nombre ? `Evaluador: ${data.evaluador_nombre}` : "";
+  function renderHeader(): string {
+    const exportBtn = `
+      <button id="btn-export-pdf" class="${BTN_SECONDARY} print:hidden" title="Exportar a PDF">
+        <svg class="size-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        PDF
+      </button>`;
+    return pageHeading(
+      "Evaluación Individual vs Perfil Ideal",
+      "Análisis detallado de competencias y alineación de carrera.",
+      exportBtn,
+    );
+  }
+
+  function renderProfileCard(data: EmpleadoResumen): string {
+    const nombre = formatNombreEmpleadoUi(data.empleado_nombre) || data.empleado_nombre;
+    const iniciales = inicialesDesdeNombreDisplay(nombre);
+    const metaPartes = [data.puesto_nombre, data.nivel_puesto, data.departamento ?? data.area_nombre]
+      .filter(Boolean)
+      .map((s) => `${s}`);
+    const metaLine = metaPartes.length > 0
+      ? metaPartes.join(`<span class="text-slate-300" aria-hidden="true"> · </span>`)
+      : "Sin puesto asignado";
+    const evaluadorChip = data.evaluador_nombre
+      ? `<span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+          <svg class="size-3.5 text-text-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a7.5 7.5 0 0115 0v.75H4.5v-.75z"/></svg>
+          Evaluador: ${data.evaluador_nombre}
+        </span>`
+      : "";
 
     return `
-      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        <div class="border-l-4 border-green-500 pl-4">
-          <h1 class="text-xl font-bold text-gray-900">Evaluación Individual vs Perfil Ideal</h1>
-          <p class="text-sm text-gray-500 mt-0.5">Análisis detallado de competencias y alineación de carrera.</p>
-        </div>
-        <div class="flex items-start gap-4 text-sm">
-          <div class="flex flex-col sm:flex-row gap-4">
-            <div>
-              <p class="text-xs font-medium text-gray-500 uppercase">Empleado Seleccionado</p>
-              <p class="font-semibold text-gray-900 mt-0.5">${data.empleado_nombre}${data.puesto_nombre ? ` - ${data.puesto_nombre}` : ""}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-gray-500 uppercase">Información del Puesto</p>
-              <p class="font-medium text-gray-700 mt-0.5">${puestoInfo}</p>
-              ${evaluador ? `<p class="text-xs text-gray-500 italic">${evaluador}</p>` : ""}
-            </div>
+      <div class="mt-5 rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div class="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-leoni-blue text-xl font-bold tracking-tight text-white sm:size-20 sm:text-2xl" aria-hidden="true">${iniciales}</div>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">${nombre}</h2>
+            <p class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-600">${metaLine}</p>
+            ${evaluadorChip ? `<div class="mt-2">${evaluadorChip}</div>` : ""}
           </div>
-          <button id="btn-export-pdf" class="${BTN_SECONDARY} text-xs px-3 py-1.5 print:hidden" title="Exportar a PDF">
-            <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>PDF
-          </button>
         </div>
       </div>`;
   }
@@ -234,43 +256,45 @@ export function mountEvaluacionEmpleado(
     const sevCfg = SEVERIDAD_CONFIG[data.severidad_promedio as Severidad] ?? SEVERIDAD_CONFIG.alineado;
     const readinessColor = data.readiness_score >= 70 ? "bg-green-500" : data.readiness_score >= 40 ? "bg-yellow-500" : "bg-red-500";
 
+    const labelCls = "text-xs font-semibold uppercase tracking-wide text-text-muted";
+    const valueCls = "text-2xl font-bold tabular-nums tracking-tight text-text-primary";
     return `
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-        <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <p class="text-xs font-medium text-gray-500 uppercase">Competencias Alineadas</p>
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <p class="${labelCls}">Competencias Alineadas</p>
           <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-2xl font-bold text-gray-900">${data.competencias_alineadas}/${data.total_competencias}</span>
-            <span class="text-sm font-semibold text-blue-600">${alinPct}%</span>
+            <span class="${valueCls}">${data.competencias_alineadas}/${data.total_competencias}</span>
+            <span class="text-sm font-semibold text-accent">${alinPct}%</span>
           </div>
-          <div class="mt-2 h-1 rounded-full bg-gray-100 overflow-hidden">
-            <div class="h-full rounded-full bg-blue-500" style="width:${alinPct}%"></div>
-          </div>
-        </div>
-
-        <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <p class="text-xs font-medium text-gray-500 uppercase">Brechas Identificadas</p>
-          <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-2xl font-bold text-gray-900">${data.brechas_identificadas}</span>
-            <span class="text-xs text-gray-500">Puntos de mejora</span>
+          <div class="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-full rounded-full bg-accent" style="width:${alinPct}%"></div>
           </div>
         </div>
 
-        <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <p class="text-xs font-medium text-gray-500 uppercase">Brecha Promedio</p>
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <p class="${labelCls}">Brechas Identificadas</p>
           <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-2xl font-bold text-gray-900">${data.brecha_promedio}%</span>
+            <span class="${valueCls}">${data.brechas_identificadas}</span>
+            <span class="text-xs text-text-muted">Puntos de mejora</span>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <p class="${labelCls}">Brecha Promedio</p>
+          <div class="flex flex-wrap items-baseline gap-2 mt-2">
+            <span class="${valueCls}">${data.brecha_promedio}%</span>
             <span class="inline-flex items-center gap-1 rounded-full ${sevCfg.bg} px-2 py-0.5 text-xs font-medium ${sevCfg.text}">
               <span class="size-1.5 rounded-full ${sevCfg.dot}"></span>${sevCfg.label}
             </span>
           </div>
         </div>
 
-        <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <p class="text-xs font-medium text-gray-500 uppercase">Readiness Score</p>
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm">
+          <p class="${labelCls}">Readiness Score</p>
           <div class="flex items-baseline gap-2 mt-2">
-            <span class="text-2xl font-bold text-gray-900">${data.readiness_score}%</span>
+            <span class="${valueCls}">${data.readiness_score}%</span>
           </div>
-          <div class="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div class="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
             <div class="h-full rounded-full ${readinessColor}" style="width:${Math.min(100, data.readiness_score)}%"></div>
           </div>
         </div>
@@ -292,16 +316,16 @@ export function mountEvaluacionEmpleado(
           const nivel = item.niveles_por_grado[String(g.grado_id)] ?? 0;
           const isActual = g.grado_id === gradoActualId;
           return `<td class="px-4 py-3 text-center ${isActual ? "bg-blue-50/60" : ""}">
-            ${renderCircularGauge(nivel, maxNivel, isActual ? "#3B82F6" : "#94A3B8")}
+            ${renderCircularGauge(nivel, maxNivel, isActual ? "#2563EB" : "#94A3B8")}
           </td>`;
         }).join("")
       : `<td class="px-4 py-3 text-center">${renderCircularGauge(item.nivel_requerido, maxNivel, "#94A3B8")}</td>`;
 
     return `
-      <tr class="border-b border-gray-100 hover:bg-gray-50/50">
+      <tr class="border-b border-slate-100 transition hover:bg-slate-50">
         <td class="px-4 py-3">
-          <div class="text-sm font-medium text-gray-900">${item.competencia_nombre}</div>
-          <div class="text-xs text-gray-500 capitalize">${item.categoria}</div>
+          <div class="text-sm font-medium text-text-primary">${item.competencia_nombre}</div>
+          <div class="text-xs capitalize text-text-muted">${item.categoria}</div>
         </td>
         <td class="px-4 py-3 text-center">
           ${renderCircularGauge(item.nivel_actual, maxNivel, gaugeColor(item.nivel_actual))}
@@ -310,7 +334,7 @@ export function mountEvaluacionEmpleado(
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <span class="size-2 rounded-full ${sevCfg.dot}"></span>
-            <span class="text-sm font-medium text-gray-900">${item.brecha_pct}%</span>
+            <span class="text-sm font-medium tabular-nums text-text-primary">${item.brecha_pct}%</span>
             <span class="text-xs ${sevCfg.text}">(${sevCfg.label})</span>
           </div>
         </td>
@@ -330,28 +354,26 @@ export function mountEvaluacionEmpleado(
         </div>`;
     }
 
+    const thBase = "px-4 py-3 text-xs font-semibold uppercase tracking-wide";
     const gradoHeaders = data.grados.length > 0
       ? data.grados.map((g) => {
           const isActual = g.grado_id === data.grado_actual_id;
-          return `<th class="px-4 py-3 text-center text-xs font-medium uppercase ${isActual ? "text-blue-700 bg-blue-50" : "text-gray-500"}">${g.grado_nombre}</th>`;
+          return `<th class="${thBase} text-center ${isActual ? "bg-accent text-white" : "text-white/80"}">${g.grado_nombre}</th>`;
         }).join("")
-      : `<th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Ideal</th>`;
+      : `<th class="${thBase} text-center text-white/80">Nivel Ideal</th>`;
 
     return `
       <div class="mt-8">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-gray-900">Tabla de Comparación Unificada</h2>
-          <span class="text-xs text-gray-500 uppercase">Detalle por Competencia</span>
-        </div>
-        <div class="overflow-hidden rounded-lg border border-gray-200">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+        ${renderSectionHeading("Tabla de Comparación Unificada", "Detalle por competencia")}
+        <div class="overflow-hidden rounded-xl border border-border bg-white shadow-sm ring-1 ring-slate-900/5">
+          <table class="min-w-full">
+            <thead class="bg-leoni-blue">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
-                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Actual</th>
+                <th class="${thBase} text-left text-white">Competencia</th>
+                <th class="${thBase} text-center text-white">Nivel Actual</th>
                 ${gradoHeaders}
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brecha (%)</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción Recomendada</th>
+                <th class="${thBase} text-left text-white">Brecha (%)</th>
+                <th class="${thBase} text-left text-white">Acción Recomendada</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 bg-white">
@@ -383,10 +405,10 @@ export function mountEvaluacionEmpleado(
 
     return `
       <div>
-        <h2 class="text-sm font-semibold text-gray-900 mb-4">Visualización de Brechas</h2>
-        <div class="rounded-lg border border-gray-200 bg-white p-5 space-y-3">
+        ${renderSectionHeading("Visualización de Brechas")}
+        <div class="rounded-xl border border-border bg-white p-5 shadow-sm space-y-3">
           ${bars}
-          <div class="flex justify-between text-[10px] text-gray-400 mt-2 pt-2 border-t border-gray-100">
+          <div class="flex justify-between text-[10px] text-text-muted mt-2 pt-2 border-t border-slate-100">
             <span>0% ALINEADO</span>
             <span>50% MODERADO</span>
             <span>100% CRÍTICO</span>
@@ -424,19 +446,19 @@ export function mountEvaluacionEmpleado(
             <div class="flex items-start gap-3 rounded-r border-l-4 ${border} bg-white p-3 shadow-sm">
               <span class="flex size-6 shrink-0 items-center justify-center rounded ${sevCfg.bg} text-xs font-bold ${sevCfg.text}">#${i + 1}</span>
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-gray-900">${c.competencia_nombre}</p>
-                <p class="text-xs text-gray-500 mt-0.5">Brecha ${c.brecha_pct}% — ${REC_DESC[c.severidad] ?? REC_DESC.media}</p>
+                <p class="text-sm font-semibold text-text-primary">${c.competencia_nombre}</p>
+                <p class="text-xs text-slate-600 mt-0.5">Brecha ${c.brecha_pct}% — ${REC_DESC[c.severidad] ?? REC_DESC.media}</p>
                 ${c.accion_recomendada
                   ? `<span class="mt-1.5 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${accionClasses}">${c.accion_recomendada}</span>`
                   : ""}
               </div>
             </div>`;
         }).join("")
-      : `<p class="text-sm text-gray-400 py-4 text-center">Sin brechas: el empleado está alineado al perfil.</p>`;
+      : `<div class="rounded-xl border border-dashed border-border bg-slate-50/40 py-8 text-center text-sm text-text-muted">Sin brechas: el empleado está alineado al perfil.</div>`;
 
     return `
       <div>
-        <h2 class="text-sm font-semibold text-gray-900 mb-4">Recomendaciones Prioritarias</h2>
+        ${renderSectionHeading("Recomendaciones Prioritarias")}
         <div class="space-y-3">
           ${body}
         </div>
@@ -473,39 +495,40 @@ export function mountEvaluacionEmpleado(
         ${isRH ? `<button id="pdi-btn-add" class="${BTN_PRIMARY} text-xs px-3 py-1.5">+ Agregar acción</button>` : ""}
       </div>`;
 
+    const thBase = "px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white";
     const rows = pdiItems.length > 0
       ? pdiItems.map(item => `
-        <tr class="border-b border-gray-100 hover:bg-gray-50/50 ${isRH ? "cursor-pointer" : ""}" data-pdi-id="${item.id}">
-          <td class="px-4 py-3 text-sm text-gray-900">${item.competencia_nombre}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 max-w-[200px] truncate">${item.accion}</td>
-          <td class="px-4 py-3 text-xs text-gray-600">${item.tipo}</td>
-          <td class="px-4 py-3 text-xs text-gray-600 text-center">${item.duracion_horas ?? "—"}</td>
-          <td class="px-4 py-3 text-xs text-gray-600">${item.fecha_inicio} / ${item.fecha_fin}</td>
-          <td class="px-4 py-3 text-xs text-gray-600">${item.responsable}</td>
+        <tr class="border-b border-slate-100 transition hover:bg-slate-50 ${isRH ? "cursor-pointer" : ""}" data-pdi-id="${item.id}">
+          <td class="px-4 py-3 text-sm text-text-primary">${item.competencia_nombre}</td>
+          <td class="px-4 py-3 text-sm text-slate-600 max-w-[200px] truncate">${item.accion}</td>
+          <td class="px-4 py-3 text-xs text-slate-600">${item.tipo}</td>
+          <td class="px-4 py-3 text-xs text-slate-600 text-center tabular-nums">${item.duracion_horas ?? "—"}</td>
+          <td class="px-4 py-3 text-xs text-slate-600">${item.fecha_inicio} / ${item.fecha_fin}</td>
+          <td class="px-4 py-3 text-xs text-slate-600">${item.responsable}</td>
           <td class="px-4 py-3">${renderPDIBadge(item.estado)}</td>
         </tr>`).join("")
-      : `<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">Sin acciones de desarrollo registradas.</td></tr>`;
+      : `<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-text-muted">Sin acciones de desarrollo registradas.</td></tr>`;
 
     return `
       <div class="mt-8" id="pdi-section">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-gray-900 uppercase">Plan de Acción de Desarrollo (PDI)</h2>
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="text-base font-semibold tracking-tight text-text-primary">Plan de Acción de Desarrollo (PDI)</h2>
           ${filterHtml}
         </div>
-        <div class="overflow-hidden rounded-lg border border-gray-200">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+        <div class="overflow-hidden rounded-xl border border-border bg-white shadow-sm ring-1 ring-slate-900/5">
+          <table class="min-w-full">
+            <thead class="bg-leoni-blue">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hrs</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio / Fin</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsable</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                <th class="${thBase} text-left">Competencia</th>
+                <th class="${thBase} text-left">Acción</th>
+                <th class="${thBase} text-left">Tipo</th>
+                <th class="${thBase} text-center">Hrs</th>
+                <th class="${thBase} text-left">Inicio / Fin</th>
+                <th class="${thBase} text-left">Responsable</th>
+                <th class="${thBase} text-left">Estado</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 bg-white" id="pdi-tbody">
+            <tbody class="bg-white" id="pdi-tbody">
               ${rows}
             </tbody>
           </table>
@@ -682,10 +705,10 @@ export function mountEvaluacionEmpleado(
 
     return `
       <div class="mt-8" id="gantt-section">
-        <h2 class="text-sm font-semibold text-gray-900 uppercase mb-3">Proyección de Cierre de Brechas (Próximos 12 meses)</h2>
-        <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
-          <div class="flex border-b border-gray-200 bg-gray-50">
-            <div class="w-36 shrink-0 px-3 py-1.5 text-[10px] font-medium text-gray-500 uppercase">Competencia</div>
+        ${renderSectionHeading("Proyección de Cierre de Brechas", "Próximos 12 meses")}
+        <div class="rounded-xl border border-border bg-white overflow-hidden shadow-sm ring-1 ring-slate-900/5">
+          <div class="flex border-b border-border bg-slate-50">
+            <div class="w-36 shrink-0 px-3 py-1.5 text-[10px] font-medium text-text-muted uppercase">Competencia</div>
             <div class="flex-1 flex">
               ${monthHeaders}
             </div>
@@ -799,7 +822,8 @@ export function mountEvaluacionEmpleado(
       <div class="px-6 py-6 max-w-6xl mx-auto">
         ${renderLevelUpBackBar()}
         <div class="mt-4">
-          ${renderHeader(data)}
+          ${renderHeader()}
+          ${renderProfileCard(data)}
           ${renderKPIs(data)}
           ${renderWorkflowSection(evaluaciones)}
           ${renderComparisonTable(data)}
