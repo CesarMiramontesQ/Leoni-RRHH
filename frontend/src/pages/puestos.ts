@@ -412,7 +412,10 @@ function renderCardGrid(tarjetas: PerfilTarjetaItem[], totalSource: number): str
     <article class="puestos-perfil-card flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition hover:shadow-[0_12px_32px_rgba(15,23,42,0.08)] ${priority}">
       <header class="flex items-start justify-between gap-3 border-b border-slate-100/90 pb-3">
         <div class="min-w-0 flex-1">
-          <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">${escapeHtml(p.codigo)}</span>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">${escapeHtml(p.codigo)}</span>
+            ${p.nivel_nombre ? `<span class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700"><span class="text-[9px] font-semibold uppercase tracking-wide text-blue-500">Nivel</span>${escapeHtml(p.nivel_nombre)}</span>` : ""}
+          </div>
           <h3 class="mt-2 text-base font-semibold leading-snug text-text-primary">${escapeHtml(p.nombre)}</h3>
           <p class="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
             <span class="text-slate-400">${ICON_BUILDING}</span>
