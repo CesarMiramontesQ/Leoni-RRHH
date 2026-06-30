@@ -309,7 +309,6 @@ export function mountEvaluacionEmpleado(
     const nivelLabels = getNivelLabels();
     const maxNivel = Object.keys(nivelLabels).length - 1 || 4;
     const sevCfg = SEVERIDAD_CONFIG[item.severidad] ?? SEVERIDAD_CONFIG.alineado;
-    const accionClasses = item.accion_color ? (ACCION_COLORS[item.accion_color] ?? ACCION_COLORS.green) : "";
 
     const gradoCells = grados.length > 0
       ? grados.map((g) => {
@@ -337,11 +336,6 @@ export function mountEvaluacionEmpleado(
             <span class="text-sm font-medium tabular-nums text-text-primary">${item.brecha_pct}%</span>
             <span class="text-xs ${sevCfg.text}">(${sevCfg.label})</span>
           </div>
-        </td>
-        <td class="px-4 py-3">
-          ${item.accion_recomendada
-            ? `<span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${accionClasses}">${item.accion_recomendada}</span>`
-            : ""}
         </td>
       </tr>`;
   }
@@ -373,7 +367,6 @@ export function mountEvaluacionEmpleado(
                 <th class="${thBase} text-center text-white">Nivel Actual</th>
                 ${gradoHeaders}
                 <th class="${thBase} text-left text-white">Brecha (%)</th>
-                <th class="${thBase} text-left text-white">Acción Recomendada</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 bg-white">
