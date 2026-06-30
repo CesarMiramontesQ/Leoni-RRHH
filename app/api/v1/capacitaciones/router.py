@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
-from app.core.data_scope import effective_data_scope_rol
+from app.core.data_scope import effective_data_scope_for_module
 from app.models.empleados import Empleado
 from app.schemas.capacitaciones import (
     CapacitacionCreate,
@@ -202,7 +202,7 @@ async def listar_inscripciones_capacitacion(
     """Lista inscripciones de una capacitacion. RH operativo, supervisores, gerentes y directores."""
     from fastapi import HTTPException
 
-    scope = effective_data_scope_rol(current_user, rh_ui_mode)
+    scope = effective_data_scope_for_module(current_user, "capacitaciones", rh_ui_mode)
     if scope not in ("rh", "supervisor", "gerente", "director"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -216,8 +216,16 @@ def effective_solicitud_scope_rol(user: "Empleado", rh_ui_mode: str | None) -> s
     return "rh"
 
 
-def has_rh_plantilla_data_scope(user: "Empleado", rh_ui_mode: str | None = None) -> bool:
-    """Vista/datos de plantilla RH completa (rol RH operativo o ADMIN en Modo RH)."""
+def has_rh_plantilla_data_scope(
+    user: "Empleado", rh_ui_mode: str | None = None, module_key: str | None = None
+) -> bool:
+    """Vista/datos de plantilla RH completa (rol RH operativo, ADMIN en Modo RH,
+    o no-admin con ``module_key`` otorgado → vista global por permiso de módulo)."""
+    if module_key is not None:
+        from app.core.data_scope import effective_data_scope_for_module
+
+        return effective_data_scope_for_module(user, module_key, rh_ui_mode) == "rh"
+
     from app.core.data_scope import effective_data_scope_rol
 
     return effective_data_scope_rol(user, rh_ui_mode) == "rh"

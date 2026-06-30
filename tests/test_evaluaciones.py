@@ -16,7 +16,11 @@ from tests.conftest_talento import make_area, make_competencia
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-from tests.conftest_talento import make_puesto_perfil, make_competencia_requisito as make_requisito
+from tests.conftest_talento import (
+    make_puesto_perfil,
+    make_perfil_funciones,
+    make_competencia_requisito as make_requisito,
+)
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
@@ -317,3 +321,34 @@ async def test_eliminar_evaluacion(client: AsyncClient, db: AsyncSession):
 
     resp_get = await client.get(f"/api/v1/evaluaciones/{ev_id}", headers=headers)
     assert resp_get.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_empleados_con_perfil_no_rh_con_modulo_ve_global(
+    client: AsyncClient, db: AsyncSession
+):
+    """No-RH con módulo 'evaluaciones' otorgado ve TODOS los perfiles (vista global),
+    no solo el alcance de su rol base. Regresión: la lista salía vacía."""
+    area = await make_area(db, descripcion="Produccion Perfil")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id)
+    emp_con_perfil = await make_empleado(db, rol="empleado", email="perfil_emp@leoni.test")
+    emp_con_perfil.area_id = area.area_id
+    await db.flush()
+    await make_perfil_funciones(
+        db, puesto_perfil_id=perfil.id, empleado_id=emp_con_perfil.id
+    )
+
+    # Usuario no-RH (rol empleado) con el módulo evaluaciones otorgado e inscrito.
+    grantee = await make_empleado(
+        db,
+        rol="empleado",
+        email="grantee_eval@leoni.test",
+        modulos_rh={"evaluaciones": True},
+        inscrito_modulos_rh=True,
+    )
+    headers = await auth_headers(client, grantee)
+
+    resp = await client.get("/api/v1/evaluaciones/empleados-con-perfil", headers=headers)
+    assert resp.status_code == 200
+    ids = [item["empleado_id"] for item in resp.json()]
+    assert emp_con_perfil.id in ids

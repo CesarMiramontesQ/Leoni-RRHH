@@ -908,9 +908,10 @@ class ActaService:
         self.db = db
 
     def _scope_rol(self, current_user: Empleado, rh_ui_mode: str | None = None) -> str:
-        from app.core.data_scope import effective_data_scope_rol
+        from app.core.data_scope import effective_data_scope_for_module
 
-        return effective_data_scope_rol(current_user, rh_ui_mode)
+        # Módulo "actas" otorgado = vista global (no acotada por rol base).
+        return effective_data_scope_for_module(current_user, "actas", rh_ui_mode)
 
     async def _ensure_puede_ver_empleado(
         self,

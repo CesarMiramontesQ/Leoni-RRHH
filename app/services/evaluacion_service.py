@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError
-from app.core.data_scope import effective_data_scope_rol
+from app.core.data_scope import effective_data_scope_for_module
 from app.core.rh_module_registry import user_has_module
 from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
@@ -107,6 +107,10 @@ class EvaluacionService:
         self.repo = EvaluacionRepository(db)
 
     # ── Permission helpers ─────────────────────────────────────────────────────
+
+    def _eval_data_scope(self, current_user: Empleado, rh_ui_mode: str | None = None) -> str:
+        """Alcance de datos de evaluaciones: módulo ``evaluaciones`` otorgado = vista global."""
+        return effective_data_scope_for_module(current_user, "evaluaciones", rh_ui_mode)
 
     def _check_create_permission(self, current_user: Empleado, target_empleado: Empleado):
         if user_has_module(current_user, "evaluaciones"):
@@ -409,7 +413,7 @@ class EvaluacionService:
     async def listar_por_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> list[EvaluacionResponse]:
-        scope = effective_data_scope_rol(current_user)
+        scope = self._eval_data_scope(current_user)
         if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
             raise ForbiddenError("Solo puedes ver tus propias evaluaciones")
         if scope == "supervisor" and current_user.id != empleado_id:
@@ -474,7 +478,7 @@ class EvaluacionService:
 
         Aplica scope: RH ve todos, supervisor solo su área, cualquier otro solo a sí mismo.
         """
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = self._eval_data_scope(current_user, rh_ui_mode)
         pf_repo = PerfilFuncionesRepository(self.db)
         asignaciones = await pf_repo.list_all_active()
 
@@ -588,7 +592,7 @@ class EvaluacionService:
     async def resumen_empleado(
         self, empleado_id: int, current_user: Empleado
     ) -> EmpleadoResumenResponse:
-        scope = effective_data_scope_rol(current_user)
+        scope = self._eval_data_scope(current_user)
         if scope not in ("rh", "supervisor") and current_user.id != empleado_id:
             raise ForbiddenError("Solo puedes ver tu propio resumen")
         if scope == "supervisor" and current_user.id != empleado_id:

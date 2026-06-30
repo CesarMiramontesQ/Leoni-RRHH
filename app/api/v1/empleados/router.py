@@ -65,7 +65,7 @@ async def resumen_empleados(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode, module_key="empleados"):
         return await svc.resumen_plantilla(current_user)
     return await svc.resumen_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
@@ -76,7 +76,7 @@ async def catalogo_empleados(
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: UsuarioService = Depends(_svc),
 ):
-    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode, module_key="empleados"):
         return await svc.catalogo_filtros(current_user)
     return await svc.catalogo_directorio(current_user, rh_ui_mode=rh_ui_mode)
 
@@ -116,7 +116,7 @@ async def list_empleados(
     svc: UsuarioService = Depends(_svc),
 ):
     r = _rol_nombre(current_user)
-    if has_rh_plantilla_data_scope(current_user, rh_ui_mode):
+    if has_rh_plantilla_data_scope(current_user, rh_ui_mode, module_key="empleados"):
         return await svc.list_usuarios_page(
             page=page,
             page_size=page_size,

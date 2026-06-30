@@ -130,9 +130,10 @@ class PerfilFuncionesService:
     @staticmethod
     @staticmethod
     def _scope_rol(user: Empleado, rh_ui_mode: str | None = None) -> str:
-        from app.core.data_scope import effective_data_scope_rol
+        from app.core.data_scope import effective_data_scope_for_module
 
-        return effective_data_scope_rol(user, rh_ui_mode)
+        # Módulo "puestos" otorgado = operación global (no acotada por rol base).
+        return effective_data_scope_for_module(user, "puestos", rh_ui_mode)
 
     @staticmethod
     def _to_competencia_response(requisito: CompetenciaRequisito) -> PerfilCompetenciaResponse:

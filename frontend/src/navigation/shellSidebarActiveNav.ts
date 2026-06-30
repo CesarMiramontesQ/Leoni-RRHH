@@ -1,5 +1,5 @@
 import { getRolFromAccessToken } from "../auth/jwt.ts";
-import { isRhStructuredNavRol } from "./shellNavPolicy.ts";
+import { usesRhStructuredSidebar } from "./shellNavPolicy.ts";
 import { resolveComedorSidebarActiveNav } from "./comedorNav.ts";
 import { resolveLaboralesSidebarActiveNav } from "./laboralesNav.ts";
 import { resolveLevelUpSidebarActiveNav } from "./levelUpNav.ts";
@@ -7,7 +7,7 @@ import { resolveNominasSidebarActiveNav } from "./nominasNav.ts";
 
 export function resolveShellSidebarActiveNav(activeNav: string | undefined): string | undefined {
   const rol = getRolFromAccessToken();
-  if (isRhStructuredNavRol(rol)) {
+  if (usesRhStructuredSidebar(rol)) {
     return activeNav;
   }
   let nav = activeNav;

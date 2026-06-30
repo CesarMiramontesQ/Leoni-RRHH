@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.data_scope import effective_data_scope_rol, empleado_ids_en_alcance
+from app.core.data_scope import effective_data_scope_for_module, empleado_ids_en_alcance
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.repositories.comedor_repository import ComedorRepository
@@ -114,7 +114,7 @@ class UsuarioService:
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> None:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "empleados", rh_ui_mode)
         if scope not in ("gerente", "director", "supervisor"):
             raise ForbiddenError(
                 detail="Se requiere rol gerente, director o supervisor para esta operacion"
@@ -144,7 +144,7 @@ class UsuarioService:
         empleado_id: int,
         rh_ui_mode: str | None = None,
     ) -> None:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope = effective_data_scope_for_module(current_user, "empleados", rh_ui_mode)
         if scope in ("rh", "director"):
             return
         ids = await empleado_ids_en_alcance(
@@ -245,7 +245,7 @@ class UsuarioService:
         offset = (page - 1) * page_size
         estados = settings.ESTADOS_ACTIVOS_IDS
         permiso_ids = settings.ESTADOS_PERMISO_IDS
-        scope_rol = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "empleados", rh_ui_mode)
         ef = (estatus_filtro or "activo").strip().lower()
         if ef in ("", "activo", "activos"):
             modo: ModoEstadoListado = "activos"
@@ -379,7 +379,7 @@ class UsuarioService:
     ) -> UsuarioResumenResponse:
         self._require_directorio(current_user, rh_ui_mode)
         estados_activos = settings.ESTADOS_ACTIVOS_IDS
-        scope_rol = effective_data_scope_rol(current_user, rh_ui_mode)
+        scope_rol = effective_data_scope_for_module(current_user, "empleados", rh_ui_mode)
         ids_permitidos = await self._ids_permitidos_directorio(
             current_user, scope_rol, estados_activos, rh_ui_mode=rh_ui_mode
         )
