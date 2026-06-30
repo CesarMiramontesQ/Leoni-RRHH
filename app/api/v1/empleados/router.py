@@ -8,6 +8,8 @@ Directorio y consulta de empleados — RH, gerente, director y supervisor.
 CRUD de cuentas: /api/v1/usuarios (solo RH).
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,9 +26,11 @@ from app.schemas.usuarios import (
     UsuarioResumenResponse,
     UsuarioVista360Response,
 )
+from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
 from app.schemas.vacaciones import VacacionesResponse, VacacionesUpdate
 from app.services.acta_service import ActaService
 from app.services.empleado_foto_service import EmpleadoFotoService
+from app.services.solicitud_service import SolicitudService
 from app.services.usuario_service import UsuarioService
 from app.services.vacaciones_service import VacacionesService
 
@@ -41,6 +45,10 @@ def _svc(db: AsyncSession = Depends(get_db)) -> UsuarioService:
 
 def _vac_svc(db: AsyncSession = Depends(get_db)) -> VacacionesService:
     return VacacionesService(db)
+
+
+def _sol_svc(db: AsyncSession = Depends(get_db)) -> SolicitudService:
+    return SolicitudService(db)
 
 
 def _foto_svc(db: AsyncSession = Depends(get_db)) -> EmpleadoFotoService:
@@ -166,6 +174,29 @@ async def actualizar_vacaciones_empleado(
         empleado_id=empleado_id,
         data=body,
         current_user=current_user,
+    )
+
+
+@router.get(
+    "/{empleado_id}/home-office/disponibilidad",
+    response_model=HomeOfficeDisponibilidadResponse,
+)
+async def get_home_office_disponibilidad_empleado(
+    empleado_id: int,
+    fecha: date = Query(..., description="Fecha de referencia (mes calendario a validar)"),
+    excluir_solicitud_id: int | None = Query(
+        None,
+        description="Excluir solicitud al corregir (changes_requested)",
+    ),
+    current_user: Empleado = Depends(get_current_user),
+    svc: SolicitudService = Depends(_sol_svc),
+):
+    """Indica si el colaborador puede solicitar Home Office en el mes de `fecha`."""
+    return await svc.home_office_disponibilidad_mes(
+        empleado_id=empleado_id,
+        fecha_referencia=fecha,
+        current_user=current_user,
+        exclude_solicitud_id=excluir_solicitud_id,
     )
 
 

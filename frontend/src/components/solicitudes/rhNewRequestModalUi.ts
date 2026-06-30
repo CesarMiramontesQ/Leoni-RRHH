@@ -3,7 +3,22 @@
  * Separado del montaje para mantener el archivo de lógica más legible.
  */
 
-import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import {
+  calcularDiasSolicitadosInclusive,
+  calcularDiasVacacionesSolicitados,
+  esRangoDefuncionValido,
+  esRangoMatrimonioValido,
+  esRangoPaternidadValido,
+  fechasOrdenValidas,
+  MENSAJE_DEFUNCION_TRES_DIAS,
+  MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
+  MENSAJE_HOME_OFFICE_MES_LIMITE,
+  MENSAJE_MATRIMONIO_DOS_DIAS,
+  MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES,
+  MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
+  MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  rangoIncluyeFinDeSemana,
+} from "../../solicitudes/rh/rhNewRequestDays.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
@@ -286,7 +301,6 @@ export type RhNewRequestFormParams = {
   fechaInicio: string;
   fechaFin: string;
   motivo: string;
-  comentarios: string;
   diasLabel: string;
   infoHtml: string;
   resumenState: "neutral" | "valid" | "exceeded" | "error";
@@ -296,11 +310,22 @@ export type RhNewRequestFormParams = {
   canSubmit: boolean;
   /** Sin selector: campo oculto `empleado_id` (portal o corrección de solicitud existente). */
   fixedEmpleado?: { directoryId: string; displayLine: string };
-  /** Corrección tras `changes_requested`: tipo y empleado fijos; solo fechas y comentarios. */
+  /** Colaborador administrativo: vacaciones solo lun–vie. */
+  vacacionesAdministrativo?: boolean;
+  /** Colaborador titular con clasificación Administrativo. */
+  empleadoAdministrativo?: boolean;
+  /** false si ya hay HO activo en el mes de la fecha seleccionada. */
+  homeOfficeMesDisponible?: boolean;
   modoRevision?: boolean;
   submitLabel?: string;
   /** Empleado + Home Office: selección de un solo día (fecha_fin = fecha_inicio). */
   singleDayHomeOfficeMode?: boolean;
+  /** Matrimonio: duración fija de 2 días (fecha_fin = fecha_inicio + 1). */
+  matrimonioTwoDayMode?: boolean;
+  /** Defunción: duración fija de 3 días (ajuste hábil para administrativos). */
+  defuncionThreeDayMode?: boolean;
+  /** Paternidad: duración fija de 7 días hábiles (ajuste si inicio en fin de semana). */
+  paternidadSevenDayMode?: boolean;
   /** Controla visibilidad del bloque de Motivo. */
   showMotivoField?: boolean;
   /** Radio personal vs equipo (solo supervisor). */
@@ -314,11 +339,7 @@ export type RhNewRequestFormParams = {
    * Si es true y `showUnpaidLeaveType`: ocultar chip «Permiso sin goce» (supervisor en solicitud personal).
    */
   supervisorOcultarPermisoSinGoceEnTipo?: boolean;
-  /**
-   * Supervisor en «Miembro del equipo»: no mostrar campo Motivo; solo comentarios (permiso sin goce se valida ahí).
-   */
-  omitMotivoCampoSupervisorEquipo?: boolean;
-  /** Oculta Home Office cuando el colaborador no es Administrativo (roles distintos a RH). */
+  /** Oculta Home Office cuando el colaborador no es Administrativo (excepto RH gestor). */
   showHomeOfficeType?: boolean;
 };
 
@@ -342,7 +363,12 @@ export const RESUMEN_VALUE_CLASS: Record<RhNewRequestFormParams["resumenState"],
   error: "text-red-700",
 };
 
-export function buildInfoVacacionesHtml(dias: number | null, diasSolicitados: number, fechasOk: boolean): string {
+export function buildInfoVacacionesHtml(
+  dias: number | null,
+  diasSolicitados: number,
+  fechasOk: boolean,
+  administrativo = false,
+): string {
   const iconCal = `<div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-leoni-blue shadow-sm ring-1 ring-leoni-blue/15" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5">
       <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
@@ -358,7 +384,21 @@ export function buildInfoVacacionesHtml(dias: number | null, diasSolicitados: nu
     </div>`;
   }
 
+  if (dias <= 0) {
+    return `<div class="flex items-start gap-4 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3.5">
+      ${iconCal}
+      <div class="min-w-0 flex-1">
+        <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Días disponibles</p>
+        <p class="mt-1 text-3xl font-bold tabular-nums leading-none tracking-tight text-red-700">${escapeHtml(String(dias))}</p>
+        <p class="mt-2 text-xs font-medium leading-snug text-red-700">No puedes presentar solicitudes de vacaciones sin días disponibles.</p>
+      </div>
+    </div>`;
+  }
+
   let secondary = "";
+  if (administrativo) {
+    secondary = `<p class="mt-1.5 text-xs font-medium text-slate-500">Como colaborador administrativo, solo puedes solicitar días de lunes a viernes.</p>`;
+  }
   if (fechasOk && diasSolicitados > 0) {
     const rest = dias - diasSolicitados;
     if (rest >= 0) {
@@ -395,7 +435,10 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const revision = Boolean(p.modoRevision);
   const formSelfAttr = Boolean(p.fixedEmpleado) ? ` data-rh-nr-self="1"` : "";
   const formRevisionAttr = revision ? ` data-rh-nr-revision="1"` : "";
-  const formSupEquipoSinMotivoAttr = p.omitMotivoCampoSupervisorEquipo === true ? ` data-rh-nr-sup-equipo-sin-motivo="1"` : "";
+  const formVacAdminAttr = p.vacacionesAdministrativo === true ? ` data-rh-nr-vacaciones-admin="1"` : "";
+  const formEmpAdminAttr = p.empleadoAdministrativo === true ? ` data-rh-nr-empleado-admin="1"` : "";
+  const formHoMesAttr =
+    p.homeOfficeMesDisponible === false ? ` data-rh-nr-ho-mes-ocupado="1"` : "";
   const tipoEtiquetaLectura =
     p.tipo === "vacaciones" ? "Vacaciones"
     : p.tipo === "home_office" ? "Home office"
@@ -406,9 +449,11 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     : "Permiso sin goce de sueldo";
   const submitLabel = p.submitLabel ?? "Enviar solicitud";
   const singleDayMode = p.singleDayHomeOfficeMode === true;
+  const matrimonioTwoDayMode = p.matrimonioTwoDayMode === true;
+  const defuncionThreeDayMode = p.defuncionThreeDayMode === true;
+  const paternidadSevenDayMode = p.paternidadSevenDayMode === true;
   const showMotivoField = p.showMotivoField !== false;
   const motivoValue = p.motivo ?? "";
-  const comentariosValue = p.comentarios ?? "";
   const searchIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
   </svg>`;
@@ -418,7 +463,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
 
   const empleadoAyudaFija =
     revision ?
-      "El colaborador de la solicitud no puede cambiarse al corregir. Solo puedes ajustar fechas y comentarios."
+      "El colaborador de la solicitud no puede cambiarse al corregir. Solo puedes ajustar fechas y motivo."
     : "La solicitud queda registrada para tu usuario. No está permitido elegir otro colaborador.";
   const textoAyudaFijoEmpleado =
     revision ? empleadoAyudaFija : (p.fixedEmpleadoAyudaOverride?.trim() || empleadoAyudaFija);
@@ -479,7 +524,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-amber-800/90">Cambios solicitados</p>
         <p class="mt-1.5 text-[13px] leading-relaxed text-amber-950/95">
           Tu aprobador devolvió la solicitud para que la corrijas. Solo tú puedes editarla en este estado.
-          Ajusta las fechas o los comentarios y usa <strong class="font-semibold">Guardar y reenviar</strong> para volver a enviarla a aprobación.
+          Ajusta las fechas o el motivo y usa <strong class="font-semibold">Guardar y reenviar</strong> para volver a enviarla a aprobación.
         </p>
       </div>`
     : "";
@@ -510,11 +555,13 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       : "";
 
   return `
-    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formSupEquipoSinMotivoAttr}>
+    <form id="rh-nr-form" class="space-y-8" novalidate${formSelfAttr}${formRevisionAttr}${formVacAdminAttr}${formEmpAdminAttr}${formHoMesAttr}>
     <p id="rh-nr-error" class="hidden rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive"></p>
     ${revisionCallout}
 
       ${supervisorSujetoSection}
+
+      ${empleadoBlock}
 
       <section class="space-y-3" aria-labelledby="rh-nr-sec-tipo">
         <div>
@@ -578,14 +625,18 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         <div id="rh-nr-info-card">${p.infoHtml}</div>
       </section>
 
-      ${empleadoBlock}
-
       <section class="${SEC_BOX} space-y-4" aria-labelledby="rh-nr-sec-fechas">
         <h3 id="rh-nr-sec-fechas" class="${SEC_TITLE}">Rango de fechas</h3>
         <p class="text-xs text-slate-500">
           ${
             singleDayMode ?
               "Para Home Office se permite seleccionar únicamente un día."
+            : matrimonioTwoDayMode ?
+              "Matrimonio tiene duración fija de 2 días consecutivos. Elige la fecha de inicio."
+            : defuncionThreeDayMode ?
+              "Defunción tiene duración fija de 3 días. Elige la fecha de referencia; para administrativos se ajustan días hábiles si cruza fin de semana."
+            : paternidadSevenDayMode ?
+              "Paternidad tiene duración fija de 7 días hábiles. Elige la fecha de referencia; si cae en fin de semana, se ajustan los días hábiles más cercanos."
             : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
           }
         </p>
@@ -596,6 +647,39 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha</label>
                 <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
                 <input id="rh-nr-fin" name="fecha_fin" type="hidden" value="${escapeHtml(p.fechaInicio)}" />
+              </div>
+            </div>`
+          : matrimonioTwoDayMode ?
+            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+              </div>
+            </div>`
+          : defuncionThreeDayMode ?
+            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+              </div>
+            </div>`
+          : paternidadSevenDayMode ?
+            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+              <div>
+                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+              </div>
+              <div>
+                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
               </div>
             </div>`
           : `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
@@ -643,33 +727,6 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         : `<input type="hidden" id="rh-nr-motivo" name="motivo" value="${escapeHtml(motivoValue)}" />`
       }
 
-      <section class="space-y-2" aria-labelledby="rh-nr-sec-comentarios">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 id="rh-nr-sec-comentarios" class="${SEC_TITLE} !mb-0">Comentarios</h3>
-          <span class="text-[10px] font-medium uppercase tracking-wide text-slate-400">${
-            p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ? "Obligatorio" : "Opcional"
-          }</span>
-        </div>
-        <textarea
-          id="rh-nr-comentarios"
-          name="comentarios"
-          rows="5"
-          ${p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ? "required" : ""}
-          placeholder="${
-            p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ?
-              "Describe el contexto y la justificación del permiso para el colaborador…"
-            : "Agrega notas adicionales sobre esta solicitud…"
-          }"
-          aria-describedby="rh-nr-comentarios-help"
-          class="min-h-[7.5rem] w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 text-sm leading-relaxed text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/65 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
-        >${escapeHtml(comentariosValue)}</textarea>
-        <p id="rh-nr-comentarios-help" class="text-xs text-slate-500">${
-          p.omitMotivoCampoSupervisorEquipo === true && p.tipo === "permiso_sin_goce_sueldo" ?
-            "En solicitudes de equipo, el contexto del permiso sin goce se registra solo aquí."
-          : "Agrega notas adicionales sobre esta solicitud si el contexto lo requiere."
-        }</p>
-      </section>
-
       <div class="flex gap-2.5 rounded-xl border border-slate-100 bg-slate-50/90 px-4 py-3">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mt-0.5 size-3.5 shrink-0 text-slate-400 opacity-80" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
@@ -712,17 +769,72 @@ export function computeRhModalFormUi(
   fechaFin: string,
   motivo: string,
   empleadoSelectorOmitted = false,
-  comentarios = "",
-  permisoSinGoceMotivoViaComentarios = false,
+  modoRevision = false,
+  empleadoEsAdministrativo: boolean | null = null,
+  homeOfficePuedeSolicitarMes: boolean | null = null,
 ): RhModalComputedUi {
-  const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+  const usaDiasLaboralesAdmin =
+    empleadoEsAdministrativo === true &&
+    (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo");
+  const dias = usaDiasLaboralesAdmin
+    ? calcularDiasVacacionesSolicitados(fechaInicio, fechaFin, true)
+    : calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
   const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
   const fechaInInvalid = bothDates && !fechasOk;
   const fechaFinInvalid = fechaInInvalid;
+  const vacacionesAdminFinDeSemana =
+    tipo === "vacaciones" &&
+    empleadoEsAdministrativo === true &&
+    bothDates &&
+    fechasOk &&
+    rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
+  const permisoSinGoceAdminFinDeSemana =
+    tipo === "permiso_sin_goce_sueldo" &&
+    empleadoEsAdministrativo === true &&
+    bothDates &&
+    fechasOk &&
+    rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
+  const homeOfficeFinDeSemana =
+    tipo === "home_office" &&
+    empleadoEsAdministrativo === true &&
+    bothDates &&
+    fechasOk &&
+    rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
+  const matrimonioRangoInvalido =
+    tipo === "matrimonio" && bothDates && fechasOk && !esRangoMatrimonioValido(fechaInicio, fechaFin);
+  const defuncionRangoInvalido =
+    tipo === "defuncion" &&
+    bothDates &&
+    fechasOk &&
+    !esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true);
+  const paternidadRangoInvalido =
+    tipo === "paternidad" &&
+    bothDates &&
+    fechasOk &&
+    !esRangoPaternidadValido(fechaInicio, fechaFin);
+  const diasDefuncion =
+    tipo === "defuncion" &&
+    bothDates &&
+    fechasOk &&
+    esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true)
+      ? 3
+      : null;
+  const diasPaternidad =
+    tipo === "paternidad" &&
+    bothDates &&
+    fechasOk &&
+    esRangoPaternidadValido(fechaInicio, fechaFin)
+      ? 7
+      : null;
+  const diasEfectivos = diasDefuncion ?? diasPaternidad ?? dias;
 
   const diasLabel =
-    dias <= 0 && (fechaInicio.trim() || fechaFin.trim()) ? "—" : `${dias} ${dias === 1 ? "día" : "días"}`;
+    vacacionesAdminFinDeSemana || permisoSinGoceAdminFinDeSemana || homeOfficeFinDeSemana ?
+      "—"
+    : diasEfectivos <= 0 && (fechaInicio.trim() || fechaFin.trim()) ?
+      "—"
+    : `${diasEfectivos} ${diasEfectivos === 1 ? "día" : "días"}`;
 
   let resumenState: RhNewRequestFormParams["resumenState"] = "neutral";
   let resumenHint = "";
@@ -730,18 +842,53 @@ export function computeRhModalFormUi(
   if (bothDates && !fechasOk) {
     resumenState = "error";
     resumenHint = "La fecha de fin debe ser igual o posterior a la de inicio.";
-  } else if (bothDates && dias <= 0) {
+  } else if (bothDates && dias <= 0 && !vacacionesAdminFinDeSemana && !permisoSinGoceAdminFinDeSemana) {
     resumenState = "error";
     resumenHint = "El rango debe incluir al menos un día calendario.";
+  } else if (vacacionesAdminFinDeSemana) {
+    resumenState = "error";
+    resumenHint = MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA;
+  } else if (permisoSinGoceAdminFinDeSemana) {
+    resumenState = "error";
+    resumenHint = MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA;
+  } else if (homeOfficeFinDeSemana) {
+    resumenState = "error";
+    resumenHint = MENSAJE_HOME_OFFICE_FIN_DE_SEMANA;
+  } else if (matrimonioRangoInvalido) {
+    resumenState = "error";
+    resumenHint = MENSAJE_MATRIMONIO_DOS_DIAS;
+  } else if (defuncionRangoInvalido) {
+    resumenState = "error";
+    resumenHint = MENSAJE_DEFUNCION_TRES_DIAS;
+  } else if (paternidadRangoInvalido) {
+    resumenState = "error";
+    resumenHint = MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES;
+  } else if (
+    tipo === "home_office" &&
+    !modoRevision &&
+    homeOfficePuedeSolicitarMes === false
+  ) {
+    resumenState = "error";
+    resumenHint = MENSAJE_HOME_OFFICE_MES_LIMITE;
+  } else if (
+    tipo === "vacaciones" &&
+    !modoRevision &&
+    contextoVac != null &&
+    contextoVac <= 0
+  ) {
+    resumenState = "error";
+    resumenHint = empleadoSelectorOmitted
+      ? "No tienes días de vacaciones disponibles para presentar una solicitud."
+      : "El empleado seleccionado no tiene días de vacaciones disponibles.";
   } else if (tipo === "vacaciones" && contextoVac != null && dias > 0 && dias > contextoVac) {
     resumenState = "exceeded";
     resumenHint = empleadoSelectorOmitted
       ? `Esta solicitud supera los ${contextoVac} días disponibles en tu saldo.`
       : `Esta solicitud supera los ${contextoVac} días disponibles para el empleado seleccionado.`;
-  } else if (dias > 0 && fechasOk) {
+  } else if (diasEfectivos > 0 && fechasOk) {
     resumenState = "valid";
     if (tipo === "vacaciones" && contextoVac != null) {
-      const rest = contextoVac - dias;
+      const rest = contextoVac - diasEfectivos;
       resumenHint =
         rest >= 0
           ? `Tras esta solicitud quedarían ${rest} día${rest === 1 ? "" : "s"} de vacaciones.`
@@ -753,17 +900,28 @@ export function computeRhModalFormUi(
 
   const empOk = empleadoSelectorOmitted || selectedEmpleadoId.trim() !== "";
   const motivoOk =
-    tipo !== "permiso_sin_goce_sueldo" ?
-      true
-    : permisoSinGoceMotivoViaComentarios ?
-      comentarios.trim().length > 0
-    : motivo.trim().length > 0;
+    tipo !== "permiso_sin_goce_sueldo" ? true : motivo.trim().length > 0;
+  const vacacionesSinSaldo =
+    tipo === "vacaciones" && !modoRevision && contextoVac != null && contextoVac <= 0;
+  const homeOfficeSinAdministrativo =
+    tipo === "home_office" && empleadoEsAdministrativo !== true;
+  const homeOfficeMesOcupado =
+    tipo === "home_office" && !modoRevision && homeOfficePuedeSolicitarMes === false;
   const canSubmit =
     empOk &&
     bothDates &&
     fechasOk &&
     dias > 0 &&
     motivoOk &&
+    !vacacionesSinSaldo &&
+    !vacacionesAdminFinDeSemana &&
+    !permisoSinGoceAdminFinDeSemana &&
+    !homeOfficeFinDeSemana &&
+    !matrimonioRangoInvalido &&
+    !defuncionRangoInvalido &&
+    !paternidadRangoInvalido &&
+    !homeOfficeSinAdministrativo &&
+    !homeOfficeMesOcupado &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -788,6 +946,7 @@ export function applyRhModalLiveFeedback(
     | "paternidad"
     | "permiso_sin_goce_sueldo",
   contextoVac: number | null,
+  contextoHoPuedeSolicitarMes: boolean | null = null,
 ): void {
   /** Empleado fijo: portal o corrección (hidden sin `<select>`). */
   const selfMode =
@@ -799,12 +958,15 @@ export function applyRhModalLiveFeedback(
   const fi = modalHost.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
   const ff = modalHost.querySelector("#rh-nr-fin") as HTMLInputElement | null;
   const motivo = modalHost.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
-  const comentariosEl = modalHost.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null;
   const formEl = modalHost.querySelector("#rh-nr-form") as HTMLFormElement | null;
   if (!fi || !ff) return;
 
   const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
-  const permisoViaComentarios = formEl?.hasAttribute("data-rh-nr-sup-equipo-sin-motivo") === true;
+  const modoRevision = formEl?.hasAttribute("data-rh-nr-revision") === true;
+  const empleadoEsAdministrativo =
+    formEl?.hasAttribute("data-rh-nr-empleado-admin") === true ||
+    formEl?.hasAttribute("data-rh-nr-vacaciones-admin") === true;
+  const homeOfficeMesOcupado = formEl?.hasAttribute("data-rh-nr-ho-mes-ocupado") === true;
 
   const ui = computeRhModalFormUi(
     tipo,
@@ -814,8 +976,9 @@ export function applyRhModalLiveFeedback(
     ff.value,
     motivo?.value ?? "",
     selfMode,
-    comentariosEl?.value ?? "",
-    permisoViaComentarios,
+    modoRevision,
+    empleadoEsAdministrativo ? true : null,
+    homeOfficeMesOcupado ? false : contextoHoPuedeSolicitarMes,
   );
 
   fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;

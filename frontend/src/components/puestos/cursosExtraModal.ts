@@ -8,7 +8,7 @@ import {
 } from "../../api/cursos.ts";
 import type { Curso } from "../../dashboard/cursos/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_DANGER } from "../../ui/uiTokens.ts";
 
 export type CursosExtraModalHandle = {
   open: () => void;
@@ -25,11 +25,11 @@ function overlayHtml(nombreEmpleado: string): string {
   return `
     <div
       id="cursos-extra-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        class="${MODAL_PANEL} max-w-lg p-6 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="cursos-extra-title"
@@ -66,7 +66,7 @@ function renderExtraList(extras: CursoEmpleadoItem[]): string {
       ${extras.map(c => `
         <div class="flex items-center justify-between gap-2 py-2">
           <span class="text-sm text-text-primary truncate">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}</span>
-          <button type="button" data-delete-curso-extra="${c.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Quitar">
+          <button type="button" data-delete-curso-extra="${c.id}" class="${RH_LISTADO_BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Quitar">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
@@ -80,19 +80,22 @@ function renderSearchForm(): string {
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar curso extra</p>
       <div>
         <input id="curso-extra-search" type="text" autocomplete="off"
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          class="${FIELD_INPUT}"
           placeholder="Buscar curso por nombre..." />
       </div>
       <div id="curso-extra-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
       <div id="curso-extra-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="curso-extra-selected-info" class="flex items-center justify-between"></div>
         <div id="curso-extra-sesion-picker" class="hidden mt-2">
-          <select id="curso-extra-sesion-select" class="block w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm ${FIELD_FOCUS}">
-            <option value="">Sin sesión</option>
-          </select>
+          <div class="relative grid grid-cols-1">
+            <select id="curso-extra-sesion-select" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+              <option value="">Sin sesión</option>
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
         <div class="flex justify-end mt-2">
-          <button type="button" id="curso-extra-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar</button>
+          <button type="button" id="curso-extra-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Agregar</button>
         </div>
       </div>
     </div>`;

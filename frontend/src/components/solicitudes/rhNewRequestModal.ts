@@ -14,7 +14,26 @@ import { getUserDisplayNameFromAccessToken } from "../../auth/jwt.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { isUsuariosFetchError } from "../../api/usuarios.ts";
 import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
-import { calcularDiasSolicitadosInclusive, fechasOrdenValidas } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import {
+  calcularDiasVacacionesSolicitados,
+  calcularRangoDefuncion,
+  calcularRangoPaternidad,
+  fechasOrdenValidas,
+  MENSAJE_DEFUNCION_TRES_DIAS,
+  MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
+  MENSAJE_HOME_OFFICE_MES_LIMITE,
+  MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO,
+  MENSAJE_HOME_OFFICE_UN_DIA,
+  MENSAJE_MATRIMONIO_DOS_DIAS,
+  MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES,
+  MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
+  MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  esRangoDefuncionValido,
+  esRangoMatrimonioValido,
+  esRangoPaternidadValido,
+  rangoIncluyeFinDeSemana,
+  sumarDiasIso,
+} from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
   enviarRhNuevaSolicitud,
@@ -37,8 +56,7 @@ function empleadosExcluyeId(items: UsuarioListItem[], excluirId: number): Usuari
   return items.filter((u) => u.id !== excluirId);
 }
 
-const MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO =
-  "Home Office solo está disponible para colaboradores con clasificación Administrativo.";
+const MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO = MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO;
 
 function empleadoAdministrativoDesdeItem(item: UsuarioListItem | undefined): boolean {
   return esEmpleadoAdministrativo(item?.clasificacion);
@@ -122,6 +140,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let empleadoEsAdministrativo: boolean | null = null;
   let contextoVac: number | null = null;
   let contextoHoText = "";
+  let contextoHoPuedeSolicitarMes: boolean | null = null;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSearchQ = "";
   let empleadoSearchQ = "";
@@ -222,24 +241,24 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     if (!card) return;
     const fi = (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ?? "";
     const ff = (host.querySelector("#rh-nr-fin") as HTMLInputElement | null)?.value ?? "";
-    const dias = calcularDiasSolicitadosInclusive(fi, ff);
+    const dias = calcularDiasVacacionesSolicitados(fi, ff, empleadoEsAdministrativo === true);
     const fechasOk = fechasOrdenValidas(fi, ff);
     if (tipo === "vacaciones") {
-      card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk);
+      card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true);
     } else if (tipo === "home_office") {
       card.innerHTML = buildInfoHomeOfficeHtml(contextoHoText);
     } else {
-      const supervisorEquipoSinCampoMotivo =
-        showSupervisorSujeto &&
-        revisionSolicitudId == null &&
-        solicitudSubjectSupervisor === "team";
       const txt =
         tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
-        : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
-        : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
+        : tipo === "defuncion" ?
+            empleadoEsAdministrativo === true
+              ? "Defunción: 3 días hábiles con goce de sueldo. Si el rango cruza fin de semana, se ajustan los días hábiles más cercanos."
+              : "Defunción: duración fija de 3 días con goce de sueldo."
+        : tipo === "paternidad" ?
+            "Paternidad: 7 días hábiles con goce de sueldo. Si la fecha de inicio cae en fin de semana, se ajustan los días hábiles más cercanos."
         : tipo === "permiso_sin_goce_sueldo" ?
-          supervisorEquipoSinCampoMotivo ?
-            "Permiso sin goce de sueldo: indica contexto obligatorio en comentarios y la duración manualmente."
+          empleadoEsAdministrativo === true ?
+            "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual. Solo días entre semana (lunes a viernes) para colaboradores administrativos."
           : "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
         : "Incapacidad interna: RH define manualmente la duración.";
       card.innerHTML = buildInfoHomeOfficeHtml(txt);
@@ -248,19 +267,30 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
 
   function refreshLiveFormState(): void {
     updateInfoCard();
-    applyRhModalLiveFeedback(host, tipo, contextoVac);
+    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
   }
 
-  async function refreshContextForEmpleado(empleadoId: number | null): Promise<void> {
+  async function refreshContextForEmpleado(
+    empleadoId: number | null,
+    fechaReferencia?: string,
+  ): Promise<void> {
+    const fechaRef =
+      fechaReferencia?.trim() ||
+      (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ||
+      "";
     const [ctx] = await Promise.all([
-      fetchRhEmpleadoRequestContext(empleadoId),
+      fetchRhEmpleadoRequestContext(empleadoId, {
+        fechaReferencia: tipo === "home_office" ? fechaRef : undefined,
+        excluirSolicitudId: revisionSolicitudId ?? undefined,
+      }),
       actualizarClasificacionEmpleado(empleadoId),
     ]);
     contextoVac = ctx.diasVacacionesDisponibles;
     contextoHoText = ctx.homeOfficeResumen;
+    contextoHoPuedeSolicitarMes = ctx.homeOfficePuedeSolicitarMes;
     asegurarTipoSolicitudPermitido();
     updateInfoCard();
-    applyRhModalLiveFeedback(host, tipo, contextoVac);
+    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
   }
 
   function readFormSnapshot(): {
@@ -268,7 +298,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     fechaInicio: string;
     fechaFin: string;
     motivo: string;
-    comentarios: string;
   } {
     const hid = (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ?? "";
     const sel = (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ?? "";
@@ -277,7 +306,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaInicio: (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ?? "",
       fechaFin: (host.querySelector("#rh-nr-fin") as HTMLInputElement | null)?.value ?? "",
       motivo: (host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null)?.value ?? "",
-      comentarios: (host.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null)?.value ?? "",
     };
   }
 
@@ -301,7 +329,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaInicio: string;
       fechaFin: string;
       motivo: string;
-      comentarios: string;
       submitLabel: string;
     }>,
   ): void {
@@ -315,10 +342,12 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const actuaComoColaboradorPropio = empleadoSelfMode || supervisorPersonalMode;
     const supervisorSolicitudEquipo =
       showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "team";
-    const hideMotivoSupervisorEquipo = supervisorSolicitudEquipo;
-    const singleDayHomeOfficeEmpleado =
-      tipo === "home_office" && (actuaComoColaboradorPropio || supervisorSolicitudEquipo);
-    const hideMotivoEmpleado = actuaComoColaboradorPropio && (tipo === "home_office" || tipo === "vacaciones");
+    const singleDayHomeOffice = tipo === "home_office";
+    const matrimonioDosDias = tipo === "matrimonio";
+    const defuncionTresDias = tipo === "defuncion";
+    const paternidadSieteDias = tipo === "paternidad";
+    const hideMotivoVacaciones = tipo === "vacaciones";
+    const hideMotivoEmpleado = actuaComoColaboradorPropio && tipo === "home_office";
     const snap = readFormSnapshot();
     asegurarTipoSolicitudPermitido();
 
@@ -355,25 +384,54 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
-    const fechaFin = singleDayHomeOfficeEmpleado ? fechaInicio : fechaFinBase;
+    let fechaFin =
+      singleDayHomeOffice ? fechaInicio
+      : matrimonioDosDias && fechaInicio.trim() ? sumarDiasIso(fechaInicio, 1)
+      : fechaFinBase;
+    if (defuncionTresDias && fechaInicio.trim()) {
+      const rango = calcularRangoDefuncion(fechaInicio, empleadoEsAdministrativo === true);
+      if (rango) {
+        fechaFin = rango.fechaFin;
+      }
+    } else if (paternidadSieteDias && fechaInicio.trim()) {
+      const rango = calcularRangoPaternidad(fechaInicio);
+      if (rango) {
+        fechaFin = rango.fechaFin;
+      }
+    }
+    const fechaInicioEff =
+      defuncionTresDias && fechaInicio.trim()
+        ? (calcularRangoDefuncion(fechaInicio, empleadoEsAdministrativo === true)?.fechaInicio ??
+          fechaInicio)
+        : paternidadSieteDias && fechaInicio.trim()
+          ? (calcularRangoPaternidad(fechaInicio)?.fechaInicio ?? fechaInicio)
+          : fechaInicio;
     const motivoBase = preserve.motivo ?? snap.motivo;
     const motivo =
-      hideMotivoEmpleado || hideMotivoSupervisorEquipo ? "" : motivoBase;
-    const comentarios = preserve.comentarios ?? snap.comentarios;
-    const dias = calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
-    const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
+      hideMotivoVacaciones || hideMotivoEmpleado ? "" : motivoBase;
+    const dias = calcularDiasVacacionesSolicitados(
+      fechaInicioEff,
+      fechaFin,
+      empleadoEsAdministrativo === true &&
+        (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo"),
+    );
+    const fechasOk = fechasOrdenValidas(fechaInicioEff, fechaFin);
     const infoHtml =
       tipo === "vacaciones"
-        ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk)
+        ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true)
         : tipo === "home_office"
           ? buildInfoHomeOfficeHtml(contextoHoText)
           : buildInfoHomeOfficeHtml(
               tipo === "matrimonio" ? "Matrimonio: duración fija de 2 días con goce de sueldo."
-              : tipo === "defuncion" ? "Defunción: duración fija de 3 días con goce de sueldo."
-              : tipo === "paternidad" ? "Paternidad: duración fija de 7 días hábiles con goce de sueldo."
+              : tipo === "defuncion" ?
+                  empleadoEsAdministrativo === true
+                    ? "Defunción: 3 días hábiles con goce de sueldo. Si el rango cruza fin de semana, se ajustan los días hábiles más cercanos."
+                    : "Defunción: duración fija de 3 días con goce de sueldo."
+              : tipo === "paternidad" ?
+                  "Paternidad: 7 días hábiles con goce de sueldo. Si la fecha de inicio cae en fin de semana, se ajustan los días hábiles más cercanos."
               : tipo === "permiso_sin_goce_sueldo" ?
-                  hideMotivoSupervisorEquipo ?
-                    "Permiso sin goce de sueldo: indica contexto obligatorio en comentarios y la duración manualmente."
+                  empleadoEsAdministrativo === true ?
+                    "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual. Solo días entre semana (lunes a viernes) para colaboradores administrativos."
                   : "Permiso sin goce de sueldo: registra motivo obligatorio y duración manual."
               : "Incapacidad interna: RH define manualmente la duración.",
             );
@@ -382,12 +440,13 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       tipo,
       contextoVac,
       selectedEmpleadoId,
-      fechaInicio,
+      fechaInicioEff,
       fechaFin,
       motivo,
       empleadoSelectorOmitido,
-      comentarios,
-      hideMotivoSupervisorEquipo,
+      modoRevision,
+      empleadoEsAdministrativo,
+      contextoHoPuedeSolicitarMes,
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
 
@@ -398,10 +457,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       items: itemsParaSelector,
       selectedEmpleadoId,
       empleadoSearchQ,
-      fechaInicio,
+      fechaInicio: fechaInicioEff,
       fechaFin,
       motivo,
-      comentarios,
       diasLabel: ui.diasLabel,
       infoHtml,
       resumenState: ui.resumenState,
@@ -410,11 +468,17 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaFinInvalid: ui.fechaFinInvalid,
       canSubmit: ui.canSubmit,
       fixedEmpleado,
+      vacacionesAdministrativo: tipo === "vacaciones" && empleadoEsAdministrativo === true,
+      empleadoAdministrativo: empleadoEsAdministrativo === true,
+      homeOfficeMesDisponible:
+        tipo === "home_office" ? contextoHoPuedeSolicitarMes !== false : undefined,
       modoRevision,
       submitLabel: preserve.submitLabel,
-      singleDayHomeOfficeMode: singleDayHomeOfficeEmpleado,
-      showMotivoField: !hideMotivoEmpleado && !hideMotivoSupervisorEquipo,
-      omitMotivoCampoSupervisorEquipo: hideMotivoSupervisorEquipo ? true : undefined,
+      singleDayHomeOfficeMode: singleDayHomeOffice,
+      matrimonioTwoDayMode: matrimonioDosDias,
+      defuncionThreeDayMode: defuncionTresDias,
+      paternidadSevenDayMode: paternidadSieteDias,
+      showMotivoField: !hideMotivoVacaciones && !hideMotivoEmpleado,
       showSupervisorSolicitudSubject: showSupervisorSujeto && !modoRevision,
       supervisorSolicitudSubject: solicitudSubjectSupervisor,
       fixedEmpleadoAyudaOverride: supervisorPersonalMode
@@ -428,7 +492,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       showHomeOfficeType: puedeMostrarHomeOffice(),
     });
     bindFormInteractions();
-    applyRhModalLiveFeedback(host, tipo, contextoVac);
+    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
   }
 
   function bindFormInteractions(): void {
@@ -438,7 +502,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
     const fin = host.querySelector("#rh-nr-fin") as HTMLInputElement | null;
     const motivo = host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
-    const comentariosTa = host.querySelector("#rh-nr-comentarios") as HTMLTextAreaElement | null;
     const modoRevBind = revisionSolicitudId != null;
     const empleadoSelfBind = !modoRevBind && fixedSelfId != null;
     const supervisorPersonalBind =
@@ -448,14 +511,32 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       supervisorDirResolved != null;
     const supervisorEquipoBind =
       showSupervisorSujeto && !modoRevBind && solicitudSubjectSupervisor === "team";
-    const isSingleDayHomeOfficeEmpleado =
-      revisionSolicitudId == null &&
-      tipo === "home_office" &&
-      (empleadoSelfBind || supervisorPersonalBind || supervisorEquipoBind);
+    const isSingleDayHomeOffice = tipo === "home_office";
+    const isMatrimonioDosDias = tipo === "matrimonio";
+    const isDefuncionTresDias = tipo === "defuncion";
+    const isPaternidadSieteDias = tipo === "paternidad";
 
-    function syncSingleDayHomeOfficeFechaFin(): void {
-      if (!isSingleDayHomeOfficeEmpleado || !inicio || !fin) return;
-      fin.value = inicio.value;
+    function syncFechasFijas(): void {
+      if (!inicio || !fin) return;
+      if (isSingleDayHomeOffice) {
+        fin.value = inicio.value;
+      } else if (isMatrimonioDosDias && inicio.value.trim()) {
+        fin.value = sumarDiasIso(inicio.value, 1);
+      } else if (isDefuncionTresDias && inicio.value.trim()) {
+        const formEl = host.querySelector("#rh-nr-form") as HTMLFormElement | null;
+        const admin = formEl?.hasAttribute("data-rh-nr-empleado-admin") === true;
+        const rango = calcularRangoDefuncion(inicio.value, admin);
+        if (rango) {
+          inicio.value = rango.fechaInicio;
+          fin.value = rango.fechaFin;
+        }
+      } else if (isPaternidadSieteDias && inicio.value.trim()) {
+        const rango = calcularRangoPaternidad(inicio.value);
+        if (rango) {
+          inicio.value = rango.fechaInicio;
+          fin.value = rango.fechaFin;
+        }
+      }
     }
 
     if (!host.querySelector("#rh-nr-form[data-rh-nr-revision]")) {
@@ -523,7 +604,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                   fechaInicio: snapSubject.fechaInicio,
                   fechaFin: snapSubject.fechaFin,
                   motivo: snapSubject.motivo,
-                  comentarios: snapSubject.comentarios,
                 });
                 await refreshContextForEmpleado(null);
                 renderForm({
@@ -531,7 +611,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                   fechaInicio: snapSubject.fechaInicio,
                   fechaFin: snapSubject.fechaFin,
                   motivo: snapSubject.motivo,
-                  comentarios: snapSubject.comentarios,
                 });
               } else if (supervisorDirResolved != null) {
                 if (tipo === "permiso_sin_goce_sueldo") {
@@ -544,7 +623,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                   fechaInicio: snapSubject.fechaInicio,
                   fechaFin: snapSubject.fechaFin,
                   motivo: snapSubject.motivo,
-                  comentarios: snapSubject.comentarios,
                 });
               }
             } catch {
@@ -599,7 +677,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                 fechaInicio: snapEmp.fechaInicio,
                 fechaFin: snapEmp.fechaFin,
                 motivo: snapEmp.motivo,
-                comentarios: snapEmp.comentarios,
               });
               hideError();
             } catch {
@@ -614,15 +691,33 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     inicio?.addEventListener(
       "input",
       () => {
-        syncSingleDayHomeOfficeFechaFin();
-        refreshLiveFormState();
+        syncFechasFijas();
+        if (tipo === "home_office") {
+          const empRaw =
+            (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
+            (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ||
+            "";
+          const empId = Number.parseInt(empRaw, 10);
+          void (async (): Promise<void> => {
+            try {
+              await refreshContextForEmpleado(
+                empRaw && Number.isFinite(empId) ? empId : null,
+                inicio?.value ?? "",
+              );
+              refreshLiveFormState();
+            } catch {
+              refreshLiveFormState();
+            }
+          })();
+        } else {
+          refreshLiveFormState();
+        }
       },
       { signal: options.signal },
     );
     fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
-    comentariosTa?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
-    syncSingleDayHomeOfficeFechaFin();
+    syncFechasFijas();
 
     form?.addEventListener(
       "submit",
@@ -673,67 +768,124 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError("No está permitido modificar el colaborador de la solicitud.");
           return;
         }
-        if (tipo === "home_office") {
+        if (tipo === "home_office" || tipo === "permiso_sin_goce_sueldo" || tipo === "defuncion") {
           const esAdmin = await resolverEmpleadoEsAdministrativo(empleado_id);
           empleadoEsAdministrativo = esAdmin;
-          if (!esAdmin) {
+          if (tipo === "home_office" && !esAdmin) {
             showError(MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO);
             return;
           }
         }
-        const fecha_inicio = String(fd.get("fecha_inicio") ?? "").trim();
-        const singleDayHOEnvio =
-          revisionSolicitudId == null &&
-          tipo === "home_office" &&
-          (fixedSelfId != null ||
-            (showSupervisorSujeto &&
-              solicitudSubjectSupervisor === "personal" &&
-              supervisorDirResolved != null) ||
-            (showSupervisorSujeto && solicitudSubjectSupervisor === "team"));
+        const fecha_inicio_raw = String(fd.get("fecha_inicio") ?? "").trim();
+        let fecha_inicio = fecha_inicio_raw;
         const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
-        const fecha_fin = singleDayHOEnvio ? fecha_inicio : fecha_fin_raw;
+        let fecha_fin =
+          tipo === "home_office" ? fecha_inicio
+          : tipo === "matrimonio" && fecha_inicio.trim() ? sumarDiasIso(fecha_inicio, 1)
+          : fecha_fin_raw;
+        if (tipo === "defuncion" && fecha_inicio.trim()) {
+          const rango = calcularRangoDefuncion(
+            fecha_inicio,
+            empleadoEsAdministrativo === true,
+          );
+          if (rango) {
+            fecha_inicio = rango.fechaInicio;
+            fecha_fin = rango.fechaFin;
+          }
+        } else if (tipo === "paternidad" && fecha_inicio.trim()) {
+          const rango = calcularRangoPaternidad(fecha_inicio);
+          if (rango) {
+            fecha_inicio = rango.fechaInicio;
+            fecha_fin = rango.fechaFin;
+          }
+        }
         if (!fecha_inicio || !fecha_fin) {
           showError("Indica fecha de inicio y fecha de fin.");
+          return;
+        }
+        if (tipo === "home_office" && fecha_inicio !== fecha_fin) {
+          showError(MENSAJE_HOME_OFFICE_UN_DIA);
+          return;
+        }
+        if (tipo === "matrimonio" && !esRangoMatrimonioValido(fecha_inicio, fecha_fin)) {
+          showError(MENSAJE_MATRIMONIO_DOS_DIAS);
+          return;
+        }
+        if (
+          tipo === "defuncion" &&
+          !esRangoDefuncionValido(fecha_inicio, fecha_fin, empleadoEsAdministrativo === true)
+        ) {
+          showError(MENSAJE_DEFUNCION_TRES_DIAS);
+          return;
+        }
+        if (tipo === "paternidad" && !esRangoPaternidadValido(fecha_inicio, fecha_fin)) {
+          showError(MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES);
           return;
         }
         if (!fechasOrdenValidas(fecha_inicio, fecha_fin)) {
           showError("La fecha de fin no puede ser anterior a la fecha de inicio.");
           return;
         }
-        const dias = calcularDiasSolicitadosInclusive(fecha_inicio, fecha_fin);
+        const dias = calcularDiasVacacionesSolicitados(
+          fecha_inicio,
+          fecha_fin,
+          empleadoEsAdministrativo === true &&
+            (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo"),
+        );
         if (dias <= 0) {
           showError("Revisa el rango de fechas.");
+          return;
+        }
+        if (
+          tipo === "vacaciones" &&
+          empleadoEsAdministrativo === true &&
+          rangoIncluyeFinDeSemana(fecha_inicio, fecha_fin)
+        ) {
+          showError(MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA);
+          return;
+        }
+        if (
+          tipo === "permiso_sin_goce_sueldo" &&
+          empleadoEsAdministrativo === true &&
+          rangoIncluyeFinDeSemana(fecha_inicio, fecha_fin)
+        ) {
+          showError(MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA);
+          return;
+        }
+        if (
+          tipo === "home_office" &&
+          rangoIncluyeFinDeSemana(fecha_inicio, fecha_fin)
+        ) {
+          showError(MENSAJE_HOME_OFFICE_FIN_DE_SEMANA);
+          return;
+        }
+        const motivoRaw = String(fd.get("motivo") ?? "").trim();
+        if (tipo === "home_office") {
+          await refreshContextForEmpleado(empleado_id, fecha_inicio);
+          if (contextoHoPuedeSolicitarMes === false) {
+            showError(MENSAJE_HOME_OFFICE_MES_LIMITE);
+            renderForm({
+              selectedId: empRaw,
+              fechaInicio: fecha_inicio,
+              fechaFin: fecha_fin,
+              motivo: motivoRaw,
+            });
+            return;
+          }
+        }
+        if (tipo === "vacaciones" && revisionSolicitudId == null && contextoVac != null && contextoVac <= 0) {
+          showError("No hay días de vacaciones disponibles para presentar una solicitud.");
           return;
         }
         if (tipo === "vacaciones" && contextoVac != null && dias > contextoVac) {
           showError(`Los días solicitados (${dias}) superan los disponibles (${contextoVac}) para este empleado.`);
           return;
         }
-        const comentariosRaw = String(fd.get("comentarios") ?? "").trim();
-        const motivoRaw = String(fd.get("motivo") ?? "").trim();
-        const supervisorEquipoMotivoViaComentarios =
-          showSupervisorSujeto && solicitudSubjectSupervisor === "team";
-        if (tipo === "permiso_sin_goce_sueldo") {
-          if (supervisorEquipoMotivoViaComentarios) {
-            if (!comentariosRaw) {
-              showError("Indica el contexto del permiso en comentarios.");
-              return;
-            }
-          } else if (!motivoRaw) {
-            showError("Captura el motivo del permiso sin goce de sueldo.");
-            return;
-          }
+        if (tipo === "permiso_sin_goce_sueldo" && !motivoRaw) {
+          showError("Captura el motivo del permiso sin goce de sueldo.");
+          return;
         }
-        const textoEquipoPermiso =
-          tipo === "permiso_sin_goce_sueldo" && supervisorEquipoMotivoViaComentarios ?
-            comentariosRaw || null
-          : null;
-        const motivo =
-          textoEquipoPermiso != null ? textoEquipoPermiso : motivoRaw === "" ? null : motivoRaw;
-        const comentarios =
-          textoEquipoPermiso != null ?
-            textoEquipoPermiso
-          : comentariosRaw === "" ? null : comentariosRaw;
+        const motivo = motivoRaw === "" ? null : motivoRaw;
 
         const submitBtn = host.querySelector("#rh-nr-submit") as HTMLButtonElement | null;
         if (submitBtn) {
@@ -747,7 +899,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           fecha_inicio,
           fecha_fin,
           motivo,
-          comentarios,
+          comentarios: null,
         };
 
         try {
@@ -755,7 +907,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             await patchSolicitudRevision(revisionSolicitudId, {
               fecha_inicio,
               fecha_fin,
-              comentarios,
+              motivo,
             });
             showEmpleadosToast(
               options.toastContainer,
@@ -787,7 +939,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           if (submitBtn) {
             submitBtn.textContent =
               revisionSolicitudId != null ? "Guardar y reenviar" : "Enviar solicitud";
-            applyRhModalLiveFeedback(host, tipo, contextoVac);
+            applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
           }
         }
       },
@@ -848,7 +1000,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       if (subEl) {
         subEl.textContent =
           revisionSolicitudId != null ?
-            "Actualiza las fechas o comentarios y reenvía la solicitud al aprobador."
+            "Actualiza las fechas o el motivo y reenvía la solicitud al aprobador."
           : fixedSelfId != null ?
             "Elige el tipo de solicitud y las fechas. El registro quedará a tu nombre."
           : showSupervisorSujeto ?
@@ -893,12 +1045,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           revisionEmpleadoDisplayLine =
             rawNom ? formatNombreEmpleadoUi(rawNom).trim() || rawNom : `Empleado #${empleadoRevision}`;
           await refreshContextForEmpleado(empleadoRevision);
-          const com = typeof sol.comentarios === "string" ? sol.comentarios : "";
           renderForm({
             fechaInicio: String(sol.fecha_inicio).slice(0, 10),
             fechaFin: String(sol.fecha_fin).slice(0, 10),
             motivo: typeof sol.motivo === "string" ? sol.motivo : "",
-            comentarios: com,
             submitLabel: "Guardar y reenviar",
           });
           (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
@@ -935,7 +1085,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             fechaInicio: iso(today),
             fechaFin: iso(today),
             motivo: "",
-            comentarios: "",
           });
           const ctxEmpDir =
             abreSupervisorPersonal && supervisorDirResolved != null
@@ -956,7 +1105,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             fechaInicio: iso(today),
             fechaFin: iso(today),
             motivo: "",
-            comentarios: "",
           });
           (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
         }

@@ -82,6 +82,12 @@ class FaltaRetardoMesTotalItem(BaseModel):
     total: int
 
 
+class FaltaRetardoPeriodoTipoItem(BaseModel):
+    periodo: str
+    tipo: FaltaRetardoTipo
+    total: int
+
+
 class FaltaRetardoEmpleadoTipoCountItem(BaseModel):
     tipo: FaltaRetardoTipo
     total: int
@@ -103,5 +109,7 @@ class FaltasRetardosEstadisticasResponse(BaseModel):
     incapacidad: int
     suspension: int
     eventos_por_mes: list[FaltaRetardoMesTotalItem]
+    eventos_por_periodo_y_tipo: list[FaltaRetardoPeriodoTipoItem] = Field(default_factory=list)
+    tendencia_agrupacion: str | None = None
     eventos_por_tipo: list[FaltaRetardoTipoTotalItem]
     empleados_con_mas_eventos: list[FaltaRetardoEmpleadoTotalItem]

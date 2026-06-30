@@ -27,8 +27,8 @@ export const INC_COPY = {
   analiticaRetardosVacio: "Sin retardos registrados con los filtros actuales.",
   analiticaTipoTitulo: "Distribución por tipo",
   analiticaTipoSub: "Proporción según clasificación registrada",
-  analiticaTendenciaTitulo: "Tendencia por mes",
-  analiticaTendenciaSub: "Volumen por fecha de la incidencia (hasta el mes en curso)",
+  analiticaTendenciaTitulo: "Tendencia por tipo de incidencia",
+  analiticaTendenciaSub: "Evolución por tipo según filtros aplicados",
   verRankingCompleto: "Ver ranking completo",
   kpiTotal: "Total de incidencias",
   /** Título KPI en dos líneas (tarjetas analítica). */

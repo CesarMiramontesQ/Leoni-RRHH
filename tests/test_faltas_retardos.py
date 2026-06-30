@@ -1,13 +1,59 @@
 """Tests del módulo Faltas y retardos."""
 
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
 
 from app.schemas.faltas_retardos import FaltaRetardoResponse, FaltasRetardosEstadisticasResponse, FaltasRetardosPageResponse
 from tests.conftest import auth_headers, make_empleado
+
+
+@contextmanager
+def _mock_bono_importadas_repo(
+    *,
+    origen_id: int = 9001,
+    tipo_codigo: str = "RE",
+    empleado_id: int = 1,
+    no_empleado: str = "100",
+    fecha_evento: date = date(2026, 6, 20),
+    insert_ids: list[int] | None = None,
+):
+    ids = insert_ids or [origen_id]
+    insert_mock = AsyncMock(side_effect=list(ids))
+    mock_engine = MagicMock()
+    mock_engine.dispose = AsyncMock()
+    repo_instance = AsyncMock(
+        resolve_semana_id=AsyncMock(return_value=77),
+        list_semana_ids_en_rango=AsyncMock(return_value=[77, 78]),
+        insert_evento=insert_mock,
+        fetch_evento_row=AsyncMock(
+            return_value={
+                "origen": "importadas_historico",
+                "origen_id": origen_id,
+                "empleado_id": empleado_id,
+                "no_empleado": no_empleado,
+                "nombre": "EMPLEADO TEST",
+                "tipo_codigo": tipo_codigo,
+                "tipo_descripcion": "Evento",
+                "fecha_evento": fecha_evento,
+                "fecha_fin": None,
+            }
+        ),
+    )
+    with (
+        patch(
+            "app.services.faltas_retardos_service.BonoProductividadReadClient.create_read_engine",
+            return_value=mock_engine,
+        ),
+        patch(
+            "app.services.faltas_retardos_service.BonoImportadasHistoricoRepository",
+            return_value=repo_instance,
+        ),
+    ):
+        yield repo_instance
 
 
 def _sample_bono_page() -> FaltasRetardosPageResponse:
@@ -95,23 +141,30 @@ async def test_create_falta_retardo_retardo(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", nombre="Empleado Afectado")
     headers = await auth_headers(client, rh)
 
-    res = await client.post(
-        "/api/v1/faltas-retardos",
-        headers=headers,
-        json={
-            "empleado_id": empleado.empleado_id,
-            "tipo": "retardo",
-            "fecha_evento": "2026-06-20",
-            "observaciones": "Llegó 15 min tarde",
-        },
-    )
+    with _mock_bono_importadas_repo(
+        origen_id=9001,
+        tipo_codigo="RE",
+        empleado_id=empleado.empleado_id,
+        no_empleado=str(empleado.no_empleado),
+    ):
+        res = await client.post(
+            "/api/v1/faltas-retardos",
+            headers=headers,
+            json={
+                "empleado_id": empleado.empleado_id,
+                "tipo": "retardo",
+                "fecha_evento": "2026-06-20",
+                "observaciones": "Llegó 15 min tarde",
+            },
+        )
     assert res.status_code == 201, res.text
     data = res.json()
     assert data["empleado_id"] == empleado.empleado_id
     assert data["tipo"] == "retardo"
     assert data["fecha_evento"] == "2026-06-20"
     assert data["registrado_por_id"] == rh.empleado_id
-    assert data["origen"] == "manual"
+    assert data["origen"] == "importadas_historico"
+    assert data["origen_id"] == 9001
 
 
 @pytest.mark.asyncio
@@ -138,20 +191,29 @@ async def test_create_incapacidad_con_rango(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", nombre="Empleado Rango")
     headers = await auth_headers(client, rh)
 
-    res = await client.post(
-        "/api/v1/faltas-retardos",
-        headers=headers,
-        json={
-            "empleado_id": empleado.empleado_id,
-            "tipo": "incapacidad",
-            "fecha_evento": "2026-06-01",
-            "fecha_fin": "2026-06-05",
-            "observaciones": "Incapacidad IMSS",
-        },
-    )
+    with _mock_bono_importadas_repo(
+        origen_id=9002,
+        tipo_codigo="INC",
+        empleado_id=empleado.empleado_id,
+        no_empleado=str(empleado.no_empleado),
+        fecha_evento=date(2026, 6, 1),
+        insert_ids=[9002, 9003],
+    ):
+        res = await client.post(
+            "/api/v1/faltas-retardos",
+            headers=headers,
+            json={
+                "empleado_id": empleado.empleado_id,
+                "tipo": "incapacidad",
+                "fecha_evento": "2026-06-01",
+                "fecha_fin": "2026-06-05",
+                "observaciones": "Incapacidad IMSS",
+            },
+        )
     assert res.status_code == 201, res.text
     data = res.json()
     assert data["fecha_fin"] == "2026-06-05"
+    assert data["origen"] == "importadas_historico"
 
 
 @pytest.mark.asyncio

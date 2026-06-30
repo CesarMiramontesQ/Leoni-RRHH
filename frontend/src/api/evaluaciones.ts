@@ -129,11 +129,18 @@ export interface CompetenciaResumenItem {
   categoria: string;
   nivel_requerido: number;
   nivel_actual: number;
+  niveles_por_grado: Record<string, number>;
   gap: number;
   brecha_pct: number;
   severidad: Severidad;
   accion_recomendada: string | null;
   accion_color: string | null;
+}
+
+export interface GradoNivelInfo {
+  grado_id: number;
+  grado_nombre: string;
+  orden: number;
 }
 
 export interface EmpleadoResumen {
@@ -154,11 +161,38 @@ export interface EmpleadoResumen {
   total_competencias: number;
   evaluadas: number;
   con_gap: number;
+  grados: GradoNivelInfo[];
+  grado_actual_id: number | null;
 }
 
 export async function getEmpleadoResumen(empleadoId: number): Promise<EmpleadoResumen | null> {
   const res = await fetchWithAuth(`/api/v1/evaluaciones/empleado/${empleadoId}/resumen`);
   if (!res.ok) return null;
+  return res.json();
+}
+
+export interface EmpleadoConPerfil {
+  empleado_id: number;
+  empleado_nombre: string;
+  no_empleado: number | null;
+  puesto_perfil_id: number;
+  puesto_nombre: string | null;
+  puesto_codigo: string | null;
+  nivel_puesto: string | null;
+  grado_id: number | null;
+  grado_nombre: string | null;
+  departamento: string | null;
+  area_nombre: string | null;
+  readiness_score: number;
+  brechas_identificadas: number;
+  severidad_promedio: string;
+  competencias_alineadas: number;
+  total_competencias: number;
+}
+
+export async function getEmpleadosConPerfil(): Promise<EmpleadoConPerfil[]> {
+  const res = await fetchWithAuth("/api/v1/evaluaciones/empleados-con-perfil");
+  if (!res.ok) return [];
   return res.json();
 }
 

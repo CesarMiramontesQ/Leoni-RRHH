@@ -54,7 +54,6 @@ describe("shellNavPolicy supervisor structured nav", () => {
     expect(isShellNavItemVisibleForRol("supervisor", "actas")).toBe(false);
     expect(isShellNavItemVisibleForRol("supervisor", "reportes")).toBe(false);
     expect(isShellNavItemVisibleForRol("supervisor", "level-up")).toBe(false);
-    expect(isShellNavItemVisibleForRol("supervisor", "capacitaciones")).toBe(false);
   });
 
   it("supervisor no ve hubs agrupados", async () => {

@@ -24,6 +24,8 @@ export interface Curso {
   requisitos: string | null;
   centro_costos: number | null;
   activo: boolean;
+  calificacion_promedio: number | null;
+  total_evaluaciones: number;
   created_at: string;
   updated_at: string;
 }

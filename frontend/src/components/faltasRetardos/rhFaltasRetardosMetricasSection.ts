@@ -1,4 +1,8 @@
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
+import {
+  buildFaltasRetardosTendenciaFromEstadisticas,
+  faltasRetardosTendenciaPorTipoTieneDatos,
+} from "../../faltasRetardos/rh/buildFaltasRetardosTendenciaPorTipo.ts";
 import type { FaltasRetardosMetricasViewModel } from "../../faltasRetardos/rh/types.ts";
 import type { FaltasRetardosEstadisticasData } from "../../faltasRetardos/rh/types.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
@@ -12,17 +16,12 @@ import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitude
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { RH_LISTADO_SURFACE } from "./rhFaltasRetardosPageStyles.ts";
 import {
-  HE_KPI_ICONS,
-  renderHorasExtraKpiCards,
-  type HorasExtraKpiCard,
-} from "../../horasExtra/shared/renderHorasExtraKpiCards.ts";
-import {
-  mountFaltasRetardosTendenciaChart,
+  mountFaltasRetardosTendenciaPorTipoChart,
   mountFaltasRetardosTipoBarChart,
   mountFaltasRetardosEmpleadosStackedBarChart,
   renderFaltasRetardosEmpleadosBarChart,
   renderFaltasRetardosTipoBarChart,
-  renderFaltasRetardosTendenciaChart,
+  renderFaltasRetardosTendenciaPorTipoChart,
   RH_FR_EMPLEADOS_BAR_CHART_ID,
   RH_FR_TENDENCIA_CHART_ID,
   RH_FR_TIPO_BAR_CHART_ID,
@@ -30,53 +29,6 @@ import {
 } from "./rhFaltasRetardosCharts.ts";
 
 const CARD = `${RH_LISTADO_SURFACE} flex min-h-0 flex-col rounded-2xl border border-[rgba(148,163,184,0.22)] p-4 shadow-sm sm:p-4`;
-
-function buildKpiCards(data: FaltasRetardosEstadisticasData): HorasExtraKpiCard[] {
-  return [
-    {
-      label: FR_COPY.kpiTotal,
-      value: String(data.total_eventos),
-      sub: FR_COPY.kpiTotalSub,
-      icon: HE_KPI_ICONS.solicitudes,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
-    },
-    {
-      label: FR_COPY.kpiFaltaJustificada,
-      value: String(data.falta_justificada),
-      sub: FR_COPY.kpiFaltaJustificadaSub,
-      icon: HE_KPI_ICONS.aprobada,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--emerald",
-    },
-    {
-      label: FR_COPY.kpiFaltaInjustificada,
-      value: String(data.falta_injustificada),
-      sub: FR_COPY.kpiFaltaInjustificadaSub,
-      icon: HE_KPI_ICONS.rechazada,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
-    },
-    {
-      label: FR_COPY.kpiRetardo,
-      value: String(data.retardo),
-      sub: FR_COPY.kpiRetardoSub,
-      icon: HE_KPI_ICONS.pendiente,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
-    },
-    {
-      label: FR_COPY.kpiIncapacidad,
-      value: String(data.incapacidad),
-      sub: FR_COPY.kpiIncapacidadSub,
-      icon: HE_KPI_ICONS.horas,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
-    },
-    {
-      label: FR_COPY.kpiSuspension,
-      value: String(data.suspension),
-      sub: FR_COPY.kpiSuspensionSub,
-      icon: HE_KPI_ICONS.parcial,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
-    },
-  ];
-}
 
 function empleadosChartRows(data: FaltasRetardosEstadisticasData): FaltaRetardoEmpleadoChartRow[] {
   return (data.empleados_con_mas_eventos ?? [])
@@ -118,10 +70,15 @@ function chartsSkeleton(): string {
 function renderChartsContent(
   data: FaltasRetardosEstadisticasData,
   empleadosRetardosRanking: readonly SolicitudRankingRow[],
+  tendenciaFiltros: FaltasRetardosMetricasViewModel["tendenciaFiltros"],
 ): string {
   if (data.total_eventos <= 0) {
     return `<div class="${CARD} items-center py-10 text-center text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasVacia)}</div>`;
   }
+  const tendenciaData = buildFaltasRetardosTendenciaFromEstadisticas(data, tendenciaFiltros);
+  const tendenciaBody = faltasRetardosTendenciaPorTipoTieneDatos(tendenciaData)
+    ? renderFaltasRetardosTendenciaPorTipoChart(tendenciaData!)
+    : `<div class="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasSinDatos)}</div>`;
   const ranking = empleadosChartRows(data);
   const retardosBody = renderDashEmpleadosRetardosChart(
     empleadosRetardosRanking,
@@ -134,7 +91,7 @@ function renderChartsContent(
           ${chartShell(
             FR_COPY.metricasTendenciaTitulo,
             FR_COPY.metricasTendenciaSub,
-            renderFaltasRetardosTendenciaChart(data.eventos_por_mes ?? []),
+            tendenciaBody,
           )}
         </div>
         <div class="lg:col-span-5">
@@ -163,7 +120,6 @@ export function renderRhFaltasRetardosMetricasSection(
 ): string {
   if (vm.estadisticasStatus === "loading") {
     return `<div id="rh-fr-metricas-analytics" class="flex flex-col gap-4 sm:gap-5" aria-busy="true">
-      ${renderHorasExtraKpiCards({ status: "loading" }, { columnsClass: "sm:grid-cols-2 lg:grid-cols-3", ariaLabel: FR_COPY.estadisticasAria })}
       ${chartsSkeleton()}
     </div>`;
   }
@@ -179,11 +135,7 @@ export function renderRhFaltasRetardosMetricasSection(
     return `<div id="rh-fr-metricas-analytics" class="text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasSinDatos)}</div>`;
   }
   return `<div id="rh-fr-metricas-analytics" class="flex flex-col gap-4 sm:gap-5">
-    ${renderHorasExtraKpiCards(
-      { status: "ready", cards: buildKpiCards(data) },
-      { columnsClass: "sm:grid-cols-2 lg:grid-cols-3", ariaLabel: FR_COPY.estadisticasAria },
-    )}
-    ${renderChartsContent(data, vm.empleadosRetardosRanking)}
+    ${renderChartsContent(data, vm.empleadosRetardosRanking, vm.tendenciaFiltros)}
   </div>`;
 }
 
@@ -207,7 +159,10 @@ export function mountRhFaltasRetardosMetricasCharts(
   if (host) destroyChartsInContainer(host);
   if (vm.estadisticasStatus !== "ready" || !vm.estadisticas) return;
   const data = vm.estadisticas;
-  mountFaltasRetardosTendenciaChart(root, data.eventos_por_mes ?? []);
+  const tendencia = buildFaltasRetardosTendenciaFromEstadisticas(data, vm.tendenciaFiltros);
+  if (faltasRetardosTendenciaPorTipoTieneDatos(tendencia)) {
+    mountFaltasRetardosTendenciaPorTipoChart(root, tendencia!);
+  }
   mountFaltasRetardosTipoBarChart(root, data.eventos_por_tipo ?? []);
   if (vm.empleadosRetardosRanking.length > 0) {
     mountRankingHorizontalBar(

@@ -43,7 +43,6 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "comedor", hash: "#/comedor" },
   { itemId: "reportes", hash: "#/comedor/reporte" },
   { itemId: "level-up", hash: "#/level-up/resumen" },
-  { itemId: "capacitaciones", hash: "#/capacitaciones" },
   { itemId: "puestos", hash: "#/puestos" },
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
@@ -132,7 +131,6 @@ export type AppShellNavItemId =
   | "empleados"
   | "evaluaciones"
   | "evaluacion-360"
-  | "capacitaciones"
   | "reportes"
   | "puestos"
   | "puestos-ajustes"
@@ -140,12 +138,14 @@ export type AppShellNavItemId =
   | "competencias"
   | "capacidades"
   | "cursos"
+  | "cursos-seguimiento"
   | "cursos-ajustes"
   | "opls"
   | "evidencias"
   | "sugerencias"
   | "sesiones"
   | "encuestas"
+  | "mis-encuestas"
   | "level-up"
   | "nominas"
   | "horas-extra"
@@ -158,6 +158,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "dashboard",
   "solicitudes",
   "comedor",
+  "mis-encuestas",
 ]);
 
 /** Rol con menú lateral plano (sin hubs ni submenús). */
@@ -173,6 +174,7 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "incidencias",
   "faltas-retardos",
   "solicitudes",
+  "mis-encuestas",
   "comedor",
   "empleados",
 ]);
@@ -204,7 +206,7 @@ const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "dire
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "cursos-ajustes", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
+  "cursos", "cursos-seguimiento", "cursos-ajustes", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
@@ -315,8 +317,8 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
+  if (h.startsWith("#/mis-encuestas")) return true;
   if (h.startsWith("#/notificaciones")) return true;
-  if (h.startsWith("#/capacitaciones")) return true;
   if (h.startsWith("#/metricas")) return false;
   return false;
 }
@@ -332,7 +334,6 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/pdi-gestion")) return true;
   if (h.startsWith("#/evaluaciones")) return true;
   if (h.startsWith("#/level-up/evaluacion-360")) return false;
-  if (h.startsWith("#/capacitaciones")) return true;
   return true;
 }
 

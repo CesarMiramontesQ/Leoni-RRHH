@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -58,6 +58,25 @@ class CursoInstructorExterno(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class CursoInstructorInterno(Base):
+    __tablename__ = "levelup_curso_instructor_interno"
+    __table_args__ = (
+        UniqueConstraint("empleado_id", name="uq_levelup_curso_instructor_interno_empleado"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    empleado_id: Mapped[int] = mapped_column(
+        ForeignKey("empleados.empleado_id"), nullable=False
+    )
+    especialidad: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    empleado_rel = relationship("Empleado", foreign_keys=[empleado_id], lazy="joined")
 
 
 class CursoProveedor(Base):

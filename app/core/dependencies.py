@@ -150,14 +150,16 @@ def role_checker(roles_requeridos: list[str]):
     return check_role
 
 
-async def require_rh_permisos_admin(
+async def require_admin_user(
     current_user: Empleado = Depends(get_current_user),
 ) -> Empleado:
-    """Administrar permisos depende del flag `puede_administrar_permisos_rh`, no del rol."""
-    if not current_user.puede_administrar_permisos_rh:
+    """Exige usuario admin (`is_admin_user`, flag BD `puede_administrar_permisos_rh`)."""
+    from app.core.rh_ui_mode import is_admin_user
+
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para administrar accesos de usuarios RH.",
+            detail="No tienes permiso de administrador.",
         )
     return current_user
 

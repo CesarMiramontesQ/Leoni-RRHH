@@ -7,7 +7,7 @@ import {
 } from "../../api/puestos.ts";
 import { getTareasCatalogo, type TareaCatalogo } from "../../api/tareasCatalogo.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_DANGER, FIELD_FOCUS } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_DANGER } from "../../ui/uiTokens.ts";
 
 export type TareasExtraModalHandle = {
   open: () => void;
@@ -24,11 +24,11 @@ function overlayHtml(nombreEmpleado: string): string {
   return `
     <div
       id="tareas-extra-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        class="${MODAL_PANEL} max-w-lg p-6 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="tareas-extra-title"
@@ -68,7 +68,7 @@ function renderExtraList(extras: PerfilTareaExtra[]): string {
             <span class="text-sm text-text-primary truncate">${escapeHtml(t.tarea_catalogo_nombre)}</span>
             ${t.tarea_catalogo_categoria ? `<span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">${escapeHtml(t.tarea_catalogo_categoria)}</span>` : ""}
           </div>
-          <button type="button" data-delete-extra="${t.id}" class="${BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Quitar">
+          <button type="button" data-delete-extra="${t.id}" class="${RH_LISTADO_BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Quitar">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
@@ -82,14 +82,14 @@ function renderSearchForm(): string {
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar tarea extra</p>
       <div>
         <input id="extra-search" type="text" autocomplete="off"
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          class="${FIELD_INPUT}"
           placeholder="Buscar tarea por nombre..." />
       </div>
       <div id="extra-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
       <div id="extra-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="extra-selected-info" class="flex items-center justify-between"></div>
         <div class="flex justify-end mt-2">
-          <button type="button" id="extra-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar</button>
+          <button type="button" id="extra-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Agregar</button>
         </div>
       </div>
     </div>`;

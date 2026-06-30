@@ -7,7 +7,6 @@ const LEVEL_UP_ROUTE_PREFIXES = [
   "#/level-up/evaluacion-360",
   "#/cursos",
   "#/sesiones",
-  "#/capacitaciones",
   "#/puestos",
   "#/competencias",
   "#/tareas-catalogo",

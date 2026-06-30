@@ -55,6 +55,7 @@ export type FaltasRetardosEstadisticasParams = {
   fecha_fin?: string;
   busqueda?: string;
   area?: string;
+  tendencia_agrupacion?: "dia" | "semana" | "mes";
 };
 
 export type FaltasRetardosEstadisticasResponse = {
@@ -65,6 +66,12 @@ export type FaltasRetardosEstadisticasResponse = {
   incapacidad: number;
   suspension: number;
   eventos_por_mes: { periodo: string; total: number }[];
+  eventos_por_periodo_y_tipo?: {
+    periodo: string;
+    tipo: FaltaRetardoTipo;
+    total: number;
+  }[];
+  tendencia_agrupacion?: "dia" | "semana" | "mes" | null;
   eventos_por_tipo: { tipo: FaltaRetardoTipo; total: number; porcentaje: number }[];
   empleados_con_mas_eventos: {
     empleado_id: number;
@@ -126,6 +133,7 @@ function buildFaltasRetardosQueryParams(
   if (params.fecha_fin?.trim()) sp.set("fecha_fin", params.fecha_fin.trim());
   if (params.busqueda?.trim()) sp.set("busqueda", params.busqueda.trim());
   if (params.area?.trim()) sp.set("area", params.area.trim());
+  if (params.tendencia_agrupacion) sp.set("tendencia_agrupacion", params.tendencia_agrupacion);
   return sp;
 }
 

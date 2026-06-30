@@ -30,9 +30,70 @@ export const BTN_GHOST =
 export const BTN_DANGER =
   "inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2";
 
+/** Acción destructiva secundaria, tonal (Deshabilitar, Quitar) — alineada a `RH_LISTADO_BTN_*`. */
+export const RH_LISTADO_BTN_DANGER =
+  "inline-flex items-center gap-1.5 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-2";
+
 // ── Wrapper de campo de filtro (responsive) ───────────────────────────────────
 export const FILTER_FIELD_WRAP =
   "min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.375rem)] lg:min-w-[9rem] lg:basis-0 xl:min-w-[7.75rem]";
+
+// ── Encabezado de página (título + subtítulo + acciones opcionales) ──────────
+/**
+ * Encabezado de página consistente: título H1, subtítulo opcional y, si se pasa
+ * `actions` (HTML de botones/enlaces), los alinea a la derecha en una fila.
+ */
+export function pageHeading(title: string, subtitle?: string, actions?: string): string {
+  const titleBlock = `<div class="flex min-w-0 flex-col gap-2">
+    <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(title)}</h1>
+    ${subtitle ? `<p class="max-w-2xl text-sm leading-relaxed text-text-secondary">${escapeHtml(subtitle)}</p>` : ""}
+  </div>`;
+  if (!actions) {
+    return `<header class="flex flex-col gap-2">${titleBlock}</header>`;
+  }
+  return `<header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    ${titleBlock}
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:shrink-0">${actions}</div>
+  </header>`;
+}
+
+// ── Modales (overlay + panel) ────────────────────────────────────────────────
+/** Backdrop de modal centrado (z-50). El panel define su propio `max-w-*`. */
+export const MODAL_OVERLAY =
+  "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]";
+
+/** Backdrop para submodales que abren sobre otro modal (z-[60]). */
+export const MODAL_OVERLAY_NESTED =
+  "fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]";
+
+/** Panel de modal estándar: añade tu `max-w-*` al usarlo. */
+export const MODAL_PANEL =
+  "w-full rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]";
+
+// ── Campos de formulario (input / textarea) ──────────────────────────────────
+/** Input de texto estándar en formularios/modales. */
+export const FIELD_INPUT =
+  `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}`;
+
+/** Textarea estándar en formularios/modales. */
+export const FIELD_TEXTAREA =
+  `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}`;
+
+// ── Encabezado de tabla estándar (thead) ─────────────────────────────────────
+/** `<thead>` consistente: borde inferior, fondo claro, texto micro en mayúsculas. */
+export const RH_TABLE_HEAD =
+  "border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500";
+
+// ── Alertas en bloque (status / error) ───────────────────────────────────────
+/** Mensaje de éxito (emerald). */
+export function alertSuccess(message: string, role = "status"): string {
+  return `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800" role="${role}">${escapeHtml(message)}</div>`;
+}
+
+/** Mensaje de error (red). */
+export function alertError(message: string, role = "alert"): string {
+  return `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="${role}">${escapeHtml(message)}</div>`;
+}
 
 // ── Badges de estado — patrón unificado: píldora + dot ───────────────────────
 

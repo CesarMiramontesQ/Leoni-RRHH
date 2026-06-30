@@ -18,7 +18,7 @@ export type EditarCompetenciasModalOptions = {
 };
 
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { BTN_PRIMARY, BTN_GHOST, FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, FIELD_TEXTAREA, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
 const TIPO_CHIP_PALETTE = [
   "bg-blue-50 text-blue-700",
@@ -33,11 +33,11 @@ function overlayHtml(): string {
   return `
     <div
       id="editar-competencias-overlay"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
+      class="${MODAL_OVERLAY} hidden"
       role="presentation"
     >
       <div
-        class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+        class="${MODAL_PANEL} max-w-lg p-6 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="editar-competencias-title"
@@ -105,7 +105,7 @@ function renderAddForm(showCreateNew: boolean, tipos: TipoCompetencia[]): string
       <!-- Search -->
       <div>
         <input id="comp-search" type="text" autocomplete="off"
-          class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+          class="${FIELD_INPUT}"
           placeholder="Buscar competencia por nombre..." />
       </div>
       <div id="comp-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
@@ -114,13 +114,13 @@ function renderAddForm(showCreateNew: boolean, tipos: TipoCompetencia[]): string
       <div id="comp-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="comp-selected-info" class="flex items-center justify-between"></div>
         <div class="flex justify-end mt-2">
-          <button type="button" id="comp-submit-assign" class="${BTN_PRIMARY} text-sm">Agregar al perfil</button>
+          <button type="button" id="comp-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Agregar al perfil</button>
         </div>
       </div>
 
       <!-- Create new toggle -->
       <div class="pt-2 border-t border-slate-100">
-        <button type="button" id="comp-toggle-create" class="${BTN_GHOST} text-xs">
+        <button type="button" id="comp-toggle-create" class="${RH_LISTADO_BTN_GHOST} text-xs">
           ${showCreateNew ? "Cerrar" : "+ Crear nueva competencia"}
         </button>
       </div>
@@ -132,26 +132,26 @@ function renderAddForm(showCreateNew: boolean, tipos: TipoCompetencia[]): string
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
           <input id="comp-new-nombre" type="text" required
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            class="${FIELD_INPUT}"
             placeholder="Nombre de la competencia" />
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Descripcion</label>
           <textarea id="comp-new-desc" rows="2" required
-            class="block w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary ${FIELD_FOCUS}"
+            class="${FIELD_TEXTAREA}"
             placeholder="Descripcion breve..."></textarea>
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-slate-600">Tipo</label>
-          <div class="grid grid-cols-1">
-            <select id="comp-new-tipo" required class="col-start-1 row-start-1 block w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 pr-8 text-sm text-text-primary ${FIELD_FOCUS}" ${tipos.length === 0 ? "disabled" : ""}>
+          <div class="relative grid grid-cols-1">
+            <select id="comp-new-tipo" required class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}" ${tipos.length === 0 ? "disabled" : ""}>
               ${tipos.length === 0 ? `<option value="">Sin tipos registrados</option>` : tipos.map((t) => `<option value="${t.id}">${escapeHtml(t.nombre)}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
           </div>
         </div>
         <div class="flex justify-end">
-          <button type="button" id="comp-create-submit" class="${BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
+          <button type="button" id="comp-create-submit" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
         </div>
       </div>` : ""}
     </div>`;

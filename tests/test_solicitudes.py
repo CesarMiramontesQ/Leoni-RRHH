@@ -412,8 +412,164 @@ async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
 
 
 # ---------------------------------------------------------------------------
+# TC-SOL-004e: Vacaciones administrativo — solo días laborales
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_permiso_sin_goce_administrativo_rechaza_fin_de_semana(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    supervisor = await make_empleado(db, rol="supervisor", email="sol004g_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004g_sub@leoni.test",
+        lider_id=supervisor.empleado_id,
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, supervisor)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "permiso_sin_goce_sueldo",
+            "fecha_inicio": "2026-05-08",
+            "fecha_fin": "2026-05-11",
+            "empleado_id": subordinado.id,
+            "motivo": "Permiso personal",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "entre semana" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_permiso_sin_goce_administrativo_entre_semana_ok(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    supervisor = await make_empleado(db, rol="supervisor", email="sol004h_sup@leoni.test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004h_sub@leoni.test",
+        lider_id=supervisor.empleado_id,
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, supervisor)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "permiso_sin_goce_sueldo",
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-06",
+            "empleado_id": subordinado.id,
+            "motivo": "Permiso personal",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_vacaciones_administrativo_rechaza_fin_de_semana(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004e@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+        dias_vacaciones=10,
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-05-08",
+            "fecha_fin": "2026-05-11",
+            "comentarios": "Incluye fin de semana",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "entre semana" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_vacaciones_administrativo_debita_dias_laborales(
+    client: AsyncClient, db,
+):
+    from sqlalchemy import select
+
+    from app.models.vacaciones_disponibles import VacacionesDisponibles
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol004f@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+        dias_vacaciones=10,
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-08",
+            "comentarios": "Semana laboral",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+    result = await db.execute(
+        select(VacacionesDisponibles).where(
+            VacacionesDisponibles.no_empleado == empleado.no_empleado
+        )
+    )
+    row = result.scalar_one()
+    assert row.dias == 5
+
+
 # TC-SOL-004d: Vacaciones con saldo insuficiente → 422
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
+    client: AsyncClient, db,
+):
+    empleado = await make_empleado(
+        db, rol="empleado", email="sol004c@leoni.test", dias_vacaciones=0
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "vacaciones",
+            "fecha_inicio": "2026-05-05",
+            "fecha_fin": "2026-05-05",
+            "comentarios": "Un solo día",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    detail = response.json().get("detail", "")
+    assert "días de vacaciones disponibles" in detail.lower()
 
 
 @pytest.mark.asyncio
@@ -1281,7 +1437,7 @@ async def test_patch_revision_requisitor_changes_requested_ok(client: AsyncClien
     patch_body = {
         "fecha_inicio": "2026-05-12",
         "fecha_fin": "2026-05-16",
-        "comentarios": "Fechas corregidas según comentario del supervisor.",
+        "motivo": "Fechas corregidas según comentario del supervisor.",
     }
     response = await client.patch(
         f"/api/v1/solicitudes/{solicitud.id}/revision",
@@ -1294,7 +1450,7 @@ async def test_patch_revision_requisitor_changes_requested_ok(client: AsyncClien
     assert body["nivel_actual"] == 1
     assert body["fecha_inicio"] == patch_body["fecha_inicio"]
     assert body["fecha_fin"] == patch_body["fecha_fin"]
-    assert body["comentarios"] == patch_body["comentarios"]
+    assert body["motivo"] == patch_body["motivo"]
 
 
 @pytest.mark.asyncio
@@ -1401,7 +1557,7 @@ async def test_patch_revision_notifica_supervisor_corregida_reenviada(client: As
         json={
             "fecha_inicio": "2026-06-09",
             "fecha_fin": "2026-06-13",
-            "comentarios": "Corrección aplicada.",
+            "motivo": "Corrección aplicada.",
         },
         headers=headers_sub,
     )
@@ -1667,6 +1823,31 @@ async def test_crear_solicitud_rh_home_office_no_administrativo_retorna_422(
 
 
 @pytest.mark.asyncio
+async def test_crear_solicitud_home_office_fin_de_semana_retorna_422(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_weekend@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-06",
+            "fecha_fin": "2026-06-06",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "entre semana" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
 async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: AsyncClient, db):
     from tests.conftest import make_clasificacion_administrativo
 
@@ -1688,11 +1869,170 @@ async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: As
         headers=headers,
     )
     assert response.status_code == 422
-    assert "solo se permite un día" in response.text
+    assert "un día" in response.text.lower()
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(client: AsyncClient, db):
+async def test_crear_solicitud_rh_home_office_rango_retorna_422(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    rh = await make_empleado(db, rol="rh", email="sol027_ho_rh_rango@leoni.test")
+    colaborador = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_sub_rango@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-06",
+            "empleado_id": colaborador.id,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "un día" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_segundo_mes_mismo_mes_retorna_422(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_mes@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="approved",
+        fecha_inicio=date(2026, 6, 3),
+        fecha_fin=date(2026, 6, 3),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-10",
+            "fecha_fin": "2026-06-10",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "mes" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_meses_distintos_ok(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_mes_ok@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="approved",
+        fecha_inicio=date(2026, 5, 6),
+        fecha_fin=date(2026, 5, 6),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "home_office",
+            "fecha_inicio": "2026-06-02",
+            "fecha_fin": "2026-06-02",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_patch_revision_home_office_mismo_mes_excluye_solicitud_actual(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_rev@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="changes_requested",
+        fecha_inicio=date(2026, 6, 2),
+        fecha_fin=date(2026, 6, 2),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.patch(
+        f"/api/v1/solicitudes/{solicitud.id}/revision",
+        json={
+            "fecha_inicio": "2026-06-09",
+            "fecha_fin": "2026-06-09",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["fecha_inicio"] == "2026-06-09"
+
+
+@pytest.mark.asyncio
+async def test_get_home_office_disponibilidad_empleado(client: AsyncClient, db):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027_ho_disp@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="pending",
+        fecha_inicio=date(2026, 6, 4),
+        fecha_fin=date(2026, 6, 4),
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.get(
+        f"/api/v1/empleados/{empleado.id}/home-office/disponibilidad",
+        params={"fecha": "2026-06-15"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["dias_usados"] == 1
+    assert body["puede_solicitar"] is False
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_matrimonio_solo_rh_y_dos_dias_ok(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="sol027b_rh@leoni.test")
     empleado = await make_empleado(db, rol="empleado", email="sol027b_emp@leoni.test")
     headers = await auth_headers(client, rh)
@@ -1702,8 +2042,7 @@ async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(cli
             "tipo": "matrimonio",
             "empleado_id": empleado.id,
             "fecha_inicio": "2026-05-04",
-            "fecha_fin": "2026-05-30",
-            "comentarios": "Alta RH",
+            "fecha_fin": "2026-05-05",
         },
         headers=headers,
     )
@@ -1715,7 +2054,26 @@ async def test_crear_solicitud_goce_matrimonio_solo_rh_y_duracion_automatica(cli
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_goce_paternidad_calcula_7_dias_habiles(client: AsyncClient, db):
+async def test_crear_solicitud_goce_matrimonio_rango_invalido_retorna_422(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol027b_rh_inv@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027b_emp_inv@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "matrimonio",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-30",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "2 días" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_paternidad_siete_dias_habiles_ok(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="sol027c_rh@leoni.test")
     empleado = await make_empleado(db, rol="empleado", email="sol027c_emp@leoni.test")
     headers = await auth_headers(client, rh)
@@ -1725,7 +2083,7 @@ async def test_crear_solicitud_goce_paternidad_calcula_7_dias_habiles(client: As
             "tipo": "paternidad",
             "empleado_id": empleado.id,
             "fecha_inicio": "2026-05-04",
-            "fecha_fin": "2026-05-04",
+            "fecha_fin": "2026-05-12",
         },
         headers=headers,
     )
@@ -1733,6 +2091,155 @@ async def test_crear_solicitud_goce_paternidad_calcula_7_dias_habiles(client: As
     body = response.json()
     assert body["fecha_inicio"] == "2026-05-04"
     assert body["fecha_fin"] == "2026-05-12"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_paternidad_ajusta_inicio_fin_de_semana(
+    client: AsyncClient, db
+):
+    rh = await make_empleado(db, rol="rh", email="sol027c_rh_wk@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027c_emp_wk@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "paternidad",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-11",
+            "fecha_fin": "2026-05-19",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["fecha_inicio"] == "2026-05-11"
+    assert body["fecha_fin"] == "2026-05-19"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_paternidad_rango_invalido_retorna_422(
+    client: AsyncClient, db
+):
+    rh = await make_empleado(db, rol="rh", email="sol027c_rh_inv@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027c_emp_inv@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "paternidad",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-04",
+            "fecha_fin": "2026-05-30",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "7 días hábiles" in response.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_tres_dias_calendario_ok(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="sol027e_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027e_emp@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-06",
+            "fecha_fin": "2026-05-08",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tipo"] == "defuncion"
+    assert body["fecha_inicio"] == "2026-05-06"
+    assert body["fecha_fin"] == "2026-05-08"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_administrativo_entre_semana_ok(
+    client: AsyncClient, db
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    rh = await make_empleado(db, rol="rh", email="sol027f_rh@leoni.test")
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027f_emp@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-06",
+            "fecha_fin": "2026-05-08",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["fecha_inicio"] == "2026-05-06"
+    assert body["fecha_fin"] == "2026-05-08"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_administrativo_ajusta_fin_de_semana(
+    client: AsyncClient, db
+):
+    from tests.conftest import make_clasificacion_administrativo
+
+    cl_admin = await make_clasificacion_administrativo(db)
+    rh = await make_empleado(db, rol="rh", email="sol027g_rh@leoni.test")
+    empleado = await make_empleado(
+        db,
+        rol="empleado",
+        email="sol027g_emp@leoni.test",
+        clasificacion_id=cl_admin.clasificacion_id,
+    )
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-07",
+            "fecha_fin": "2026-05-11",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["fecha_inicio"] == "2026-05-07"
+    assert body["fecha_fin"] == "2026-05-11"
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_goce_defuncion_rango_invalido_retorna_422(
+    client: AsyncClient, db
+):
+    rh = await make_empleado(db, rol="rh", email="sol027h_rh@leoni.test")
+    empleado = await make_empleado(db, rol="empleado", email="sol027h_emp@leoni.test")
+    headers = await auth_headers(client, rh)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={
+            "tipo": "defuncion",
+            "empleado_id": empleado.id,
+            "fecha_inicio": "2026-05-06",
+            "fecha_fin": "2026-05-30",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "3 días" in response.json().get("detail", "").lower()
 
 
 @pytest.mark.asyncio

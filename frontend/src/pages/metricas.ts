@@ -1,6 +1,7 @@
 import { canAccessMetricasPage } from "../auth/jwt.ts";
 import { fetchIncidenciasEstadisticas, type IncidenciasFetchError } from "../api/incidencias.ts";
 import { getFaltasRetardosEstadisticas } from "../api/faltasRetardos.ts";
+import { tendenciaAgrupacionForRango } from "../dashboard/rh/filterRowsByPeriod.ts";
 import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
@@ -139,6 +140,7 @@ function loadingFaltasRetardosViewModel(): FaltasRetardosMetricasViewModel {
     estadisticasStatus: "loading",
     estadisticasErrorMessage: undefined,
     empleadosRetardosRanking: [],
+    tendenciaFiltros: { fecha_inicio: "", fecha_fin: "" },
   };
 }
 
@@ -180,6 +182,10 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       estadisticasStatus: frEstadisticasStatus,
       estadisticasErrorMessage: frEstadisticasError,
       empleadosRetardosRanking: frEmpleadosRetardosRanking,
+      tendenciaFiltros: {
+        fecha_inicio: appliedFilters.fecha_inicio,
+        fecha_fin: appliedFilters.fecha_fin,
+      },
     };
   }
 
@@ -244,9 +250,13 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
 
     try {
       const filters = faltasRetardosFiltersFromSolicitudesMetricas(appliedFilters);
+      const tendenciaAgrupacion = tendenciaAgrupacionForRango(
+        filters.fecha_inicio ?? "",
+        filters.fecha_fin ?? "",
+      );
       const filtersRetardo = { ...filters, tipo: "retardo" as const };
       const [estadisticas, retardosEstadisticas] = await Promise.all([
-        getFaltasRetardosEstadisticas(filters),
+        getFaltasRetardosEstadisticas({ ...filters, tendencia_agrupacion: tendenciaAgrupacion }),
         getFaltasRetardosEstadisticas(filtersRetardo).catch(() => null),
       ]);
       if (isStale()) return;
@@ -288,7 +298,10 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
 
     try {
       const applied = appliedIncidenciasFilters();
-      incEstadisticas = await fetchIncidenciasEstadisticas(applied);
+      const tendenciaAgrupacion = tendenciaAgrupacionForRango(applied.fecha_inicio, applied.fecha_fin);
+      incEstadisticas = await fetchIncidenciasEstadisticas(applied, {
+        tendencia_agrupacion: tendenciaAgrupacion,
+      });
       if (isStale()) return;
       incEstadisticasStatus = "ready";
       incEstadisticasError = undefined;

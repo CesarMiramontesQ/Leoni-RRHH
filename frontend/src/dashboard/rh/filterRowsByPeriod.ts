@@ -99,6 +99,20 @@ export function tendenciaAgrupacionForPeriod(days: RhDashboardPeriodDays): RhDas
   return "mes";
 }
 
+/** Granularidad del eje X de tendencia según rango de fechas (p. ej. Métricas). */
+export function tendenciaAgrupacionForRango(
+  fechaInicio: string,
+  fechaFin: string,
+): RhDashboardTendenciaAgrupacion {
+  const fi = fechaInicio.trim();
+  const ff = fechaFin.trim();
+  if (!fi || !ff) return "mes";
+  const days = listDiasEnRango(fi, ff).length;
+  if (days <= 31) return "dia";
+  if (days <= 90) return "semana";
+  return "mes";
+}
+
 /** Días ISO inclusivos [fechaInicio, fechaFin]. */
 export function listDiasEnRango(fechaInicio: string, fechaFin: string): string[] {
   const start = parseIsoLocal(fechaInicio);

@@ -2,17 +2,20 @@
 
 from typing import TypeVar
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.core.database import Base
 from app.models.cursos_catalogo import (
     CursoCategoria,
     CursoClasificacion,
     CursoInstructorExterno,
+    CursoInstructorInterno,
     CursoProveedor,
     CursoTipo,
 )
+from app.models.empleados import Empleado
 from app.repositories.base import BaseRepository
 
 T = TypeVar("T", bound=Base)
@@ -105,6 +108,61 @@ class InstructorExternoRepository(BaseRepository[CursoInstructorExterno]):
         )
         if exclude_id:
             query = query.where(CursoInstructorExterno.id != exclude_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is not None
+
+
+class InstructorInternoRepository(BaseRepository[CursoInstructorInterno]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(CursoInstructorInterno, db)
+
+    async def list_filtered(
+        self,
+        offset: int,
+        limit: int,
+        busqueda: str | None = None,
+        solo_activos: bool = True,
+    ) -> tuple[list[CursoInstructorInterno], int]:
+        query = select(CursoInstructorInterno).options(joinedload(CursoInstructorInterno.empleado_rel))
+        query = query.join(Empleado, CursoInstructorInterno.empleado_id == Empleado.empleado_id)
+        if solo_activos:
+            query = query.where(CursoInstructorInterno.activo.is_(True))
+        if busqueda:
+            escaped = busqueda.replace("%", r"\%").replace("_", r"\_")
+            query = query.where(
+                or_(
+                    Empleado.nombre.ilike(f"%{escaped}%", escape="\\"),
+                    func.cast(Empleado.no_empleado, String).ilike(f"%{escaped}%", escape="\\"),
+                    CursoInstructorInterno.especialidad.ilike(f"%{escaped}%", escape="\\"),
+                )
+            )
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.db.scalar(count_query)
+        query = query.order_by(Empleado.nombre).offset(offset).limit(limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().unique().all()), total or 0
+
+    async def get_by_empleado_id(self, empleado_id: int) -> CursoInstructorInterno | None:
+        query = select(CursoInstructorInterno).where(CursoInstructorInterno.empleado_id == empleado_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_with_empleado(self, id: int) -> CursoInstructorInterno | None:
+        query = (
+            select(CursoInstructorInterno)
+            .options(joinedload(CursoInstructorInterno.empleado_rel))
+            .where(CursoInstructorInterno.id == id)
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def exists_active_by_empleado_id(self, empleado_id: int, exclude_id: int | None = None) -> bool:
+        query = select(CursoInstructorInterno).where(
+            CursoInstructorInterno.empleado_id == empleado_id,
+            CursoInstructorInterno.activo.is_(True),
+        )
+        if exclude_id:
+            query = query.where(CursoInstructorInterno.id != exclude_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
 

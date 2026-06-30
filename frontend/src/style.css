@@ -2802,6 +2802,170 @@ body {
   color: #047857;
 }
 
+/* Matriz de competencias (competencia × grado) */
+.ppd-page .ppd-matrix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.125rem;
+  margin-bottom: 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ppd-page .ppd-matrix-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ppd-page .ppd-matrix-legend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 800;
+}
+
+.ppd-page .ppd-matrix-wrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 12px;
+}
+
+.ppd-page .ppd-matrix {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ppd-page .ppd-matrix thead th {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.625rem 0.75rem;
+  vertical-align: bottom;
+}
+
+.ppd-page .ppd-matrix-corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #f8fafc;
+  width: 100%;
+  min-width: 220px;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.ppd-page .ppd-matrix-col {
+  width: 132px;
+  min-width: 132px;
+  text-align: center;
+}
+
+.ppd-page .ppd-matrix-col-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3125rem;
+}
+
+.ppd-page .ppd-matrix-col-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.ppd-page .ppd-matrix-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 7px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  color: #64748b;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.ppd-page .ppd-matrix-edit:hover {
+  color: #1e40af;
+  border-color: rgba(191, 219, 254, 0.9);
+  background: rgba(239, 246, 255, 0.85);
+}
+
+.ppd-page .ppd-matrix-edit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+.ppd-page .ppd-matrix-edit svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+.ppd-page .ppd-matrix-cat td {
+  padding: 0.75rem 0.75rem 0.375rem;
+  background: #fff;
+}
+
+.ppd-page .ppd-matrix-cat:first-child td {
+  padding-top: 0.5rem;
+}
+
+.ppd-page .ppd-matrix-name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  min-width: 220px;
+  max-width: 340px;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #1e293b;
+}
+
+.ppd-page .ppd-matrix-cell {
+  padding: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  border-left: 1px solid #f8fafc;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ppd-page .ppd-matrix-row:hover .ppd-matrix-name,
+.ppd-page .ppd-matrix-row:hover .ppd-matrix-cell {
+  background: #f8fafc;
+}
+
+.ppd-page .ppd-matrix-empty {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.ppd-page .ppd-matrix-nivel-label {
+  font-size: 0.6875rem;
+}
+
 .ppd-page .ppd-back-link:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
@@ -3317,11 +3481,26 @@ body {
   }
 }
 
-/* ── Detalle de sesión (.ss-page.ss-detail) ─────────────────────────────── */
-.ss-page.ss-detail .ss-detail-breadcrumb {
-  padding-top: 0.125rem;
+/* ── Seguimiento de capacitaciones (.cs-page) ───────────────────────────── */
+.cs-page .cs-seguimiento-row {
+  transition: background-color 140ms ease;
 }
 
+.cs-page .cs-seguimiento-row:hover {
+  background: linear-gradient(90deg, rgba(239, 246, 255, 0.55) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.cs-page .cs-seguimiento-row:focus-within {
+  background: rgba(239, 246, 255, 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-page .cs-seguimiento-row {
+    transition: none;
+  }
+}
+
+/* ── Detalle de sesión (.ss-page.ss-detail) ─────────────────────────────── */
 .ss-page.ss-detail .ss-detail-header {
   padding-bottom: 0.25rem;
 }

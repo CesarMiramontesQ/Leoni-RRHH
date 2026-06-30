@@ -221,6 +221,57 @@ class BonoFaltasRetardosRepository:
                     out.append((ps, int(row["cnt"])))
             return out
 
+    async def aggregate_por_periodo_y_tipo(
+        self,
+        *,
+        agrupacion: str,
+        empleado_id: int | None = None,
+        tipo: str | None = None,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        busqueda: str | None = None,
+        area: str | None = None,
+        empleado_ids_scope: list[int] | None = None,
+    ) -> list[tuple[str, str, int]]:
+        if agrupacion == "dia":
+            period_expr = "to_char(fecha_evento, 'YYYY-MM-DD')"
+        elif agrupacion == "semana":
+            period_expr = (
+                "to_char(CAST(date_trunc('week', fecha_evento) AS date), 'YYYY-MM-DD')"
+            )
+        else:
+            period_expr = "to_char(fecha_evento, 'YYYY-MM')"
+
+        where_sql, params = self._build_where(
+            empleado_id=empleado_id,
+            tipo=tipo,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            busqueda=busqueda,
+            area=area,
+            empleado_ids_scope=empleado_ids_scope,
+        )
+        sql = (
+            f"SELECT {period_expr} AS periodo, tipo_codigo, COUNT(*) AS cnt "
+            f"FROM ({self._from_sql(where_sql)}) AS sub "
+            "WHERE fecha_evento IS NOT NULL "
+            "GROUP BY periodo, tipo_codigo ORDER BY periodo ASC"
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            out: list[tuple[str, str, int]] = []
+            for row in result.mappings().all():
+                periodo = row["periodo"]
+                codigo = row["tipo_codigo"]
+                if periodo is None or codigo is None:
+                    continue
+                ps = str(periodo).strip()
+                code = str(codigo).strip().upper()
+                if not ps or not code:
+                    continue
+                out.append((ps, code, int(row["cnt"])))
+            return out
+
     async def aggregate_empleados_top_por_tipo(
         self,
         *,

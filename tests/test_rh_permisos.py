@@ -828,95 +828,23 @@ async def test_non_rh_not_enrolled_has_no_rh_exclusive_modules(db):
     assert user_has_module(director, "puestos") is False
 
 
-# ── Administración del flag puede_administrar_permisos_rh (UI + auditoría) ──
-
-
-async def _count_audit(db, accion: str) -> int:
-    from sqlalchemy import func, select
-
-    from app.models.auditoria import AuditLog
-
-    return int(
-        (
-            await db.execute(
-                select(func.count()).select_from(AuditLog).where(AuditLog.accion == accion)
-            )
-        ).scalar_one()
-    )
-
-
-@pytest.mark.asyncio
-async def test_admin_grant_admin_flag_audits(client: AsyncClient, db):
-    admin = await make_empleado(
-        db, rol="rh", email="rh_grant_admin@test.com", puede_administrar_permisos_rh=True
-    )
-    target = await make_empleado(db, rol="gerente", email="grant_target@test.com")
-
-    res = await client.put(
-        f"/api/v1/rh-permisos/usuarios/{target.empleado_id}/admin",
-        headers=await auth_headers(client, admin),
-        json={"conceder": True},
-    )
-    assert res.status_code == 200
-    assert res.json()["puede_administrar_permisos_rh"] is True
-
-    await db.refresh(target)
-    assert target.puede_administrar_permisos_rh is True
-    assert await _count_audit(db, "RH_PERMISOS_ADMIN_GRANTED") >= 1
-
-
-@pytest.mark.asyncio
-async def test_admin_revoke_admin_flag(client: AsyncClient, db):
-    admin = await make_empleado(
-        db, rol="rh", email="rh_revoker@test.com", puede_administrar_permisos_rh=True
-    )
-    other = await make_empleado(
-        db, rol="rh", email="rh_revokee@test.com", puede_administrar_permisos_rh=True
-    )
-
-    res = await client.put(
-        f"/api/v1/rh-permisos/usuarios/{other.empleado_id}/admin",
-        headers=await auth_headers(client, admin),
-        json={"conceder": False},
-    )
-    assert res.status_code == 200
-    assert res.json()["puede_administrar_permisos_rh"] is False
-
-    await db.refresh(other)
-    assert other.puede_administrar_permisos_rh is False
-    assert await _count_audit(db, "RH_PERMISOS_ADMIN_REVOKED") >= 1
-
-
-@pytest.mark.asyncio
-async def test_cannot_change_own_admin_flag(client: AsyncClient, db):
-    admin = await make_empleado(
-        db, rol="rh", email="rh_self_admin@test.com", puede_administrar_permisos_rh=True
-    )
-    res = await client.put(
-        f"/api/v1/rh-permisos/usuarios/{admin.empleado_id}/admin",
-        headers=await auth_headers(client, admin),
-        json={"conceder": False},
-    )
-    assert res.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_non_admin_cannot_grant_admin_flag(client: AsyncClient, db):
-    rh_no_admin = await make_empleado(db, rol="rh", email="rh_noadmin@test.com")
-    target = await make_empleado(db, rol="gerente", email="noadmin_target@test.com")
-    res = await client.put(
-        f"/api/v1/rh-permisos/usuarios/{target.empleado_id}/admin",
-        headers=await auth_headers(client, rh_no_admin),
-        json={"conceder": True},
-    )
-    assert res.status_code == 403
+# ── Bootstrap admin RH ──
 
 
 @pytest.mark.asyncio
 async def test_bootstrap_rh_admins_recovery_semantics(db, monkeypatch):
     """ensure_bootstrap_rh_admins: no-op si ya hay admins; otorga si no hay."""
+    from sqlalchemy import update
+
     from app.core.config import settings
+    from app.models.empleados_rh import EmpleadoRhPermisos
     from app.utils.seed import ensure_bootstrap_rh_admins
+
+    # Aislar: partimos sin admins (tests previos pueden haber creado alguno).
+    await db.execute(
+        update(EmpleadoRhPermisos).values(puede_administrar_permisos_rh=False)
+    )
+    await db.flush()
 
     cand = await make_empleado(db, rol="empleado", email="bootstrap_cand@test.com")
     monkeypatch.setattr(

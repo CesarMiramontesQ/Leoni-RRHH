@@ -52,6 +52,7 @@ import app.models.notificaciones  # noqa: F401
 import app.models.emails  # noqa: F401
 import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
+import app.models.cursos_catalogo  # noqa: F401
 import app.models.vacaciones  # noqa: F401
 import app.models.turnos_empleados  # noqa: F401
 
@@ -275,10 +276,10 @@ async def make_empleado(
     core.rol = rol_obj
 
     if dias_vacaciones is not None:
-        from app.models.vacaciones import Vacaciones
+        from app.models.vacaciones_disponibles import VacacionesDisponibles
 
         db.add(
-            Vacaciones(empleado_id=empleado.empleado_id, dias_disponibles=dias_vacaciones)
+            VacacionesDisponibles(no_empleado=empleado.no_empleado, dias=dias_vacaciones)
         )
         await db.flush()
 

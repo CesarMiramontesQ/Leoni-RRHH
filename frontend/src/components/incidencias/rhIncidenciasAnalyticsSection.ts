@@ -1,10 +1,14 @@
 import { INC_COPY } from "../../incidencias/rh/incidenciasCopy.ts";
-import type { RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
+import {
+  buildIncidenciasTendenciaFromEstadisticas,
+  tendenciaPorTipoTieneDatos,
+} from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
+import type { RhIncidenciaListFilters, RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import {
   mountIncidenciasAreasBarChart,
   mountIncidenciasTipoBarChart,
   mountIncidenciasSubareasBarChart,
-  mountIncidenciasTendenciaPorMesChart,
+  mountIncidenciasTendenciaPorTipoChart,
   RH_INC_AREAS_BAR_CHART_ID,
   RH_INC_SUBAREAS_BAR_CHART_ID,
   RH_INC_TENDENCIA_CHART_ID,
@@ -12,7 +16,7 @@ import {
   renderIncidenciasAreasBarChart,
   renderIncidenciasTipoBarChart,
   renderIncidenciasSubareasBarChart,
-  renderIncidenciasTendenciaPorMes,
+  renderIncidenciasTendenciaPorTipoChart,
 } from "./rhIncidenciasCharts.ts";
 import { RH_LISTADO_SURFACE } from "./rhIncidenciasPageStyles.ts";
 import { escapeIncHtml } from "./rhIncidenciasUiUtils.ts";
@@ -156,7 +160,10 @@ function renderKpisContent(d: NonNullable<RhIncidenciasAdminViewModel["estadisti
     </section>`;
 }
 
-function renderChartsContent(d: NonNullable<RhIncidenciasAdminViewModel["estadisticas"]>): string {
+function renderChartsContent(
+  d: NonNullable<RhIncidenciasAdminViewModel["estadisticas"]>,
+  appliedFilters: RhIncidenciaListFilters,
+): string {
   const total = d.total_incidencias ?? 0;
   if (total === 0) {
     return `
@@ -165,8 +172,10 @@ function renderChartsContent(d: NonNullable<RhIncidenciasAdminViewModel["estadis
         <p class="mt-2 max-w-md text-sm text-[color:var(--color-text-secondary)]">${escapeIncHtml(INC_COPY.tablaVaciaDescripcion)}</p>
       </div>`;
   }
-  const serie = d.incidencias_por_mes ?? [];
-  const tendencia = renderIncidenciasTendenciaPorMes(serie);
+  const tendenciaData = buildIncidenciasTendenciaFromEstadisticas(d, appliedFilters);
+  const tendencia = tendenciaPorTipoTieneDatos(tendenciaData)
+    ? renderIncidenciasTendenciaPorTipoChart(tendenciaData!)
+    : `<div class="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</div>`;
   const tipoBar = renderIncidenciasTipoBarChart(d.incidencias_por_tipo);
   const bloquePrincipal = `
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch" aria-label="${escapeIncHtml(INC_COPY.analiticaBloquePrincipalAria)}">
@@ -240,7 +249,7 @@ export function renderRhIncidenciasChartsSection(vm: RhIncidenciasAdminViewModel
       <div class="rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-text-muted)]">${escapeIncHtml(INC_COPY.analiticaSinDatos)}</div>
     </div>`;
   }
-  return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">${renderChartsContent(d)}</div>`;
+  return `<div id="rh-inc-analytics" class="flex shrink-0 flex-col gap-4 sm:gap-5">${renderChartsContent(d, vm.appliedFilters)}</div>`;
 }
 
 const RH_INC_ANALYTICS_CHART_IDS = [
@@ -262,7 +271,10 @@ export function mountRhIncidenciasAnalyticsCharts(
   if (analyticsHost) destroyChartsInContainer(analyticsHost);
   if (vm.estadisticasStatus !== "ready" || !vm.estadisticas) return;
   const d = vm.estadisticas;
-  mountIncidenciasTendenciaPorMesChart(root, d.incidencias_por_mes ?? []);
+  const tendencia = buildIncidenciasTendenciaFromEstadisticas(d, vm.appliedFilters);
+  if (tendenciaPorTipoTieneDatos(tendencia)) {
+    mountIncidenciasTendenciaPorTipoChart(root, tendencia!);
+  }
   mountIncidenciasTipoBarChart(root, d.incidencias_por_tipo ?? []);
   mountIncidenciasAreasBarChart(root, d.areas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
   mountIncidenciasSubareasBarChart(root, d.subareas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);

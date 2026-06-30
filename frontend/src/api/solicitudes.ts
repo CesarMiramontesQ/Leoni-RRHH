@@ -292,7 +292,7 @@ export async function requestChangesSolicitud(
 export type SolicitudRevisionPatchPayload = {
   fecha_inicio: string;
   fecha_fin: string;
-  comentarios: string | null;
+  motivo: string | null;
 };
 
 export async function patchSolicitudRevision(
@@ -305,7 +305,7 @@ export async function patchSolicitudRevision(
     body: JSON.stringify({
       fecha_inicio: body.fecha_inicio,
       fecha_fin: body.fecha_fin,
-      comentarios: body.comentarios,
+      motivo: body.motivo,
     }),
   });
   if (!res.ok) {

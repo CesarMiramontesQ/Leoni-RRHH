@@ -226,6 +226,52 @@ export async function getCursoPuestos(cursoId: number): Promise<CursoPuestoDetai
   return res.json();
 }
 
+export async function agregarPuestoCurso(
+  cursoId: number,
+  puestoPerfilId: number,
+  obligatorio?: boolean,
+): Promise<CursoPuestoDetail> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/puestos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      puesto_perfil_id: puestoPerfilId,
+      ...(obligatorio !== undefined ? { obligatorio } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function quitarPuestoCurso(cursoId: number, cursoPuestoId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/puestos/${cursoPuestoId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+}
+
+export type CatalogoPuestoPerfilItem = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  area_nombre: string | null;
+};
+
+export async function getCursoCatalogosPuestos(cursoId: number): Promise<CatalogoPuestoPerfilItem[]> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/catalogos-puestos`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
 export async function getCursoEmpleadosExtra(cursoId: number): Promise<CursoEmpleadoDetail[]> {
   const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/empleados-extra`);
   if (!res.ok) {
@@ -233,6 +279,52 @@ export async function getCursoEmpleadosExtra(cursoId: number): Promise<CursoEmpl
     throw { status: res.status, detail };
   }
   return res.json();
+}
+
+export type EmpleadoExtraElegible = {
+  id: number;
+  nombre: string | null;
+  no_empleado: string | null;
+};
+
+export async function buscarEmpleadosExtraCurso(cursoId: number, q: string): Promise<EmpleadoExtraElegible[]> {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set("q", q.trim());
+  const res = await fetchWithAuth(
+    `/api/v1/level-up/cursos/${cursoId}/empleados-elegibles-extra?${params.toString()}`,
+  );
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function agregarEmpleadoExtraCurso(
+  cursoId: number,
+  empleadoId: number,
+): Promise<CursoEmpleadoDetail> {
+  const res = await fetchWithAuth(`/api/v1/level-up/cursos/${cursoId}/empleados-extra`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ empleado_id: empleadoId }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
+  return res.json();
+}
+
+export async function quitarEmpleadoExtraCurso(cursoId: number, cursoEmpleadoId: number): Promise<void> {
+  const res = await fetchWithAuth(
+    `/api/v1/level-up/cursos/${cursoId}/empleados-extra/${cursoEmpleadoId}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail };
+  }
 }
 
 // ── Sesiones de un curso ──────────────────────────────────────────────────────
@@ -452,4 +544,18 @@ export async function quitarGrupoCurso(cursoId: number, grupoId: number): Promis
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail };
   }
+}
+
+/** Áreas asignadas al curso (filtra grupos con tipo area). */
+export async function getCursoAreas(cursoId: number): Promise<CursoGrupoItem[]> {
+  const grupos = await getCursoGrupos(cursoId);
+  return grupos.filter((g) => g.tipo === "area");
+}
+
+export async function agregarAreaCurso(cursoId: number, areaId: number): Promise<CursoGrupoItem> {
+  return agregarGrupoCurso(cursoId, "area", areaId);
+}
+
+export async function quitarAreaCurso(cursoId: number, asignacionId: number): Promise<void> {
+  return quitarGrupoCurso(cursoId, asignacionId);
 }

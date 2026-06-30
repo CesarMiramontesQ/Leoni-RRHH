@@ -1,8 +1,8 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel
-from sqlalchemy import select, func as sa_func
+from pydantic import BaseModel, field_validator
+from sqlalchemy import cast, select, func as sa_func, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -104,6 +104,13 @@ class CursoPuestoEmpleado(BaseModel):
     nombre: str | None = None
     no_empleado: str | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
 
 class CursoPuestoDetail(BaseModel):
     id: int
@@ -126,6 +133,49 @@ class CursoEmpleadoDetail(BaseModel):
     sesion_fecha: str | None = None
     asistio: bool | None = None
 
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
+
+async def _build_curso_puesto_detail(db: AsyncSession, cp: CursoPuesto) -> CursoPuestoDetail:
+    asig_result = await db.execute(
+        select(PerfilFunciones)
+        .options(selectinload(PerfilFunciones.empleado))
+        .where(
+            PerfilFunciones.puesto_perfil_id == cp.puesto_perfil_id,
+            PerfilFunciones.activo.is_(True),
+        )
+    )
+    asignaciones = asig_result.scalars().all()
+    empleados_list = [
+        CursoPuestoEmpleado(
+            empleado_id=a.empleado_id,
+            nombre=a.empleado.nombre if a.empleado else None,
+            no_empleado=a.empleado.no_empleado if a.empleado else None,
+        )
+        for a in asignaciones
+    ]
+    return CursoPuestoDetail(
+        id=cp.id,
+        puesto_perfil_id=cp.puesto_perfil_id,
+        puesto_nombre=cp.puesto_perfil.nombre if cp.puesto_perfil else None,
+        puesto_codigo=cp.puesto_perfil.codigo if cp.puesto_perfil else None,
+        obligatorio=cp.obligatorio,
+        sesion_id=cp.sesion_id,
+        sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
+        empleados_count=len(empleados_list),
+        empleados=empleados_list,
+    )
+
+
+class CursoPuestoAssignBody(BaseModel):
+    puesto_perfil_id: int
+    obligatorio: bool | None = None
+
 
 @router.get("/{id}/puestos", response_model=list[CursoPuestoDetail])
 async def listar_puestos_del_curso(
@@ -133,11 +183,11 @@ async def listar_puestos_del_curso(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista los puestos asignados a este curso, con conteo de empleados por puesto."""
+    """Lista los perfiles de puesto asignados al curso (sin sesión), con empleados activos."""
     stmt = (
         select(CursoPuesto)
         .options(selectinload(CursoPuesto.puesto_perfil), selectinload(CursoPuesto.sesion))
-        .where(CursoPuesto.curso_id == id)
+        .where(CursoPuesto.curso_id == id, CursoPuesto.sesion_id.is_(None))
         .order_by(CursoPuesto.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -145,36 +195,103 @@ async def listar_puestos_del_curso(
 
     response = []
     for cp in items:
-        asig_result = await db.execute(
-            select(PerfilFunciones)
-            .options(selectinload(PerfilFunciones.empleado))
-            .where(
-                PerfilFunciones.puesto_perfil_id == cp.puesto_perfil_id,
-                PerfilFunciones.activo.is_(True),
-            )
-        )
-        asignaciones = asig_result.scalars().all()
-        empleados_list = [
-            CursoPuestoEmpleado(
-                empleado_id=a.empleado_id,
-                nombre=a.empleado.nombre if a.empleado else None,
-                no_empleado=a.empleado.no_empleado if a.empleado else None,
-            )
-            for a in asignaciones
-        ]
-
-        response.append(CursoPuestoDetail(
-            id=cp.id,
-            puesto_perfil_id=cp.puesto_perfil_id,
-            puesto_nombre=cp.puesto_perfil.nombre if cp.puesto_perfil else None,
-            puesto_codigo=cp.puesto_perfil.codigo if cp.puesto_perfil else None,
-            obligatorio=cp.obligatorio,
-            sesion_id=cp.sesion_id,
-            sesion_fecha=str(cp.sesion.fecha_inicio) if cp.sesion else None,
-            empleados_count=len(empleados_list),
-            empleados=empleados_list,
-        ))
+        response.append(await _build_curso_puesto_detail(db, cp))
     return response
+
+
+@router.post("/{id}/puestos", response_model=CursoPuestoDetail, status_code=status.HTTP_201_CREATED)
+async def asignar_puesto_al_curso(
+    id: int,
+    body: CursoPuestoAssignBody,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna un perfil de puesto al curso. Los empleados activos del puesto quedan vinculados."""
+    from app.core.exceptions import ConflictError, NotFoundError
+    from app.models.level_up import Curso as CursoModel
+
+    curso = await db.get(CursoModel, id)
+    if not curso:
+        raise NotFoundError(entidad="Curso", id=id)
+
+    puesto_perfil = await db.get(PuestoPerfil, body.puesto_perfil_id)
+    if not puesto_perfil:
+        raise NotFoundError(entidad="Puesto perfil", id=body.puesto_perfil_id)
+
+    existing = await db.execute(
+        select(CursoPuesto).where(
+            CursoPuesto.curso_id == id,
+            CursoPuesto.puesto_perfil_id == body.puesto_perfil_id,
+            CursoPuesto.sesion_id.is_(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise ConflictError(detail="Este puesto ya está asignado al curso")
+
+    cp = CursoPuesto(
+        curso_id=id,
+        puesto_perfil_id=body.puesto_perfil_id,
+        obligatorio=body.obligatorio if body.obligatorio is not None else curso.obligatorio,
+        sesion_id=None,
+    )
+    db.add(cp)
+    await db.flush()
+    await db.refresh(cp, attribute_names=["puesto_perfil", "sesion"])
+    return await _build_curso_puesto_detail(db, cp)
+
+
+@router.delete("/{id}/puestos/{curso_puesto_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_puesto_del_curso(
+    id: int,
+    curso_puesto_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.exceptions import NotFoundError
+
+    cp = await db.get(CursoPuesto, curso_puesto_id)
+    if not cp or cp.curso_id != id or cp.sesion_id is not None:
+        raise NotFoundError(entidad="Puesto asignado al curso", id=curso_puesto_id)
+    await db.delete(cp)
+    await db.flush()
+
+
+class CatalogoPuestoPerfilItem(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    area_nombre: str | None = None
+
+
+@router.get("/{id}/catalogos-puestos", response_model=list[CatalogoPuestoPerfilItem])
+async def catalogos_puestos_curso(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Perfiles de puesto activos disponibles para asignar al curso (módulo cursos)."""
+    from app.models.catalogos import Area
+
+    result = await db.execute(
+        select(
+            PuestoPerfil.id,
+            PuestoPerfil.codigo,
+            PuestoPerfil.nombre,
+            Area.descripcion,
+        )
+        .outerjoin(Area, PuestoPerfil.area_id == Area.area_id)
+        .where(PuestoPerfil.activo.is_(True))
+        .order_by(PuestoPerfil.nombre)
+    )
+    return [
+        CatalogoPuestoPerfilItem(
+            id=row[0],
+            codigo=row[1],
+            nombre=row[2],
+            area_nombre=row[3],
+        )
+        for row in result.all()
+    ]
 
 
 @router.get("/{id}/empleados-extra", response_model=list[CursoEmpleadoDetail])
@@ -184,17 +301,19 @@ async def listar_empleados_extra_del_curso(
     db: AsyncSession = Depends(get_db),
 ):
     """Lista empleados asignados directamente (no via puesto), deduplicados."""
-    # Empleados cubiertos por un puesto que tiene este curso
-    covered_by_puesto = (
-        select(PerfilFunciones.empleado_id)
-        .join(CursoPuesto, CursoPuesto.puesto_perfil_id == PerfilFunciones.puesto_perfil_id)
-        .where(CursoPuesto.curso_id == id, PerfilFunciones.activo.is_(True))
-    ).scalar_subquery()
+    from app.services.level_up_asignaciones import LevelUpAsignacionesService
+
+    asig_svc = LevelUpAsignacionesService(db)
+    covered_by_puesto = asig_svc.covered_by_puesto_subquery(id)
 
     stmt = (
         select(CursoEmpleado)
         .options(selectinload(CursoEmpleado.empleado), selectinload(CursoEmpleado.sesion))
-        .where(CursoEmpleado.curso_id == id, CursoEmpleado.empleado_id.notin_(covered_by_puesto))
+        .where(
+            CursoEmpleado.curso_id == id,
+            CursoEmpleado.sesion_id.is_(None),
+            CursoEmpleado.empleado_id.notin_(covered_by_puesto),
+        )
         .order_by(CursoEmpleado.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -216,6 +335,133 @@ async def listar_empleados_extra_del_curso(
             asistio=ce.asistio,
         ))
     return response
+
+
+class EmpleadoExtraElegibleItem(BaseModel):
+    id: int
+    nombre: str | None = None
+    no_empleado: str | None = None
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
+
+class CursoEmpleadoExtraAssignBody(BaseModel):
+    empleado_id: int
+
+
+@router.get("/{id}/empleados-elegibles-extra", response_model=list[EmpleadoExtraElegibleItem])
+async def buscar_empleados_elegibles_extra(
+    id: int,
+    q: str = Query("", max_length=100),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Busca empleados activos que pueden asignarse individualmente al curso."""
+    from app.core.config import settings
+    from app.services.level_up_asignaciones import LevelUpAsignacionesService
+
+    asig_svc = LevelUpAsignacionesService(db)
+    covered_by_puesto = asig_svc.covered_by_puesto_subquery(id)
+
+    already_extra = (
+        select(CursoEmpleado.empleado_id).where(
+            CursoEmpleado.curso_id == id,
+            CursoEmpleado.sesion_id.is_(None),
+        )
+    ).scalar_subquery()
+
+    stmt = (
+        select(Empleado.id, Empleado.nombre, Empleado.no_empleado)
+        .where(
+            Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+            Empleado.id.notin_(already_extra),
+            Empleado.id.notin_(covered_by_puesto),
+        )
+        .order_by(Empleado.nombre)
+        .limit(25)
+    )
+    if q.strip():
+        search = f"%{q.strip()}%"
+        stmt = stmt.where(
+            Empleado.nombre.ilike(search) | cast(Empleado.no_empleado, String).ilike(search)
+        )
+
+    result = await db.execute(stmt)
+    return [
+        EmpleadoExtraElegibleItem(id=row[0], nombre=row[1], no_empleado=row[2])
+        for row in result.all()
+    ]
+
+
+@router.post("/{id}/empleados-extra", response_model=CursoEmpleadoDetail, status_code=status.HTTP_201_CREATED)
+async def asignar_empleado_extra_al_curso(
+    id: int,
+    body: CursoEmpleadoExtraAssignBody,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna un empleado individualmente al curso (sin sesión)."""
+    from app.core.exceptions import ConflictError, NotFoundError
+    from app.models.level_up import Curso as CursoModel
+
+    curso = await db.get(CursoModel, id)
+    if not curso:
+        raise NotFoundError(entidad="Curso", id=id)
+
+    emp = await db.get(Empleado, body.empleado_id)
+    if not emp:
+        raise NotFoundError(entidad="Empleado", id=body.empleado_id)
+
+    existing = await db.execute(
+        select(CursoEmpleado).where(
+            CursoEmpleado.curso_id == id,
+            CursoEmpleado.empleado_id == body.empleado_id,
+            CursoEmpleado.sesion_id.is_(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise ConflictError(detail="Este empleado ya está asignado al curso")
+
+    ce = CursoEmpleado(
+        curso_id=id,
+        empleado_id=body.empleado_id,
+        sesion_id=None,
+        obligatorio=curso.obligatorio,
+    )
+    db.add(ce)
+    await db.flush()
+    await db.refresh(ce, attribute_names=["empleado", "sesion"])
+
+    return CursoEmpleadoDetail(
+        id=ce.id,
+        empleado_id=ce.empleado_id,
+        nombre_empleado=ce.empleado.nombre if ce.empleado else None,
+        no_empleado=ce.empleado.no_empleado if ce.empleado else None,
+        sesion_id=ce.sesion_id,
+        sesion_fecha=str(ce.sesion.fecha_inicio) if ce.sesion else None,
+        asistio=ce.asistio,
+    )
+
+
+@router.delete("/{id}/empleados-extra/{curso_empleado_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_empleado_extra_del_curso(
+    id: int,
+    curso_empleado_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.exceptions import NotFoundError
+
+    ce = await db.get(CursoEmpleado, curso_empleado_id)
+    if not ce or ce.curso_id != id or ce.sesion_id is not None:
+        raise NotFoundError(entidad="Empleado extra del curso", id=curso_empleado_id)
+    await db.delete(ce)
+    await db.flush()
 
 
 # ── Grupos asignados a un curso (áreas, subáreas, puestos) ───────────────────
@@ -267,6 +513,13 @@ class CursoGrupoEmpleadoItem(BaseModel):
     empleado_id: int
     nombre: str | None = None
     no_empleado: str | None = None
+
+    @field_validator("no_empleado", mode="before")
+    @classmethod
+    def coerce_no_empleado(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
 
 
 class CursoGrupoResponse(BaseModel):
@@ -374,21 +627,27 @@ async def agregar_grupo_al_curso(
         if not area:
             raise NotFoundError(entidad="Área", id=body.referencia_id)
         nombre = area.descripcion
-        count_r = await db.execute(select(sa_func.count()).where(Empleado.area_id == body.referencia_id))
+        count_r = await db.execute(
+            select(sa_func.count()).select_from(Empleado).where(Empleado.area_id == body.referencia_id)
+        )
         emp_count = count_r.scalar() or 0
     elif body.tipo == "subarea":
         sub = await db.get(Subarea, body.referencia_id)
         if not sub:
             raise NotFoundError(entidad="Subárea", id=body.referencia_id)
         nombre = sub.descripcion
-        count_r = await db.execute(select(sa_func.count()).where(Empleado.subarea_id == body.referencia_id))
+        count_r = await db.execute(
+            select(sa_func.count()).select_from(Empleado).where(Empleado.subarea_id == body.referencia_id)
+        )
         emp_count = count_r.scalar() or 0
     elif body.tipo == "puesto":
         puesto = await db.get(Puesto, body.referencia_id)
         if not puesto:
             raise NotFoundError(entidad="Puesto", id=body.referencia_id)
         nombre = puesto.descripcion
-        count_r = await db.execute(select(sa_func.count()).where(Empleado.puesto_id == body.referencia_id))
+        count_r = await db.execute(
+            select(sa_func.count()).select_from(Empleado).where(Empleado.puesto_id == body.referencia_id)
+        )
         emp_count = count_r.scalar() or 0
 
     grupo = CursoGrupo(curso_id=id, tipo=tipo_enum, referencia_id=body.referencia_id)
@@ -397,7 +656,7 @@ async def agregar_grupo_al_curso(
 
     return CursoGrupoResponse(
         id=grupo.id, tipo=body.tipo, referencia_id=body.referencia_id,
-        nombre=nombre, empleados_count=emp_count,
+        nombre=nombre, empleados_count=emp_count, empleados=[],
     )
 
 

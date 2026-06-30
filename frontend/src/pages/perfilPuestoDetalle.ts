@@ -2,15 +2,18 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { getAccessToken } from "../auth/session.ts";
 import {
-  BTN_PRIMARY,
-  BTN_SECONDARY,
   FIELD_FOCUS,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  SELECT_CHEVRON,
   badgeCancelled,
   badgeOpen,
 } from "../ui/uiTokens.ts";
@@ -84,6 +87,17 @@ const CATEGORIA_LABELS: Record<string, string> = {
   ...TIPO_COMPETENCIA_LABELS,
   complementos: "Complementos",
 };
+
+/** Orden canónico de categorías para los renglones de la matriz de competencias. */
+const CATEGORIA_ORDER = [
+  "informatica",
+  "idiomas",
+  "profesional",
+  "social",
+  "personal",
+  "metodos",
+  "complementos",
+];
 
 const CATEGORIA_CHIP: Record<string, string> = {
   informatica: "ppd-cat-chip ppd-cat-chip--informatica",
@@ -173,14 +187,24 @@ function computeExecutiveSummary(
       : null;
   const maxNivel = maxNivelActivoValor();
   const nivelExperto = maxNivel > 0 ? maxNivel : 4;
+
+  // La misma competencia aparece en varios grados: contamos competencias DISTINTAS
+  // y tomamos el nivel máximo alcanzado por cada una a lo largo de los grados.
+  const nivelMaxPorCompetencia = new Map<number, number>();
+  for (const c of competencias) {
+    const prev = nivelMaxPorCompetencia.get(c.competencia_id) ?? 0;
+    nivelMaxPorCompetencia.set(c.competencia_id, Math.max(prev, c.nivel_requerido ?? 0));
+  }
+  const nivelesMax = Array.from(nivelMaxPorCompetencia.values());
+
   return {
     empleados,
     tareas: tareas.length,
-    competencias: competencias.length,
+    competencias: nivelMaxPorCompetencia.size,
     cualificaciones: cualificaciones.length,
     nivelPromedio: avg != null ? String(avg) : null,
-    competenciasSinNivel: competencias.filter((c) => !c.nivel_requerido || c.nivel_requerido <= 0).length,
-    competenciasExperto: competencias.filter((c) => c.nivel_requerido >= nivelExperto).length,
+    competenciasSinNivel: nivelesMax.filter((n) => n <= 0).length,
+    competenciasExperto: nivelesMax.filter((n) => n >= nivelExperto).length,
   };
 }
 
@@ -198,9 +222,10 @@ function sectionEditBtn(action: string, label: string): string {
   return `<button type="button" data-action="${action}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
 }
 
-function sectionEditBtnForGrado(gradoId: number, label: string): string {
+/** Botón de edición compacto (solo icono) para el encabezado de columna de un grado en la matriz. */
+function gradoColEditBtn(gradoId: number, label: string): string {
   if (!canEditarPerfilPuesto()) return "";
-  return `<button type="button" data-action="edit-competencias" data-grado-id="${gradoId}" class="ppd-section-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}<span class="hidden sm:inline">${escapeHtml(label)}</span></button>`;
+  return `<button type="button" data-action="edit-competencias" data-grado-id="${gradoId}" class="ppd-matrix-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}</button>`;
 }
 
 function emptyState(message: string, hint?: string): string {
@@ -508,56 +533,42 @@ function renderCualificaciones(cualificaciones: PerfilCualificacion[]): string {
   );
 }
 
-function renderCompetenciasGrupo(items: Competencia[], maxNivel: number): string {
-  const grouped = new Map<string, Competencia[]>();
-  for (const c of items) {
-    const key = c.subcategoria ?? "sin_categoria";
-    const list = grouped.get(key) ?? [];
-    list.push(c);
-    grouped.set(key, list);
+/** Celda de nivel requerido dentro de la matriz (badge coloreado o guion si no aplica). */
+function nivelMatrixCell(nivel: number | null | undefined): string {
+  if (nivel == null || nivel <= 0) {
+    return `<span class="ppd-matrix-empty" aria-hidden="true">—</span><span class="sr-only">No requerido</span>`;
   }
-
-  return Array.from(grouped.entries())
-    .map(([sub, comps]) => {
-      const chipCls = CATEGORIA_CHIP[sub] ?? "ppd-cat-chip ppd-cat-chip--default";
-      const label = CATEGORIA_LABELS[sub] ?? sub;
-      return `
-      <div class="ppd-comp-categoria rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <span class="${chipCls}">${escapeHtml(label)}</span>
-          <span class="text-xs font-medium tabular-nums text-text-muted">${comps.length} competencia${comps.length !== 1 ? "s" : ""}</span>
-        </div>
-        <ul class="flex flex-col gap-2">
-          ${comps
-            .map((c) => {
-              const nv = nivelVisual(c.nivel_requerido ?? 0);
-              const isHigh = maxNivel > 0 && c.nivel_requerido >= maxNivel;
-              const isPending = !c.nivel_requerido || c.nivel_requerido <= 0;
-              return `
-            <li class="ppd-comp-item flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2.5 ${isHigh ? "ppd-comp-item--expert" : ""} ${isPending ? "ppd-comp-item--pending" : ""}">
-              <span class="min-w-0 flex-1 text-sm font-medium leading-snug text-text-primary" title="${escapeHtml(c.competencia_nombre)}">${escapeHtml(c.competencia_nombre)}</span>
-              <span class="${nv.cls}" title="${escapeHtml(nv.title)}" aria-label="Nivel requerido: ${escapeHtml(nv.title)}">
-                <span class="ppd-nivel-short" aria-hidden="true">${nv.short}</span>
-                <span class="ppd-nivel-label hidden sm:inline">${escapeHtml(nv.title.split("—").pop()?.trim() ?? nv.title)}</span>
-              </span>
-            </li>`;
-            })
-            .join("")}
-        </ul>
-      </div>`;
-    })
-    .join("");
+  const nv = nivelVisual(nivel);
+  const label = nv.title.split("—").pop()?.trim() ?? nv.title;
+  return `<span class="${nv.cls} ppd-matrix-nivel" title="${escapeHtml(nv.title)}" aria-label="Nivel ${nv.short}: ${escapeHtml(label)}">
+    <span class="ppd-nivel-short" aria-hidden="true">${nv.short}</span>
+    <span class="ppd-matrix-nivel-label">${escapeHtml(label)}</span>
+  </span>`;
 }
 
+/** Leyenda con la escala de niveles para interpretar las celdas de la matriz. */
+function renderCompetenciasLegend(maxNivel: number): string {
+  const n = maxNivel > 0 ? maxNivel : 4;
+  const items = Array.from({ length: n }, (_, i) => i + 1)
+    .map((lvl) => {
+      const nv = nivelVisual(lvl);
+      const label = nv.title.split("—").pop()?.trim() ?? nv.title;
+      return `<span class="ppd-matrix-legend-item"><span class="${nv.cls} ppd-matrix-legend-badge">${nv.short}</span>${escapeHtml(label)}</span>`;
+    })
+    .join("");
+  return `<div class="ppd-matrix-legend" role="note" aria-label="Escala de niveles">${items}</div>`;
+}
+
+type CompMatrixEntry = { nombre: string; niveles: Map<number, number> };
+
 function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
-  const total = porGrado.reduce((s, g) => s + g.competencias.length, 0);
   const maxNivel = maxNivelActivoValor();
 
   if (porGrado.length === 0) {
     return sectionShell(
       "ppd-competencias",
       "Competencias demostradas",
-      "Por grado, categoría y nivel requerido",
+      "Nivel requerido por grado de progresión",
       0,
       "edit-competencias",
       "Editar competencias",
@@ -568,44 +579,110 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
     );
   }
 
-  const gradoBlocks = porGrado
-    .map(({ grado, competencias }) => {
-      const body =
-        competencias.length === 0
-          ? emptyState(
-              `Sin competencias en ${grado.nombre}`,
-              canEditarPerfilPuesto() ? "Agrega competencias requeridas para este grado." : undefined,
-            )
-          : `<div class="ppd-comp-grid grid grid-cols-1 gap-4 xl:grid-cols-2">${renderCompetenciasGrupo(competencias, maxNivel)}</div>`;
-      return `
-      <article class="rounded-xl border border-slate-200/90 bg-slate-50/30 overflow-hidden" aria-labelledby="ppd-comp-grado-${grado.id}-title">
-        <header class="flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-3">
-          <div class="min-w-0">
-            <h3 id="ppd-comp-grado-${grado.id}-title" class="text-sm font-semibold text-text-primary">${escapeHtml(grado.nombre)}</h3>
-            <p class="text-xs text-text-muted">${competencias.length} competencia${competencias.length !== 1 ? "s" : ""} requerida${competencias.length !== 1 ? "s" : ""}</p>
-          </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <span class="inline-flex min-w-[1.75rem] items-center justify-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-bold tabular-nums text-violet-800 ring-1 ring-violet-200/80">${competencias.length}</span>
-            ${sectionEditBtnForGrado(grado.id, `Editar ${grado.nombre}`)}
-          </div>
-        </header>
-        <div class="p-4">${body}</div>
-      </article>`;
+  const grados = porGrado.map((p) => p.grado);
+
+  // Pivote: categoría → competencia_id → { nombre, nivel por grado }.
+  const byCat = new Map<string, Map<number, CompMatrixEntry>>();
+  for (const { grado, competencias } of porGrado) {
+    for (const c of competencias) {
+      const cat = c.subcategoria ?? "sin_categoria";
+      let comps = byCat.get(cat);
+      if (!comps) {
+        comps = new Map();
+        byCat.set(cat, comps);
+      }
+      let entry = comps.get(c.competencia_id);
+      if (!entry) {
+        entry = { nombre: c.competencia_nombre, niveles: new Map() };
+        comps.set(c.competencia_id, entry);
+      }
+      if (c.nivel_requerido != null && c.nivel_requerido > 0) {
+        entry.niveles.set(grado.id, c.nivel_requerido);
+      }
+    }
+  }
+
+  const uniqueCount = Array.from(byCat.values()).reduce((s, m) => s + m.size, 0);
+
+  if (uniqueCount === 0) {
+    return sectionShell(
+      "ppd-competencias",
+      "Competencias demostradas",
+      "Nivel requerido por grado de progresión",
+      0,
+      "",
+      "",
+      emptyState(
+        "Sin competencias asignadas",
+        canEditarPerfilPuesto() ? "Edita cada grado para agregar las competencias requeridas." : undefined,
+      ),
+    );
+  }
+
+  const cats = Array.from(byCat.keys()).sort((a, b) => {
+    const ia = CATEGORIA_ORDER.indexOf(a);
+    const ib = CATEGORIA_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  const colCount = grados.length + 1;
+
+  const headCells = grados
+    .map(
+      (g) => `
+      <th scope="col" class="ppd-matrix-col">
+        <div class="ppd-matrix-col-head">
+          <span class="ppd-matrix-col-name">${escapeHtml(g.nombre)}</span>
+          ${gradoColEditBtn(g.id, `Editar ${g.nombre}`)}
+        </div>
+      </th>`,
+    )
+    .join("");
+
+  const bodyRows = cats
+    .map((cat) => {
+      const comps = byCat.get(cat)!;
+      const chipCls = CATEGORIA_CHIP[cat] ?? "ppd-cat-chip ppd-cat-chip--default";
+      const label = CATEGORIA_LABELS[cat] ?? cat;
+      const catRow = `<tr class="ppd-matrix-cat"><td colspan="${colCount}"><span class="${chipCls}">${escapeHtml(label)}</span></td></tr>`;
+      const compRows = Array.from(comps.values())
+        .map((entry) => {
+          const cells = grados
+            .map((g) => `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.niveles.get(g.id) ?? null)}</td>`)
+            .join("");
+          return `
+          <tr class="ppd-matrix-row">
+            <th scope="row" class="ppd-matrix-name" title="${escapeHtml(entry.nombre)}">${escapeHtml(entry.nombre)}</th>
+            ${cells}
+          </tr>`;
+        })
+        .join("");
+      return catRow + compRows;
     })
     .join("");
 
-  const allComps = porGrado.flatMap((g) => g.competencias);
-  const maxReq = Math.max(...allComps.map((c) => c.nivel_requerido ?? 0));
+  const body = `
+    ${renderCompetenciasLegend(maxNivel)}
+    <div class="ppd-matrix-wrap">
+      <table class="ppd-matrix">
+        <thead>
+          <tr>
+            <th scope="col" class="ppd-matrix-corner">Competencia</th>
+            ${headCells}
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
 
   return sectionShell(
     "ppd-competencias",
     "Competencias demostradas",
-    "Requisitos por grado de progresión",
-    total,
+    "Nivel requerido por grado de progresión",
+    uniqueCount,
     "",
     "",
-    `<div class="flex flex-col gap-4">${gradoBlocks}</div>`,
-    maxNivel > 0 && maxReq >= maxNivel ? "ppd-section--highlight" : "",
+    body,
   );
 }
 
@@ -770,12 +847,12 @@ async function openEditarCompetenciasModal(
 function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
   const overlayId = "perfil-detalle-notice-overlay";
   host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-modal="true" aria-labelledby="perfil-detalle-notice-title">
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md p-6" role="alertdialog" aria-modal="true" aria-labelledby="perfil-detalle-notice-title">
         <h2 id="perfil-detalle-notice-title" class="text-lg font-semibold text-text-primary">No se puede editar competencias</h2>
         <p class="mt-2 text-sm text-text-secondary">${escapeHtml(message)}</p>
         <div class="mt-6 flex justify-end">
-          <button type="button" data-perfil-detalle-notice-close class="${BTN_PRIMARY}">Entendido</button>
+          <button type="button" data-perfil-detalle-notice-close class="${RH_LISTADO_BTN_PRIMARY}">Entendido</button>
         </div>
       </div>
     </div>`;
@@ -971,17 +1048,18 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
         ${renderHeader(puesto, empleadosCount, perfilId)}
         ${renderExecutiveSummary(summary)}
 
-        <div class="ppd-layout grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:items-start xl:gap-5">
+        <div class="ppd-layout grid gap-4 lg:grid-cols-2 lg:items-start xl:gap-5">
           <div class="flex flex-col gap-4 sm:gap-5">
             ${renderTareas(tareasList, fechaActualizacion)}
             ${renderCualificaciones(cualifList)}
           </div>
           <div class="flex flex-col gap-4 sm:gap-5">
-            ${renderCompetencias(competenciasPorGrado)}
             ${renderCursosAsignados(cursosList, perfilId)}
             ${renderEmpleadosResumen(asigList, perfilId)}
           </div>
         </div>
+
+        ${renderCompetencias(competenciasPorGrado)}
 
         <div id="modal-host-tareas"></div>
         <div id="modal-host-cualificaciones"></div>
@@ -1033,8 +1111,8 @@ function openAsignarCursoModal(
   const assignedIds = new Set(existingCursos.map((c) => c.curso_id));
 
   host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="add-curso-title">
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md" role="dialog" aria-modal="true" aria-labelledby="add-curso-title">
         <div class="border-b border-slate-100 px-6 py-5">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -1058,17 +1136,20 @@ function openAsignarCursoModal(
           </div>
           <div id="add-curso-sesiones" class="hidden">
             <label class="${RH_LISTADO_LABEL}">Sesión</label>
-            <select id="add-curso-sesion-select" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS}">
-              <option value="">Sin sesión (asignar directo)</option>
-            </select>
+            <div class="relative mt-1 grid grid-cols-1">
+              <select id="add-curso-sesion-select" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+                <option value="">Sin sesión (asignar directo)</option>
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <input id="add-curso-obligatorio" type="checkbox" class="rounded border-slate-300" />
             <label for="add-curso-obligatorio" class="text-sm text-text-secondary">Marcar como obligatorio</label>
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            <button type="button" id="add-curso-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-            <button type="button" id="add-curso-submit" disabled class="${BTN_PRIMARY} w-full sm:w-auto disabled:opacity-50">Asignar</button>
+            <button type="button" id="add-curso-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="button" id="add-curso-submit" disabled class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto disabled:opacity-50">Asignar</button>
           </div>
         </div>
       </div>
@@ -1199,8 +1280,8 @@ function openEditBaseModal(
   const overlayId = "edit-base-overlay";
 
   host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="ppd-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
         <div class="border-b border-slate-100 px-6 py-5">
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -1227,8 +1308,8 @@ function openEditBaseModal(
               class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            <button type="button" id="edit-base-cancel" class="${BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-            <button type="submit" id="edit-base-submit" class="${BTN_PRIMARY} w-full sm:w-auto">Guardar</button>
+            <button type="button" id="edit-base-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
+            <button type="submit" id="edit-base-submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto">Guardar</button>
           </div>
         </form>
       </div>

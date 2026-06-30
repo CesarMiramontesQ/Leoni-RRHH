@@ -34,8 +34,7 @@ class CursoSesionService:
     @staticmethod
     def _resolve_instructor_nombre(sesion: CursoSesion) -> str | None:
         if sesion.instructor_tipo == "interno" and sesion.instructor_empleado_rel:
-            emp = sesion.instructor_empleado_rel
-            return f"{emp.nombre} {emp.apellido_paterno or ''}".strip()
+            return sesion.instructor_empleado_rel.nombre
         if sesion.instructor_tipo == "externo" and sesion.instructor_externo_rel:
             return sesion.instructor_externo_rel.nombre
         return None
@@ -94,9 +93,12 @@ class CursoSesionService:
             "fecha_fin": data.fecha_fin,
             "hora_inicio": data.hora_inicio,
             "hora_fin": data.hora_fin,
+            "tipo": data.tipo,
             "ubicacion": data.ubicacion,
-            "instructor": data.instructor,
-            "cupo_max": data.cupo_max,
+            "instructor_tipo": data.instructor_tipo,
+            "instructor_empleado_id": data.instructor_empleado_id,
+            "instructor_externo_id": data.instructor_externo_id,
+            "costo": data.costo,
             "notas": data.notas,
         })
         return await self._to_response(sesion)

@@ -1,4 +1,9 @@
 import { labelTipoIncidenciaUi } from "./tipoIncidenciaDisplay.ts";
+import {
+  listPeriodosEnRango,
+  tendenciaAgrupacionForRango,
+} from "../../dashboard/rh/filterRowsByPeriod.ts";
+import type { RhIncidenciaListFilters, RhIncidenciasEstadisticasData } from "./types.ts";
 
 export type RhDashboardTendenciaAgrupacion = "dia" | "semana" | "mes";
 
@@ -106,4 +111,15 @@ export function buildIncidenciasTendenciaPorTipo(
 export function tendenciaPorTipoTieneDatos(t: IncidenciaTendenciaPorTipo | null): boolean {
   if (!t) return false;
   return t.series.some((s) => s.valores.some((v) => v > 0));
+}
+
+export function buildIncidenciasTendenciaFromEstadisticas(
+  d: RhIncidenciasEstadisticasData,
+  filters: RhIncidenciaListFilters,
+): IncidenciaTendenciaPorTipo | null {
+  const agrupacion = d.tendencia_agrupacion ?? tendenciaAgrupacionForRango(filters.fecha_inicio, filters.fecha_fin);
+  const fi = filters.fecha_inicio.trim();
+  const ff = filters.fecha_fin.trim();
+  const periodosCanon = fi && ff ? listPeriodosEnRango(fi, ff, agrupacion) : [];
+  return buildIncidenciasTendenciaPorTipo(d.incidencias_por_periodo_y_tipo, periodosCanon, agrupacion);
 }

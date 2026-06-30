@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.empleados import Empleado
-from app.models.faltas_retardos import FaltaRetardoEvento
+from app.models.faltas_retardos import FaltaRetardoEvento, FaltaRetardoRegistroAuditoria
 from app.repositories.base import BaseRepository
 
 
@@ -109,3 +109,45 @@ class FaltasRetardosRepository(BaseRepository[FaltaRetardoEvento]):
         )
         result = await self.db.execute(items_q)
         return list(result.scalars().unique().all()), total
+
+    async def save_registros_auditoria(
+        self,
+        *,
+        bono_origen: str,
+        bono_origen_ids: list[int],
+        registrado_por_id: int,
+    ) -> None:
+        if not bono_origen_ids:
+            return
+        seen: set[int] = set()
+        for bono_origen_id in bono_origen_ids:
+            if bono_origen_id in seen:
+                continue
+            seen.add(bono_origen_id)
+            self.db.add(
+                FaltaRetardoRegistroAuditoria(
+                    bono_origen=bono_origen,
+                    bono_origen_id=bono_origen_id,
+                    registrado_por_id=registrado_por_id,
+                )
+            )
+        await self.db.flush()
+
+    async def map_registros_auditoria(
+        self,
+        *,
+        bono_origen: str,
+        bono_origen_ids: list[int],
+    ) -> dict[int, FaltaRetardoRegistroAuditoria]:
+        if not bono_origen_ids:
+            return {}
+        result = await self.db.execute(
+            select(FaltaRetardoRegistroAuditoria)
+            .options(selectinload(FaltaRetardoRegistroAuditoria.registrado_por))
+            .where(
+                FaltaRetardoRegistroAuditoria.bono_origen == bono_origen,
+                FaltaRetardoRegistroAuditoria.bono_origen_id.in_(bono_origen_ids),
+            )
+        )
+        rows = result.scalars().all()
+        return {row.bono_origen_id: row for row in rows}

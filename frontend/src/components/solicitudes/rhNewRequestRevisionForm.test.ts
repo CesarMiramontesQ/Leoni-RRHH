@@ -8,7 +8,7 @@ const base: Omit<RhNewRequestFormParams, "tipo" | "modoRevision" | "fixedEmplead
   empleadoSearchQ: "",
   fechaInicio: "2026-06-01",
   fechaFin: "2026-06-05",
-  comentarios: "",
+  motivo: "",
   diasLabel: "5 días",
   infoHtml: "<div/>",
   resumenState: "valid",
@@ -46,6 +46,35 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     });
     expect(html).toContain("data-rh-nr-tipo=");
     expect(html).toContain('id="rh-nr-empleado"');
+  });
+
+  it("no renderiza campo de comentarios", () => {
+    const html = buildFormHtml({
+      ...base,
+      tipo: "permiso_sin_goce_sueldo",
+      modoRevision: false,
+      items: [],
+      selectedEmpleadoId: "1",
+      motivo: "Permiso personal",
+    });
+    expect(html).not.toContain('id="rh-nr-comentarios"');
+    expect(html).toContain('id="rh-nr-motivo"');
+  });
+
+  it("matrimonio fija fecha fin readonly a 2 días", () => {
+    const html = buildFormHtml({
+      ...base,
+      tipo: "matrimonio",
+      modoRevision: false,
+      items: [],
+      selectedEmpleadoId: "1",
+      fechaInicio: "2026-05-04",
+      fechaFin: "2026-05-05",
+      matrimonioTwoDayMode: true,
+    });
+    expect(html).toContain('id="rh-nr-fin"');
+    expect(html).toContain("readonly");
+    expect(html).toContain("2026-05-05");
   });
 
   it("oculta Home Office cuando showHomeOfficeType es false", () => {

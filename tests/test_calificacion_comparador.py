@@ -84,6 +84,84 @@ def test_boolean_yes_cumple():
     ) is True
 
 
+def _opciones_experiencia() -> list[OpcionCalificacion]:
+    """Método numérico con opciones tipo '1 año'..'3 años' y peso None."""
+    data = [
+        ("1", "1 año"),
+        ("2", "2 año"),
+        ("3", "3 años"),
+    ]
+    return [
+        OpcionCalificacion(
+            id=i + 1,
+            metodo_calificacion_id=2,
+            etiqueta=etq,
+            valor=val,
+            orden=i,
+            peso=None,
+            activo=True,
+        )
+        for i, (val, etq) in enumerate(data)
+    ]
+
+
+def test_ordinal_gte_criterio_texto_resuelve_por_etiqueta():
+    """Criterio guardado como texto libre ('Licenciatura') debe resolver a la opción."""
+    metodo = _metodo("ordinal_gte")
+    opciones = _opciones_escolaridad()
+    assert evaluar_cumplimiento(
+        metodo,
+        opciones,
+        {"texto": "Licenciatura"},
+        {"opcion_valor": "licenciatura"},
+    ) is True
+
+
+def test_ordinal_gte_texto_case_insensitive():
+    metodo = _metodo("ordinal_gte")
+    opciones = _opciones_escolaridad()
+    assert evaluar_cumplimiento(
+        metodo,
+        opciones,
+        {"texto": "licenciatura"},
+        {"texto": "LICENCIATURA"},
+    ) is True
+
+
+def test_numeric_gte_capturado_opcion_se_deriva_a_numero():
+    """Si la captura guardó una opción ('2 año') en vez de años, derivar el número."""
+    metodo = _metodo("numeric_gte", "escala_numerica")
+    opciones = _opciones_experiencia()
+    assert evaluar_cumplimiento(
+        metodo,
+        opciones,
+        {"min_anios": 1},
+        {"opcion_valor": "2"},
+    ) is True
+
+
+def test_numeric_gte_criterio_opcion_sin_min_anios():
+    metodo = _metodo("numeric_gte", "escala_numerica")
+    opciones = _opciones_experiencia()
+    assert evaluar_cumplimiento(
+        metodo,
+        opciones,
+        {"opcion_valor": "1"},
+        {"anios": 2},
+    ) is True
+
+
+def test_numeric_gte_opcion_no_cumple():
+    metodo = _metodo("numeric_gte", "escala_numerica")
+    opciones = _opciones_experiencia()
+    assert evaluar_cumplimiento(
+        metodo,
+        opciones,
+        {"min_anios": 3},
+        {"opcion_valor": "1"},
+    ) is False
+
+
 def test_na_siempre_cumple():
     metodo = _metodo("ordinal_gte")
     assert evaluar_cumplimiento(

@@ -11,9 +11,9 @@ import type { MetodoCalificacion, TipoCualificacion } from "../../../dashboard/c
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
-  BTN_SECONDARY,
   FIELD_FOCUS,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_SELECT,
@@ -70,7 +70,7 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
   function renderTable(): string {
     if (loading) return ajustesLoadingState("Cargando cualificaciones…");
     if (error) return ajustesErrorAlert(error);
-    if (items.length === 0) return ajustesEmptyState("No hay cualificaciones registradas. Crea la primera.");
+    if (items.length === 0) return ajustesEmptyState("No hay cualificaciones registradas. Crea la primera.", `<button type="button" data-tipo-cual-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nueva cualificación</span></button>`);
     const rows = items
       .map(
         (t) => `
@@ -122,7 +122,7 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
             <p class="mt-2 text-sm text-text-secondary">¿Eliminar <strong>${escapeHtml(deletingItem.nombre)}</strong>?</p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-tipo-cual-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-tipo-cual-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="button" data-tipo-cual-modal="confirm-delete" class="${BTN_DANGER}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Eliminando…" : "Eliminar"}</button>
             </div>
           </div>
@@ -150,7 +150,7 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
             </div>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-tipo-cual-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-tipo-cual-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>

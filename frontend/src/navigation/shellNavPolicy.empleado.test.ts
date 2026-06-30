@@ -47,7 +47,6 @@ describe("shellNavPolicy empleado flat nav", () => {
     expect(isShellNavItemVisibleForRol("empleado", "dashboard")).toBe(true);
     expect(isShellNavItemVisibleForRol("empleado", "solicitudes")).toBe(true);
     expect(isShellNavItemVisibleForRol("empleado", "comedor")).toBe(true);
-    expect(isShellNavItemVisibleForRol("empleado", "capacitaciones")).toBe(false);
     expect(isShellNavItemVisibleForRol("empleado", "incidencias")).toBe(false);
     expect(isShellNavItemVisibleForRol("empleado", "empleados")).toBe(false);
     expect(isShellNavItemVisibleForRol("empleado", "reportes")).toBe(false);

@@ -3,6 +3,7 @@ import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   BTN_SECONDARY,
   FIELD_FOCUS,
+  RH_LISTADO_BTN_DANGER,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_BTN_SECONDARY,
@@ -11,12 +12,24 @@ import {
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, updateCursoSesion, actualizarAsistencia } from "../api/cursos.ts";
 import type { EmpleadoElegible } from "../api/cursos.ts";
 import { ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import type { Curso, CursoSesion, EstadoSesion, SesionEmpleadoItem, CursoSesionUpdatePayload } from "../dashboard/cursos/types.ts";
+import {
+  getEncuestaEstado,
+  habilitarEncuesta,
+  actualizarEncuesta,
+  deshabilitarEncuesta,
+} from "../api/encuestas.ts";
+import {
+  ESTADO_ENCUESTA_BADGE,
+  ESTADO_ENCUESTA_LABELS,
+} from "../dashboard/cursos/encuestasTypes.ts";
+import type { EncuestaEstado } from "../dashboard/cursos/encuestasTypes.ts";
 
 const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>`;
 const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
@@ -24,7 +37,7 @@ const ICON_USERS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICON_CALENDAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>`;
 const ICON_MAP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>`;
 
-const SS_DETAIL_PAGE_OUTER = `${RH_LISTADO_PAGE_OUTER} ss-page ss-detail pt-3 sm:pt-5`;
+const SS_DETAIL_PAGE_OUTER = `${RH_LISTADO_PAGE_OUTER} ss-page ss-detail`;
 const MODAL_FIELD_CLS = `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}`;
 const ESTADO_SELECT_CLS = `${RH_LISTADO_SELECT} col-start-1 row-start-1 w-auto min-w-[9rem] appearance-none font-semibold ${RH_LISTADO_FOCUS_RING}`;
 
@@ -47,6 +60,10 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchLoading: boolean;
     showAddModal: boolean;
     showEditModal: boolean;
+    encuesta: EncuestaEstado | null;
+    encuestaLoading: boolean;
+    encuestaActionLoading: boolean;
+    encuestaError: string | null;
   }
 
   const state: State = {
@@ -60,6 +77,10 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchLoading: false,
     showAddModal: false,
     showEditModal: false,
+    encuesta: null,
+    encuestaLoading: false,
+    encuestaActionLoading: false,
+    encuestaError: null,
   };
 
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -81,11 +102,27 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     }
   }
 
+  async function loadEncuesta(): Promise<void> {
+    if (!state.sesion || state.sesion.estado !== "completada") {
+      state.encuesta = null;
+      return;
+    }
+    state.encuestaLoading = true;
+    try {
+      state.encuesta = await getEncuestaEstado(cursoId, sesionId);
+      state.encuestaError = null;
+    } catch (err: unknown) {
+      state.encuesta = null;
+      state.encuestaError = (err as Error)?.message ?? "No se pudo cargar la encuesta";
+    }
+    state.encuestaLoading = false;
+  }
+
   function render(): void {
     mountAppShell(container, {
       pageTitle: "Detalle de sesión",
       activeNav: "sesiones",
-      mainClass: "py-0",
+      mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),
     });
     bindEvents();
@@ -102,7 +139,6 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   function renderLoading(): string {
     return `
     <div class="${SS_DETAIL_PAGE_OUTER}" aria-busy="true" aria-label="Cargando detalle de sesión">
-      <div class="h-5 w-32 animate-pulse rounded bg-slate-200/90"></div>
       <div class="h-16 w-full max-w-3xl animate-pulse rounded-xl bg-slate-100/90"></div>
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
       <div class="h-48 animate-pulse rounded-2xl border border-slate-200/80 bg-white"></div>
@@ -114,26 +150,12 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   function renderError(): string {
     return `
     <div class="${SS_DETAIL_PAGE_OUTER}">
-      ${renderBreadcrumb()}
       <div class="${RH_LISTADO_SURFACE} flex min-h-[240px] flex-col items-center justify-center px-6 py-14 text-center" role="alert">
         <p class="text-base font-semibold text-text-primary">Error al cargar la sesión</p>
         <p class="mt-2 max-w-md text-sm text-red-700">${escapeHtml(state.error ?? "Error inesperado")}</p>
         <a href="#/sesiones" class="${RH_LISTADO_BTN_SECONDARY} mt-6">← Sesiones</a>
       </div>
     </div>`;
-  }
-
-  function renderBreadcrumb(): string {
-    return `
-    <nav class="ss-detail-breadcrumb text-xs text-text-muted" aria-label="Breadcrumb">
-      <ol class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-        <li>
-          <a href="#/sesiones" class="font-medium transition hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">← Sesiones</a>
-        </li>
-        <li class="text-slate-300" aria-hidden="true">/</li>
-        <li class="font-semibold text-text-primary" aria-current="page">Detalle de sesión</li>
-      </ol>
-    </nav>`;
   }
 
   function renderKpis(s: CursoSesion): string {
@@ -211,7 +233,6 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     return `
     <div class="${SS_DETAIL_PAGE_OUTER}">
       <header class="ss-detail-header flex flex-col gap-4 sm:gap-5">
-        ${renderBreadcrumb()}
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Sesión #${s.id}</p>
@@ -282,6 +303,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
         </div>
       </section>
 
+      ${renderEncuestaPanel()}
+
       <section class="${RH_LISTADO_SURFACE} ss-detail-empleados flex flex-col overflow-hidden p-0" aria-label="Empleados inscritos">
         <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
@@ -297,7 +320,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
         </div>` : `
         <div class="overflow-x-auto">
           <table class="ss-empleados-table min-w-[640px] w-full text-left text-sm">
-            <thead class="border-b border-slate-200 bg-[#f8fafc] text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <thead class="${RH_TABLE_HEAD}">
               <tr>
                 <th class="px-4 py-3.5">No. Empleado</th>
                 <th class="px-4 py-3.5">Nombre</th>
@@ -319,7 +342,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
                   </label>
                 </td>
                 <td class="px-4 py-3.5 text-right">
-                  <button type="button" data-action="quitar-empleado" data-id="${emp.id}" class="${RH_LISTADO_BTN_GHOST} !px-2 !py-1 text-xs text-red-600 hover:text-red-800">Quitar</button>
+                  <button type="button" data-action="quitar-empleado" data-id="${emp.id}" class="${RH_LISTADO_BTN_DANGER} !px-2 !py-1 text-xs">Quitar</button>
                 </td>
               </tr>`).join("")}
             </tbody>
@@ -330,6 +353,91 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
       ${state.showAddModal ? renderAddModal() : ""}
       ${state.showEditModal ? renderEditModal() : ""}
     </div>`;
+  }
+
+  function renderEncuestaPanel(): string {
+    const s = state.sesion!;
+    const headerCls = "flex flex-col gap-1 border-b border-slate-100 px-5 py-4 sm:px-6";
+    const titleHtml = `
+      <div class="${headerCls}">
+        <h2 class="text-base font-semibold text-text-primary">Encuesta post curso</h2>
+        <p class="text-xs text-text-muted">Retroalimentación de los asistentes sobre el curso e instructor.</p>
+      </div>`;
+
+    if (s.estado !== "completada") {
+      return `
+      <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Encuesta post curso">
+        ${titleHtml}
+        <div class="px-5 py-5 sm:px-6">
+          <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">La encuesta se habilita cuando la sesión esté marcada como <strong class="text-text-primary">Completada</strong>.</p>
+        </div>
+      </section>`;
+    }
+
+    if (state.encuestaLoading && !state.encuesta) {
+      return `
+      <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Encuesta post curso">
+        ${titleHtml}
+        <div class="px-5 py-6 sm:px-6"><div class="h-20 animate-pulse rounded-lg bg-slate-100"></div></div>
+      </section>`;
+    }
+
+    const enc = state.encuesta;
+    const estado = enc?.estado_efectivo ?? "no_habilitada";
+    const badgeCls = ESTADO_ENCUESTA_BADGE[estado];
+    const fechaLimiteVal = enc?.fecha_limite ? enc.fecha_limite.slice(0, 10) : "";
+    const respondidas = enc?.respondidas ?? 0;
+    const pendientes = enc?.pendientes ?? 0;
+    const totalAsistentes = enc?.total_asistentes ?? 0;
+    const disabled = state.encuestaActionLoading ? " disabled" : "";
+
+    const dateInput = (id: string) => `
+      <div class="flex flex-col gap-1">
+        <label for="${id}" class="text-xs font-medium text-text-muted">Fecha límite (opcional)</label>
+        <input type="date" id="${id}" value="${fechaLimiteVal}" class="${MODAL_FIELD_CLS} w-auto" />
+      </div>`;
+
+    let actions = "";
+    if (estado === "no_habilitada") {
+      actions = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          ${dateInput("encuesta-fecha-limite")}
+          <button type="button" data-action="encuesta-habilitar" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>${state.encuestaActionLoading ? "Procesando…" : "Habilitar encuesta"}</button>
+        </div>`;
+    } else if (estado === "activa") {
+      actions = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap">
+          ${dateInput("encuesta-fecha-limite")}
+          <button type="button" data-action="encuesta-guardar-limite" class="${RH_LISTADO_BTN_SECONDARY} text-xs"${disabled}>Guardar fecha límite</button>
+          <button type="button" data-action="encuesta-cerrar" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>Cerrar encuesta</button>
+          <button type="button" data-action="encuesta-deshabilitar" class="${RH_LISTADO_BTN_DANGER} text-xs${state.encuestaActionLoading ? " opacity-60" : ""}"${disabled}>Deshabilitar</button>
+        </div>`;
+    } else {
+      actions = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button type="button" data-action="encuesta-reabrir" class="${RH_LISTADO_BTN_PRIMARY} text-xs"${disabled}>Reabrir encuesta</button>
+        </div>`;
+    }
+
+    return `
+    <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Encuesta post curso">
+      ${titleHtml}
+      <div class="flex flex-col gap-5 px-5 py-5 sm:px-6">
+        ${state.encuestaError ? `<p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900" role="alert">${escapeHtml(state.encuestaError)}</p>` : ""}
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium text-text-muted">Estado</span>
+            <span class="inline-flex items-center rounded-full border ${badgeCls} px-2.5 py-0.5 text-xs font-semibold">${escapeHtml(ESTADO_ENCUESTA_LABELS[estado])}</span>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <span><strong class="text-emerald-600 tabular-nums">${respondidas}</strong> <span class="text-text-muted">respondidas</span></span>
+            <span><strong class="text-amber-600 tabular-nums">${pendientes}</strong> <span class="text-text-muted">pendientes</span></span>
+            <span><strong class="text-text-primary tabular-nums">${totalAsistentes}</strong> <span class="text-text-muted">asistentes</span></span>
+          </div>
+        </div>
+        ${actions}
+      </div>
+    </section>`;
   }
 
   function renderEditModal(): string {
@@ -495,6 +603,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
         const updated = await updateCursoSesion(cursoId, sesionId, { estado: newEstado });
         state.sesion = updated;
         render();
+        await loadEncuesta();
+        render();
       } catch {
         render();
       }
@@ -516,8 +626,54 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     }
   }
 
+  function readEncuestaFechaLimite(): string | null {
+    const input = container.querySelector<HTMLInputElement>("#encuesta-fecha-limite");
+    const val = input?.value?.trim();
+    return val ? val : null;
+  }
+
+  async function runEncuestaAction(fn: () => Promise<unknown>): Promise<void> {
+    if (state.encuestaActionLoading) return;
+    state.encuestaActionLoading = true;
+    state.encuestaError = null;
+    render();
+    try {
+      await fn();
+    } catch (err: unknown) {
+      // El backend cierra la encuesta y responde 409 si ya hay respuestas al
+      // intentar deshabilitar: mostramos el mensaje y refrescamos el estado.
+      state.encuestaError = (err as Error)?.message ?? "No se pudo actualizar la encuesta";
+    }
+    await loadEncuesta();
+    state.encuestaActionLoading = false;
+    render();
+  }
+
   async function handleClick(e: Event): Promise<void> {
     const t = e.target as HTMLElement;
+
+    if (t.closest("[data-action='encuesta-habilitar']")) {
+      const limite = readEncuestaFechaLimite();
+      await runEncuestaAction(() => habilitarEncuesta(cursoId, sesionId, limite));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-guardar-limite']")) {
+      const limite = readEncuestaFechaLimite();
+      await runEncuestaAction(() => actualizarEncuesta(cursoId, sesionId, { fecha_limite: limite }));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-cerrar']")) {
+      await runEncuestaAction(() => actualizarEncuesta(cursoId, sesionId, { estado: "cerrada" }));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-reabrir']")) {
+      await runEncuestaAction(() => actualizarEncuesta(cursoId, sesionId, { estado: "activa" }));
+      return;
+    }
+    if (t.closest("[data-action='encuesta-deshabilitar']")) {
+      await runEncuestaAction(() => deshabilitarEncuesta(cursoId, sesionId));
+      return;
+    }
 
     if ((t as HTMLElement).matches("[data-backdrop='add-empleado-modal']")) {
       state.showAddModal = false;
@@ -617,6 +773,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
   (async () => {
     await loadData();
     state.loading = false;
+    render();
+    await loadEncuesta();
     render();
   })();
 }

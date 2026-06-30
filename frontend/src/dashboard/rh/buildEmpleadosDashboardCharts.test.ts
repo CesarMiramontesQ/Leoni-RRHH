@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildEmpleadosDirectoIndirectoPorAreaComparativo,
   buildEmpleadosPorAreaRanking,
   findEmpleadosSeriePorClasificacion,
 } from "./buildEmpleadosDashboardCharts.ts";
@@ -14,6 +15,24 @@ describe("buildEmpleadosDashboardCharts", () => {
     expect(ranking).toHaveLength(9);
     expect(ranking[8]?.label).toBe("Otros");
     expect(ranking[8]?.total).toBe(3);
+  });
+
+  it("combina directos e indirectos por área con top N y Otros", () => {
+    const directItems = Array.from({ length: 6 }, (_, i) => ({
+      label: `Área ${i}`,
+      total: 10 - i,
+    }));
+    const indirectItems = [
+      { label: "Área 0", total: 3 },
+      { label: "Área extra", total: 7 },
+    ];
+    const rows = buildEmpleadosDirectoIndirectoPorAreaComparativo(directItems, indirectItems);
+    expect(rows.find((r) => r.label === "Área 0")).toEqual({ label: "Área 0", directo: 10, indirecto: 3 });
+    expect(rows.find((r) => r.label === "Área extra")).toEqual({
+      label: "Área extra",
+      directo: 0,
+      indirecto: 7,
+    });
   });
 
   it("localiza serie por tipo de clasificación", () => {

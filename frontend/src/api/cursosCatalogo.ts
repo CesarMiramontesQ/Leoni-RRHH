@@ -34,6 +34,23 @@ export interface InstructorExternoListResponse {
   page_size: number;
 }
 
+export interface InstructorInterno {
+  id: number;
+  empleado_id: number;
+  nombre_empleado: string | null;
+  no_empleado: string | null;
+  especialidad: string | null;
+  activo: boolean;
+  created_at: string;
+}
+
+export interface InstructorInternoListResponse {
+  items: InstructorInterno[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface Proveedor {
   id: number;
   nombre: string;
@@ -208,6 +225,39 @@ export async function updateInstructorExterno(id: number, payload: { nombre?: st
 
 export async function deleteInstructorExterno(id: number): Promise<void> {
   const res = await fetchWithAuth(`/api/v1/level-up/catalogos/instructores-externos/${id}`, { method: "DELETE" });
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+}
+
+// ── Instructores Internos ─────────────────────────────────────────────────────
+
+export async function getInstructoresInternos(params?: ListParams): Promise<InstructorInternoListResponse> {
+  const res = await fetchWithAuth(`/api/v1/level-up/catalogos/instructores-internos?${buildQs(params)}`);
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}
+
+export async function createInstructorInterno(payload: { empleado_id: number; especialidad?: string }): Promise<InstructorInterno> {
+  const res = await fetchWithAuth("/api/v1/level-up/catalogos/instructores-internos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}
+
+export async function updateInstructorInterno(id: number, payload: { especialidad?: string; activo?: boolean }): Promise<InstructorInterno> {
+  const res = await fetchWithAuth(`/api/v1/level-up/catalogos/instructores-internos/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}
+
+export async function deleteInstructorInterno(id: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/level-up/catalogos/instructores-internos/${id}`, { method: "DELETE" });
   if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
 }
 

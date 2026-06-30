@@ -121,6 +121,11 @@ class EstadoSesion(str, enum.Enum):
     cancelada = "cancelada"
 
 
+class EstadoEncuesta(str, enum.Enum):
+    activa = "activa"
+    cerrada = "cerrada"
+
+
 # ── Modelos ──────────────────────────────────────────────────────────────────
 
 
@@ -566,18 +571,82 @@ class EvidenciaFirma(Base):
     firmante: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[firmante_id])
 
 
+class CursoEncuesta(Base):
+    """Encuesta post curso habilitada por RH desde una sesión finalizada.
+
+    La valoración pertenece al curso; la sesión solo define quién puede responder.
+    "No habilitada" se representa con la ausencia de fila para la sesión.
+    """
+
+    __tablename__ = "levelup_curso_encuesta"
+    __table_args__ = (
+        UniqueConstraint("sesion_id", name="uq_levelup_curso_encuesta_sesion"),
+        Index("ix_levelup_curso_encuesta_curso_id", "curso_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    curso_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_cursos.id", ondelete="CASCADE"), nullable=False
+    )
+    sesion_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_curso_sesion.id", ondelete="CASCADE"), nullable=False
+    )
+    estado: Mapped[EstadoEncuesta] = mapped_column(
+        Enum(EstadoEncuesta, name="estado_encuesta_enum"),
+        nullable=False,
+        default=EstadoEncuesta.activa,
+    )
+    fecha_limite: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    fecha_cierre: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    habilitada_por: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.empleado_id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    curso: Mapped["Curso"] = relationship("Curso")
+    sesion: Mapped["CursoSesion"] = relationship("CursoSesion")
+    respuestas: Mapped[List["EncuestaPostCurso"]] = relationship(
+        "EncuestaPostCurso", back_populates="encuesta", cascade="all, delete-orphan"
+    )
+
+
 class EncuestaPostCurso(Base):
+    """Respuesta individual de un asistente a la encuesta post curso de una sesión.
+
+    Vinculada a encuesta + curso + sesión + empleado. Una respuesta por (sesión, empleado).
+    Todas las respuestas de todas las sesiones alimentan el promedio del curso.
+    """
+
     __tablename__ = "levelup_encuestas_post_curso"
     __table_args__ = (
-        UniqueConstraint("capacitacion_id", "empleado_id", name="uq_levelup_encuesta_cap_emp"),
+        UniqueConstraint("sesion_id", "empleado_id", name="uq_levelup_encuesta_sesion_emp"),
         CheckConstraint("score_general >= 1 AND score_general <= 5", name="ck_levelup_enc_score_gen"),
         CheckConstraint("score_instructor >= 1 AND score_instructor <= 5", name="ck_levelup_enc_score_inst"),
         CheckConstraint("score_contenido >= 1 AND score_contenido <= 5", name="ck_levelup_enc_score_cont"),
         CheckConstraint("score_aplicabilidad >= 1 AND score_aplicabilidad <= 5", name="ck_levelup_enc_score_aplic"),
+        Index("ix_levelup_encuestas_post_curso_curso_id", "curso_id"),
+        Index("ix_levelup_encuestas_post_curso_encuesta_id", "encuesta_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    capacitacion_id: Mapped[int] = mapped_column(ForeignKey("levelup_capacitaciones.id"), nullable=False)
+    encuesta_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_curso_encuesta.id", ondelete="CASCADE"), nullable=False
+    )
+    curso_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_cursos.id", ondelete="CASCADE"), nullable=False
+    )
+    sesion_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_curso_sesion.id", ondelete="CASCADE"), nullable=False
+    )
     empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.empleado_id"), nullable=False)
     score_general: Mapped[int] = mapped_column(Integer, nullable=False)
     score_instructor: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -589,7 +658,7 @@ class EncuestaPostCurso(Base):
     )
 
     empleado: Mapped["Empleado"] = relationship("Empleado", foreign_keys=[empleado_id])
-    capacitacion: Mapped["Capacitacion"] = relationship("Capacitacion")
+    encuesta: Mapped["CursoEncuesta"] = relationship("CursoEncuesta", back_populates="respuestas")
 
 
 class SugerenciaCapacitacion(Base):

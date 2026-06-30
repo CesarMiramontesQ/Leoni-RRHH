@@ -49,6 +49,8 @@ tags:
     description: Gestion de capacitaciones (CRUD, inscripciones, catalogo)
   - name: Talento - PDI
     description: Plan de Desarrollo Individual — KPIs avanzados, recomendaciones AI, export, notificaciones
+  - name: Level Up - Catálogos Cursos
+    description: Catálogos de cursos (categorías, tipos, instructores, proveedores)
 
 components:
   securitySchemes:
@@ -262,14 +264,6 @@ components:
           type: object
           additionalProperties:
             type: boolean
-
-    RhAdminPermisosUpdate:
-      type: object
-      required: [conceder]
-      properties:
-        conceder:
-          type: boolean
-          description: true otorga, false revoca puede_administrar_permisos_rh.
 
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
@@ -1382,6 +1376,29 @@ components:
           format: date-time
           nullable: true
 
+    HomeOfficeDisponibilidadResponse:
+      type: object
+      required:
+        - empleado_id
+        - anio
+        - mes
+        - dias_usados
+        - puede_solicitar
+      properties:
+        empleado_id:
+          type: integer
+        anio:
+          type: integer
+        mes:
+          type: integer
+          minimum: 1
+          maximum: 12
+        dias_usados:
+          type: integer
+          minimum: 0
+        puede_solicitar:
+          type: boolean
+
     VacacionesUpdate:
       type: object
       required:
@@ -1470,7 +1487,7 @@ components:
           description: >
             Tipos especiales (`matrimonio`, `incapacidad_interna`, `defuncion`, `paternidad`)
             solo pueden ser creados por RH. Reglas automáticas:
-            matrimonio=2 días, defuncion=3 días, paternidad=7 días hábiles,
+            matrimonio=2 días, defuncion=3 días (administrativos: 3 días hábiles con ajuste si cruza fin de semana), paternidad=7 días hábiles (ajuste si inicio en fin de semana),
             incapacidad_interna con duración manual.
             El tipo `permiso_sin_goce_sueldo` solo puede crearlo supervisor, gerente,
             RH o director, y requiere `motivo`.
@@ -1596,7 +1613,7 @@ components:
           type: string
           format: date
           description: Debe ser >= fecha_inicio
-        comentarios:
+        motivo:
           type: [string, "null"]
 
     SolicitudAprobacionResponse:
@@ -2270,6 +2287,22 @@ components:
                 type: string
               total:
                 type: integer
+        eventos_por_periodo_y_tipo:
+          type: array
+          items:
+            type: object
+            required: [periodo, tipo, total]
+            properties:
+              periodo:
+                type: string
+              tipo:
+                $ref: "#/components/schemas/FaltaRetardoTipo"
+              total:
+                type: integer
+        tendencia_agrupacion:
+          type: [string, "null"]
+          enum: [dia, semana, mes, null]
+          description: Granularidad solicitada vía query tendencia_agrupacion.
         eventos_por_tipo:
           type: array
           items:
@@ -3910,6 +3943,55 @@ components:
           type: string
           format: date-time
 
+    EmpleadoConPerfilItem:
+      type: object
+      description: Empleado ligado a un perfil de puesto (asignacion PerfilFunciones activa).
+      required: [empleado_id, empleado_nombre, puesto_perfil_id]
+      properties:
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: string
+        no_empleado:
+          type: integer
+          nullable: true
+        puesto_perfil_id:
+          type: integer
+        puesto_nombre:
+          type: string
+          nullable: true
+        puesto_codigo:
+          type: string
+          nullable: true
+        nivel_puesto:
+          type: string
+          nullable: true
+        grado_id:
+          type: integer
+          nullable: true
+        grado_nombre:
+          type: string
+          nullable: true
+        departamento:
+          type: string
+          nullable: true
+        area_nombre:
+          type: string
+          nullable: true
+        readiness_score:
+          type: number
+          format: float
+          description: 100 - brecha promedio (qué tan alineado al perfil ideal).
+        brechas_identificadas:
+          type: integer
+        severidad_promedio:
+          type: string
+          enum: [alineado, media, alta, critica]
+        competencias_alineadas:
+          type: integer
+        total_competencias:
+          type: integer
+
     TransicionRequest:
       type: object
       required: [comentario]
@@ -4821,6 +4903,377 @@ components:
         notificaciones_creadas: { type: integer }
         empleados_notificados: { type: integer }
 
+    # ── Level Up - Catálogos Cursos ───────────────────
+    InstructorInternoCreate:
+      type: object
+      required: [empleado_id]
+      properties:
+        empleado_id:
+          type: integer
+          minimum: 1
+        especialidad:
+          type: string
+          maxLength: 255
+          nullable: true
+
+    InstructorInternoUpdate:
+      type: object
+      properties:
+        especialidad:
+          type: string
+          maxLength: 255
+          nullable: true
+        activo:
+          type: boolean
+
+    InstructorInternoResponse:
+      type: object
+      required: [id, empleado_id, activo, created_at]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        nombre_empleado:
+          type: string
+          nullable: true
+        no_empleado:
+          type: string
+          nullable: true
+        especialidad:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    CursosDashboardKpis:
+      type: object
+      properties:
+        cursos_asignados: { type: integer }
+        cursos_pendientes: { type: integer }
+        cursos_completados: { type: integer }
+        cursos_con_sesion_proxima: { type: integer }
+        sesiones_pendientes: { type: integer }
+        sesiones_programadas: { type: integer }
+        sesiones_completadas: { type: integer }
+        empleados_con_cursos_pendientes: { type: integer }
+        empleados_con_sesiones_pendientes: { type: integer }
+        empleados_sin_completar_obligatorio: { type: integer }
+
+    CursosDashboardResumenResponse:
+      type: object
+      required: [kpis]
+      properties:
+        kpis:
+          $ref: "#/components/schemas/CursosDashboardKpis"
+        empleados_cursos_pendientes:
+          type: array
+          items:
+            type: object
+        empleados_sesiones_pendientes:
+          type: array
+          items:
+            type: object
+        sesiones_proximas:
+          type: array
+          items:
+            type: object
+        cursos_completados_recientes:
+          type: array
+          items:
+            type: object
+
+    CursosDashboardRegistroItem:
+      type: object
+      required: [empleado_id, curso_id, estado_curso]
+      properties:
+        empleado_id: { type: integer }
+        nombre_empleado: { type: string, nullable: true }
+        no_empleado: { type: string, nullable: true }
+        area_nombre: { type: string, nullable: true }
+        puesto_nombre: { type: string, nullable: true }
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        curso_obligatorio: { type: boolean }
+        estado_curso:
+          type: string
+          enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+        origen_asignacion: { type: string, nullable: true }
+        sesion_id: { type: integer, nullable: true }
+        sesion_fecha_inicio: { type: string, nullable: true }
+        estado_sesion: { type: string, nullable: true }
+        asistio: { type: boolean, nullable: true }
+        fecha_finalizacion: { type: string, nullable: true }
+
+    CursosDashboardRegistrosResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CursosDashboardRegistroItem"
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
+    CursosDashboardEmpleadoHistorialResponse:
+      type: object
+      required: [empleado_id, cursos, sesiones]
+      properties:
+        empleado_id: { type: integer }
+        nombre_empleado: { type: string, nullable: true }
+        no_empleado: { type: string, nullable: true }
+        area_nombre: { type: string, nullable: true }
+        puesto_nombre: { type: string, nullable: true }
+        cursos:
+          type: array
+          items:
+            type: object
+        sesiones:
+          type: array
+          items:
+            type: object
+
+    CursoEmpleadoDetail:
+      type: object
+      required: [id, empleado_id]
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        nombre_empleado:
+          type: string
+          nullable: true
+        no_empleado:
+          type: string
+          nullable: true
+        sesion_id:
+          type: integer
+          nullable: true
+        sesion_fecha:
+          type: string
+          nullable: true
+        asistio:
+          type: boolean
+          nullable: true
+
+    EmpleadoExtraElegibleItem:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+          nullable: true
+        no_empleado:
+          type: string
+          nullable: true
+
+    CursoEmpleadoExtraAssignBody:
+      type: object
+      required: [empleado_id]
+      properties:
+        empleado_id:
+          type: integer
+
+    InstructorInternoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstructorInternoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    # ── Encuestas Post Curso ──────────────────────────────────────────────
+    EncuestaHabilitarRequest:
+      type: object
+      properties:
+        fecha_limite:
+          type: string
+          format: date-time
+          nullable: true
+    EncuestaUpdateRequest:
+      type: object
+      properties:
+        estado:
+          type: string
+          enum: [activa, cerrada]
+          nullable: true
+        fecha_limite:
+          type: string
+          format: date-time
+          nullable: true
+    EncuestaEstadoResponse:
+      type: object
+      required: [curso_id, sesion_id, estado_efectivo, total_asistentes, respondidas, pendientes]
+      properties:
+        id:
+          type: integer
+          nullable: true
+        curso_id:
+          type: integer
+        sesion_id:
+          type: integer
+        estado_efectivo:
+          type: string
+          enum: [no_habilitada, activa, cerrada]
+        fecha_limite:
+          type: string
+          format: date-time
+          nullable: true
+        fecha_cierre:
+          type: string
+          format: date-time
+          nullable: true
+        total_asistentes:
+          type: integer
+        respondidas:
+          type: integer
+        pendientes:
+          type: integer
+    EncuestaRespuestaCreate:
+      type: object
+      required: [score_general, score_instructor, score_contenido, score_aplicabilidad]
+      properties:
+        score_general: { type: integer, minimum: 1, maximum: 5 }
+        score_instructor: { type: integer, minimum: 1, maximum: 5 }
+        score_contenido: { type: integer, minimum: 1, maximum: 5 }
+        score_aplicabilidad: { type: integer, minimum: 1, maximum: 5 }
+        comentario: { type: string, nullable: true, maxLength: 2000 }
+    EncuestaRespuestaResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        encuesta_id: { type: integer }
+        curso_id: { type: integer }
+        sesion_id: { type: integer }
+        empleado_id: { type: integer }
+        score_general: { type: integer }
+        score_instructor: { type: integer }
+        score_contenido: { type: integer }
+        score_aplicabilidad: { type: integer }
+        comentario: { type: string, nullable: true }
+        fecha: { type: string, format: date-time }
+    EncuestaPendienteItem:
+      type: object
+      properties:
+        encuesta_id: { type: integer }
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        sesion_id: { type: integer }
+        fecha_sesion: { type: string, format: date, nullable: true }
+        fecha_limite: { type: string, format: date-time, nullable: true }
+    EncuestaPendienteListResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EncuestaPendienteItem"
+        total: { type: integer }
+    EncuestaDetalleResponse:
+      type: object
+      properties:
+        encuesta_id: { type: integer }
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        sesion_id: { type: integer }
+        fecha_sesion: { type: string, format: date, nullable: true }
+        estado_efectivo:
+          type: string
+          enum: [no_habilitada, activa, cerrada]
+        fecha_limite: { type: string, format: date-time, nullable: true }
+        ya_respondida: { type: boolean }
+    DistribucionItem:
+      type: object
+      properties:
+        score: { type: integer }
+        cantidad: { type: integer }
+    ComentarioItem:
+      type: object
+      properties:
+        sesion_id: { type: integer }
+        empleado_nombre: { type: string, nullable: true }
+        score_general: { type: integer }
+        comentario: { type: string }
+        fecha: { type: string, format: date-time }
+    EncuestaSesionResultado:
+      type: object
+      properties:
+        sesion_id: { type: integer }
+        fecha_sesion: { type: string, format: date, nullable: true }
+        estado_efectivo:
+          type: string
+          enum: [no_habilitada, activa, cerrada]
+        total_asistentes: { type: integer }
+        respondidas: { type: integer }
+        tasa_participacion: { type: number }
+        promedio_general: { type: number, nullable: true }
+        promedio_instructor: { type: number, nullable: true }
+        promedio_contenido: { type: number, nullable: true }
+        promedio_aplicabilidad: { type: number, nullable: true }
+    CursoEncuestasResumenResponse:
+      type: object
+      properties:
+        curso_id: { type: integer }
+        curso_nombre: { type: string, nullable: true }
+        calificacion_promedio: { type: number, nullable: true }
+        total_evaluaciones: { type: integer }
+        promedio_instructor: { type: number, nullable: true }
+        promedio_contenido: { type: number, nullable: true }
+        promedio_aplicabilidad: { type: number, nullable: true }
+        distribucion:
+          type: array
+          items: { $ref: "#/components/schemas/DistribucionItem" }
+        sesiones:
+          type: array
+          items: { $ref: "#/components/schemas/EncuestaSesionResultado" }
+        comentarios:
+          type: array
+          items: { $ref: "#/components/schemas/ComentarioItem" }
+    DashboardCursoItem:
+      type: object
+      properties:
+        curso_id: { type: integer }
+        curso_nombre: { type: string }
+        instructor_nombre: { type: string, nullable: true }
+        proveedor_nombre: { type: string, nullable: true }
+        total_evaluaciones: { type: integer }
+        promedio_general: { type: number, nullable: true }
+        promedio_instructor: { type: number, nullable: true }
+        promedio_contenido: { type: number, nullable: true }
+        promedio_aplicabilidad: { type: number, nullable: true }
+    EncuestasDashboardResponse:
+      type: object
+      properties:
+        total_evaluaciones: { type: integer }
+        score_medio: { type: number, nullable: true }
+        cursos_evaluados: { type: integer }
+        cursos_en_alerta: { type: integer }
+        distribucion:
+          type: array
+          items: { $ref: "#/components/schemas/DistribucionItem" }
+        cursos:
+          type: array
+          items: { $ref: "#/components/schemas/DashboardCursoItem" }
+        comentarios:
+          type: array
+          items: { $ref: "#/components/schemas/ComentarioItem" }
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -5096,7 +5549,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/RhModuloCatalogItem"
         "403":
-          description: Requiere puede_administrar_permisos_rh
+          description: Requiere usuario admin
 
   /api/v1/rh-permisos/usuarios:
     get:
@@ -5115,7 +5568,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/RhUsuarioPermisosItem"
         "403":
-          description: Requiere puede_administrar_permisos_rh
+          description: Requiere usuario admin
 
   /api/v1/rh-permisos/empleados-buscar:
     get:
@@ -5141,7 +5594,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/RhEmpleadoBusquedaItem"
         "403":
-          description: Requiere puede_administrar_permisos_rh
+          description: Requiere usuario admin
 
   /api/v1/rh-permisos/usuarios/{empleado_id}:
     post:
@@ -5225,44 +5678,6 @@ paths:
         "404":
           description: Empleado no encontrado o ya removido / no inscrito
 
-  /api/v1/rh-permisos/usuarios/{empleado_id}/admin:
-    put:
-      tags: [RH Permisos]
-      summary: Otorgar o revocar el permiso de administrar permisos RH
-      description: >-
-        Activa/desactiva `puede_administrar_permisos_rh` (tabla
-        levelup_empleados_permisos) para un empleado. La BD es la fuente; el
-        cambio se registra en auditoría. Candados: no puedes cambiar tu propio
-        flag ni revocar al último administrador.
-      operationId: rh_permisos_usuarios_set_admin
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: empleado_id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RhAdminPermisosUpdate"
-      responses:
-        "200":
-          description: Permiso de administración actualizado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RhUsuarioPermisosItem"
-        "403":
-          description: Sin permiso o cambio del propio flag prohibido
-        "404":
-          description: Empleado no encontrado
-        "409":
-          description: No se puede revocar al último administrador
-
   # ── Usuarios ────────────────────────────────────────
   /api/v1/usuarios/roles:
     get:
@@ -5306,8 +5721,7 @@ paths:
       summary: Actualizar asignacion de lider o rol
       description: >-
         Actualiza lider, comedor y/o rol del empleado. Modificar `rol_id`
-        requiere que el usuario autenticado tenga `puede_administrar_permisos_rh`;
-        en caso contrario la operacion responde 403.
+        requiere usuario admin (`is_admin_user`); en caso contrario responde 403.
       operationId: usuarios_patch
       security:
         - BearerAuth: []
@@ -5332,7 +5746,7 @@ paths:
                 $ref: "#/components/schemas/UsuarioResponse"
         "403":
           description: >-
-            Sin permiso. Modificar el rol exige `puede_administrar_permisos_rh`.
+            Sin permiso. Modificar el rol exige usuario admin.
 
   # ── Empleados ───────────────────────────────────────
   /api/v1/empleados/resumen:
@@ -6065,6 +6479,44 @@ paths:
           description: Empleado no encontrado
         "422":
           description: Validación de días disponibles
+
+  /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
+    get:
+      tags: [Empleados]
+      summary: Disponibilidad de Home Office en el mes calendario
+      operationId: empleados_home_office_disponibilidad_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: fecha
+          in: query
+          required: true
+          description: Fecha de referencia (mes calendario a validar)
+          schema:
+            type: string
+            format: date
+        - name: excluir_solicitud_id
+          in: query
+          required: false
+          description: Excluir solicitud al corregir (changes_requested)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Indica si puede solicitar HO en el mes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeOfficeDisponibilidadResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
 
   /api/v1/empleados/{empleado_id}/foto:
     get:
@@ -6933,6 +7385,12 @@ paths:
           description: Nombre de área
           schema:
             type: string
+        - name: tendencia_agrupacion
+          in: query
+          description: "Granularidad de tendencia por tipo: dia, semana o mes"
+          schema:
+            type: string
+            enum: [dia, semana, mes]
       responses:
         "200":
           description: Totales por tipo con filtros aplicados
@@ -9794,6 +10252,27 @@ paths:
         "404":
           description: Evaluacion no encontrada
 
+  /api/v1/evaluaciones/empleados-con-perfil:
+    get:
+      tags: [Talento - Evaluaciones]
+      summary: Empleados ligados a un perfil de puesto
+      description: >-
+        Lista los empleados con una asignacion activa a un perfil de puesto
+        (PerfilFunciones), para el selector de "Evaluacion Individual vs Perfil
+        Ideal". RH ve todos; supervisor solo su area; otro rol solo a si mismo.
+      operationId: evaluaciones_empleados_con_perfil
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de empleados con perfil asignado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmpleadoConPerfilItem"
+
   /api/v1/evaluaciones/empleado/{empleado_id}:
     get:
       tags: [Talento - Evaluaciones]
@@ -10673,3 +11152,527 @@ paths:
           description: Perfil o asignación no encontrados
         "422":
           description: competencia_requisito_ids inválidos
+
+  /api/v1/level-up/cursos/dashboard/resumen:
+    get:
+      tags: [Level Up - Cursos Dashboard]
+      summary: KPIs y vista rápida de seguimiento de capacitaciones
+      operationId: cursos_dashboard_resumen
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solo_activos
+          in: query
+          description: Si es true, excluye cursos completados y sesiones cerradas con asistencia.
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Resumen del dashboard de seguimiento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursosDashboardResumenResponse"
+
+  /api/v1/level-up/cursos/dashboard/registros:
+    get:
+      tags: [Level Up - Cursos Dashboard]
+      summary: Registros paginados de seguimiento empleado-curso
+      operationId: cursos_dashboard_registros
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: curso_id
+          in: query
+          schema:
+            type: integer
+        - name: area_id
+          in: query
+          schema:
+            type: integer
+        - name: puesto_id
+          in: query
+          schema:
+            type: integer
+        - name: estado_curso
+          in: query
+          schema:
+            type: string
+            enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+        - name: estado_sesion
+          in: query
+          schema:
+            type: string
+            enum: [programada, en_curso, completada, cancelada]
+        - name: fecha_desde
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_hasta
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista paginada de registros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursosDashboardRegistrosResponse"
+
+  /api/v1/level-up/cursos/dashboard/empleados/{empleado_id}/historial:
+    get:
+      tags: [Level Up - Cursos Dashboard]
+      summary: Historial de capacitación de un empleado
+      operationId: cursos_dashboard_historial_empleado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: estado_curso
+          in: query
+          schema:
+            type: string
+            enum: [pendiente, programado, completado, no_acreditado, en_progreso]
+        - name: solo_activos
+          in: query
+          description: Si es true, excluye cursos completados y sesiones cerradas con asistencia.
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Historial del empleado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursosDashboardEmpleadoHistorialResponse"
+        "404":
+          description: Empleado no encontrado
+
+  /api/v1/level-up/cursos/{id}/empleados-extra:
+    get:
+      tags: [Level Up - Cursos]
+      summary: Listar empleados asignados individualmente al curso
+      operationId: listar_empleados_extra_del_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Empleados extra del curso (sin sesión)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CursoEmpleadoDetail"
+    post:
+      tags: [Level Up - Cursos]
+      summary: Asignar empleado individual al curso
+      operationId: asignar_empleado_extra_al_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CursoEmpleadoExtraAssignBody"
+      responses:
+        "201":
+          description: Empleado asignado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursoEmpleadoDetail"
+        "404":
+          description: Curso o empleado no encontrado
+        "409":
+          description: Empleado ya asignado
+
+  /api/v1/level-up/cursos/{id}/empleados-extra/{curso_empleado_id}:
+    delete:
+      tags: [Level Up - Cursos]
+      summary: Quitar empleado individual del curso
+      operationId: quitar_empleado_extra_del_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: curso_empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Asignación eliminada
+        "404":
+          description: Asignación no encontrada
+
+  /api/v1/level-up/cursos/{id}/empleados-elegibles-extra:
+    get:
+      tags: [Level Up - Cursos]
+      summary: Buscar empleados elegibles para asignación individual
+      operationId: buscar_empleados_elegibles_extra
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Empleados activos no asignados ni cubiertos por puesto
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmpleadoExtraElegibleItem"
+
+  /api/v1/level-up/catalogos/instructores-internos:
+    get:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Listar instructores internos
+      operationId: listar_instructores_internos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Lista paginada de instructores internos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorInternoListResponse"
+    post:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Registrar empleado como instructor interno
+      operationId: crear_instructor_interno
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstructorInternoCreate"
+      responses:
+        "201":
+          description: Instructor interno creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorInternoResponse"
+        "403":
+          description: Sin permisos RH
+        "404":
+          description: Empleado no encontrado
+        "409":
+          description: Empleado ya registrado como instructor activo
+
+  /api/v1/level-up/catalogos/instructores-internos/{id}:
+    put:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Actualizar instructor interno
+      operationId: actualizar_instructor_interno
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstructorInternoUpdate"
+      responses:
+        "200":
+          description: Instructor interno actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorInternoResponse"
+        "403":
+          description: Sin permisos RH
+        "404":
+          description: Instructor interno no encontrado
+    delete:
+      tags: [Level Up - Catálogos Cursos]
+      summary: Desactivar instructor interno
+      operationId: eliminar_instructor_interno
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Instructor interno desactivado
+        "403":
+          description: Sin permisos RH
+        "404":
+          description: Instructor interno no encontrado
+
+  # ── Encuestas Post Curso ────────────────────────────────────────────────
+  /api/v1/level-up/cursos/{curso_id}/sesiones/{sesion_id}/encuesta:
+    parameters:
+      - name: curso_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: sesion_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Estado de la encuesta de una sesión (RH)
+      operationId: estado_encuesta_sesion
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Estado y conteos de participación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaEstadoResponse"
+    post:
+      tags: [Level Up - Encuestas]
+      summary: Habilitar encuesta para una sesión finalizada (RH)
+      operationId: habilitar_encuesta_sesion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncuestaHabilitarRequest"
+      responses:
+        "201":
+          description: Encuesta habilitada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaEstadoResponse"
+        "409":
+          description: La encuesta ya está habilitada
+        "422":
+          description: La sesión no está finalizada
+    patch:
+      tags: [Level Up - Encuestas]
+      summary: Cerrar/reabrir o fijar fecha límite de la encuesta (RH)
+      operationId: actualizar_encuesta_sesion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncuestaUpdateRequest"
+      responses:
+        "200":
+          description: Encuesta actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaEstadoResponse"
+        "404":
+          description: Encuesta no encontrada
+    delete:
+      tags: [Level Up - Encuestas]
+      summary: Deshabilitar encuesta (RH); si tiene respuestas se cierra
+      operationId: deshabilitar_encuesta_sesion
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Encuesta deshabilitada
+        "409":
+          description: Tiene respuestas; se cerró en lugar de eliminarse
+
+  /api/v1/level-up/cursos/{curso_id}/encuestas/resumen:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Resumen de resultados de encuestas del curso (RH)
+      operationId: resumen_encuestas_curso
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: curso_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Promedios, distribución, comparativo por sesión y comentarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CursoEncuestasResumenResponse"
+
+  /api/v1/level-up/cursos/dashboard/encuestas:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Dashboard global de encuestas post curso (RH)
+      operationId: dashboard_encuestas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: KPIs, score por curso, distribución y comentarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestasDashboardResponse"
+
+  /api/v1/level-up/encuestas/pendientes:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Encuestas pendientes del empleado autenticado
+      operationId: mis_encuestas_pendientes
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de encuestas pendientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaPendienteListResponse"
+
+  /api/v1/level-up/encuestas/{encuesta_id}:
+    get:
+      tags: [Level Up - Encuestas]
+      summary: Detalle de la encuesta para responder (empleado)
+      operationId: detalle_encuesta
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: encuesta_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Detalle de la encuesta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaDetalleResponse"
+        "404":
+          description: Encuesta no encontrada
+        "422":
+          description: El empleado no asistió a la sesión
+
+  /api/v1/level-up/encuestas/{encuesta_id}/respuesta:
+    post:
+      tags: [Level Up - Encuestas]
+      summary: Responder la encuesta (empleado asistente)
+      operationId: responder_encuesta
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: encuesta_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncuestaRespuestaCreate"
+      responses:
+        "201":
+          description: Respuesta registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncuestaRespuestaResponse"
+        "409":
+          description: Ya respondiste la encuesta de esta sesión
+        "422":
+          description: Encuesta no activa o empleado no asistente

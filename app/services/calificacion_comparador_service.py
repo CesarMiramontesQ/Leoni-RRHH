@@ -2,18 +2,55 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.models.talento import MetodoCalificacion, OpcionCalificacion
 from app.utils.seed_cualificaciones_catalogo import NA_VARIANTS
 
 
+def _coincide_opcion(op: OpcionCalificacion, valor: str) -> bool:
+    """Resuelve un valor por `valor` (exacto o case-insensitive) o por `etiqueta`.
+
+    Tolera criterios/capturas guardados como texto libre (la etiqueta de la opción,
+    p. ej. "Licenciatura") en vez del `valor` interno (p. ej. "4").
+    """
+    needle = str(valor).strip().lower()
+    if op.valor == valor:
+        return True
+    if str(op.valor).strip().lower() == needle:
+        return True
+    return (op.etiqueta or "").strip().lower() == needle
+
+
 def _peso_opcion(opciones: list[OpcionCalificacion], valor: str | None) -> int | None:
     if not valor:
         return None
     for op in opciones:
-        if op.activo and op.valor == valor:
+        if op.activo and _coincide_opcion(op, valor):
             return op.peso
+    return None
+
+
+def _opcion_a_numero(opciones: list[OpcionCalificacion], valor: str | None) -> int | None:
+    """Convierte una opción a número para comparadores numéricos.
+
+    Prioriza el número embebido en `valor` (p. ej. "2") o en `etiqueta`
+    (p. ej. "2 año" → 2); como último recurso usa `peso`.
+    """
+    if not valor:
+        return None
+    for op in opciones:
+        if not op.activo or not _coincide_opcion(op, valor):
+            continue
+        try:
+            return int(str(op.valor).strip())
+        except (TypeError, ValueError):
+            pass
+        m = re.search(r"\d+", op.etiqueta or "")
+        if m:
+            return int(m.group())
+        return op.peso
     return None
 
 
@@ -106,8 +143,8 @@ def _comparar_ordinal_gte(
     criterio: dict,
     capturado: dict,
 ) -> bool | None:
-    req = criterio.get("opcion_valor")
-    act = capturado.get("opcion_valor")
+    req = criterio.get("opcion_valor") or criterio.get("texto")
+    act = capturado.get("opcion_valor") or capturado.get("texto")
     peso_req = _peso_opcion(opciones, req)
     peso_act = _peso_opcion(opciones, act)
     if peso_req is None or peso_act is None:
@@ -115,12 +152,18 @@ def _comparar_ordinal_gte(
     return peso_act >= peso_req
 
 
-def _comparar_numeric_gte(criterio: dict, capturado: dict) -> bool | None:
+def _comparar_numeric_gte(
+    opciones: list[OpcionCalificacion],
+    criterio: dict,
+    capturado: dict,
+) -> bool | None:
     min_anios = criterio.get("min_anios")
-    anios = capturado.get("anios")
     if min_anios is None:
-        return None
+        min_anios = _opcion_a_numero(opciones, criterio.get("opcion_valor"))
+    anios = capturado.get("anios")
     if anios is None:
+        anios = _opcion_a_numero(opciones, capturado.get("opcion_valor"))
+    if min_anios is None or anios is None:
         return None
     try:
         return int(anios) >= int(min_anios)
@@ -224,7 +267,7 @@ def evaluar_cumplimiento(
     if comparador == "ordinal_gte":
         return _comparar_ordinal_gte(opciones, criterio, capturado)
     if comparador == "numeric_gte":
-        return _comparar_numeric_gte(criterio, capturado)
+        return _comparar_numeric_gte(opciones, criterio, capturado)
     if comparador == "numeric_range":
         return _comparar_numeric_range(criterio, capturado)
     if comparador == "exact":

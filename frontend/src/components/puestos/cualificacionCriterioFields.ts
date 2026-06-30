@@ -58,10 +58,54 @@ export function renderCriterioFieldsHtml(opts: {
 }): string {
   const { prefix, config, opciones, valor, mode = "requerido" } = opts;
   const comparador = config.comparador ?? "none";
-  const captura = config.captura ?? {};
-  const campos = captura.campos ?? ["texto"];
   const permiteNa = config.permite_na !== false;
   const sorted = [...opciones].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+
+  // Cada campo de criterio se construye aquí; abajo se elige UNO según el comparador
+  // para evitar capturar el dato en el campo equivocado (p. ej. texto libre en un
+  // método de opción, que el comparador no puede interpretar).
+  const dropdownHtml = (): string => {
+    const current = (valor?.opcion_valor as string) ?? "";
+    const options = sorted
+      .map(
+        (o) =>
+          `<option value="${escapeHtml(o.valor)}" ${current === o.valor ? "selected" : ""}>${escapeHtml(o.etiqueta)}</option>`,
+      )
+      .join("");
+    return `
+      <div class="mb-3">
+        <label class="${RH_LISTADO_LABEL}" for="${prefix}-opcion">Opción</label>
+        <div class="relative mt-1 grid grid-cols-1">
+          <select id="${prefix}-opcion" data-criterio-opcion class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}">
+            <option value="">Seleccionar…</option>
+            ${options}
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>`;
+  };
+
+  const aniosHtml = (): string => {
+    const current = valor?.min_anios ?? valor?.anios ?? "";
+    const label = mode === "captura" ? "Años de experiencia" : "Años mínimos requeridos";
+    const field = mode === "captura" ? "anios" : "min_anios";
+    return `
+      <div class="mb-3">
+        <label class="${RH_LISTADO_LABEL}" for="${prefix}-anios">${label}</label>
+        <input type="number" min="0" id="${prefix}-anios" data-criterio-field="${field}"
+          class="${FIELD_FOCUS} mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm" value="${current}" />
+      </div>`;
+  };
+
+  const textoHtml = (): string => {
+    const current = (valor?.texto as string) ?? "";
+    return `
+      <div class="mb-3">
+        <label class="${RH_LISTADO_LABEL}" for="${prefix}-texto">Descripción / criterio</label>
+        <input type="text" id="${prefix}-texto" data-criterio-texto
+          class="${FIELD_FOCUS} mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm" value="${escapeHtml(current)}" />
+      </div>`;
+  };
 
   let html = "";
 
@@ -74,46 +118,18 @@ export function renderCriterioFieldsHtml(opts: {
       </label>`;
   }
 
-  if (campos.includes("opcion") || comparador === "ordinal_gte" || comparador === "boolean_yes" || comparador === "exact") {
-    if (sorted.length > 0) {
-      const current = (valor?.opcion_valor as string) ?? "";
-      const options = sorted
-        .map(
-          (o) =>
-            `<option value="${escapeHtml(o.valor)}" ${current === o.valor ? "selected" : ""}>${escapeHtml(o.etiqueta)}</option>`,
-        )
-        .join("");
-      html += `
-        <div class="mb-3">
-          <label class="${RH_LISTADO_LABEL}" for="${prefix}-opcion">Opción</label>
-          <select id="${prefix}-opcion" data-criterio-opcion class="${RH_LISTADO_SELECT} ${SELECT_CHEVRON} ${FIELD_FOCUS} mt-1 w-full">
-            <option value="">Seleccionar…</option>
-            ${options}
-          </select>
-        </div>`;
-    }
-  }
+  const optionBased = comparador === "ordinal_gte" || comparador === "boolean_yes" || comparador === "exact";
+  const numeric = comparador === "numeric_gte" || comparador === "numeric_range";
 
-  if (comparador === "numeric_gte" || captura.anios_habilitado) {
-    const current = valor?.min_anios ?? valor?.anios ?? "";
-    const label = mode === "captura" ? "Años de experiencia" : "Años mínimos requeridos";
-    const field = mode === "captura" ? "anios" : "min_anios";
-    html += `
-      <div class="mb-3">
-        <label class="${RH_LISTADO_LABEL}" for="${prefix}-anios">${label}</label>
-        <input type="number" min="0" id="${prefix}-anios" data-criterio-field="${field}"
-          class="${FIELD_FOCUS} mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm" value="${current}" />
-      </div>`;
-  }
-
-  if (comparador === "none" || campos.includes("texto")) {
-    const current = (valor?.texto as string) ?? "";
-    html += `
-      <div class="mb-3">
-        <label class="${RH_LISTADO_LABEL}" for="${prefix}-texto">Descripción / criterio</label>
-        <input type="text" id="${prefix}-texto" data-criterio-texto
-          class="${FIELD_FOCUS} mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm" value="${escapeHtml(current)}" />
-      </div>`;
+  if (optionBased) {
+    html += sorted.length > 0 ? dropdownHtml() : textoHtml();
+  } else if (numeric) {
+    html += aniosHtml();
+  } else if (comparador === "none") {
+    html += textoHtml();
+  } else {
+    // Comparador desconocido / multi-opción: usa el dropdown si hay opciones.
+    html += sorted.length > 0 ? dropdownHtml() : textoHtml();
   }
 
   return html;

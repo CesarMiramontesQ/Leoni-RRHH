@@ -33,6 +33,12 @@ from app.core.rh_ui_mode import (
     rh_tiene_alcance_gestor,
 )
 from app.utils.clasificacion_empleado import empleado_es_administrativo
+from app.utils.vacaciones_fechas import (
+    defuncion_rango_para_empleado,
+    dias_laborales_inclusive,
+    paternidad_rango,
+    rango_incluye_fin_de_semana,
+)
 from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
@@ -116,15 +122,53 @@ def _dias_solicitud_inclusive(fecha_inicio: date, fecha_fin: date) -> int:
     return (fecha_fin - fecha_inicio).days + 1
 
 
-def _sumar_dias_habiles(fecha_inicio: date, dias_habiles: int) -> date:
-    """Suma días hábiles (lunes-viernes) sobre fecha_inicio inclusive."""
-    cursor = fecha_inicio
-    acumulados = 1
-    while acumulados < dias_habiles:
-        cursor += timedelta(days=1)
-        if cursor.weekday() < 5:
-            acumulados += 1
-    return cursor
+def _validar_matrimonio_fechas(fecha_inicio: date, fecha_fin: date) -> None:
+    if _dias_solicitud_inclusive(fecha_inicio, fecha_fin) != 2:
+        raise DomainValidationError(
+            detail=(
+                "Matrimonio solo permite solicitar exactamente 2 días consecutivos "
+                "(fecha fin debe ser un día después de la fecha de inicio)."
+            )
+        )
+
+
+def _validar_defuncion_fechas(
+    fecha_inicio: date,
+    fecha_fin: date,
+    *,
+    administrativo: bool,
+) -> None:
+    esperado_inicio, esperado_fin = defuncion_rango_para_empleado(
+        fecha_inicio,
+        administrativo=administrativo,
+    )
+    if fecha_inicio != esperado_inicio or fecha_fin != esperado_fin:
+        if administrativo:
+            raise DomainValidationError(
+                detail=(
+                    "Defunción para colaboradores administrativos requiere exactamente "
+                    "3 días hábiles. Si el rango cruza fin de semana, se usan los días "
+                    "hábiles más cercanos."
+                )
+            )
+        raise DomainValidationError(
+            detail=(
+                "Defunción solo permite solicitar exactamente 3 días consecutivos "
+                "(fecha fin = dos días después de la fecha de inicio)."
+            )
+        )
+
+
+def _validar_paternidad_fechas(fecha_inicio: date, fecha_fin: date) -> None:
+    esperado_inicio, esperado_fin = paternidad_rango(fecha_inicio)
+    if fecha_inicio != esperado_inicio or fecha_fin != esperado_fin:
+        raise DomainValidationError(
+            detail=(
+                "Paternidad solo permite solicitar exactamente 7 días hábiles. "
+                "Si la fecha de inicio cae en fin de semana, se usan los días hábiles "
+                "más cercanos."
+            )
+        )
 
 
 async def _enviar_notificacion_background(
@@ -473,6 +517,25 @@ class SolicitudService:
 
     # ── Crear ────────────────────────────────────────────────────────────────
 
+    async def _dias_vacaciones_para_empleado(
+        self,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> int:
+        """Días a debitar/acreditar: laborales (lun–vie) si es administrativo; naturales si no."""
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is not None and empleado_es_administrativo(empleado):
+            if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
+                raise DomainValidationError(
+                    detail=(
+                        "Los colaboradores administrativos solo pueden solicitar vacaciones "
+                        "en días entre semana (lunes a viernes)."
+                    )
+                )
+            return dias_laborales_inclusive(fecha_inicio, fecha_fin)
+        return _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+
     async def _debitar_saldo_vacaciones(
         self,
         *,
@@ -481,8 +544,41 @@ class SolicitudService:
         fecha_fin: date,
     ) -> None:
         """Rebaja días disponibles al registrar o corregir una solicitud de vacaciones."""
-        necesarios = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+        necesarios = await self._dias_vacaciones_para_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
         await self.vacaciones_repo.debitar(empleado_id, necesarios)
+
+    async def _validar_creacion_vacaciones(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> None:
+        """Impide alta de vacaciones sin saldo o con días solicitados mayores al disponible."""
+        saldo = await self.vacaciones_repo.get_dias_disponibles(empleado_id)
+        if saldo <= 0:
+            raise DomainValidationError(
+                detail=(
+                    "No cuentas con días de vacaciones disponibles "
+                    "para presentar una solicitud."
+                )
+            )
+        necesarios = await self._dias_vacaciones_para_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
+        if necesarios <= 0:
+            raise DomainValidationError(
+                detail="El rango debe incluir al menos un día de vacaciones."
+            )
+        if necesarios > saldo:
+            raise DomainValidationError(
+                detail=(
+                    f"Saldo insuficiente: hay {saldo} día(s) disponible(s) "
+                    f"y se solicitan {necesarios}."
+                )
+            )
 
     async def _restaurar_saldo_vacaciones(
         self,
@@ -492,8 +588,101 @@ class SolicitudService:
         fecha_fin: date,
     ) -> None:
         """Devuelve días al saldo (cancelación, rechazo o corrección de fechas)."""
-        dias = _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+        dias = await self._dias_vacaciones_para_empleado(
+            empleado_id, fecha_inicio, fecha_fin
+        )
         await self.vacaciones_repo.acreditar(empleado_id, dias)
+
+    async def _validar_creacion_home_office(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+        exclude_solicitud_id: int | None = None,
+    ) -> None:
+        if fecha_fin != fecha_inicio:
+            raise DomainValidationError(
+                detail=(
+                    "Home Office solo permite solicitar un día "
+                    "(fecha inicio y fin iguales)."
+                )
+            )
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is None or not empleado_es_administrativo(empleado):
+            raise DomainValidationError(
+                detail=(
+                    "Home Office solo está disponible para colaboradores "
+                    "con clasificación Administrativo."
+                )
+            )
+        if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
+            raise DomainValidationError(
+                detail=(
+                    "Home Office solo puede solicitarse en días entre semana "
+                    "(lunes a viernes)."
+                )
+            )
+        usados = await self.repo.count_home_office_activos_en_mes(
+            empleado_id=empleado_id,
+            year=fecha_inicio.year,
+            month=fecha_inicio.month,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=exclude_solicitud_id,
+        )
+        if usados >= 1:
+            raise DomainValidationError(
+                detail=(
+                    "Ya existe una solicitud de Home Office activa en el mes seleccionado. "
+                    "Solo se permite un día por mes."
+                )
+            )
+
+    async def _validar_permiso_sin_goce_sueldo_fechas(
+        self,
+        *,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> None:
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is None or not empleado_es_administrativo(empleado):
+            return
+        if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
+            raise DomainValidationError(
+                detail=(
+                    "Los colaboradores administrativos solo pueden solicitar permiso "
+                    "sin goce de sueldo en días entre semana (lunes a viernes)."
+                )
+            )
+
+    async def home_office_disponibilidad_mes(
+        self,
+        empleado_id: int,
+        fecha_referencia: date,
+        current_user: Empleado,
+        exclude_solicitud_id: int | None = None,
+    ) -> "HomeOfficeDisponibilidadResponse":
+        from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
+        from app.services.vacaciones_service import VacacionesService
+
+        await VacacionesService(self.db)._ensure_puede_ver_empleado(
+            current_user, empleado_id
+        )
+        usados = await self.repo.count_home_office_activos_en_mes(
+            empleado_id=empleado_id,
+            year=fecha_referencia.year,
+            month=fecha_referencia.month,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=exclude_solicitud_id,
+        )
+        return HomeOfficeDisponibilidadResponse(
+            empleado_id=empleado_id,
+            anio=fecha_referencia.year,
+            mes=fecha_referencia.month,
+            dias_usados=usados,
+            puede_solicitar=usados < 1,
+        )
 
     async def _resolver_empleado_objetivo_crear_solicitud(
         self,
@@ -568,19 +757,18 @@ class SolicitudService:
 
         fecha_inicio = data.fecha_inicio
         fecha_fin = data.fecha_fin
-        if scope_rol == "empleado" and data.tipo == "home_office" and fecha_fin != fecha_inicio:
-            raise DomainValidationError(
-                detail="Para Home Office del empleado solo se permite un día (fecha inicio y fin iguales)."
-            )
         if data.tipo == "home_office":
-            target_cl = await self.empleado_repo.get_with_clasificacion(target.id)
-            if not target_cl or not empleado_es_administrativo(target_cl):
-                raise DomainValidationError(
-                    detail=(
-                        "Home Office solo está disponible para colaboradores "
-                        "con clasificación Administrativo."
-                    )
-                )
+            await self._validar_creacion_home_office(
+                empleado_id=target.id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
+        if data.tipo == "permiso_sin_goce_sueldo":
+            await self._validar_permiso_sin_goce_sueldo_fechas(
+                empleado_id=target.id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
         if data.tipo == "permiso_sin_goce_sueldo" and scope_rol not in (
             "supervisor",
             "gerente",
@@ -596,11 +784,17 @@ class SolicitudService:
                     detail="Solo RH puede crear solicitudes con goce de sueldo"
                 )
             if data.tipo == "matrimonio":
-                fecha_fin = fecha_inicio + timedelta(days=1)
+                _validar_matrimonio_fechas(fecha_inicio, fecha_fin)
             elif data.tipo == "defuncion":
-                fecha_fin = fecha_inicio + timedelta(days=2)
+                emp_clf = await self.empleado_repo.get_with_clasificacion(target.id)
+                admin = emp_clf is not None and empleado_es_administrativo(emp_clf)
+                _validar_defuncion_fechas(
+                    fecha_inicio,
+                    fecha_fin,
+                    administrativo=admin,
+                )
             elif data.tipo == "paternidad":
-                fecha_fin = _sumar_dias_habiles(fecha_inicio, 7)
+                _validar_paternidad_fechas(fecha_inicio, fecha_fin)
             # incapacidad_interna mantiene la fecha_fin indicada por RH.
 
         duplicado = await self.repo.count(
@@ -624,6 +818,11 @@ class SolicitudService:
             raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
 
         if data.tipo == "vacaciones":
+            await self._validar_creacion_vacaciones(
+                empleado_id=target.id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
             await self._debitar_saldo_vacaciones(
                 empleado_id=target.id,
                 fecha_inicio=fecha_inicio,
@@ -1089,6 +1288,36 @@ class SolicitudService:
         if empalme is not None:
             raise ConflictError(detail=_msg_empalme_solicitudes(empalme))
 
+        if solicitud.tipo == "home_office":
+            await self._validar_creacion_home_office(
+                empleado_id=current_user.id,
+                fecha_inicio=data.fecha_inicio,
+                fecha_fin=data.fecha_fin,
+                exclude_solicitud_id=solicitud_id,
+            )
+
+        if solicitud.tipo == "matrimonio":
+            _validar_matrimonio_fechas(data.fecha_inicio, data.fecha_fin)
+
+        if solicitud.tipo == "defuncion":
+            emp_clf = await self.empleado_repo.get_with_clasificacion(current_user.id)
+            admin = emp_clf is not None and empleado_es_administrativo(emp_clf)
+            _validar_defuncion_fechas(
+                data.fecha_inicio,
+                data.fecha_fin,
+                administrativo=admin,
+            )
+
+        if solicitud.tipo == "paternidad":
+            _validar_paternidad_fechas(data.fecha_inicio, data.fecha_fin)
+
+        if solicitud.tipo == "permiso_sin_goce_sueldo":
+            await self._validar_permiso_sin_goce_sueldo_fechas(
+                empleado_id=current_user.id,
+                fecha_inicio=data.fecha_inicio,
+                fecha_fin=data.fecha_fin,
+            )
+
         if solicitud.tipo == "vacaciones":
             await self._restaurar_saldo_vacaciones(
                 empleado_id=current_user.id,
@@ -1105,14 +1334,14 @@ class SolicitudService:
             "estado": solicitud.estado,
             "fecha_inicio": str(solicitud.fecha_inicio),
             "fecha_fin": str(solicitud.fecha_fin),
-            "comentarios": solicitud.comentarios,
+            "motivo": solicitud.motivo,
         }
         await self.repo.update(
             solicitud_id,
             {
                 "fecha_inicio": data.fecha_inicio,
                 "fecha_fin": data.fecha_fin,
-                "comentarios": data.comentarios,
+                "motivo": data.motivo,
                 "estado": "pending",
                 "nivel_actual": 1,
             },
@@ -1130,7 +1359,7 @@ class SolicitudService:
                 "estado": "pending",
                 "fecha_inicio": str(data.fecha_inicio),
                 "fecha_fin": str(data.fecha_fin),
-                "comentarios": data.comentarios,
+                "motivo": data.motivo,
                 "nivel_actual": 1,
             },
         )

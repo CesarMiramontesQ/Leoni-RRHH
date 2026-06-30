@@ -17,10 +17,11 @@ from app.models.empleados_rh import (
 )
 from app.models.turnos_empleados import TurnoEmpleado
 from app.models.vacaciones import Vacaciones
+from app.models.vacaciones_disponibles import VacacionesDisponibles
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
-from app.models.faltas_retardos import FaltaRetardoEvento
+from app.models.faltas_retardos import FaltaRetardoEvento, FaltaRetardoRegistroAuditoria
 from app.models.comedor import (
     Comedor,
     ComedorAcceso,
@@ -57,6 +58,7 @@ from app.models.cursos_catalogo import (
     CursoCategoria,
     CursoClasificacion,
     CursoInstructorExterno,
+    CursoInstructorInterno,
     CursoProveedor,
     CursoTipo,
 )
@@ -74,6 +76,7 @@ from app.models.level_up import (
     OPLVersion,
     EvidenciaCapacitacion,
     EvidenciaFirma,
+    CursoEncuesta,
     EncuestaPostCurso,
     SugerenciaCapacitacion,
     PlanDesarrollo,
@@ -95,6 +98,7 @@ __all__ = [
     "EmpleadoRhHorasExtra",
     "TurnoEmpleado",
     "Vacaciones",
+    "VacacionesDisponibles",
     "Solicitud",
     "SolicitudAprobacion",
     "Incidencia",
@@ -102,6 +106,7 @@ __all__ = [
     "ActaAdministrativa",
     "ActaAprobacion",
     "FaltaRetardoEvento",
+    "FaltaRetardoRegistroAuditoria",
     "Comedor",
     "ComedorAcceso",
     "ComedorCodigoExterno",
@@ -142,6 +147,7 @@ __all__ = [
     "CursoTipo",
     "CursoClasificacion",
     "CursoInstructorExterno",
+    "CursoInstructorInterno",
     "CursoProveedor",
     "Capacidad",
     "CapacidadPuestoPerfil",
@@ -156,6 +162,7 @@ __all__ = [
     "OPLVersion",
     "EvidenciaCapacitacion",
     "EvidenciaFirma",
+    "CursoEncuesta",
     "EncuestaPostCurso",
     "SugerenciaCapacitacion",
     "PlanDesarrollo",

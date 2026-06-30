@@ -42,9 +42,9 @@ let adminUser = true;
 
 const allowedModules = new Set<string>([
   "cursos",
+  "cursos-seguimiento",
   "cursos-ajustes",
   "sesiones",
-  "capacitaciones",
   "puestos",
   "competencias",
   "tareas-catalogo",
@@ -63,9 +63,9 @@ describe("rhNav sections", () => {
     adminUser = true;
     allowedModules.clear();
     allowedModules.add("cursos");
+    allowedModules.add("cursos-seguimiento");
     allowedModules.add("cursos-ajustes");
     allowedModules.add("sesiones");
-    allowedModules.add("capacitaciones");
     allowedModules.add("puestos");
     allowedModules.add("competencias");
     allowedModules.add("tareas-catalogo");
@@ -88,15 +88,14 @@ describe("rhNav sections", () => {
 
     expect(cursosSection?.title).toBe("Cursos");
     expect(cursosSection?.items.map((item) => item.key)).toEqual([
+      "cursos-seguimiento",
       "cursos",
       "sesiones",
-      "capacitaciones",
       "encuestas",
       "cursos-ajustes",
     ]);
     expect(levelUpSection?.items.some((item) => item.key === "cursos")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "sesiones")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "capacitaciones")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
   });
 
@@ -148,6 +147,11 @@ describe("rhNav sections", () => {
 
     expect(cursosSection?.items).toEqual([
       expect.objectContaining({
+        key: "cursos-seguimiento",
+        href: "#/cursos/seguimiento",
+        label: "Seguimiento",
+      }),
+      expect.objectContaining({
         key: "cursos",
         href: "#/cursos",
         label: "Catálogo de cursos",
@@ -156,11 +160,6 @@ describe("rhNav sections", () => {
         key: "sesiones",
         href: "#/sesiones",
         label: "Sesiones",
-      }),
-      expect.objectContaining({
-        key: "capacitaciones",
-        href: "#/capacitaciones",
-        label: "Capacitaciones",
       }),
       expect.objectContaining({
         key: "encuestas",
@@ -242,8 +241,8 @@ describe("rhNav sections", () => {
 
   it("omite Cursos cuando no hay ítems visibles", async () => {
     allowedModules.delete("cursos");
+    allowedModules.delete("cursos-seguimiento");
     allowedModules.delete("sesiones");
-    allowedModules.delete("capacitaciones");
     allowedModules.delete("encuestas");
     allowedModules.delete("cursos-ajustes");
 

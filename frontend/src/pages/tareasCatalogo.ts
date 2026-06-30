@@ -9,16 +9,21 @@ import {
 import { fetchWithAuth } from "../api/http.ts";
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
 import {
-  BTN_SECONDARY,
   BTN_DANGER,
   FIELD_FOCUS,
+  FIELD_INPUT,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
+  pageHeading,
   badgeOpen,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
+  RH_TABLE_HEAD,
 } from "../ui/uiTokens.ts";
 
 // ── Constantes ────────────────────────────────────────────────────────────
@@ -152,7 +157,7 @@ function renderError(message: string | null): string {
       <div class="flex max-w-md flex-col items-center gap-4">
         <p class="text-base font-semibold text-text-primary">Error al cargar el catálogo</p>
         <p class="text-sm leading-relaxed text-text-secondary">${escapeHtml(message || "Error inesperado")}</p>
-        <button type="button" data-action="retry" class="${BTN_SECONDARY}">Reintentar</button>
+        <button type="button" data-action="retry" class="${RH_LISTADO_BTN_SECONDARY}">Reintentar</button>
       </div>
     </div>
   </div>`;
@@ -160,21 +165,10 @@ function renderError(message: string | null): string {
 
 function renderPageHeader(): string {
   return `
-  <header class="tc-page-header flex flex-col gap-3">
-    <nav class="text-xs text-text-muted" aria-label="Breadcrumb">
-      <ol class="flex flex-wrap items-center gap-1">
-        <li><a href="#/" class="font-medium transition hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">Inicio</a></li>
-        <li class="text-slate-300" aria-hidden="true">/</li>
-        <li class="font-semibold text-text-primary" aria-current="page">Catálogo de Tareas</li>
-      </ol>
-    </nav>
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">Catálogo de Tareas</h1>
-      <p class="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
-        Administra las tareas utilizadas en perfiles de puesto y evaluaciones operativas.
-      </p>
-    </div>
-  </header>`;
+  ${pageHeading(
+    "Catálogo de Tareas",
+    "Administra las tareas utilizadas en perfiles de puesto y evaluaciones operativas.",
+  )}`;
 }
 
 function renderKpis(stats: CatalogoStats): string {
@@ -372,12 +366,12 @@ function renderCatalogoTable(
   <section class="${RH_LISTADO_SURFACE} tc-table-wrap overflow-hidden p-0 flex flex-col" aria-label="Listado de tareas">
     <div class="tc-catalogo-scroll overflow-x-auto">
       <table class="tc-catalogo-table min-w-[640px] w-full border-collapse text-left">
-        <thead>
+        <thead class="${RH_TABLE_HEAD}">
           <tr>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Nombre</th>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Categoría</th>
-            <th scope="col" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">Tipo</th>
-            <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"><span class="sr-only">Acciones</span></th>
+            <th scope="col" class="px-4 py-3.5 text-left">Nombre</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Categoría</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Tipo</th>
+            <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100/90">${renderTableRows(pg.items)}</tbody>
@@ -427,8 +421,8 @@ function renderModal(editing: TareaCatalogo | null): string {
     : "Registra una tarea reutilizable en perfiles de puesto.";
 
   return `
-    <div id="tarea-modal-backdrop" class="tc-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="tc-modal-panel w-full max-w-md rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="dialog" aria-modal="true" aria-labelledby="tarea-modal-title">
+    <div id="tarea-modal-backdrop" class="tc-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="tc-modal-panel ${MODAL_PANEL} max-w-md" role="dialog" aria-modal="true" aria-labelledby="tarea-modal-title">
         <div class="border-b border-slate-100 px-6 py-5">
           <h3 id="tarea-modal-title" class="text-lg font-semibold text-text-primary">${title}</h3>
           <p class="mt-1 text-sm text-text-muted">${subtitle}</p>
@@ -438,13 +432,13 @@ function renderModal(editing: TareaCatalogo | null): string {
           <div>
             <label for="tarea-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
             <input id="tarea-modal-nombre" name="nombre" type="text" required value="${escapeHtml(nombre)}"
-              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
+              class="${FIELD_INPUT}"
               placeholder="Descripción de la tarea" />
           </div>
           <div>
             <label for="tarea-modal-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-text-muted font-normal">(opcional)</span></label>
             <input id="tarea-modal-categoria" name="categoria" type="text" value="${escapeHtml(categoria)}"
-              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
+              class="${FIELD_INPUT}"
               placeholder="Ej. logística, calidad, seguridad…" />
           </div>
           <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
@@ -456,7 +450,7 @@ function renderModal(editing: TareaCatalogo | null): string {
             </div>
           </div>
           <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <button type="button" data-action="close-modal" class="${BTN_SECONDARY}">Cancelar</button>
+            <button type="button" data-action="close-modal" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
             <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}">${isEdit ? "Guardar" : "Crear"}</button>
           </div>
         </form>
@@ -466,15 +460,15 @@ function renderModal(editing: TareaCatalogo | null): string {
 
 function renderDeleteConfirm(tarea: TareaCatalogo): string {
   return `
-    <div id="tarea-delete-backdrop" class="tc-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <div class="tc-modal-panel w-full max-w-sm rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_24px_48px_rgba(15,23,42,0.18)]" role="alertdialog" aria-modal="true" aria-labelledby="tarea-delete-title">
+    <div id="tarea-delete-backdrop" class="tc-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="tc-modal-panel ${MODAL_PANEL} max-w-sm p-6" role="alertdialog" aria-modal="true" aria-labelledby="tarea-delete-title">
         <h3 id="tarea-delete-title" class="text-lg font-semibold text-text-primary">Desactivar tarea</h3>
         <p class="mt-2 text-sm leading-relaxed text-text-secondary">
           ¿Desactivar <strong class="text-text-primary">${escapeHtml(tarea.nombre)}</strong> del catálogo?
           Los perfiles que ya la tienen asignada no se verán afectados.
         </p>
         <div class="mt-6 flex justify-end gap-2">
-          <button type="button" data-action="close-delete" class="${BTN_SECONDARY}">Cancelar</button>
+          <button type="button" data-action="close-delete" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
           <button type="button" data-action="confirm-delete" class="${BTN_DANGER}">Desactivar</button>
         </div>
       </div>

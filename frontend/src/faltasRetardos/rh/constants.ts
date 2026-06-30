@@ -8,6 +8,13 @@ export const FALTA_RETARDO_TIPOS: readonly FaltaRetardoTipo[] = [
   "suspension",
 ] as const;
 
+/** Tipos disponibles al crear un registro manual desde RH. */
+export const FALTA_RETARDO_TIPOS_NUEVO_REGISTRO: readonly FaltaRetardoTipo[] = [
+  "retardo",
+  "falta_injustificada",
+  "suspension",
+] as const;
+
 export const FALTA_RETARDO_TIPO_LABELS: Record<FaltaRetardoTipo, string> = {
   falta_justificada: "Falta justificada",
   falta_injustificada: "Falta injustificada",

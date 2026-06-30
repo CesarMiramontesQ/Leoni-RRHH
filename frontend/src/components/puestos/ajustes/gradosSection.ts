@@ -6,7 +6,7 @@ import {
 } from "../../../api/gradosPuesto.ts";
 import type { GradoPuesto, GradoPuestoFetchError } from "../../../dashboard/gradosPuesto/types.ts";
 import { escapeHtml } from "../../../ui/uiUtils.ts";
-import { BTN_DANGER, BTN_SECONDARY, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_LABEL } from "../../../ui/uiTokens.ts";
+import { BTN_DANGER, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_SECONDARY, RH_LISTADO_LABEL } from "../../../ui/uiTokens.ts";
 import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
@@ -44,7 +44,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   function renderTable(): string {
     if (loading) return ajustesLoadingState("Cargando grados…");
     if (error) return ajustesErrorAlert(error);
-    if (items.length === 0) return ajustesEmptyState("No hay grados registrados. Crea el primero.");
+    if (items.length === 0) return ajustesEmptyState("No hay grados registrados. Crea el primero.", `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo grado</span></button>`);
     const rows = items
       .map(
         (g) => `
@@ -83,7 +83,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
             <p class="mt-2 text-sm text-text-secondary">¿Eliminar <strong>${escapeHtml(deletingItem.nombre)}</strong>? No podrás eliminarlo si hay requisitos o asignaciones que lo usen.</p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-grado-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-grado-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="button" data-grado-modal="confirm-delete" class="${BTN_DANGER}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Eliminando…" : "Eliminar"}</button>
             </div>
           </div>
@@ -110,7 +110,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
             </div>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-grado-modal="cancel" class="${BTN_SECONDARY}">Cancelar</button>
+              <button type="button" data-grado-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
               <button type="submit" class="${RH_LISTADO_BTN_PRIMARY}" ${modalSaving ? "disabled" : ""}>${modalSaving ? "Guardando…" : "Guardar"}</button>
             </div>
           </form>
