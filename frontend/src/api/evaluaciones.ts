@@ -129,12 +129,18 @@ export interface CompetenciaResumenItem {
   categoria: string;
   nivel_requerido: number;
   nivel_actual: number;
-  nivel_grado1: number;
+  niveles_por_grado: Record<string, number>;
   gap: number;
   brecha_pct: number;
   severidad: Severidad;
   accion_recomendada: string | null;
   accion_color: string | null;
+}
+
+export interface GradoNivelInfo {
+  grado_id: number;
+  grado_nombre: string;
+  orden: number;
 }
 
 export interface EmpleadoResumen {
@@ -155,6 +161,8 @@ export interface EmpleadoResumen {
   total_competencias: number;
   evaluadas: number;
   con_gap: number;
+  grados: GradoNivelInfo[];
+  grado_actual_id: number | null;
 }
 
 export async function getEmpleadoResumen(empleadoId: number): Promise<EmpleadoResumen | null> {

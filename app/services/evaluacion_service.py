@@ -26,6 +26,7 @@ from app.models.talento import (
     GradoPuesto,
     NivelPuesto,
     PerfilFunciones,
+    PerfilFuncionesCompetencia,
     PuestoPerfil,
 )
 from app.repositories.evaluacion_repository import EvaluacionRepository
@@ -34,6 +35,7 @@ from app.schemas.evaluaciones import (
     EmpleadoCompetenciaResumen,
     EmpleadoConPerfilItem,
     EmpleadoResumenResponse,
+    GradoNivelInfo,
     EvaluacionBulkCreate,
     EvaluacionCreate,
     EvaluacionListResponse,
@@ -64,6 +66,16 @@ ESTADOS_EDITABLES_SUPERVISOR = {"en_revision"}
 
 def _get_rol(user: Empleado) -> str:
     return user.rol.nombre if user.rol else "empleado"
+
+
+def _parse_nivel(valor) -> int | None:
+    """Convierte el nivel evaluado de competencia (texto) a int. None si no parsea."""
+    if valor is None:
+        return None
+    try:
+        return int(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def _to_response(ev: EvaluacionCompetencia) -> EvaluacionResponse:
@@ -508,6 +520,21 @@ class EvaluacionService:
         for ev in cerradas:
             eval_por_empleado.setdefault(ev.empleado_id, {})[ev.competencia_id] = ev.nivel_actual
 
+        # Nivel actual capturado desde Puestos (PerfilFuncionesCompetencia), con prioridad.
+        asig_to_emp = {a.id: a.empleado_id for a in asignaciones}
+        if asig_to_emp:
+            pfc_result = await self.db.execute(
+                select(PerfilFuncionesCompetencia)
+                .options(selectinload(PerfilFuncionesCompetencia.competencia_requisito))
+                .where(PerfilFuncionesCompetencia.perfil_funciones_id.in_(asig_to_emp.keys()))
+            )
+            for pfc in pfc_result.scalars().all():
+                emp_id = asig_to_emp.get(pfc.perfil_funciones_id)
+                req = pfc.competencia_requisito
+                nivel = _parse_nivel(pfc.situacion_actual)
+                if emp_id is not None and req and nivel is not None:
+                    eval_por_empleado.setdefault(emp_id, {})[req.competencia_id] = nivel
+
         items: list[EmpleadoConPerfilItem] = []
         for a in asignaciones:
             emp = a.empleado
@@ -610,28 +637,54 @@ class EvaluacionService:
 
         requisitos = requisitos_result.scalars().all()
 
-        # Nivel requerido en el grado base (Grado 1, menor 'orden') del mismo puesto.
-        # Solo aplica cuando hay perfil asignado; en el fallback por area queda en 0.
-        grado1_map: dict[int, int] = {}
+        # Niveles requeridos por competencia en TODOS los grados del puesto, para
+        # mostrar las columnas Grado 1..N. La brecha sigue siendo vs el grado actual.
+        grados: list[GradoNivelInfo] = []
+        grado_actual_id: int | None = None
+        niveles_por_grado_por_comp: dict[int, dict[int, int]] = {}
         if perfil_funciones:
-            grado_base_result = await self.db.execute(
-                select(GradoPuesto.id).order_by(GradoPuesto.orden).limit(1)
-            )
-            grado_base_id = grado_base_result.scalar_one_or_none()
-            if grado_base_id is not None:
-                grado1_req_result = await self.db.execute(
-                    select(CompetenciaRequisito).where(
-                        CompetenciaRequisito.puesto_perfil_id == perfil_funciones.puesto_perfil_id,
-                        CompetenciaRequisito.grado_id == grado_base_id,
-                    )
+            grado_actual_id = perfil_funciones.grado_id
+            todos_req_result = await self.db.execute(
+                select(CompetenciaRequisito)
+                .options(
+                    selectinload(CompetenciaRequisito.competencia),
+                    selectinload(CompetenciaRequisito.grado),
                 )
-                for req in grado1_req_result.scalars().all():
-                    existing = grado1_map.get(req.competencia_id)
-                    if existing is None or req.nivel_requerido > existing:
-                        grado1_map[req.competencia_id] = req.nivel_requerido
+                .where(
+                    CompetenciaRequisito.puesto_perfil_id == perfil_funciones.puesto_perfil_id,
+                )
+            )
+            grados_presentes: dict[int, GradoPuesto] = {}
+            for req in todos_req_result.scalars().all():
+                comp = req.competencia
+                if not comp or not comp.activo:
+                    continue
+                if req.grado is not None:
+                    grados_presentes[req.grado_id] = req.grado
+                comp_map = niveles_por_grado_por_comp.setdefault(comp.id, {})
+                comp_map[req.grado_id] = req.nivel_requerido
+            grados = [
+                GradoNivelInfo(grado_id=g.id, grado_nombre=g.nombre, orden=g.orden)
+                for g in sorted(grados_presentes.values(), key=lambda g: g.orden)
+            ]
 
         evaluaciones = await self.repo.list_by_empleado_cerradas(empleado_id)
         eval_map = {ev.competencia_id: ev.nivel_actual for ev in evaluaciones}
+
+        # Nivel actual capturado desde el módulo de Puestos
+        # (PerfilFuncionesCompetencia.situacion_actual). Tiene prioridad sobre
+        # EvaluacionCompetencia cuando el empleado tiene un perfil asignado.
+        if perfil_funciones:
+            pfc_result = await self.db.execute(
+                select(PerfilFuncionesCompetencia)
+                .options(selectinload(PerfilFuncionesCompetencia.competencia_requisito))
+                .where(PerfilFuncionesCompetencia.perfil_funciones_id == perfil_funciones.id)
+            )
+            for pfc in pfc_result.scalars().all():
+                req = pfc.competencia_requisito
+                nivel = _parse_nivel(pfc.situacion_actual)
+                if req and nivel is not None:
+                    eval_map[req.competencia_id] = nivel
 
         # Get evaluador from most recent evaluation
         evaluador_nombre = None
@@ -670,7 +723,7 @@ class EvaluacionService:
                 categoria=categoria,
                 nivel_requerido=nivel_req,
                 nivel_actual=nivel_act,
-                nivel_grado1=grado1_map.get(comp_id, 0),
+                niveles_por_grado=niveles_por_grado_por_comp.get(comp_id, {}),
                 gap=gap,
                 brecha_pct=brecha_pct,
                 severidad=severidad,
@@ -721,4 +774,6 @@ class EvaluacionService:
             total_competencias=total,
             evaluadas=evaluadas,
             con_gap=con_gap,
+            grados=grados,
+            grado_actual_id=grado_actual_id,
         )

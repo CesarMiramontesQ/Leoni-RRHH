@@ -277,11 +277,25 @@ export function mountEvaluacionEmpleado(
       </div>`;
   }
 
-  function renderCompetenciaRow(item: CompetenciaResumenItem): string {
+  function renderCompetenciaRow(
+    item: CompetenciaResumenItem,
+    grados: EmpleadoResumen["grados"],
+    gradoActualId: number | null,
+  ): string {
     const nivelLabels = getNivelLabels();
     const maxNivel = Object.keys(nivelLabels).length - 1 || 4;
     const sevCfg = SEVERIDAD_CONFIG[item.severidad] ?? SEVERIDAD_CONFIG.alineado;
     const accionClasses = item.accion_color ? (ACCION_COLORS[item.accion_color] ?? ACCION_COLORS.green) : "";
+
+    const gradoCells = grados.length > 0
+      ? grados.map((g) => {
+          const nivel = item.niveles_por_grado[String(g.grado_id)] ?? 0;
+          const isActual = g.grado_id === gradoActualId;
+          return `<td class="px-4 py-3 text-center ${isActual ? "bg-blue-50/60" : ""}">
+            ${renderCircularGauge(nivel, maxNivel, isActual ? "#3B82F6" : "#94A3B8")}
+          </td>`;
+        }).join("")
+      : `<td class="px-4 py-3 text-center">${renderCircularGauge(item.nivel_requerido, maxNivel, "#94A3B8")}</td>`;
 
     return `
       <tr class="border-b border-gray-100 hover:bg-gray-50/50">
@@ -289,15 +303,10 @@ export function mountEvaluacionEmpleado(
           <div class="text-sm font-medium text-gray-900">${item.competencia_nombre}</div>
           <div class="text-xs text-gray-500 capitalize">${item.categoria}</div>
         </td>
-        <td class="px-4 py-3 text-center bg-blue-50/60">
-          ${renderCircularGauge(item.nivel_grado1, maxNivel, "#3B82F6")}
-        </td>
         <td class="px-4 py-3 text-center">
           ${renderCircularGauge(item.nivel_actual, maxNivel, gaugeColor(item.nivel_actual))}
         </td>
-        <td class="px-4 py-3 text-center">
-          ${renderCircularGauge(item.nivel_requerido, maxNivel, "#94A3B8")}
-        </td>
+        ${gradoCells}
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <span class="size-2 rounded-full ${sevCfg.dot}"></span>
@@ -321,6 +330,13 @@ export function mountEvaluacionEmpleado(
         </div>`;
     }
 
+    const gradoHeaders = data.grados.length > 0
+      ? data.grados.map((g) => {
+          const isActual = g.grado_id === data.grado_actual_id;
+          return `<th class="px-4 py-3 text-center text-xs font-medium uppercase ${isActual ? "text-blue-700 bg-blue-50" : "text-gray-500"}">${g.grado_nombre}</th>`;
+        }).join("")
+      : `<th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Ideal</th>`;
+
     return `
       <div class="mt-8">
         <div class="flex items-center justify-between mb-3">
@@ -332,20 +348,14 @@ export function mountEvaluacionEmpleado(
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competencia</th>
-                <th class="px-4 py-3 text-center text-xs font-medium text-blue-700 uppercase bg-blue-50">
-                  <span class="inline-flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 3a1 1 0 011-1h12a1 1 0 01.78 1.625L13.28 7l3.5 3.375A1 1 0 0116 12H5v6a1 1 0 11-2 0V3z"/></svg>
-                    Nivel 1 Actual
-                  </span>
-                </th>
                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Actual</th>
-                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nivel Ideal</th>
+                ${gradoHeaders}
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brecha (%)</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción Recomendada</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 bg-white">
-              ${data.competencias.map(renderCompetenciaRow).join("")}
+              ${data.competencias.map((item) => renderCompetenciaRow(item, data.grados, data.grado_actual_id)).join("")}
             </tbody>
           </table>
         </div>

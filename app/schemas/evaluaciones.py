@@ -57,13 +57,19 @@ class EvaluacionBulkCreate(BaseModel):
     evaluaciones: list[EvaluacionCreate]
 
 
+class GradoNivelInfo(BaseModel):
+    grado_id: int
+    grado_nombre: str
+    orden: int
+
+
 class EmpleadoCompetenciaResumen(BaseModel):
     competencia_id: int
     competencia_nombre: str
     categoria: str
     nivel_requerido: int
     nivel_actual: int
-    nivel_grado1: int = 0
+    niveles_por_grado: dict[int, int] = {}
     gap: int
     brecha_pct: float = 0.0
     severidad: str = "alineado"
@@ -110,6 +116,8 @@ class EmpleadoResumenResponse(BaseModel):
     total_competencias: int = 0
     evaluadas: int = 0
     con_gap: int = 0
+    grados: list[GradoNivelInfo] = []
+    grado_actual_id: Optional[int] = None
 
 
 

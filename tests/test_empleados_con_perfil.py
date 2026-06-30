@@ -19,6 +19,7 @@ from tests.conftest_talento import (
     make_area,
     make_competencia,
     make_competencia_requisito,
+    make_grado_puesto,
     make_puesto_perfil,
 )
 
@@ -50,6 +51,22 @@ async def _eval_cerrada(db: AsyncSession, *, empleado_id: int, competencia_id: i
     db.add(ev)
     await db.flush()
     return ev
+
+
+async def _pf_competencia(
+    db: AsyncSession, *, perfil_funciones_id: int, competencia_requisito_id: int, situacion_actual: str
+):
+    """Calificación capturada desde el módulo de Puestos (PerfilFuncionesCompetencia)."""
+    from app.models.talento import PerfilFuncionesCompetencia
+
+    pfc = PerfilFuncionesCompetencia(
+        perfil_funciones_id=perfil_funciones_id,
+        competencia_requisito_id=competencia_requisito_id,
+        situacion_actual=situacion_actual,
+    )
+    db.add(pfc)
+    await db.flush()
+    return pfc
 
 
 @pytest.mark.asyncio
@@ -153,3 +170,72 @@ async def test_empleado_sin_scope_no_ve_otros(client: AsyncClient, db):
     assert res.status_code == 200
     ids = {item["empleado_id"] for item in res.json()}
     assert asignado.id not in ids
+
+
+@pytest.mark.asyncio
+async def test_resumen_lee_nivel_capturado_en_puestos(client: AsyncClient, db):
+    """El Nivel Actual debe reflejar la calificación capturada en Puestos
+    (PerfilFuncionesCompetencia.situacion_actual), no solo EvaluacionCompetencia."""
+    area = await make_area(db, descripcion="Calidad PFC")
+    rh = await make_empleado(db, rol="rh", email="pfc_rh@leoni.test", nombre="RH Admin")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    grado = await get_default_grado(db)
+    comp = await make_competencia(db, nombre="Auditoría PFC", categoria="tecnica")
+    req = await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=perfil.id, grado_id=grado.id, nivel_requerido=4
+    )
+
+    emp = await make_empleado(db, rol="empleado", email="pfc_emp@leoni.test", nombre="Empleado PFC")
+    asignacion = await _asignar(db, perfil_id=perfil.id, empleado_id=emp.id, grado_id=grado.id)
+    # Calificación capturada desde Puestos: nivel 3 (texto).
+    await _pf_competencia(
+        db, perfil_funciones_id=asignacion.id, competencia_requisito_id=req.id, situacion_actual="3"
+    )
+
+    headers = await auth_headers(client, rh)
+    res = await client.get(f"/api/v1/evaluaciones/empleado/{emp.id}/resumen", headers=headers)
+    assert res.status_code == 200
+    item = next(c for c in res.json()["competencias"] if c["competencia_id"] == comp.id)
+
+    assert item["nivel_actual"] == 3
+    assert item["nivel_requerido"] == 4
+    assert item["brecha_pct"] == 25.0  # (4-3)/4
+
+
+@pytest.mark.asyncio
+async def test_resumen_incluye_niveles_por_grado(client: AsyncClient, db):
+    area = await make_area(db, descripcion="Calidad Grados")
+    rh = await make_empleado(db, rol="rh", email="grados_rh@leoni.test", nombre="RH Admin")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+    grado1 = await get_default_grado(db)  # orden 1
+    grado2 = await make_grado_puesto(db, nombre="Grado 2", orden=2)
+    comp = await make_competencia(db, nombre="Inglés Grados", categoria="tecnica")
+    # Requisito distinto por grado: G1=2, G2=4.
+    await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=perfil.id, grado_id=grado1.id, nivel_requerido=2
+    )
+    await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=perfil.id, grado_id=grado2.id, nivel_requerido=4
+    )
+
+    emp = await make_empleado(db, rol="empleado", email="grados_emp@leoni.test", nombre="Empleado Grados")
+    await _asignar(db, perfil_id=perfil.id, empleado_id=emp.id, grado_id=grado1.id)
+    await _eval_cerrada(db, empleado_id=emp.id, competencia_id=comp.id, nivel=1)
+
+    headers = await auth_headers(client, rh)
+    res = await client.get(f"/api/v1/evaluaciones/empleado/{emp.id}/resumen", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["grado_actual_id"] == grado1.id
+    grados_ids = [g["grado_id"] for g in data["grados"]]
+    assert grados_ids == [grado1.id, grado2.id]  # ordenados por 'orden'
+
+    item = next(c for c in data["competencias"] if c["competencia_id"] == comp.id)
+    # niveles_por_grado tiene claves string en JSON.
+    assert item["niveles_por_grado"][str(grado1.id)] == 2
+    assert item["niveles_por_grado"][str(grado2.id)] == 4
+    # nivel_requerido y brecha son vs el grado actual (G1 = 2): (2-1)/2 = 50%.
+    assert item["nivel_requerido"] == 2
+    assert item["nivel_actual"] == 1
+    assert item["brecha_pct"] == 50.0
