@@ -73,6 +73,43 @@ from app.schemas.perfil_funciones import (
 logger = logging.getLogger(__name__)
 
 
+def _parse_nivel(valor) -> int | None:
+    """Convierte el nivel evaluado de competencia (string) a int. None si no parsea."""
+    if valor is None:
+        return None
+    try:
+        return int(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def contar_cumplimiento_gap(
+    gap_cualificaciones: list[dict],
+    gap_competencias: list[dict],
+) -> tuple[int, int]:
+    """Cuenta (requeridos, cumplen) para una asignación a partir de su gap analysis.
+
+    - requeridos = total de cualificaciones + competencias del perfil/grado.
+    - cumplen = requisitos satisfechos:
+        cualificación: evaluada y `cumple is True`.
+        competencia: evaluada y nivel evaluado >= nivel requerido.
+    Las brechas son `requeridos - cumplen` (incluye no-cumple y pendientes sin evaluar).
+    """
+    requeridos = len(gap_cualificaciones) + len(gap_competencias)
+    cumplen = 0
+    for c in gap_cualificaciones:
+        if c.get("evaluado") and c.get("cumple") is True:
+            cumplen += 1
+    for k in gap_competencias:
+        if not k.get("evaluado"):
+            continue
+        nivel = _parse_nivel(k.get("situacion_actual"))
+        requerido = k.get("nivel_requerido") or 0
+        if nivel is not None and nivel >= requerido:
+            cumplen += 1
+    return requeridos, cumplen
+
+
 class PerfilFuncionesService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -867,6 +904,30 @@ class PerfilFuncionesService:
                 "pendientes_competencias": total_competencias - evaluadas_comp,
             },
         }
+
+    async def brechas_cumplimiento_por_perfil(
+        self, perfil_ids: list[int]
+    ) -> dict[int, tuple[int, int]]:
+        """Agrega (requeridos, cumplen) por perfil sumando cada asignación activa en su grado.
+
+        Reusa `obtener_asignacion_con_gap` (grado-correcto). Las brechas activas de un perfil
+        son `requeridos - cumplen` (cualificaciones que no cumplen + competencias por debajo del
+        nivel + requisitos aún sin evaluar).
+        """
+        resultado: dict[int, tuple[int, int]] = {}
+        for perfil_id in perfil_ids:
+            asignaciones = await self.asignacion_repo.list_by_perfil(perfil_id)
+            total_req = 0
+            total_cum = 0
+            for asignacion in asignaciones:
+                gap = await self.obtener_asignacion_con_gap(perfil_id, asignacion.id)
+                req, cum = contar_cumplimiento_gap(
+                    gap["gap_cualificaciones"], gap["gap_competencias"]
+                )
+                total_req += req
+                total_cum += cum
+            resultado[perfil_id] = (total_req, total_cum)
+        return resultado
 
     async def actualizar_evaluaciones(
         self,

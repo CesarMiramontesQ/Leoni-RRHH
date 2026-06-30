@@ -81,6 +81,20 @@ class PuestoPerfilService:
 
     async def resumen_tarjetas(self) -> ResumenTarjetasResponse:
         rows = await self.repo.get_resumen_tarjetas()
+        # Recalcular brechas y % cumplimiento como "requisitos que no cumplen el mínimo del
+        # puesto+grado del empleado (incluye pendientes)". Reemplaza el conteo del repo.
+        from app.services.perfil_funciones_service import PerfilFuncionesService
+
+        perfil_funciones_service = PerfilFuncionesService(self.db)
+        brechas_cumpl = await perfil_funciones_service.brechas_cumplimiento_por_perfil(
+            [row["id"] for row in rows]
+        )
+        for row in rows:
+            requeridos, cumplen = brechas_cumpl.get(row["id"], (0, 0))
+            row["brechas"] = requeridos - cumplen
+            row["cumplimiento_pct"] = (
+                round(cumplen / requeridos * 100) if requeridos > 0 else 0
+            )
         items = [PerfilTarjetaItem(**row) for row in rows]
         return ResumenTarjetasResponse(items=items)
 

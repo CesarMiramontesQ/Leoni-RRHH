@@ -184,7 +184,7 @@ function renderBrechasBlock(brechas: number): string {
       <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80" role="presentation">
         <div class="${sev.bar} h-2 rounded-full transition-[width] duration-300" style="width:${pct}%"></div>
       </div>
-      <p class="mt-1.5 text-[10px] leading-snug text-text-muted">Indicador orientativo de evaluaciones pendientes por cerrar.</p>
+      <p class="mt-1.5 text-[10px] leading-snug text-text-muted">Requisitos (calificaciones y competencias) que no cumplen el mínimo del puesto y grado, o aún sin evaluar.</p>
     </div>
   </div>`;
 }
@@ -225,7 +225,7 @@ function renderKpiDashboard(tarjetas: PerfilTarjetaItem[]): string {
     {
       label: "Cumplimiento promedio",
       value: `${avgCumplimiento}%`,
-      sub: "Evaluaciones completadas",
+      sub: "Requisitos que cumplen el mínimo",
       icon: ICON_CHART,
       iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
       valueClass: avgCumplimiento < 80 ? "text-red-700" : avgCumplimiento < 90 ? "text-amber-800" : "",
@@ -233,7 +233,7 @@ function renderKpiDashboard(tarjetas: PerfilTarjetaItem[]): string {
     {
       label: "Brechas totales",
       value: String(totalBrechas),
-      sub: "Evaluaciones pendientes",
+      sub: "No cumplen el mínimo o sin evaluar",
       icon: ICON_ALERT,
       iconWrap: brechasCritico ? "rh-dash-kpi-icon rh-dash-kpi-icon--red" : "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
       valueClass: brechasCritico ? "text-red-700" : "",
