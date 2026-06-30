@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, role_checker
+from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas.evaluaciones import (
     EmpleadoConPerfilItem,
@@ -203,11 +203,15 @@ async def patch_pdi_estado(
 @router.get("/empleados-con-perfil", response_model=list[EmpleadoConPerfilItem])
 async def empleados_con_perfil(
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
     """Empleados con una asignación activa a un perfil de puesto (para el selector)."""
     service = EvaluacionService(db)
-    return await service.listar_empleados_con_perfil(current_user=current_user)
+    return await service.listar_empleados_con_perfil(
+        current_user=current_user,
+        rh_ui_mode=rh_ui_mode,
+    )
 
 
 @router.get("/empleado/{empleado_id}", response_model=list[EvaluacionResponse])

@@ -147,6 +147,7 @@ async def test_orden_por_readiness_desc_con_metricas(client: AsyncClient, db):
     bajo = next(d for d in data if d["empleado_id"] == emp_bajo.id)
     assert alto["readiness_score"] == 100.0
     assert alto["brechas_identificadas"] == 0
+    assert alto["competencias_evaluadas"] == 1
     assert bajo["readiness_score"] < alto["readiness_score"]
     assert bajo["brechas_identificadas"] == 1
     assert bajo["total_competencias"] == 1
@@ -200,6 +201,11 @@ async def test_resumen_lee_nivel_capturado_en_puestos(client: AsyncClient, db):
     assert item["nivel_actual"] == 3
     assert item["nivel_requerido"] == 4
     assert item["brecha_pct"] == 25.0  # (4-3)/4
+
+    list_res = await client.get("/api/v1/evaluaciones/empleados-con-perfil", headers=headers)
+    assert list_res.status_code == 200
+    row = next(i for i in list_res.json() if i["empleado_id"] == emp.id)
+    assert row["competencias_evaluadas"] == 1
 
 
 @pytest.mark.asyncio

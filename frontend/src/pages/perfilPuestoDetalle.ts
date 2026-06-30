@@ -580,6 +580,19 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
   }
 
   const grados = porGrado.map((p) => p.grado);
+  const colCount = grados.length + 1;
+
+  const headCells = grados
+    .map(
+      (g) => `
+      <th scope="col" class="ppd-matrix-col">
+        <div class="ppd-matrix-col-head">
+          <span class="ppd-matrix-col-name">${escapeHtml(g.nombre)}</span>
+          ${gradoColEditBtn(g.id, `Editar ${g.nombre}`)}
+        </div>
+      </th>`,
+    )
+    .join("");
 
   // Pivote: categoría → competencia_id → { nombre, nivel por grado }.
   const byCat = new Map<string, Map<number, CompMatrixEntry>>();
@@ -605,6 +618,29 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
   const uniqueCount = Array.from(byCat.values()).reduce((s, m) => s + m.size, 0);
 
   if (uniqueCount === 0) {
+    const emptyHint = canEditarPerfilPuesto()
+      ? " Usa el lápiz en cada grado para agregar competencias del catálogo o crear nuevas."
+      : "";
+    const body = `
+    ${renderCompetenciasLegend(maxNivel)}
+    <div class="ppd-matrix-wrap">
+      <table class="ppd-matrix">
+        <thead>
+          <tr>
+            <th scope="col" class="ppd-matrix-corner">Competencia</th>
+            ${headCells}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="${colCount}" class="px-4 py-8 text-center text-sm text-text-muted">
+              Sin competencias asignadas.${emptyHint}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+
     return sectionShell(
       "ppd-competencias",
       "Competencias demostradas",
@@ -612,10 +648,7 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
       0,
       "",
       "",
-      emptyState(
-        "Sin competencias asignadas",
-        canEditarPerfilPuesto() ? "Edita cada grado para agregar las competencias requeridas." : undefined,
-      ),
+      body,
     );
   }
 
@@ -624,20 +657,6 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
     const ib = CATEGORIA_ORDER.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
-
-  const colCount = grados.length + 1;
-
-  const headCells = grados
-    .map(
-      (g) => `
-      <th scope="col" class="ppd-matrix-col">
-        <div class="ppd-matrix-col-head">
-          <span class="ppd-matrix-col-name">${escapeHtml(g.nombre)}</span>
-          ${gradoColEditBtn(g.id, `Editar ${g.nombre}`)}
-        </div>
-      </th>`,
-    )
-    .join("");
 
   const bodyRows = cats
     .map((cat) => {

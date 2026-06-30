@@ -466,13 +466,15 @@ class EvaluacionService:
         return None, None
 
     async def listar_empleados_con_perfil(
-        self, current_user: Empleado
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None = None,
     ) -> list[EmpleadoConPerfilItem]:
         """Lista empleados con una asignación activa a un perfil de puesto (PerfilFunciones).
 
         Aplica scope: RH ve todos, supervisor solo su área, cualquier otro solo a sí mismo.
         """
-        scope = effective_data_scope_rol(current_user)
+        scope = effective_data_scope_rol(current_user, rh_ui_mode)
         pf_repo = PerfilFuncionesRepository(self.db)
         asignaciones = await pf_repo.list_all_active()
 
@@ -553,6 +555,9 @@ class EvaluacionService:
             total = len(brechas_pct)
             brechas_identificadas = sum(1 for p in brechas_pct if p > 0)
             competencias_alineadas = sum(1 for p in brechas_pct if p == 0)
+            competencias_evaluadas = sum(
+                1 for comp_id in comp_reqs if eval_map.get(comp_id, 0) > 0
+            )
             brecha_promedio = round(sum(brechas_pct) / total, 1) if total > 0 else 0.0
             readiness_score = round(100 - brecha_promedio, 1)
             severidad_promedio = self._classify_severidad(brecha_promedio)
@@ -574,6 +579,7 @@ class EvaluacionService:
                 severidad_promedio=severidad_promedio,
                 competencias_alineadas=competencias_alineadas,
                 total_competencias=total,
+                competencias_evaluadas=competencias_evaluadas,
             ))
 
         items.sort(key=lambda i: i.readiness_score, reverse=True)
